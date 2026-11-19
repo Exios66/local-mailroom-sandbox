@@ -202,3 +202,15 @@ def test_compare_pairs_two_question_sets_on_the_same_rows(tmp_path):
     assert res["intact"]["net"] == 0 and res["decision"] == "adopt"
     with pytest.raises(SystemExit, match="two different question sets"):
         ff.compare((tmp_path / "bi", tmp_path / "bd"), (tmp_path / "bi", tmp_path / "bd"), defects)
+
+
+def test_a_bundle_is_unscored_not_wrong_once_locked(tmp_path):
+    from mailroom_sandbox.corpus import normalize_rows
+    from mailroom_sandbox.eval.agents import _score_class
+
+    rows = ff.build(_rows())
+    join = normalize_rows([next(r for r in rows if r["control"] == "join")])[0]
+    frag = normalize_rows([next(r for r in rows if r["control"] != "join")])[0]
+    pred = {"doc_type": "merger_agreement", "abstained": False}
+    assert _score_class(join, pred)["outcome"] == "unscored"
+    assert _score_class(frag, pred)["outcome"] in ("wrong", "correct")
