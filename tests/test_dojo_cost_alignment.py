@@ -86,3 +86,68 @@ def test_openai_usage_keeps_an_explicit_zero(usage, expected):
     resp = _Resp()
     resp.usage = usage
     assert usage_from_openai_response(resp) == expected
+
+
+def test_tiered_model_prices_each_item_at_its_own_tier():
+    # qwen3.7-flash: $0.03/$0.13 per 1M below 32k prompt tokens, $0.10/$0.40 from 32k.
+    items = [{"ok": True, "prompt_tokens": 3_700, "completion_tokens": 90, "llm_calls": 1}] * 16 + [
+        {"ok": True, "prompt_tokens": 80_000, "completion_tokens": 130, "llm_calls": 1}] * 4
+    rec = _record(items, model="qwen/qwen3.7-flash")
+    small = 16 * (3_700 * 0.03 + 90 * 0.13) / 1e6
+    large = 4 * (80_000 * 0.10 + 130 * 0.40) / 1e6
+    assert rec["estimated_cost_usd"] == pytest.approx(small + large, abs=1e-6)
+    flat = (16 * 3_700 + 4 * 80_000) * 0.03 / 1e6  # the old run-total pricing: every call in the cheap tier
+    assert rec["estimated_cost_usd"] > 2 * flat
+
+
+def test_multi_call_items_that_may_straddle_a_tier_are_flagged():
+    # Items record call totals only: a 3-call item with 60k prompt tokens may have one call over the
+    # 32k threshold, so it is priced at its average call's tier and counted as approximate.
+    rec = _record([{"ok": True, "prompt_tokens": 60_000, "completion_tokens": 300, "llm_calls": 3},
+                   {"ok": True, "prompt_tokens": 9_000, "completion_tokens": 300, "llm_calls": 3},
+                   {"ok": True, "prompt_tokens": 80_000, "completion_tokens": 100, "llm_calls": 1}],
+                  model="qwen/qwen3.7-flash")
+    assert rec["cost_tier_approximate_items"] == 1
+    assert "cost_tier_approximate_items" not in _record(
+        [{"ok": True, "prompt_tokens": 80_000, "completion_tokens": 100, "llm_calls": 1}], model="qwen/qwen3.7-flash")
+
+
+def test_per_call_usage_prices_each_call_at_its_own_tier():
+    # Two calls of 10k and 50k prompt tokens: the 50k call is in the upper tier even though the average is not.
+    rec = _record([{"ok": True, "prompt_tokens": 60_000, "completion_tokens": 20, "llm_calls": 2,
+                    "call_usage": [[10_000, 10], [50_000, 10]]}], model="qwen/qwen3.7-flash")
+    expected = (10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6
+    assert rec["estimated_cost_usd"] == pytest.approx(expected, abs=1e-6)
+    assert "cost_tier_approximate_items" not in rec
+
+
+def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monkeypatch, tmp_path):
+    # Through run_pipeline_eval: the document's two calls are recorded in the vendored accumulator,
+    # captured per call, persisted by the job runner, then priced call by call in the serving record.
+    from pipeline.limits import record_usage
+
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    def fake_doc(row, **_):
+        record_usage({"prompt_tokens": 10_000, "completion_tokens": 10}, model="qwen/qwen3.7-flash", agent="sorter")
+        record_usage({"prompt_tokens": 50_000, "completion_tokens": 10}, model="qwen/qwen3.7-flash", agent="specialist")
+        return {"stage": "archived", "doc_type": "contract"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    # A non-mock eval appends to reports/experiment_log.jsonl; keep this synthetic record out of it.
+    logged = []
+    monkeypatch.setattr(runners.experiment_log, "append", lambda record, path=None: logged.append(record) or path)
+    rows = []
+    runners.run_pipeline_eval(profile="ollama", rows=[{"id": "a", "expected_doc_class": "contract", "text": "x"}],
+                              mock=False, connected=False, row_cb=rows.append)
+    assert rows[0]["call_usage"] == [[10_000, 10], [50_000, 10]] and rows[0]["llm_calls"] == 2
+    assert len(logged) == 1
+    store = RunStore(tmp_path / "r")
+    _persist_isolated_items(store, rows)
+    items = store.load_items()
+    assert items[0]["call_usage"] == [[10_000, 10], [50_000, 10]]
+    rec = _record(items, model="qwen/qwen3.7-flash")
+    assert rec["estimated_cost_usd"] == pytest.approx((10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6, abs=1e-6)
+    assert "cost_tier_approximate_items" not in rec

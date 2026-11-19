@@ -220,10 +220,77 @@ refuses any draw through `heldout.exclude.ids` unless two conditions hold: the r
 `rb1-r70*`..`rb1-r72*`, and the shell sets `SANDBOX_UNSEAL_HELDOUT` to exactly that run id. It also
 refuses, and deletes the prepared file, when another split-exclusion draw prepares held-out rows.
 
+**Per-class support (added 2026-11-19).** A macro-F1 non-inferiority claim also needs every class
+to carry at least ln(0.05)/ln(1 - K x margin) compared documents: 29 at K = 5 and a 2-point margin
+(`sorter_arms.macro_class_support`). Below that, the claim reads "not shown" whatever the
+bootstrap says. Exception (owner decision, 2026-11-19): `merger_agreement` is exempt
+(`SUPPORT_EXEMPT_CLASSES`). It is the smallest class but the longest and densest documents, so its
+shortfall is reported (`exempt_underpowered`) and does not block. dev-look1 (merger_agreement
+20; the other classes 54 or more) and held-out (59 or more per class) both meet the rule.
+
 **Open owner decisions.** (10) Full-1,000 primary with strata, as above. (11) The macro-F1 margin,
 2 pts or 3 pts. (12) The unit margin, 4 pts. (13) Which extra decision models R13b screens.
 (14) Whether arm A at R70b is v0 only, or v0 and the final sorter (the final would be a secondary
 comparison in the same H5 family).
+
+## Archive reviewer gate: calibration-case harvest (planned, after H5)
+
+Owner request, 2026-11-19. Sequenced after the H5 sorter comparison (R13b checkpoint, dev-look1,
+R70b); it does not change any H5 row.
+
+**Role.** A Decisions-API model sits in front of the archive as its audit gate. It sees the
+document and the pipeline's final record (class, subclass, extracted fields, document form). It
+then either accepts the record for archiving, or rejects it to a person when the record is
+incomplete, the document is not one complete instrument, or a value is wrong or unsupported by
+the text. It is judged on two errors that pull in opposite directions:
+
+- **wrong archives** it lets through (the production bar is ≤ 2%, from
+  `2026-11-16-production-slice-gate.md`);
+- **false rejects** it sends to a person, which add to the review rate (≤ 5% bar).
+
+The R13b smoke showed both risks. Question set 4.0.0 parked 5 intact documents (false rejects).
+The LLM sorter routed 6 correct answers to a person because its confidence sits just under the
+class band.
+
+**Harvest.** A deterministic, offline script (planned `scripts/harvest_archive_review_cases.py`,
+code mode) reads finished runs, traces and served ledgers. It writes one case per document and
+stage:
+
+| Case type | Expected verdict | Sources already on disk or planned |
+| --- | --- | --- |
+| Wrong class or subclass in the final record | reject | sorter misses in R13b and R03 runs, scored against gold with the SHF-013 corrections |
+| Field value wrong, missing, or not in the text (hallucination) | reject | R03 specialist v0 passes against the gold and interim overlays; the label-review `corrected` verdicts |
+| Fragment, excerpt, or several unrelated documents joined | reject | `data/runtime/rb1-r13b/form-controls.jsonl` (synthetic, known by construction); real cases as they appear |
+| Complete instrument with annexes, amendments, an index of defined terms, or an unsigned form exhibit | accept | the 5 R13b false parks (hard negatives against over-rejecting) |
+| Correct record whose stated confidence is under the class band | accept | the 6 R13b LLM-arm routes; later runs |
+| Clean, correct, complete record | accept | correct dev rows, sampled per class |
+
+Each case records:
+
+- the doc id and split
+- the source run id, spec hash and trace span ids
+- the stage
+- the pipeline record and the truth
+- the error type and the expected verdict
+- a verbatim evidence quote
+
+The digest prints counts per class × case type × verdict, so gaps are visible before any run.
+
+**Split hygiene.**
+
+- **Calibration:** that split stays reserved for fitting and certifying the gate's thresholds (H3 method).
+- **Exemplars:** prompt examples come only from dev and pool documents.
+- **Held-out:** stays sealed.
+- **Synthetic controls:** labelled synthetic and reported apart from real cases.
+
+**Measures to report.** Per class:
+
+- the wrong-archive rate with its one-sided 95% Clopper-Pearson bound
+- the false-reject rate
+- the reject reasons
+- cost and throughput, as in the H5 runtime block
+
+These are compared with the current band rule as the baseline.
 
 ## Verification
 

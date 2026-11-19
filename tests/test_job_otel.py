@@ -69,3 +69,19 @@ def test_locked_pipeline_provider_overrides_and_restores(monkeypatch):
     with otel.locked_pipeline_provider({}):
         assert otel.os.environ["OBSERVABILITY_PROVIDER"] == "none"
     assert "OBSERVABILITY_PROVIDER" not in otel.os.environ
+
+
+def test_sink_none_turns_off_langfuse_sdk_tracing_and_restores_env(monkeypatch):
+    import os
+
+    from mailroom_sandbox.job.otel import locked_pipeline_provider
+
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    monkeypatch.delenv("LANGFUSE_TRACING_ENABLED", raising=False)
+    with locked_pipeline_provider({"trace": {"sink": "none"}}) as provider:
+        assert provider == "none"
+        assert os.environ["LANGFUSE_TRACING_ENABLED"] == "false"
+    assert os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"
+    assert "LANGFUSE_TRACING_ENABLED" not in os.environ
+    with locked_pipeline_provider({"trace": {"sink": "langfuse"}}):
+        assert "LANGFUSE_TRACING_ENABLED" not in os.environ  # a chosen remote sink keeps exporting

@@ -1,0 +1,69 @@
+# Stage 1 of 3 of the H5 sorter head-to-head (SAND-108). The two smoke20 configs share this exact
+# dataset block (dev-look1, 4 docs per class, sample_seed 20261118), so they draw the same 20 documents
+# and pair one to one. Purpose: prove the mechanics (pairing, one request per document, cost
+# accounting, abstention/routing columns, report folders) before dev-look1 (300) and dev (600/900).
+# Launch ONE arm at a time, LLM arm first, from the repository root with the owner's initials.
+#
+# Arm B: Decisions-API model openai/gpt-6-luna-decisions as the sorter (task sorter_reviewer) with the
+# handoff-free question set reviewer_decisions_v4.0.0. The lineage frontrunner 3.1.0 reads the sorter
+# handoff, so it cannot replace the sorter. SHF-009 applies the 4.0.0 contract: parked documents carry
+# abstained/route_to_human/abstain_reasons, reported by compare_sorter_arms under `routing`
+# alongside the forced-choice doc_type and subclass scores. One `decisions` request per document.
+# Cost: input only at $0.1/M, ~0.7M tokens, about $0.07. Caps $0.15, 1800 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna.jsonl sandbox run preflight --config config/runs/rb1-r13b-smoke20-decision-sorter-luna.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna.jsonl sandbox run start --config config/runs/rb1-r13b-smoke20-decision-sorter-luna.yaml --initials <XX>
+# Readout (offline, after both arms):
+#   python scripts/compare_sorter_arms.py --a rb1-r13b-smoke20-llm-sorter-qwen3.7-flash --b rb1-r13b-smoke20-decision-sorter-luna --experiment-key rb1-r13b --write
+schema: sandbox.run/v1
+run_id: rb1-r13b-smoke20-decision-sorter-luna
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 4}
+      - {doc_class: corporate_record, count: 4}
+      - {doc_class: correspondence, count: 4}
+      - {doc_class: insurance_claim, count: 4}
+      - {doc_class: merger_agreement, count: 4}
+  limit: 20
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.0
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.15
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.15
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, smoke20, decisions-api, decision-sorter, dev-look1]

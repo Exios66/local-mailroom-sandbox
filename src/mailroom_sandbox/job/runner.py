@@ -863,6 +863,11 @@ def _persist_isolated_items(
                 # one call, which put a document's whole prompt in the top price tier).
                 **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
                 **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
+                # Per-call (prompt, completion) tokens, so a tiered price applies to each call.
+                **({"call_usage": row["call_usage"]} if row.get("call_usage") else {}),
+                # The evaluator's execution window; ``ts`` is when the row was persisted, which can
+                # trail the answer while the main thread drains results.
+                **{k: row[k] for k in ("started_at_ns", "finished_at_ns") if isinstance(row.get(k), int)},
                 "ts": utc_now(),
             }
         )

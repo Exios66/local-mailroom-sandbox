@@ -54,6 +54,7 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -120,7 +121,7 @@ def _field(response: Any, name: str) -> Any:
     if isinstance(response, dict):
         return response.get(name)
     value = getattr(response, name, None)
-    if not value:
+    if value is None:  # a reported 0 or 0.0 is a value, not a reason to look further
         extra = getattr(response, "model_extra", None) or {}
         value = extra.get(name) if isinstance(extra, dict) else None
     return value
@@ -141,6 +142,29 @@ def provider_in_order(provider: str, order: list[str] | tuple[str, ...]) -> bool
     """
     served = _provider_key(provider)
     return any(served in {_provider_key(p), _provider_key(str(p).split("/", 1)[0])} for p in order)
+
+
+def served_usage(response: Any) -> dict[str, Any]:
+    """Billed tokens and the provider-reported USD cost of one response, when it states them.
+
+    OpenRouter returns ``usage.cost`` (credits, USD) on chat and Decisions responses. A missing
+    figure stays absent, never 0, so a ledger total can tell "free" from "not reported".
+    """
+    usage = _field(response, "usage")
+    if usage is None:
+        return {}
+    out: dict[str, Any] = {}
+    for key, names in (("prompt_tokens", ("prompt_tokens", "input_tokens")),
+                       ("completion_tokens", ("completion_tokens", "output_tokens")),
+                       ("reported_cost_usd", ("cost",))):
+        for name in names:
+            value = _field(usage, name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if not math.isfinite(value):  # NaN or inf: not a measurement; never written to the ledger
+                    continue
+                out[key] = value
+                break
+    return out
 
 
 def served_provider(response: Any) -> str | None:
@@ -202,6 +226,7 @@ def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
         "mismatch": provider_off or model_off,
         "status": status,
         "call_path": call_path,
+        **served_usage(response),
     }
     _append(entry)
     if entry["mismatch"]:
@@ -239,6 +264,7 @@ def record_decision(model: str, data: Any, canonical_slug: str | None) -> dict[s
         "call_path": "decisions",
         "version_confirmed": bool(canonical_slug) and served is not None
         and served.casefold() == str(canonical_slug).casefold(),
+        **served_usage(data),
     }
     _append(entry)
     if model_off:
@@ -257,7 +283,11 @@ def reset_ledger() -> None:
 
 
 def summarize(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Per requested model: calls, served models, served providers, and mismatch / verified / unverified counts."""
+    """Per requested model: calls, served models, served providers, and mismatch / verified / unverified counts.
+
+    ``reported_cost_usd`` (with ``cost_reported_calls``) sums the provider's own cost figures and
+    is present only when at least one response reported one.
+    """
     out: dict[str, dict[str, Any]] = {}
     for e in entries:
         s = out.setdefault(e["requested_model"], {"calls": 0, "served_models": {}, "providers": {}, "mismatches": 0,
@@ -269,6 +299,9 @@ def summarize(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         status = e.get("status") or ("mismatch" if e["mismatch"] else "unverified")
         if status in ("verified", "unverified"):
             s[status] += 1
+        if isinstance(e.get("reported_cost_usd"), (int, float)):
+            s["reported_cost_usd"] = round(s.get("reported_cost_usd", 0.0) + float(e["reported_cost_usd"]), 8)
+            s["cost_reported_calls"] = s.get("cost_reported_calls", 0) + 1
     return out
 
 

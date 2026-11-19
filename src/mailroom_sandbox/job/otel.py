@@ -144,15 +144,23 @@ def locked_pipeline_provider(lock: dict[str, Any]) -> Iterator[str]:
     installed, and every chat call fails.
     """
     provider = pipeline_provider((lock.get("trace") or {}).get("sink"))
-    saved = os.environ.get("OBSERVABILITY_PROVIDER")
-    os.environ["OBSERVABILITY_PROVIDER"] = provider
+    # ``sink: none`` keeps traces local (the run's spans mirror under data/traces/). The vendored
+    # pipeline still builds a real Langfuse client whenever LANGFUSE_SECRET_KEY is set, and that
+    # client exports to LANGFUSE_HOST (localhost:3000 by default) and retries at exit; switching
+    # the SDK's tracing off keeps a sink-agnostic run from contacting any trace backend.
+    env = {"OBSERVABILITY_PROVIDER": provider}
+    if provider == "none":
+        env["LANGFUSE_TRACING_ENABLED"] = "false"
+    saved = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
     try:
         yield provider
     finally:
-        if saved is None:
-            os.environ.pop("OBSERVABILITY_PROVIDER", None)
-        else:
-            os.environ["OBSERVABILITY_PROVIDER"] = saved
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def resolve_sink(

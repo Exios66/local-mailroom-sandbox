@@ -84,6 +84,8 @@ class Arm:
     identity: dict[str, Any]
     items: dict[str, dict[str, Any]]
     truth: dict[str, tuple[str, str | None]]
+    concurrency: int | None = None
+    run_wall_seconds: float | None = None  # the run's start event to its done event
 
 
 def _resolve(ref: str | Path, runs_root: Path | None) -> Path:
@@ -151,9 +153,31 @@ def load_arm(ref: str | Path, *, runs_root: Path | None = None) -> Arm:
         "dataset_sha256": dataset.get("sha256"),
         "dependency_sources": {k: (v or {}).get("commit") for k, v in (lock.get("dependency_sources") or {}).items()},
     }
+    events = {str(e.get("event")): e.get("ts") for e in _jsonl(path / "events.jsonl")} if (path / "events.jsonl").is_file() else {}
+    start, done = _epoch(events.get("start")), _epoch(events.get("done"))
+    concurrency = (lock.get("job") or {}).get("concurrency")
     return Arm(run_id=str(lock.get("run_id") or path.name), path=path, task=task, model=model,
                mock=bool((lock.get("job") or {}).get("mock")), revision=revision or (sorted(revisions)[0] if revisions else None),
-               identity=identity, items=items, truth=truth)
+               identity=identity, items=items, truth=truth,
+               concurrency=int(concurrency) if isinstance(concurrency, (int, float)) else None,
+               run_wall_seconds=(done - start) if start is not None and done is not None and done >= start else None)
+
+
+def _ns_epoch(value: Any) -> float | None:
+    """Epoch seconds from an integer nanosecond timestamp, or None."""
+    return value / 1e9 if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
+def _epoch(ts: Any) -> float | None:
+    """Seconds since the epoch for an ISO-8601 timestamp (``Z`` or offset); None when absent or unparsable."""
+    if not ts:
+        return None
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
 
 
 # --------------------------------------------------------------------------- sets
@@ -261,11 +285,23 @@ class Outcome:
     cost_usd: float | None
     reported_cost_usd: float | None
     tokens: tuple[int, int] = (0, 0)
-    # A 4.0.0+ Decisions answer the routing contract parked (abstained / route_to_human). Its
-    # forced-choice doc_type still scores above; ``routing`` reports the parked share and the
-    # accuracy of the documents it would auto-route.
+    # Sent to a person by the arm's own rule (_human_route): a decision arm's routing contract
+    # (4.0.0+ abstained / route_to_human), or an LLM sorter answer under its class's ``high`` band.
+    # The forced-choice answer still scores above; ``routing`` reports the routed share and the
+    # accuracy of the documents the arm would send on unattended.
     abstained: bool = False
     abstain_reasons: tuple[str, ...] = ()
+    # SHF-013: a reviewed correction replaced the Hub subclass (sub_ok / unit_ok score the corrected
+    # truth); the hub_* fields keep the outcome on the Hub truth.
+    sub_corrected: bool = False
+    hub_sub_ok: bool = False
+    hub_unit_scored: bool = False
+    hub_unit_ok: bool = False
+    # Epoch seconds of the evaluator's execution window (``started_at_ns`` / ``finished_at_ns``). Older
+    # items have only the persistence time ``ts``: finished_ts falls back to it, started_ts stays None,
+    # and the runtime block labels its figures as estimates.
+    finished_ts: float | None = None
+    started_ts: float | None = None
 
 
 def _num(value: Any) -> float | None:
@@ -276,13 +312,13 @@ def _num(value: Any) -> float | None:
 
 def item_cost(model: str, item: Mapping[str, Any]) -> float | None:
     """USD for one item's billed tokens; None when an answered item carries no usage or the model has no price."""
-    from mailroom_sandbox.job.metrics import call_cost
+    from mailroom_sandbox.job.metrics import item_calls_cost
 
     prompt, completion = item.get("prompt_tokens"), item.get("completion_tokens")
     if prompt is None and completion is None:
         failed = not item.get("ok") or item.get("error")
         return 0.0 if failed else None
-    return call_cost(model, float(prompt or 0), float(completion or 0), calls=int(item.get("llm_calls") or 1))
+    return item_calls_cost(model, item)[0]
 
 
 def _confidence(pred: Mapping[str, Any]) -> float | None:
@@ -294,33 +330,117 @@ def _confidence(pred: Mapping[str, Any]) -> float | None:
 
 
 def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str]) -> list[Outcome]:
+    """Per-document outcomes. The subclass and the unit score the reviewed subclass corrections
+    (SHF-013, ``data/labels/review/subclass_corrections.jsonl``) when the fix is current; the outcome
+    on the Hub truth is kept beside them (``hub_sub_ok``, ``hub_unit_scored``, ``hub_unit_ok``)."""
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.experiment_splits import _subclass_token, unit_correct, unit_of
 
+    correct = sh.enabled("SHF-013")
     out = []
     for doc_id in ids:
         item = arm.items[doc_id]
         pred = item.get("pred") or {}
-        truth_class, truth_sub = arm.truth[doc_id]
+        truth_class, hub_sub = arm.truth[doc_id]
+        corrected = sh.corrected_subclass(doc_id, truth_class, hub_sub) if correct and hub_sub else None
+        truth_sub = corrected or hub_sub
         failed = bool(item.get("error")) or not item.get("ok") or not pred.get("doc_type")
         pred_class = FAILED if failed else str(pred.get("doc_type"))
         pred_sub = None if failed else (pred.get("doc_subclass") or pred.get("contract_subtype"))
-        unit_scored = unit_of(truth_class, truth_sub, units) is not None
         sub_scored = bool(truth_sub)
         class_ok = pred_class == truth_class
-        sub_ok = bool(sub_scored and class_ok and pred_sub
-                      and _subclass_token(truth_class, truth_sub) == _subclass_token(truth_class, pred_sub))
-        unit_ok = bool(unit_scored and not failed and unit_correct(truth_class, truth_sub, pred_class, pred_sub, units))
+
+        def scored(sub: str | None, pred_class: str = pred_class, pred_sub: Any = pred_sub,
+                   failed: bool = failed, class_ok: bool = class_ok, truth_class: str = truth_class
+                   ) -> tuple[bool, bool, bool]:
+            """(subclass right, unit scored, unit right) against one truth subclass."""
+            unit_in = unit_of(truth_class, sub, units) is not None
+            sub_right = bool(sub and class_ok and pred_sub
+                             and _subclass_token(truth_class, sub) == _subclass_token(truth_class, pred_sub))
+            return sub_right, unit_in, bool(unit_in and not failed
+                                            and unit_correct(truth_class, sub, pred_class, pred_sub, units))
+
+        sub_ok, unit_scored, unit_ok = scored(truth_sub)
+        hub_sub_ok, hub_unit_scored, hub_unit_ok = scored(hub_sub) if corrected else (sub_ok, unit_scored, unit_ok)
         usage = pred.get("usage") if isinstance(pred.get("usage"), Mapping) else {}
+        routed, reasons = _human_route(arm.task, pred, failed)
         out.append(Outcome(
             doc_id=doc_id, truth_class=truth_class, pred_class=pred_class, class_ok=class_ok,
             sub_scored=sub_scored, sub_ok=sub_ok, unit_scored=unit_scored, unit_ok=unit_ok, failed=failed,
             confidence=None if failed else _confidence(pred), latency_ms=_num(item.get("latency_ms")),
             cost_usd=item_cost(arm.model, item), reported_cost_usd=_num(usage.get("cost")),
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
-            abstained=bool(not failed and (pred.get("abstained") or pred.get("route_to_human"))),
-            abstain_reasons=tuple(str(r) for r in (pred.get("abstain_reasons") or ()) if not failed),
+            abstained=routed,
+            abstain_reasons=reasons,
+            finished_ts=_ns_epoch(item.get("finished_at_ns")) or _epoch(item.get("ts")),
+            started_ts=_ns_epoch(item.get("started_at_ns")),
+            sub_corrected=corrected is not None, hub_sub_ok=hub_sub_ok, hub_unit_scored=hub_unit_scored,
+            hub_unit_ok=hub_unit_ok,
         ))
     return out
+
+
+def _human_route(task: str, pred: Mapping[str, Any], failed: bool) -> tuple[bool, tuple[str, ...]]:
+    """Whether this answer goes to a person, and why, by the arm's own routing rule.
+
+    A decision arm parks by its question set's contract (``abstained`` / ``route_to_human``, with
+    ``abstain_reasons``). An LLM sorter arm routes by the pipeline's rule for a lone sorter answer
+    (``eval.human_review.sorter_routes_to_human``: unknown class, no confidence, or a confidence
+    under the class's ``high`` band), the same rule its run report counts. Failures are neither.
+    """
+    if failed:
+        return False, ()
+    if task == DECISION_SORTER_TASK:
+        return (bool(pred.get("abstained") or pred.get("route_to_human")),
+                tuple(str(r) for r in (pred.get("abstain_reasons") or ())))
+    from mailroom_sandbox.eval.human_review import sorter_routes_to_human
+
+    if not sorter_routes_to_human(pred):
+        return False, ()
+    doc_type = pred.get("doc_type")
+    if not doc_type or doc_type == "unknown":
+        return True, ("unknown_class",)
+    if not isinstance(pred.get("confidence"), (int, float)):
+        return True, ("no_confidence",)
+    return True, (f"below_high_band:{doc_type}",)
+
+
+def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
+    """Wall time and throughput of an arm over the compared documents.
+
+    ``active_seconds`` runs from the first compared request to the last answer, failed attempts
+    included (they hold a worker), so start-up and scoring are excluded and a ``--set`` subset is
+    timed on its own documents. Each request is timed by the evaluator's execution window
+    (``started_at_ns`` / ``finished_at_ns``); an item without one is placed by its persistence time
+    ``ts`` less its latency, and ``timing_basis`` then says ``estimate``. Throughput counts answered
+    documents per unit of that time (failed attempts cost time but deliver nothing).
+    ``docs_per_minute_per_worker`` (answered documents over summed request latency) is the
+    concurrency-free rate. Concurrency is reported with it.
+    """
+    spans, estimated = [], False
+    for r in rows:
+        if r.finished_ts is None:
+            continue
+        start = r.started_ts
+        if start is None:
+            start, estimated = r.finished_ts - (r.latency_ms or 0.0) / 1000.0, True
+        spans.append((start, r.finished_ts))
+    latency_sum = sum((r.latency_ms or 0.0) for r in rows) / 1000.0
+    active = (max(e for _, e in spans) - min(st for st, _ in spans)) if spans else None
+    answered = sum(1 for r in rows if not r.failed)
+    per_min = answered / active * 60.0 if active else None
+    return {
+        "concurrency": arm.concurrency,
+        "run_wall_seconds": arm.run_wall_seconds,
+        "active_seconds": active,
+        "latency_sum_seconds": latency_sum,
+        "answered": answered,
+        "failed": len(rows) - answered,
+        "docs_per_minute": per_min,
+        "docs_per_minute_per_worker": answered / latency_sum * 60.0 if latency_sum else None,
+        "hours_per_100k_docs": 100_000 / per_min / 60.0 if per_min else None,
+        "timing_basis": None if not spans else ("estimate" if estimated else "execution"),
+    }
 
 
 def _routing(rows: Sequence[Outcome]) -> dict[str, Any]:
@@ -416,8 +536,17 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
         "class_f1": per_class,
         "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.sub_ok for r in sub), len(sub)),
         "unit_scored": len(unit), "unit_accuracy": _rate(unit_correct_n, len(unit)),
+        # SHF-013: the two figures above score the reviewed subclass corrections; hub_truth keeps the Hub's.
+        "subclass_corrections_applied": sum(r.sub_corrected for r in rows),
+        "hub_truth": {
+            "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.hub_sub_ok for r in sub), len(sub)),
+            "unit_scored": sum(r.hub_unit_scored for r in rows),
+            "unit_accuracy": _rate(sum(r.hub_unit_ok for r in rows if r.hub_unit_scored),
+                                   sum(r.hub_unit_scored for r in rows)),
+        },
         "calibration": calibration,
         "routing": _routing(rows),
+        "runtime": _runtime(arm, rows),
         "latency_ms": {"n": len(latencies), "p50": _quantile(latencies, 0.50), "p95": _quantile(latencies, 0.95)},
         "tokens": {"prompt": sum(r.tokens[0] for r in rows), "completion": sum(r.tokens[1] for r in rows)},
         "cost": {
@@ -439,6 +568,115 @@ def _ci(values: Sequence[float], level: float = 0.95) -> tuple[float, float]:
     lo = (1 - level) / 2
     return (ordered[int(math.floor(lo * len(ordered)))],
             ordered[max(0, int(math.ceil((1 - lo) * len(ordered))) - 1)])
+
+
+def _binom_cdf(k: int, n: int, p: float) -> float:
+    """P(X <= k) for X ~ Binomial(n, p), summed in log space."""
+    if k < 0:
+        return 0.0
+    if k >= n or p <= 0.0:
+        return 1.0
+    if p >= 1.0:
+        return 0.0
+    lp, lq = math.log(p), math.log1p(-p)
+    total = 0.0
+    for i in range(k + 1):
+        total += math.exp(math.lgamma(n + 1) - math.lgamma(i + 1) - math.lgamma(n - i + 1) + i * lp + (n - i) * lq)
+    return min(1.0, total)
+
+
+def _cp_upper(k: int, n: int, alpha: float = ALPHA) -> float:
+    """One-sided Clopper-Pearson upper bound on a binomial rate after ``k`` of ``n`` (bisection)."""
+    if n <= 0 or k >= n:
+        return 1.0
+    lo, hi = k / n, 1.0
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if _binom_cdf(k, n, mid) > alpha:
+            lo = mid
+        else:
+            hi = mid
+    return hi
+
+
+def _cp_lower(k: int, n: int, alpha: float = ALPHA) -> float:
+    """One-sided Clopper-Pearson lower bound on a binomial rate after ``k`` of ``n`` (bisection)."""
+    if n <= 0 or k <= 0:
+        return 0.0
+    lo, hi = 0.0, k / n
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if 1.0 - _binom_cdf(k - 1, n, mid) < alpha:  # P(X >= k) at rate mid
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def _exact_lower(gains: int, losses: int, n: int, alpha: float) -> float:
+    """Simultaneous (Bonferroni) lower bound on gain rate minus loss rate at level 1 - alpha."""
+    return _cp_lower(gains, n, alpha / 2) - _cp_upper(losses, n, alpha / 2)
+
+
+def exact_noninferiority(ok_a: Sequence[bool], ok_b: Sequence[bool], margin: float) -> dict[str, Any]:
+    """Exact floor for paired non-inferiority of B against A from the discordant pairs.
+
+    A bootstrap over documents cannot see a loss it never observed: with no document where A is right
+    and B wrong, every resample's difference is >= 0 and it reports p ~ 1/(B+1) whatever n is, so 20
+    agreeing documents "prove" non-inferiority as strongly as 900. Here both discordant rates get a
+    one-sided Clopper-Pearson bound at alpha/2 (Bonferroni, so the two hold jointly at 95%): the lower
+    bound on the difference is the gain rate's lower bound minus the loss rate's upper bound, so the
+    sampling error in the gains counts as well as in the losses. The p-value inverts that bound: the
+    smallest alpha at which it clears -margin, so p < 0.05 exactly when the 95% bound does. With no
+    discordant documents, n=20 gives a lower bound near -17 points and n=900 near -0.4.
+    """
+    n = len(ok_a)
+    gains = sum(1 for x, y in zip(ok_a, ok_b) if y and not x)
+    losses = sum(1 for x, y in zip(ok_a, ok_b) if x and not y)
+    if n == 0:
+        return {"n": 0, "gains": 0, "losses": 0, "lower95_one_sided": None, "p_value": 1.0}
+    lower = _exact_lower(gains, losses, n, ALPHA)
+    if _exact_lower(gains, losses, n, 1.0) <= -margin:
+        p_value = 1.0
+    else:
+        lo, hi = 0.0, 1.0  # the bound rises with alpha: find where it first clears -margin
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if _exact_lower(gains, losses, n, mid) > -margin:
+                hi = mid
+            else:
+                lo = mid
+        p_value = hi
+    return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower, "p_value": p_value}
+
+
+#: Classes exempt from the macro-F1 per-class support rule (owner decision, 2026-11-19). Merger
+#: agreements are the corpus's smallest class but its longest, densest documents: a split cannot
+#: hold 29 of them at dev-look1 size, so their shortfall is reported, not blocking.
+SUPPORT_EXEMPT_CLASSES: tuple[str, ...] = ("merger_agreement",)
+
+
+def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPHA,
+                        exempt: Sequence[str] = SUPPORT_EXEMPT_CLASSES) -> dict[str, Any]:
+    """Per-class document support a macro-F1 non-inferiority claim needs.
+
+    Macro-F1 weighs every class equally, so a class with few documents can hide a drop that moves
+    the macro score by more than the margin: K classes give each 1/K of the average. With no
+    discordance in a class of n_c documents, its error rate is only bounded by 1 - alpha^(1/n_c)
+    (rule of three). Moving the macro score by that much over K classes stays inside the margin
+    only when n_c >= ln(alpha) / ln(1 - K * margin). A class under that count leaves the claim
+    unsupported, whatever the bootstrap says. A class in ``exempt`` is listed under
+    ``exempt_underpowered`` instead and does not block the claim.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for t in truth:
+        counts[str(t)] += 1
+    k = len(counts)
+    need = 1 if k == 0 or k * margin >= 1 else math.ceil(math.log(alpha) / math.log(1 - k * margin))
+    short = {c: n for c, n in sorted(counts.items()) if n < need}
+    return {"classes": k, "min_docs_per_class": need, "per_class": dict(sorted(counts.items())),
+            "underpowered": {c: n for c, n in short.items() if c not in exempt},
+            "exempt_underpowered": {c: n for c, n in short.items() if c in exempt}}
 
 
 def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence[str],
@@ -483,11 +721,26 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
         lo, hi = _ci(boots[key])
         return {"estimate": observed[key] * scale, "ci95": [lo * scale, hi * scale]}
 
-    def ni(key: str, margin: float) -> dict[str, Any]:
-        lower = _quantile(boots[key], ALPHA) or 0.0  # one-sided 95% lower bound
+    def ni(key: str, margin: float, ok_a: Sequence[bool], ok_b: Sequence[bool],
+           support: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        if not ok_a:  # nothing scored (e.g. no subclass units): unavailable, never non-inferior
+            return {"margin": margin, "estimate": None, "lower95_one_sided": None, "p_value": 1.0,
+                    "non_inferior": False, "unavailable": "no scored documents",
+                    "bootstrap": None, "exact": exact_noninferiority([], [], margin)}
+        boot_lower = _quantile(boots[key], ALPHA) or 0.0  # one-sided 95% lower bound
         below = sum(1 for v in boots[key] if v <= -margin)
-        return {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower,
-                "p_value": (below + 1) / (n_boot + 1), "non_inferior": lower > -margin}
+        boot_p = (below + 1) / (n_boot + 1)
+        exact = exact_noninferiority(ok_a, ok_b, margin)
+        lower = min(boot_lower, exact["lower95_one_sided"])
+        p_value = max(boot_p, exact["p_value"])
+        out = {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower, "p_value": p_value,
+               "non_inferior": lower > -margin and p_value < ALPHA,
+               "bootstrap": {"lower95_one_sided": boot_lower, "p_value": boot_p}, "exact": exact}
+        if support is not None:
+            out["class_support"] = dict(support)
+            if support["underpowered"]:  # too few documents in a class to bound its share of macro-F1
+                out.update(non_inferior=False, p_value=1.0)
+        return out
 
     diff_mf1, p_perm = paired_macro_f1(truth, pa, pb, n_perm=n_perm, seed=seed)
     mc_class = mcnemar([r.class_ok for r in a], [r.class_ok for r in b])
@@ -503,8 +756,14 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
             "paired_macro_f1_permutation": {"difference": diff_mf1, "p_value": p_perm},
             "mcnemar_class": {"b": mc_class.b, "c": mc_class.c, "p_value": mc_class.p_value, "gain": mc_class.gain},
             "mcnemar_unit": {"b": mc_unit.b, "c": mc_unit.c, "p_value": mc_unit.p_value, "gain": mc_unit.gain},
-            "noninferiority_macro_f1": ni("class_macro_f1", margin_macro_f1),
-            "noninferiority_unit": ni("unit_accuracy", margin_unit),
+            # The exact floor for macro-F1 uses the class-level discordant pairs (a proxy: macro-F1 has no
+            # per-document decomposition), so the claim also needs every class to carry enough documents
+            # (macro_class_support); for unit accuracy the floor uses the unit-level pairs themselves.
+            "noninferiority_macro_f1": ni("class_macro_f1", margin_macro_f1,
+                                          [r.class_ok for r in a], [r.class_ok for r in b],
+                                          support=macro_class_support(truth, margin_macro_f1)),
+            "noninferiority_unit": ni("unit_accuracy", margin_unit,
+                                      [a[i].unit_ok for i in unit_idx], [b[i].unit_ok for i in unit_idx]),
         },
     }
     if cost_ok:
@@ -701,12 +960,9 @@ def _usd(value: float | None) -> str:
     return "-" if value is None else f"${value:.4f}"
 
 
-def render(report: Mapping[str, Any]) -> str:
-    lines = [f"sorter arms: reference {report['reference']}, set {report['set'] or '(all paired)'}, "
-             f"n={report['n']}, revision {str(report['revision'])[:8]}"
-             + (" [CONFIRMATORY]" if report["confirmatory"] else "")]
-    lines.append(f"{'run':44} {'model':34} {'acc':>6} {'mF1':>6} {'sub':>6} {'unit':>6} {'fail':>4} "
-                 f"{'ECE':>6} {'floor':>6} {'AUROC':>6} {'p50ms':>7} {'p95ms':>7} {'$/1k':>8} {'$/ok':>8}")
+def _render_arms(report: Mapping[str, Any]) -> list[str]:
+    """Per-arm metric table, subclass-correction lines and routing lines."""
+    lines: list[str] = []
     for s in report["arms"]:
         cal = s["calibration"] or {}
         lat = s["latency_ms"]
@@ -717,40 +973,90 @@ def render(report: Mapping[str, Any]) -> str:
             f"{_fmt(lat['p50'], '.0f'):>7} {_fmt(lat['p95'], '.0f'):>7} "
             f"{_usd(s['cost']['per_1k_docs_usd']):>8} {_usd(s['cost']['per_class_correct_usd']):>8}")
     for s in report["arms"]:
+        if s.get("subclass_corrections_applied"):
+            hub = s["hub_truth"]
+            lines.append(f"  {s['run_id'][:44]}: {s['subclass_corrections_applied']} reviewed subclass correction(s) "
+                         f"applied (SHF-013); on the Hub truth sub {_pct(hub['subclass_accuracy'])} "
+                         f"unit {_pct(hub['unit_accuracy'])}")
+    for s in report["arms"]:
         r = s.get("routing") or {}
-        # Decision arms always show their routing line, so a measured 0% is not mistaken for missing data.
-        if r.get("abstained") or s.get("task") == "sorter_reviewer":
-            lines.append(f"  {s['run_id'][:44]}: parked {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
+        # Every arm shows its routing line, so a measured 0% is not mistaken for missing data.
+        if r:
+            lines.append(f"  {s['run_id'][:44]}: to a person {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
                          f"auto-routed acc {_pct(r['auto_class_accuracy'])}, unit {_pct(r['auto_unit_accuracy'])}; "
                          f"reasons {r['abstain_reasons']}")
-    for b, p in report["pairs"].items():
-        d, t = p["differences"], p["tests"]
-        lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
-        for key in ("class_accuracy", "class_macro_f1", "unit_accuracy"):
-            lo, hi = d[key]["ci95"]
-            lines.append(f"  {key:16} {_pct(d[key]['estimate'], 2):>7}  [{_pct(lo, 2)}, {_pct(hi, 2)}]")
-        lines.append(f"  macro-F1 swap permutation p={t['paired_macro_f1_permutation']['p_value']:.4f}; "
-                     f"McNemar class b={t['mcnemar_class']['b']} c={t['mcnemar_class']['c']} p={t['mcnemar_class']['p_value']:.4f}; "
-                     f"McNemar unit b={t['mcnemar_unit']['b']} c={t['mcnemar_unit']['c']} p={t['mcnemar_unit']['p_value']:.4f}")
-        for key in ("noninferiority_macro_f1", "noninferiority_unit"):
-            ni = t[key]
-            lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
-                         f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'}")
-        cost = p.get("cost")
-        if cost:
-            lo, hi = cost["per_1k_docs"]["ci95"]
-            lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
-                         f"lower-cost p={cost['lower_cost_p_value']:.4f}")
-            if cost.get("monthly"):
-                m = cost["monthly"]
-                lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
-                             f"B {_usd(m['b']['estimate'])} difference {_usd(m['difference']['estimate'])} "
-                             f"[{_usd(m['difference']['ci95'][0])}, {_usd(m['difference']['ci95'][1])}]")
-        else:
-            lines.append("  cost: unavailable (an item without usage, or a model without a price)")
-        for name, s in report["strata"][b].items():
-            lines.append(f"  stratum {name:14} n={s['n']:>4}  acc {_pct(s['class_accuracy'], 2)}  "
-                         f"mF1 {_pct(s['class_macro_f1'], 2)}  unit {_pct(s['unit_accuracy'], 2)}")
+    return lines
+
+
+def _render_runtime(report: Mapping[str, Any]) -> list[str]:
+    """Runtime and throughput table, with the speed-up against the reference arm."""
+    lines: list[str] = []
+    ref = next((a for a in report["arms"] if a["run_id"] == report["reference"]), None)
+    ref_rt = (ref or {}).get("runtime") or {}
+    lines.append(f"runtime (compared documents)                 {'conc':>4} {'active s':>9} {'run s':>7} "
+                 f"{'latency s':>10} {'docs/min':>9} {'/worker':>8} {'h/100k':>7} {'speed-up':>9}")
+    for s in report["arms"]:
+        rt = s.get("runtime") or {}
+        speed = (ref_rt["active_seconds"] / rt["active_seconds"]
+                 if ref_rt.get("active_seconds") and rt.get("active_seconds") else None)
+        lines.append(f"  {s['run_id'][:43]:43} {_fmt(rt.get('concurrency'), 'd') if rt.get('concurrency') else '-':>4} "
+                     f"{_fmt(rt.get('active_seconds'), '.1f'):>9} {_fmt(rt.get('run_wall_seconds'), '.1f'):>7} "
+                     f"{_fmt(rt.get('latency_sum_seconds'), '.1f'):>10} {_fmt(rt.get('docs_per_minute'), '.0f'):>9} "
+                     f"{_fmt(rt.get('docs_per_minute_per_worker'), '.1f'):>8} {_fmt(rt.get('hours_per_100k_docs'), '.1f'):>7} "
+                     f"{(_fmt(speed, '.1f') + 'x') if speed else '-':>9}")
+    estimated = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("timing_basis") == "estimate"]
+    if estimated:
+        lines.append(f"  timing is an estimate for {', '.join(estimated)}: items carry no execution window "
+                     "(persistence time less latency)")
+    concs = {(s.get("runtime") or {}).get("concurrency") for s in report["arms"]}
+    if len(concs) > 1:
+        lines.append("  arms ran at different concurrency: compare docs/min/worker, not docs/min or active seconds")
+    return lines
+
+
+def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> list[str]:
+    """One B-minus-reference block: differences, tests, cost and strata."""
+    lines: list[str] = []
+    d, t = p["differences"], p["tests"]
+    lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
+    for key in ("class_accuracy", "class_macro_f1", "unit_accuracy"):
+        lo, hi = d[key]["ci95"]
+        lines.append(f"  {key:16} {_pct(d[key]['estimate'], 2):>7}  [{_pct(lo, 2)}, {_pct(hi, 2)}]")
+    lines.append(f"  macro-F1 swap permutation p={t['paired_macro_f1_permutation']['p_value']:.4f}; "
+                 f"McNemar class b={t['mcnemar_class']['b']} c={t['mcnemar_class']['c']} p={t['mcnemar_class']['p_value']:.4f}; "
+                 f"McNemar unit b={t['mcnemar_unit']['b']} c={t['mcnemar_unit']['c']} p={t['mcnemar_unit']['p_value']:.4f}")
+    for key in ("noninferiority_macro_f1", "noninferiority_unit"):
+        ni = t[key]
+        lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
+                     f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'} "
+                     f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)"
+                     + (f"; {ni['unavailable']}" if ni.get("unavailable") else "")
+                     + (f"; classes under {ni['class_support']['min_docs_per_class']} docs: "
+                        f"{ni['class_support']['underpowered']}" if (ni.get("class_support") or {}).get("underpowered") else "")
+                     + (f"; exempt, under {ni['class_support']['min_docs_per_class']}: "
+                        f"{ni['class_support']['exempt_underpowered']}"
+                        if (ni.get("class_support") or {}).get("exempt_underpowered") else ""))
+    cost = p.get("cost")
+    if cost:
+        lo, hi = cost["per_1k_docs"]["ci95"]
+        lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
+                     f"lower-cost p={cost['lower_cost_p_value']:.4f}")
+        if cost.get("monthly"):
+            m = cost["monthly"]
+            lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
+                         f"B {_usd(m['b']['estimate'])} difference {_usd(m['difference']['estimate'])} "
+                         f"[{_usd(m['difference']['ci95'][0])}, {_usd(m['difference']['ci95'][1])}]")
+    else:
+        lines.append("  cost: unavailable (an item without usage, or a model without a price)")
+    for name, s in report["strata"][b].items():
+        lines.append(f"  stratum {name:14} n={s['n']:>4}  acc {_pct(s['class_accuracy'], 2)}  "
+                     f"mF1 {_pct(s['class_macro_f1'], 2)}  unit {_pct(s['unit_accuracy'], 2)}")
+    return lines
+
+
+def _render_h5(report: Mapping[str, Any]) -> list[str]:
+    """H5 Holm family, verdicts and the cost-quality frontier."""
+    lines: list[str] = []
     h5 = report["h5"]
     lines.append(f"\nH5 confirmatory family (Holm, alpha {h5['alpha']}):")
     for key, adj in h5["holm"].items():
@@ -762,10 +1068,22 @@ def render(report: Mapping[str, Any]) -> str:
         for r in report["frontier"]:
             lines.append(f"  {r['run_id'][:44]:44} mF1 {_pct(r['class_macro_f1'])} unit {_pct(r['unit_accuracy'])} "
                          f"{_usd(r['per_1k_docs_usd'])}/1k  {'dominated by ' + r['dominated_by'] if r['dominated_by'] else 'frontier'}")
+    return lines
+
+
+def render(report: Mapping[str, Any]) -> str:
+    lines = [f"sorter arms: reference {report['reference']}, set {report['set'] or '(all paired)'}, "
+             f"n={report['n']}, revision {str(report['revision'])[:8]}"
+             + (" [CONFIRMATORY]" if report["confirmatory"] else "")]
+    lines.append(f"{'run':44} {'model':34} {'acc':>6} {'mF1':>6} {'sub':>6} {'unit':>6} {'fail':>4} "
+                 f"{'ECE':>6} {'floor':>6} {'AUROC':>6} {'p50ms':>7} {'p95ms':>7} {'$/1k':>8} {'$/ok':>8}")
+    lines += _render_arms(report) + _render_runtime(report)
+    for b, p in report["pairs"].items():
+        lines += _render_pair(report, b, p)
+    lines += _render_h5(report)
     return "\n".join(lines)
 
-
 __all__ = ["Arm", "ArmError", "Outcome", "arm_model", "arm_summary", "compare", "compare_pair", "exposure_of",
-           "fast_macro_f1", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
+           "exact_noninferiority", "fast_macro_f1", "macro_class_support", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
            "noninferiority_power", "outcomes", "pair", "render", "set_ids", "simulate_macro_f1_se",
            "strata_differences", "SEED", "MARGIN_MACRO_F1", "MARGIN_UNIT"]

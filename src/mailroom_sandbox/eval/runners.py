@@ -229,6 +229,18 @@ def _isolated_headline(per_row: Sequence[Mapping[str, Any] | None]) -> dict[str,
     return sh.merge_dual(raw_part, fixed_part, used)
 
 
+def _merge_subclass_headline(scores: dict[str, Any], sub: Mapping[str, Any]) -> None:
+    """Fold SHF-013's dual subclass scores into an isolated run headline (raw side under ``raw_dojo``)."""
+    if not sub:
+        return
+    scores.update({k: v for k, v in sub.items()
+                   if k not in ("raw_dojo", "scoring_hotfixes", "scoring_hotfixes_changed")})
+    scores.setdefault("raw_dojo", {}).update(sub.get("raw_dojo") or {})
+    scores["scoring_hotfixes"] = sorted({*scores.get("scoring_hotfixes", []), *sub.get("scoring_hotfixes", [])})
+    scores["scoring_hotfixes_changed"] = sorted({*scores.get("scoring_hotfixes_changed", []),
+                                                 *sub.get("scoring_hotfixes_changed", [])})
+
+
 def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
     return resolve_logged_prompt_version(prompt_version, task=task)
 
@@ -271,6 +283,7 @@ def run_isolated_eval(
     import time
 
     from mailroom_sandbox.job.usage_capture import (
+        call_usage_from_pipeline,
         merge_item_metrics,
         reset_usage,
         usage_from_pipeline,
@@ -347,6 +360,7 @@ def run_isolated_eval(
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
             # SAND-089: a call made before the failure was still billed; keep its tokens.
             usage = usage_from_pipeline()
+        calls = call_usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -356,6 +370,8 @@ def run_isolated_eval(
             "started_at_ns": started_ns,
             "finished_at_ns": time.time_ns(),
         }
+        if calls:
+            entry["call_usage"] = calls
         entry.update(
             merge_item_metrics(
                 latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
@@ -452,6 +468,8 @@ def run_isolated_eval(
         raw_extraction = sh.aggregate_extraction(sh.raw_rows(fixed_rows))
         scores.update(extraction)
         scores["raw_dojo"].update({k: raw_extraction.get(k) for k in extraction})
+    if task in scoring.SORTER_SUBCLASS_TASKS:
+        _merge_subclass_headline(scores, scoring.sorter_subclass_scores(list(zip(rows, per_row))))
     schema_rows = [
         r.get("score") or {}
         for r in per_row
@@ -1228,6 +1246,9 @@ def run_pipeline_eval(
                 raise
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
+        calls = usage_capture.call_usage_from_pipeline()
+        if calls:
+            usage = {**usage, "call_usage": calls}  # per-call tokens: a tiered price applies to each call
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost

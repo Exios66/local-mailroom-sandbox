@@ -331,3 +331,18 @@ def test_r01_gate_writes_into_the_run_docs(env):
     assert out == [env["tree"] / "rb1/rb1-r01-provider-pin-smoke/rb1-r01-smoke-m/i01/docs/rb1-r01-smoke-m-i01.r01-gate.json"]
     assert json.loads(out[0].read_text())["ok"] is False
     shutil.rmtree(env["tree"])
+
+
+def test_stats_reads_isolated_run_truth_and_never_credits_a_parked_guess():
+    items = [
+        {"item_id": "a", "pred": {"doc_type": "contract"}, "score": {"expected": "contract", "abstain": False}},
+        # parked with a matching class guess: abstained, not correct
+        {"item_id": "b", "pred": {"doc_type": "contract", "abstained": True}, "score": {"expected": "contract"}},
+        {"item_id": "c", "pred": {"doc_type": "contract"}, "score": {"expected": "correspondence"}},
+        {"item_id": "d", "expected": "contract", "pred": {"doc_type": "contract"}},  # whole-run shape
+    ]
+    stats = rc._stats(items)
+    assert stats["applicable"] and stats["n"] == 4 and stats["abstained"] == 1
+    assert stats["accuracy"] == 0.5
+    assert stats["confusion"]["contract"][rc.ABSTAINED] == 1
+    assert rc._stats([{"item_id": "x", "pred": {"doc_type": "contract"}}])["applicable"] is False

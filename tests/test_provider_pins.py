@@ -450,3 +450,39 @@ def test_ledger_rows_carry_the_run_that_made_them(vendored):
     stamped, bare = pp.ledger()[-2:]
     assert (stamped["run_id"], stamped["spec_hash"]) == ("run-a", "hash-a") and stamped["recorded_at"]
     assert "run_id" not in bare
+
+
+def test_ledger_rows_carry_provider_reported_usage_and_cost():
+    from types import SimpleNamespace
+
+    from mailroom_sandbox import provider_pins as pp
+
+    pp.reset_ledger()
+    pins = {"qwen/qwen3.7-flash": {"order": ["alibaba"]}}
+    chat = SimpleNamespace(model="qwen/qwen3.7-flash", provider="Alibaba",
+                           usage=SimpleNamespace(prompt_tokens=66575, completion_tokens=136, cost=0.0067119))
+    pp._record("qwen/qwen3.7-flash", chat, pins)
+    pp._record("qwen/qwen3.7-flash", {"model": "qwen/qwen3.7-flash", "provider": "Alibaba",
+                                      "usage": {"prompt_tokens": 10, "completion_tokens": 2}}, pins)
+    pp.record_decision("openai/gpt-6-luna-decisions",
+                       {"model": "openai/gpt-6-luna-decisions-20261006", "provider": "OpenAI",
+                        "usage": {"input_tokens": 3622, "output_tokens": 0, "cost": 0.0003622}},
+                       "openai/gpt-6-luna-decisions-20261006")
+    rows = pp.ledger()
+    assert rows[0]["reported_cost_usd"] == 0.0067119 and rows[0]["prompt_tokens"] == 66575
+    assert "reported_cost_usd" not in rows[1] and rows[1]["completion_tokens"] == 2  # not reported, not 0
+    assert rows[2]["reported_cost_usd"] == 0.0003622 and rows[2]["prompt_tokens"] == 3622
+    s = pp.summarize(rows)
+    assert s["qwen/qwen3.7-flash"]["reported_cost_usd"] == 0.0067119
+    assert s["qwen/qwen3.7-flash"]["cost_reported_calls"] == 1 and s["qwen/qwen3.7-flash"]["calls"] == 2
+    assert pp.served_usage(SimpleNamespace(usage=None)) == {}
+    pp.reset_ledger()
+
+
+def test_served_usage_keeps_object_zeros_and_drops_non_finite_values():
+    from types import SimpleNamespace
+
+    zero = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=120, completion_tokens=0, cost=0.0))
+    assert pp.served_usage(zero) == {"prompt_tokens": 120, "completion_tokens": 0, "reported_cost_usd": 0.0}
+    bad = {"usage": {"prompt_tokens": 50, "completion_tokens": float("inf"), "cost": float("nan")}}
+    assert pp.served_usage(bad) == {"prompt_tokens": 50}
