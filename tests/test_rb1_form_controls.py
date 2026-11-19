@@ -63,3 +63,18 @@ def test_check_run_needs_the_form_and_the_park(tmp_path, capsys):
     write(lambda doc_id, p: p.update(abstained=False) if doc_id == "CTRL-signature-page" else None)
     assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
     assert "MISS CTRL-signature-page" in capsys.readouterr().out
+
+
+def test_check_run_counts_a_missing_control_as_a_miss(tmp_path, capsys):
+    src = _source(tmp_path)
+    controls = tmp_path / "controls.jsonl"
+    fc.main(["--source", str(src), "--out", str(controls)])
+    run = tmp_path / "run"
+    run.mkdir()
+    rows = [json.loads(line) for line in controls.read_text().splitlines()][1:]  # first control never ran
+    items = [{"item_id": r["id"], "pred": {"document_form": r["expected_document_form"],
+                                            "abstained": r["expected_document_form"] != "complete_instrument"}}
+             for r in rows]
+    (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
+    assert "no item in the run" in capsys.readouterr().out

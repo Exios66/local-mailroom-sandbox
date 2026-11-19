@@ -94,7 +94,7 @@ def check_run(run_dir: Path, controls: Path) -> int:
         if line.strip():
             row = json.loads(line)
             expected[row["id"]] = row.get("expected_document_form")
-    misses = 0
+    misses, seen = 0, set()
     for line in (run_dir / "items.jsonl").read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -102,11 +102,15 @@ def check_run(run_dir: Path, controls: Path) -> int:
         want = expected.get(item.get("item_id"))
         if want is None:
             continue
+        seen.add(item["item_id"])
         pred = item.get("pred") or {}
         got, parked = pred.get("document_form"), bool(pred.get("abstained") or pred.get("route_to_human"))
         ok = got == want and parked == (want != "complete_instrument")
         misses += not ok
         print(f"{'ok  ' if ok else 'MISS'} {item['item_id']:36} want {want:20} got {str(got):20} parked={parked}")
+    for cid in sorted(set(expected) - seen):  # a truncated run must not pass on the controls it skipped
+        misses += 1
+        print(f"MISS {cid:36} want {expected[cid]:20} no item in the run")
     print(f"{len(expected) - misses}/{len(expected)} controls correct")
     return 1 if misses else 0
 

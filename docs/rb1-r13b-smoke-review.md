@@ -87,7 +87,7 @@ hold:
 1. **Mechanics:** 20/20 items, 1 call per document, every ledger row verified, and no trace
    exporter errors on the console.
 2. **Cost:** each arm's provider-reported ledger total is within 5% of the run report's estimate.
-3. **Scoring:** the run reports show a subclass metric, and SHF-013 applied the 3 corrections.
+3. **Scoring:** the run reports show a subclass metric, and SHF-013 applied the 2 `correct` corrections (the DOC-f4ce proposal is `rejected` and not applied).
    The comparison shows runtime and routing for both arms.
 4. **Controls:** 4.0.1 gets 7/7 on `--check-run`: all 5 fragments and bundles parked, and both
    intact documents passed.

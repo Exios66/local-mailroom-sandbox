@@ -867,12 +867,9 @@ def _usd(value: float | None) -> str:
     return "-" if value is None else f"${value:.4f}"
 
 
-def render(report: Mapping[str, Any]) -> str:
-    lines = [f"sorter arms: reference {report['reference']}, set {report['set'] or '(all paired)'}, "
-             f"n={report['n']}, revision {str(report['revision'])[:8]}"
-             + (" [CONFIRMATORY]" if report["confirmatory"] else "")]
-    lines.append(f"{'run':44} {'model':34} {'acc':>6} {'mF1':>6} {'sub':>6} {'unit':>6} {'fail':>4} "
-                 f"{'ECE':>6} {'floor':>6} {'AUROC':>6} {'p50ms':>7} {'p95ms':>7} {'$/1k':>8} {'$/ok':>8}")
+def _render_arms(report: Mapping[str, Any]) -> list[str]:
+    """Per-arm metric table, subclass-correction lines and routing lines."""
+    lines: list[str] = []
     for s in report["arms"]:
         cal = s["calibration"] or {}
         lat = s["latency_ms"]
@@ -895,6 +892,12 @@ def render(report: Mapping[str, Any]) -> str:
             lines.append(f"  {s['run_id'][:44]}: to a person {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
                          f"auto-routed acc {_pct(r['auto_class_accuracy'])}, unit {_pct(r['auto_unit_accuracy'])}; "
                          f"reasons {r['abstain_reasons']}")
+    return lines
+
+
+def _render_runtime(report: Mapping[str, Any]) -> list[str]:
+    """Runtime and throughput table, with the speed-up against the reference arm."""
+    lines: list[str] = []
     ref = next((a for a in report["arms"] if a["run_id"] == report["reference"]), None)
     ref_rt = (ref or {}).get("runtime") or {}
     lines.append(f"runtime (compared documents)                 {'conc':>4} {'active s':>9} {'run s':>7} "
@@ -911,35 +914,46 @@ def render(report: Mapping[str, Any]) -> str:
     concs = {(s.get("runtime") or {}).get("concurrency") for s in report["arms"]}
     if len(concs) > 1:
         lines.append("  arms ran at different concurrency: compare docs/min/worker, not docs/min or active seconds")
-    for b, p in report["pairs"].items():
-        d, t = p["differences"], p["tests"]
-        lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
-        for key in ("class_accuracy", "class_macro_f1", "unit_accuracy"):
-            lo, hi = d[key]["ci95"]
-            lines.append(f"  {key:16} {_pct(d[key]['estimate'], 2):>7}  [{_pct(lo, 2)}, {_pct(hi, 2)}]")
-        lines.append(f"  macro-F1 swap permutation p={t['paired_macro_f1_permutation']['p_value']:.4f}; "
-                     f"McNemar class b={t['mcnemar_class']['b']} c={t['mcnemar_class']['c']} p={t['mcnemar_class']['p_value']:.4f}; "
-                     f"McNemar unit b={t['mcnemar_unit']['b']} c={t['mcnemar_unit']['c']} p={t['mcnemar_unit']['p_value']:.4f}")
-        for key in ("noninferiority_macro_f1", "noninferiority_unit"):
-            ni = t[key]
-            lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
-                         f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'} "
-                         f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)")
-        cost = p.get("cost")
-        if cost:
-            lo, hi = cost["per_1k_docs"]["ci95"]
-            lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
-                         f"lower-cost p={cost['lower_cost_p_value']:.4f}")
-            if cost.get("monthly"):
-                m = cost["monthly"]
-                lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
-                             f"B {_usd(m['b']['estimate'])} difference {_usd(m['difference']['estimate'])} "
-                             f"[{_usd(m['difference']['ci95'][0])}, {_usd(m['difference']['ci95'][1])}]")
-        else:
-            lines.append("  cost: unavailable (an item without usage, or a model without a price)")
-        for name, s in report["strata"][b].items():
-            lines.append(f"  stratum {name:14} n={s['n']:>4}  acc {_pct(s['class_accuracy'], 2)}  "
-                         f"mF1 {_pct(s['class_macro_f1'], 2)}  unit {_pct(s['unit_accuracy'], 2)}")
+    return lines
+
+
+def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> list[str]:
+    """One B-minus-reference block: differences, tests, cost and strata."""
+    lines: list[str] = []
+    d, t = p["differences"], p["tests"]
+    lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
+    for key in ("class_accuracy", "class_macro_f1", "unit_accuracy"):
+        lo, hi = d[key]["ci95"]
+        lines.append(f"  {key:16} {_pct(d[key]['estimate'], 2):>7}  [{_pct(lo, 2)}, {_pct(hi, 2)}]")
+    lines.append(f"  macro-F1 swap permutation p={t['paired_macro_f1_permutation']['p_value']:.4f}; "
+                 f"McNemar class b={t['mcnemar_class']['b']} c={t['mcnemar_class']['c']} p={t['mcnemar_class']['p_value']:.4f}; "
+                 f"McNemar unit b={t['mcnemar_unit']['b']} c={t['mcnemar_unit']['c']} p={t['mcnemar_unit']['p_value']:.4f}")
+    for key in ("noninferiority_macro_f1", "noninferiority_unit"):
+        ni = t[key]
+        lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
+                     f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'} "
+                     f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)")
+    cost = p.get("cost")
+    if cost:
+        lo, hi = cost["per_1k_docs"]["ci95"]
+        lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
+                     f"lower-cost p={cost['lower_cost_p_value']:.4f}")
+        if cost.get("monthly"):
+            m = cost["monthly"]
+            lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
+                         f"B {_usd(m['b']['estimate'])} difference {_usd(m['difference']['estimate'])} "
+                         f"[{_usd(m['difference']['ci95'][0])}, {_usd(m['difference']['ci95'][1])}]")
+    else:
+        lines.append("  cost: unavailable (an item without usage, or a model without a price)")
+    for name, s in report["strata"][b].items():
+        lines.append(f"  stratum {name:14} n={s['n']:>4}  acc {_pct(s['class_accuracy'], 2)}  "
+                     f"mF1 {_pct(s['class_macro_f1'], 2)}  unit {_pct(s['unit_accuracy'], 2)}")
+    return lines
+
+
+def _render_h5(report: Mapping[str, Any]) -> list[str]:
+    """H5 Holm family, verdicts and the cost-quality frontier."""
+    lines: list[str] = []
     h5 = report["h5"]
     lines.append(f"\nH5 confirmatory family (Holm, alpha {h5['alpha']}):")
     for key, adj in h5["holm"].items():
@@ -951,8 +965,20 @@ def render(report: Mapping[str, Any]) -> str:
         for r in report["frontier"]:
             lines.append(f"  {r['run_id'][:44]:44} mF1 {_pct(r['class_macro_f1'])} unit {_pct(r['unit_accuracy'])} "
                          f"{_usd(r['per_1k_docs_usd'])}/1k  {'dominated by ' + r['dominated_by'] if r['dominated_by'] else 'frontier'}")
-    return "\n".join(lines)
+    return lines
 
+
+def render(report: Mapping[str, Any]) -> str:
+    lines = [f"sorter arms: reference {report['reference']}, set {report['set'] or '(all paired)'}, "
+             f"n={report['n']}, revision {str(report['revision'])[:8]}"
+             + (" [CONFIRMATORY]" if report["confirmatory"] else "")]
+    lines.append(f"{'run':44} {'model':34} {'acc':>6} {'mF1':>6} {'sub':>6} {'unit':>6} {'fail':>4} "
+                 f"{'ECE':>6} {'floor':>6} {'AUROC':>6} {'p50ms':>7} {'p95ms':>7} {'$/1k':>8} {'$/ok':>8}")
+    lines += _render_arms(report) + _render_runtime(report)
+    for b, p in report["pairs"].items():
+        lines += _render_pair(report, b, p)
+    lines += _render_h5(report)
+    return "\n".join(lines)
 
 __all__ = ["Arm", "ArmError", "Outcome", "arm_model", "arm_summary", "compare", "compare_pair", "exposure_of",
            "exact_noninferiority", "fast_macro_f1", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",

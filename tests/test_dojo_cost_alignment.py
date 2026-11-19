@@ -98,3 +98,15 @@ def test_tiered_model_prices_each_item_at_its_own_tier():
     assert rec["estimated_cost_usd"] == pytest.approx(small + large, abs=1e-6)
     flat = (16 * 3_700 + 4 * 80_000) * 0.03 / 1e6  # the old run-total pricing: every call in the cheap tier
     assert rec["estimated_cost_usd"] > 2 * flat
+
+
+def test_multi_call_items_that_may_straddle_a_tier_are_flagged():
+    # Items record call totals only: a 3-call item with 60k prompt tokens may have one call over the
+    # 32k threshold, so it is priced at its average call's tier and counted as approximate.
+    rec = _record([{"ok": True, "prompt_tokens": 60_000, "completion_tokens": 300, "llm_calls": 3},
+                   {"ok": True, "prompt_tokens": 9_000, "completion_tokens": 300, "llm_calls": 3},
+                   {"ok": True, "prompt_tokens": 80_000, "completion_tokens": 100, "llm_calls": 1}],
+                  model="qwen/qwen3.7-flash")
+    assert rec["cost_tier_approximate_items"] == 1
+    assert "cost_tier_approximate_items" not in _record(
+        [{"ok": True, "prompt_tokens": 80_000, "completion_tokens": 100, "llm_calls": 1}], model="qwen/qwen3.7-flash")
