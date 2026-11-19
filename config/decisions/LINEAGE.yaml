@@ -114,3 +114,19 @@ versions:
       written from those dev-look1 documents, so dev-look1 figures are in-sample for it. Not the
       default until a run with positive controls (real fragments and bundles) shows it still
       parks them.
+  - version: 4.0.2
+    file: reviewer_decisions_v4.0.2.yaml
+    parent: 4.0.1
+    status: candidate
+    summary: >-
+      PATCH: document_form instructions and criteria only. Names the signs of a fragment (cut
+      off mid-word or mid-sentence, a form with its heading but no body) and of a bundle (a
+      filing footer or <DOCUMENT> wrapper before a different matter), and says an email is
+      judged by its newest message and a filed agreement as filed. Everything else is 4.0.1.
+    adoption: >-
+      Registered 2026-11-19 after the rb1 R13b form calibration (draw 1), where no human-mass
+      floor parked every defect and 4.0.1 passed 9 defects and parked 5 intact documents. The
+      wording was written from those 14 draw-1 documents, so draw-1 figures are in-sample. Not
+      the default until calibration draw 2 (100 new documents, draw 1 excluded) gives "adopt"
+      under the paired rule fixed before it ran (rb1_form_floor.py compare; see
+      docs/rb1-r13b-smoke-review.md).
