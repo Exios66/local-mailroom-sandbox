@@ -1465,7 +1465,23 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     return queued
 
 
-def _run_pipeline_doc(
+def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    """:func:`_run_pipeline_doc_once` inside one document scope of the API call guard.
+
+    When the guard refused a call (the run's API cap or the document's call ceiling), the graph
+    aborted the document through its run-limit path; that abort is not a pipeline outcome, so the
+    document raises and becomes an error row instead of a scored one (rb1 R01 smoke).
+    """
+    from mailroom_sandbox.job import call_guard
+
+    with call_guard.document() as scope:
+        result = _run_pipeline_doc_once(row, **kwargs)
+    if scope["refused"]:
+        raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+    return result
+
+
+def _run_pipeline_doc_once(
     row: dict[str, Any],
     *,
     mock: bool,

@@ -166,6 +166,22 @@ def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> C
     return intake_run
 
 
+def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def record_usage(usage: Any, model: str | None = None, agent: str | None = None,
+                     served_model: str | None = None) -> None:
+        original(usage, model, agent=agent, served_model=served_model)
+        # Upstream records usage per document for reporting only; the run's API cap was checked
+        # between documents, so one long document could spend without bound. Each returned call
+        # is priced against the run's cap here (job.call_guard; no-op unless a budget is armed).
+        if usage is not None:
+            from mailroom_sandbox.job import call_guard
+
+            call_guard.after_call(usage)
+
+    return record_usage
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -197,6 +213,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "90% of its length and its words (no dropped run of 8+ words, under 5% lost); "
                 "context fit reads long documents in one window",
         install=_install_intake_clean_guard,
+    ),
+    Hotfix(
+        id="HF-004",
+        module="pipeline.limits",
+        attr="record_usage",
+        source_sha256="f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
+        upstream="llm-mailroom: draft issue J-3 in docs/vendor-hotfixes.md (not filed)",
+        summary="every returned call is priced against the run's API cap as it returns, so a "
+                "document in flight cannot spend past job.api_cost_cap_usd (job.call_guard)",
+        install=_install_call_spend,
     ),
 )
 

@@ -29,6 +29,7 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
 | HF-001 | `langchain_agents.doc_inventories.enrich_extraction` | A null corporate `record_type` is filled from every corporate subclass through Dojo's subclass → `record_type` map. Upstream fills it only for the five Hub tokens, so indenture, board_resolution, officer_certificate, subsidiary_list, charter_amendment and certificate_of_formation left it null. | [Exios66/llm-mailroom#313](https://github.com/Exios66/llm-mailroom/issues/313) |
 | HF-002 | `agents.judge.CompletenessJudge.judge_completeness` | A completeness-judge parse failure raises instead of returning a real "incomplete 0.0" verdict, so the graph takes its judge-error path (human review, counted by the gate) instead of sending the document to the arbiter as if it were judged incomplete. | draft J-1 below (not filed) |
 | HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` replaces the document only when it keeps 90% of its length and its words: aligned in order, no run of 8 or more source words and no more than 5% of them may be lost, so a reply that drops a clause is refused even at full length. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. | draft J-2 below (not filed) |
+| HF-004 | `pipeline.limits.record_usage` | Every returned call is priced against the run's `job.api_cost_cap_usd` as it returns (`job/call_guard.py`). With the provider-pin wrappers refusing any OpenRouter call once the cap or the per-document call ceiling (40 for `pipeline`, 16 otherwise) is reached, a document in flight cannot overspend; a document the guard cut short becomes an error row, never a score. The R01 smoke's two merger agreements ran ~140 calls past the between-document check. | draft J-3 below (not filed) |
 
 ### Draft llm-mailroom issues (not filed)
 
@@ -36,6 +37,8 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
   `incomplete` 0.0 verdict instead of a judge error.
 - **J-2** `IntakeAgent.intake_run` accepts a single-window `cleaned_text` with no length or content check, and
   `build_graph` replaces the document with it.
+- **J-3** `pipeline.limits` bounds a document's output tokens but not its spend or call count:
+  `record_usage` has no hook for a caller's cost ceiling, so a looping document is unbounded.
 
 Filing these upstream is an owner decision.
 

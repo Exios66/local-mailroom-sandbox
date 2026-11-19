@@ -556,9 +556,14 @@ def _api_budget(store: RunStore):
     That is every persisted item plus every paid call without an item row: a document that raised
     (``FAILED_USAGE_EVENT``) and a document a resume billed again (``RERUN_USAGE_EVENT``).
     """
+    from mailroom_sandbox.job import call_guard
     from mailroom_sandbox.job.api_budget import budget_for, usage_records
 
-    return budget_for(store.read_lock() or {}, usage_records(store))
+    lock = store.read_lock() or {}
+    budget = budget_for(lock, usage_records(store))
+    # rb1 R01: the same budget bounds every API call while documents run (run_job disarms).
+    call_guard.arm(budget, call_guard.ceiling_for(lock))
+    return budget
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:
@@ -1047,6 +1052,9 @@ def run_job(
                                    max_items=max_items, tracer=tracer, on_event=wrapped)
             finally:
                 set_run_context(None)
+                from mailroom_sandbox.job import call_guard
+
+                call_guard.disarm()
     except BaseException:
         finish({"state": "failed"})
         raise
