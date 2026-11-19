@@ -12,6 +12,10 @@ discussion: "https://github.com/Exios66/local-mailroom-sandbox/discussions/343"
 
 # Mailroom sorter and extraction evaluation runbook — research plan
 
+The [campaign contract](../../EXPERIMENT-CAMPAIGN-CONTRACT.md) records the current dataset,
+truth precedence, sandbox patches, cost-estimate scope and remaining validation gates.
+The v9.3/runbook-v2 amendment is recorded in the Deviations log; historical run locks stay frozen.
+
 > Pre-registration contract for the runbook. Phase 0 (R00-R03, G0) has two parts:
 > offline preparation that runs in this sandbox today (split, leak audit, statistics,
 > schema registry, provider pins), and live work that needs human initials at the spend

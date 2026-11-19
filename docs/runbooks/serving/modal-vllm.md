@@ -49,7 +49,16 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 profile's static `localhost:8000` value is only a parity fallback, never
 the Modal endpoint.
 
-## When to leave this runbook
+## Campaign patch readiness
+
+Before running an experimental campaign, follow
+[the campaign contract](../EXPERIMENT-CAMPAIGN-CONTRACT.md). From the intended checkout,
+run `python scripts/check_hotfixes.py`, and use `--require-watcher` when the watcher
+will execute. Required unavailable or stale pipeline/scoring fixes fail readiness.
+G0 includes the same check; it still needs smoke ledgers and human label evidence.
+A deployed Modal job worker must carry the lock's exact hotfix and source identities.
+
+## Choosing another runbook
 
 - More concurrency / longer context: pick the matching `serving` variant
   and the catalog runbook that cites it (`improved-awq-c8`, `grid-2l4`, …).
