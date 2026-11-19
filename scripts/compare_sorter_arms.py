@@ -17,6 +17,11 @@ from the experiment key:
     reports/campaigns/rb1/<key>-sorter-vs-decision/analysis/<key>-sorter-arms.comparison.json
     reports/campaigns/rb1/<key>-sorter-vs-decision/analysis/<key>-sorter-arms.digest.txt
     reports/campaigns/rb1/<key>-sorter-vs-decision/figures/<key>-sorter-arms.frontier.csv
+    reports/campaigns/rb1/<key>-sorter-vs-decision/figures/<key>-sorter-arms.<figure>.svg
+
+The figures (``comparison_figures``: total run time, latency, quality differences against the
+margins, routing, cost against accuracy, list pricing by prompt size) are written with ``--write``
+or to ``--figures DIR``. With ``--allow-mock`` every figure is labelled simulated.
 
 Exit 0 with a report, 2 when the runs cannot be compared.
 """
@@ -56,6 +61,38 @@ def frontier_csv(report: dict) -> str:
     return buf.getvalue()
 
 
+def figures(report: dict, refs: list[str], *, set_name: str | None, split_dir: Path | None,
+            runs_root: Path | None, confirmatory: bool, allow_mock: bool) -> dict[str, str]:
+    """``{name: svg}`` for the report, with per-document latencies and prompt sizes of the compared documents."""
+    from mailroom_sandbox import comparison_figures
+
+    arms = [sorter_arms.load_arm(r, runs_root=runs_root) for r in refs]
+    ids = sorter_arms.pair(arms, set_name=set_name, split_dir=split_dir,  # None: the split the runs drew from
+                           confirmatory=confirmatory, allow_mock=allow_mock)
+    latencies = {a.run_id: [float(a.items[i]["latency_ms"]) / 1000.0 for i in ids
+                            if isinstance((a.items.get(i) or {}).get("latency_ms"), (int, float))] for a in arms}
+    prompt_tokens = {a.run_id: [size for i in ids for size in call_prompt_sizes(a.items.get(i) or {})] for a in arms}
+    return comparison_figures.build(report, latencies, prompt_tokens)
+
+
+def call_prompt_sizes(item: dict) -> list[float]:
+    """Prompt tokens per model call: the size a price tier applies to.
+
+    ``call_usage`` gives each call's size; otherwise the item's total is split evenly over
+    ``llm_calls``, the average call ``job.metrics.item_calls_cost`` prices it at.
+    """
+    usage = item.get("call_usage")
+    if isinstance(usage, list) and usage:
+        return [float(pair[0]) for pair in usage
+                if isinstance(pair, (list, tuple)) and pair and isinstance(pair[0], (int, float))]
+    total = item.get("prompt_tokens")
+    if isinstance(total, bool) or not isinstance(total, (int, float)):
+        return []
+    calls = item.get("llm_calls")
+    calls = calls if isinstance(calls, int) and not isinstance(calls, bool) and calls > 1 else 1
+    return [float(total) / calls] * calls
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--a", required=True, help="arm A run id or run directory (the LLM sorter, reference)")
@@ -78,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--experiment-key", default="rb1-r13b",
                         help="campaign experiment key the outputs are named from (rb1-r13b dev screen, rb1-r70b held-out)")
     parser.add_argument("--write", action="store_true", help="write the outputs under reports/campaigns/rb1/<key>-sorter-vs-decision/")
+    parser.add_argument("--figures", type=Path, metavar="DIR", help="write the comparison figures (SVG) here")
     parser.add_argument("--reports-root", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.write and args.allow_mock:
@@ -101,6 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text + "\n", encoding="utf-8")
+    figs = {}
+    if target is not None or args.figures:
+        figs = figures(report, [args.a, *args.b], set_name=args.set_name, split_dir=args.split_dir,
+                       runs_root=args.runs_root, confirmatory=args.confirmatory, allow_mock=args.allow_mock)
+    if args.figures:
+        args.figures.mkdir(parents=True, exist_ok=True)
+        for name, svg in figs.items():
+            (args.figures / f"{args.experiment_key}-sorter-arms.{name}.svg").write_text(svg, encoding="utf-8")
     if target is not None:
         key = args.experiment_key
         (target / "analysis").mkdir(parents=True, exist_ok=True)
@@ -108,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
         (target / "analysis" / f"{key}-sorter-arms.comparison.json").write_text(text + "\n", encoding="utf-8")
         (target / "analysis" / f"{key}-sorter-arms.digest.txt").write_text(digest + "\n", encoding="utf-8")
         (target / "figures" / f"{key}-sorter-arms.frontier.csv").write_text(frontier_csv(report), encoding="utf-8")
+        for name, svg in figs.items():
+            (target / "figures" / f"{key}-sorter-arms.{name}.svg").write_text(svg, encoding="utf-8")
         print(f"wrote {target}", file=sys.stderr)
     print(text if args.json else digest)
     return 0

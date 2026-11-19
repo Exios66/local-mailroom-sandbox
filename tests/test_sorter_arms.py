@@ -530,6 +530,84 @@ def test_cli_digest_json_and_refusal(tmp_path, split, capsys):
     assert "unpaired" in capsys.readouterr().err
 
 
+def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsys):
+    from mailroom_sandbox import figure_style as fs
+
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, wrong=ids[:2])
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    common = ["--runs-root", str(tmp_path / "runs"), "--split-dir", str(split), "--n-boot", "50", "--n-perm", "50"]
+    figs = tmp_path / "figs"
+    assert cli.main(["--a", "A", "--b", "B", *common, "--figures", str(figs)]) == 0
+    capsys.readouterr()
+    names = sorted(p.name for p in figs.glob("*.svg"))
+    assert names == [f"rb1-r13b-sorter-arms.{n}.svg" for n in ("cost-quality", "latency", "pricing", "quality", "routing")]
+    assert fs.lint_paths(figs.glob("*.svg")) == {}
+    lat = (figs / "rb1-r13b-sorter-arms.latency.svg").read_text()
+    assert fs.DECISION in lat and fs.LLM in lat  # colour follows the system, both present
+    cost = (figs / "rb1-r13b-sorter-arms.cost-quality.svg").read_text()
+    assert "no billed cost: LLM sorter" in cost  # the LLM arm has no billed cost
+    assert "Cost is not yet comparable" in cost and "more per 1,000" not in cost  # no direction from a small sample
+    pricing = (figs / "rb1-r13b-sorter-arms.pricing.svg").read_text()
+    assert "LLM sorter calls" in pricing  # each call's prompt size, from the run items
+
+
+
+def test_a_clean_billed_sample_still_needs_list_and_billed_costs_to_agree():
+    def arm(rid, listed, billed):
+        return {"run_id": rid, "n": 1000, "cost": {"per_1k_docs_usd": listed, "provider_reported_docs": 1000,
+                                                    "provider_reported_usd": billed}}
+    report = {"n": 1000, "arms": [arm("A", 2.0, 2.5), arm("B", 2.3, 2.6)]}
+    assert sa.cost_not_comparable(report, ["A", "B"]) == []  # both say B costs more
+    report["arms"][1] = arm("B", 2.3, 2.2)  # list price says more, the bill says less
+    assert sa.cost_not_comparable(report, ["A", "B"]) == ["list-price and billed costs disagree on direction for B"]
+
+
+def test_digest_gives_no_speed_up_when_other_documents_share_the_window():
+    rt = {"active_seconds": 10.0, "run_wall_seconds": 30.0, "interleaved_docs": 0}
+    report = {"reference": "A", "arms": [{"run_id": "A", "runtime": dict(rt)},
+                                         {"run_id": "B", "runtime": dict(rt, active_seconds=5.0)}]}
+    assert "2.0x" in "\n".join(sa._render_runtime(report))
+    report["arms"][1]["runtime"]["interleaved_docs"] = 4
+    text = "\n".join(sa._render_runtime(report))
+    assert "2.0x" not in text and "no speed-up: other documents of the run ran inside the active window of B" in text
+
+
+def test_runtime_counts_other_documents_inside_the_compared_window():
+    from types import SimpleNamespace as NS
+
+    # six documents, one second apart; the comparison takes D0, D2, D4
+    items = {f"D{k}": {"started_at_ns": int((100 + k) * 1e9), "finished_at_ns": int((100.5 + k) * 1e9)} for k in range(6)}
+    arm = NS(items=items, concurrency=1, run_wall_seconds=6.0)
+
+    def rows(keys):
+        return [NS(doc_id=f"D{k}", started_ts=100.0 + k, finished_ts=100.5 + k, latency_ms=500.0, failed=False)
+                for k in keys]
+
+    assert sa._runtime(arm, rows([0, 2, 4]))["interleaved_docs"] == 2  # D1 and D3 ran inside 100..104.5
+    assert sa._runtime(arm, rows([0, 1, 2]))["interleaved_docs"] == 0  # a contiguous block is its own window
+
+
+def test_pricing_ticks_are_per_call_prompt_sizes():
+    assert cli.call_prompt_sizes({"prompt_tokens": 90_000, "llm_calls": 3}) == [30_000.0] * 3
+    assert cli.call_prompt_sizes({"prompt_tokens": 40_000, "llm_calls": 1}) == [40_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": 40_000}) == [40_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": 9, "call_usage": [[300_000, 5], [2_000, 1]]}) == [300_000.0, 2_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": None}) == [] and cli.call_prompt_sizes({}) == []
+
+
+def test_cli_figures_from_mock_runs_are_labelled_simulated(tmp_path, split, capsys):
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, mock=True)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, mock=True)
+    common = ["--runs-root", str(tmp_path / "runs"), "--split-dir", str(split), "--n-boot", "50", "--n-perm", "50"]
+    figs = tmp_path / "figs"
+    assert cli.main(["--a", "A", "--b", "B", *common, "--allow-mock", "--figures", str(figs)]) == 0
+    capsys.readouterr()
+    svgs = list(figs.glob("*.svg"))
+    assert svgs and all("SIMULATED" in p.read_text() for p in svgs)
+
+
 # ---------------------------------------------------------------- held-out seal and configs
 
 
@@ -644,10 +722,13 @@ def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, c
     assert cli.main([*common, "--experiment-key", "rb1-r13b", "--write"]) == 0
     base = tmp_path / "repo" / "reports" / "campaigns" / "rb1" / "rb1-r13b-sorter-vs-decision"
     files = sorted(p.relative_to(base).as_posix() for p in base.rglob("*") if p.is_file())
-    assert files == ["analysis/rb1-r13b-sorter-arms.comparison.json", "analysis/rb1-r13b-sorter-arms.digest.txt",
-                     "figures/rb1-r13b-sorter-arms.frontier.csv"]
+    assert files == sorted(["analysis/rb1-r13b-sorter-arms.comparison.json", "analysis/rb1-r13b-sorter-arms.digest.txt",
+                            "figures/rb1-r13b-sorter-arms.frontier.csv",
+                            *[f"figures/rb1-r13b-sorter-arms.{n}.svg"
+                              for n in ("cost-quality", "latency", "pricing", "quality", "routing")]])
     assert json.loads((base / files[0]).read_text())["experiment_key"] == "rb1-r13b"
-    assert (base / files[2]).read_text().splitlines()[0].startswith("run_id,model,class_macro_f1")
+    assert (base / "figures/rb1-r13b-sorter-arms.frontier.csv").read_text().splitlines()[0].startswith(
+        "run_id,model,class_macro_f1")
     capsys.readouterr()
     assert cli.main([*common, "--experiment-key", "h5", "--write"]) == 2
     assert cli.main([*common, "--write", "--allow-mock"]) == 2
@@ -696,3 +777,20 @@ def test_class_support_alone_vetoes_macro_noninferiority():
     assert ni["exact"]["lower95_one_sided"] > -sa.MARGIN_MACRO_F1
     assert ni["class_support"]["underpowered"] == {"unknown": 1}
     assert ni["non_inferior"] is False and ni["p_value"] == 1.0
+
+
+def test_cost_is_not_called_a_comparison_below_a_clean_billed_sample():
+    def report(n, billed):
+        return {"n": n, "arms": [{"run_id": "A", "n": n, "cost": {"provider_reported_docs": 0}},
+                                 {"run_id": "B", "n": n, "cost": {"provider_reported_docs": n if billed else 0,
+                                                                  "provider_reported_usd": 2.0 if billed else None}}]}
+
+    why = sa.cost_not_comparable(report(20, False), ["A", "B"])
+    assert why == ["n = 20, under 1,000 paired documents", "no billed cost for: A, B"]
+    assert sa.cost_not_comparable(report(1000, True), ["B"]) == []
+    assert sa.cost_not_comparable(report(1000, True), ["A", "B"]) == ["no billed cost for: A"]
+    # billing on some documents is not a billed total: the per-1k figure stays list price × tokens
+    partial = report(1000, True)
+    partial["arms"][1]["cost"]["provider_reported_docs"] = 999
+    assert sa.billed_per_1k(partial["arms"][1]) is None
+    assert sa.billed_per_1k(report(1000, True)["arms"][1]) == 2.0

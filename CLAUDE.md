@@ -135,3 +135,6 @@ other persona (`harness-doctor`, `trace-auditor`, …) read its file in `.openco
 
 - `/vendor-sync` (`.claude/skills/vendor-sync/`) — the sanctioned way to refresh
   `vendor/`. User-invoked only.
+- `experiment-figures` (`.claude/skills/experiment-figures/`) — how every experiment figure is
+  made: colour roles, type scale, finding-as-title text rules, the figure catalog (per-run,
+  sorter vs decision model, calibration) and `python -m mailroom_sandbox.figure_style lint`.

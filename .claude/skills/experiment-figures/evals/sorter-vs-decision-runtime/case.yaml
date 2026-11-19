@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: sorter-vs-decision-runtime
+expected_outcome: |
+  SVG figures for the three paired runs, including a total run time comparison and a cost
+  comparison, with the LLM sorter and the decision model in fixed, distinct colours, titles that
+  state the finding in sentence case, cost basis stated, and a notes.md describing each figure.

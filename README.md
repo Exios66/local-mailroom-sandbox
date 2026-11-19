@@ -299,6 +299,7 @@ reference — every command, subcommand and argument — is
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
+| [Experiment figures](docs/experiment-figures.md) | Per-run and H5 sorter-vs-decision figures: commands, how to read each figure, the cost rule, the linter |
 | [Pipeline floor](docs/floor.md) | Live history, simulated replay, digest figures and troubleshooting |
 | [Named datasets](docs/datasets/named-datasets.md) | Registry schema, paths, selection, hashes and lock migration |
 | [CI verification](.circleci/README.md) | Worker scheduling, caches, gates, artifacts and hosted runtime evidence |
