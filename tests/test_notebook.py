@@ -12,8 +12,13 @@ from mailroom_sandbox.notebook import (
     CATEGORICAL,
     DATE_FORM,
     IN_VOCABULARY,
+    INTERIM,
+    INTERIM_CORRECTION,
+    NEAR_GOLD,
+    NEAR_GOLD_SHF010,
     GROUNDED,
     GROUNDED_NORMALIZED,
+    HUB,
     NON_TEXT,
     NUMBER_FORM,
     NUMERAL_FORM,
@@ -21,6 +26,7 @@ from mailroom_sandbox.notebook import (
     agent_fixture_grounding,
     gold_field_grounding,
     label_overlay_grounding,
+    merged_truth,
     ungrounded,
 )
 
@@ -403,3 +409,127 @@ def test_overlay_checks_unquoted_labels_against_the_hub_row(tmp_path):
     )
     assert stale["parties"] == (NO_EVIDENCE, "document text changed since the label was read")
     assert _overlay(tmp_path / "c", labels, "contract", "interim")["parties"] == (NO_EVIDENCE, "")
+
+
+# --------------------------------------------------------------------------- merged truth
+
+
+def _merge_fixture():
+    from mailroom_sandbox.interim_labels import doc_sha
+
+    text = "From the desk of the sender. Please review the attached draft by Friday."
+    row = {
+        "id": "DOC-1",
+        "expected_doc_class": "correspondence",
+        "doc_text": text,
+        "expected_fields": {"sender": "Hub Sender", "intent": "notice"},
+    }
+
+    def lab(value, status="gap_fill", basis="gate_accepted_grounded"):
+        return {"value": value, "status": status, "basis": basis, "use_as_truth": True}
+
+    interim = {
+        "DOC-1": {
+            "doc_sha256": doc_sha(text),
+            "labels": {
+                "sender": lab("Interim Sender"),  # the Hub labels it: a gap fill never applies
+                "intent": lab("request", "correction", "review_read_message"),
+                "recipient": lab("Gate Recipient"),  # near-gold disagrees: SHF-010
+                "action_items": lab(["review the draft"]),  # near-gold agrees
+                "communication_date": lab("2001-07-06", basis="original_header"),
+            },
+        }
+    }
+
+    def near(value):
+        return {"value": value, "status": "gap_fill", "basis": "near_gold:two_pass_agree"}
+
+    near_gold = {
+        "DOC-1": {
+            "doc_sha256": doc_sha(text),
+            "labels": {
+                "sender": near("Near Sender"),
+                "recipient": near("Near Recipient"),
+                "action_items": near(["review the draft"]),
+                "communication_date": near(None),  # the text lost the header
+                "urgency": near("routine"),
+            },
+        }
+    }
+    return row, interim, near_gold
+
+
+def test_merged_truth_names_each_fields_source_and_overlap():
+    row, interim, near_gold = _merge_fixture()
+    merge = merged_truth([row], interim=interim, near_gold=near_gold)
+    source = {f.field: (f.source, f.value) for f in merge.fields}
+    assert source == {
+        "sender": (HUB, "Hub Sender"),
+        "intent": (INTERIM_CORRECTION, "request"),
+        "recipient": (NEAR_GOLD_SHF010, "Near Recipient"),
+        "action_items": (INTERIM, ["review the draft"]),
+        "communication_date": (INTERIM, "2001-07-06"),
+        "urgency": (NEAR_GOLD, "routine"),
+    }
+    assert merge.violations == []
+    assert merge.overlaps == {
+        ("gate_accepted_grounded", "differ", HUB): 1,  # sender: the Hub label stands
+        ("gate_accepted_grounded", "agree", INTERIM): 1,
+        ("gate_accepted_grounded", "differ", NEAR_GOLD): 1,
+        ("original_header", "differ", INTERIM): 1,
+    }
+    assert merge.breakdown() == {
+        "correspondence": {
+            HUB: 1,
+            INTERIM_CORRECTION: 1,
+            NEAR_GOLD_SHF010: 1,
+            INTERIM: 2,
+            NEAR_GOLD: 1,
+        }
+    }
+
+
+def test_merged_truth_reports_an_overlay_replacing_a_hub_label(monkeypatch):
+    import mailroom_sandbox.interim_labels as il
+
+    row, interim, near_gold = _merge_fixture()
+
+    def leaky(row, overlay, *, overlay_sha):  # a gap fill that wrongly wins over the Hub
+        out = dict(row, expected_fields={**row["expected_fields"], "sender": "Interim Sender"})
+        out["interim_labels"] = {"fields": ["sender"], "overlay_sha256": overlay_sha}
+        return out
+
+    del near_gold["DOC-1"]["labels"]["sender"]
+    monkeypatch.setattr(il, "apply_overlay", leaky)
+    merge = merged_truth([row], interim=interim, near_gold=near_gold)
+    assert merge.violations == ["DOC-1.sender: an interim gap_fill replaced the Hub label"]
+
+
+def test_merged_truth_leaves_rows_whose_text_changed():
+    row, interim, near_gold = _merge_fixture()
+    row = dict(row, doc_text=row["doc_text"] + " (edited)")
+    merge = merged_truth([row], interim=interim, near_gold=near_gold)
+    assert {(f.field, f.source) for f in merge.fields} == {("sender", HUB), ("intent", HUB)}
+    assert merge.violations == []
+
+
+def test_merged_truth_lists_unsettled_hub_conflicts_and_keeps_the_hub_value():
+    row, interim, near_gold = _merge_fixture()
+    interim["DOC-1"]["labels"]["sender"] = {
+        "value": "the sender",
+        "status": "disputed",
+        "basis": "gate_vs_hub",
+        "support": 0.97,
+        "use_as_truth": False,
+    }
+    merge = merged_truth([row], interim=interim, near_gold=near_gold)
+    assert {f.field: f.source for f in merge.fields}["sender"] == HUB
+    [conflict] = merge.hub_conflicts
+    assert (conflict.field, conflict.hub_value, conflict.overlay_value, conflict.support) == (
+        "sender",
+        "Hub Sender",
+        "the sender",
+        0.97,
+    )
+    # The gate's value is in the text and the Hub's is not: evidence for a review, not a verdict.
+    assert (conflict.hub_grounded, conflict.overlay_grounded) == (False, True)

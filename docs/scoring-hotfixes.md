@@ -71,6 +71,48 @@ corrections stay `no_evidence`. Notebook 02 passes `cached_doc_rows()`: after
 At the current pin every truth label passes (gold-overlay 3270 supported, 876 in vocabulary;
 interim 3651 supported, 55 in vocabulary).
 
+## Merged truth and precedence
+
+A run's truth is the Hub label, then the interim truth label, then near-gold, each filling only
+fields the layers before it leave unlabelled; an interim correction replaces the Hub value it names,
+and SHF-010 lets reviewed near-gold replace a conflicting interim gate gap fill (never a reviewed
+`original_header` fill). `mailroom_sandbox.notebook.merged_truth` runs that merge
+(`interim_labels.apply_overlay`, then `gold_labels.apply_near_gold`) over Hub rows and returns, per
+scored field, the layer it came from (`breakdown()`), every document and field both overlays label
+with whether they agree and which layer won (`overlaps`), and any result the precedence forbids
+(`violations`). `tests/test_notebook.py` covers each source, each overlap outcome and a leaked
+overlay; notebook 02 runs it over the pulled Hub corpus and asserts no violation.
+
+At the current pin (3,302 documents) the Hub labels 68,702 fields, of which interim corrections replace 55, and the overlays fill 10,710 more:
+
+| Class | Hub | Interim | Interim correction | Near-gold | Near-gold (SHF-010) |
+| --- | --- | --- | --- | --- | --- |
+| contract | 12,799 | 45 | 0 | 900 | 0 |
+| corporate_record | 5,457 | 980 | 0 | 826 | 36 |
+| correspondence | 20,795 | 2,365 | 55 | 4,925 | 4 |
+| insurance_claim | 26,100 | 536 | 0 | 0 | 0 |
+| merger_agreement | 3,496 | 93 | 0 | 0 | 0 |
+
+The two overlays overlap on 2,450 document fields: 647 agree; 40 interim gate fills differ and
+near-gold wins (SHF-010); 1,763 reviewed `original_header` fills differ and win. In 1,692 of those
+near-gold read the field as absent, because the corpus text lost the email header the fill quotes;
+in the other 71 it read a sign-off or the person a reply addresses. The header value is right, but
+the model sees only the text, so those correspondence `sender` / `recipient` /
+`additional_recipients` / `communication_date` fields are scored against values not in its input
+until the dataset restores the headers. No precedence violation.
+
+Hub labels are not all right, so a conflict with one is evaluated, and the clear winner is the
+truth. An overlay replaces a Hub value only as an interim `correction`: a reviewed read of the
+message (`review_read_message`, 55 intents) or the Hub's own CUAD evidence (`cuad_party_spans`,
+`cuad_agreement_date`, 45 contract fields). A gate extraction that merely disagrees is `disputed`:
+it is not truth, the Hub value stands, and `merged_truth(...).hub_conflicts` lists it with both
+values and whether the text holds each, for review. At the current pin there are 30: 17
+correspondence intents, where the text cannot settle a class and a review read is needed, and 13
+contract or merger fields whose Hub truth the Dojo derives from CUAD spans (bare party names where
+the gate adds descriptors, renewal clauses CUAD does not tag as a Renewal Term, clause lists, one
+merger consideration). Settling one goes through a review file (`data/labels/interim/README.md`),
+which makes the winner a `correction` and records who decided it.
+
 ## Draft Dojo issues (not filed)
 
 - **D-1** `extraction_binary_metrics` treats a documented-absent field as a hallucination only

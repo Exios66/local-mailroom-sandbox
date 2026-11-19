@@ -28,8 +28,9 @@ they stay distinguishable from literal ones.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -504,3 +505,235 @@ def label_overlay_grounding(
                         )
                     )
     return findings
+
+
+# --------------------------------------------------------------------------- merged truth
+
+#: Where a scored truth field comes from after the merge (Hub GT -> interim -> near-gold).
+HUB = "hub"
+INTERIM = "interim"  # an interim truth label in a field the Hub leaves unlabelled
+INTERIM_CORRECTION = "interim_correction"  # an interim correction of the Hub value it names
+NEAR_GOLD = "near_gold"  # near-gold in a field neither the Hub nor interim labels
+NEAR_GOLD_SHF010 = "near_gold_shf010"  # near-gold superseding a conflicting interim gap fill
+
+_NOT_FIELDS = frozenset({"gt_presence", "cuad_clause_labels"})
+#: The layer an overlap was settled by.
+_WINNER = {
+    HUB: HUB,
+    INTERIM: INTERIM,
+    INTERIM_CORRECTION: INTERIM,
+    NEAR_GOLD: NEAR_GOLD,
+    NEAR_GOLD_SHF010: NEAR_GOLD,
+}
+
+
+@dataclass(frozen=True)
+class TruthField:
+    doc_id: str
+    doc_class: str
+    field: str
+    source: str
+    value: Any
+
+
+@dataclass(frozen=True)
+class HubConflict:
+    """A Hub label an interim gate extraction disagrees with and no rule settled (``disputed``).
+
+    The Hub value stays the truth until a review or CUAD check makes the overlay a ``correction``
+    (the clear winner). ``hub_grounded`` / ``overlay_grounded``: whether each value's tokens are in
+    the document (``None`` for an empty value or a closed label, which the text cannot settle).
+    """
+
+    doc_id: str
+    doc_class: str
+    field: str
+    hub_value: Any
+    overlay_value: Any
+    support: Any
+    hub_grounded: bool | None
+    overlay_grounded: bool | None
+
+
+@dataclass
+class TruthMerge:
+    """The merged truth of a set of Hub rows, with the precedence problems found on the way."""
+
+    fields: list[TruthField]
+    #: ``(interim basis, "agree" | "differ", winner)`` -> count, for every document and field both
+    #: the interim truth and near-gold label. The winner is the layer the merged field came from
+    #: (``hub``, ``interim`` or ``near_gold``).
+    overlaps: dict[tuple[str, str, str], int]
+    #: A merge result the precedence rules forbid (an overlay replacing a Hub label other than by
+    #: an interim correction, or SHF-010 replacing anything but an interim gate gap fill).
+    violations: list[str]
+    #: Hub labels an overlay disagrees with and no rule settled, kept as Hub truth for review.
+    hub_conflicts: list[HubConflict] = field(default_factory=list)
+
+    def breakdown(self) -> dict[str, dict[str, int]]:
+        """``{doc_class: {source: fields}}``."""
+        out: dict[str, Counter[str]] = {}
+        for f in self.fields:
+            out.setdefault(f.doc_class, Counter())[f.source] += 1
+        return {cls: dict(c) for cls, c in sorted(out.items())}
+
+
+def _labelled(exp: Mapping[str, Any]) -> set[str]:
+    from mailroom_sandbox.gold_labels import hub_labels
+
+    return {f for f in exp if f not in _NOT_FIELDS and hub_labels(f, exp)}
+
+
+def _same(a: Any, b: Any) -> bool:
+    import json
+
+    return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
+
+
+def _field_source(
+    name: str,
+    ilab: Mapping[str, Any],
+    hub: Mapping[str, Any],
+    final: Mapping[str, Any],
+    hub_fields: set[str],
+    ifields: set[str],
+    nfields: set[str],
+    shf010: set[str],
+) -> tuple[str, str]:
+    """``(source, precedence problem or "")`` of one merged field."""
+    if name in shf010:
+        if name in hub_fields:
+            return NEAR_GOLD_SHF010, "SHF-010 replaced the Hub label"
+        if ilab.get("basis") != "gate_accepted_grounded":
+            return NEAR_GOLD_SHF010, f"SHF-010 replaced a {ilab.get('basis')} label"
+        return NEAR_GOLD_SHF010, ""
+    if name in nfields:
+        bad = name in hub_fields or name in ifields
+        return NEAR_GOLD, "near-gold replaced a label it must not" if bad else ""
+    if name in ifields:
+        if name not in hub_fields:
+            return INTERIM, ""
+        ok = ilab.get("status") == "correction"
+        return (
+            INTERIM_CORRECTION,
+            "" if ok else f"an interim {ilab.get('status')} replaced the Hub label",
+        )
+    if not _same(final.get(name), hub.get(name)):
+        return HUB, "the Hub value changed with no overlay recorded"
+    return HUB, ""
+
+
+def _hub_conflicts(row: Mapping[str, Any], ilabels: Mapping[str, Any]) -> list[HubConflict]:
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
+
+    doc_id, cls = il.row_id(row), str(row.get("expected_doc_class") or "")
+    text = str(row.get("doc_text") or "")
+    closed = gl._schema_bits(cls)[1] if cls else {}
+    out = []
+    for name, lab in sorted(ilabels.items()):
+        if lab.get("status") != "disputed":
+            continue
+        hub_value = gl._parse_json(il._expected(row).get(name))
+
+        def grounded(value: Any, name: str = name) -> bool | None:
+            if name in closed or value in (None, "", [], {}):
+                return None
+            return il.grounded(value, text)
+
+        out.append(
+            HubConflict(
+                doc_id,
+                cls,
+                name,
+                hub_value,
+                lab.get("value"),
+                lab.get("support"),
+                grounded(hub_value),
+                grounded(lab.get("value")),
+            )
+        )
+    return out
+
+
+def _merge_row(
+    row: Mapping[str, Any],
+    interim: Mapping[str, Any],
+    near: Mapping[str, Any],
+    shas: tuple[str, str],
+) -> tuple[list[TruthField], Counter[tuple[str, str, str]], list[str]]:
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
+
+    doc_id, cls = il.row_id(row), str(row.get("expected_doc_class") or "")
+    hub = il._expected(row)
+    hub_fields = _labelled(hub)
+    after_interim = il.apply_overlay(row, interim, overlay_sha=shas[0])
+    ifields = set((after_interim.get("interim_labels") or {}).get("fields") or [])
+    final_row = gl.apply_near_gold(after_interim, near, overlay_sha=shas[1], interim=interim)
+    nfields = set((final_row.get("near_gold_labels") or {}).get("fields") or [])
+    shf010 = set((final_row.get("truth_overrides") or {}).get("SHF-010") or {})
+    final = il._expected(final_row)
+    ilabels = (interim.get(doc_id) or {}).get("labels") or {}
+    fields, problems = [], []
+    for name in sorted(_labelled(final)):
+        source, problem = _field_source(
+            name, ilabels.get(name) or {}, hub, final, hub_fields, ifields, nfields, shf010
+        )
+        if problem:
+            problems.append(f"{doc_id}.{name}: {problem}")
+        fields.append(TruthField(doc_id, cls, name, source, final.get(name)))
+    won = {f.field: f.source for f in fields}
+    overlaps: Counter[tuple[str, str, str]] = Counter()
+    nlabels = (near.get(doc_id) or {}).get("labels") or {}
+    for name in sorted(set(ilabels) & set(nlabels)):
+        ilab, nlab = ilabels[name], nlabels[name]
+        if not ilab.get("use_as_truth") or not str(nlab.get("basis") or "").startswith(
+            "near_gold:"
+        ):
+            continue
+        agree = "agree" if _same(ilab.get("value"), nlab.get("value")) else "differ"
+        winner = _WINNER.get(won.get(name, ""), "unlabelled")
+        overlaps[(str(ilab.get("basis") or ""), agree, winner)] += 1
+    return fields, overlaps, problems
+
+
+def merged_truth(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    interim: Mapping[str, Mapping[str, Any]] | None = None,
+    near_gold: Mapping[str, Mapping[str, Any]] | None = None,
+) -> TruthMerge:
+    """Merge Hub rows with the overlays exactly as scoring does and say where each field came from.
+
+    Uses ``interim_labels.apply_overlay`` then ``gold_labels.apply_near_gold`` (SHF-010 included
+    while it is current), so the breakdown is the truth a run scores against. ``hub_conflicts``
+    lists the Hub labels an overlay disagrees with that no rule settled (interim ``disputed``):
+    the Hub value stands until a review or CUAD check makes the overlay the clear winner. ``rows`` are Hub
+    rows with their text (``cached_doc_rows().values()``); ``interim`` and ``near_gold`` default to
+    the committed overlays. A row whose text no longer matches an overlay's ``doc_sha256`` keeps
+    its Hub labels, as at run time.
+    """
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
+
+    if interim is None:
+        interim = il.load_overlay()
+    near_sha = "supplied"
+    if near_gold is None:
+        near_gold, near_sha, problems = gl.near_gold_snapshot()
+        if problems:
+            raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
+    fields: list[TruthField] = []
+    overlaps: Counter[tuple[str, str, str]] = Counter()
+    violations: list[str] = []
+    conflicts: list[HubConflict] = []
+    for row in rows:
+        f, o, v = _merge_row(row, interim, near_gold, ("supplied", near_sha))
+        fields += f
+        overlaps.update(o)
+        violations += v
+        rec = interim.get(il.row_id(row)) or {}
+        if rec.get("doc_sha256") == il.row_doc_sha(row):
+            conflicts += _hub_conflicts(row, rec.get("labels") or {})
+    return TruthMerge(fields, dict(overlaps), violations, conflicts)
