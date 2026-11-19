@@ -35,7 +35,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: all
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  revision: bc9eab280044befb51e19dda3071d290a8677f42   # v9.1 on purpose: pairs with production-slice-0100-r2 (v9.1); keep until re-baselined on v9.3
   strata:
     buckets:
       - {doc_class: corporate_record, count: 6}

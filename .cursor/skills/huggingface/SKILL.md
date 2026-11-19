@@ -40,14 +40,16 @@ replace the full cache required by the default `datasets sample` command.
 
 ## Pins and offline draws
 
-Read `src/mailroom_sandbox/job/spec.py` before changing a revision. At the PR
-274 baseline (2026-11-09), the default family pull is:
+Read `src/mailroom_sandbox/job/spec.py` before changing a revision. Since the v9.3
+pin move (2026-11-19), the default family pull is:
 
 - Repo: `Lucius-Morningstar/mailroom-dataset`.
-- `FAMILY_HF_TAG`: `v9.1`; `FAMILY_HF_REVISION`:
-  `bc9eab280044befb51e19dda3071d290a8677f42`.
-- `FAMILY_HF_DATA_REVISION`: `ed7576b676343e0b402ec5412cded301e629bdee`
+- `FAMILY_HF_TAG`: `v9.3`; `FAMILY_HF_REVISION`:
+  `ff4ca546d4346991628c2616ae014afc15e9fe04`.
+- `FAMILY_HF_DATA_REVISION`: `7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5`
   (the data commit; distinct from the tag-recording commit).
+- Superseded pins live in `LEGACY_FAMILY_HF_REVISIONS` (v9.1: `bc9eab28` /
+  `ed7576b6`). Configs, locks and reports measured on them keep naming them.
 - Config `ground_truth`, split `all` (train + test), 3,302 rows:
   contract 600, corporate_record 450, correspondence 1,000,
   insurance_claim 1,100, merger_agreement 152.
@@ -64,7 +66,7 @@ sandbox datasets sample --per-class 40 --seed 42  # offline, once the full cache
 ```
 
 Default sample input is
-`<repo>/data/cache/Lucius-Morningstar__mailroom-dataset__bc9eab280044/ground_truth_all.jsonl`.
+`<repo>/data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl`.
 `--from <jsonl>` selects another existing source; `--out` selects its destination.
 The seed controls per-stratum draws. Rows are normalized, filtered, canonically
 sorted and selected; a global limit is then applied. Without strata, a seed

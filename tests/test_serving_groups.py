@@ -18,10 +18,12 @@ from llm_dojo_scoring.serving import _LEG_IDENTITY_KEYS, compare_serving
 from mailroom_sandbox.datasets import load_serving_fixtures
 from mailroom_sandbox.eval import experiment_log, runners, scoring
 from mailroom_sandbox.job import metrics
-from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, LEGACY_FAMILY_HF_REVISIONS
 from mailroom_sandbox.serving_groups import LEG_IDENTITY_FIELDS, select_pair
 
 REV = FAMILY_HF_REVISION
+# The committed SAND-32 serving fixtures were measured on v9.1 and keep that revision.
+FIXTURE_REV = LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
 
 
 def _row(kind, model, *, prompt="mailroom-default", task="sorter", fp="abc123", rev=REV, ttft=0.4, **extra):
@@ -67,7 +69,7 @@ def test_leg_identity_fields_track_the_dojo():
 def test_serving_fixtures_carry_the_pinned_dataset_revision():
     fixtures = load_serving_fixtures()
     for side in ("local", "api"):
-        assert fixtures[side]["dataset_revision"] == REV
+        assert fixtures[side]["dataset_revision"] == FIXTURE_REV
     # never the fingerprint stand-in
     assert fixtures["local"]["dataset_revision"] != fixtures["local"]["dataset_fingerprint"]
 
@@ -82,7 +84,7 @@ def test_fixture_scorecard_emits_through_the_real_emitter(tmp_path, monkeypatch)
     assert rows, "the real sink must have received the serving metrics"
     ttft = [r for r in rows if r["metric"].endswith("ttft_seconds") or "ttft" in json.dumps(r)]
     assert ttft
-    assert REV in path.read_text(encoding="utf-8")
+    assert FIXTURE_REV in path.read_text(encoding="utf-8")
 
 
 def test_missing_dataset_revision_is_refused_with_a_sandbox_hint(tmp_path, monkeypatch):

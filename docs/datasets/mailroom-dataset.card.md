@@ -49,7 +49,7 @@ only comparable on the same revision.
 from datasets import load_dataset
 
 REPO = "Lucius-Morningstar/mailroom-dataset"
-REV = "ed7576b676343e0b402ec5412cded301e629bdee"  # FAMILY_HF_DATA_REVISION (parquet rows)
+REV = "7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5"  # FAMILY_HF_DATA_REVISION (parquet rows)
 
 docs = load_dataset(REPO, "default", revision=REV)
 labels = load_dataset(REPO, "ground_truth", revision=REV)
@@ -181,8 +181,9 @@ Reuse must keep the attribution required by the upstream licenses.
 
 | Version | Revision | Notes |
 | --- | --- | --- |
-| v9.1 | `bc9eab280044befb51e19dda3071d290a8677f42` | Hub tag, `FAMILY_HF_REVISION`; current pinned revision for the LLM-Mailroom family |
-| v9.1 data | `ed7576b676343e0b402ec5412cded301e629bdee` | Parquet row revision, `FAMILY_HF_DATA_REVISION` |
+| v9.3 | `ff4ca546d4346991628c2616ae014afc15e9fe04` | Hub tag, `FAMILY_HF_REVISION`; current pinned revision for the LLM-Mailroom family. Labels only: corporate repair, per-subclass corporate `gt_presence` keys, merger agreements routed to `merger_agreement_specialist`, six-regime `annotation_method`. Measured against v9.1: every corporate record's labels change (12 change subclass), 23 correspondence documents change `related_document_ids`, and `annotation_method` changes on 1,541 rows |
+| v9.3 data | `7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5` | Parquet revision, `FAMILY_HF_DATA_REVISION`; rows, document IDs and text unchanged since v9.1 |
+| v9.1 | `bc9eab280044befb51e19dda3071d290a8677f42` | Superseded Hub tag (data `ed7576b676343e0b402ec5412cded301e629bdee`); earlier production slices and studies were measured on it |
 | v9 | `46a4d3c240a36671cde0182fff4960f6b8b73aca` | Revision used by the September 2026 specialist extraction runs |
 
 ## Related resources
@@ -200,7 +201,7 @@ Reuse must keep the attribution required by the upstream licenses.
   author       = {Lucius-Morningstar},
   year         = {2026},
   howpublished = {\url{https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset}},
-  note         = {Revision bc9eab280044befb51e19dda3071d290a8677f42 (v9.1)}
+  note         = {Revision ff4ca546d4346991628c2616ae014afc15e9fe04 (v9.3)}
 }
 ```
 

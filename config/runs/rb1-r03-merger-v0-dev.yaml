@@ -3,7 +3,7 @@
 # (isolated) at its decided v0 stem merger_agreement_specialist_maud_v2 on qwen/qwen3.7-flash (the
 # iteration model), the whole document in one call (longest dev merger 739,511 chars; all 59 are
 # over the 36,008-char overlay cap), on the 59 merger_agreement documents of
-# config/splits/runbook-v1 dev (corpus revision bc9eab28). Truth is the repaired overlay (interim
+# config/splits/runbook-v2 dev (corpus revision ff4ca546). Truth is the repaired overlay (interim
 # + near-gold).
 # job.pipeline_handoff is on but job.specialist_subclass stays none: the spec refuses gold for the
 # merger specialist (it would hand over the scored merger_consideration token), and a sorter-pass
@@ -39,8 +39,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev.exclude.ids
   strata:
     buckets:
       - {doc_class: merger_agreement, count: 59}
