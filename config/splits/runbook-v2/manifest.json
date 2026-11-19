@@ -1,0 +1,380 @@
+{
+  "dataset": {
+    "revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+    "rows": 3302
+  },
+  "files": {
+    "assignments.jsonl": "4bc5c1ea13b2d9c6dc15e1322421d8700d0d518ba63be9e82a5c4e3c8e1c60b9",
+    "calibration.exclude.ids": "1772d8ba80c28e239dfac4b5204ecdcd052476e763de0252e0c93c43d5afd970",
+    "calibration.ids": "47e8d18cbb3d1b43298541c3390f4c881f1e5f14bd9fb4b0492d6a2f2af04e1e",
+    "dev-look1.exclude.ids": "049880c2191d5c0dc9dd0ca6da674fc329f890af2880839467e8c0e72d4f8af0",
+    "dev-look1.ids": "de91c8ba037a993009bb6d71ba30a4ef06b6fd14cc0347fbcb08626b6012deca",
+    "dev-look2.exclude.ids": "cfa641a4152b6751c743b5a2704ed0461a728752397cd8d371f5bb7c0d750c72",
+    "dev-look2.ids": "3ae9fae115d90053a4a6d6aca9d650a6774791da0e38c8c4246c73361c91f182",
+    "dev.exclude.ids": "1adfdb757c95b9192147d1e375c43a8afb731cfc4a5beaa1465e989fb43a29e6",
+    "dev.ids": "0631f66170457a46317460db29dc942cc3bf3c085ce1e3fbc481e8a6c22d609f",
+    "heldout.exclude.ids": "6901f77b1ce10729ff9579e033ee8b501a99a750f7766eded8d87ea0bfb16c63",
+    "heldout.ids": "9c0694e4ac76c6125f7e0f491eb8dc2958f8ec1e51a27eb8d816e1c9a5cc551c",
+    "pool.exclude.ids": "6020688db078627ab742cbb68391d4c26bf0138bb336afbfdcebb8b84c96f7af",
+    "pool.ids": "b990a7795451535ffe444c73b07b75eec6cdb4264447198481cef8c6be1ea847"
+  },
+  "inputs": {
+    "exposure": {
+      "path": "config/splits/runbook-v2-exposure.txt",
+      "sha256": "6d391f5ce55aac993eb6335942c371cf35d6236a429a3772fc455981da967595"
+    },
+    "families": {
+      "path": "config/splits/families.yaml",
+      "sha256": "9bf78dd10f97451b91dd03807a7c0b9207f0fc4ccbde7b3caa0b0d3bf40b122c"
+    }
+  },
+  "looks": {
+    "dev-look1": 300,
+    "dev-look2": 600
+  },
+  "schema": "mailroom.experiment_split/v1",
+  "seed": 20261118,
+  "sizes": {
+    "calibration": 1000,
+    "dev": 900,
+    "heldout": 1000,
+    "pool": 402
+  },
+  "units": {
+    "contract/Consulting Agreements": {
+      "kind": "subclass",
+      "n": 38,
+      "quota": 19,
+      "subclasses": [
+        "Consulting Agreements"
+      ]
+    },
+    "contract/Distributor": {
+      "kind": "subclass",
+      "n": 32,
+      "quota": 16,
+      "subclasses": [
+        "Distributor"
+      ]
+    },
+    "contract/IP": {
+      "kind": "subclass",
+      "n": 35,
+      "quota": 17,
+      "subclasses": [
+        "IP"
+      ]
+    },
+    "contract/License_Agreements": {
+      "kind": "subclass",
+      "n": 43,
+      "quota": 20,
+      "subclasses": [
+        "License_Agreements"
+      ]
+    },
+    "contract/Maintenance": {
+      "kind": "subclass",
+      "n": 34,
+      "quota": 17,
+      "subclasses": [
+        "Maintenance"
+      ]
+    },
+    "contract/Service": {
+      "kind": "subclass",
+      "n": 34,
+      "quota": 17,
+      "subclasses": [
+        "Service"
+      ]
+    },
+    "contract/Sponsorship": {
+      "kind": "subclass",
+      "n": 31,
+      "quota": 15,
+      "subclasses": [
+        "Sponsorship"
+      ]
+    },
+    "contract/Strategic Alliance": {
+      "kind": "subclass",
+      "n": 32,
+      "quota": 16,
+      "subclasses": [
+        "Strategic Alliance"
+      ]
+    },
+    "contract/Supply": {
+      "kind": "subclass",
+      "n": 47,
+      "quota": 20,
+      "subclasses": [
+        "Supply"
+      ]
+    },
+    "contract/family:alliances_jv": {
+      "kind": "family",
+      "n": 49,
+      "quota": 20,
+      "subclasses": [
+        "Collaboration",
+        "Joint Venture",
+        "Joint Venture _ Filing"
+      ]
+    },
+    "contract/family:licensing_ip": {
+      "kind": "pooled",
+      "n": 29,
+      "quota": 10,
+      "subclasses": [
+        "Affiliate_Agreements",
+        "Franchise",
+        "Non_Compete_Non_Solicit"
+      ]
+    },
+    "contract/family:marketing_sponsorship": {
+      "kind": "family",
+      "n": 75,
+      "quota": 20,
+      "subclasses": [
+        "Co_Branding",
+        "Endorsement",
+        "Marketing",
+        "Promotion"
+      ]
+    },
+    "contract/family:services_outsourcing": {
+      "kind": "family",
+      "n": 66,
+      "quota": 20,
+      "subclasses": [
+        "Development",
+        "Hosting",
+        "Outsourcing"
+      ]
+    },
+    "contract/family:supply_distribution": {
+      "kind": "family",
+      "n": 55,
+      "quota": 20,
+      "subclasses": [
+        "Agency Agreements",
+        "Manufacturing",
+        "Reseller",
+        "Transportation"
+      ]
+    },
+    "corporate_record/articles_of_incorporation": {
+      "kind": "subclass",
+      "n": 54,
+      "quota": 20,
+      "subclasses": [
+        "articles_of_incorporation"
+      ]
+    },
+    "corporate_record/board_resolution": {
+      "kind": "subclass",
+      "n": 32,
+      "quota": 16,
+      "subclasses": [
+        "board_resolution"
+      ]
+    },
+    "corporate_record/bylaws": {
+      "kind": "subclass",
+      "n": 36,
+      "quota": 18,
+      "subclasses": [
+        "bylaws"
+      ]
+    },
+    "corporate_record/charter_amendment": {
+      "kind": "subclass",
+      "n": 80,
+      "quota": 20,
+      "subclasses": [
+        "charter_amendment"
+      ]
+    },
+    "corporate_record/family:governance_instruments": {
+      "kind": "pooled",
+      "n": 28,
+      "quota": 10,
+      "subclasses": [
+        "other",
+        "powers_of_attorney"
+      ]
+    },
+    "corporate_record/indenture": {
+      "kind": "subclass",
+      "n": 57,
+      "quota": 20,
+      "subclasses": [
+        "indenture"
+      ]
+    },
+    "corporate_record/officer_certificate": {
+      "kind": "subclass",
+      "n": 61,
+      "quota": 20,
+      "subclasses": [
+        "officer_certificate"
+      ]
+    },
+    "corporate_record/rights_instrument": {
+      "kind": "subclass",
+      "n": 49,
+      "quota": 20,
+      "subclasses": [
+        "rights_instrument"
+      ]
+    },
+    "corporate_record/subsidiary_list": {
+      "kind": "subclass",
+      "n": 53,
+      "quota": 20,
+      "subclasses": [
+        "subsidiary_list"
+      ]
+    },
+    "correspondence/demand": {
+      "kind": "subclass",
+      "n": 66,
+      "quota": 20,
+      "subclasses": [
+        "demand"
+      ]
+    },
+    "correspondence/email": {
+      "kind": "subclass",
+      "n": 557,
+      "quota": 20,
+      "subclasses": [
+        "email"
+      ]
+    },
+    "correspondence/family:legal_demand_rare": {
+      "kind": "pooled",
+      "n": 3,
+      "quota": 1,
+      "subclasses": [
+        "attorney_demand"
+      ]
+    },
+    "correspondence/letter": {
+      "kind": "subclass",
+      "n": 79,
+      "quota": 20,
+      "subclasses": [
+        "letter"
+      ]
+    },
+    "correspondence/meeting_request": {
+      "kind": "subclass",
+      "n": 53,
+      "quota": 20,
+      "subclasses": [
+        "meeting_request"
+      ]
+    },
+    "correspondence/memo": {
+      "kind": "subclass",
+      "n": 83,
+      "quota": 20,
+      "subclasses": [
+        "memo"
+      ]
+    },
+    "correspondence/notice": {
+      "kind": "subclass",
+      "n": 81,
+      "quota": 20,
+      "subclasses": [
+        "notice"
+      ]
+    },
+    "correspondence/press_release": {
+      "kind": "subclass",
+      "n": 78,
+      "quota": 20,
+      "subclasses": [
+        "press_release"
+      ]
+    },
+    "insurance_claim/auto": {
+      "kind": "subclass",
+      "n": 300,
+      "quota": 20,
+      "subclasses": [
+        "auto"
+      ]
+    },
+    "insurance_claim/carrier": {
+      "kind": "subclass",
+      "n": 150,
+      "quota": 20,
+      "subclasses": [
+        "carrier"
+      ]
+    },
+    "insurance_claim/inpatient": {
+      "kind": "subclass",
+      "n": 150,
+      "quota": 20,
+      "subclasses": [
+        "inpatient"
+      ]
+    },
+    "insurance_claim/outpatient": {
+      "kind": "subclass",
+      "n": 150,
+      "quota": 20,
+      "subclasses": [
+        "outpatient"
+      ]
+    },
+    "insurance_claim/pde": {
+      "kind": "subclass",
+      "n": 150,
+      "quota": 20,
+      "subclasses": [
+        "pde"
+      ]
+    },
+    "insurance_claim/property": {
+      "kind": "subclass",
+      "n": 200,
+      "quota": 20,
+      "subclasses": [
+        "property"
+      ]
+    },
+    "merger_agreement/all_cash": {
+      "kind": "subclass",
+      "n": 57,
+      "quota": 20,
+      "subclasses": [
+        "all_cash"
+      ]
+    },
+    "merger_agreement/family:stock_or_mixed": {
+      "kind": "family",
+      "n": 38,
+      "quota": 19,
+      "subclasses": [
+        "all_stock",
+        "mixed_cash_stock",
+        "mixed_cash_stock_election"
+      ]
+    },
+    "merger_agreement/other": {
+      "kind": "subclass",
+      "n": 57,
+      "quota": 20,
+      "subclasses": [
+        "other"
+      ]
+    }
+  }
+}

@@ -32,6 +32,8 @@ _log = logging.getLogger("mailroom_sandbox.job.spec")
 # every corporate record changes labels (``gt_presence``, ``record_type``; ``entity_name``,
 # ``keywords``, ``subject_matter`` on 412; ``intent`` on 12; ``expected_subclass`` on 12), and
 # 23 correspondence documents change ``related_document_ids`` (14 also ``relationships``).
+# ``annotation_method`` changes on 1,541 rows: it now varies within a class and follows the
+# subclass, which the runbook split draw and its mix gate account for (``experiment_splits``).
 FAMILY_HF_TAG = "v9.3"
 FAMILY_HF_REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
 FAMILY_HF_DATA_REVISION = "7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5"
@@ -47,6 +49,16 @@ KNOWN_FAMILY_HF_REVISIONS: frozenset[str] = frozenset(
     (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION,
      *(sha for pair in LEGACY_FAMILY_HF_REVISIONS.values() for sha in pair))
 )
+
+
+def family_tag_commit(revision: str) -> str:
+    """The Hub tag commit for a family revision: a tag name (``v9.3``) or its parquet parent
+    maps to the tag commit; any other value is returned unchanged. Compare revisions through
+    it, since a run, a split and a registry may each record a different spelling."""
+    pairs = {FAMILY_HF_TAG: (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION), **LEGACY_FAMILY_HF_REVISIONS}
+    return next((tag for name, (tag, data) in pairs.items() if revision in (name, tag, data)), revision)
+
+
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302

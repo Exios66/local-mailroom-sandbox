@@ -9111,9 +9111,9 @@
      "in_output_schema": true,
      "labeled": 434,
      "labeled_by_set": {
-      "calibration": 128,
-      "dev": 152,
-      "heldout": 154,
+      "calibration": 113,
+      "dev": 160,
+      "heldout": 161,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9135,9 +9135,9 @@
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9190,8 +9190,8 @@
      "labeled": 44,
      "labeled_by_set": {
       "calibration": 24,
-      "dev": 12,
-      "heldout": 8,
+      "dev": 13,
+      "heldout": 7,
       "pool": 0
      },
      "subclasses_with_truth": 3,
@@ -9272,9 +9272,9 @@
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9295,9 +9295,9 @@
      "in_output_schema": true,
      "labeled": 384,
      "labeled_by_set": {
-      "calibration": 118,
-      "dev": 133,
-      "heldout": 133,
+      "calibration": 103,
+      "dev": 141,
+      "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
@@ -9322,9 +9322,9 @@
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9449,9 +9449,9 @@
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9547,9 +9547,9 @@
      "in_output_schema": true,
      "labeled": 384,
      "labeled_by_set": {
-      "calibration": 119,
-      "dev": 132,
-      "heldout": 133,
+      "calibration": 104,
+      "dev": 140,
+      "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
@@ -9571,9 +9571,9 @@
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9674,9 +9674,9 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 17,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
@@ -9684,7 +9684,7 @@
         "near_gold": 47
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "partial",
@@ -9698,9 +9698,9 @@
        "in_output_schema": true,
        "labeled": 54,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 18,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -9709,7 +9709,7 @@
         "near_gold": 7
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "pending_annotation",
@@ -9723,8 +9723,8 @@
        "labeled": 20,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 7,
-        "heldout": 6,
+        "dev": 8,
+        "heldout": 5,
         "pool": 0
        },
        "truth": {
@@ -9764,9 +9764,9 @@
        "in_output_schema": true,
        "labeled": 54,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 18,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -9787,9 +9787,9 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 17,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
@@ -9797,7 +9797,7 @@
         "near_gold": 32
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -9813,16 +9813,16 @@
        "in_output_schema": true,
        "labeled": 54,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 18,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "hub": 54
        },
        "type": "entity_list:name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -9835,9 +9835,9 @@
        "in_output_schema": true,
        "labeled": 54,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 18,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -9878,9 +9878,9 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 17,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
@@ -9888,7 +9888,7 @@
         "near_gold": 39
        },
        "type": "entity_list:name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -9901,16 +9901,16 @@
        "in_output_schema": true,
        "labeled": 54,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 18,
-        "heldout": 18,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "hub": 54
        },
        "type": "free_text",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "intent": "entity_formation",
@@ -9918,9 +9918,9 @@
      "record_type": "articles_of_incorporation",
      "rows": 54,
      "rows_by_set": {
-      "calibration": 18,
-      "dev": 18,
-      "heldout": 18,
+      "calibration": 14,
+      "dev": 20,
+      "heldout": 20,
       "pool": 0
      },
      "salient": [
@@ -9930,8 +9930,8 @@
      ],
      "verdicts": {
       "constant": 3,
-      "no_truth": 3,
-      "thin": 6
+      "iterate": 6,
+      "no_truth": 3
      }
     },
     "board_resolution": {
@@ -10261,9 +10261,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10285,9 +10285,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10304,9 +10304,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10327,9 +10327,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10350,9 +10350,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10376,9 +10376,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10418,9 +10418,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10441,9 +10441,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10464,9 +10464,9 @@
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
@@ -10481,9 +10481,9 @@
      "record_type": "bylaws",
      "rows": 36,
      "rows_by_set": {
-      "calibration": 14,
-      "dev": 11,
-      "heldout": 11,
+      "calibration": 0,
+      "dev": 18,
+      "heldout": 18,
       "pool": 0
      },
      "salient": [
@@ -11864,9 +11864,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -11888,9 +11888,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -11926,9 +11926,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -11949,9 +11949,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -11972,9 +11972,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -11998,9 +11998,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -12040,9 +12040,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -12069,9 +12069,9 @@
        "in_output_schema": true,
        "labeled": 25,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 8,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -12092,9 +12092,9 @@
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 9,
-        "heldout": 11,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
@@ -12109,9 +12109,9 @@
      "record_type": "powers_of_attorney",
      "rows": 26,
      "rows_by_set": {
-      "calibration": 6,
+      "calibration": 7,
       "dev": 9,
-      "heldout": 11,
+      "heldout": 10,
       "pool": 0
      },
      "salient": [
@@ -12141,9 +12141,9 @@
        "in_output_schema": true,
        "labeled": 48,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 20,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 19,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12151,7 +12151,7 @@
         "near_gold": 29
        },
        "type": "date",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "entity_name": {
        "dojo_status": "partial",
@@ -12165,9 +12165,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12204,9 +12204,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12267,9 +12267,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12290,9 +12290,9 @@
        "in_output_schema": true,
        "labeled": 46,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 8,
+        "dev": 19,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
@@ -12300,7 +12300,7 @@
         "near_gold": 34
        },
        "type": "name",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -12316,9 +12316,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12338,9 +12338,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12401,9 +12401,9 @@
        "in_output_schema": true,
        "labeled": 47,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 9,
+        "dev": 19,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
@@ -12411,7 +12411,7 @@
         "near_gold": 36
        },
        "type": "entity_list:name",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -12424,9 +12424,9 @@
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 21,
-        "heldout": 21,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
@@ -12441,9 +12441,9 @@
      "record_type": "rights_instrument",
      "rows": 49,
      "rows_by_set": {
-      "calibration": 7,
-      "dev": 21,
-      "heldout": 21,
+      "calibration": 9,
+      "dev": 20,
+      "heldout": 20,
       "pool": 0
      },
      "salient": [
@@ -12455,9 +12455,10 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 6,
+      "iterate": 3,
       "no_truth": 5,
-      "not_applicable": 1
+      "not_applicable": 1,
+      "thin": 3
      }
     },
     "subsidiary_list": {
@@ -12735,10 +12736,10 @@
      "in_output_schema": true,
      "labeled": 999,
      "labeled_by_set": {
-      "calibration": 347,
-      "dev": 205,
-      "heldout": 253,
-      "pool": 194
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
+      "pool": 193
      },
      "subclasses_with_truth": 8,
      "truth": {
@@ -12758,9 +12759,9 @@
      "in_output_schema": true,
      "labeled": 998,
      "labeled_by_set": {
-      "calibration": 347,
-      "dev": 205,
-      "heldout": 252,
+      "calibration": 355,
+      "dev": 201,
+      "heldout": 248,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12782,10 +12783,10 @@
      "in_output_schema": true,
      "labeled": 999,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
-      "pool": 193
+      "calibration": 355,
+      "dev": 201,
+      "heldout": 249,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
@@ -12805,10 +12806,10 @@
      "in_output_schema": true,
      "labeled": 300,
      "labeled_by_set": {
-      "calibration": 86,
-      "dev": 92,
-      "heldout": 71,
-      "pool": 51
+      "calibration": 87,
+      "dev": 90,
+      "heldout": 68,
+      "pool": 55
      },
      "subclasses_with_truth": 8,
      "truth": {
@@ -12822,9 +12823,9 @@
      "in_output_schema": false,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12845,9 +12846,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12867,9 +12868,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12896,9 +12897,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12919,9 +12920,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12943,9 +12944,9 @@
      "in_output_schema": true,
      "labeled": 998,
      "labeled_by_set": {
-      "calibration": 346,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 354,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12961,9 +12962,9 @@
      "in_output_schema": false,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12983,9 +12984,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -13006,9 +13007,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -13041,10 +13042,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13059,10 +13060,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13077,10 +13078,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 3
@@ -13094,10 +13095,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 3
@@ -13111,10 +13112,10 @@
        "in_output_schema": false,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13129,10 +13130,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13146,10 +13147,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 2,
@@ -13164,10 +13165,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13182,10 +13183,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 2,
@@ -13201,10 +13202,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 1,
@@ -13219,10 +13220,10 @@
        "in_output_schema": false,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13236,10 +13237,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13254,10 +13255,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13268,10 +13269,10 @@
      },
      "rows": 3,
      "rows_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 1,
       "heldout": 1,
-      "pool": 1
+      "pool": 0
      },
      "verdicts": {
       "fixed": 2,
@@ -13602,10 +13603,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13625,10 +13626,10 @@
        "in_output_schema": true,
        "labeled": 555,
        "labeled_by_set": {
-        "calibration": 238,
-        "dev": 66,
-        "heldout": 102,
-        "pool": 149
+        "calibration": 252,
+        "dev": 68,
+        "heldout": 103,
+        "pool": 132
        },
        "truth": {
         "interim": 188,
@@ -13649,10 +13650,10 @@
        "in_output_schema": true,
        "labeled": 556,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 148
+        "calibration": 252,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 397,
@@ -13672,10 +13673,10 @@
        "in_output_schema": true,
        "labeled": 43,
        "labeled_by_set": {
-        "calibration": 14,
+        "calibration": 18,
         "dev": 7,
         "heldout": 4,
-        "pool": 18
+        "pool": 14
        },
        "truth": {
         "interim": 43
@@ -13689,10 +13690,10 @@
        "in_output_schema": false,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13712,10 +13713,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13734,10 +13735,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 554,
@@ -13763,10 +13764,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13786,10 +13787,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 301,
@@ -13810,10 +13811,10 @@
        "in_output_schema": true,
        "labeled": 555,
        "labeled_by_set": {
-        "calibration": 237,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 251,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 237,
@@ -13828,10 +13829,10 @@
        "in_output_schema": false,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13850,10 +13851,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13873,10 +13874,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 253,
+        "dev": 68,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13887,10 +13888,10 @@
      },
      "rows": 557,
      "rows_by_set": {
-      "calibration": 239,
-      "dev": 66,
-      "heldout": 103,
-      "pool": 149
+      "calibration": 253,
+      "dev": 68,
+      "heldout": 104,
+      "pool": 132
      },
      "verdicts": {
       "constant": 2,
@@ -13912,10 +13913,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "near_gold": 79
@@ -13935,10 +13936,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "interim": 14,
@@ -13959,10 +13960,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "interim": 60,
@@ -13982,10 +13983,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 11,
-        "heldout": 9,
-        "pool": 5
+        "calibration": 14,
+        "dev": 10,
+        "heldout": 10,
+        "pool": 8
        },
        "truth": {
         "interim": 42
@@ -13999,10 +14000,10 @@
        "in_output_schema": false,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "hub": 79
@@ -14022,10 +14023,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "near_gold": 79
@@ -14044,10 +14045,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "hub": 74,
@@ -14076,10 +14077,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "hub": 79
@@ -14099,10 +14100,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "interim": 43,
@@ -14123,10 +14124,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "interim": 27,
@@ -14141,10 +14142,10 @@
        "in_output_schema": false,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "hub": 79
@@ -14163,10 +14164,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "hub": 79
@@ -14186,10 +14187,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 19,
+        "dev": 22,
         "heldout": 26,
-        "pool": 7
+        "pool": 12
        },
        "truth": {
         "near_gold": 79
@@ -14200,10 +14201,10 @@
      },
      "rows": 79,
      "rows_by_set": {
-      "calibration": 23,
-      "dev": 23,
+      "calibration": 19,
+      "dev": 22,
       "heldout": 26,
-      "pool": 7
+      "pool": 12
      },
      "verdicts": {
       "constant": 2,
@@ -14227,8 +14228,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "near_gold": 53
@@ -14250,8 +14251,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "interim": 30,
@@ -14274,8 +14275,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "interim": 49,
@@ -14295,10 +14296,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 7,
+        "calibration": 6,
         "dev": 19,
-        "heldout": 15,
-        "pool": 1
+        "heldout": 14,
+        "pool": 3
        },
        "truth": {
         "interim": 42
@@ -14314,8 +14315,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "hub": 53
@@ -14337,8 +14338,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "near_gold": 53
@@ -14359,8 +14360,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "hub": 52,
@@ -14390,8 +14391,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "hub": 53
@@ -14413,8 +14414,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "interim": 37,
@@ -14437,8 +14438,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "interim": 35,
@@ -14455,8 +14456,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "hub": 53
@@ -14477,8 +14478,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "hub": 53
@@ -14500,8 +14501,8 @@
        "labeled_by_set": {
         "calibration": 8,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 3
        },
        "truth": {
         "near_gold": 53
@@ -14514,8 +14515,8 @@
      "rows_by_set": {
       "calibration": 8,
       "dev": 21,
-      "heldout": 22,
-      "pool": 2
+      "heldout": 21,
+      "pool": 3
      },
      "verdicts": {
       "constant": 2,
@@ -14537,10 +14538,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "near_gold": 83
@@ -14560,10 +14561,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "interim": 24,
@@ -14584,10 +14585,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "interim": 54,
@@ -14607,10 +14608,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 13,
+        "calibration": 12,
         "dev": 16,
-        "heldout": 7,
-        "pool": 6
+        "heldout": 6,
+        "pool": 8
        },
        "truth": {
         "interim": 42
@@ -14624,10 +14625,10 @@
        "in_output_schema": false,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "hub": 83
@@ -14647,10 +14648,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "near_gold": 83
@@ -14669,10 +14670,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "hub": 81,
@@ -14698,10 +14699,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "hub": 83
@@ -14721,10 +14722,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "interim": 37,
@@ -14745,10 +14746,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "interim": 31,
@@ -14763,10 +14764,10 @@
        "in_output_schema": false,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "hub": 83
@@ -14785,10 +14786,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "hub": 83
@@ -14808,10 +14809,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
+        "calibration": 22,
         "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "heldout": 23,
+        "pool": 14
        },
        "truth": {
         "near_gold": 83
@@ -14822,10 +14823,10 @@
      },
      "rows": 83,
      "rows_by_set": {
-      "calibration": 27,
+      "calibration": 22,
       "dev": 24,
-      "heldout": 24,
-      "pool": 8
+      "heldout": 23,
+      "pool": 14
      },
      "verdicts": {
       "constant": 2,
@@ -14847,10 +14848,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "near_gold": 81
@@ -14870,10 +14871,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "interim": 32,
@@ -14894,10 +14895,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "interim": 62,
@@ -14917,10 +14918,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 12,
+        "calibration": 13,
         "dev": 8,
-        "heldout": 13,
-        "pool": 9
+        "heldout": 11,
+        "pool": 10
        },
        "truth": {
         "interim": 42
@@ -14934,10 +14935,10 @@
        "in_output_schema": false,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "hub": 81
@@ -14957,10 +14958,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "near_gold": 81
@@ -14979,10 +14980,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "hub": 69,
@@ -15008,10 +15009,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "hub": 81
@@ -15031,10 +15032,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "interim": 45,
@@ -15055,10 +15056,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "interim": 40,
@@ -15073,10 +15074,10 @@
        "in_output_schema": false,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "hub": 81
@@ -15095,10 +15096,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "hub": 81
@@ -15118,10 +15119,10 @@
        "in_output_schema": true,
        "labeled": 81,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "calibration": 22,
+        "dev": 21,
+        "heldout": 23,
+        "pool": 15
        },
        "truth": {
         "near_gold": 81
@@ -15132,10 +15133,10 @@
      },
      "rows": 81,
      "rows_by_set": {
-      "calibration": 20,
-      "dev": 23,
-      "heldout": 26,
-      "pool": 12
+      "calibration": 22,
+      "dev": 21,
+      "heldout": 23,
+      "pool": 15
      },
      "verdicts": {
       "constant": 2,
@@ -15375,10 +15376,10 @@
        "in_output_schema": true,
        "labeled": 77,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 24,
+        "calibration": 19,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 9
        },
        "truth": {
         "near_gold": 77
@@ -15399,9 +15400,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 27,
@@ -15423,9 +15424,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 49,
@@ -15446,9 +15447,9 @@
        "labeled": 42,
        "labeled_by_set": {
         "calibration": 12,
-        "dev": 14,
+        "dev": 13,
         "heldout": 11,
-        "pool": 5
+        "pool": 6
        },
        "truth": {
         "interim": 42
@@ -15463,9 +15464,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15486,9 +15487,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "near_gold": 78
@@ -15508,9 +15509,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 65,
@@ -15537,9 +15538,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15560,9 +15561,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 44,
@@ -15584,9 +15585,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 31,
@@ -15602,9 +15603,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15624,9 +15625,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15647,9 +15648,9 @@
        "labeled": 78,
        "labeled_by_set": {
         "calibration": 19,
-        "dev": 24,
+        "dev": 21,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "near_gold": 78
@@ -15661,9 +15662,9 @@
      "rows": 78,
      "rows_by_set": {
       "calibration": 19,
-      "dev": 24,
+      "dev": 21,
       "heldout": 28,
-      "pool": 7
+      "pool": 10
      },
      "verdicts": {
       "constant": 2,
@@ -15686,9 +15687,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15723,9 +15724,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15745,9 +15746,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15767,9 +15768,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15789,9 +15790,9 @@
      "in_output_schema": true,
      "labeled": 536,
      "labeled_by_set": {
-      "calibration": 205,
-      "dev": 125,
-      "heldout": 92,
+      "calibration": 208,
+      "dev": 123,
+      "heldout": 91,
       "pool": 114
      },
      "subclasses_with_truth": 4,
@@ -15811,9 +15812,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15833,9 +15834,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15855,9 +15856,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15877,9 +15878,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15899,9 +15900,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15921,9 +15922,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15943,9 +15944,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15965,9 +15966,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15996,9 +15997,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16018,9 +16019,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16040,9 +16041,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16064,9 +16065,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16110,9 +16111,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16147,9 +16148,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16169,9 +16170,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16191,9 +16192,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16228,9 +16229,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16250,9 +16251,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16272,9 +16273,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16294,9 +16295,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16316,9 +16317,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16338,9 +16339,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16360,9 +16361,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16382,9 +16383,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16411,9 +16412,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16433,9 +16434,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16455,9 +16456,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16479,9 +16480,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16493,9 +16494,9 @@
      },
      "rows": 300,
      "rows_by_set": {
-      "calibration": 102,
-      "dev": 64,
-      "heldout": 78,
+      "calibration": 106,
+      "dev": 62,
+      "heldout": 76,
       "pool": 56
      },
      "verdicts": {
@@ -16512,8 +16513,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16549,8 +16550,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16571,8 +16572,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16593,8 +16594,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16615,8 +16616,8 @@
        "in_output_schema": true,
        "labeled": 130,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 28,
+        "calibration": 58,
+        "dev": 25,
         "heldout": 18,
         "pool": 29
        },
@@ -16637,8 +16638,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16659,8 +16660,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16681,8 +16682,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16703,8 +16704,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16720,8 +16721,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16742,8 +16743,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16764,8 +16765,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16786,8 +16787,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16817,8 +16818,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16839,8 +16840,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16861,8 +16862,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16886,8 +16887,8 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 58,
+        "dev": 26,
         "heldout": 37,
         "pool": 29
        },
@@ -16900,8 +16901,8 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 55,
-      "dev": 29,
+      "calibration": 58,
+      "dev": 26,
       "heldout": 37,
       "pool": 29
      },
@@ -16920,10 +16921,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -16957,10 +16958,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -16979,10 +16980,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17001,10 +17002,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17023,10 +17024,10 @@
        "in_output_schema": true,
        "labeled": 135,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 27,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 26,
+        "pool": 27
        },
        "truth": {
         "interim": 135
@@ -17045,10 +17046,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17067,10 +17068,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17089,10 +17090,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17111,10 +17112,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17128,10 +17129,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17150,10 +17151,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17172,10 +17173,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17194,10 +17195,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17225,10 +17226,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17247,10 +17248,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17269,10 +17270,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17294,10 +17295,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 51,
+        "dev": 31,
+        "heldout": 41,
+        "pool": 27
        },
        "truth": {
         "hub": 150
@@ -17308,10 +17309,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 48,
-      "dev": 28,
-      "heldout": 42,
-      "pool": 32
+      "calibration": 51,
+      "dev": 31,
+      "heldout": 41,
+      "pool": 27
      },
      "verdicts": {
       "constant": 5,
@@ -17328,10 +17329,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17365,10 +17366,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17387,10 +17388,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17409,10 +17410,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17431,10 +17432,10 @@
        "in_output_schema": true,
        "labeled": 135,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 34,
-        "heldout": 21,
-        "pool": 29
+        "calibration": 47,
+        "dev": 35,
+        "heldout": 20,
+        "pool": 33
        },
        "truth": {
         "interim": 135
@@ -17453,10 +17454,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17475,10 +17476,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17497,10 +17498,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17519,10 +17520,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17536,10 +17537,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17558,10 +17559,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17580,10 +17581,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17602,10 +17603,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17631,10 +17632,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17653,10 +17654,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17675,10 +17676,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17701,10 +17702,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 47,
+        "dev": 36,
+        "heldout": 34,
+        "pool": 33
        },
        "truth": {
         "hub": 150
@@ -17715,10 +17716,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 51,
-      "dev": 35,
-      "heldout": 35,
-      "pool": 29
+      "calibration": 47,
+      "dev": 36,
+      "heldout": 34,
+      "pool": 33
      },
      "verdicts": {
       "constant": 5,
@@ -17735,10 +17736,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17772,10 +17773,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17794,10 +17795,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17816,10 +17817,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17838,10 +17839,10 @@
        "in_output_schema": true,
        "labeled": 136,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 26,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 27,
+        "pool": 25
        },
        "truth": {
         "interim": 136
@@ -17860,10 +17861,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17882,10 +17883,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17904,10 +17905,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17926,10 +17927,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17943,10 +17944,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17965,10 +17966,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -17987,10 +17988,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18009,10 +18010,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18039,10 +18040,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18061,10 +18062,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18083,10 +18084,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18107,10 +18108,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
-        "pool": 24
+        "calibration": 52,
+        "dev": 32,
+        "heldout": 41,
+        "pool": 25
        },
        "truth": {
         "hub": 150
@@ -18121,10 +18122,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 51,
-      "dev": 35,
-      "heldout": 40,
-      "pool": 24
+      "calibration": 52,
+      "dev": 32,
+      "heldout": 41,
+      "pool": 25
      },
      "verdicts": {
       "constant": 5,
@@ -20660,7 +20661,7 @@
   "labeling_guide_sha256": "6176bc0afaaa5d6d83b508256cbc712b996bda7d50a1b9bdc34349556fa0bf41",
   "min_dev": 20,
   "near_gold_overlay_sha256": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
-  "split_assignments_sha256": "ca7c4a18a59620b4f2c881307f59aa2ebb249ac0a1edfc0dc3aa1e24622f20fa"
+  "split_assignments_sha256": "4bc5c1ea13b2d9c6dc15e1322421d8700d0d518ba63be9e82a5c4e3c8e1c60b9"
  },
  "problems": [],
  "schema": "mailroom.subclass_schemas/v1",

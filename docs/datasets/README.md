@@ -25,7 +25,7 @@ before publishing.
 | Test split per class | Run configs record contract 60, corporate_record 47, correspondence 62, insurance_claim 114 and merger_agreement ~17 test rows (300). The docs and the ModernBERT held-out eval say 323, with 85 correspondence | Card states 323 total with no per-class split table; reconcile before adding one |
 | Full `gt_fields` key list | Docs describe a 27-key schema; this repo only shows the subset in `data/fixtures/hf/docclass_mini.jsonl` | Card lists key groups, not all 27 keys |
 | Citation author | Hub namespace used as author | Replace with the preferred author and institution |
-| v9.3 tag | Tag `v9.3` is `ff4ca546` (`FAMILY_HF_REVISION`); its parquet parent is `7fd99b40` (`FAMILY_HF_DATA_REVISION`). Rows and text are unchanged since v9.1 (`bc9eab28` / `ed7576b6`, now in `LEGACY_FAMILY_HF_REVISIONS`); v9.3 changes labels only (all 450 corporate records, 23 correspondence `related_document_ids`) | Card should cite tag `v9.3` = `ff4ca546` |
+| v9.3 tag | Tag `v9.3` is `ff4ca546` (`FAMILY_HF_REVISION`); its parquet parent is `7fd99b40` (`FAMILY_HF_DATA_REVISION`). Rows and text are unchanged since v9.1 (`bc9eab28` / `ed7576b6`, now in `LEGACY_FAMILY_HF_REVISIONS`); v9.3 changes labels only (all 450 corporate records, 23 correspondence `related_document_ids`, `annotation_method` on 1,541 rows) | Card should cite tag `v9.3` = `ff4ca546` |
 
 ## Publish
 

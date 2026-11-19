@@ -12,8 +12,8 @@ disagreements:
 * ``sorter``: the document class, or the subclass when the class is right (contract subclasses
   compared through the Dojo's ``normalize_subtype``, as ``scripts/compare_sorter_prompt.py`` does);
 * per-field specialists: every labelled field whose verdict in
-  field registry (``config/extraction/subclass_schemas-runbook-v1.json`` for campaign rb1, graded on
-  the run's revision; ``check_schemas_revision`` refuses another one) is ``iterate`` and whose Dojo per-field score
+  field registry (by default the one committed registry graded on the run's revision and split,
+  ``resolve_inputs``; ``check_schemas_revision`` refuses another one) is ``iterate`` and whose Dojo per-field score
   (``job.gate_causes._field_scores``, the slice gate's scorer) is below ``mismatch_below``.
   Templated fields (``pair_report.TEMPLATED_FIELDS``) are left out, as the gate leaves them out;
 * contract CUAD categories (``cuad_clauses:<category>``): gold categories the run missed and
@@ -99,17 +99,9 @@ def check_sets(doc_ids: Iterable[str], assignments: Mapping[str, str]) -> None:
 
 
 def _tag_commit(sha: str) -> str:
-    """The Hub tag commit for a family revision: a tag name or its parquet parent maps to the tag
-    commit; any other value is returned unchanged."""
-    from mailroom_sandbox.job.spec import (
-        FAMILY_HF_DATA_REVISION,
-        FAMILY_HF_REVISION,
-        FAMILY_HF_TAG,
-        LEGACY_FAMILY_HF_REVISIONS,
-    )
+    from mailroom_sandbox.job.spec import family_tag_commit
 
-    pairs = {FAMILY_HF_TAG: (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION), **LEGACY_FAMILY_HF_REVISIONS}
-    return next((tag for name, (tag, data) in pairs.items() if sha in (name, tag, data)), sha)
+    return family_tag_commit(sha)
 
 
 def check_schemas_revision(rows: list[Mapping[str, Any]], schemas: Mapping[str, Any], schemas_path: Path) -> None:
@@ -292,7 +284,70 @@ class SheetResult:
     digest: dict[str, Any] = field(default_factory=dict)
 
 
-def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: Path, n: int = 100,
+REGISTRY_GLOB = "config/extraction/subclass_schemas*.json"
+
+
+def _run_revision(run_dir: Path, rows: list[Mapping[str, Any]], dataset: Mapping[str, Any]) -> str:
+    """The tag commit the run drew (its rows' ``source_revision``, else its lock), or ''."""
+    have = sorted({_tag_commit(str(r.get("source_revision") or "")) for r in rows} - {""})
+    if len(have) > 1:
+        raise AuditError(f"{run_dir.name}: dataset rows carry several revisions {[h[:12] for h in have]}")
+    if have:
+        return have[0]
+    return _tag_commit(str(dataset.get("revision_resolved") or dataset.get("revision") or ""))
+
+
+def resolve_inputs(run_dir: Path, rows: list[Mapping[str, Any]], *, split_dir: Path | None = None,
+                   schemas_path: Path | None = None, root: Path | None = None) -> tuple[Path, Path]:
+    """The split and field registry a run is audited against, when not given.
+
+    The split is the one the run's lock draws from (``dataset.exclude_ids_file``), else the one
+    committed split on its revision. The registry is the one ``config/extraction/subclass_schemas*.json``
+    graded on that revision and counted on that split's sets, so a v9.1 run gets the runbook-v1
+    registry and a v9.3 run the runbook-v2 one. None or several matches are refused.
+    """
+    from mailroom_sandbox.experiment_splits import (
+        SplitError,
+        split_dir_for_revision,
+        split_dir_of_spec,
+        split_revision,
+    )
+    from mailroom_sandbox.paths import repo_root
+
+    root = Path(root) if root else repo_root()
+    run_dir = Path(run_dir)
+    lock = run_dir / "spec.lock.json"
+    dataset = (json.loads(lock.read_text(encoding="utf-8")).get("dataset") or {}) if lock.is_file() else {}
+    rev = _run_revision(run_dir, rows, dataset)
+    if split_dir is None:
+        split_dir = split_dir_of_spec(dataset, root / "config" / "splits", by_revision=False)
+    if split_dir is None:
+        if not rev:
+            raise AuditError(f"{run_dir.name}: no dataset revision in its rows or lock; pass --split and --schemas")
+        try:
+            split_dir = split_dir_for_revision(rev, root / "config" / "splits")
+        except SplitError as exc:
+            raise AuditError(f"{run_dir.name}: {exc}") from exc
+    if schemas_path is None:
+        rev = rev or _tag_commit(split_revision(Path(split_dir)))
+        split_sha = hashlib.sha256((Path(split_dir) / "assignments.jsonl").read_bytes()).hexdigest()
+        found = []
+        for path in sorted(root.glob(REGISTRY_GLOB)):
+            inputs = json.loads(path.read_text(encoding="utf-8")).get("inputs") or {}
+            if (_tag_commit(str(inputs.get("dataset_revision") or "")) == rev
+                    and inputs.get("split_assignments_sha256") == split_sha):
+                found.append(path)
+        if len(found) != 1:
+            names = ", ".join(p.name for p in found) or "none"
+            raise AuditError(f"{len(found)} committed field registries are graded on revision {rev[:12]} and "
+                             f"split {Path(split_dir).name} ({names}); build one with `sandbox schemas build "
+                             f"--revision {rev[:12]} --out <file>` or pass --schemas")
+        schemas_path = found[0]
+    return Path(split_dir), Path(schemas_path)
+
+
+def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path | None = None,
+                schemas_path: Path | None = None, n: int = 100,
                 seed: int, per_doc: int = 1, mismatch_below: float = 1.0,
                 verdict_level: str = "class") -> SheetResult:
     """Disagreement rows sampled from one finished v0 run (see the module docstring)."""
@@ -303,9 +358,13 @@ def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: P
     run_dir = Path(run_dir)
     rows = _jsonl(run_dir / "dataset.jsonl")
     items = {str(i.get("item_id")): i for i in _jsonl(run_dir / "items.jsonl")}
+    doc_class = LINEAGES[lineage]
+    if split_dir is None or (schemas_path is None and doc_class is not None):
+        split_dir, found = resolve_inputs(run_dir, rows, split_dir=split_dir,
+                                          schemas_path=schemas_path if doc_class is not None else Path(""))
+        schemas_path = schemas_path or found
     assignments = load_assignments(split_dir)
     check_sets([str(r.get("id")) for r in rows], assignments)
-    doc_class = LINEAGES[lineage]
     if doc_class is not None:
         other = sorted({str(r.get("expected_doc_class")) for r in rows} - {doc_class})
         if other:

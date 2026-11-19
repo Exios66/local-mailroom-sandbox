@@ -82,7 +82,8 @@ Order of launch:
 Launch one at a time. Each config's header has the exact commands. The total is about $0.20.
 
 Proceed to dev-look1 (300 documents per arm, about $0.6 + $0.7 at the smoke's per-document rates) only when all of the following
-hold:
+hold. dev-look1 is now runbook-v2's, on dataset v9.3 (plan Deviations log D1): 280 of its 300 documents are runbook-v1's,
+and the dev-look1 configs pin `ff4ca546`.
 
 1. **Mechanics:** 20/20 items, 1 call per document, every ledger row verified, and no trace
    exporter errors on the console.

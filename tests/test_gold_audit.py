@@ -308,7 +308,39 @@ def test_the_frozen_runbook_v1_registry_matches_its_split():
     assert reg["schema"] == ss.SCHEMA and reg["problems"] == []
     assert reg["inputs"]["dataset_revision"] == manifest["dataset"]["revision"]
     assert reg["inputs"]["split_assignments_sha256"] == ss._read_sets(split)[1]
-    assert "subclass_schemas-runbook-v1.json" in Path(cli.__file__).read_text(encoding="utf-8")  # the CLI default
+
+
+@pytest.mark.parametrize("split_name, registry", [("runbook-v1", "subclass_schemas-runbook-v1.json"),
+                                                  ("runbook-v2", "subclass_schemas.json")])
+def test_a_run_gets_the_split_and_registry_of_its_revision(tmp_path, split_name, registry):
+    """Default --split / --schemas: v9.1 runs audit against runbook-v1 and its registry, v9.3 runs
+    against runbook-v2 and the current one, from the lock's exclude file or the rows' revision."""
+    from mailroom_sandbox.paths import repo_root
+
+    root = repo_root()
+    rev = json.loads((root / "config/splits" / split_name / "manifest.json").read_text())["dataset"]["revision"]
+    run = tmp_path / "run"
+    run.mkdir()
+    rows = [{"id": "DOC-1", "source_revision": rev}]
+    assert ga.resolve_inputs(run, rows) == (root / "config/splits" / split_name, root / "config/extraction" / registry)
+    (run / "spec.lock.json").write_text(json.dumps({"dataset": {
+        "exclude_ids_file": f"config/splits/{split_name}/dev.exclude.ids"}}))
+    assert ga.resolve_inputs(run, [{"id": "DOC-1"}])[0] == root / "config/splits" / split_name
+    assert ga.resolve_inputs(run, rows, schemas_path=tmp_path / "x.json")[1] == tmp_path / "x.json"
+
+
+def test_a_run_on_an_unknown_revision_names_the_missing_registry(tmp_path):
+    run = tmp_path / "run"
+    run.mkdir()
+    with pytest.raises(ga.AuditError, match="committed splits are drawn on revision"):
+        ga.resolve_inputs(run, [{"id": "DOC-1", "source_revision": "c" * 40}])
+    with pytest.raises(ga.AuditError, match="several revisions"):
+        ga.resolve_inputs(run, [{"source_revision": "c" * 40}, {"source_revision": "d" * 40}])
+    from mailroom_sandbox.paths import repo_root
+
+    v2 = repo_root() / "config/splits/runbook-v2"
+    with pytest.raises(ga.AuditError, match="0 committed field registries"):
+        ga.resolve_inputs(run, [{"source_revision": "c" * 40}], split_dir=v2)
 
 
 def test_a_registry_built_from_a_tag_name_matches_the_run_that_drew_its_commit():
