@@ -1,7 +1,8 @@
 # api-evals: contracts_specialist on 20 CONTRACT docs via OpenRouter API.
 # COMPARABLE to the sandbox Modal run-20-contracts-specialist: the SAME draw
 # (split=all, bucket contract count 20, seed 42, pinned revision), the SAME
-# prompt stem (contracts_specialist_v33_simplified), only the engine differs:
+# prompt (contracts_specialist_v33_simplified — the lineage frontrunner both
+# legs resolve at preflight), only the engine differs:
 # profile=openrouter, model qwen/qwen3.7-flash (the OpenRouter champion that
 # maps to the Modal Qwen/Qwen3-8B row). Real API costs are captured per item
 # (tokens x OpenRouter list price; cross-checked vs response usage.cost).
@@ -11,11 +12,15 @@ task: contracts_specialist
 profile: openrouter
 
 prompt:
+  # No explicit agent stem: preflight fills the agent's lineage frontrunner
+  # (prompt_lineage.with_lineage_defaults), so this harness always runs the
+  # current condensed prompt and can never silently regress to a superseded
+  # stem. Today that is contracts_specialist_v33_simplified (outside the
+  # condensed lineage, the deployed frontrunner).
+# A paired Modal leg must be an UNLOCKED run spec, which resolves the same
+# frontrunner at preflight; historical Modal specs that pin a simplified stem
+# are recorded history, not this run's prompt pair.
   default: {source: code-default}
-  agents:
-    contracts_specialist:
-      source: local
-      file: contracts_specialist_v33_simplified
 
 dataset:
   provider: huggingface

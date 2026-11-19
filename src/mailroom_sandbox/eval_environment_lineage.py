@@ -138,8 +138,12 @@ def agents_for_variant(variant: str) -> list[str]:
 
     Catalog stems map 1:1 onto their specialist. ``sorter_local_v0`` still
     covers sorter + sorter_reviewer (historical ``patch_managed_prompt``
-    behaviour). Unknown stems fall back to the prefix before ``_local`` /
-    ``_v``.
+    behaviour). A ``config/prompts`` stem (the condensed lineage's
+    ``<agent>_condensed_v<N>``, a vendor mirror, …) maps onto the roster agent
+    its name starts with — longest match first, so
+    ``insurance_claims_specialist_condensed_v3`` is the insurance specialist,
+    not a phantom ``..._condensed``. Unknown stems fall back to the prefix
+    before ``_local`` / ``_v``.
     """
     name = str(variant or "").strip()
     if not name:
@@ -155,6 +159,14 @@ def agents_for_variant(variant: str) -> list[str]:
         if target == "sorter":
             return ["sorter", "sorter_reviewer"]
         return [target] if target else []
+    # A local config/prompts stem maps onto the roster agent it names (longest
+    # prefix wins; the stem may carry a lineage suffix the roster name lacks).
+    from mailroom_sandbox.prompt_registry import STATIC_AGENTS, local_variants
+
+    if name in set(local_variants()):
+        for agent in sorted(STATIC_AGENTS, key=len, reverse=True):
+            if name == agent or name.startswith(agent + "_"):
+                return [agent]
     if "_v" in name:
         return [name.split("_v", 1)[0]]
     return [name]

@@ -83,3 +83,60 @@ def with_lineage_defaults(prompt: Mapping[str, Any], task: str | None = None) ->
     if agents:
         out["agents"] = dict(sorted(agents.items()))
     return out
+
+
+def default_stem_for(task: str) -> str | None:
+    """The prompt stem an unlocked isolated-agent eval runs for ``task`` without ``--prompt``.
+
+    The lineage frontrunner when the agent has one (the same default a locked run spec
+    gets), else the eval-environment frozen stem it was re-frozen to — for the agents
+    whose parity stem is the deliberate default (contracts / merger keep theirs; there is
+    no condensed lineage for the other positions yet). None when neither exists.
+    """
+    fronts = frontrunners()
+    if task in fronts:
+        return fronts[task]
+    from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+
+    return default_prompt_variant(task)
+
+
+def apply_eval_defaults(task: str | None) -> bool:
+    """Pin an unlocked eval run's unnamed lineage agents to their frontrunners, in place.
+
+    The locked ``sandbox run`` path resolves its prompt surface at preflight and applies
+    the lock inside :func:`mailroom_sandbox.runtime.activate`; this helper is for the
+    direct eval paths (``sandbox eval pipeline`` / ``sorter`` / ``extract`` and the
+    runners they call), which otherwise keep vendored code-default prompts — a silent
+    regression to the pre-condensed stems. It is a no-op when a locked run policy is
+    active (the lock owns the surface). An explicit ``--prompt-version`` selection keeps
+    the roles it named, and the lineage defaults still apply to every role it did not
+    name: a partial selection must not silently revert the unnamed agents to vendored
+    prompts. Returns True only when lineage texts were applied.
+    """
+    from mailroom_sandbox import prompt_versions as pv
+    from mailroom_sandbox.runtime import locked_policy
+
+    if locked_policy() is not None:
+        return False
+    selected_roles = set(pv.active_selection().prompts)
+    fronts = {agent: stem for agent, stem in frontrunners().items() if agent not in selected_roles}
+    if not fronts:
+        return False
+    agents = _agents_for(task, fronts)
+    if not agents:
+        return False
+    from mailroom_sandbox.prompt_registry import apply_runtime_overrides, prompt_lock_block
+
+    block = prompt_lock_block({"agents": {agent: {"source": "local", "file": fronts[agent]}
+                                          for agent in sorted(agents)}})
+    texts = {role: ref["text"] for role, ref in block["agents"].items() if ref.get("text")}
+    if not texts:
+        return False
+    patched = apply_runtime_overrides(texts)
+    missing = sorted(set(texts) - set(patched))
+    if missing:
+        raise RuntimeError(
+            f"lineage default prompts {missing} could not be applied "
+            "(pipeline not importable) -- the run would execute vendored prompts")
+    return True

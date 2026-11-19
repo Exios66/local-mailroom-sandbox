@@ -7,10 +7,12 @@ Cost honesty contract
   the response's ``usage.cost`` (verified on 2026-09-25: a 17-prompt/5-completion
   call at $0.03/$0.13 per 1M reported ``usage.cost = 1.16e-06``).
 * ``live_prices()`` refreshes the per-1M list prices from
-  ``GET https://openrouter.ai/api/v1/models`` at run time; the registry's
-  ``DEFAULT_LIST_PRICES`` is the offline/fallback pin (same values verified
-  against the live payload).
-* Never fabricate $0 or a price: when neither live nor fallback prices resolve
+  ``GET https://openrouter.ai/api/v1/models`` at run time; the offline/fallback
+  pin is the CORE ledger ``config/api_prices.yaml`` (the same file
+  ``mailroom_sandbox.job.metrics`` bills with, refreshed by
+  ``scripts/refresh_api_prices.py``) — never a second hardcoded pin that can
+  drift from it.
+* Never fabricate $0 or a price: when neither live nor the core ledger resolves
   for the model, cost fields stay ``None`` and an honest gap is reported.
 """
 
@@ -21,7 +23,7 @@ import logging
 import urllib.request
 from typing import Any
 
-from api_evals.registry import DEFAULT_API_MODEL, DEFAULT_LIST_PRICES
+from api_evals.registry import DEFAULT_API_MODEL
 
 _log = logging.getLogger("api_evals.cost")
 
@@ -34,8 +36,8 @@ def live_prices(model: str = DEFAULT_API_MODEL, timeout: float = 15.0) -> tuple[
     OpenRouter's /models payload prices per TOKEN; we normalize to per-1M so
     the returned tuple is directly comparable to the sandbox cost table (and
     every cost formula divides by 1e6). Returns None when the refresh fails
-    (offline / non-2xx / unknown model) — callers fall back to
-    ``DEFAULT_LIST_PRICES``.
+    (offline / non-2xx / unknown model) — callers fall back to the CORE
+    ledger pin (``core_ledger_prices``).
     """
     try:
         with urllib.request.urlopen(PRICES_URL, timeout=timeout) as resp:
@@ -54,16 +56,43 @@ def live_prices(model: str = DEFAULT_API_MODEL, timeout: float = 15.0) -> tuple[
                     return round(float(pin) * 1_000_000, 6), round(float(pout) * 1_000_000, 6)
         _log.warning("live price refresh: model %r not in OpenRouter /models", model)
     except Exception as exc:  # noqa: BLE001 — offline refresh must never crash a run
-        _log.warning("live price refresh failed for %r — falling back to pin: %s", model, exc)
+        _log.warning("live price refresh failed for %r — falling back to the core ledger: %s", model, exc)
+    return None
+
+
+def core_ledger_prices(model: str) -> tuple[float, float] | None:
+    """The CORE ledger's verified base-tier price for a chat model.
+
+    ``config/api_prices.yaml`` is the one price ledger the sandbox bills with
+    (``mailroom_sandbox.job.metrics``); the api-evals fallback reads the same
+    file, so its cost numbers can never drift from the sandbox's own pricing.
+    Returns the tier with the lowest ``min_prompt_tokens`` (the list price a
+    normal eval call is billed at). ``None`` when the model is absent — the
+    honest gap, never an invented price. Decisions-API ids are refused here
+    like everywhere else in the sandbox (they bill input only).
+    """
+    try:
+        from mailroom_sandbox.job.metrics import price_sheet
+
+        tiers = [t for t in (price_sheet(model) or [])
+                 if isinstance(t.get("min_prompt_tokens"), (int, float))]
+        if not tiers:
+            return None
+        base = min(tiers, key=lambda t: t["min_prompt_tokens"])
+        pin, pout = base.get("prompt"), base.get("completion")
+        if isinstance(pin, (int, float)) and isinstance(pout, (int, float)):
+            return float(pin), float(pout)
+    except Exception as exc:  # noqa: BLE001 — an unpriced model is a gap, not a crash
+        _log.warning("core price ledger unavailable for %r: %s", model, exc)
     return None
 
 
 def resolve_prices(model: str = DEFAULT_API_MODEL) -> tuple[float, float] | None:
-    """Live prices first, then the verified registry pin (offline-safe)."""
+    """Live prices first, then the verified CORE ledger pin (offline-safe)."""
     live = live_prices(model)
     if live is not None:
         return live
-    return DEFAULT_LIST_PRICES.get(model)
+    return core_ledger_prices(model)
 
 
 def price_or_gap(model: str, *, prices: tuple[float, float] | None) -> dict[str, Any]:

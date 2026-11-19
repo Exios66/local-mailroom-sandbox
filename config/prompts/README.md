@@ -11,6 +11,17 @@ for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.
 
 ## Sorter-condensed lineage (`sorter_condensed_v*`) — the sorter mutation surface
 
+Every unlocked eval defaults to the lineage frontrunner, never a superseded stem:
+`sandbox eval <agent>` without `--prompt` runs the agent's frontrunner (`prompt_lineage.
+default_stem_for`), `sandbox eval pipeline` / `sorter` / `extract` pin every unnamed lineage
+agent to its frontrunner (`prompt_lineage.apply_eval_defaults` — a no-op under a locked run
+policy or an explicit `--prompt-version` selection, which own the surface). Locked `sandbox run`
+specs resolve the same defaults at preflight. The guard tests
+(`tests/test_prompt_lineage.py`) fail the suite if a frontrunner is ever a superseded,
+rejected, not-adopted, withdrawn or not-yet-run version, or if the vendored sorter patch key
+drifts behind the lineage. Explicit stems (an eval-environment parity replay, a mutation arm)
+always win over the default.
+
 `sorter_condensed_v<N>.txt` is the token-budgeted sorter (rendered system prompt <= 4,000 chars,
 against ~25k for the frozen long-form V15). All further sorter improvements are new
 `sorter_condensed_v<N>` files; frontrunner, parents and validation runs are in

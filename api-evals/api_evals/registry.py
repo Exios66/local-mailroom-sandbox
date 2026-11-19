@@ -39,14 +39,13 @@ BLANK_DIR = _ROOT_DIR / "blank"
 #: onto, so API cost numbers are like-for-like against the Modal runs.
 DEFAULT_API_MODEL = "qwen/qwen3.7-flash"
 
-#: Expected OpenRouter list prices for the champion (USD per 1M tokens),
-#: refreshed at run time from ``GET /api/v1/models``; these are the fallback
-#: when the live refresh is unavailable (offline / no key). Verified against
-#: the live /models payload on 2026-09-25 and against a real response's
-#: ``usage.cost`` (17 prompt x 0.03 + 5 completion x 0.13 = 1.16e-6 USD).
-DEFAULT_LIST_PRICES: dict[str, tuple[float, float]] = {
-    "qwen/qwen3.7-flash": (0.03, 0.13),
-}
+#: Expected OpenRouter list prices for the champion (USD per 1M tokens):
+#: the offline/fallback pin is now the CORE ledger ``config/api_prices.yaml``
+#: (see ``api_evals.cost.core_ledger_prices``) — this dict is gone so the two
+#: ledgers cannot drift. Verified against the live /models payload on
+#: 2026-09-25 and against a real response's ``usage.cost`` (17 prompt x 0.03
+#: + 5 completion x 0.13 = 1.16e-6 USD); the core ledger carries the same
+#: qwen/qwen3.7-flash base tier.
 
 
 @dataclass(frozen=True)
