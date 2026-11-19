@@ -222,9 +222,9 @@ def test_cost_envelope_follows_the_retry_thresholds():
                           "by_class": {"merger_agreement": {"arbiter_retry_max": 1, "judge_max_passes": 2}}}}
     rows = [{"id": "m", "expected_doc_class": "merger_agreement", "doc_text": "x" * 400_000}]
     cost = plan(tax, rows, windows={"judge": 2_000_000, "arbiter": 2_000_000})["classes"]["merger_agreement"]["input_cost_usd"]
-    assert cost["worst_calls"] == {"extract_passes": 4, "judge": 2, "arbiter": 2}
+    assert cost["worst_calls"] == {"extract_passes": 4, "judge": 4, "arbiter": 2}
     assert 0 < cost["clean"] < cost["judged"] < cost["worst"]
-    assert cost["worst"] == pytest.approx(4 * cost["clean"] + 4 * (cost["judged"] - cost["clean"]), rel=1e-3)
+    assert cost["worst"] == pytest.approx(4 * cost["clean"] + 3 * (cost["judged"] - cost["clean"]), rel=1e-3)
 
 
 def test_rejudge_cost_uses_the_effective_class_flag_and_pass_cap():
@@ -240,14 +240,14 @@ def test_rejudge_cost_uses_the_effective_class_flag_and_pass_cap():
     off = cost()
     tax["confidence"]["by_class"] = {"contract": {"judge_rejudge_retry": True}}
     on = cost()
-    assert on["high_confidence_retry"]["judge_calls"] == 2
-    assert off["high_confidence_retry"]["judge_calls"] == 1
+    assert on["high_confidence_retry"]["judge_calls"] == 4
+    assert off["high_confidence_retry"]["judge_calls"] == 2
     assert on["high_confidence_retry"]["input_usd"] > off["high_confidence_retry"]["input_usd"]
     assert on["worst"] == off["worst"]  # ambiguous retries already consume this upper bound
     tax["confidence"]["keep_best_attempt"] = True
     assert cost() == on  # selection reads stored attempts; it makes no model call
     tax["confidence"]["judge_max_passes"] = 1
-    assert cost()["high_confidence_retry"]["judge_calls"] == 1
+    assert cost()["high_confidence_retry"] == {"input_usd": None, "judge_calls": None}
 
 
 def test_unpriced_models_have_no_cost_envelope():
@@ -426,3 +426,30 @@ def test_a_component_change_after_preflight_does_not_move_a_locked_run(monkeypat
     finally:
         monkeypatch.setattr(components, "load_components", real)
         runtime.activate("modal-vllm", load_env_file=False)
+
+
+def test_passing_judge_pass_has_two_billed_model_calls(monkeypatch):
+    from agents import judge
+    from graph import build_graph
+    from mailroom_sandbox.job.context_plan import _calls_cost
+
+    calls = []
+    class FakeJudge:
+        def judge_completeness(self, **kwargs):
+            calls.append('completeness')
+            return {'completeness_label': 'complete', 'completeness': 1.0}
+        def judge_extraction_correctness(self, **kwargs):
+            calls.append('correctness')
+            return {'extraction_correctness_label': 'accurate', 'extraction_correctness': 1.0}
+    monkeypatch.setattr(judge, 'CompletenessJudge', FakeJudge)
+    monkeypatch.setattr(build_graph, 'judge_should_run', lambda state: True)
+    build_graph.judge_verify_node({'doc_type': 'contract', 'doc_text': 'x' * 1000,
+                                  'extracted_data': {'parties': ['A', 'B']}})
+    assert calls == ['completeness', 'correctness']
+    agent = {'provider': 'openrouter', 'model': 'qwen/qwen3.7-flash', 'max_input_chars': 100000}
+    tax = {'doc_classes': [{'key': 'contract', 'specialist': 'contracts_specialist'}],
+           'agents': {name: agent for name in ('contracts_specialist', 'judge', 'arbiter')}}
+    cost = plan(tax, [{'id': 'c', 'expected_doc_class': 'contract', 'doc_text': 'x' * 1000}])[
+        'classes']['contract']['input_cost_usd']
+    assert cost['judged'] - cost['clean'] == pytest.approx(
+        _calls_cost(agent['model'], len(calls), 1000), abs=0.00001)

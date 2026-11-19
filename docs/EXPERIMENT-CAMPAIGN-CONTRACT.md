@@ -77,9 +77,10 @@ version number alone never proves a fix is incorporated.
 ## Cost and readiness
 
 The context plan reports input-only upper bounds, not a full-run quote. The worst extraction
-path includes confidence retries plus arbiter-requested retries. A separate high-confidence
+path includes confidence retries plus arbiter-requested retries. Every judge pass budgets two
+LLM calls: completeness and, for a complete verdict, source correctness. A separate high-confidence
 retry scenario shows the extra judge call from `judge_rejudge_retry`, respecting the class
-override and judge pass cap. `keep_best_attempt` selects stored attempts and adds no calls.
+override and judge pass cap; a cap of one leaves no retry scenario. `keep_best_attempt` selects stored attempts and adds no calls.
 Output tokens, intake, classification and transport retries are outside this input estimate;
 compare measured per-class costs before the 500-document and full slices (#330).
 
