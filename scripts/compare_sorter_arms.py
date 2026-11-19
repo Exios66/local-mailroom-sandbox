@@ -66,7 +66,7 @@ def figures(report: dict, refs: list[str], *, set_name: str | None, split_dir: P
     from mailroom_sandbox import comparison_figures
 
     arms = [sorter_arms.load_arm(r, runs_root=runs_root) for r in refs]
-    ids = sorter_arms.pair(arms, set_name=set_name, split_dir=split_dir or sorter_arms._default_split_dir(),
+    ids = sorter_arms.pair(arms, set_name=set_name, split_dir=split_dir,  # None: the split the runs drew from
                            confirmatory=confirmatory, allow_mock=allow_mock)
     latencies = {a.run_id: [float(a.items[i]["latency_ms"]) / 1000.0 for i in ids
                             if isinstance((a.items.get(i) or {}).get("latency_ms"), (int, float))] for a in arms}

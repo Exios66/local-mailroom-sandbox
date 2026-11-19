@@ -25,11 +25,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from mailroom_sandbox import figure_style as fs
+from mailroom_sandbox import figure_style as fs, sorter_arms
 
 # A cost direction ("costs more", "cheaper") is a claim only on billed costs over at least this many
 # paired documents; below it, or with any arm priced from the sheet, the figure says it is not comparable.
-COST_CLAIM_MIN_DOCS = 1000
+COST_CLAIM_MIN_DOCS = sorter_arms.COST_CLAIM_MIN_DOCS
 
 # (difference key, label, margin key, non-inferiority test key in the report)
 MEASURES = (("class_accuracy", "Class accuracy", None, None),

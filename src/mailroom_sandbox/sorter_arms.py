@@ -1048,6 +1048,24 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+# A cost direction between arms is a claim only on billed costs over at least this many paired
+# documents: per-document cost depends on the document-length mix, and an OpenRouter chat model's
+# cost is priced from config/api_prices.yaml rather than billed.
+COST_CLAIM_MIN_DOCS = 1000
+
+
+def cost_not_comparable(report: Mapping[str, Any], run_ids: Sequence[str]) -> list[str]:
+    """Why the arms' costs are not yet a cost comparison (empty when they are)."""
+    n = int(report.get("n") or 0)
+    why = [f"n = {n}, under {COST_CLAIM_MIN_DOCS:,} paired documents"] if n < COST_CLAIM_MIN_DOCS else []
+    arms = {a["run_id"]: a for a in report.get("arms") or []}
+    unbilled = [r for r in run_ids if r in arms
+                and ((arms[r].get("cost") or {}).get("provider_reported_docs") or 0) < (arms[r].get("n") or 0)]
+    if unbilled:
+        why.append("priced from list prices, not billed: " + ", ".join(unbilled))
+    return why
+
+
 def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> list[str]:
     """One B-minus-reference block: differences, tests, cost and strata."""
     lines: list[str] = []
@@ -1075,6 +1093,9 @@ def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> lis
         lo, hi = cost["per_1k_docs"]["ci95"]
         lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
                      f"lower-cost p={cost['lower_cost_p_value']:.4f}")
+        why = cost_not_comparable(report, [report["reference"], b])
+        if why:
+            lines.append("  not a cost comparison yet (" + "; ".join(why) + ")")
         if cost.get("monthly"):
             m = cost["monthly"]
             lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
@@ -1098,7 +1119,10 @@ def _render_h5(report: Mapping[str, Any]) -> list[str]:
     for b, v in h5["verdicts"].items():
         lines.append(f"  {b}: {'SUPPORTED' if v['supported'] else 'not supported (' + ', '.join(v['failed']) + ')'}")
     if report.get("frontier"):
-        lines.append("\ncost-quality frontier (ordered by cost per 1k docs; see each arm's cost basis):")
+        lines.append("\ncost-quality frontier (ordered by cost per 1k docs):")
+        why = cost_not_comparable(report, [r["run_id"] for r in report["frontier"]])
+        if why:
+            lines.append("  not a cost comparison yet (" + "; ".join(why) + ")")
         for r in report["frontier"]:
             lines.append(f"  {r['run_id'][:44]:44} mF1 {_pct(r['class_macro_f1'])} unit {_pct(r['unit_accuracy'])} "
                          f"{_usd(r['per_1k_docs_usd'])}/1k  {'dominated by ' + r['dominated_by'] if r['dominated_by'] else 'frontier'}")

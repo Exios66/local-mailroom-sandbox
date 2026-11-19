@@ -721,3 +721,14 @@ def test_class_support_alone_vetoes_macro_noninferiority():
     assert ni["exact"]["lower95_one_sided"] > -sa.MARGIN_MACRO_F1
     assert ni["class_support"]["underpowered"] == {"unknown": 1}
     assert ni["non_inferior"] is False and ni["p_value"] == 1.0
+
+
+def test_cost_is_not_called_a_comparison_below_a_clean_billed_sample():
+    def report(n, billed):
+        return {"n": n, "arms": [{"run_id": "A", "n": n, "cost": {"provider_reported_docs": 0}},
+                                 {"run_id": "B", "n": n, "cost": {"provider_reported_docs": n if billed else 0}}]}
+
+    why = sa.cost_not_comparable(report(20, False), ["A", "B"])
+    assert why == ["n = 20, under 1,000 paired documents", "priced from list prices, not billed: A, B"]
+    assert sa.cost_not_comparable(report(1000, True), ["B"]) == []
+    assert sa.cost_not_comparable(report(1000, True), ["A", "B"]) == ["priced from list prices, not billed: A"]
