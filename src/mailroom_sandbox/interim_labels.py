@@ -356,8 +356,11 @@ def _addressees(body: str) -> int:
     bracketed = len(_BRACKETED.findall(body))
     rest = _BRACKETED.sub("", body)
     if bracketed or "@" in rest:
-        # each <...> is one person, and so is each bare address outside them
-        return bracketed + rest.count("@")
+        # each <...> is one person, and so is each bare address outside them;
+        # a bare name after the last <...> ("Roe <...>, Sue Mara") is one more
+        tail = body[body.rfind(">") + 1 :]
+        bare_names = [part for part in tail.split(",") if part.strip() and "@" not in part]
+        return bracketed + rest.count("@") + len(bare_names)
     return len([part for part in rest.split(",") if part.strip()])
 
 
