@@ -530,6 +530,25 @@ def test_cli_digest_json_and_refusal(tmp_path, split, capsys):
     assert "unpaired" in capsys.readouterr().err
 
 
+def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsys):
+    from mailroom_sandbox import figure_style as fs
+
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, wrong=ids[:2])
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    common = ["--runs-root", str(tmp_path / "runs"), "--split-dir", str(split), "--n-boot", "50", "--n-perm", "50"]
+    figs = tmp_path / "figs"
+    assert cli.main(["--a", "A", "--b", "B", *common, "--figures", str(figs)]) == 0
+    capsys.readouterr()
+    names = sorted(p.name for p in figs.glob("*.svg"))
+    assert names == [f"rb1-r13b-sorter-arms.{n}.svg" for n in ("cost-quality", "latency", "quality", "routing")]
+    assert fs.lint_paths(figs.glob("*.svg")) == {}
+    lat = (figs / "rb1-r13b-sorter-arms.latency.svg").read_text()
+    assert fs.DECISION in lat and fs.LLM in lat  # colour follows the system, both present
+    cost = (figs / "rb1-r13b-sorter-arms.cost-quality.svg").read_text()
+    assert "estimated from the price sheet: LLM sorter" in cost  # the LLM arm has no billed cost
+
+
 # ---------------------------------------------------------------- held-out seal and configs
 
 
@@ -644,10 +663,13 @@ def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, c
     assert cli.main([*common, "--experiment-key", "rb1-r13b", "--write"]) == 0
     base = tmp_path / "repo" / "reports" / "campaigns" / "rb1" / "rb1-r13b-sorter-vs-decision"
     files = sorted(p.relative_to(base).as_posix() for p in base.rglob("*") if p.is_file())
-    assert files == ["analysis/rb1-r13b-sorter-arms.comparison.json", "analysis/rb1-r13b-sorter-arms.digest.txt",
-                     "figures/rb1-r13b-sorter-arms.frontier.csv"]
+    assert files == sorted(["analysis/rb1-r13b-sorter-arms.comparison.json", "analysis/rb1-r13b-sorter-arms.digest.txt",
+                            "figures/rb1-r13b-sorter-arms.frontier.csv",
+                            *[f"figures/rb1-r13b-sorter-arms.{n}.svg"
+                              for n in ("cost-quality", "latency", "quality", "routing")]])
     assert json.loads((base / files[0]).read_text())["experiment_key"] == "rb1-r13b"
-    assert (base / files[2]).read_text().splitlines()[0].startswith("run_id,model,class_macro_f1")
+    assert (base / "figures/rb1-r13b-sorter-arms.frontier.csv").read_text().splitlines()[0].startswith(
+        "run_id,model,class_macro_f1")
     capsys.readouterr()
     assert cli.main([*common, "--experiment-key", "h5", "--write"]) == 2
     assert cli.main([*common, "--write", "--allow-mock"]) == 2

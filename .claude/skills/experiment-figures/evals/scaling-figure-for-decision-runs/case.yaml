@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: scaling-figure-for-decision-runs
+expected_outcome: |
+  One SVG showing cumulative park rate and cumulative subclass accuracy against n, on separate
+  panels (no dual axis), with an uncertainty band, decision-model colour, a finding-as-title,
+  axis labels with units, a source line, and a notes.md that states the uncertainty.
