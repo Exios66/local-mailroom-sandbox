@@ -24,6 +24,10 @@ gate-aligned is documented on :func:`archive_reasons`):
   truth, i.e. a scored row exists).
 - ``parse_error_archive``: archived with a parse error on the result.
 
+Unlabeled rows are reported separately and never enter the rate denominator as
+correct archives (a missing label is not evidence of correctness); the scored
+``n`` is reported beside the rate.
+
 ``failure_report`` is the debugging aggregation for scale: one summary over the run's
 per-document gate statuses (the autoresearch ``DocScore`` shape) that counts outcomes,
 causes and cause-by-class, so the recurring failure patterns behind a plateau are visible
@@ -80,29 +84,41 @@ def archive_reasons(
         if isinstance(score, (int, float)) and not isinstance(score, bool) and float(score) < quality:
             reasons.append("incomplete_extraction_archive")
     if parse_error is None:
-        parse_error = bool(result.get("parse_error"))
+        # The explicit argument wins; otherwise read the result, and the scored row too:
+        # runners preserve the scored parse facts (eval/runners.py), so an archived
+        # result whose extraction scoring recorded a parse error is not missed here.
+        parse_error = bool(result.get("parse_error") or (scored or {}).get("parse_error"))
     if parse_error:
         reasons.append("parse_error_archive")
     return reasons
 
 
 def summarize(pairs: Iterable[tuple[Sequence[str], str | None]], basis: str) -> dict[str, Any]:
-    """``(reasons, class)`` pairs -> count, rate, per-class table, reason counts and basis."""
+    """``(reasons, class)`` pairs -> count, scored n, rate, per-class table, reasons, basis.
+
+    Pairs without a class label are reported separately (``incorrect_archives_unlabeled``)
+    and excluded from the rate denominator: a missing label is not a correct archive.
+    """
     total: Counter[str] = Counter()
     incorrect: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
+    unlabeled = 0
     for pair in pairs:
         doc_reasons, cls = pair
-        name = str(cls or "unknown")
-        total[name] += 1
+        if not str(cls or "").strip():
+            unlabeled += 1
+            continue
+        total[cls] += 1
         if doc_reasons:
-            incorrect[name] += 1
+            incorrect[cls] += 1
             reasons.update(doc_reasons)
     n = sum(total.values())
     count = sum(incorrect.values())
     return {
         KEY: count,
+        f"{KEY}_n": n,
         f"{KEY}_rate": round(count / n, 6) if n else None,
+        f"{KEY}_unlabeled": unlabeled,
         f"{KEY}_by_class": {
             name: {
                 "incorrect": incorrect[name],

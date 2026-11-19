@@ -24,6 +24,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 
 PROG = "hf_tool"
@@ -32,28 +33,40 @@ OFFLINE_EXIT = 3
 #: Hub API segment per repo type (the API is plural, the CLI type is singular).
 _API_SEGMENT = {"model": "models", "dataset": "datasets"}
 
-#: Injectable transport: ``(url, headers) -> (status, body_bytes)``. Tests replace this.
+#: Injectable transport: ``(url, headers) -> (status, body[, headers])``. Tests replace this.
 TRANSPORT = None
+
+
+class HubHTTPError(Exception):
+    """A non-200 Hub response: the message carries the status and a body snippet."""
+
+    def __init__(self, message: str, *, status: int):
+        super().__init__(message)
+        self.status = status
 
 
 # ---- transport -----------------------------------------------------------------------
 
 
-def _default_transport(url: str, headers: dict[str, str]) -> tuple[int, bytes]:
+def _default_transport(url: str, headers: dict[str, str]) -> tuple[int, bytes, dict[str, str]]:
     request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - the URL is always built by _hub_get against the fixed https://huggingface.co base (a single path segment plus quoted query/path values); read-only GETs
-            return response.status, response.read()
+            return response.status, response.read(), {"Link": response.headers.get("Link") or ""}
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read()
+        return exc.code, exc.read(), {"Link": exc.headers.get("Link") or ""}
 
 
-def _fetch(url: str, token: str | None) -> tuple[int, bytes]:
+def _fetch(url: str, token: str | None) -> tuple[int, bytes, dict[str, str]]:
     transport = TRANSPORT if TRANSPORT is not None else _default_transport
     headers: dict[str, str] = {"User-Agent": "mailroom-sandbox/hf-tool"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    return transport(url, headers)
+    result = transport(url, headers)
+    # Transports may return (status, body) (older injected fakes) or (status, body, headers).
+    if len(result) == 2:
+        return result[0], result[1], {}
+    return result
 
 
 def _token(args_token: str | None) -> str | None:
@@ -84,13 +97,34 @@ def _project(record: dict, keys: tuple[str, ...]) -> dict:
 
 
 def _hub_get(path: str, token: str | None) -> bytes:
-    """GET a Hub API path; a non-200 is a loud failure with the status and body."""
+    """GET a Hub API path; a non-200 raises :class:`HubHTTPError` (status + body snippet)."""
     url = f"https://huggingface.co{path}"
-    status, body = _fetch(url, token)
+    status, body, _ = _fetch(url, token)
     if status != 200:
         snippet = body[:200].decode("utf-8", "replace")
-        _die(f"{PROG}: HTTP {status} for {url}: {snippet}")
+        raise HubHTTPError(f"{PROG}: HTTP {status} for {url}: {snippet}", status=status)
     return body
+
+
+def _hub_get_or_die(path: str, token: str | None) -> bytes:
+    """``_hub_get`` for commands where a non-200 is still a hard, nonzero exit."""
+    try:
+        return _hub_get(path, token)
+    except HubHTTPError as exc:
+        _die(str(exc))
+        raise  # unreachable; keeps the type checker honest
+
+
+def _next_link(links: Mapping[str, str]) -> str | None:
+    """The Hub's ``Link: <...>; rel="next"`` continuation URL, if any."""
+    value = links.get("Link") or ""
+    for part in value.split(","):
+        fields = part.split(";")
+        if any(field.strip().replace(" ", "") in ('rel="next"', "rel=next") for field in fields[1:]):
+            target = fields[0].strip()
+            if target.startswith("<") and target.endswith(">"):
+                return target[1:-1]
+    return None
 
 
 def _require_online() -> None:
@@ -148,8 +182,9 @@ def cmd_status(args) -> int:
             head = json.loads(_hub_get(f"/api/datasets/{_dataset_repo()}", token))["sha"]
             record["hub_head"] = head
             record["pin_is_head"] = head == record["revision"]
-        except SystemExit:
-            raise
+        except HubHTTPError as exc:
+            # An HTTP failure is a status, not a crash: the cache report still emits.
+            record["hub_error"] = str(exc)
         except Exception as exc:  # noqa: BLE001 - status reports, never crashes
             record["hub_error"] = f"{type(exc).__name__}: {exc}"
     else:
@@ -193,7 +228,7 @@ def _dataset_repo() -> str:
 def cmd_whoami(args) -> int:
     """Who the token identifies as (``/api/whoami-v2``)."""
     _require_online()
-    body = json.loads(_hub_get("/api/whoami-v2", _token(args.token)))
+    body = json.loads(_hub_get_or_die("/api/whoami-v2", _token(args.token)))
     _emit([{key: body.get(key) for key in ("name", "type", "authType") if key in body}])
     return 0
 
@@ -201,7 +236,7 @@ def cmd_whoami(args) -> int:
 def cmd_search(args) -> int:
     """Search the Hub (models or datasets); NDJSON records out."""
     _require_online()
-    body = json.loads(_hub_get(
+    body = json.loads(_hub_get_or_die(
         f"/api/{_API_SEGMENT[args.type]}?search={urllib.request.quote(args.query)}&limit={args.limit}"
         f"&sort={args.sort}&direction=-1", _token(args.token)))
     _emit(_project(record, ("id", "downloads", "likes", "pipeline_tag", "license")) for record in body)
@@ -211,19 +246,38 @@ def cmd_search(args) -> int:
 def cmd_card(args) -> int:
     """One repo's card metadata as a single NDJSON record."""
     _require_online()
-    body = json.loads(_hub_get(f"/api/{_API_SEGMENT[args.type]}/{args.repo}", _token(args.token)))
-    _emit([_project(body, ("id", "license", "gated", "tags", "pipeline_tag", "downloads", "sha", "lastModified"))])
+    body = json.loads(_hub_get_or_die(f"/api/{_API_SEGMENT[args.type]}/{args.repo}", _token(args.token)))
+    record = dict(_project(body, ("id", "license", "gated", "tags", "pipeline_tag", "downloads", "sha", "lastModified")))
+    # The official client reads repository-card metadata from ``cardData``; a top-level
+    # license is not always present, so the nested one fills it in.
+    card_license = (body.get("cardData") or {}).get("license")
+    if card_license and "license" not in record:
+        record["license"] = card_license
+    _emit([record])
     return 0
 
 
 def cmd_files(args) -> int:
-    """List a repo's file tree at a revision (path, size) — directories carry no size."""
+    """List a repo's file tree at a revision (path, size) — directories carry no size.
+
+    Follows the Hub's ``Link`` pagination so a tree spanning pages is complete before
+    the command exits successfully.
+    """
     _require_online()
-    body = json.loads(_hub_get(
-        f"/api/{_API_SEGMENT[args.type]}/{args.repo}/tree/{args.revision}?recursive=1", _token(args.token)))
-    _emit({"path": record.get("path"), "size": record.get("size"), "type": record.get("type")}
-          for record in body)
-    return 0
+    token = _token(args.token)
+    revision = urllib.request.quote(args.revision, safe="")
+    url = f"https://huggingface.co/api/{_API_SEGMENT[args.type]}/{args.repo}/tree/{revision}?recursive=1"
+    for _ in range(100):
+        status, body, links = _fetch(url, token)
+        if status != 200:
+            snippet = body[:200].decode("utf-8", "replace")
+            _die(f"{PROG}: HTTP {status} for {url}: {snippet}")
+        _emit({"path": record.get("path"), "size": record.get("size"), "type": record.get("type")}
+              for record in json.loads(body))
+        url = _next_link(links)
+        if not url:
+            return 0
+    _die(f"{PROG}: repository tree exceeded 100 pages")
 
 
 # ---- parser --------------------------------------------------------------------------

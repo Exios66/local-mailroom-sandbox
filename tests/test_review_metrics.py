@@ -169,3 +169,38 @@ class TestGateAlignment:
 
         assert ac.DEFAULT_QUALITY_BAR == Bars.quality
 
+
+
+class TestUnlabeledDenominator:
+    def test_unlabeled_rows_never_enter_the_rate_denominator(self):
+        # Row 1: a missing label is not evidence of correctness. Unlabeled rows are
+        # reported separately; the rate and per-class table cover labeled rows only.
+        rows = [_row("contract"), _row("")]
+        results = [_result(doc_type="contract"), _result(doc_type="contract")]
+        out = ac.for_pipeline(rows, results)
+        assert out["incorrect_archives"] == 0
+        assert out["incorrect_archives_n"] == 1
+        assert out["incorrect_archives_rate"] == 0.0
+        assert out["incorrect_archives_unlabeled"] == 1
+        assert list(out["incorrect_archives_by_class"]) == ["contract"]
+
+    def test_only_unlabeled_rows_report_a_none_rate(self):
+        out = ac.for_pipeline([{}], [_result(doc_type="contract")])
+        assert out["incorrect_archives_rate"] is None
+        assert out["incorrect_archives_n"] == 0
+        assert out["incorrect_archives_unlabeled"] == 1
+
+
+class TestScoredParseFacts:
+    def test_scored_parse_error_is_not_lost(self):
+        # runners.py keeps the scored parse facts; the metric reads them when the
+        # result carries no explicit parse flag.
+        scored = {"overall_extraction_score": 0.5, "parse_error": True}
+        reasons = ac.archive_reasons(_row("contract"), _result(doc_type="contract"), scored=scored)
+        assert reasons == ["incomplete_extraction_archive", "parse_error_archive"]
+
+    def test_explicit_parse_error_argument_wins(self):
+        scored = {"overall_extraction_score": 1.0, "parse_error": True}
+        reasons = ac.archive_reasons(_row("contract"), _result(doc_type="contract"),
+                                     scored=scored, parse_error=False)
+        assert reasons == []

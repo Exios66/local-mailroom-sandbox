@@ -194,3 +194,35 @@ class _fake_budget:
 
     def live_total_usd(self) -> float:
         return self.total
+
+
+class TestRefusalAndCauseAttribution:
+    def test_loop_reports_the_guards_ceiling_refusal(self):
+        # One call per document: the loop reaches the ceiling exactly, so one attempt
+        # beyond it is what lets the guard's refusal (not "simulated loop") surface.
+        spec = Scenario(
+            name="looper-single", documents=2, api_cap_usd=100.0, call_ceiling=3,
+            failure=FailureMix(loop_rate=1.0, calls_per_doc=1),
+        )
+        report = run_scenario(spec)
+        assert report["failure_report"]["causes"]["call_ceiling"] == 2
+
+    def test_budget_drain_is_not_attributed_to_the_call_ceiling(self):
+        spec = Scenario(
+            name="drain-cause", documents=10, api_cap_usd=0.02, tokens_per_call=100_000,
+            failure=FailureMix(calls_per_doc=5),
+        )
+        report = run_scenario(spec)
+        causes = report["failure_report"]["causes"]
+        assert causes.get("budget", 0) > 0 and causes.get("call_ceiling", 0) == 0
+
+    def test_wrong_class_archives_report_wrong_archive_outcome_and_cause(self):
+        spec = Scenario(
+            name="misclass-cause", documents=4, api_cap_usd=100.0,
+            failure=FailureMix(wrong_class_rate=1.0),
+        )
+        report = run_scenario(spec)
+        fr = report["failure_report"]
+        assert fr["outcomes"]["wrong_archive"] == 4
+        assert fr["causes"]["wrong_class"] == 4
+        assert fr["causes_by_class"]["contract"]["wrong_class"] == 1

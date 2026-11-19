@@ -185,9 +185,12 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                     continue
                 if looping:
                     # Keep calling until the guard refuses: a document cut short by the
-                    # ceiling becomes an error row, never a scored outcome.
+                    # ceiling becomes an error row, never a scored outcome. One attempt
+                    # beyond the ceiling guarantees the refusal fires even when a single
+                    # call per document would otherwise exhaust the loop exactly at the
+                    # ceiling (a harness-generated "simulated loop" is not the guard's).
                     refused = None
-                    for _ in range(spec.failure.calls_per_doc * spec.call_ceiling):
+                    for _ in range(spec.failure.calls_per_doc * max(spec.call_ceiling, 1) + 1):
                         try:
                             call_guard.before_call()
                         except Exception as exc:  # noqa: BLE001 - the refusal is the outcome
@@ -196,7 +199,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                         call_guard.after_call({"input_tokens": spec.tokens_per_call, "output_tokens": 0})
                         calls += 1
                     results.append({"stage": "failed", "doc_type": cls,
-                                    "error": refused or "simulated loop"})
+                                    "error": refused or "simulated loop",
+                                    "refusal": _refusal_kind(refused or "simulated loop")})
                     error_rows += 1
                     injected_failures += 1
                     doc_calls.append(doc["calls"])
@@ -209,7 +213,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                 except Exception as exc:  # noqa: BLE001 - the refusal is the outcome
                     # A drained budget refuses the document's first call too: it becomes
                     # an error row, exactly like a looping document cut by the ceiling.
-                    results.append({"stage": "failed", "doc_type": cls, "error": str(exc)})
+                    results.append({"stage": "failed", "doc_type": cls, "error": str(exc),
+                                    "refusal": _refusal_kind(str(exc))})
                     error_rows += 1
                     injected_failures += 1
                     doc_calls.append(doc["calls"])
@@ -224,8 +229,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
         review_count = sum(1 for r in results if r.get("stage") == "review")
         finished = sum(1 for r in results if r.get("stage") == "archived")
         failure = ac.failure_report(
-            {"doc_class": rows[i]["expected_doc_class"], "outcome": _outcome(results[i]),
-             "cause": _cause(results[i])}
+            {"doc_class": rows[i]["expected_doc_class"], "outcome": _outcome(results[i], rows[i]),
+             "cause": _cause(results[i], rows[i])}
             for i in range(len(results))
         )
     finally:
@@ -250,20 +255,39 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
     }
 
 
-def _outcome(result: Mapping[str, Any]) -> str:
+def _outcome(result: Mapping[str, Any], row: Mapping[str, Any]) -> str:
     stage = result.get("stage")
     if stage == "failed":
         return "crashed"
     if stage == "review":
         return "review"
+    # A mismatched archived class is the gate's wrong_archive, not a correct archive:
+    # the outcome must agree with the incorrect-archive metric's reason counts.
+    expected = str(row.get("expected_doc_class") or "").strip().lower()
+    doc_type = str(result.get("doc_type") or "").strip().lower()
+    if expected and doc_type and doc_type != expected:
+        return "wrong_archive"
     return "correct_archive"
 
 
-def _cause(result: Mapping[str, Any]) -> str:
+def _refusal_kind(message: str) -> str:
+    """Which control refused: the document's call ceiling or the run's API budget."""
+    return "call_ceiling" if "per-document ceiling" in message else "budget"
+
+
+def _cause(result: Mapping[str, Any], row: Mapping[str, Any]) -> str:
     if result.get("stage") == "failed":
-        return "simulated_crash" if result.get("error") == "simulated crash" else "call_ceiling"
+        if result.get("error") == "simulated crash":
+            return "simulated_crash"
+        return str(result.get("refusal") or _refusal_kind(str(result.get("error") or "")))
     if result.get("stage") == "review":
         return "sorter_low_confidence"
+    # A wrong-class archive keeps its cause even without a parse error, so the
+    # misclassification wave shows up in the cause tables, not just the outcome count.
+    expected = str(row.get("expected_doc_class") or "").strip().lower()
+    doc_type = str(result.get("doc_type") or "").strip().lower()
+    if expected and doc_type and doc_type != expected:
+        return "wrong_class"
     if result.get("parse_error"):
         return "parse_error"
     return ""

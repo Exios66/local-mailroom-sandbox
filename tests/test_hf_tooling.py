@@ -119,8 +119,9 @@ class TestTransport:
 class TestCardAndFiles:
     def test_card_emits_ndjson_summary(self, capsys, monkeypatch):
         payload = {
-            "id": "org/repo", "license": "apache-2.0", "gated": False,
+            "id": "org/repo", "gated": False,
             "tags": ["text-generation"], "downloads": 10, "sha": "abc",
+            "cardData": {"license": "apache-2.0"},
         }
         recorder = Recorder(json.dumps(payload).encode())
         monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
@@ -131,6 +132,15 @@ class TestCardAndFiles:
         (line,) = capsys.readouterr().out.splitlines()
         record = json.loads(line)
         assert record["license"] == "apache-2.0" and record["gated"] is False and record["sha"] == "abc"
+
+    def test_card_prefers_the_top_level_license(self, capsys, monkeypatch):
+        # The official client reads cardData; a present top-level license still wins.
+        payload = {"id": "org/repo", "license": "mit", "cardData": {"license": "apache-2.0"}}
+        recorder = Recorder(json.dumps(payload).encode())
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        run(["card", "org/repo"])
+        assert json.loads(capsys.readouterr().out)["license"] == "mit"
 
     def test_files_lists_the_tree(self, capsys, monkeypatch):
         payload = [{"path": "data/train.parquet", "size": 123, "type": "file"},
@@ -182,3 +192,58 @@ class TestCardAndFiles:
         record = json.loads(capsys.readouterr().out)
         assert record["pin_is_head"] is False
         assert record["hub_head"] == "e" * 40
+
+
+class TestHubHttpErrorHandling:
+    def test_status_reports_the_cache_record_on_http_error(self, capsys, monkeypatch, tmp_path):
+        # A 401 from the Hub is a status, not a crash: the cache report still emits and
+        # the command still exits 0 (docs/critical-regressions.md row 10: no crash paths).
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        monkeypatch.setattr(hf_tool, "cache_root", lambda: tmp_path)
+        recorder = Recorder(body=b'{"error": "Unauthorized"}', status=401)
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        assert run(["status"]) == 0
+        record = json.loads(capsys.readouterr().out)
+        assert record["cache"]["root"] == str(tmp_path)
+        assert "401" in record["hub_error"] and "hub_head" not in record
+
+
+class TwoPageTransport:
+    """A fake Hub tree split across two Link-paginated pages."""
+
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def __call__(self, url, headers):
+        self.calls.append(url)
+        if "page" not in url:
+            body = json.dumps([{"path": "a.parquet", "size": 1, "type": "file"}]).encode()
+            return 200, body, {"Link": '<https://huggingface.co/next?page=2>; rel="next"'}
+        return 200, json.dumps([{"path": "b.parquet", "size": 2, "type": "file"}]).encode(), {}
+
+
+class TestFilesPaginationAndEncoding:
+    def test_files_follows_the_next_page_before_exiting(self, capsys, monkeypatch):
+        transport = TwoPageTransport()
+        monkeypatch.setattr(hf_tool, "TRANSPORT", transport)
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        assert run(["files", "org/repo", "--revision", "ff4ca546"]) == 0
+        assert len(transport.calls) == 2
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [row["path"] for row in lines] == ["a.parquet", "b.parquet"]
+
+    def test_revision_is_one_encoded_path_component(self, capsys, monkeypatch):
+        recorder = Recorder(json.dumps([]).encode())
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        run(["files", "org/repo", "--revision", "refs/pr/1"])
+        url, _ = recorder.calls[0]
+        assert "tree/refs%2Fpr%2F1" in url
+
+    def test_hex_revisions_are_unchanged(self, capsys, monkeypatch):
+        recorder = Recorder(json.dumps([]).encode())
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        run(["files", "org/repo", "--revision", "f" * 40])
+        url, _ = recorder.calls[0]
+        assert f"tree/{'f' * 40}" in url
