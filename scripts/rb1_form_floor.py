@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import random
 import re
 import sys
@@ -201,10 +202,31 @@ def _masses(run_dir: Path) -> dict[str, tuple[float | None, bool]]:
     return out
 
 
-def fit(intact_run: Path, defects_run: Path, defects: Path) -> dict:
+def read_ids(path: Path | None) -> set[str]:
+    """One id per line, ``#`` comments ignored (the format of the split ``.ids`` files)."""
+    if path is None:
+        return set()
+    return {ln.split("#", 1)[0].strip() for ln in path.read_text(encoding="utf-8").splitlines()} - {""}
+
+
+def auroc(pos: list[float], neg: list[float]) -> float:
+    """P(a defect's human mass > an intact document's), ties counted half: how well mass ranks."""
+    return sum((p > n) + 0.5 * (p == n) for p in pos for n in neg) / (len(pos) * len(neg))
+
+
+def _expected(defects: Path, misbuilt: set[str]) -> dict[str, str]:
+    """Defect rows minus copies a reading found to be complete documents after all."""
+    rows = {r["id"]: r["expected_document_form"] for r in _jsonl(defects)}
+    unknown = sorted(misbuilt - set(rows))
+    if unknown:
+        raise SystemExit(f"cannot fit: {len(unknown)} mis-built ids are not in {defects.name} {unknown[:5]}")
+    return {i: f for i, f in rows.items() if i not in misbuilt}
+
+
+def fit(intact_run: Path, defects_run: Path, defects: Path, misbuilt: set[str] | None = None) -> dict:
     _check_provenance(intact_run, defects_run, defects)
     intact = _masses(intact_run)
-    expected = {r["id"]: r["expected_document_form"] for r in _jsonl(defects)}
+    expected = _expected(defects, misbuilt or set())
     got = _masses(defects_run)
     missing = sorted(set(expected) - set(got))
     rows = [("intact", i, m) for i, (m, _) in intact.items()]
@@ -224,13 +246,72 @@ def fit(intact_run: Path, defects_run: Path, defects: Path) -> dict:
                       "intact_parked": sum(m >= floor for m in neg)})
     safe = [t for t in table if t["defects_passed"] == 0]
     best = max(safe, key=lambda t: t["floor"]) if safe else None
-    return {"n_defects": len(pos), "n_intact": len(neg), "table": table, "recommended": best,
+    return {"n_defects": len(pos), "n_intact": len(neg), "n_misbuilt": len(misbuilt or ()),
+            "auroc": auroc(pos, neg), "table": table, "recommended": best,
             "lowest_defect": [(i, k, m) for k, i, m in sorted((r for r in rows if r[0] != "intact"),
                                                               key=lambda r: r[2])[:8]],
             "highest_intact": [(i, m) for _, i, m in sorted((r for r in rows if r[0] == "intact"),
                                                             key=lambda r: -r[2])[:8]],
             "current_parks": {"intact_parked": sum(p for _, (_, p) in intact.items()),
                               "defects_passed": sum(not got[i][1] for i in expected if i in got)}}
+
+
+def sign_test_p(wins: int, losses: int) -> float:
+    """One-sided exact sign test: P(at least ``wins`` of ``wins + losses`` discordant pairs go one
+    way if each pair were a coin flip). Ties (concordant pairs) carry no information."""
+    n = wins + losses
+    return sum(math.comb(n, k) for k in range(wins, n + 1)) / 2 ** n if n else 1.0
+
+
+# The draw-2 decision rule, fixed before any draw-2 run (docs/rb1-r13b-smoke-review.md). A side
+# "improves" when its discordant pairs favour the candidate; leaks (a defect reaching
+# extraction) are the costlier error, so they get the stricter conditions.
+MIN_NET = 3          # at least this many more documents fixed than broken on the improving side
+ALPHA = 0.05         # one-sided exact sign test on that side's discordant pairs
+INTACT_SLACK = 1     # defects improve: the intact side may lose at most this many, net
+
+
+def _side(base: dict[str, bool], cand: dict[str, bool], bad_when: bool) -> dict:
+    """Paired outcome on one side: ``bad_when`` is the park state that is an error there."""
+    if set(base) != set(cand):
+        raise SystemExit(f"cannot compare: the two runs cover different rows "
+                         f"({len(set(base) ^ set(cand))} differ)")
+    fixed = sorted(i for i in base if base[i] == bad_when and cand[i] != bad_when)
+    broken = sorted(i for i in base if base[i] != bad_when and cand[i] == bad_when)
+    return {"n": len(base), "errors_base": sum(v == bad_when for v in base.values()),
+            "errors_cand": sum(v == bad_when for v in cand.values()), "fixed": fixed, "broken": broken,
+            "net": len(fixed) - len(broken), "p_better": sign_test_p(len(fixed), len(broken)),
+            "p_worse": sign_test_p(len(broken), len(fixed))}
+
+
+def decide(defects: dict, intact: dict) -> str:
+    if defects["p_worse"] < ALPHA or intact["p_worse"] < ALPHA:
+        return "reject"
+    if defects["net"] >= MIN_NET and defects["p_better"] < ALPHA and intact["net"] >= -INTACT_SLACK:
+        return "adopt"
+    if intact["net"] >= MIN_NET and intact["p_better"] < ALPHA and defects["net"] >= 0:
+        return "adopt"
+    return "inconclusive"
+
+
+def compare(base: tuple[Path, Path], cand: tuple[Path, Path], defects: Path,
+            misbuilt: set[str] | None = None) -> dict:
+    """Paired comparison of two question sets on the same intact rows and the same defect file."""
+    for intact_run, defects_run in (base, cand):
+        _check_provenance(intact_run, defects_run, defects)
+    locked = [hashlib.sha256((run / "dataset.jsonl").read_bytes()).hexdigest() for run in (base[0], cand[0])]
+    if locked[0] != locked[1]:
+        raise SystemExit("cannot compare: the intact runs locked different rows")
+    a, b = _identity(base[0]), _identity(cand[0])
+    if a["question_set_sha256"] == b["question_set_sha256"] or a["reviewer_model"] != b["reviewer_model"]:
+        raise SystemExit(f"cannot compare: need the same model and two different question sets: {a} vs {b}")
+    expected = _expected(defects, misbuilt or set())
+    parks = [{i: p for i, (_, p) in _masses(run).items()} for run in (base[0], cand[0], base[1], cand[1])]
+    d_base, d_cand = ({i: p[i] for i in expected} for p in parks[2:])
+    intact = _side(parks[0], parks[1], bad_when=True)      # an intact document parked
+    defect = _side(d_base, d_cand, bad_when=False)        # a defect passed to extraction
+    return {"intact": intact, "defects": defect, "decision": decide(defect, intact),
+            "n_misbuilt": len(misbuilt or ())}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -248,6 +329,14 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--intact-run", type=Path, required=True)
     f.add_argument("--defects-run", type=Path, required=True)
     f.add_argument("--defects", type=Path, required=True)
+    f.add_argument("--misbuilt", type=Path, help="ids of defect copies a reading found complete")
+    c = sub.add_parser("compare", help="paired decision between two question sets (draw-2 rule)")
+    c.add_argument("--base-intact", type=Path, required=True)
+    c.add_argument("--base-defects", type=Path, required=True)
+    c.add_argument("--cand-intact", type=Path, required=True)
+    c.add_argument("--cand-defects", type=Path, required=True)
+    c.add_argument("--defects", type=Path, required=True)
+    c.add_argument("--misbuilt", type=Path)
     args = ap.parse_args(argv)
     if args.cmd == "build":
         rows = build(_jsonl(args.source), seed=args.seed)
@@ -264,8 +353,23 @@ def main(argv: list[str] | None = None) -> int:
         args.out.write_text(exclude(args.base, args.used), encoding="utf-8")
         print(f"wrote {args.out}")
         return 0
-    res = fit(args.intact_run, args.defects_run, args.defects)
-    print(f"{res['n_defects']} defects, {res['n_intact']} intact; question set as run: "
+    if args.cmd == "compare":
+        res = compare((args.base_intact, args.base_defects), (args.cand_intact, args.cand_defects),
+                      args.defects, read_ids(args.misbuilt))
+        for side, what in (("defects", "defects passed"), ("intact", "intact parked")):
+            r = res[side]
+            print(f"{side} (n={r['n']}): {what} {r['errors_base']} -> {r['errors_cand']}; "
+                  f"fixed {len(r['fixed'])}, broken {len(r['broken'])}, net {r['net']:+d}, "
+                  f"p(better) {r['p_better']:.3f}, p(worse) {r['p_worse']:.3f}")
+            print(f"  fixed: {', '.join(r['fixed']) or '-'}\n  broken: {', '.join(r['broken']) or '-'}")
+        print(f"{res['n_misbuilt']} reviewed mis-built defects excluded; decision: {res['decision'].upper()} "
+              f"(rule: net >= {MIN_NET} and one-sided sign test p < {ALPHA} on the improving side; "
+              f"defects improving may cost at most {INTACT_SLACK} intact park, intact improving may cost "
+              f"no leak; reject on a significant loss on either side)")
+        return 0
+    res = fit(args.intact_run, args.defects_run, args.defects, read_ids(args.misbuilt))
+    print(f"{res['n_defects']} defects ({res['n_misbuilt']} reviewed mis-built excluded), "
+          f"{res['n_intact']} intact; AUROC of human mass {res['auroc']:.3f}; question set as run: "
           f"{res['current_parks']['intact_parked']} intact parked, "
           f"{res['current_parks']['defects_passed']} defects passed")
     print(f"{'floor':>6} {'defects passed':>15} {'intact parked':>14}")
@@ -273,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{t['floor']:>6.2f} {t['defects_passed']:>15} {t['intact_parked']:>14}")
     rec = res["recommended"]
     print(f"recommended floor: {rec['floor']:.2f} ({rec['intact_parked']} intact parked)" if rec
-          else "no floor in range keeps every defect away from extraction: keep parking on the chosen form")
+          else "no zero-leak floor in range: every floor lets a defect through (see AUROC for how well mass ranks)")
     print("lowest-mass defects:", ", ".join(f"{i} {k} {m:.2f}" for i, k, m in res["lowest_defect"]))
     print("highest-mass intact:", ", ".join(f"{i} {m:.2f}" for i, m in res["highest_intact"]))
     return 0

@@ -153,3 +153,52 @@ def test_exclude_adds_the_used_rows_to_the_split_complement(tmp_path):
     text = out.read_text(encoding="utf-8")
     assert [ln for ln in text.splitlines() if not ln.startswith("#")] == ["DOC-a", "DOC-b", "DOC-c"]
     assert str(tmp_path) not in text  # no local paths in a committed file
+
+
+def test_fit_reports_auroc_and_drops_reviewed_misbuilt_defects(tmp_path):
+    defects = tmp_path / "defects.jsonl"
+    defects.write_text("".join(json.dumps({"id": i, "expected_document_form": "fragment_or_excerpt"}) + "\n"
+                               for i in ("d1", "d2", "bad")), encoding="utf-8")
+    _write_run(tmp_path / "intact", {"i1": 0.1, "i2": 0.3})
+    _write_run(tmp_path / "defects", {"d1": 0.9, "d2": 0.2, "bad": 0.05}, source=defects)
+    res = ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
+    assert res["n_defects"] == 3 and res["auroc"] == pytest.approx(2 / 6 + 0.5 * 0 + 1 / 6)
+    misbuilt = tmp_path / "misbuilt.ids"
+    misbuilt.write_text("# reviewed\nbad   # a whole email\n", encoding="utf-8")
+    res = ff.fit(tmp_path / "intact", tmp_path / "defects", defects, ff.read_ids(misbuilt))
+    assert res["n_defects"] == 2 and res["n_misbuilt"] == 1 and res["current_parks"]["defects_passed"] == 1
+    with pytest.raises(SystemExit, match="not in"):
+        ff.fit(tmp_path / "intact", tmp_path / "defects", defects, {"nope"})
+
+
+def test_sign_test_and_the_prestated_decision_rule():
+    assert ff.sign_test_p(0, 0) == 1.0 and ff.sign_test_p(5, 0) == pytest.approx(1 / 32)
+    assert ff.sign_test_p(6, 1) == pytest.approx(8 / 128)
+
+    def side(fixed, broken):
+        return {"net": fixed - broken, "p_better": ff.sign_test_p(fixed, broken),
+                "p_worse": ff.sign_test_p(broken, fixed)}
+
+    assert ff.decide(side(1, 0), side(0, 0)) == "inconclusive"   # one document is noise
+    assert ff.decide(side(5, 0), side(0, 1)) == "adopt"          # leaks fixed, one more intact park allowed
+    assert ff.decide(side(5, 0), side(0, 2)) == "inconclusive"   # but not two
+    assert ff.decide(side(0, 0), side(6, 0)) == "adopt"          # intact parks fixed, no new leak
+    assert ff.decide(side(0, 1), side(6, 0)) == "inconclusive"   # a new leak blocks it
+    assert ff.decide(side(0, 5), side(9, 0)) == "reject"         # a significant leak regression
+
+
+def test_compare_pairs_two_question_sets_on_the_same_rows(tmp_path):
+    defects = tmp_path / "defects.jsonl"
+    ids = [f"d{k}" for k in range(8)]
+    defects.write_text("".join(json.dumps({"id": i, "expected_document_form": "multiple_documents"}) + "\n"
+                               for i in ids), encoding="utf-8")
+    intact = {f"i{k}": 0.1 for k in range(4)}
+    _write_run(tmp_path / "bi", intact)
+    _write_run(tmp_path / "ci", intact, question_set={"version": "4.0.2"})
+    _write_run(tmp_path / "bd", {i: (0.2 if k < 5 else 0.9) for k, i in enumerate(ids)}, source=defects)
+    _write_run(tmp_path / "cd", {i: 0.9 for i in ids}, source=defects, question_set={"version": "4.0.2"})
+    res = ff.compare((tmp_path / "bi", tmp_path / "bd"), (tmp_path / "ci", tmp_path / "cd"), defects)
+    assert res["defects"]["fixed"] == ids[:5] and res["defects"]["broken"] == []
+    assert res["intact"]["net"] == 0 and res["decision"] == "adopt"
+    with pytest.raises(SystemExit, match="two different question sets"):
+        ff.compare((tmp_path / "bi", tmp_path / "bd"), (tmp_path / "bi", tmp_path / "bd"), defects)

@@ -6,9 +6,10 @@
 # Question set 4.0.2. Draw 2 is paired: the same rows run under 4.0.1 and 4.0.2 (4.0.2 was written from
 # 14 draw-1 documents, so draw 1 is in-sample for it). Sibling: rb1-r13b-formcal2-intact-decision-luna-v4.0.1.
 # Order (one run at a time): intact 4.0.1, intact 4.0.2, build the defects (offline), defects 4.0.1,
-# defects 4.0.2, then fit each question set:
+# defects 4.0.2, then fit each question set and run the pre-stated paired decision (compare):
 #   .venv/bin/python scripts/rb1_form_floor.py fit --intact-run data/runtime/runs/rb1-r13b-formcal2-intact-decision-luna-v<V> --defects-run data/runtime/runs/rb1-r13b-formcal2-defects-decision-luna-v<V> --defects data/runtime/rb1-r13b/formcal2-defects.jsonl
-# Cost: about $0.10 input-only. Caps $0.40, 1800 s.
+#   .venv/bin/python scripts/rb1_form_floor.py compare --base-intact data/runtime/runs/rb1-r13b-formcal2-intact-decision-luna-v4.0.1 --base-defects data/runtime/runs/rb1-r13b-formcal2-defects-decision-luna-v4.0.1 --cand-intact data/runtime/runs/rb1-r13b-formcal2-intact-decision-luna-v4.0.2 --cand-defects data/runtime/runs/rb1-r13b-formcal2-defects-decision-luna-v4.0.2 --defects data/runtime/rb1-r13b/formcal2-defects.jsonl
+# Cost: about $0.20 input-only (draw 1: $0.10 for 67 rows; ~130 rows here). Caps $0.60, 1800 s.
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal2.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-formcal2-defects-decision-luna-v4.0.2.yaml
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal2.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-formcal2-defects-decision-luna-v4.0.2.yaml --initials <XX>
 schema: sandbox.run/v1
@@ -41,9 +42,9 @@ job:
   max_retries: 1
   fail_fast: false
   concurrency: 8
-  cost_cap_usd: 0.40
+  cost_cap_usd: 0.60
   max_wall_seconds: 1800
-  api_cost_cap_usd: 0.40
+  api_cost_cap_usd: 0.60
 trace:
   sink: none
   environment: pilot

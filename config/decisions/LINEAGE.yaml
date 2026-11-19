@@ -127,5 +127,6 @@ versions:
       Registered 2026-11-19 after the rb1 R13b form calibration (draw 1), where no human-mass
       floor parked every defect and 4.0.1 passed 9 defects and parked 5 intact documents. The
       wording was written from those 14 draw-1 documents, so draw-1 figures are in-sample. Not
-      the default until calibration draw 2 (draw 1 excluded) shows it passes fewer defects
-      than 4.0.1 on the same rows without parking more intact documents.
+      the default until calibration draw 2 (100 new documents, draw 1 excluded) gives "adopt"
+      under the paired rule fixed before it ran (rb1_form_floor.py compare; see
+      docs/rb1-r13b-smoke-review.md).
