@@ -86,3 +86,15 @@ def test_openai_usage_keeps_an_explicit_zero(usage, expected):
     resp = _Resp()
     resp.usage = usage
     assert usage_from_openai_response(resp) == expected
+
+
+def test_tiered_model_prices_each_item_at_its_own_tier():
+    # qwen3.7-flash: $0.03/$0.13 per 1M below 32k prompt tokens, $0.10/$0.40 from 32k.
+    items = [{"ok": True, "prompt_tokens": 3_700, "completion_tokens": 90, "llm_calls": 1}] * 16 + [
+        {"ok": True, "prompt_tokens": 80_000, "completion_tokens": 130, "llm_calls": 1}] * 4
+    rec = _record(items, model="qwen/qwen3.7-flash")
+    small = 16 * (3_700 * 0.03 + 90 * 0.13) / 1e6
+    large = 4 * (80_000 * 0.10 + 130 * 0.40) / 1e6
+    assert rec["estimated_cost_usd"] == pytest.approx(small + large, abs=1e-6)
+    flat = (16 * 3_700 + 4 * 80_000) * 0.03 / 1e6  # the old run-total pricing: every call in the cheap tier
+    assert rec["estimated_cost_usd"] > 2 * flat

@@ -377,6 +377,34 @@ def _token_price_override() -> tuple[float, float] | None:
     return (pin if pin is not None else 0.0, pout if pout is not None else 0.0)
 
 
+def _tiered_items_cost(items: Sequence[Mapping[str, Any]], model: str | None) -> float | None:
+    """Sum of each item's calls priced at that call's own tier, for a model with a tiered sheet.
+
+    A tiered sheet (e.g. qwen3.7-flash: $0.03/M below 32k prompt tokens, $0.10/M from 32k) cannot be
+    priced from run totals: the totals hide which calls crossed the threshold, so a run mixing short
+    letters with 80k-token merger agreements came out about 2.8x too cheap at the run level. ``None``
+    for an untiered or unpriced model, a price override, or an item with no recorded usage (callers
+    then fall back to the flat estimate).
+    """
+    if _token_price_override() is not None:
+        return None
+    sheet = price_sheet(model)
+    if not sheet or len(sheet) < 2:
+        return None
+    total = 0.0
+    for item in items:
+        prompt, completion = item.get("prompt_tokens"), item.get("completion_tokens")
+        if prompt is None and completion is None:
+            if item.get("ok", True) is not False:
+                return None
+            continue
+        cost = call_cost(model, float(prompt or 0), float(completion or 0), calls=int(item.get("llm_calls") or 1))
+        if cost is None:
+            return None
+        total += cost
+    return round(total, 6)
+
+
 def _estimate_cost(
     prompt_tokens: int, completion_tokens: int, model: str
 ) -> float | None:
@@ -653,7 +681,9 @@ def record_from_run(
         elif ok_items and not unobserved and total_tokens == 0 and _has_token_price(model):
             cost = 0.0
         else:
-            cost = _estimate_cost(prompt_tokens, completion_tokens, model)
+            cost = _tiered_items_cost(items, model)
+            if cost is None:
+                cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
             # tokens x a price table: label it so the dojo can stamp USD rows
