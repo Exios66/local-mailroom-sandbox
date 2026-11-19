@@ -107,3 +107,17 @@ def test_macro_f1_moves_where_mcnemar_cannot():
     assert st.macro_f1(["a", "b"], ["a", "b"]) == 1.0
     with pytest.raises(ValueError):
         st.paired_macro_f1(truth, base, cand[:-1])
+
+
+def test_zero_failure_n_matches_the_clopper_pearson_bar():
+    assert st.zero_failure_n(0.02) == 149 and st.zero_failure_n(0.01) == 299
+    assert st.clopper_pearson_upper(0, 149) <= 0.02 < st.clopper_pearson_upper(0, 148)
+    with pytest.raises(ValueError):
+        st.zero_failure_n(0.0)
+
+
+def test_class_gate_plan_reports_each_class_on_its_own_documents():
+    plan = st.class_gate_plan({"contract": 105, "correspondence": 348, "merger_agreement": 34})
+    assert plan["correspondence"].certifiable and plan["correspondence"].required_accepts == 149
+    assert not plan["contract"].certifiable and 0.028 < plan["contract"].best_bound < 0.029
+    assert 0.084 < plan["merger_agreement"].best_bound < 0.085

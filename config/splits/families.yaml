@@ -6,6 +6,14 @@
 # Families group related agreement / record types; edit only before R00 runs.
 min_scored: 30
 min_pooled_per_set: 10
+# Class-specific accept gates (decision 6): each class's gate is calibrated on its own
+# calibration documents to `target_error` at `confidence` (zero-failure Clopper-Pearson:
+# 149 error-free accepts for 2% at 95%). A class with fewer documents left after dev and
+# held-out keeps all of them in calibration (none in the pool) and reports the tightest
+# bound it can certify; it never falls back to the global gate.
+calibration:
+  target_error: 0.02
+  confidence: 0.95
 families:
   contract:
     licensing_ip: [Affiliate_Agreements, Franchise, Non_Compete_Non_Solicit]

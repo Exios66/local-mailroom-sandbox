@@ -160,6 +160,17 @@ def _show(args) -> int:
     for s in es.SETS:
         c = Counter(r["doc_class"] for r in rows if r["set"] == s)
         print(f"  {s:12} " + "  ".join(f"{k}={v}" for k, v in sorted(c.items())))
+    fams = es.load_families(Path(args.families))
+    if fams.get("calibration"):
+        from mailroom_sandbox.experiment_stats import class_gate_plan
+
+        target, conf = es.calibration_gate(fams)
+        plan = class_gate_plan(Counter(r["doc_class"] for r in rows if r["set"] == "calibration"), target, conf)
+        print(f"class-specific gates ({target:.0%} error at {conf:.0%}, {next(iter(plan.values())).required_accepts} "
+              "error-free accepts each):")
+        for cls, g in plan.items():
+            state = "certifiable" if g.certifiable else f"short: best bound {g.best_bound:.2%}"
+            print(f"  {cls:18} calibration n={g.calibration_docs:<4} {state}")
     rel = f"config/splits/{args.name}/{args.set}.exclude.ids"
     n = manifest["looks"].get(args.set) or manifest["sizes"].get(args.set)
     print(f"\nrun-config dataset block for {args.set} ({n} docs):")

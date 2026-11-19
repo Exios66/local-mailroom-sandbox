@@ -96,6 +96,23 @@ def test_refresh_sheet_from_catalog_and_drift():
     assert changed == ["x/m"]
 
 
+def test_time_of_day_windows_are_not_prompt_tiers():
+    """OpenRouter time windows (utc_days / utc_start) fold into the base tier at their highest price."""
+    entry = {"id": "x/w", "context_length": 1000, "top_provider": {},
+             "pricing": {"prompt": "0.0000003", "completion": "0.0000012", "input_cache_read": "0.000000006",
+                         "overrides": [
+                             {"utc_days": ["saturday"], "prompt": "0.00000015", "completion": "0.0000006"},
+                             {"utc_days": ["monday"], "utc_start": 100, "utc_end": 400, "prompt": "0.0000004"},
+                             {"min_prompt_tokens": 64000, "prompt": "0.0000006", "completion": "0.0000024"}]}}
+    row = refresh_api_prices.sheet_from_catalog(entry)
+    assert row["tiers"] == [{"min_prompt_tokens": 0, "prompt": 0.4, "completion": 1.2, "cache_read": 0.006},
+                            {"min_prompt_tokens": 64000, "prompt": 0.6, "completion": 2.4}]
+    assert row["time_windows"] == 2
+    entry["pricing"]["overrides"] = entry["pricing"]["overrides"][2:]
+    out, _ = refresh_api_prices.refresh({"models": {"x/w": row}}, {"x/w": entry}, today="2026-11-18")
+    assert "time_windows" not in out["models"]["x/w"]
+
+
 @pytest.mark.parametrize("model,prompt", [("typesafe/jev-1.14", 0.042), ("liquid/d1.2", 0.02), ("upstage/solar-decide", 0.05),
                                           ("google/gemini-decision-1", 0.1), ("perplexity/pplx-decider-v1.2", 0.02)])
 def test_decision_models_price_from_the_catalog_input_only(model, prompt):

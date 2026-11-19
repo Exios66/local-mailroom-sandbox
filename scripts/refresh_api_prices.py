@@ -35,19 +35,38 @@ def _per_million(value) -> float:
     return round(float(value) * 1_000_000, 6)
 
 
+_WINDOW_KEYS = ("utc_days", "utc_start", "utc_end")
+
+
 def sheet_from_catalog(entry: dict) -> dict:
-    """One ``config/api_prices.yaml`` model row from an OpenRouter ``/models`` entry."""
+    """One ``config/api_prices.yaml`` model row from an OpenRouter ``/models`` entry.
+
+    ``pricing.overrides`` holds two kinds of entry. One with ``min_prompt_tokens`` is a
+    long-prompt tier. One with ``utc_days`` / ``utc_start`` / ``utc_end`` is a time-of-day
+    window, not a tier: reading it as one wrote several ``min_prompt_tokens: 0`` tiers with
+    different prices. Cost caps cannot know when a call lands, so each field of every tier
+    takes the highest price any window charges, and the row records how many windows exist.
+    """
     pricing = entry.get("pricing") or {}
+    overrides = list(pricing.get("overrides") or [])
+    windows = [o for o in overrides if any(k in o for k in _WINDOW_KEYS)]
+    lengths = [o for o in overrides if o not in windows]
     tiers = []
-    for minimum, block in [(0, pricing)] + [(int(o.get("min_prompt_tokens") or 0), o)
-                                            for o in pricing.get("overrides") or []]:
+    for minimum, block in [(0, pricing)] + [(int(o.get("min_prompt_tokens") or 0), o) for o in lengths]:
         tier = {"min_prompt_tokens": minimum}
         tier.update({out: _per_million(block[src]) for src, out in _FIELDS.items() if block.get(src) is not None})
+        for window in windows if minimum == 0 else ():
+            for src, out in _FIELDS.items():
+                if window.get(src) is not None and out in tier:
+                    tier[out] = max(tier[out], _per_million(window[src]))
         tiers.append(tier)
     top = entry.get("top_provider") or {}
-    return {"context_length": entry.get("context_length") or top.get("context_length"),
-            "max_completion_tokens": top.get("max_completion_tokens"),
-            "tiers": sorted(tiers, key=lambda t: t["min_prompt_tokens"])}
+    row = {"context_length": entry.get("context_length") or top.get("context_length"),
+           "max_completion_tokens": top.get("max_completion_tokens"),
+           "tiers": sorted(tiers, key=lambda t: t["min_prompt_tokens"])}
+    if windows:
+        row["time_windows"] = len(windows)
+    return row
 
 
 def fetch_catalog(url: str = CATALOG_URL) -> dict[str, dict]:
@@ -68,7 +87,8 @@ def refresh(doc: dict, catalog: dict[str, dict], *, today: str) -> tuple[dict, l
             if not is_decisions_model(model_id) and not (row or {}).get("endpoint"):
                 changed.append(f"{model_id}: not in the OpenRouter catalog")
             continue
-        new = {**(row or {}), **sheet_from_catalog(catalog[model_id])}
+        kept = {k: v for k, v in (row or {}).items() if k != "time_windows"}  # recomputed below
+        new = {**kept, **sheet_from_catalog(catalog[model_id])}
         if new != row:
             changed.append(model_id)
         models[model_id] = new

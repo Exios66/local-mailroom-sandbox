@@ -359,6 +359,26 @@ def _band_interleaved(docs: Sequence[Doc], seed: int, salt: str) -> list[Doc]:
     return [t[2] for t in ranked]
 
 
+def calibration_gate(families: dict[str, Any]) -> tuple[float, float]:
+    """(target_error, confidence) of the class-specific accept gates (families.yaml ``calibration``)."""
+    cal = families.get("calibration") or {}
+    return float(cal.get("target_error", 0.02)), float(cal.get("confidence", 0.95))
+
+
+def calibration_short_classes(remaining: Sequence[Doc], families: dict[str, Any]) -> set[str]:
+    """Classes whose documents left after dev/held-out cannot fund their own gate's accepts.
+
+    Opt-in: a families file without a ``calibration`` block keeps the plain pool/calibration mix.
+    """
+    from mailroom_sandbox.experiment_stats import zero_failure_n
+
+    if not families.get("calibration"):
+        return set()
+    need = zero_failure_n(*calibration_gate(families))
+    left = Counter(d.doc_class for d in remaining)
+    return {c for c, n in left.items() if n < need}
+
+
 def unit_quota(kind: str, n: int, min_pooled: int) -> int:
     """Per-set quota for dev and held-out."""
     if kind == "pooled":
@@ -503,8 +523,16 @@ def build_split(
     # 5. calibration and pool split the remainder in the same class x length-band mix,
     #    so the pilot pool also holds long documents (R15 input-cap sweep) and
     #    calibration keeps as close to the corpus class mix as dev/held-out allow.
-    share = sizes["pool"] / max(1, sizes["pool"] + sizes["calibration"])
+    #    Class-specific gates: a class whose remainder cannot reach the error-free accepts
+    #    its own gate needs (zero_failure_n) gives its whole remainder to calibration, and
+    #    the other classes fill the pool in its place.
     remaining = [d for d in docs if d.id not in assignment]
+    short_classes = calibration_short_classes(remaining, families)
+    others = sum(1 for d in remaining if d.doc_class not in short_classes)
+    pool_share = sizes["pool"] / max(1, others)
+    if pool_share > 1:
+        raise SplitError(f"pool holds {sizes['pool']} documents but only {others} remain outside the "
+                         f"classes calibration keeps whole ({', '.join(sorted(short_classes))})")
     strata: dict[tuple[str, str, str], list[Doc]] = defaultdict(list)
     for d in remaining:
         strata[(d.doc_class, d.source_corpus, d.band)].append(d)
@@ -517,7 +545,12 @@ def build_split(
         if d.id in assignment:
             continue
         size = len(comps[comp_of[d.id]])
+        share = 0.0 if d.doc_class in short_classes else pool_share
         debt += share * size
+        if share == 0.0:
+            if place(comp_of[d.id], "calibration"):
+                continue
+            raise SplitError(f"could not place {d.id} in calibration: it is full")
         target = "pool" if debt >= 0.5 * size else "calibration"
         if not place(comp_of[d.id], target):
             target = "calibration" if target == "pool" else "pool"
@@ -817,6 +850,22 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     checks.append(Check("calibration class mix vs corpus (informational)", True,
                         f"max gap {cal_gap[0]:.1f} pts ({cal_gap[1]}); within ±{MIX_TOLERANCE_PTS:g}: "
                         f"{'yes' if cal_gap[0] <= MIX_TOLERANCE_PTS else 'no'}", gate=False))
+
+    # class-specific accept gates (decision 6): a class that cannot reach its gate's
+    # error-free accepts keeps every remaining document in calibration, none in the pool
+    from mailroom_sandbox.experiment_stats import class_gate_plan, zero_failure_n
+
+    target, conf = calibration_gate(families)
+    need = zero_failure_n(target, conf)
+    gated = bool(families.get("calibration"))
+    plan = class_gate_plan(Counter(d.doc_class for d in by_set["calibration"]), target, conf)
+    in_pool = Counter(d.doc_class for d in by_set["pool"])
+    leaky = [f"{c} ({in_pool[c]} in pool)" for c, g in plan.items() if gated and not g.certifiable and in_pool[c]]
+    checks.append(Check(f"classes short of {need} calibration docs keep none in the pool", not leaky,
+                        ", ".join(leaky) or "ok"))
+    checks.append(Check(f"class-specific gates at {target:.0%} / {conf:.0%} (informational)", True,
+                        "; ".join(f"{c} n={g.calibration_docs} best bound {g.best_bound:.2%}"
+                                  + ("" if g.certifiable else " (short)") for c, g in plan.items()), gate=False))
 
     # length-band balance inside dev/held-out units (informational)
     worst_band = (0.0, "")

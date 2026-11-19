@@ -13,7 +13,9 @@ need, which the Dojo does not ship:
 * the sequential-look z for 300 / 600 / 900 dev looks,
 * cost-weighted error from a confusion count and a cost matrix,
 * null floors for Brier and ECE, so a calibration figure is read beside the score a
-  constant base-rate predictor or a perfectly calibrated one would get at that n.
+  constant base-rate predictor or a perfectly calibrated one would get at that n,
+* class-specific gate sizing: the error-free accepts a class needs for its own
+  ``target_error`` bound, and the bound its calibration documents can certify.
 
 All functions are pure and deterministic (seeded where random).
 """
@@ -49,6 +51,9 @@ __all__ = [
     "brier_null_floor",
     "ece_null_floor",
     "KEEP_Z",
+    "ClassGate",
+    "zero_failure_n",
+    "class_gate_plan",
 ]
 
 # Sequential-look keep thresholds from the prompt-iteration design: keep at
@@ -273,3 +278,45 @@ def ece_null_floor(
     values.sort()
     index = min(len(values) - 1, int(math.ceil(quantile * len(values))) - 1)
     return round(values[index], 6)
+
+
+def zero_failure_n(target_error: float, confidence: float = 0.95) -> int:
+    """Fewest error-free accepts whose one-sided Clopper-Pearson bound is <= ``target_error``.
+
+    Zero errors in n accepts bound the rate at ``1 - (1 - confidence) ** (1 / n)``, so
+    n = ceil(ln(1 - confidence) / ln(1 - target_error)): 149 for 2% at 95%.
+    """
+    if not 0 < target_error < 1 or not 0 < confidence < 1:
+        raise ValueError("target_error and confidence must lie in (0, 1)")
+    n = math.ceil(math.log(1 - confidence) / math.log(1 - target_error))
+    while n > 1 and (clopper_pearson_upper(0, n - 1, confidence=confidence) or 1.0) <= target_error:
+        n -= 1  # guard the float ceiling against an off-by-one
+    return n
+
+
+@dataclass(frozen=True)
+class ClassGate:
+    """One class's calibration plan for its own accept gate."""
+
+    doc_class: str
+    calibration_docs: int
+    required_accepts: int
+    best_bound: float | None  # the bound if every calibration doc were an error-free accept
+    certifiable: bool         # best_bound <= target_error
+
+
+def class_gate_plan(
+    calibration_docs: Mapping[str, int], target_error: float = 0.02, confidence: float = 0.95
+) -> dict[str, ClassGate]:
+    """Per-class gate sizing for the calibration set.
+
+    A class whose calibration documents cannot certify ``target_error`` even with every one
+    accepted error-free still gets its own gate, calibrated on its own documents: it reports
+    ``best_bound`` (the tightest bound it can reach) instead of borrowing the global gate.
+    """
+    need = zero_failure_n(target_error, confidence)
+    plan = {}
+    for cls, n in sorted(calibration_docs.items()):
+        bound = clopper_pearson_upper(0, int(n), confidence=confidence)
+        plan[cls] = ClassGate(cls, int(n), need, bound, bound is not None and bound <= target_error)
+    return plan

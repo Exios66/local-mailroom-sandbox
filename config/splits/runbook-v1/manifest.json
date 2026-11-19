@@ -4,9 +4,9 @@
     "rows": 3302
   },
   "files": {
-    "assignments.jsonl": "7118dbfa1419d1c6bf1a80017892644227608cfab0cabd06d42a1f5a12456d75",
-    "calibration.exclude.ids": "fbc10b06c5d81e16879a8c72100e6c4203f3f701809b8a74b8fb840ff090cf43",
-    "calibration.ids": "07f7c01ccf4249e7a6984324cc1f6440e2f7fc4ef8d36137c4888049a6c9c88c",
+    "assignments.jsonl": "ca7c4a18a59620b4f2c881307f59aa2ebb249ac0a1edfc0dc3aa1e24622f20fa",
+    "calibration.exclude.ids": "2be004d558167cfb5b49f6e3b29cf7942467faf45be0d4be67767fd251c4d5fa",
+    "calibration.ids": "69be08f87eb151edde68f78f2d2bf652f8e6ae3790bfd56c92bb3558522d0ce7",
     "dev-look1.exclude.ids": "9a5b2f8cbbda9febab9622260bdb08ec8dec67c5cd70aed0d844d18ba215c001",
     "dev-look1.ids": "ae71533502c1ea88ebc5eb98d3e6824941b0410c5d24d7f6f18233ce072e51e0",
     "dev-look2.exclude.ids": "dd732bfc3285ec4da8d9109fd0afd71a3d2eaf3d41da39f34e6d3e2eef2989fc",
@@ -15,8 +15,8 @@
     "dev.ids": "75ed4f2bb32641e7abfc52de5a1cb3faa58ef0de39823c84d61b80e6a0991db1",
     "heldout.exclude.ids": "667eeba8ba0f2338368cdf515932a27cbef0743bec7cbedc30b34cb7b354d740",
     "heldout.ids": "3f5d7d999d9caa478b8153bcc1f3fa62d54edf317ab78c1ea14d71384f27954b",
-    "pool.exclude.ids": "743bde28f7573bf002a4cb1f51bdfe0365b2ca38087e6792a9a1ef7c975b3f43",
-    "pool.ids": "a48df8a8974d02cd6922553ec7a82f24bf38ff7cf54dfdf052c27117215e30c0"
+    "pool.exclude.ids": "1173008b4453a871f8b0bcfdc359f81d7a967995629e4b1bb5229e3304234b67",
+    "pool.ids": "0eb69c8d471f23bc90e91a005f4ba941a5491546d917a6847c8ee5d54677ca01"
   },
   "inputs": {
     "exposure": {
@@ -25,7 +25,7 @@
     },
     "families": {
       "path": "config/splits/families.yaml",
-      "sha256": "c2ef6828d6fb968a9b9847f9e1a5bc552c51b910d2cbbf131824041419fb433d"
+      "sha256": "9bf78dd10f97451b91dd03807a7c0b9207f0fc4ccbde7b3caa0b0d3bf40b122c"
     }
   },
   "looks": {

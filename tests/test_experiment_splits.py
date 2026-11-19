@@ -287,3 +287,38 @@ def test_show_prints_the_frozen_revision(capsys):
     assert main(["splits", "show", "--set", "heldout"]) == 0
     manifest = json.loads((es.DEFAULT_OUT_ROOT / "runbook-v1" / "manifest.json").read_text())
     assert f"revision: {manifest['dataset']['revision']}" in capsys.readouterr().out
+
+
+def test_class_gates_keep_a_short_class_whole_in_calibration():
+    """Decision 6: a class that cannot fund its own gate gives its pool share to calibration."""
+    from collections import Counter
+
+    fams = {**FAMILIES, "calibration": {"target_error": 0.05, "confidence": 0.95}}  # needs 59 accepts
+    docs = _corpus() + [es.Doc(id=f"DOC-9{i:03d}", doc_class="beta", subclass="t1", band=es.BANDS[i % 3],
+                               source_corpus="src-beta", annotation_method="source_native", hf_split="train",
+                               tuned=False, links=[f"doc:DOC-9{i:03d}"]) for i in range(80)]
+    sizes = {**SIZES, "calibration": 100, "pool": 40}
+    res = es.build_split(docs, fams, seed=7, sizes=sizes)
+    by = Counter((d.doc_class, res.assignment[d.id]) for d in docs)
+    assert by[("alpha", "pool")] == 0 and by[("alpha", "calibration")] > 0  # alpha is short of 59
+    assert by[("beta", "pool")] == 40
+    plain = es.build_split(docs, FAMILIES, seed=7, sizes=sizes)  # no calibration block: old mix
+    assert Counter(d.doc_class for d in docs if plain.assignment[d.id] == "pool")["alpha"] > 0
+
+
+def _audit_of(res, docs, fams, tmp_path, monkeypatch):
+    fam = tmp_path / "families.yaml"
+    fam.write_text(json.dumps(fams))
+    monkeypatch.setattr(es, "REPO_ROOT", tmp_path)
+    out = tmp_path / "split"
+    es.write_split(res, out, seed=7, revision="r" * 40, families_path=fam, exposure_path=None)
+    return es.audit(out, docs, fams)
+
+
+def test_class_gate_audit_flags_a_short_class_left_in_the_pool(tmp_path, monkeypatch):
+    fams = {**FAMILIES, "calibration": {"target_error": 0.05, "confidence": 0.95}}
+    docs = _corpus()
+    res = es.build_split(docs, FAMILIES, seed=7, sizes=SIZES)  # built without the gate rule
+    checks = {c.name: c for c in _audit_of(res, docs, fams, tmp_path, monkeypatch)}
+    (name,) = [n for n in checks if n.startswith("classes short of")]
+    assert not checks[name].ok and "in pool" in checks[name].detail
