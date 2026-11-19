@@ -138,6 +138,29 @@ def test_provider_compare_ignores_case_and_flags_a_substituted_model(vendored, m
     assert last["model_mismatch"] is True and last["mismatch"] is True
 
 
+def test_endpoint_tags_match_the_display_name_openrouter_reports():
+    """Pins hold endpoint tags; responses name the provider for display. Both must agree."""
+    assert pp.provider_in_order("DeepInfra", ["deepinfra/bf16"])
+    assert pp.provider_in_order("Z.AI", ["z-ai/fp8"])
+    assert pp.provider_in_order("Alibaba", ["alibaba"])
+    assert pp.provider_in_order("DeepSeek", ["deepseek"])
+    assert pp.provider_in_order("Served-Co", ["Served-Co"])
+    assert not pp.provider_in_order("Novita", ["deepinfra/bf16"])
+    assert not pp.provider_in_order("DeepInfra", ["deepseek"])
+
+
+def test_committed_pins_name_one_endpoint_each_without_fallbacks():
+    """R01 (owner choice 2026-11-18): first-party or full-precision endpoints, no fallbacks."""
+    pins = pp.load_pins()
+    assert {m: p["order"] for m, p in pins.items()} == {
+        "qwen/qwen3.7-flash": ["alibaba"],
+        "qwen/qwen3.5-9b": ["deepinfra/bf16"],
+        "deepseek/deepseek-v4.1-flash-1017": ["deepseek"],
+        "z-ai/glm-5.3-flashx-legal": ["z-ai/fp8"],
+    }
+    assert not any(p["allow_fallbacks"] for p in pins.values())
+
+
 def test_explicit_fallback_chain_is_recorded_not_pinned(vendored):
     seen, base = vendored
     pp.apply_provider_pins(PINS)

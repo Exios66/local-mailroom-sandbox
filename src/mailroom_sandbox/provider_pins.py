@@ -125,6 +125,23 @@ def _field(response: Any, name: str) -> Any:
     return value
 
 
+def _provider_key(name: str) -> str:
+    """A provider name or tag reduced to letters and digits: ``Z.AI`` and ``z-ai`` both give ``zai``."""
+    return "".join(ch for ch in name.casefold() if ch.isalnum())
+
+
+def provider_in_order(provider: str, order: list[str] | tuple[str, ...]) -> bool:
+    """True when a served provider is one the pin allows.
+
+    OpenRouter names the served provider by display name (``DeepInfra``, ``Z.AI``) while a pin
+    holds endpoint tags (``deepinfra/bf16``, ``z-ai/fp8``), so a tag matches on its provider part,
+    the text before the first ``/``. The quantization part of a tag is not reported by the
+    response and cannot be checked here.
+    """
+    served = _provider_key(provider)
+    return any(served in {_provider_key(p), _provider_key(str(p).split("/", 1)[0])} for p in order)
+
+
 def served_provider(response: Any) -> str | None:
     value = _field(response, "provider")
     return str(value) if value else None
@@ -149,9 +166,7 @@ def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
     served_model = _field(response, "model")
     served = served_model if isinstance(served_model, str) and served_model else None
     order = [] if fallback_models else list(pin.get("order") or [])  # a fallback chain is not pinned
-    provider_off = bool(order) and provider is not None and provider.casefold() not in {
-        p.casefold() for p in order
-    }
+    provider_off = bool(order) and provider is not None and not provider_in_order(provider, order)
     allowed = {model.casefold()} | {str(m).casefold() for m in fallback_models}
     for m in (model, *fallback_models):
         slug = (pins.get(str(m)) or {}).get("canonical_slug")
