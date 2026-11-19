@@ -1,0 +1,65 @@
+# rb1 R13b document-form FLOOR CALIBRATION, part 1 of 2: intact calibration documents (H5).
+# smoke20b/20c: question set 4.0.1 parked 4 of 20 intact dev-look1 documents, each with 0.55-0.79
+# of the form probability on human forms; the intact documents it passed sat at <= 0.47. A park
+# floor is fitted here on the CALIBRATION split, never on dev-look1. This run: 10 real calibration
+# documents per class, each taken as a complete instrument (negatives). Part 2
+# (rb1-r13b-formcal-defects-decision-luna-v4.0.1) runs fragments and bundles built from these
+# same rows. Same model and question set as smoke20c; decide() records the form probabilities.
+# Cost: ~50 documents, mergers ~80k tokens each, about $0.12 input-only. Caps $0.30, 1800 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1.yaml --initials <XX>
+# Then build part 2's rows (offline) from this run's locked dataset:
+#   .venv/bin/python scripts/rb1_form_floor.py build --source data/runtime/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1/dataset.jsonl --out data/runtime/rb1-r13b/formcal-defects.jsonl
+# Scale up by raising the bucket counts under a new run id (calibration has 34 mergers).
+schema: sandbox.run/v1
+run_id: rb1-r13b-formcal-intact-decision-luna-v4.0.1
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/calibration.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 10}
+      - {doc_class: corporate_record, count: 10}
+      - {doc_class: correspondence, count: 10}
+      - {doc_class: insurance_claim, count: 10}
+      - {doc_class: merger_agreement, count: 10}
+  limit: 50
+  sample_seed: 20261119
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.1
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.30
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.30
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, form-floor, intact, v4.0.1, decisions-api, decision-sorter, calibration]
