@@ -88,26 +88,29 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 
 - [ ] Owner sign-off on the 8 groupings in `config/splits/families.yaml` (decision 8; listed in the Discussion reply): contract `licensing_ip` (pooled, 29), `supply_distribution` (55), `services_outsourcing` (66), `alliances_jv` (49), `marketing_sponsorship` (75); corporate_record `governance_instruments` (59); correspondence `legal_demand_rare` (pooled, 3); merger_agreement `stock_or_mixed` (38)
 - [ ] If families change: `HF_HUB_OFFLINE=1 sandbox splits build --force` (only before any run uses the split)
-- [ ] `HF_HUB_OFFLINE=1 sandbox splits audit` exits 0
-- [ ] Commit `config/splits/runbook-v1` (gate: split hashes committed)
+- [x] `HF_HUB_OFFLINE=1 sandbox splits audit` exits 0 (re-checked 2026-11-18 on main after #342; `scripts/check_g0.py` runs it)
+- [x] Commit `config/splits/runbook-v1` (gate: split hashes committed; landed with #342)
 
 ### Task 2: Pin models and providers (R01)
 
 **Files:** `config/provider_pins.yaml`, `config/decision_models.yaml`, `config/api_prices.yaml`
 
-- [ ] `python scripts/refresh_provider_pins.py` → choose `order` per chat model (public GET, no spend)
+- [x] `python scripts/refresh_provider_pins.py` → choose `order` per chat model (public GET, no spend). Owner choice 2026-11-18: the first-party or full-precision endpoint, no fallbacks: Qwen3.7 Flash `alibaba` (its only endpoint), Qwen3.5-9B `deepinfra/bf16`, DeepSeek V4.1 Flash `deepseek`, GLM 5.3 FlashX Legal `z-ai/fp8` (its only endpoint). A served display name (`DeepInfra`, `Z.AI`) matches a tag on its provider part (`provider_pins.provider_in_order`)
 - [x] `python scripts/refresh_decision_models.py` and `scripts/refresh_api_prices.py` (2026-11-18); Jev 1.14 is a decision `candidate_models` entry
-- [ ] Write a 10-doc smoke config per model on `dev-look1` with `job.max_wall_seconds` and `job.api_cost_cap_usd`
+- [x] Write a 10-doc smoke config per model on `dev-look1` with `job.max_wall_seconds` and `job.api_cost_cap_usd`: `config/runs/runbook-r01-smoke-<stem>.yaml` for the 4 chat models (`task: pipeline`, 2 docs per class so every specialist runs, judge and boss on the same model) and the 2 named Decisions models (`gpt-6-luna-decisions`, `jev-1.14`; `task: sorter_reviewer`). Total ≈ $0.74 list, above the runbook's "<$0.10" because 2 long merger agreements make up ~70%; the owner accepted it (2026-11-18). Finding 12: the 4 chat models are certain; the other 10 (R13/R60 "6 vendor picks", R62 "Decider V1.2") are not named anywhere yet, so only luna and Jev 1.14 have smoke configs
 - [ ] Human: `sandbox run preflight --config <file>`, then `sandbox run start --config <file> --initials <XX>` with `SANDBOX_SERVED_LOG` set
 - [ ] Gate, per smoke model: the ledger holds at least one row per expected wrapped call (10 docs × the model's chat agents), and every row has `status: verified` (non-empty pin, provider observed inside it, served model equal to the requested id or its `canonical_slug`). A model with no rows, an `unverified` row or a `mismatch` row fails the gate. `mismatch: false` alone is not evidence
-- [ ] The LangChain contract and merger agents are not wrapped (finding 13): pin them through their route's `model_kwargs` and record their served provider, or leave those agents out of the smoke and log the gap as a deviation. The gate stays blocked for a model whose calls go only through an uncovered path
+- [x] The LangChain contract and merger agents are not wrapped (finding 13): pin them through their route's `model_kwargs` and record their served provider, or leave those agents out of the smoke and log the gap as a deviation. The gate stays blocked for a model whose calls go only through an uncovered path. Done: activation swaps `langchain_agents.base_agent.ChatOpenAI` for a pinned, recorded subclass (`call_path: langchain`), which also covers the production sorter (it inherits the same base and was unpinned too); Decisions calls are recorded (`call_path: decisions`). Still uncovered: modules that imported `retry_chat_completion` before activation (PDF transcriber) and Responses-API or streamed LangChain calls (unused by the vendored agents); the gate fails on their missing rows
+- [ ] Gate script: `scripts/check_r01_smoke.py --ledger data/runtime/r01/served-<stem>.jsonl --config config/runs/runbook-r01-smoke-<stem>.yaml` exits 0 per model
 
 ### Task 3: Scoring harness check (R02)
 
 **Files:** `src/mailroom_sandbox/experiment_stats.py`, a 20-doc hand-check sheet under `reports/`
 
-- [ ] Hand-score 20 docs (class, subclass family, fields) and compare with the Dojo scorer output
-- [ ] Gate: scorers reproduce the hand-checked results on all 20
+- [x] Build the 20-doc sheet: `scripts/build_scorer_handcheck.py --draft` writes `reports/runbook/r02-handcheck/` (4 docs per class from dev, the saved Qwen3.7 Flash sorter pass plus four perturbation profiles, 213 rows). Provenance records both halves of finding 3: labels commit e90ac8b9 and the Dojo pin 025400f3 (0.30.1). Finding 3 is stale: 20 label files changed since e90ac8b9, not only `data/labels/review/*`
+- [ ] Human: confirm or correct each of the 205 `agent-draft` scores and fill the 8 blank partial-credit rows, replacing `agent-draft` with initials
+- [ ] Gate: `scripts/check_scorer_handcheck.py` exits 0 (scorers reproduce the hand-checked results on all 20). Today it exits 2: every draft matches the scorers, 8 rows are blank
+- [ ] Owner: a cost matrix for `experiment_stats.cost_weighted_error` (none is committed; the R02 audit found every other metric covered)
 
 ### Task 4: Gold-label audit (R03)
 
@@ -116,11 +119,14 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 - [ ] v0 passes on dev, one per audited lineage (needs initials; see finding 2): the sorter at its production prompt, and each specialist lineage at the starting stem named for it under finding 4. A lineage without a named stem is not audited until it has one
   - Estimated list cost on Qwen3.7 Flash, priced per dev document from the saved pass's prompt tokens with the long-prompt tiers, assuming ~2k extraction output tokens per specialist call: sorter $0.92 (900 docs); insurance $0.11 (229), correspondence $0.09 (198), corporate $0.16 (153), contracts $0.30 (243, 18 over 32k), merger $0.52 (59, 58 over 32k). All five specialist passes ≈ $1.18; with the sorter ≈ $2.10. Each pass gets its own config with `job.max_wall_seconds` and `job.api_cost_cap_usd` at ~1.5× its estimate
   - Specialist v0 passes run with `job.pipeline_handoff: true` and `job.specialist_subclass: gold`, so the subclass-derived fields (`cms_source_table`, corporate `record_type`) follow the pipeline; those fields copy the truth there and are left out of the disagreement sample
+- [x] v0 configs: `config/runs/runbook-r03-sorter-v0-dev.yaml` and `runbook-r03-{insurance,correspondence,corporate,contracts,merger}-v0-dev.yaml` (one `strata` bucket per class: 233 / 205 / 156 / 247 / 59 dev docs on the current split; the counts above predate the class-gate rebuild). All pass preflight offline. Merger runs with `specialist_subclass: none`, because the spec refuses `gold` for it; `schema_guide` stays off for v0
+- [x] Sheet tooling: `scripts/build_gold_audit_sheet.py --run <run> --lineage <name> --n 100 --seed 20261118` writes `data/labels/review/r03-<lineage>-audit.csv` (dev and pool only; a run holding held-out or calibration ids is refused); `--summarize <sheet>` gives the gold-wrong rate with a Clopper-Pearson 95% interval and the 15% gate (`ambiguous` counts in the denominator, not as gold-wrong)
 - [ ] Adjudicate ~100 v0-vs-gold disagreements per lineage from those v0 predictions, correspondence first, with dev and pool docs only
 - [ ] Owner: build `decisions.jsonl` into the gold catalogs and settle the open `VALIDATION.md` decisions (finding 17); then `sandbox schemas build` and commit the registry
 
 ### Task 5: G0 checkpoint
 
+- [ ] `HF_HUB_OFFLINE=1 python scripts/check_g0.py` exits 0. It runs every gate below and reports missing evidence (no ledger, no sheet) as a failure
 - [ ] QC → REVIEW → STOP: the split audit passes, the R01 smoke gate passes for every smoke model (Task 2), scorers match, the v0 passes and the gold audit are done, `sandbox schemas build --check` passes, and findings 1-17 are resolved or logged as deviations
 
 ## Verification
