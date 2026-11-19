@@ -126,3 +126,15 @@ def test_jsonl_keeps_unicode_line_separators_inside_text(tmp_path):
     path.write_text(json.dumps({"id": "a", "doc_text": "one\u2028two\u2029three"}, ensure_ascii=False) + "\n",
                     encoding="utf-8")
     assert ff._jsonl(path) == [{"id": "a", "doc_text": "one\u2028two\u2029three"}]
+
+
+def test_a_bundle_is_unscored_not_wrong_once_locked(tmp_path):
+    from mailroom_sandbox.corpus import normalize_rows
+    from mailroom_sandbox.eval.agents import _score_class
+
+    rows = ff.build(_rows())
+    join = normalize_rows([next(r for r in rows if r["control"] == "join")])[0]
+    frag = normalize_rows([next(r for r in rows if r["control"] != "join")])[0]
+    pred = {"doc_type": "merger_agreement", "abstained": False}
+    assert _score_class(join, pred)["outcome"] == "unscored"
+    assert _score_class(frag, pred)["outcome"] in ("wrong", "correct")
