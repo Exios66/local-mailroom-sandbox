@@ -125,6 +125,45 @@ set from it. Instead a floor is fitted on the calibration split
    dev check of that calibration-fitted floor, not an out-of-sample measurement: 4.0.1's
    wording was shaped on dev-look1, so its dev-look1 figures stay in-sample. Scale up by raising the bucket counts under a new run id.
 
+## Form calibration draw 1: no floor, so question set 4.0.2 (2026-11-19)
+
+Draw 1 ran 50 calibration documents (10 per class, $0.10) and 67 defect copies built from them
+($0.10). No error, every document read whole (largest 109k tokens). Under 4.0.1 as run: 7
+intact parked (5 on the form question) and 9 defects passed to extraction.
+
+| Floor on human mass | Defects passed (of 67) | Intact parked (of 50) |
+| --- | --- | --- |
+| 0.40 | 3 | 8 |
+| 0.50 | 9 | 5 |
+| 0.70 | 16 | 2 |
+| 0.75 | 20 | 1 |
+
+No floor from 0.40 to 0.95 lets no defect through, and 0.50 is what 4.0.1's chosen form
+already does: the probability is not the lever. Reading the 14 boundary documents:
+
+- **4 defects were built wrong** (fixed in the builder, PR for 4.0.2): three cuts landed in an
+  email's quoted history, leaving the newest message whole; one closing window was a whole
+  signed addendum. Cuts now land in the newest message only, and a closing window that opens
+  its own instrument is skipped.
+- **5 defects were real misses**: a claim form cut off mid-word (mass 0.16), a Medicare
+  notice that is only its header, a stock certificate cut mid-sentence, a contract followed by
+  an unrelated newsletter after its filing footer, a short claim record followed by an SEC
+  exhibit in `<DOCUMENT>` tags.
+- **Intact parks**: a forwarded email thread (`multiple_documents`, 0.86), three long merger
+  agreements (`fragment_or_excerpt`, 0.60-0.68; two end properly on signature pages or annex
+  definitions, one lists annexes not attached) and a redacted (`[***]`) amendment. 4.0.1's
+  wording already calls the thread and the annex endings complete. No surface cue (omitted,
+  continued, annex counts) separates the parked mergers from the 7 passed.
+
+[4.0.2](../config/decisions/reviewer_decisions_v4.0.2.yaml) changes `document_form` only: it
+names the cut-off and header-only signs of a fragment and the footer, wrapper and
+unrelated-message signs of a bundle, and says an email is judged by its newest message and a
+filed agreement as filed. It was written from draw-1 documents, so it is judged on **draw 2**:
+50 new calibration documents (draw 1 excluded by
+[`formcal-draw2.exclude.ids`](../config/splits/rb1-r13b/formcal-draw2.exclude.ids)) and their
+defects, each run under 4.0.1 and 4.0.2 (four runs, about $0.45). 4.0.2 is adopted for H5 only
+if it passes fewer defects than 4.0.1 on the same rows without parking more intact documents.
+
 ## Confidence thresholds: what the smoke showed and how they will be calibrated
 
 Both arms' needless human routing (findings 7 and 8) is a threshold problem. Every routing

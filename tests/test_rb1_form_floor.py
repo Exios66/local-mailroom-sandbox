@@ -126,3 +126,30 @@ def test_jsonl_keeps_unicode_line_separators_inside_text(tmp_path):
     path.write_text(json.dumps({"id": "a", "doc_text": "one\u2028two\u2029three"}, ensure_ascii=False) + "\n",
                     encoding="utf-8")
     assert ff._jsonl(path) == [{"id": "a", "doc_text": "one\u2028two\u2029three"}]
+
+
+def test_cut_lands_in_the_newest_message_and_a_signed_closing_instrument_is_no_tail():
+    top = " ".join(f"line{i}." if i % 7 == 6 else f"line{i}" for i in range(300))
+    thread = f"Hi Ann, {top}\n-----Original Message-----\nFrom: Bob Sent: Monday\n" + "old " * 2000
+    cut = ff.fragment({"doc_text": thread}, "cut")
+    assert cut is not None and len(cut) < len(thread.split("-----Original")[0]) and "Original" not in cut
+    # newest message too short to cut: no fragment, since a cut in the history leaves a whole email
+    assert ff.fragment({"doc_text": "Thanks, will do.\n" + "-----Original Message----- " + "x " * 900}, "cut") is None
+    body = "w " * 4000
+    addendum = body + "By /s/ A 13 ADDENDUM TO ENDORSEMENT AGREEMENT This addendum adds a clause. " + "s " * 800
+    assert ff.fragment({"doc_text": addendum}, "tail") is None
+    plain = body + "IN WITNESS WHEREOF [SIGNATURE PAGE TO AMENDMENT NO. 1] By /s/ A " + "s " * 800
+    assert ff.fragment({"doc_text": plain}, "tail") == plain[-ff.TAIL_CHARS:]
+
+
+def test_exclude_adds_the_used_rows_to_the_split_complement(tmp_path):
+    base = tmp_path / "calibration.exclude.ids"
+    base.write_text("# complement\nDOC-a\nDOC-b\n", encoding="utf-8")
+    used = tmp_path / "run" / "dataset.jsonl"
+    used.parent.mkdir()
+    used.write_text("".join(json.dumps({"id": i}) + "\n" for i in ("DOC-c", "DOC-a")), encoding="utf-8")
+    out = tmp_path / "draw2.exclude.ids"
+    assert ff.main(["exclude", "--base", str(base), "--used", str(used), "--out", str(out)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert [ln for ln in text.splitlines() if not ln.startswith("#")] == ["DOC-a", "DOC-b", "DOC-c"]
+    assert str(tmp_path) not in text  # no local paths in a committed file

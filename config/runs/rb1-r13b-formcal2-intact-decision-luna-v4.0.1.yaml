@@ -1,0 +1,65 @@
+# rb1 R13b document-form calibration DRAW 2, intact calibration documents (H5).
+# 50 calibration documents (10 per class) never used before: draw 1's 50 are excluded by
+# config/splits/rb1-r13b/formcal-draw2.exclude.ids (calibration complement plus draw 1).
+# Question set 4.0.1. Draw 2 is paired: the same rows run under 4.0.1 and 4.0.2 (4.0.2 was written from
+# 14 draw-1 documents, so draw 1 is in-sample for it). Sibling: rb1-r13b-formcal2-intact-decision-luna-v4.0.2.
+# Order (one run at a time): intact 4.0.1, intact 4.0.2, build the defects (offline), defects 4.0.1,
+# defects 4.0.2, then fit each question set:
+#   .venv/bin/python scripts/rb1_form_floor.py fit --intact-run data/runtime/runs/rb1-r13b-formcal2-intact-decision-luna-v<V> --defects-run data/runtime/runs/rb1-r13b-formcal2-defects-decision-luna-v<V> --defects data/runtime/rb1-r13b/formcal2-defects.jsonl
+# Cost: about $0.10-0.12 input-only. Caps $0.30, 1800 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal2.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-formcal2-intact-decision-luna-v4.0.1.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal2.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-formcal2-intact-decision-luna-v4.0.1.yaml --initials <XX>
+# Build the defects from this run's locked rows (offline; both intact runs lock the same rows):
+#   .venv/bin/python scripts/rb1_form_floor.py build --source data/runtime/runs/rb1-r13b-formcal2-intact-decision-luna-v4.0.1/dataset.jsonl --out data/runtime/rb1-r13b/formcal2-defects.jsonl
+schema: sandbox.run/v1
+run_id: rb1-r13b-formcal2-intact-decision-luna-v4.0.1
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/rb1-r13b/formcal-draw2.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 10}
+      - {doc_class: corporate_record, count: 10}
+      - {doc_class: correspondence, count: 10}
+      - {doc_class: insurance_claim, count: 10}
+      - {doc_class: merger_agreement, count: 10}
+  limit: 50
+  sample_seed: 20261119
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.1
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.30
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.30
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, form-floor, intact, v4.0.1, draw2, decisions-api, decision-sorter, calibration]
