@@ -112,8 +112,49 @@ def score_extraction_row(
     expected_subclass: str | None = None,
     *,
     field_scores: bool = False,
+    truth_overrides: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Row-level extraction scoring through the vendored dojo suite.
+    """Dual-reported row scoring: the hotfixed headline plus the raw Dojo-pin values.
+
+    The row is scored twice through :func:`_score_extraction_row_once`: once with every scoring
+    hotfix off (``raw_dojo``: the vendored Dojo pin and the unpatched sandbox seam) and once with
+    the current fixes on (the headline). ``scoring_hotfixes`` names the fixes that were on and
+    ``scoring_hotfixes_changed`` the keys whose value they moved (``docs/scoring-hotfixes.md``).
+    ``truth_overrides`` (a prepared row's ``truth_overrides``) restores the truth SHF-010 replaced
+    for the raw side.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    raw_expected = sh.revert_truth_overrides(expected or {}, truth_overrides)
+    with sh.raw():
+        raw_payload = _score_extraction_row_once(doc_type, predicted, raw_expected, doc_text, doc_subclass,
+                                                 expected_subclass, field_scores=field_scores)
+    with sh.hotfixed() as on:
+        on = on & sh.EXTRACTION_FIXES
+        if not (truth_overrides or {}).get("SHF-010"):
+            on = on - {"SHF-010"}
+        # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
+        # the headline scores the restored truth too, so nothing moves without being named.
+        fixed_expected = expected if "SHF-010" in on else raw_expected
+        fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
+                                           expected_subclass, field_scores=field_scores)
+    out = sh.merge_dual(raw_payload, fixed, on)
+    if field_scores:
+        out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")
+    return out
+
+
+def _score_extraction_row_once(
+    doc_type: str,
+    predicted: dict,
+    expected: dict,
+    doc_text: str | None = None,
+    doc_subclass: str | None = None,
+    expected_subclass: str | None = None,
+    *,
+    field_scores: bool = False,
+) -> dict[str, Any]:
+    """Row-level extraction scoring through the vendored dojo suite (one pass, current hotfix mode).
 
     ``field_scores=True`` also returns the suite's per-field scores (``{field: score}``,
     the Dojo ``ExtractionScoreResult.field_scores``) under ``field_scores``; off by default so
@@ -163,6 +204,12 @@ def score_extraction_row(
     # Scoping drops meta keys; the adherence check still needs the parse facts.
     parse_facts = {k: predicted[k] for k in ("_parse_error", "_raw") if k in predicted}
     predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if sh.is_active("SHF-001") and str(doc_type or "").strip() != "corporate_record":
+        # The seam drops empty truth outside corporate_record, which also dropped the fields the
+        # truth documents as absent, so a value stated there was never a false positive.
+        expected = sh.restore_documented_absences(doc_type, raw_expected, expected)
     sub_kwargs = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_type == "corporate_record")
     if suite is not None:
@@ -246,11 +293,11 @@ def score_extraction_row(
                 exc,
             )
             prf = {}
-        for key in _EXTRACT_PRF_KEYS:
+        for key in _EXTRACT_PRF_KEYS + ("tp", "fp", "fn"):
             if key in prf and prf[key] is not None:
                 payload[key] = prf[key]
     elif isinstance(result, dict):
-        for key in _EXTRACT_PRF_KEYS:
+        for key in _EXTRACT_PRF_KEYS + ("tp", "fp", "fn"):
             if key in result:
                 payload[key] = result[key]
     if isinstance(result, dict) and result.get("unlabeled_fields") is not None:
@@ -258,6 +305,8 @@ def score_extraction_row(
         # key-entity fields this row scored (or none).
         payload["unlabeled_fields"] = result["unlabeled_fields"]
     payload.update(assess_extraction_payload({**predicted, **parse_facts}, doc_type, doc_subclass=sub))
+    if sh.is_active("SHF-001"):
+        payload.update(sh.hallucination_counts(doc_type, raw_expected, predicted))
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's
         # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.
@@ -275,6 +324,128 @@ def score_extraction_row(
         payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
         payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
+
+
+def _norm_label(value: Any) -> str:
+    return " ".join(str(value or "").strip().lower().split()).replace(" ", "_")
+
+
+def _subclass_token(doc_class: Any, subclass: Any) -> str:
+    """Canonical subclass token, as the sorter task and the split units compare them
+    (``experiment_splits._subclass_token``: the Dojo's ``normalize_corpus_subclass``)."""
+    from mailroom_sandbox.experiment_splits import _subclass_token as token
+
+    text = str(subclass or "").strip()
+    return token(_norm_label(doc_class), text) if text else ""
+
+
+def _dojo_subclass_match(expected: Any, predicted: Any) -> bool:
+    """The Dojo pin's predicate (``pipeline_subclass_match``): class-blind, raw strings."""
+    from llm_dojo_scoring.pipeline.pipeline_scoring import pipeline_subclass_match
+
+    return bool(pipeline_subclass_match(expected, predicted))
+
+
+def subclass_correct(expected_class: Any, expected_subclass: Any, predicted_class: Any,
+                     predicted_subclass: Any) -> tuple[float, float] | None:
+    """``(raw Dojo-pin, hotfixed)`` subclass correctness of one document; None without truth.
+
+    Hotfixed (SHF-012): right class and the same canonical subclass token. Raw: the Dojo's
+    class-blind exact string match.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if not str(expected_subclass or "").strip():
+        return None
+    raw = float(_dojo_subclass_match(expected_subclass, predicted_subclass))
+    if not sh.enabled("SHF-012"):
+        return raw, raw
+    ok = (_norm_label(expected_class) == _norm_label(predicted_class)
+          and _subclass_token(expected_class, expected_subclass)
+          == _subclass_token(predicted_class, predicted_subclass))
+    return raw, float(ok)
+
+
+def score_subclass(
+    expected_class: Sequence[Any],
+    expected_subclass: Sequence[Any],
+    predicted_class: Sequence[Any],
+    predicted_subclass: Sequence[Any],
+) -> dict[str, Any]:
+    """Subclass accuracy and macro-F1, joint with the class, dual reported (SHF-012).
+
+    Each label is ``class/subclass`` on the canonical subclass token, so a document whose class
+    is wrong has a wrong subclass (it stays in the denominator), two classes' ``other``
+    subclasses never match, and ``Distributor`` meets ``distributor``. A row without a truth
+    subclass is left out and counted (``subclass_n_no_truth``). ``subclass_accuracy_given_class``
+    is the conditional figure over class-correct rows, named so it is never read as the joint one.
+    ``raw_dojo`` holds the Dojo pin's class-blind raw-string figures.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.experiment_stats import macro_f1
+
+    n = len(expected_class)
+    if not (len(expected_subclass) == len(predicted_class) == len(predicted_subclass) == n):
+        raise ValueError("subclass vectors differ in length")
+    fixed_on = sh.enabled("SHF-012")
+
+    def compute(canonical: bool) -> dict[str, Any]:
+        truth: list[str] = []
+        pred: list[str] = []
+        given: list[bool] = []
+        no_truth = 0
+        for ec, es, pc, ps in zip(expected_class, expected_subclass, predicted_class, predicted_subclass):
+            if not str(es or "").strip():
+                no_truth += 1
+                continue
+            if canonical:
+                truth.append(f"{_norm_label(ec)}/{_subclass_token(ec, es)}")
+                pred.append(f"{_norm_label(pc)}/{_subclass_token(pc, ps)}")
+                if _norm_label(ec) == _norm_label(pc):
+                    given.append(truth[-1] == pred[-1])
+            else:  # the Dojo pin: class-blind, a hit only on equal non-empty raw strings
+                truth.append(str(es).strip().lower())
+                hit = _dojo_subclass_match(es, ps)
+                # A miss keeps the predicted label, so macro-F1 counts its false positive; only a
+                # Dojo miss that folds to the truth label (a case difference) gets a distinct label.
+                label = str(ps or "").strip().lower() or "__none__"
+                pred.append(truth[-1] if hit else (f"__miss__{label}" if label == truth[-1] else label))
+                if _norm_label(ec) == _norm_label(pc):
+                    given.append(hit)
+        out: dict[str, Any] = {"subclass_n": len(truth), "subclass_n_no_truth": no_truth}
+        if truth:
+            out["subclass_accuracy"] = round(sum(t == p for t, p in zip(truth, pred)) / len(truth), 6)
+            out["subclass_f1_macro"] = round(macro_f1(truth, pred), 6)
+        if given:
+            out["subclass_accuracy_given_class"] = round(sum(given) / len(given), 6)
+            out["subclass_n_given_class"] = len(given)
+        return out
+
+    raw = compute(False)
+    fixed = compute(True) if fixed_on else raw
+    keys = ("subclass_accuracy", "subclass_f1_macro", "subclass_accuracy_given_class", "subclass_n")
+    dual = sh.merge_dual(raw, fixed, ["SHF-012"] if fixed_on else [], keys=keys)
+    return {**{k: v for k, v in dual.items() if k not in ("raw_dojo", "scoring_hotfixes",
+                                                          "scoring_hotfixes_changed")},
+            "subclass_raw_dojo": dual["raw_dojo"], "subclass_scoring_hotfixes": dual["scoring_hotfixes"],
+            "subclass_scoring_hotfixes_changed": dual["scoring_hotfixes_changed"]}
+
+
+def predicted_subclass(result: Mapping[str, Any]) -> str:
+    """The subclass a pipeline result names for its final class (SHF-012).
+
+    A contract's subclass is its CUAD family (``contract_subtype``), other classes' the
+    ``doc_subclass``; the graph moves both to the reviewer's answer when it overrode the class.
+    Falls back to the compiled report's subclass for items recorded before SHF-012.
+    """
+    keys = ("contract_subtype", "doc_subclass", "subtype") if _norm_label(result.get("doc_type")) == "contract" \
+        else ("doc_subclass", "subtype", "contract_subtype")
+    for key in keys:
+        if result.get(key):
+            return str(result[key])
+    data = result.get("extracted_data")
+    report = (data.get("_report") or {}) if isinstance(data, Mapping) else {}
+    return str(report.get("doc_subclass") or "") if isinstance(report, Mapping) else ""
 
 
 def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:

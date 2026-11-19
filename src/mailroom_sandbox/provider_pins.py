@@ -293,6 +293,9 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
         if openrouter:
+            from mailroom_sandbox.job import call_guard
+
+            call_guard.before_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
             kwargs = pinned_kwargs(model, kwargs, pins)
         response = original(client, **kwargs)
         if openrouter:
@@ -325,6 +328,9 @@ def pinned_chat_openai(parent: type) -> type:
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
                 return payload
+            from mailroom_sandbox.job import call_guard
+
+            call_guard.before_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
             model = str(payload.get("model") or getattr(self, "model_name", "") or "")
             pins = _ACTIVE  # one snapshot per request, as on the retry_chat_completion path
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]

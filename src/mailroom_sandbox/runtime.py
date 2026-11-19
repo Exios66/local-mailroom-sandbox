@@ -44,7 +44,7 @@ _ACTIVE: Activation | None = None
 _ACTIVE_REVIEWER: dict[str, Any] | None = None
 # The decision_slots block of the last activation (None: the vendored default).
 _ACTIVE_SLOTS: dict[str, Any] | None = None
-_ACTIVE_BLIND_ROUTING = False
+_ACTIVE_BLIND_ROUTING = True  # no activation yet: labels stay out of the graph
 _ACTIVE_PIPELINE_HANDOFF = False
 _ACTIVE_SPECIALIST_SUBCLASS: tuple[str, str | None] = ("none", None)
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
@@ -83,9 +83,10 @@ def active_reviewer() -> dict[str, Any] | None:
 
 
 def blind_routing_active() -> bool:
-    """True when the last activation came from a locked run with ``job.blind_routing``.
+    """False only when the last activation came from a locked run with ``job.blind_routing: false``.
 
-    Such a run keeps the dataset labels out of the graph's ``ground_truth`` state.
+    A blind run keeps the dataset labels out of the graph's ``ground_truth`` state, so the graph
+    neither routes on them nor scores itself against them mid-run; the sandbox scores afterwards.
     """
     return _ACTIVE_BLIND_ROUTING
 
@@ -618,8 +619,13 @@ def activate(
     )
     global _ACTIVE_BLIND_ROUTING, _ACTIVE_PIPELINE_HANDOFF, _ACTIVE_SPECIALIST_SUBCLASS
     # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
-    locked_job = ((policy or {}).get("lock") or {}).get("job", {})
-    _ACTIVE_BLIND_ROUTING = bool(locked_job.get("blind_routing"))
+    locked = (policy or {}).get("lock") or {}
+    locked_job = locked.get("job", {})
+    # Blind unless a locked pipeline spec asked for oracle routing by name (job.blind_routing:
+    # false): an ad-hoc eval or a lock without the key never hands labels to the graph. Other
+    # tasks resolve blind_routing to false (it is pipeline-only), but a sorter run also calls the
+    # graph (_run_pipeline_doc), so their false must not mean oracle routing.
+    _ACTIVE_BLIND_ROUTING = not (locked.get("task") == "pipeline" and locked_job.get("blind_routing") is False)
     _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
     _ACTIVE_SPECIALIST_SUBCLASS = (str(locked_job.get("specialist_subclass") or "none"),
                                    locked_job.get("specialist_subclass_file"))

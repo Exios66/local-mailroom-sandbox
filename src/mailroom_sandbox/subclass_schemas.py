@@ -111,7 +111,8 @@ def truth_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     gov, gsha, problems = gl.near_gold_snapshot()
     if problems:
         raise SchemaError(f"near-gold overlay is inconsistent: {problems[0]}")
-    return [gl.apply_near_gold(il.apply_overlay(r, iov, overlay_sha=isha), gov, overlay_sha=gsha) for r in rows]
+    return [gl.apply_near_gold(il.apply_overlay(r, iov, overlay_sha=isha), gov, overlay_sha=gsha,
+                              interim=iov) for r in rows]
 
 
 def _subclass_of(cls: str, raw: Any) -> str:

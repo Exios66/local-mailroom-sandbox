@@ -12,8 +12,10 @@
 # its mean dojo extraction score is not lower by more than 0.02 and it adds no parse errors
 # (scripts/compare_specialist_prompt.py). Enforced by tests/test_specialist_condensed_prompt.py.
 #
-# Contracts and merger agreements are outside this lineage: they keep the frozen production
-# prompts (contracts_specialist_v33_simplified, merger_agreement_specialist_simplified).
+# Contracts and merger agreements are outside this lineage: their frontrunners are the deployed
+# contracts_specialist_v33_simplified and the rb1 merger v0 stem merger_agreement_specialist_maud_v2.
+# Every frontrunner here (and the sorter's) is the default prompt of any run spec that does not
+# name the agent (src/mailroom_sandbox/prompt_lineage.py); runs never fall back to vendored prompts.
 lineage: specialist-condensed
 budget_chars: 3000
 budget_chars_by_agent:
@@ -115,3 +117,7 @@ agents:
         reference_run: runbook-pi-c-v33arm (to be run on config/splits/runbook-v1 dev-look1)
         validation_run: runbook-pi-c-v1arm
         status: candidate   # written 2026-11-18 from the repaired schema registry; not yet run
+  merger_agreement_specialist:
+    frontrunner: merger_agreement_specialist_maud_v2   # rb1 v0 stem (config/runs/rb1-r03-merger-v0-dev.yaml); outside this lineage
+    frontrunner_outside_lineage: true
+    versions: []

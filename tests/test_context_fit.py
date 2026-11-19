@@ -34,7 +34,9 @@ def test_long_context_api_agents_get_their_model_window():
     agents = out["agents"]
     assert agents["merger_agreement_specialist"]["max_input_chars"] == expected
     assert agents["judge"]["max_input_chars"] == expected
-    assert agents["sorter"]["max_input_chars"] == 12000  # excerpt agents keep their budget
+    # The vendored sorter windows the whole document at its budget: fitted, it reads one window.
+    assert agents["sorter"]["max_input_chars"] == expected
+    assert out["context_fit"]["applied"]["sorter"]["before"] == 12000
     assert out["chunking"]["chunk_chars"] == expected  # 418k-char mergers now fit one window
     applied = out["context_fit"]["applied"]
     assert applied["merger_agreement_specialist"] == {
@@ -178,3 +180,14 @@ def test_activation_widens_for_openrouter_and_restores_for_modal(monkeypatch, ju
         assert get_agent_config("merger_agreement_specialist")["max_input_chars"] == 36008
     finally:
         source_windows.apply_source_windows({})
+
+
+def test_the_overlay_fits_every_whole_document_reader():
+    """API routes read each document in one call per reader (rb1 R01: ~100 sorter windows per merger)."""
+    import yaml
+
+    from mailroom_sandbox.paths import config_dir
+
+    listed = set(yaml.safe_load((config_dir() / "taxonomy.overlay.yaml").read_text())["context_fit"]["agents"])
+    assert {"specialists", "judge", "arbiter", "sorter", "sorter_reviewer", "intake"} <= listed
+    assert set(context_fit.DEFAULTS["agents"]) == listed

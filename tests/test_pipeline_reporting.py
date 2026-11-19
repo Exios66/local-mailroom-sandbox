@@ -168,7 +168,9 @@ def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypa
     finally:
         bg.reset_compiled_graph()
     assert result["stage"] == "review"
-    assert result["review_causes"] == ["extraction_miss", "retries_exhausted"]
+    # Blind by default: the graph has no labels, so it cannot call an extraction_miss (that cause
+    # compared the extraction with the ground truth mid-run); it parks on its own low confidence.
+    assert result["review_causes"] == ["sorter_low_confidence", "retries_exhausted"]
 
 
 def test_a_failed_document_counts_against_quality_and_pairing():

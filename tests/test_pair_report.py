@@ -37,7 +37,7 @@ def test_paired_report_scores_both_lanes_on_shared_documents(tmp_path, monkeypat
         got = pred.get("extracted_data") or {}
         return sum(got.get(k) == v for k, v in exp.items()) / len(exp) if exp else None
 
-    monkeypatch.setattr(pair_report, "_score", fake_score)
+    monkeypatch.setattr(pair_report, "_score_dual", lambda row, pred: (fake_score(row, pred),) * 2)
     exp = {"keywords": "EX-3.1", "subject_matter": "bylaws of X", "intent": "governance_rules"}
     real = {"keywords": "Bylaws", "subject_matter": "Amended bylaws", "intent": "governance_rules"}
     wrong = {**real, "intent": "investor_rights"}
@@ -64,7 +64,7 @@ def test_paired_report_scores_both_lanes_on_shared_documents(tmp_path, monkeypat
 
 
 def test_classes_without_templated_labels_get_one_lane(tmp_path, monkeypatch):
-    monkeypatch.setattr(pair_report, "_score", lambda row, pred: 1.0)
+    monkeypatch.setattr(pair_report, "_score_dual", lambda row, pred: (1.0, 1.0))
     exp = {"title": "x"}
     a = _arm(tmp_path, "c", [("d1", "contract", exp, exp, "archived", [])])
     b = _arm(tmp_path, "t", [("d1", "contract", exp, exp, "archived", [])])
@@ -90,7 +90,7 @@ def test_nodes_log_stays_optional(tmp_path):
 
 
 def test_documents_whose_labels_differ_are_excluded_not_paired(tmp_path, monkeypatch):
-    monkeypatch.setattr(pair_report, "_score", lambda row, pred: float(len(pair_report._fields(row))))
+    monkeypatch.setattr(pair_report, "_score_dual", lambda row, pred: (float(len(pair_report._fields(row))),) * 2)
     a = _arm(tmp_path, "c", [("same", "contract", {"title": "x"}, {}, "archived", []),
                              ("moved", "contract", {"title": "x"}, {}, "archived", [])])
     b = _arm(tmp_path, "t", [("same", "contract", {"title": "x"}, {}, "archived", []),

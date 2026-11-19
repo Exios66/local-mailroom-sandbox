@@ -27,6 +27,46 @@ def gate():
     return mod
 
 
+CLASSES = ["contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"]
+
+
+def _items(task_classes, calls=None):
+    """Item records for a clean run: one per document, the sorter and the routed specialist once each."""
+    out = []
+    for i, cls in enumerate(task_classes):
+        agents = {"sorter": {"calls": 1}}
+        if cls:
+            agents[gate_specialist(cls)] = {"calls": 1}
+        agents.update(calls or {})
+        out.append({"item_id": f"DOC-{i}", "ok": True, "error": None, "pred": {"doc_type": cls},
+                    "usage_by_agent": agents})
+    return out
+
+
+def gate_specialist(cls):
+    return {"contract": "contracts_specialist", "merger_agreement": "merger_agreement_specialist",
+            "corporate_record": "corporate_records_specialist", "correspondence": "correspondence_specialist",
+            "insurance_claim": "insurance_claims_specialist"}[cls]
+
+
+def _store(root, run_id, items):
+    run = root / run_id
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items))
+    return run
+
+
+@pytest.fixture(autouse=True)
+def clean_runs(gate, tmp_path, monkeypatch):
+    """Every config's run store holds clean item records unless a test writes its own."""
+    root = tmp_path / "runs"
+    _store(root, QWEN_RUN, _items([c for c in CLASSES for _ in range(2)]))
+    luna_docs = yaml.safe_load(LUNA.read_text())["dataset"]["limit"]
+    _store(root, LUNA_RUN, _items([None] * luna_docs))
+    monkeypatch.setattr(gate, "run_dir_for", lambda run_id: root / run_id)
+    return root
+
+
 def _row(model, status="verified", provider="Alibaba", served=None, path="langchain", run_id=None):
     if run_id is None:
         run_id = LUNA_RUN if path == "decisions" else QWEN_RUN
@@ -109,7 +149,7 @@ def test_ledgers_and_configs_pool(gate, tmp_path, capsys):
     b = _ledger(tmp_path, [_row("openai/gpt-6-luna-decisions", path="decisions")] * 10, "b.jsonl")
     code, out = _run(gate, capsys, "--ledger", a, "--ledger", b, "--config", QWEN, LUNA)
     assert code == 0, out.out
-    assert out.out.count("PASS ") == 2
+    assert sum(1 for line in out.out.splitlines() if line.startswith("PASS ") and not line.startswith("PASS run ")) == 2
 
 
 def test_per_doc_override_and_unreadable_input(gate, tmp_path, capsys):
@@ -187,3 +227,43 @@ def test_rows_from_another_run_are_set_aside(gate, tmp_path, capsys):
     assert "rows from other runs set aside: {'None': 20, 'an-earlier-launch': 20}" in out.out
     code, _ = _run(gate, capsys, "--ledger", _ledger(tmp_path, stale, "s.jsonl"), "--config", QWEN, "--any-run")
     assert code == 0
+
+
+# --- per-document agent coverage (R01 i01: the ledger count passed while documents misbehaved) ----
+
+def _coverage_run(gate, tmp_path, capsys, items):
+    run = _store(tmp_path / "other", QWEN_RUN, items)
+    return _run(gate, capsys, "--ledger", _ledger(tmp_path, _pipeline_rows()), "--config", QWEN, "--run-dir", run)
+
+
+def test_windowed_sorter_reads_fail_even_when_the_ledger_count_passes(gate, tmp_path, capsys):
+    items = _items([c for c in CLASSES for _ in range(2)])
+    items[0]["usage_by_agent"]["sorter"]["calls"] = 85
+    code, out = _coverage_run(gate, tmp_path, capsys, items)
+    assert code == 1 and "DOC-0: sorter made 85 calls (> 6" in out.out
+
+
+def test_a_document_that_never_reached_its_specialist_fails(gate, tmp_path, capsys):
+    items = _items([c for c in CLASSES for _ in range(2)])
+    del items[2]["usage_by_agent"]["merger_agreement_specialist"]
+    code, out = _coverage_run(gate, tmp_path, capsys, items)
+    assert code == 1 and "DOC-2: merger_agreement_specialist made no call" in out.out
+
+
+def test_missing_or_failed_documents_fail(gate, tmp_path, capsys):
+    items = _items([c for c in CLASSES for _ in range(2)])[:8]
+    items[0].update(ok=False, error="RuntimeError: boom")
+    code, out = _coverage_run(gate, tmp_path, capsys, items)
+    assert code == 1 and "8 of 10 documents have an item record" in out.out and "DOC-0: not ok" in out.out
+
+
+def test_no_run_records_fail(gate, tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(gate, "run_dir_for", lambda run_id: tmp_path / "absent" / run_id)
+    code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, _pipeline_rows()), "--config", QWEN)
+    assert code == 1 and "no item records" in out.out
+
+
+def test_a_clean_run_passes_coverage(gate, tmp_path, capsys):
+    code, out = _coverage_run(gate, tmp_path, capsys, _items([c for c in CLASSES for _ in range(2)]))
+    assert code == 0, out.out
+    assert f"PASS run {QWEN_RUN}: 10 item(s) for 10 document(s)" in out.out

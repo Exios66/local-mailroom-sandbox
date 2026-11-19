@@ -648,9 +648,12 @@ class JobSpec(BaseModel):
     # this too, and a known price for every API model (job/api_budget.py).
     api_cost_cap_usd: float | None = None
     # Pipeline runs: keep the dataset labels (expected class and fields) out of the graph's
-    # state, so routing cannot read them (llm-mailroom #207: the class-miss gate and the
-    # coverage-floor retry are oracles). Scoring still uses the full locked row.
-    blind_routing: bool = False
+    # state, so routing cannot read them and the graph never scores itself against them mid-run
+    # (llm-mailroom #207: the class-miss gate and the coverage-floor retry are oracles). Scoring
+    # happens after the graph, in the sandbox, against the full locked row. Unset resolves to
+    # true for task: pipeline (RunSpec._blind_in_pipeline); false is an oracle-routing run, which
+    # preflight refuses for a live run.
+    blind_routing: bool | None = None
     # Specialist runs: send each document the extract node's handoff (the sorter-class line and
     # the vendored doc_inventories note, no subclass) and apply the node's post-extraction
     # inventory normalization, so an isolated A/B sees what the pipeline's specialist sees.
@@ -1036,6 +1039,9 @@ class RunSpec(BaseModel):
     def _blind_in_pipeline(self) -> "RunSpec":
         if self.job.blind_routing and self.task != "pipeline":
             raise ValueError(f"job.blind_routing hides labels from pipeline routing; task {self.task!r} runs no graph routing")
+        if self.job.blind_routing is None:
+            # Labels never reach a pipeline graph unless a spec asks for oracle routing by name.
+            self.job.blind_routing = self.task == "pipeline"
         return self
 
     @model_validator(mode="after")
@@ -1123,12 +1129,20 @@ def _strip_none(d: dict[str, Any]) -> dict[str, Any]:
 
 
 def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
-    """Normalize the prompt section (default + per-agent overrides)."""
-    agents = spec.prompt.get("agents", {}) if isinstance(spec.prompt.get("agents"), dict) else {}
+    """Normalize the prompt section (default + per-agent overrides).
+
+    Agents the section does not name are pinned to their lineage frontrunner
+    (:mod:`mailroom_sandbox.prompt_lineage`), as the run lock records them, so the
+    hash states the prompts that run, never the vendored defaults.
+    """
+    from mailroom_sandbox.prompt_lineage import with_lineage_defaults
+
+    prompt = with_lineage_defaults(spec.prompt, spec.task)
+    agents = prompt.get("agents", {}) if isinstance(prompt.get("agents"), dict) else {}
     normalized: dict[str, Any] = {}
     default = spec.prompt.get("default", {}) if isinstance(spec.prompt.get("default"), dict) else {}
-    if default:
-        normalized["default"] = _strip_none(dict(PromptRef(**default)))
+    # Absent and explicit code-default hash alike (the lineage defaults fill ``agents``).
+    normalized["default"] = _strip_none(dict(PromptRef(**(default or {"source": "code-default"}))))
     for agent, ref in agents.items():
         normalized.setdefault("agents", {})[agent] = _strip_none(dict(PromptRef(**ref)))
     # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.

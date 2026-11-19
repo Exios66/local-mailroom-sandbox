@@ -121,6 +121,32 @@ def _score(task: str, expected: list[str], predicted: list[str]) -> dict[str, An
     return sc.score_classification(expected, predicted)
 
 
+ERRORED_PREDICTION = "__errored__"
+
+
+def _scored_pairs(task: str, expected: list[str], predicted: list[str], ok_by_index: dict[int, bool],
+                  n_rows: int) -> dict[str, Any]:
+    """Per-item run scores, dual reported (``docs/scoring-hotfixes.md``).
+
+    Raw (DMR-049 F4): only completed, ok rows are scored, so a failed row leaves the denominator.
+    SHF-005: a failed row is scored as a wrong prediction (``__errored__``), so timeouts and
+    parse failures cannot raise the accuracy; the raw value stays under ``raw_dojo``.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    ok_pairs = [(expected[i], predicted[i]) for i in range(n_rows)
+                if ok_by_index.get(i, False) and predicted[i] != ""]
+    raw_scores = _score(task, [e for e, _ in ok_pairs], [p for _, p in ok_pairs]) if ok_pairs else {}
+    if "SHF-005" not in sh.current_ids():
+        return sh.merge_dual(raw_scores, raw_scores, [])
+    all_pairs = [(expected[i], predicted[i] if ok_by_index.get(i, False) and predicted[i] != "" else ERRORED_PREDICTION)
+                 for i in range(n_rows)]
+    fixed = _score(task, [e for e, _ in all_pairs], [p for _, p in all_pairs]) if all_pairs else {}
+    fixed["n_errored_scored_wrong"] = sum(1 for _, p in all_pairs if p == ERRORED_PREDICTION)
+    used = ["SHF-005"] if fixed["n_errored_scored_wrong"] else []
+    return sh.merge_dual(raw_scores, fixed if used else raw_scores, used)
+
+
 def _task_defaults(store: RunStore) -> dict[str, Any]:
     lock = store.read_lock() or {}
     return lock.get("job", {})
@@ -530,9 +556,14 @@ def _api_budget(store: RunStore):
     That is every persisted item plus every paid call without an item row: a document that raised
     (``FAILED_USAGE_EVENT``) and a document a resume billed again (``RERUN_USAGE_EVENT``).
     """
+    from mailroom_sandbox.job import call_guard
     from mailroom_sandbox.job.api_budget import budget_for, usage_records
 
-    return budget_for(store.read_lock() or {}, usage_records(store))
+    lock = store.read_lock() or {}
+    budget = budget_for(lock, usage_records(store))
+    # rb1 R01: the same budget bounds every API call while documents run (run_job disarms).
+    call_guard.arm(budget, call_guard.ceiling_for(lock))
+    return budget
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:
@@ -604,10 +635,19 @@ def _refuse_mock_override(store: RunStore, mock: bool | None) -> None:
     Activation builds the locked extraction gate and closed-field resolver from the lock's own
     ``job.mock``, so a mock override would still call the Decisions API while skipping the API
     budget. A mock run of such a spec is preflighted with ``job.mock: true`` instead.
+
+    Also refuse a live override (``mock=False``) of a mock oracle-routing pipeline lock
+    (``job.blind_routing: false``): activation reads oracle routing from the lock, so the live
+    graph would receive the ground truth (llm-mailroom #207). Preflight refuses such a live spec.
     """
+    lock = store.read_lock() or {}
+    effective_mock = _lock_mock(store, False) if mock is None else bool(mock)
+    if (not effective_mock and lock.get("task") == "pipeline"
+            and (lock.get("job") or {}).get("blind_routing") is False):
+        raise ValueError("this lock routes on the ground truth (job.blind_routing: false), which only a mock "
+                         "run may do; a live run must be blind: preflight a spec without blind_routing: false")
     if not mock or _lock_mock(store, False):
         return
-    lock = store.read_lock() or {}
     if lock.get("extraction_gate") or (lock.get("decision_slots") or {}).get("resolver"):
         raise ValueError("this lock calls Decisions-API models (extraction_gate or decision_slots.resolver) "
                          "and is not a mock run; a mock override would still call them: preflight a job.mock spec")
@@ -819,6 +859,9 @@ def _persist_isolated_items(
                 "latency_ms": row.get("latency_ms"),
                 "prompt_tokens": row.get("prompt_tokens"),
                 "completion_tokens": row.get("completion_tokens"),
+                # The call count prices tiered models per call (autoresearch read a missing count as
+                # one call, which put a document's whole prompt in the top price tier).
+                **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
                 **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
                 "ts": utc_now(),
             }
@@ -1000,6 +1043,7 @@ def run_job(
         verify_locked(lock)
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
+            verify_locked_hotfixes(lock)
             from mailroom_sandbox.provider_pins import set_run_context
 
             set_run_context(store.run_id, lock.get("spec_hash"))  # R01 ledger rows name their run
@@ -1008,11 +1052,38 @@ def run_job(
                                    max_items=max_items, tracer=tracer, on_event=wrapped)
             finally:
                 set_run_context(None)
+                from mailroom_sandbox.job import call_guard
+
+                call_guard.disarm()
     except BaseException:
         finish({"state": "failed"})
         raise
     finish(summary if isinstance(summary, dict) else None)
     return summary
+
+
+def verify_locked_hotfixes(lock: dict[str, Any]) -> None:
+    """Refuse to execute a locked run on hotfix code other than the code preflight locked.
+
+    Preflight gates the hotfixes where it runs; execution may happen elsewhere (the Modal job
+    worker runs this function from its deployed image). Activation only logs a pipeline hotfix it
+    could not apply, and a scoring fix that is not current silently drops out of the headline, so
+    the executing process re-runs both checks and compares each hotfix set with the lock's.
+    Locks from before the hotfix layer record no set and run as before.
+    """
+    from mailroom_sandbox import scoring_hotfixes, vendor_hotfixes
+    from mailroom_sandbox.job.preflight import _hotfix_check, _scoring_hotfix_check
+
+    for key, describe, check in (("vendor_hotfixes", vendor_hotfixes.describe, _hotfix_check),
+                                 ("scoring_hotfixes", scoring_hotfixes.describe, _scoring_hotfix_check)):
+        if key not in lock:
+            continue
+        if lock[key] != describe():
+            raise RuntimeError(f"{key}: this process carries hotfix code other than the locked set "
+                               "(redeploy the job worker from the locking checkout, or re-lock with --force)")
+        result = check()
+        if not result["ok"]:
+            raise RuntimeError(f"{key}: a locked hotfix is not in effect here: {result['detail']}")
 
 
 def _run_job(
@@ -1423,18 +1494,7 @@ def _run_job(
             "errors": error_count,
             "last_error": first_error,
         }
-    # Score only completed, ok rows — a failed row must never count as a wrong
-    # prediction, and the error count is reported explicitly (DMR-049 F4).
-    scored_pairs = [
-        (expected[i], predicted[i])
-        for i in range(len(rows))
-        if ok_by_index.get(i, False) and predicted[i] != ""
-    ]
-    scores = (
-        _score(task, [e for e, _ in scored_pairs], [p for _, p in scored_pairs])
-        if scored_pairs
-        else {}
-    )
+    scores = _scored_pairs(task, expected, predicted, ok_by_index, len(rows))
     if error_count:
         scores["error_count"] = error_count
     wall_seconds = round(time.perf_counter() - run_started, 3)

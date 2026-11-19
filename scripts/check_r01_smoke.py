@@ -21,6 +21,14 @@ which is deliberate: the gate cannot tell a skipped call from an unrecorded one.
 ``--per-doc N`` overrides the count for every config. Rows for a model no config names fail
 the gate too (something else served calls in the run) unless ``--allow-extra-models``.
 
+Ledger counts alone pass trivially when one agent makes many calls (R01 i01: windowed sorter
+reads filled the per-path minimum while two merger documents never reached a specialist), so
+the gate also reads each run's item records (``--run-dir``, default the run store of the
+config's ``run_id``). Every drawn document needs an ok, error-free item; on a pipeline run
+the sorter and the specialist for the class the document was routed to must each have made
+a call on it (``usage_by_agent``), and no agent may make more than ``--max-agent-calls``
+(default 6) calls on one document, which flags windowed reads and retry loops.
+
 Offline: no network, no spend. Nothing is written unless ``--write-docs`` files the JSON result
 as ``docs/<run_id>-<iNN>.r01-gate.json`` in each run's campaign tree. Exit 0 when every model
 passes, 1 when any fails, 2 on unreadable input.
@@ -38,6 +46,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 SPECIALIST_TASKS = {"specialist"}
+#: The specialist agent (``usage_by_agent`` name) the pipeline sends each class to.
+CLASS_SPECIALIST = {"contract": "contracts_specialist", "merger_agreement": "merger_agreement_specialist",
+                    "corporate_record": "corporate_records_specialist",
+                    "correspondence": "correspondence_specialist",
+                    "insurance_claim": "insurance_claims_specialist"}
+MAX_AGENT_CALLS = 6
 SINGLE_CALL_TASKS = {"sorter", "isolated"}
 # Which ledger call path each agent's requests take: the vendored LangChain agents (the sorter
 # and the contracts and merger specialists) through the pinned ChatOpenAI subclass, the other
@@ -207,6 +221,64 @@ def gate(rows: list[dict[str, Any]], expected: dict[str, dict[str, Any]], *,
     return {"ok": ok, "models": models, "extra_models": extra, "other_run_rows": dict(sorted(other_runs.items()))}
 
 
+def run_dir_for(run_id: str) -> Path:
+    """The run store a config's ``run_id`` writes (``data/runtime/runs/<run_id>``)."""
+    from mailroom_sandbox.job.spec import run_dir
+
+    return Path(run_dir(run_id))
+
+
+def doc_agents(task: str, item: dict[str, Any]) -> list[str] | None:
+    """The agents that must each have called on this document (None: the task's ledger count is per document)."""
+    if task == "pipeline":
+        cls = str((item.get("pred") or {}).get("doc_type") or "")
+        return ["sorter", CLASS_SPECIALIST.get(cls, f"a specialist (routed class {cls or 'none'})")]
+    if task in SINGLE_CALL_TASKS:
+        return ["sorter"]
+    return None
+
+
+def _items(run: Path) -> list[dict[str, Any]] | None:
+    path = run / "items.jsonl"
+    if not path.is_file():
+        return None
+    try:
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GateInputError(f"{path}: {exc}") from exc
+
+
+def coverage(spec: Any, run: Path, *, max_agent_calls: int = MAX_AGENT_CALLS) -> dict[str, Any]:
+    """Per-document agent coverage of one smoke run from its item records."""
+    docs = spec.dataset.limit
+    items = _items(run)
+    if items is None:
+        return {"ok": False, "docs": docs, "items": 0, "max_calls": {},
+                "reasons": [f"no item records at {run} (pass --run-dir)"]}
+    latest: dict[str, dict[str, Any]] = {}
+    for item in items:  # a resumed run may append a document again; its last record counts
+        latest[str(item.get("item_id"))] = item
+    reasons: list[str] = []
+    if len(latest) < docs:
+        reasons.append(f"{len(latest)} of {docs} documents have an item record")
+    max_calls: dict[str, int] = {}
+    for doc_id, item in sorted(latest.items()):
+        if not item.get("ok") or item.get("error"):
+            reasons.append(f"{doc_id}: not ok ({str(item.get('error') or 'ok=false')[:80]})")
+            continue
+        by_agent = item.get("usage_by_agent") or {}
+        calls = {str(a): int((v or {}).get("calls") or 0) for a, v in by_agent.items()} if isinstance(by_agent, dict) else {}
+        for agent, n in calls.items():
+            max_calls[agent] = max(max_calls.get(agent, 0), n)
+            if n > max_agent_calls:
+                reasons.append(f"{doc_id}: {agent} made {n} calls (> {max_agent_calls}: windowed reads or a retry loop)")
+        for agent in doc_agents(str(spec.task), item) or []:
+            if calls.get(agent, 0) < 1:
+                reasons.append(f"{doc_id}: {agent} made no call")
+    return {"ok": not reasons, "docs": docs, "items": len(latest), "max_calls": dict(sorted(max_calls.items())),
+            "reasons": reasons[:20] + ([f"... {len(reasons) - 20} more"] if len(reasons) > 20 else [])}
+
+
 def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
     lines = []
     for model, m in result["models"].items():
@@ -215,6 +287,10 @@ def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
         lines.append(f"     status {m['status']}  providers {m['providers']}  served {m['served_models']}  "
                      f"paths {m['call_paths']} (need {m['expected_paths']})  pins {', '.join(m['pinned_orders'])}")
         lines.extend(f"     - {reason}" for reason in m["reasons"])
+    for run_id, c in sorted((result.get("coverage") or {}).items()):
+        lines.append(f"{'PASS' if c['ok'] else 'FAIL'} run {run_id}: {c['items']} item(s) for {c['docs']} document(s); "
+                     f"max calls per agent per document {c['max_calls']}")
+        lines.extend(f"     - {reason}" for reason in c["reasons"])
     if result.get("other_run_rows"):
         lines.append(f"note rows from other runs set aside: {result['other_run_rows']}")
     if result["extra_models"]:
@@ -257,6 +333,22 @@ def expectations(configs: list[Path], *, per_doc: int | None = None) -> tuple[di
     return expected, run_ids
 
 
+def run_coverage(configs: list[Path], run_dirs: list[Path] | None, *,
+                 max_agent_calls: int = MAX_AGENT_CALLS) -> dict[str, dict[str, Any]]:
+    """``{run_id: coverage}`` for every config; ``run_dirs`` are matched to configs by directory name."""
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    given = {Path(d).name: Path(d) for d in run_dirs or []}
+    out: dict[str, dict[str, Any]] = {}
+    for path in configs:
+        spec = load_run_spec(path)
+        run_id = str(spec.run_id)
+        run = given.get(run_id) or (Path(run_dirs[0]) if run_dirs and len(run_dirs) == len(configs) == 1
+                                    else run_dir_for(run_id))
+        out[run_id] = coverage(spec, run, max_agent_calls=max_agent_calls)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--ledger", action="append", required=True, type=Path,
@@ -272,6 +364,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write-docs", action="store_true",
                     help="also file the JSON result as docs/<run_id>-<iNN>.r01-gate.json in each run's campaign tree")
     ap.add_argument("--iteration", default=None, help="with --write-docs: the iteration (default: the run store's latest)")
+    ap.add_argument("--run-dir", action="append", type=Path, default=None,
+                    help="a smoke run's store, holding items.jsonl (repeatable; default: each config's run store)")
+    ap.add_argument("--max-agent-calls", type=int, default=MAX_AGENT_CALLS,
+                    help=f"calls one agent may make on one document (default {MAX_AGENT_CALLS})")
     args = ap.parse_args(argv)
     if args.per_doc is not None and args.per_doc < 1:
         ap.error("--per-doc must be >= 1")
@@ -284,6 +380,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     result = gate(rows, expected, allow_extra_models=args.allow_extra_models,
                   run_ids=None if args.any_run else run_ids)
+    try:
+        result["coverage"] = run_coverage(configs, args.run_dir, max_agent_calls=args.max_agent_calls)
+    except GateInputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result["ok"] = result["ok"] and all(c["ok"] for c in result["coverage"].values())
     print(json.dumps(result, indent=2, sort_keys=True) if args.json else render(result, allow_extra_models=args.allow_extra_models))
     if args.write_docs:
         for path in write_docs(result, run_ids, ledgers=args.ledger, configs=configs, iteration=args.iteration):
