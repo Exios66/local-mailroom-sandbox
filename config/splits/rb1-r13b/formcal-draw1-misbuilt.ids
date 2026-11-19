@@ -1,0 +1,8 @@
+# Draw-1 defect copies that a reading found to be complete documents (built wrong, not model
+# misses). Read 2026-11-19: all 9 copies 4.0.1 passed, plus a seeded sample of 10 of the 58 it
+# parked (none mis-built). The builder fix in scripts/rb1_form_floor.py stops these recipes.
+# Pass to `rb1_form_floor.py fit|compare --misbuilt`.
+CAL-cut-39f0bf8b666ffa71   # cut landed in quoted email history; the newest message is whole
+CAL-cut-a394137898a7836f   # cut landed in quoted email history; the newest message is whole
+CAL-cut-af2b2b54e31214cc   # cut landed in forwarded email history; the newest message is whole
+CAL-tail-9c716f372d196795  # closing window is a whole signed addendum
