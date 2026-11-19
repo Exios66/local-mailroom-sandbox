@@ -1465,6 +1465,30 @@ def _doc_source_name(row: dict[str, Any]) -> str:
     return f"{ident}.txt"
 
 
+def _wait_for_inbox_room(target: Path, name: str) -> None:
+    """Backpressure: hold a write into the pipeline's own inbox while that inbox is full.
+
+    A full inbox means a watcher sharing this base dir is behind; the document waits here until
+    it drains (``mailroom_sandbox.backpressure``). A write anywhere else, such as the API eval's
+    staging directory, is not held. The wait is bounded by ``backpressure.intake_timeout()``, so a
+    stalled inbox cannot hold a run past its ``job.max_wall_seconds``, which is checked only
+    between documents. Past it the document raises ``BackpressureTimeout`` like any document
+    error: a job run records an error row for it and goes on (rerun on resume), and a direct
+    ``run_pipeline_eval`` call stops after its in-flight documents, as it does on any failure.
+    """
+    try:
+        from pipeline.bins import inbox_dir  # type: ignore
+
+        is_inbox = target.resolve() == inbox_dir().resolve()
+    except Exception:  # noqa: BLE001 — no vendored pipeline: no shared inbox to protect
+        return
+    if is_inbox:
+        from mailroom_sandbox import backpressure
+
+        backpressure.wait_for_capacity(("inbox",), timeout=backpressure.intake_timeout(),
+                                       what=f"pipeline intake of {name}")
+
+
 def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     """Place the row's document in the inbox and return the queued path.
 
@@ -1475,6 +1499,7 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     import shutil
 
     queued = inbox / _doc_source_name(row)
+    _wait_for_inbox_room(inbox, queued.name)
     doc_text = row.get("doc_text") or row.get("text")
     if doc_text:
         if queued.suffix.lower() not in _TEXT_SUFFIXES:

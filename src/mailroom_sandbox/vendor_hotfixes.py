@@ -182,6 +182,37 @@ def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[
     return record_usage
 
 
+#: Seconds between "holding" log lines from the watcher's backpressure gate (HF-005).
+DISPATCH_HOLD_LOG_SECONDS = 30.0
+
+
+def _install_dispatch_backpressure(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    last_log = [0.0]
+
+    @functools.wraps(original)
+    def submit(self: Any, name: str, fn: Any, path: Any) -> bool:
+        # Upstream queues every inbox file the 1-second rescan sees, with no bound on the
+        # in-memory dispatch queue or on processing/. Over a limit the file is not queued: it
+        # stays in inbox/ and the next rescan offers it again, so intake slows and nothing is
+        # dropped. submit's False ("not queued") is the return its callers already ignore.
+        import time
+
+        from mailroom_sandbox import backpressure
+
+        full = backpressure.saturated(("dispatch", "processing", "review"),
+                                      depths={"dispatch": self.queued_count()})
+        if full:
+            now = time.monotonic()
+            if now - last_log[0] >= DISPATCH_HOLD_LOG_SECONDS:
+                last_log[0] = now
+                _log.warning("HF-005 backpressure: %s stays in the inbox while %s",
+                             name, ", ".join(map(str, full)))
+            return False
+        return original(self, name, fn, path)
+
+    return submit
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -223,6 +254,17 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="every returned call is priced against the run's API cap as it returns, so a "
                 "document in flight cannot spend past job.api_cost_cap_usd (job.call_guard)",
         install=_install_call_spend,
+    ),
+    Hotfix(
+        id="HF-005",
+        module="pipeline.watcher",
+        attr="_DispatchPool.submit",
+        source_sha256="be8d41188d093a667196d2c9af16342b0d35a237188660eca75308df0292018c",
+        upstream="llm-mailroom: draft issue J-4 in docs/vendor-hotfixes.md (not filed)",
+        summary="the watcher queues an inbox file only while dispatch, processing (and review, "
+                "when limited) are below MAILROOM_MAX_QUEUE_DEPTH_<STAGE>; a held file stays in "
+                "the inbox for the next rescan, never dropped (mailroom_sandbox.backpressure)",
+        install=_install_dispatch_backpressure,
     ),
 )
 
