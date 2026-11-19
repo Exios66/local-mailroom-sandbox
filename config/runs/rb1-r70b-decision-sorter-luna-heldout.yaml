@@ -1,5 +1,5 @@
 # SEALED. Evaluation runbook R70b (SAND-108, hypothesis H5, confirmatory): the Decisions-API model
-# openai/gpt-6-luna-decisions as the SORTER on the sealed held-out set (1,000 docs, corpus revision bc9eab28).
+# openai/gpt-6-luna-decisions as the SORTER on the sealed held-out set (1,000 docs, corpus revision ff4ca546).
 # DO NOT RUN BEFORE R70. Preflight refuses this file (heldout_seal: an exclusion file named
 # heldout.exclude.ids) unless the run id is on the sealed convention (rb1-r70*..rb1-r72*) AND the
 # shell sets SANDBOX_UNSEAL_HELDOUT=rb1-r70b-decision-sorter-luna-heldout; the owner sets it once, at R70, after G6.
@@ -33,8 +33,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/heldout.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/heldout.exclude.ids
   limit: 1000
   interim_labels: true
   near_gold_labels: true

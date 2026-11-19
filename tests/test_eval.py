@@ -222,7 +222,10 @@ def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeyp
     assert emitted["record"] is record
 
 
-from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as REV  # noqa: E402
+from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as REV, LEGACY_FAMILY_HF_REVISIONS  # noqa: E402
+
+# The committed SAND-32 serving fixtures were measured on v9.1 and keep that revision.
+FIXTURE_REV = LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
 
 
 def _fixture_comparison():
@@ -247,7 +250,7 @@ def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
     path = tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert {r["run_id"] for r in rows} == {"sand32-s3-corr50:local", "sand32-s3-corr50:api"}
-    assert all(r["metadata"]["provenance"]["dataset_revision"] == REV for r in rows)
+    assert all(r["metadata"]["provenance"]["dataset_revision"] == FIXTURE_REV for r in rows)
 
 
 def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):

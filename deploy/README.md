@@ -290,9 +290,9 @@ runner (concurrency) and the server (`--max-num-seqs`).
 
 Separate app from `sandbox-vllm`. It hosts `Qwen/Qwen3-14B-AWQ` on L4
 (data parallel, not `L4:2`) for unfinished ground-truth fields on
-`Lucius-Morningstar/mailroom-dataset` Hub tag `v9.1`
-(`bc9eab280044befb51e19dda3071d290a8677f42`; parquet parent
-`ed7576b676343e0b402ec5412cded301e629bdee`). The deployed function still
+`Lucius-Morningstar/mailroom-dataset` Hub tag `v9.3`
+(`ff4ca546d4346991628c2616ae014afc15e9fe04`; parquet parent
+`7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5`). The deployed function still
 allows `max_containers=2`. A live EX-10 pass uses one replica: the client
 default `--replicas 1` sends 8 requests, matching `max_num_seqs` and
 `max_inputs`, so that GPU stays full and the autoscaler is not asked for a

@@ -19,7 +19,7 @@ datasets:
     repo: Lucius-Morningstar/mailroom-dataset
     config: ground_truth
     split: all
-    revision: bc9eab280044befb51e19dda3071d290a8677f42
+    revision: ff4ca546d4346991628c2616ae014afc15e9fe04
 
   # 100-row demo corpus used by config/runs/pipeline-lmstudio-even50-demo.yaml.
   # Historical WSL lane: the file lives at

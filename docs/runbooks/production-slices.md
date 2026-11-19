@@ -1,6 +1,6 @@
 # Production slices: launch, gate, fix, step up
 
-This runbook covers how a production run is approved. Each run is a CLI-launched pipeline run over a fixed, held-out slice of the Hugging Face mailroom dataset (pin `bc9eab28`, 3,302 rows), and it passes the **slice gate** before the next, larger slice runs.
+This runbook covers how a production run is approved. Each run is a CLI-launched pipeline run over a fixed, held-out slice of the Hugging Face mailroom dataset (pin `ff4ca546`, Hub tag v9.3, 3,302 rows), and it passes the **slice gate** before the next, larger slice runs.
 
 - Design: [`docs/superpowers/specs/2026-11-16-production-slice-gate-design.md`](../superpowers/specs/2026-11-16-production-slice-gate-design.md)
 - Tracker: Exios66/local-mailroom-sandbox#305

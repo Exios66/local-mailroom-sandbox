@@ -57,12 +57,27 @@ def test_benchmark_gate_accepts_the_data_parent_and_the_tag():
     assert "not-a-revision" not in accepted
 
 
-def test_dataset_pin_is_hub_tag_v9_1():
-    """Labeling reads the Hub v9.1 tag at the family-pinned revisions."""
-    assert DATASET_TAG == "v9.1"
-    assert DATASET_REVISION == "bc9eab280044befb51e19dda3071d290a8677f42"
+def test_dataset_pin_is_hub_tag_v9_3():
+    """Labeling reads the Hub v9.3 tag at the family-pinned revisions."""
+    assert DATASET_TAG == "v9.3"
+    assert DATASET_REVISION == "ff4ca546d4346991628c2616ae014afc15e9fe04"
     assert DATASET_REVISION == FAMILY_HF_REVISION
-    assert FAMILY_HF_DATA_REVISION == "ed7576b676343e0b402ec5412cded301e629bdee"
+    assert FAMILY_HF_DATA_REVISION == "7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5"
+
+
+def test_benchmark_gate_still_accepts_superseded_v9_1_pins():
+    """SAND-032 YAMLs measured on v9.1 keep validating after the move to v9.3."""
+    from mailroom_sandbox.job.benchmark_check import BENCHMARK_EXPECTED
+    from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS
+
+    tag_sha, data_sha = LEGACY_FAMILY_HF_REVISIONS["v9.1"]
+    assert {tag_sha, data_sha} <= set(BENCHMARK_EXPECTED["accepted_revisions"])
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as CURRENT, KNOWN_FAMILY_HF_REVISIONS
+
+    accepted = BENCHMARK_EXPECTED["accepted_revisions"]
+    assert set(accepted) == KNOWN_FAMILY_HF_REVISIONS and len(accepted) == len(set(accepted))
+    assert accepted[0] == CURRENT
+    assert data_sha == "ed7576b676343e0b402ec5412cded301e629bdee"
 
 
 def test_posture_is_one_h100_of_qwen3_32b_fp8():
@@ -190,7 +205,7 @@ def test_ex10_prompt_lists_cuad_categories_and_refuses_golden_rows():
     system = messages[0]["content"]
     assert "Governing Law" in user
     assert "Document Name" in user
-    assert "v9.1" in system
+    assert f"tag {DATASET_TAG}" in system
     assert "golden" in system.lower() or "golden" in system
     with pytest.raises(GoldenLabelError):
         build_messages(_target(2, source_dataset="", source_corpus="theatticusproject/cuad"))
@@ -332,3 +347,25 @@ def test_response_round_trip():
 
     raw = json.dumps({"fields": {"intent": "request"}, "abstain": []})
     assert loads_response(raw)["fields"]["intent"] == "request"
+
+
+def test_benchmark_gate_warns_on_a_superseded_pin():
+    """A v9.1 pin still passes (measured runs re-validate) but never silently."""
+    from mailroom_sandbox.job.benchmark_check import _check_spec_pins
+    from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS, load_run_spec
+    from mailroom_sandbox.paths import repo_root
+
+    spec = load_run_spec(repo_root() / "config/runs/legacy/run-30-contracts-specialist.yaml")
+
+    def pins(rev):
+        s = spec.model_copy(update={"dataset": spec.dataset.model_copy(update={"revision": rev})})
+        return _check_spec_pins(s)
+
+    for legacy in LEGACY_FAMILY_HF_REVISIONS["v9.1"]:
+        out = pins(legacy)
+        assert not [e for e in out["errors"] if "dataset revision" in e]
+        assert [w for w in out["warnings"] if "superseded tag v9.1" in w]
+    for current in (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION):
+        out = pins(current)
+        assert not [m for m in out["errors"] + out["warnings"] if "dataset revision" in m]
+    assert [e for e in pins("0" * 40)["errors"] if "dataset revision" in e]

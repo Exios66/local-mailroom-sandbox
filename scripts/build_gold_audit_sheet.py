@@ -53,8 +53,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="a field disagrees when its Dojo field score is below this (default 1.0)")
     parser.add_argument("--verdict-level", choices=("class", "subclass"), default="class",
                         help="read the iterate verdict per class (default) or per gold subclass")
-    parser.add_argument("--split", default="config/splits/runbook-v1")
-    parser.add_argument("--schemas", default="config/extraction/subclass_schemas.json")
+    parser.add_argument("--split", help="split directory (default: the split the run drew from)")
+    parser.add_argument("--schemas",
+                        help="field registry (default: the committed one graded on the run's revision and split)")
     parser.add_argument("--out", help="sheet path (default data/labels/review/r03-<lineage>-audit.csv)")
     parser.add_argument("--force", action="store_true", help="overwrite an existing sheet (loses its verdicts)")
     args = parser.parse_args(argv)
@@ -74,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 2
         result = gold_audit.build_sheet(
-            _run_path(args.run), args.lineage, split_dir=root / args.split, schemas_path=root / args.schemas,
+            _run_path(args.run), args.lineage, split_dir=root / args.split if args.split else None,
+            schemas_path=root / args.schemas if args.schemas else None,
             n=args.n, seed=args.seed, per_doc=args.per_doc, mismatch_below=args.mismatch_below,
             verdict_level=args.verdict_level)
         gold_audit.write_sheet(result.rows, out)

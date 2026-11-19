@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mailroom_sandbox import experiment_splits as es
 
-DEFAULT_NAME = "runbook-v1"
+DEFAULT_NAME = es.CURRENT_SPLIT
 DEFAULT_SEED = 20261118
 
 
@@ -23,9 +23,12 @@ def register(sub, leaf) -> None:
     def common(p):
         p.add_argument("--name", default=DEFAULT_NAME, type=_split_name,
                        help=f"split directory under config/splits (default {DEFAULT_NAME})")
-        p.add_argument("--families", default=str(es.DEFAULT_FAMILIES), help="subclass family vocabulary (YAML)")
-        p.add_argument("--exposure", default=str(es.DEFAULT_EXPOSURE),
-                       help="ids already used for tuning; held-out avoids them ('' for none)")
+        p.add_argument("--families", default=None,
+                       help="subclass family vocabulary (YAML; build default config/splits/families.yaml, "
+                            "audit and show default the split manifest's)")
+        p.add_argument("--exposure", default=None,
+                       help="ids already used for tuning; held-out avoids them ('' for none; build default "
+                            "config/production/excluded-ids.txt, audit and show default the split manifest's)")
         p.add_argument("--revision", default="", help="dataset revision (default FAMILY_HF_REVISION)")
 
     build = commands.add_parser("build", parents=[leaf], help="build and write the split (refuses to overwrite)")
@@ -70,8 +73,25 @@ def _exposure(path: str) -> Path | None:
     return Path(path)
 
 
+def _manifest_inputs(args, manifest: dict) -> None:
+    """Audit and show read the split's own recorded inputs unless a flag names others: a
+    split built with another exposure list (runbook-v2) must be re-checked against it."""
+    inputs = manifest.get("inputs") or {}
+    if args.families is None:
+        path = (inputs.get("families") or {}).get("path")
+        args.families = str(es.REPO_ROOT / path) if path else str(es.DEFAULT_FAMILIES)
+    if args.exposure is None:
+        exp = inputs.get("exposure") or {}
+        args.exposure = str(es.REPO_ROOT / exp["path"]) if exp.get("path") else ""
+
+
 def _load(args):
     from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    if args.families is None:
+        args.families = str(es.DEFAULT_FAMILIES)
+    if args.exposure is None:
+        args.exposure = str(es.DEFAULT_EXPOSURE)
 
     revision = args.revision or FAMILY_HF_REVISION
     exposure = _exposure(args.exposure)  # refuse a mistyped list before reading the corpus
@@ -132,6 +152,7 @@ def _audit(args) -> int:
     try:
         manifest = json.loads((out / "manifest.json").read_text())
         args.revision = args.revision or manifest["dataset"]["revision"]
+        _manifest_inputs(args, manifest)
         _, docs, families, _ = _load(args)
     except es.SplitError as exc:
         print(f"splits audit: {exc}", file=sys.stderr)
@@ -150,6 +171,7 @@ def _show(args) -> int:
         print(f"no split at {out}; run `sandbox splits build --name {args.name}`", file=sys.stderr)
         return 2
     manifest = json.loads((out / "manifest.json").read_text())
+    _manifest_inputs(args, manifest)
     rows = [json.loads(line) for line in (out / "assignments.jsonl").read_text().splitlines() if line]
     print(f"split {args.name}: " + ", ".join(f"{s}={n}" for s, n in manifest["sizes"].items()))
     print("length bands (R00 length-band counts):")

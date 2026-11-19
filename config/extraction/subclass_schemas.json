@@ -14,8 +14,8 @@
      "in_output_schema": true,
      "labeled": 103,
      "labeled_by_set": {
-      "calibration": 16,
-      "dev": 48,
+      "calibration": 17,
+      "dev": 47,
       "heldout": 39,
       "pool": 0
      },
@@ -37,8 +37,8 @@
      "in_output_schema": true,
      "labeled": 108,
      "labeled_by_set": {
-      "calibration": 15,
-      "dev": 51,
+      "calibration": 16,
+      "dev": 50,
       "heldout": 42,
       "pool": 0
      },
@@ -145,8 +145,8 @@
      "in_output_schema": true,
      "labeled": 107,
      "labeled_by_set": {
-      "calibration": 15,
-      "dev": 51,
+      "calibration": 16,
+      "dev": 50,
       "heldout": 41,
       "pool": 0
      },
@@ -215,8 +215,8 @@
      "in_output_schema": true,
      "labeled": 32,
      "labeled_by_set": {
-      "calibration": 9,
-      "dev": 12,
+      "calibration": 7,
+      "dev": 14,
       "heldout": 11,
       "pool": 0
      },
@@ -261,8 +261,8 @@
      "in_output_schema": true,
      "labeled": 76,
      "labeled_by_set": {
-      "calibration": 11,
-      "dev": 36,
+      "calibration": 10,
+      "dev": 37,
       "heldout": 29,
       "pool": 0
      },
@@ -299,8 +299,8 @@
      "in_output_schema": true,
      "labeled": 108,
      "labeled_by_set": {
-      "calibration": 15,
-      "dev": 51,
+      "calibration": 16,
+      "dev": 50,
       "heldout": 42,
       "pool": 0
      },
@@ -360,8 +360,8 @@
      "in_output_schema": true,
      "labeled": 107,
      "labeled_by_set": {
-      "calibration": 15,
-      "dev": 50,
+      "calibration": 16,
+      "dev": 49,
       "heldout": 42,
       "pool": 0
      },
@@ -713,8 +713,8 @@
      },
      "rows": 11,
      "rows_by_set": {
-      "calibration": 2,
-      "dev": 4,
+      "calibration": 3,
+      "dev": 3,
       "heldout": 5,
       "pool": 0
      },
@@ -1050,8 +1050,8 @@
      },
      "rows": 13,
      "rows_by_set": {
-      "calibration": 3,
-      "dev": 5,
+      "calibration": 2,
+      "dev": 6,
       "heldout": 5,
       "pool": 0
      },
@@ -1080,8 +1080,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1098,8 +1098,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1146,8 +1146,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1194,8 +1194,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1274,8 +1274,8 @@
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1292,8 +1292,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1325,8 +1325,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1358,8 +1358,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1376,8 +1376,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -1390,8 +1390,8 @@
      },
      "rows": 22,
      "rows_by_set": {
-      "calibration": 11,
-      "dev": 3,
+      "calibration": 9,
+      "dev": 5,
       "heldout": 8,
       "pool": 0
      },
@@ -2171,8 +2171,8 @@
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -2299,8 +2299,8 @@
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -2317,8 +2317,8 @@
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -2415,8 +2415,8 @@
      },
      "rows": 28,
      "rows_by_set": {
-      "calibration": 8,
-      "dev": 10,
+      "calibration": 9,
+      "dev": 9,
       "heldout": 10,
       "pool": 0
      },
@@ -2791,8 +2791,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -2809,8 +2809,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -2857,8 +2857,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -2905,8 +2905,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -2983,8 +2983,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -3034,8 +3034,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -3085,8 +3085,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -3099,8 +3099,8 @@
      },
      "rows": 24,
      "rows_by_set": {
-      "calibration": 12,
-      "dev": 9,
+      "calibration": 14,
+      "dev": 7,
       "heldout": 3,
       "pool": 0
      },
@@ -3653,8 +3653,8 @@
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -3787,8 +3787,8 @@
      },
      "rows": 20,
      "rows_by_set": {
-      "calibration": 11,
-      "dev": 3,
+      "calibration": 9,
+      "dev": 5,
       "heldout": 6,
       "pool": 0
      },
@@ -5198,8 +5198,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5216,8 +5216,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5264,8 +5264,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5314,8 +5314,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5394,8 +5394,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 1,
         "pool": 0
        },
@@ -5412,8 +5412,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5445,8 +5445,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5478,8 +5478,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5496,8 +5496,8 @@
        "in_output_schema": true,
        "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 0,
         "heldout": 2,
         "pool": 0
        },
@@ -5510,8 +5510,8 @@
      },
      "rows": 17,
      "rows_by_set": {
-      "calibration": 3,
-      "dev": 8,
+      "calibration": 4,
+      "dev": 7,
       "heldout": 6,
       "pool": 0
      },
@@ -6045,8 +6045,8 @@
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -6179,8 +6179,8 @@
      },
      "rows": 3,
      "rows_by_set": {
-      "calibration": 1,
-      "dev": 1,
+      "calibration": 0,
+      "dev": 2,
       "heldout": 1,
       "pool": 0
      },
@@ -6520,8 +6520,8 @@
      },
      "rows": 18,
      "rows_by_set": {
-      "calibration": 7,
-      "dev": 7,
+      "calibration": 8,
+      "dev": 6,
       "heldout": 4,
       "pool": 0
      },
@@ -9111,9 +9111,9 @@
      "in_output_schema": true,
      "labeled": 434,
      "labeled_by_set": {
-      "calibration": 128,
-      "dev": 152,
-      "heldout": 154,
+      "calibration": 114,
+      "dev": 159,
+      "heldout": 161,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9127,22 +9127,23 @@
      "dojo_status": "partial",
      "dominant": {
       "kind": "value",
-      "share": 0.086,
-      "value": null
+      "share": 0.036,
+      "value": "NMI Holdings, Inc."
      },
      "effective_status": "scored",
      "guide": "name: The corporation or entity the record is about, full legal name as written.",
      "in_output_schema": true,
-     "labeled": 220,
+     "labeled": 450,
      "labeled_by_set": {
-      "calibration": 74,
-      "dev": 84,
-      "heldout": 62,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 194,
+      "hub": 368,
+      "interim": 56,
       "near_gold": 26
      },
      "verdict": "iterate"
@@ -9181,24 +9182,24 @@
      "dojo_status": "not_applicable",
      "dominant": {
       "kind": "value",
-      "share": 0.93,
+      "share": 0.964,
       "value": null
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 47,
+     "labeled": 44,
      "labeled_by_set": {
-      "calibration": 25,
-      "dev": 12,
-      "heldout": 10,
+      "calibration": 23,
+      "dev": 14,
+      "heldout": 7,
       "pool": 0
      },
      "subclasses_with_truth": 3,
      "truth": {
-      "interim": 47
+      "interim": 44
      },
-     "truth_ignored_not_applicable": 138,
-     "verdict": "thin"
+     "truth_ignored_not_applicable": 314,
+     "verdict": "constant"
     },
     "guarantors": {
      "dojo_status": "pending_annotation",
@@ -9264,16 +9265,16 @@
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.316,
+      "share": 0.298,
       "value": "entity_formation"
      },
      "effective_status": "scored",
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9286,7 +9287,7 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.558,
+      "share": 0.508,
       "value": "Delaware"
      },
      "effective_status": "scored",
@@ -9294,9 +9295,9 @@
      "in_output_schema": true,
      "labeled": 384,
      "labeled_by_set": {
-      "calibration": 118,
-      "dev": 133,
-      "heldout": 133,
+      "calibration": 105,
+      "dev": 139,
+      "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
@@ -9304,29 +9305,26 @@
       "interim": 139,
       "near_gold": 245
      },
-     "truth_ignored_not_applicable": 14,
+     "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
     },
     "keywords": {
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.004,
+      "share": 0.02,
       "value": [
-       "bylaws",
-       "EX-3.2",
-       "S-1/A",
-       "0001477932-25-002363",
-       "GBank Financial Holdings Inc.  (GBFH)  (CIK 0001791145)"
+       "Officer certificate",
+       "Cardiff Lexington Corp"
       ]
      },
      "effective_status": "scored",
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9444,21 +9442,21 @@
      "dojo_status": "derived",
      "dominant": {
       "kind": "value",
-      "share": 0.45,
+      "share": 0.456,
       "value": "other"
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 200,
+     "labeled": 450,
      "labeled_by_set": {
-      "calibration": 64,
-      "dev": 78,
-      "heldout": 58,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 200
+      "hub": 450
      },
      "verdict": "iterate"
     },
@@ -9541,7 +9539,7 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.163,
+      "share": 0.227,
       "value": []
      },
      "effective_status": "scored",
@@ -9549,9 +9547,9 @@
      "in_output_schema": true,
      "labeled": 384,
      "labeled_by_set": {
-      "calibration": 119,
-      "dev": 132,
-      "heldout": 133,
+      "calibration": 105,
+      "dev": 139,
+      "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
@@ -9559,23 +9557,23 @@
       "interim": 136,
       "near_gold": 248
      },
-     "truth_ignored_not_applicable": 21,
+     "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
     },
     "subject_matter": {
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.009,
-      "value": "articles_of_incorporation of Expion360 Inc.  (XPON)  (CIK 0001894954) (SEC EDGAR exhibit)."
+      "share": 0.02,
+      "value": "Officer certificate of Cardiff Lexington Corp."
      },
      "effective_status": "scored",
      "in_output_schema": true,
      "labeled": 450,
      "labeled_by_set": {
-      "calibration": 137,
-      "dev": 156,
-      "heldout": 157,
+      "calibration": 122,
+      "dev": 164,
+      "heldout": 164,
       "pool": 0
      },
      "subclasses_with_truth": 10,
@@ -9668,22 +9666,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.344,
+        "share": 0.358,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 7,
-        "near_gold": 54
+        "interim": 6,
+        "near_gold": 47
        },
        "type": "date",
        "verdict": "iterate"
@@ -9692,44 +9690,45 @@
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.098,
+        "share": 0.074,
         "value": "Incumaker, Inc."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 41,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 13,
-        "heldout": 11,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 28,
-        "near_gold": 13
+        "hub": 36,
+        "interim": 11,
+        "near_gold": 7
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.955,
+        "share": 0.95,
         "value": null
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 7,
-        "heldout": 7,
+        "calibration": 6,
+        "dev": 9,
+        "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "interim": 20
        },
        "type": "id",
        "verdict": "constant"
@@ -9763,15 +9762,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "label",
        "verdict": "constant"
@@ -9780,22 +9779,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.23,
+        "share": 0.226,
         "value": "Nevada"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 23,
-        "near_gold": 38
+        "interim": 21,
+        "near_gold": 32
        },
        "type": "name",
        "verdict": "iterate"
@@ -9804,29 +9803,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.032,
+        "share": 0.093,
         "value": [
-         "Certificate of Incorporation",
-         "Incumaker, Inc.",
-         "Delaware",
-         "capital stock",
-         "common stock",
-         "preferred stock",
-         "Series B Convertible Preferred Stock",
-         "classified directors"
+         "Articles of incorporation",
+         "NCO Funding, Inc."
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "entity_list:name",
        "verdict": "iterate"
@@ -9840,15 +9833,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 23,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 7,
-        "heldout": 8,
+        "calibration": 14,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 23
+        "hub": 54
        },
        "type": "name",
        "verdict": "constant"
@@ -9877,22 +9870,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.148,
+        "share": 0.189,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 16,
-        "near_gold": 45
+        "interim": 14,
+        "near_gold": 39
        },
        "type": "entity_list:name",
        "verdict": "iterate"
@@ -9901,20 +9894,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.065,
-        "value": "articles_of_incorporation of Expion360 Inc.  (XPON)  (CIK 0001894954) (SEC EDGAR exhibit)."
+        "share": 0.093,
+        "value": "Articles of incorporation of NCO Funding, Inc."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
+        "calibration": 14,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "free_text",
        "verdict": "iterate"
@@ -9923,9 +9916,9 @@
      "intent": "entity_formation",
      "notes": "",
      "record_type": "articles_of_incorporation",
-     "rows": 62,
+     "rows": 54,
      "rows_by_set": {
-      "calibration": 22,
+      "calibration": 14,
       "dev": 20,
       "heldout": 20,
       "pool": 0
@@ -9937,9 +9930,8 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 5,
-      "no_truth": 3,
-      "thin": 1
+      "iterate": 6,
+      "no_truth": 3
      }
     },
     "board_resolution": {
@@ -10010,18 +10002,24 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.188,
+        "value": "Electric City Corp."
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 12,
-        "heldout": 7,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 22,
+        "interim": 10
        },
        "type": "name",
        "verdict": "thin"
@@ -10030,14 +10028,15 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
+        "hub": 10,
         "interim": 22
        },
        "type": "id",
@@ -10093,13 +10092,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.031,
+        "share": 0.188,
         "value": [
-         "board_resolution",
-         "EX-3",
-         "8-K",
-         "0000828940-03-000001",
-         "COVENANT FINANCIAL CORP  (CIK 0000828940)"
+         "Board resolution",
+         "LIME ENERGY CO."
         ]
        },
        "effective_status": "scored",
@@ -10126,15 +10122,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 32
        },
        "type": "name",
        "verdict": "constant"
@@ -10190,8 +10186,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
-        "value": "board_resolution of LIME ENERGY CO.  (CIK 0001065860) (SEC EDGAR exhibit). CERTIFICATE OF AMENDMENT TO CERTIFICATE OF INCORPORATION"
+        "share": 0.188,
+        "value": "Board resolution of LIME ENERGY CO."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -10257,22 +10253,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.643,
+        "share": 0.556,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
-        "near_gold": 10
+        "interim": 20,
+        "near_gold": 16
        },
        "type": "date",
        "verdict": "thin"
@@ -10281,22 +10277,23 @@
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
-        "value": "NCM FINANCIAL, INC."
+        "share": 0.083,
+        "value": "NCM Financial"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 24,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 22,
-        "near_gold": 2
+        "hub": 24,
+        "interim": 5,
+        "near_gold": 7
        },
        "type": "name",
        "verdict": "thin"
@@ -10305,15 +10302,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 11,
+        "interim": 25
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -10327,15 +10325,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "label",
        "verdict": "constant"
@@ -10344,22 +10342,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.643,
+        "share": 0.556,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 17,
-        "near_gold": 11
+        "interim": 20,
+        "near_gold": 16
        },
        "type": "name",
        "verdict": "thin"
@@ -10368,26 +10366,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.071,
+        "share": 0.083,
         "value": [
-         "bylaws",
-         "EX-3.2",
-         "S-1/A",
-         "0001477932-25-002363",
-         "GBank Financial Holdings Inc.  (GBFH)  (CIK 0001791145)"
+         "Bylaws",
+         "NCM Financial"
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10421,15 +10416,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 36
        },
        "type": "name",
        "verdict": "constant"
@@ -10438,22 +10433,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.357,
-        "value": null
+        "share": 0.611,
+        "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 20,
-        "near_gold": 8
+        "interim": 23,
+        "near_gold": 13
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10462,20 +10457,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.107,
-        "value": "bylaws of NCM Financial  (CIK 0001530983) (SEC EDGAR exhibit). BYLAWS"
+        "share": 0.083,
+        "value": "Bylaws of NCM Financial."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 0,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "free_text",
        "verdict": "thin"
@@ -10484,11 +10479,11 @@
      "intent": "governance_rules",
      "notes": "No filing_number: bylaws are not filed with a state office.",
      "record_type": "bylaws",
-     "rows": 28,
+     "rows": 36,
      "rows_by_set": {
-      "calibration": 11,
-      "dev": 8,
-      "heldout": 9,
+      "calibration": 0,
+      "dev": 18,
+      "heldout": 18,
       "pool": 0
      },
      "salient": [
@@ -10757,8 +10752,8 @@
        "in_output_schema": true,
        "labeled": 69,
        "labeled_by_set": {
-        "calibration": 34,
-        "dev": 17,
+        "calibration": 35,
+        "dev": 16,
         "heldout": 18,
         "pool": 0
        },
@@ -10773,24 +10768,25 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.048,
-        "value": "SOMAXON PHARMACEUTICALS, INC."
+        "share": 0.025,
+        "value": "ARTES MEDICAL INC"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 80,
        "labeled_by_set": {
-        "calibration": 15,
-        "dev": 4,
-        "heldout": 2,
+        "calibration": 40,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 79,
+        "interim": 1
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "pending_annotation",
@@ -10848,8 +10844,8 @@
        "in_output_schema": true,
        "labeled": 72,
        "labeled_by_set": {
-        "calibration": 36,
-        "dev": 18,
+        "calibration": 37,
+        "dev": 17,
         "heldout": 18,
         "pool": 0
        },
@@ -10864,13 +10860,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.013,
+        "share": 0.025,
         "value": [
-         "charter_amendment",
-         "EX-3.2",
-         "S-1/A",
-         "0000898430-01-503595",
-         "VCA ANTECH INC  (CIK 0000817366)"
+         "Charter amendment",
+         "ARTES MEDICAL INC"
         ]
        },
        "effective_status": "scored",
@@ -10917,15 +10910,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 80,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 4,
-        "heldout": 2,
+        "calibration": 40,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 80
        },
        "type": "name",
        "verdict": "constant"
@@ -10934,7 +10927,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.056,
+        "share": 0.097,
         "value": []
        },
        "effective_status": "scored",
@@ -10942,8 +10935,8 @@
        "in_output_schema": true,
        "labeled": 72,
        "labeled_by_set": {
-        "calibration": 36,
-        "dev": 18,
+        "calibration": 37,
+        "dev": 17,
         "heldout": 18,
         "pool": 0
        },
@@ -10959,7 +10952,7 @@
        "dominant": {
         "kind": "value",
         "share": 0.025,
-        "value": "charter_amendment of ARTES MEDICAL INC  (CIK 0001351197) (SEC EDGAR exhibit). EXHIBIT 3.3"
+        "value": "Charter amendment of ARTES MEDICAL INC."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -10994,9 +10987,9 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 2,
+      "iterate": 3,
       "no_truth": 3,
-      "thin": 4
+      "thin": 3
      }
     },
     "indenture": {
@@ -11027,34 +11020,41 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.07,
+        "value": "OneMain Financial Holdings, Inc."
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 6,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 53,
+        "interim": 4
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 8,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 35,
         "interim": 22
        },
        "type": "id",
@@ -11130,13 +11130,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.018,
+        "share": 0.07,
         "value": [
-         "indenture",
-         "EX-4.1",
-         "S-1/A",
-         "0000950120-07-000187",
-         "MP Environmental Funding LLC  (CIK 0001384732)"
+         "Indenture",
+         "OneMain Financial Holdings, Inc."
         ]
        },
        "effective_status": "scored",
@@ -11203,15 +11200,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 8,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 57
        },
        "type": "name",
        "verdict": "constant"
@@ -11240,7 +11237,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.446,
+        "share": 0.482,
         "value": []
        },
        "effective_status": "scored",
@@ -11264,8 +11261,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.035,
-        "value": "indenture of VOLKSWAGEN AUTO LEASE UNDERWRITTEN FUNDING LLC  (CIK 0001182534) (SEC EDGAR exhibit). FORM OF INDENTURE"
+        "share": 0.07,
+        "value": "Indenture of OneMain Financial Holdings, Inc."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -11322,10 +11319,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 5,
+      "iterate": 6,
       "no_truth": 5,
-      "not_applicable": 1,
-      "thin": 1
+      "not_applicable": 1
      }
     },
     "officer_certificate": {
@@ -11418,37 +11414,39 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.182,
-        "value": null
+        "share": 0.148,
+        "value": "Cardiff Lexington Corp"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 57,
+        "interim": 4
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 39,
         "interim": 22
        },
        "type": "id",
@@ -11504,13 +11502,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.016,
+        "share": 0.148,
         "value": [
-         "officer_certificate",
-         "EX-3.10",
-         "S-1/A",
-         "0000950123-09-074380",
-         "XSTREAM SYSTEMS INC  (CIK 0001323163)"
+         "Officer certificate",
+         "Cardiff Lexington Corp"
         ]
        },
        "effective_status": "scored",
@@ -11557,15 +11552,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 61
        },
        "type": "name",
        "verdict": "constant"
@@ -11574,7 +11569,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.246,
+        "share": 0.361,
         "value": []
        },
        "effective_status": "scored",
@@ -11598,8 +11593,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.033,
-        "value": "officer_certificate of Ceres, Inc.  (CIK 0000767884) (SEC EDGAR exhibit). EXHIBIT 3.2"
+        "share": 0.148,
+        "value": "Officer certificate of Cardiff Lexington Corp."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -11635,10 +11630,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 5,
+      "iterate": 6,
       "no_truth": 4,
-      "not_applicable": 1,
-      "thin": 1
+      "not_applicable": 1
      }
     },
     "other": {
@@ -11648,15 +11642,14 @@
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 1,
         "near_gold": 2
        },
        "type": "date",
@@ -11667,15 +11660,15 @@
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "hub": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11684,15 +11677,15 @@
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "interim": 2
        },
        "type": "id",
        "verdict": "thin"
@@ -11701,15 +11694,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "label",
        "verdict": "thin"
@@ -11719,15 +11712,15 @@
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "interim": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11736,15 +11729,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -11753,15 +11746,15 @@
        "dojo_status": "derived",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "hub": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11771,15 +11764,15 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 2,
+        "interim": 1,
         "near_gold": 1
        },
        "type": "entity_list:name",
@@ -11789,15 +11782,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "free_text",
        "verdict": "thin"
@@ -11806,11 +11799,11 @@
      "intent": "other",
      "notes": "Extract only the core fields actually present.",
      "record_type": "other",
-     "rows": 3,
+     "rows": 2,
      "rows_by_set": {
       "calibration": 1,
       "dev": 1,
-      "heldout": 1,
+      "heldout": 0,
       "pool": 0
      },
      "verdicts": {
@@ -11863,21 +11856,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.071,
-        "value": null
+        "share": 0.077,
+        "value": "2011-03-24"
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 12,
+        "interim": 10,
         "near_gold": 16
        },
        "type": "date",
@@ -11885,18 +11878,24 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.115,
+        "value": "MetLife Insurance CO of Connecticut"
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 8,
-        "heldout": 7,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 25,
+        "interim": 1
        },
        "type": "name",
        "verdict": "thin"
@@ -11925,15 +11924,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 11,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 6,
-        "heldout": 3,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 11
+        "hub": 17,
+        "interim": 9
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -11947,15 +11947,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "label",
        "verdict": "constant"
@@ -11964,21 +11964,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.571,
+        "share": 0.615,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
+        "interim": 16,
         "near_gold": 10
        },
        "type": "name",
@@ -11988,29 +11988,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.036,
+        "share": 0.115,
         "value": [
-         "Bylaws",
-         "stockholders",
-         "Board of Directors",
-         "officers",
-         "annual meeting",
-         "quorum",
-         "voting",
-         "indemnification"
+         "Power of attorney",
+         "MetLife Insurance CO of Connecticut"
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -12044,15 +12038,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 10,
-        "heldout": 7,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 26
        },
        "type": "name",
        "verdict": "constant"
@@ -12061,7 +12055,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.111,
+        "share": 0.12,
         "value": [
          "Michael K. Farrell",
          "Maria R. Morris",
@@ -12073,15 +12067,15 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 25,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 10,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 8,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "interim": 12,
+        "interim": 10,
         "near_gold": 15
        },
        "type": "entity_list:name",
@@ -12091,20 +12085,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.107,
-        "value": "powers_of_attorney of MetLife Insurance CO of Connecticut  (CIK 0000733076) (SEC EDGAR exhibit). EX-24"
+        "share": 0.115,
+        "value": "Power of attorney of MetLife Insurance CO of Connecticut."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 11,
-        "heldout": 11,
+        "calibration": 7,
+        "dev": 9,
+        "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "free_text",
        "verdict": "thin"
@@ -12113,11 +12107,11 @@
      "intent": "authority_delegation",
      "notes": "entity_name is the registrant the POA relates to; the principal may be an individual director/officer.",
      "record_type": "powers_of_attorney",
-     "rows": 28,
+     "rows": 26,
      "rows_by_set": {
-      "calibration": 6,
-      "dev": 11,
-      "heldout": 11,
+      "calibration": 7,
+      "dev": 9,
+      "heldout": 10,
       "pool": 0
      },
      "salient": [
@@ -12139,22 +12133,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.178,
+        "share": 0.208,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 45,
+       "labeled": 48,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 9,
         "dev": 19,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 17,
-        "near_gold": 28
+        "interim": 19,
+        "near_gold": 29
        },
        "type": "date",
        "verdict": "thin"
@@ -12163,25 +12157,26 @@
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.258,
+        "share": 0.224,
         "value": "NMI Holdings, Inc."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 31,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 14,
-        "heldout": 12,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 20,
-        "near_gold": 11
+        "hub": 27,
+        "interim": 10,
+        "near_gold": 12
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "exercise_price": {
        "dojo_status": "pending_annotation",
@@ -12207,15 +12202,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 18,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 8,
-        "heldout": 8,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 18
+        "hub": 29,
+        "interim": 20
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -12269,15 +12265,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 46,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 9,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "hub": 49
        },
        "type": "label",
        "verdict": "constant"
@@ -12286,22 +12282,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.581,
+        "share": 0.609,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 43,
+       "labeled": 46,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 19,
+        "calibration": 9,
+        "dev": 18,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 10,
-        "near_gold": 33
+        "interim": 12,
+        "near_gold": 34
        },
        "type": "name",
        "verdict": "thin"
@@ -12310,29 +12306,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.022,
+        "share": 0.061,
         "value": [
-         "Warrant",
-         "300,000 shares",
-         "Common Stock",
-         "Art Dimensions, Inc.",
-         "Exercise Price $0.001",
-         "Expiration May 31, 2013",
-         "Transfer restrictions",
-         "Securities Act of 1933"
+         "Rights instrument",
+         "ARAMARK WORLDWIDE CORP"
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 46,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 9,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "hub": 49
        },
        "type": "entity_list:name",
        "verdict": "iterate"
@@ -12346,15 +12336,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 10,
-        "heldout": 9,
+        "calibration": 9,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 49
        },
        "type": "name",
        "verdict": "constant"
@@ -12403,22 +12393,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.114,
+        "share": 0.17,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 44,
+       "labeled": 47,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 9,
         "dev": 19,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 9,
-        "near_gold": 35
+        "interim": 11,
+        "near_gold": 36
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -12427,20 +12417,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.043,
-        "value": "rights_instrument of GREEN DOT CORP  (GDOT)  (CIK 0001386278) (SEC EDGAR exhibit). EX-4.02"
+        "share": 0.061,
+        "value": "Rights instrument of ARAMARK WORLDWIDE CORP."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 46,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 9,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "hub": 49
        },
        "type": "free_text",
        "verdict": "iterate"
@@ -12449,9 +12439,9 @@
      "intent": "investor_rights",
      "notes": "",
      "record_type": "rights_instrument",
-     "rows": 46,
+     "rows": 49,
      "rows_by_set": {
-      "calibration": 6,
+      "calibration": 9,
       "dev": 20,
       "heldout": 20,
       "pool": 0
@@ -12465,10 +12455,10 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 2,
+      "iterate": 3,
       "no_truth": 5,
       "not_applicable": 1,
-      "thin": 4
+      "thin": 3
      }
     },
     "subsidiary_list": {
@@ -12501,37 +12491,39 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.524,
+        "share": 0.151,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 10,
-        "heldout": 5,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 43,
+        "interim": 10
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 32,
         "interim": 21
        },
        "type": "id",
@@ -12564,14 +12556,15 @@
        "effective_status": "not_applicable",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 14,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 8,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 39,
         "interim": 14
        },
        "type": "name",
@@ -12581,13 +12574,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.019,
+        "share": 0.038,
         "value": [
-         "subsidiary_list",
-         "EX-21.1",
-         "S-1/A",
-         "0000898430-02-003224",
-         "ACCREDITED HOME LENDERS HOLDING CO  (CIK 0001174735)"
+         "List of subsidiaries",
+         "Compressco Partners, L.P."
         ]
        },
        "effective_status": "scored",
@@ -12614,15 +12604,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 53
        },
        "type": "name",
        "verdict": "constant"
@@ -12632,14 +12622,15 @@
        "effective_status": "not_applicable",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 32,
         "interim": 21
        },
        "type": "entity_list:name",
@@ -12650,7 +12641,7 @@
        "dominant": {
         "kind": "value",
         "share": 0.038,
-        "value": "subsidiary_list of Compressco Partners, L.P.  (CIK 0001449488) (SEC EDGAR exhibit). EX-21.1"
+        "value": "List of subsidiaries of Compressco Partners, L.P."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -12724,10 +12715,9 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 2,
+      "iterate": 3,
       "no_truth": 2,
-      "not_applicable": 3,
-      "thin": 1
+      "not_applicable": 3
      }
     }
    }
@@ -12746,9 +12736,9 @@
      "in_output_schema": true,
      "labeled": 999,
      "labeled_by_set": {
-      "calibration": 347,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 355,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12769,9 +12759,9 @@
      "in_output_schema": true,
      "labeled": 998,
      "labeled_by_set": {
-      "calibration": 347,
-      "dev": 205,
-      "heldout": 252,
+      "calibration": 355,
+      "dev": 201,
+      "heldout": 248,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12793,10 +12783,10 @@
      "in_output_schema": true,
      "labeled": 999,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
-      "pool": 193
+      "calibration": 355,
+      "dev": 201,
+      "heldout": 249,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
@@ -12816,10 +12806,10 @@
      "in_output_schema": true,
      "labeled": 300,
      "labeled_by_set": {
-      "calibration": 86,
-      "dev": 92,
-      "heldout": 71,
-      "pool": 51
+      "calibration": 95,
+      "dev": 89,
+      "heldout": 68,
+      "pool": 48
      },
      "subclasses_with_truth": 8,
      "truth": {
@@ -12833,9 +12823,9 @@
      "in_output_schema": false,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12856,9 +12846,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12878,9 +12868,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12907,9 +12897,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12930,9 +12920,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12954,9 +12944,9 @@
      "in_output_schema": true,
      "labeled": 998,
      "labeled_by_set": {
-      "calibration": 346,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 354,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12972,9 +12962,9 @@
      "in_output_schema": false,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -12994,9 +12984,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -13017,9 +13007,9 @@
      "in_output_schema": true,
      "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 348,
-      "dev": 205,
-      "heldout": 253,
+      "calibration": 356,
+      "dev": 201,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
@@ -13052,10 +13042,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13070,10 +13060,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13088,10 +13078,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 3
@@ -13105,10 +13095,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 3
@@ -13122,10 +13112,10 @@
        "in_output_schema": false,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13140,10 +13130,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13157,10 +13147,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 2,
@@ -13175,10 +13165,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13193,10 +13183,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 2,
@@ -13212,10 +13202,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "interim": 1,
@@ -13230,10 +13220,10 @@
        "in_output_schema": false,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13247,10 +13237,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "hub": 3
@@ -13265,10 +13255,10 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
-        "pool": 1
+        "pool": 0
        },
        "truth": {
         "near_gold": 3
@@ -13279,10 +13269,10 @@
      },
      "rows": 3,
      "rows_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 1,
       "heldout": 1,
-      "pool": 1
+      "pool": 0
      },
      "verdicts": {
       "fixed": 2,
@@ -13303,8 +13293,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13326,8 +13316,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13350,8 +13340,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13373,8 +13363,8 @@
        "in_output_schema": true,
        "labeled": 44,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 16,
+        "calibration": 12,
+        "dev": 15,
         "heldout": 11,
         "pool": 6
        },
@@ -13390,8 +13380,8 @@
        "in_output_schema": false,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13413,8 +13403,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13435,8 +13425,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13464,8 +13454,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13487,8 +13477,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13511,8 +13501,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13529,8 +13519,8 @@
        "in_output_schema": false,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13551,8 +13541,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13574,8 +13564,8 @@
        "in_output_schema": true,
        "labeled": 66,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 23,
+        "calibration": 13,
+        "dev": 22,
         "heldout": 23,
         "pool": 8
        },
@@ -13588,8 +13578,8 @@
      },
      "rows": 66,
      "rows_by_set": {
-      "calibration": 12,
-      "dev": 23,
+      "calibration": 13,
+      "dev": 22,
       "heldout": 23,
       "pool": 8
      },
@@ -13613,10 +13603,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13636,10 +13626,10 @@
        "in_output_schema": true,
        "labeled": 555,
        "labeled_by_set": {
-        "calibration": 238,
-        "dev": 66,
-        "heldout": 102,
-        "pool": 149
+        "calibration": 248,
+        "dev": 72,
+        "heldout": 103,
+        "pool": 132
        },
        "truth": {
         "interim": 188,
@@ -13660,10 +13650,10 @@
        "in_output_schema": true,
        "labeled": 556,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 148
+        "calibration": 248,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 397,
@@ -13683,10 +13673,10 @@
        "in_output_schema": true,
        "labeled": 43,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 7,
+        "calibration": 22,
+        "dev": 8,
         "heldout": 4,
-        "pool": 18
+        "pool": 9
        },
        "truth": {
         "interim": 43
@@ -13700,10 +13690,10 @@
        "in_output_schema": false,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13723,10 +13713,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13745,10 +13735,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 554,
@@ -13774,10 +13764,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13797,10 +13787,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 301,
@@ -13821,10 +13811,10 @@
        "in_output_schema": true,
        "labeled": 555,
        "labeled_by_set": {
-        "calibration": 237,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 247,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "interim": 237,
@@ -13839,10 +13829,10 @@
        "in_output_schema": false,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13861,10 +13851,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "hub": 557
@@ -13884,10 +13874,10 @@
        "in_output_schema": true,
        "labeled": 557,
        "labeled_by_set": {
-        "calibration": 239,
-        "dev": 66,
-        "heldout": 103,
-        "pool": 149
+        "calibration": 249,
+        "dev": 72,
+        "heldout": 104,
+        "pool": 132
        },
        "truth": {
         "near_gold": 557
@@ -13898,10 +13888,10 @@
      },
      "rows": 557,
      "rows_by_set": {
-      "calibration": 239,
-      "dev": 66,
-      "heldout": 103,
-      "pool": 149
+      "calibration": 249,
+      "dev": 72,
+      "heldout": 104,
+      "pool": 132
      },
      "verdicts": {
       "constant": 2,
@@ -13923,10 +13913,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "near_gold": 79
@@ -13946,10 +13936,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "interim": 14,
@@ -13970,10 +13960,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "interim": 60,
@@ -13993,10 +13983,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 11,
-        "heldout": 9,
-        "pool": 5
+        "calibration": 13,
+        "dev": 9,
+        "heldout": 10,
+        "pool": 10
        },
        "truth": {
         "interim": 42
@@ -14010,10 +14000,10 @@
        "in_output_schema": false,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "hub": 79
@@ -14033,10 +14023,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "near_gold": 79
@@ -14055,10 +14045,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "hub": 74,
@@ -14087,10 +14077,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "hub": 79
@@ -14110,10 +14100,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "interim": 43,
@@ -14134,10 +14124,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "interim": 27,
@@ -14152,10 +14142,10 @@
        "in_output_schema": false,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "hub": 79
@@ -14174,10 +14164,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "hub": 79
@@ -14197,10 +14187,10 @@
        "in_output_schema": true,
        "labeled": 79,
        "labeled_by_set": {
-        "calibration": 23,
-        "dev": 23,
+        "calibration": 21,
+        "dev": 21,
         "heldout": 26,
-        "pool": 7
+        "pool": 11
        },
        "truth": {
         "near_gold": 79
@@ -14211,10 +14201,10 @@
      },
      "rows": 79,
      "rows_by_set": {
-      "calibration": 23,
-      "dev": 23,
+      "calibration": 21,
+      "dev": 21,
       "heldout": 26,
-      "pool": 7
+      "pool": 11
      },
      "verdicts": {
       "constant": 2,
@@ -14236,10 +14226,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "near_gold": 53
@@ -14259,10 +14249,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "interim": 30,
@@ -14283,10 +14273,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "interim": 49,
@@ -14306,10 +14296,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 7,
+        "calibration": 6,
         "dev": 19,
-        "heldout": 15,
-        "pool": 1
+        "heldout": 14,
+        "pool": 3
        },
        "truth": {
         "interim": 42
@@ -14323,10 +14313,10 @@
        "in_output_schema": false,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "hub": 53
@@ -14346,10 +14336,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "near_gold": 53
@@ -14368,10 +14358,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "hub": 52,
@@ -14399,10 +14389,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "hub": 53
@@ -14422,10 +14412,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "interim": 37,
@@ -14446,10 +14436,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "interim": 35,
@@ -14464,10 +14454,10 @@
        "in_output_schema": false,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "hub": 53
@@ -14486,10 +14476,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "hub": 53
@@ -14509,10 +14499,10 @@
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 21,
-        "heldout": 22,
-        "pool": 2
+        "heldout": 21,
+        "pool": 4
        },
        "truth": {
         "near_gold": 53
@@ -14523,10 +14513,10 @@
      },
      "rows": 53,
      "rows_by_set": {
-      "calibration": 8,
+      "calibration": 7,
       "dev": 21,
-      "heldout": 22,
-      "pool": 2
+      "heldout": 21,
+      "pool": 4
      },
      "verdicts": {
       "constant": 2,
@@ -14548,10 +14538,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "near_gold": 83
@@ -14571,10 +14561,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "interim": 24,
@@ -14595,10 +14585,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "interim": 54,
@@ -14618,10 +14608,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 13,
+        "calibration": 15,
         "dev": 16,
-        "heldout": 7,
-        "pool": 6
+        "heldout": 6,
+        "pool": 5
        },
        "truth": {
         "interim": 42
@@ -14635,10 +14625,10 @@
        "in_output_schema": false,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "hub": 83
@@ -14658,10 +14648,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "near_gold": 83
@@ -14680,10 +14670,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "hub": 81,
@@ -14709,10 +14699,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "hub": 83
@@ -14732,10 +14722,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "interim": 37,
@@ -14756,10 +14746,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "interim": 31,
@@ -14774,10 +14764,10 @@
        "in_output_schema": false,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "hub": 83
@@ -14796,10 +14786,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "hub": 83
@@ -14819,10 +14809,10 @@
        "in_output_schema": true,
        "labeled": 83,
        "labeled_by_set": {
-        "calibration": 27,
-        "dev": 24,
-        "heldout": 24,
-        "pool": 8
+        "calibration": 25,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 12
        },
        "truth": {
         "near_gold": 83
@@ -14833,10 +14823,10 @@
      },
      "rows": 83,
      "rows_by_set": {
-      "calibration": 27,
-      "dev": 24,
-      "heldout": 24,
-      "pool": 8
+      "calibration": 25,
+      "dev": 23,
+      "heldout": 23,
+      "pool": 12
      },
      "verdicts": {
       "constant": 2,
@@ -14859,9 +14849,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "near_gold": 81
@@ -14882,9 +14872,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "interim": 32,
@@ -14906,9 +14896,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "interim": 62,
@@ -14928,10 +14918,10 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 12,
+        "calibration": 13,
         "dev": 8,
-        "heldout": 13,
-        "pool": 9
+        "heldout": 11,
+        "pool": 10
        },
        "truth": {
         "interim": 42
@@ -14946,9 +14936,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "hub": 81
@@ -14969,9 +14959,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "near_gold": 81
@@ -14991,9 +14981,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "hub": 69,
@@ -15020,9 +15010,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "hub": 81
@@ -15043,9 +15033,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "interim": 45,
@@ -15067,9 +15057,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "interim": 40,
@@ -15085,9 +15075,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "hub": 81
@@ -15107,9 +15097,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "hub": 81
@@ -15130,9 +15120,9 @@
        "labeled": 81,
        "labeled_by_set": {
         "calibration": 20,
-        "dev": 23,
-        "heldout": 26,
-        "pool": 12
+        "dev": 21,
+        "heldout": 23,
+        "pool": 17
        },
        "truth": {
         "near_gold": 81
@@ -15144,9 +15134,9 @@
      "rows": 81,
      "rows_by_set": {
       "calibration": 20,
-      "dev": 23,
-      "heldout": 26,
-      "pool": 12
+      "dev": 21,
+      "heldout": 23,
+      "pool": 17
      },
      "verdicts": {
       "constant": 2,
@@ -15386,10 +15376,10 @@
        "in_output_schema": true,
        "labeled": 77,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 24,
+        "calibration": 19,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "near_gold": 77
@@ -15409,10 +15399,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 27,
@@ -15433,10 +15423,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 49,
@@ -15456,8 +15446,8 @@
        "in_output_schema": true,
        "labeled": 42,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 14,
+        "calibration": 13,
+        "dev": 13,
         "heldout": 11,
         "pool": 5
        },
@@ -15473,10 +15463,10 @@
        "in_output_schema": false,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15496,10 +15486,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "near_gold": 78
@@ -15518,10 +15508,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 65,
@@ -15547,10 +15537,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15570,10 +15560,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 44,
@@ -15594,10 +15584,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "interim": 31,
@@ -15612,10 +15602,10 @@
        "in_output_schema": false,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15634,10 +15624,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "hub": 78
@@ -15657,10 +15647,10 @@
        "in_output_schema": true,
        "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 24,
+        "calibration": 20,
+        "dev": 20,
         "heldout": 28,
-        "pool": 7
+        "pool": 10
        },
        "truth": {
         "near_gold": 78
@@ -15671,10 +15661,10 @@
      },
      "rows": 78,
      "rows_by_set": {
-      "calibration": 19,
-      "dev": 24,
+      "calibration": 20,
+      "dev": 20,
       "heldout": 28,
-      "pool": 7
+      "pool": 10
      },
      "verdicts": {
       "constant": 2,
@@ -15697,9 +15687,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15734,9 +15724,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15756,9 +15746,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15778,9 +15768,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15800,9 +15790,9 @@
      "in_output_schema": true,
      "labeled": 536,
      "labeled_by_set": {
-      "calibration": 205,
-      "dev": 125,
-      "heldout": 92,
+      "calibration": 208,
+      "dev": 123,
+      "heldout": 91,
       "pool": 114
      },
      "subclasses_with_truth": 4,
@@ -15822,9 +15812,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15844,9 +15834,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15866,9 +15856,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15888,9 +15878,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15910,9 +15900,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15932,9 +15922,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15954,9 +15944,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -15976,9 +15966,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16007,9 +15997,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16029,9 +16019,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16051,9 +16041,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16075,9 +16065,9 @@
      "in_output_schema": true,
      "labeled": 1100,
      "labeled_by_set": {
-      "calibration": 376,
-      "dev": 233,
-      "heldout": 283,
+      "calibration": 383,
+      "dev": 229,
+      "heldout": 280,
       "pool": 208
      },
      "subclasses_with_truth": 6,
@@ -16121,9 +16111,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16158,9 +16148,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16180,9 +16170,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16202,9 +16192,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16239,9 +16229,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16261,9 +16251,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16283,9 +16273,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16305,9 +16295,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16327,9 +16317,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16349,9 +16339,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16371,9 +16361,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16393,9 +16383,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16422,9 +16412,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16444,9 +16434,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16466,9 +16456,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16490,9 +16480,9 @@
        "in_output_schema": true,
        "labeled": 300,
        "labeled_by_set": {
-        "calibration": 102,
-        "dev": 64,
-        "heldout": 78,
+        "calibration": 106,
+        "dev": 62,
+        "heldout": 76,
         "pool": 56
        },
        "truth": {
@@ -16504,9 +16494,9 @@
      },
      "rows": 300,
      "rows_by_set": {
-      "calibration": 102,
-      "dev": 64,
-      "heldout": 78,
+      "calibration": 106,
+      "dev": 62,
+      "heldout": 76,
       "pool": 56
      },
      "verdicts": {
@@ -16523,10 +16513,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16560,10 +16550,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16582,10 +16572,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16604,10 +16594,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16626,10 +16616,10 @@
        "in_output_schema": true,
        "labeled": 130,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 28,
+        "calibration": 54,
+        "dev": 24,
         "heldout": 18,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "interim": 130
@@ -16648,10 +16638,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16670,10 +16660,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16692,10 +16682,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16714,10 +16704,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16731,10 +16721,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16753,10 +16743,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16775,10 +16765,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16797,10 +16787,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16828,10 +16818,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16850,10 +16840,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16872,10 +16862,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16897,10 +16887,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 55,
-        "dev": 29,
+        "calibration": 54,
+        "dev": 25,
         "heldout": 37,
-        "pool": 29
+        "pool": 34
        },
        "truth": {
         "hub": 150
@@ -16911,10 +16901,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 55,
-      "dev": 29,
+      "calibration": 54,
+      "dev": 25,
       "heldout": 37,
-      "pool": 29
+      "pool": 34
      },
      "verdicts": {
       "constant": 5,
@@ -16931,10 +16921,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -16968,10 +16958,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -16990,10 +16980,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17012,10 +17002,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17034,10 +17024,10 @@
        "in_output_schema": true,
        "labeled": 135,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 27,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 26,
+        "pool": 30
        },
        "truth": {
         "interim": 135
@@ -17056,10 +17046,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17078,10 +17068,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17100,10 +17090,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17122,10 +17112,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17139,10 +17129,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17161,10 +17151,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17183,10 +17173,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17205,10 +17195,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17236,10 +17226,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17258,10 +17248,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17280,10 +17270,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17305,10 +17295,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 48,
-        "dev": 28,
-        "heldout": 42,
-        "pool": 32
+        "calibration": 49,
+        "dev": 30,
+        "heldout": 41,
+        "pool": 30
        },
        "truth": {
         "hub": 150
@@ -17319,10 +17309,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 48,
-      "dev": 28,
-      "heldout": 42,
-      "pool": 32
+      "calibration": 49,
+      "dev": 30,
+      "heldout": 41,
+      "pool": 30
      },
      "verdicts": {
       "constant": 5,
@@ -17339,10 +17329,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17376,10 +17366,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17398,10 +17388,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17420,10 +17410,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17442,10 +17432,10 @@
        "in_output_schema": true,
        "labeled": 135,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 34,
-        "heldout": 21,
-        "pool": 29
+        "calibration": 52,
+        "dev": 37,
+        "heldout": 20,
+        "pool": 26
        },
        "truth": {
         "interim": 135
@@ -17464,10 +17454,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17486,10 +17476,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17508,10 +17498,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17530,10 +17520,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17547,10 +17537,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17569,10 +17559,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17591,10 +17581,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17613,10 +17603,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17642,10 +17632,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17664,10 +17654,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17686,10 +17676,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17712,10 +17702,10 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 35,
-        "pool": 29
+        "calibration": 52,
+        "dev": 38,
+        "heldout": 34,
+        "pool": 26
        },
        "truth": {
         "hub": 150
@@ -17726,10 +17716,10 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 51,
-      "dev": 35,
-      "heldout": 35,
-      "pool": 29
+      "calibration": 52,
+      "dev": 38,
+      "heldout": 34,
+      "pool": 26
      },
      "verdicts": {
       "constant": 5,
@@ -17746,9 +17736,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17783,9 +17773,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17805,9 +17795,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17827,9 +17817,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17849,9 +17839,9 @@
        "in_output_schema": true,
        "labeled": 136,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 26,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 27,
         "pool": 24
        },
        "truth": {
@@ -17871,9 +17861,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17893,9 +17883,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17915,9 +17905,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17937,9 +17927,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17954,9 +17944,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17976,9 +17966,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -17998,9 +17988,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18020,9 +18010,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18050,9 +18040,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18072,9 +18062,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18094,9 +18084,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18118,9 +18108,9 @@
        "in_output_schema": true,
        "labeled": 150,
        "labeled_by_set": {
-        "calibration": 51,
-        "dev": 35,
-        "heldout": 40,
+        "calibration": 53,
+        "dev": 32,
+        "heldout": 41,
         "pool": 24
        },
        "truth": {
@@ -18132,9 +18122,9 @@
      },
      "rows": 150,
      "rows_by_set": {
-      "calibration": 51,
-      "dev": 35,
-      "heldout": 40,
+      "calibration": 53,
+      "dev": 32,
+      "heldout": 41,
       "pool": 24
      },
      "verdicts": {
@@ -18573,8 +18563,8 @@
      "in_output_schema": true,
      "labeled": 30,
      "labeled_by_set": {
-      "calibration": 5,
-      "dev": 16,
+      "calibration": 4,
+      "dev": 17,
       "heldout": 9,
       "pool": 0
      },
@@ -18595,8 +18585,8 @@
      "in_output_schema": true,
      "labeled": 25,
      "labeled_by_set": {
-      "calibration": 4,
-      "dev": 13,
+      "calibration": 3,
+      "dev": 14,
       "heldout": 8,
       "pool": 0
      },
@@ -18612,8 +18602,8 @@
      "in_output_schema": true,
      "labeled": 9,
      "labeled_by_set": {
-      "calibration": 3,
-      "dev": 4,
+      "calibration": 1,
+      "dev": 6,
       "heldout": 2,
       "pool": 0
      },
@@ -18664,8 +18654,8 @@
      "in_output_schema": true,
      "labeled": 29,
      "labeled_by_set": {
-      "calibration": 5,
-      "dev": 15,
+      "calibration": 4,
+      "dev": 16,
       "heldout": 9,
       "pool": 0
      },
@@ -18936,8 +18926,8 @@
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 3,
         "pool": 0
        },
@@ -18953,8 +18943,8 @@
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 3,
         "pool": 0
        },
@@ -18970,8 +18960,8 @@
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -19017,8 +19007,8 @@
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 3,
         "pool": 0
        },
@@ -20338,8 +20328,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 4,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -20355,8 +20345,8 @@
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 3,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -20419,8 +20409,8 @@
        "in_output_schema": true,
        "labeled": 5,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 4,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -20666,12 +20656,12 @@
  },
  "inputs": {
   "constant_share": 0.95,
-  "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+  "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "6176bc0afaaa5d6d83b508256cbc712b996bda7d50a1b9bdc34349556fa0bf41",
   "min_dev": 20,
   "near_gold_overlay_sha256": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
-  "split_assignments_sha256": "ca7c4a18a59620b4f2c881307f59aa2ebb249ac0a1edfc0dc3aa1e24622f20fa"
+  "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
  "schema": "mailroom.subclass_schemas/v1",
@@ -20694,17 +20684,17 @@
   {
    "class": "corporate_record",
    "field": "signatories",
-   "labeled_but_not_applicable": 21
+   "labeled_but_not_applicable": 53
   },
   {
    "class": "corporate_record",
    "field": "jurisdiction",
-   "labeled_but_not_applicable": 14
+   "labeled_but_not_applicable": 53
   },
   {
    "class": "corporate_record",
    "field": "filing_number",
-   "labeled_but_not_applicable": 138
+   "labeled_but_not_applicable": 314
   }
  ],
  "status_repairs": [

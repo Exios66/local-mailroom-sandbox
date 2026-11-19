@@ -155,6 +155,14 @@ def test_exclude_adds_the_used_rows_to_the_split_complement(tmp_path):
     assert str(tmp_path) not in text  # no local paths in a committed file
 
 
+def test_exclude_accepts_committed_spent_ids_without_a_runtime_dataset(tmp_path):
+    base, used, out = (tmp_path / n for n in ("base.ids", "spent.ids", "fresh.ids"))
+    base.write_text("DOC-a\n")
+    used.write_text("# spent calibration\nDOC-b\nDOC-a\n")
+    assert ff.main(["exclude", "--base", str(base), "--used-ids", str(used), "--out", str(out)]) == 0
+    assert ff.read_ids(out) == {"DOC-a", "DOC-b"}
+
+
 def test_fit_reports_auroc_and_drops_reviewed_misbuilt_defects(tmp_path):
     defects = tmp_path / "defects.jsonl"
     defects.write_text("".join(json.dumps({"id": i, "expected_document_form": "fragment_or_excerpt"}) + "\n"
