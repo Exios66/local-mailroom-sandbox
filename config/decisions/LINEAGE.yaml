@@ -98,3 +98,19 @@ versions:
     open_for_4.1.0: >-
       Calibrate the abstain thresholds and a per-class subclass cutoff on calibration-set
       runs, as calibrate_reviewer already does for the class cutoffs.
+  - version: 4.0.1
+    file: reviewer_decisions_v4.0.1.yaml
+    parent: 4.0.0
+    status: candidate
+    summary: >-
+      PATCH: document_form criteria only. A document's own annexes, exhibits, schedules,
+      amendments, index of defined terms and the supporting papers of the same matter are one
+      document; blank signature lines on a form are complete; multiple_documents means
+      unrelated documents. Everything else is 4.0.0.
+    adoption: >-
+      Registered 2026-11-19 after the rb1 R13b smoke, where 4.0.0 parked 5 of 20 dev-look1
+      documents and all 5 were false parks (two FNOL claim files with their invoice, a merger
+      with its amendment, a merger ending in its index, an unsigned form exhibit). The fix was
+      written from those dev-look1 documents, so dev-look1 figures are in-sample for it. Not the
+      default until a run with positive controls (real fragments and bundles) shows it still
+      parks them.
