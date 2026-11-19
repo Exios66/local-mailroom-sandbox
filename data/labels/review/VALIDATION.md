@@ -33,7 +33,8 @@ Three problems remained, and each needed a decision from the owner before the ov
 
 ### Resolved since this validation
 
-The owner decided issues 2, 3 and 6. The fixes are committed:
+The owner decided issues 2, 3 and 6, and delegated issues 1, 4 and 5 and the open policy
+questions to Claude on 2026-11-18. The fixes are committed:
 
 - **Issue 2.** The 52 wrong Hub `intent` values are interim `correction` labels (basis
   `review_read_message`) from `interim_reviews.jsonl`.
@@ -46,38 +47,74 @@ The owner decided issues 2, 3 and 6. The fixes are committed:
   check found a seventh one ("$0.05 per Unit"), so `contract_value_review.jsonl` corrects 7
   near-gold labels. Each one now scores 1.0 against itself.
 
-Issue 1 is still open for the 37 remaining correspondence values (26 `recipient`, 10 `sender`,
-1 `communication_date`), 12 corporate-record values and 3 merger values.
+- **Issue 1.** Reviewed gold supersedes the interim gap fills it contradicts.
+  `scripts/interim_labels.py check` reports a gate `gap_fill` whose value the near-gold overlay
+  labels otherwise for the same text, `check --prune` drops it and `build` drops it on every
+  rebuild, so near-gold fills the field. With the decisions applied, 111 gap fills went: 99
+  correspondence (66 `sender`, 32 `recipient`, 1 `communication_date`) and 12 corporate
+  (7 `effective_date`, 5 `signatories`). 43 of them (32 correspondence, 11 corporate)
+  disagree beyond format; the other 68 differ only in form ("Travis C. McCullough" against
+  "Travis C. McCullough, Enron North America Corp."). Each one is a truth value that changes,
+  because the Hub labels none of these fields. The 1,763 reviewed `original_header` labels that
+  differ from the text-only gold are kept (issue 6); `check` notes them. The 3 merger values
+  have no gold catalog and stay with `INTERIM_AUDIT.md` steps 4 and 5.
+- **Issue 4.** All held and `needs_human` labels were decided by consensus: three independent
+  readings per label (Claude and two fresh subagents), majority value wins, a three-way split
+  stays open. Each vote is in `consensus_votes.jsonl`, each group's rule and tally in
+  `policy_questions.json` (`decision`, `decided_by`, `consensus`). Of 87 labels (71 gold and
+  6 interim `needs_human`, 10 held), 68 were unanimous, 17 were 2-1 and 2 split. The 2 splits
+  stay open: DOC-4e56f772d524639c `action_items` (`needs_human`) and DOC-6e5eb0c3089badbc
+  `action_items` (held, its earlier review stands). Where an earlier review had settled the record
+  (7 held labels, 3 `soft` and 1 `urgency` label), the change is a line in
+  `decisions_supersede.jsonl` that names the review it replaces; the rest are ordinary
+  decisions.
+- **Issue 5.** The 44 corporate `entity_name` values are interim `correction` labels (new basis
+  `review_read_record`) in `interim_reviews.jsonl`, decided by the same vote (42 unanimous,
+  2 at 2-1). 31 name the entity the exhibit states, with a quote ("Electric City Corp." on the
+  LIME ENERGY certificates); 13 are null, where the record names no entity (subsidiary lists,
+  powers of attorney). They replace the Hub value, kept as `hub_value`.
 
 **Caveat:** the header values are not in the corpus text. An extraction from that text cannot find
 them, so scores on those fields drop until mailroom-dataset restores the headers.
 
-## What changes when `decisions.jsonl` is built
+## What changed when the decisions were applied
 
-| Near-gold truth | Today | With the decisions |
-| --- | ---: | ---: |
-| Documents in the overlay | 950 | 1,534 |
-| Labels in the overlay | 5,843 | 9,041 |
-| Correspondence fields used as truth | 4,256 | 6,253 |
-| Corporate-record fields used as truth | 75 | 799 |
-| Contract fields used as truth (not reviewed here) | 900 | 900 |
-| Reviewed labels left unused as single-pass candidates | 2,652 | 1 |
-| Near-gold truth that disagrees with the review | 40 | 1 |
+The "With the decisions" column is this validation's in-memory forecast; "Applied" is the
+committed overlay after `scripts/gold_labels.py review` (2026-11-18).
 
-The decisions contain 3,069 `accept` and 173 `correct` lines, and no `reject` lines (the four owner `signatories` decisions are already in the catalog, from #336). They
-are keyed to the catalogs exactly as `main` has them:
+| Near-gold truth | Before | With the decisions | Applied |
+| --- | ---: | ---: | ---: |
+| Documents in the overlay | 950 | 1,534 | 1,535 |
+| Labels in the overlay | 5,843 | 9,041 | 9,101 |
+| Correspondence labels in the overlay | 4,256 | 6,253 | 6,994 |
+| Corporate-record labels in the overlay | 75 | 799 | 1,207 |
+| Contract labels in the overlay (not reviewed here) | 900 | 900 | 900 |
+| Reviewed labels left unused as single-pass candidates | 2,652 | 1 | 0 |
+
+Every correspondence and corporate-record catalog record is now `near_gold`. Four catalog
+values differ from their verdict: the split held label DOC-6e5eb0c3089badbc `action_items`,
+and three reply-rule labels whose accepted value is the header reading while the verdict's
+`text_only_value` is empty or shorter (DOC-2ccf94f14bd5f040 and DOC-d3d85dc1b1514bec
+`additional_recipients`, DOC-39f0bf8b666ffa71 `recipient`).
+
+The decisions contain 3,088 `accept` and 216 `correct` lines (3,069 and 173 before the
+consensus review), and no `reject` lines (the four owner `signatories` decisions are already
+in the catalog, from #336). `decisions_supersede.jsonl` adds 11 `correct` lines that replace
+an earlier review they name. They were keyed to the catalogs exactly as `main` had them:
 
 - Each `accept` names the current value, as the gate on `main` requires.
 - Each `correct` passes `validate_submission` on the Hub text.
 - The owner's own desk decisions are carried as decided.
 
-`tests/test_label_review_decisions.py` checks all of this without the Hub. Ten labels are held
-in `decisions_held.jsonl`:
+`tests/test_label_review_decisions.py` checks, without the Hub, that each one is applied to
+its catalog record. Ten labels were held in `decisions_held.jsonl`; one is left:
 
-- 8 belong to records that an earlier review decision already settled. The build refuses a
-  second decision, so the earlier line has to be replaced in its source review file.
-- 1 `action_items` correction fails the gate.
-- 1 sender has no verbatim quote.
+- 8 belonged to records that an earlier review decision already settled. A line in
+  `decisions_supersede.jsonl` now names that review and replaces it for 7 of them; the vote on
+  DOC-6e5eb0c3089badbc `action_items` split, so it stays held.
+- 1 `action_items` correction failed the gate; the vote kept the fuller wording, which the
+  gate supports.
+- 1 sender had no verbatim quote; the vote took the two signature lines, quoted as written.
 
 ### The reply rule
 
@@ -118,7 +155,7 @@ that field is empty.
 
 ## Issues found
 
-1. **[High] Interim gap fills override reviewed gold.** In this order, interim values win over
+1. **[High, resolved: reviewed gold supersedes] Interim gap fills override reviewed gold.** In this order, interim values win over
    reviewed near-gold:
 
    | Class | Disagreements with the review | Audit "wrong" values still used as truth | Reply-rule labels the interim layer holds back |
@@ -148,9 +185,9 @@ that field is empty.
    scorer word multipliers and currency prefixes. A per-month fee may also be payment terms
    rather than a contract value. **Decided:** the labels were normalised to plain dollar figures,
    with the rate left out of the amount (see "Resolved since this validation").
-4. **[Medium] Ten review labels are held** (see above). Seventy-one other labels wait in
-   `needs_human`, grouped by question in `policy_questions.json`.
-5. **[Medium] 44 Hub corporate `entity_name` values are not in the text.** They reach
+4. **[Medium, resolved: consensus vote] Ten review labels are held** (see above). Seventy-one
+   other labels wait in `needs_human`, grouped by question in `policy_questions.json`.
+5. **[Medium, resolved: 44 interim corrections] 44 Hub corporate `entity_name` values are not in the text.** They reach
    0–50% token coverage. They are the EDGAR filer name rather than a name the exhibit states.
    For example, "LIME ENERGY CO." is on a certificate that amends Electric City Corp. Hub
    truth, not reviewed here.
@@ -190,10 +227,14 @@ otherwise.
 
 - Near-gold labels are Claude-reviewed and not human gold. `use_as_truth` stays false, and
   the floor viewer reports them as their own tier.
-- Header values from the original emails are not in the decisions. Correspondence truth is
-  text-only until the owner adopts header values.
+- Header values from the original emails are interim `original_header` labels (issue 6), not
+  gold decisions. They win over the text-only gold labels of the same fields at run time.
 - Contract near-gold labels (#323) were checked for schema, Dojo type and scorability only.
   They were not re-read against the documents.
-- Applying the decisions takes `scripts/gold_labels.py build ... --review
-  data/labels/review/decisions.jsonl` together with the original label, check and review
-  passes listed in `data/labels/gold/MANIFEST.json`. Those passes are not in the repository.
+- The decisions were applied in place with `scripts/gold_labels.py review --corpus <dir>
+  --review data/labels/review/decisions.jsonl data/labels/review/decisions_supersede.jsonl`,
+  on the Hub text at `bc9eab28` (every catalog `doc_sha` matches it; `ccd040f6` is not in the
+  local cache). A later full `build` needs the original label, check and review passes listed
+  in `data/labels/gold/MANIFEST.json`, which are not in the repository, plus these two files.
+- Policy and held labels were decided by Claude under the owner's delegation, by majority of
+  three independent readings, not by a human.

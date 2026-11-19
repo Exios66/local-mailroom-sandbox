@@ -27,7 +27,8 @@ def test_committed_overlay_is_consistent():
             if "review" in lab:  # a reviewed label: a header read or a read of the message, with evidence
                 assert lab["basis"] in il.REVIEW_BASES and lab["review"]["file"] and lab["review"]["reviewer"]
                 assert (field in il.HEADER_FIELDS) == (lab["basis"] == "original_header"), (rec["doc_id"], field)
-                assert lab["evidence"] or lab["basis"] == "review_read_message", (rec["doc_id"], field)
+                assert lab["evidence"] or lab["basis"] == "review_read_message" or (
+                    lab["basis"] == "review_read_record" and lab["value"] is None), (rec["doc_id"], field)
                 continue
             if lab["status"] == "gap_fill":
                 assert field in il.GAP_FIELDS[cls], (rec["doc_id"], field)
@@ -695,3 +696,79 @@ def test_apply_overlay_parquet_refuses_an_overlay_rewritten_while_read(monkeypat
     table = pa.table({"document_id": ["D1"], "gt_fields": ["{}"]})
     with pytest.raises(ValueError, match="changed while it was read"):
         il.apply_overlay_parquet(table)
+
+
+def _record_line(value="Acme Holdings, Inc.", evidence=("The name of the corporation is Acme Holdings, Inc.",), **over):
+    line = {"doc_id": "D1", "doc_class": "corporate_record", "doc_subclass": "bylaws", "doc_sha256": "0123456789abcdef",
+            "field": "entity_name", "status": "correction", "basis": "review_read_record", "value": value,
+            "hub_value": "Acme Parent Corp", "evidence": list(evidence), "reviewer": {"model": "m", "role": "review"},
+            "note": "the record names its own entity"}
+    return {**line, **over}
+
+
+def test_review_read_record_corrects_a_corporate_entity_name():
+    assert il.review_line_problem(_record_line()) is None
+    assert il.review_line_problem(_record_line(None, ())) is None  # the record names no entity
+    bad = {
+        "needs a quote": _record_line(evidence=()),
+        "quotes nothing": _record_line(None),
+        "list of quotes": _record_line(evidence=({"text": "x"},)),
+        "needs the hub_value": _record_line(hub_value=None),
+        "does not cover": _record_line(field="jurisdiction"),
+        "takes status correction": _record_line(status="gap_fill"),
+    }
+    for want, line in bad.items():
+        why = il.review_line_problem(line)
+        assert why and want in why, (want, why)
+    # A correction replaces the Hub value; a null one marks the field as documented-absent.
+    row = _row(entity_name="Acme Parent Corp", gt_presence=json.dumps({"entity_name": "populated"}))
+    for value in ("Acme Holdings, Inc.", None):
+        records: dict = {}
+        line = _record_line(value, () if value is None else _record_line()["evidence"],
+                            doc_sha256=il.doc_sha(row["doc_text"]))
+        assert il.apply_reviews(records, [line], "rev.jsonl") == (1, [])
+        exp = json.loads(il.apply_overlay(row, records, overlay_sha="s")["expected_fields"])
+        assert exp["entity_name"] == value
+        assert json.loads(exp["gt_presence"])["entity_name"] == ("populated" if value else "schema_documented_absence")
+
+
+def _gold(doc="D1", sha=None, **labels):
+    sha = sha or il.doc_sha(_row()["doc_text"])
+    return {doc: {"doc_id": doc, "doc_sha256": sha,
+                  "labels": {f: {"value": v, "basis": "near_gold:opus_reviewed_accept"} for f, v in labels.items()}}}
+
+
+def test_gold_conflicts_drop_contradicted_gate_gap_fills_and_keep_reviewed_ones():
+    sha = il.doc_sha(_row()["doc_text"])
+    overlay = {"D1": {"doc_id": "D1", "doc_class": "corporate_record", "doc_sha256": sha, "labels": {
+        "entity_name": {"value": "ACME HOLDINGS INC", "status": "gap_fill", "use_as_truth": True},
+        "jurisdiction": {"value": "Delaware", "status": "gap_fill", "use_as_truth": True},
+        "signatories": {"value": [], "status": "gap_fill", "use_as_truth": True},
+        "effective_date": {"value": "2020-03-03", "status": "gap_fill", "use_as_truth": True,
+                           "review": {"file": "r.jsonl"}},
+        "record_type": {"value": "bylaws", "status": "derived", "use_as_truth": True}}}}
+    gold = _gold(entity_name="Acme Holdings, Inc.", jurisdiction="Nevada", signatories=None,
+                 effective_date="2020-03-04", record_type="charter")
+    # token-equal names and two empties agree; a derived label is not a gap fill
+    assert il.gold_conflicts(overlay, gold) == ([("D1", "jurisdiction")], [("D1", "effective_date")])
+    # Gold that read other text says nothing about this label.
+    assert il.gold_conflicts(overlay, _gold(sha="f" * 16, jurisdiction="Nevada")) == ([], [])
+
+
+def test_check_prunes_gap_fills_reviewed_gold_contradicts(tmp_path, monkeypatch, capsys):
+    from mailroom_sandbox import gold_labels as gl
+
+    root = tmp_path / "interim"
+    mod, _ = _overlay_two_labels(root)
+    monkeypatch.setattr(mod, "_local_gate_runs", lambda: {})
+    monkeypatch.setattr(gl, "load_near_gold", lambda *a, **k: _gold(jurisdiction="Nevada", entity_name="Acme"))
+    assert mod.check(root, None, prune=False) == 1
+    assert "D1.jurisdiction: superseded by reviewed gold" in capsys.readouterr().out
+    assert mod.check(root, None, prune=True) == 0
+    rec = json.loads((root / "corporate_record.jsonl").read_text())
+    assert set(rec["labels"]) == {"entity_name"} and il.verify(root) == []
+    # At run time near-gold now fills the field: Hub GT, then interim, then reviewed gold.
+    row = _row()
+    out = il.apply_overlay(row, il.load_overlay(root), overlay_sha="s")
+    out = gl.apply_near_gold(out, _gold(jurisdiction="Nevada"), overlay_sha="g")
+    assert json.loads(out["expected_fields"])["jurisdiction"] == "Nevada"

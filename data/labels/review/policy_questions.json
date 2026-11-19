@@ -1,46 +1,167 @@
 {
  "group": {
   "q": "Is a named group in the salutation the recipient?",
-  "why": "The guide counts a named group addressee ('Dear GISB Members') as the recipient and a generic salutation as empty. These salutations sit on the line: decide whether each one names a defined group."
+  "why": "The guide counts a named group addressee ('Dear GISB Members') as the recipient and a generic salutation as empty. These salutations sit on the line: decide whether each one names a defined group.",
+  "decision": "A salutation or To line that names a defined group is the recipient: a membership qualified by an organisation, market, service or event (Market Participants, Committee Member, a named service's clients, customers or users, a named community, a programme's Participants). An open-ended audience phrase such as 'All Interested Parties' gives null.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 10,
+   "unanimous": 6,
+   "two_to_one": 4,
+   "split": 0,
+   "verified": 7,
+   "corrected": 3,
+   "left_needs_human": 0
+  }
  },
  "bulk": {
   "q": "Do optional asks in bulk mail count?",
-  "why": "Bulk and promotional mail has no action items and routine urgency under the guide. These are association, exchange or event mailings whose asks (RSVP, enroll, file a claim within 10 days) apply only to readers who opt in."
+  "why": "Bulk and promotional mail has no action items and routine urgency under the guide. These are association, exchange or event mailings whose asks (RSVP, enroll, file a claim within 10 days) apply only to readers who opt in.",
+  "decision": "Association, exchange, school-club and event mailings to a membership or list are bulk mail. Their opt-in asks (RSVP, enroll, register, file a claim within N days, click to acknowledge receipt) are calls to action, not action items, so action_items is [] and urgency is routine.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 15,
+   "unanimous": 14,
+   "two_to_one": 1,
+   "split": 0,
+   "verified": 0,
+   "corrected": 15,
+   "left_needs_human": 0
+  }
  },
  "soft": {
   "q": "Is this wording a task for the reader?",
-  "why": "Each label lists a sentence that might not be a request: a soft question, a suggestion, a pointer to read, or a cancellation."
+  "why": "Each label lists a sentence that might not be a request: a soft question, a suggestion, a pointer to read, or a cancellation.",
+  "decision": "A direct question or explicit request put to the reader is an action item, even when softened ('Just wondering'). A cancellation ('please disregard'), a permission to stop, a suggestion floated to a group, a rallying statement, a pointer to read, and how-to reference steps are not. Instructions the reader is plainly asked to carry out count, rewritten as concrete tasks (at most 3).",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 9,
+   "unanimous": 8,
+   "two_to_one": 0,
+   "split": 1,
+   "verified": 1,
+   "corrected": 7,
+   "left_needs_human": 1
+  }
  },
  "urgency": {
   "q": "Time-sensitive or routine?",
-  "why": "Each has a date or 'ASAP' nearby, but it is unclear whether it puts pressure on the reader."
+  "why": "Each has a date or 'ASAP' nearby, but it is unclear whether it puts pressure on the reader.",
+  "decision": "time-sensitive needs a near deadline or a dated request the reader must meet (including confirming something today or tomorrow); urgent needs a stated urgency word (ASAP, as soon as possible) that presses the reader's task. A deadline that is only reported, a meeting reminder, an optional social invite, a future meeting arrangement and an ASAP about the sender's own speed are routine.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 14,
+   "unanimous": 12,
+   "two_to_one": 2,
+   "split": 0,
+   "verified": 5,
+   "corrected": 9,
+   "left_needs_human": 0
+  }
  },
  "fwd": {
   "q": "Do a forwarder's 'Please handle' and the quoted asks merge?",
-  "why": "The top note asks the reader to act on the forwarded mail, so the quoted asks may be the real tasks."
+  "why": "The top note asks the reader to act on the forwarded mail, so the quoted asks may be the real tasks.",
+  "decision": "When a forwarder's top note ('Please handle') hands the quoted asks to the reader, the quoted concrete asks become the action items (the bare 'Please handle' is not one) and the quoted deadline sets urgency. In a bare forward with no note, asks the quoted sender made of others are not the reader's tasks, and an already-answered ASAP in older quoted mail does not make the forward urgent.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 3,
+   "unanimous": 3,
+   "two_to_one": 0,
+   "split": 0,
+   "verified": 1,
+   "corrected": 2,
+   "left_needs_human": 0
+  }
  },
  "other": {
   "q": "Other",
-  "why": ""
+  "why": "",
+  "decision": "The sender is a name the text gives as the sender (a signature, a From line, an issuing body named as speaking). A sponsor or department merely mentioned in the body of an unsigned announcement is not a sender, so the field stays null.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 1,
+   "unanimous": 0,
+   "two_to_one": 1,
+   "split": 0,
+   "verified": 1,
+   "corrected": 0,
+   "left_needs_human": 0
+  }
  },
  "compiled": {
   "q": "Compiled filings: which record do the labels describe?",
-  "why": "These files bundle several records (articles plus later amendments, several powers of attorney, several issuers). The label describes the first record; the note names what the later ones add. Keep the first record, or take the suggestion."
+  "why": "These files bundle several records (articles plus later amendments, several powers of attorney, several issuers). The label describes the first record; the note names what the later ones add. Keep the first record, or take the suggestion.",
+  "decision": "In a filing that bundles several records, single-valued fields (effective_date, jurisdiction) describe the first (base) record or first-named issuer. signatories list every person who signs any bundled record with /s/ or a filled signature (not the Secretary of State's certifying signature), limited to names visible in the text, as the owner corrected DOC-b0801e4d4bb58191.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 7,
+   "unanimous": 6,
+   "two_to_one": 1,
+   "split": 0,
+   "verified": 4,
+   "corrected": 3,
+   "left_needs_human": 0
+  }
  },
  "printed": {
   "q": "Do printed names without /s/ or a filled signature line count as signatories?",
-  "why": "The guide says 'as printed in the execution block'. In these copies some names are typed under blank signature lines, marked '*' as previously filed, or named only in the opening paragraph. Keep the printed names, or take the stricter reading."
+  "why": "The guide says 'as printed in the execution block'. In these copies some names are typed under blank signature lines, marked '*' as previously filed, or named only in the opening paragraph. Keep the printed names, or take the stricter reading.",
+  "decision": "Only names with /s/ or a filled signature in an execution block are signatories. Names typed under blank signature lines, marked '*' as previously filed, named only in an opening certification or a notary acknowledgment do not count, so a record nobody signed is []. Where the execution block lies outside the excerpt, the current label is kept as undecidable.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 9,
+   "unanimous": 8,
+   "two_to_one": 1,
+   "split": 0,
+   "verified": 3,
+   "corrected": 6,
+   "left_needs_human": 0
+  }
  },
  "datekind": {
   "q": "'Effective upon filing' with no filing date, or only an as-of date: date or null?",
-  "why": "No effective, adoption or filing date is stated. The label uses the signing or as-of reporting date; null is the strict reading."
+  "why": "No effective, adoption or filing date is stated. The label uses the signing or as-of reporting date; null is the strict reading.",
+  "decision": "When no effective, adoption or filing date is stated, the record's own signing or as-of date stays as its effective_date, as the owner kept such dates on DOC-ba0a00b00ba2ed62 and DOC-bda69bc956881bab. Null only when the record states no date at all.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 3,
+   "unanimous": 0,
+   "two_to_one": 3,
+   "split": 0,
+   "verified": 3,
+   "corrected": 0,
+   "left_needs_human": 0
+  }
  },
  "intent": {
   "q": "Which intent fits?",
-  "why": "The Hub heuristic and the extraction gate disagree, and both readings fit the message. Pick the primary purpose."
+  "why": "The Hub heuristic and the extraction gate disagree, and both readings fit the message. Pick the primary purpose.",
+  "decision": "Pick the intent of the message's primary purpose: what the sender wants from the reader (a meeting, a decision) outranks the background analysis or notice wording around it. A board meeting notice with agenda, or a note proposing to get together, is meeting_invite; an analysis ending in 'how should we proceed?' is request.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 3,
+   "unanimous": 2,
+   "two_to_one": 1,
+   "split": 0,
+   "verified": 0,
+   "corrected": 3,
+   "left_needs_human": 0
+  }
  },
  "renewal": {
   "q": "Does a renewal only by mutual agreement count as renewal_terms?",
-  "why": "Each contract says it 'may be renewed' or 'extended' only if both parties agree. CUAD's Renewal Term marks none of them (CUAD tags automatic renewals). Keep the gate value, or set null."
+  "why": "Each contract says it 'may be renewed' or 'extended' only if both parties agree. CUAD's Renewal Term marks none of them (CUAD tags automatic renewals). Keep the gate value, or set null.",
+  "decision": "A clause that allows renewal or extension only by mutual agreement of the parties grants no renewal term (CUAD Renewal Term marks automatic or unilateral renewals), so renewal_terms is null and the Hub's null stands.",
+  "decided_by": "claude (delegated by owner, 2026-11-18)",
+  "consensus": {
+   "labels": 3,
+   "unanimous": 0,
+   "two_to_one": 3,
+   "split": 0,
+   "verified": 3,
+   "corrected": 0,
+   "left_needs_human": 0
+  }
  }
 }
