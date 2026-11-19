@@ -16,7 +16,7 @@ branch protection.
 | Job | Checks |
 | --- | --- |
 | `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint CLI2 0.18.1. Tool versions are pinned in [`lint-requirements.txt`](lint-requirements.txt); rule exclusions live in the repository config files (`pyproject.toml`, `.yamllint.yaml`, `.shellcheckrc`, `.markdownlint-cli2.yaml`). |
-| `checks` | Committed generated files match their generators: the reports-hub snapshot (`build_hub.py --check`), the requirements mirrors (`sync_requirements.py --check`), the CLI reference (`check_cli_surface.py --check`) and the runbook catalog pins plus generated `docs/runbooks/` (`sandbox runbook check`). Network-free; it needs the dev virtualenv but waits for no other job. |
+| `checks` | Committed generated files match their generators: the reports-hub snapshot (`build_hub.py --check`), the requirements mirrors (`sync_requirements.py --check`), the CLI reference (`check_cli_surface.py --check`) and the runbook catalog pins plus generated `docs/runbooks/` (`sandbox runbook check`), and the campaign report indexes (`sandbox report build --campaign rb1 --check`). Network-free; it needs the dev virtualenv but waits for no other job. |
 | `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. JUnit results are stored even when a shard fails, so the timing split keeps its data. |
 | `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total and stores coverage XML. |
 

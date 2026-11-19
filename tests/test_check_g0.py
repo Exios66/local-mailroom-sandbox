@@ -17,7 +17,7 @@ def _load():
 def test_every_committed_smoke_config_is_a_gate():
     g0 = _load()
     names = [name for name, _, _ in g0.gates()]
-    smoke = sorted(p.stem.removeprefix("runbook-r01-smoke-") for p in (ROOT / "config/runs").glob("runbook-r01-smoke-*.yaml"))
+    smoke = sorted(p.stem.removeprefix("rb1-r01-smoke-") for p in (ROOT / "config/runs").glob("rb1-r01-smoke-*.yaml"))
     assert smoke, "R01 smoke configs are committed"
     assert [n.removeprefix("R01 smoke ") for n in names if n.startswith("R01 smoke ")] == smoke
     assert names[:2] == ["R00 split audit", "R00 schemas registry"]
@@ -28,7 +28,7 @@ def test_every_committed_smoke_config_is_a_gate():
 def test_missing_evidence_is_reported_and_fails(tmp_path):
     g0 = _load()
     (tmp_path / "config/runs").mkdir(parents=True)
-    (tmp_path / "config/runs/runbook-r01-smoke-m.yaml").write_text("x: 1\n")
+    (tmp_path / "config/runs/rb1-r01-smoke-m.yaml").write_text("x: 1\n")
     rows = {name: (cmd, missing) for name, cmd, missing in g0.gates(tmp_path)}
     assert rows["R01 smoke m"][0] is None and "served-m.jsonl" in rows["R01 smoke m"][1]
     assert rows["R03 gold audit sorter"][0] is None
@@ -37,11 +37,11 @@ def test_missing_evidence_is_reported_and_fails(tmp_path):
 def test_present_evidence_becomes_a_command(tmp_path):
     g0 = _load()
     (tmp_path / "config/runs").mkdir(parents=True)
-    (tmp_path / "config/runs/runbook-r01-smoke-m.yaml").write_text("x: 1\n")
-    (tmp_path / "data/runtime/r01").mkdir(parents=True)
-    (tmp_path / "data/runtime/r01/served-m.jsonl").write_text("")
+    (tmp_path / "config/runs/rb1-r01-smoke-m.yaml").write_text("x: 1\n")
+    (tmp_path / "data/runtime/rb1-r01").mkdir(parents=True)
+    (tmp_path / "data/runtime/rb1-r01/served-m.jsonl").write_text("")
     (tmp_path / "data/labels/review").mkdir(parents=True)
     (tmp_path / "data/labels/review/r03-merger-audit.csv").write_text("")
     rows = {name: cmd for name, cmd, _ in g0.gates(tmp_path)}
-    assert "--ledger" in rows["R01 smoke m"] and rows["R01 smoke m"][-1].endswith("runbook-r01-smoke-m.yaml")
+    assert "--ledger" in rows["R01 smoke m"] and rows["R01 smoke m"][-1].endswith("rb1-r01-smoke-m.yaml")
     assert rows["R03 gold audit merger"][-2:] == ["--summarize", str(tmp_path / "data/labels/review/r03-merger-audit.csv")]

@@ -132,11 +132,11 @@ production truth.
 
 Evaluation runbook row R03 (`docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md`, Task 4) adjudicates about 100 v0-vs-gold disagreements per lineage, correspondence first. Gate: gold is wrong on at most 15% of the audited documents, or the labels are corrected as a new labels version.
 
-1. The owner launches the v0 passes at the spend gate (`sandbox run preflight`, then `sandbox run start ... --initials <XX>`): `config/runs/runbook-r03-sorter-v0-dev.yaml` and one config per specialist lineage, `config/runs/runbook-r03-{insurance,correspondence,corporate,contracts,merger}-v0-dev.yaml`. Each runs on its class's dev documents of `config/splits/runbook-v1` with the interim and near-gold overlays; each header gives its cost estimate and caps.
+1. The owner launches the v0 passes at the spend gate (`sandbox run preflight`, then `sandbox run start ... --initials <XX>`): `config/runs/rb1-r03-sorter-v0-dev.yaml` and one config per specialist lineage, `config/runs/rb1-r03-{insurance,correspondence,corporate,contracts,merger}-v0-dev.yaml`. Each runs on its class's dev documents of `config/splits/runbook-v1` with the interim and near-gold overlays; each header gives its cost estimate and caps.
 2. Build the sheet from the finished run (no model call):
 
    ```bash
-   python scripts/build_gold_audit_sheet.py --run runbook-r03-correspondence-v0-dev \
+   python scripts/build_gold_audit_sheet.py --run rb1-r03-correspondence-v0-dev \
        --lineage correspondence --n 100 --seed 20261118
    ```
 

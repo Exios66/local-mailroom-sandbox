@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Replay the R02 hand-check sheet through the run scorers and compare with the hand scores.
 
-    HF_HUB_OFFLINE=1 python scripts/check_scorer_handcheck.py [--sheet-dir reports/runbook/r02-handcheck]
+    HF_HUB_OFFLINE=1 python scripts/check_scorer_handcheck.py [--sheet-dir reports/campaigns/rb1/rb1-r02-scorer-handcheck]
 
-Reads ``sheet.csv``, ``cases.jsonl`` and ``provenance.json`` written by
+Reads ``rb1-r02.sheet.csv``, ``rb1-r02.cases.jsonl`` and ``rb1-r02.provenance.json`` written by
 ``scripts/build_scorer_handcheck.py``, reloads the truth rows (HF cache at the recorded revision
 with both overlays, or ``--rows FILE``) and refuses a document whose text or labels moved since
 the sheet was built. Each case is scored by the code real runs use: the sorter row scorer, the
@@ -30,7 +30,7 @@ from typing import Any
 from mailroom_sandbox import scorer_handcheck as hc
 from mailroom_sandbox.paths import repo_root
 
-DEFAULT_DIR = Path("reports/runbook/r02-handcheck")
+DEFAULT_DIR = Path("reports/campaigns/rb1/rb1-r02-scorer-handcheck")
 DEFAULT_SPLIT = Path("config/splits/runbook-v1")
 MAX_LISTED = 20
 
@@ -102,9 +102,9 @@ def main(argv: list[str] | None = None) -> int:
     from mailroom_sandbox.experiment_splits import load_unit_table
     from mailroom_sandbox.job.gate import load_bars
 
-    sheet = hc.read_sheet(sheet_dir / "sheet.csv")
-    records = hc.read_jsonl(sheet_dir / "cases.jsonl")
-    prov = json.loads((sheet_dir / "provenance.json").read_text(encoding="utf-8"))
+    sheet = hc.read_sheet(sheet_dir / hc.SHEET_FILE)
+    records = hc.read_jsonl(sheet_dir / hc.CASES_FILE)
+    prov = json.loads((sheet_dir / hc.PROVENANCE_FILE).read_text(encoding="utf-8"))
     truth_rows, _ = _load_build_module().load_truth(split_dir, args.rows)
     rows = {str(r["id"]): r for r in truth_rows}
 

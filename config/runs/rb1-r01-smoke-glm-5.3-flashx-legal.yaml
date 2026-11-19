@@ -1,5 +1,5 @@
-# Evaluation runbook R01 (SAND-108): 10-document provider-pin smoke for qwen/qwen3.7-flash.
-# Gate: every ledger row for qwen/qwen3.7-flash is `status: verified` (non-empty provider_pins.yaml
+# Evaluation runbook R01 (SAND-108): 10-document provider-pin smoke for z-ai/glm-5.3-flashx-legal.
+# Gate: every ledger row for z-ai/glm-5.3-flashx-legal is `status: verified` (non-empty provider_pins.yaml
 # `order`, served provider inside it, served model equal to the id or its canonical_slug), and
 # the ledger holds at least 10 docs x 2 per-document agents = 20 rows (scripts/check_r01_smoke.py).
 # The whole pipeline (task: pipeline) on 2 dev-look1 documents per class, so the sorter and all
@@ -10,26 +10,29 @@
 # profile otherwise sends judge to deepseek/deepseek-v4-flash), so every chat call is this model.
 # No agent_knobs: the overlay input caps (sorter 12k chars) and context fit apply; the smoke checks
 # routing, not accuracy.
+# Priced and profiled under the alias; the served dated slug z-ai/glm-5.3-flashx-legal-20261102
+# (provider_pins.yaml canonical_slug) counts as a match. The design also pins a reasoning effort
+# for this model; none is set here until the owner names it (agent_knobs reasoning_effort).
 #
-# Blocked until config/provider_pins.yaml has a non-empty `order` for qwen/qwen3.7-flash
+# Blocked until config/provider_pins.yaml has a non-empty `order` for z-ai/glm-5.3-flashx-legal
 # (python scripts/refresh_provider_pins.py; owner choice): with `order: []` every row is
 # `unverified` and the gate fails.
 #
 # Cost (config/api_prices.yaml list prices with tiers; the 10 drawn documents are 1k-383k
 # chars, ~4 chars/token, two merger agreements are ~70% of it; output assumed 300 tokens per
 # sorter call, 2,000 per specialist call, 500 per judge call; context fit lets the judge read
-# the whole document): about $0.032 on the clean path (sorter + specialist), about
-# $0.058 with one judge pass per document, worst case $0.248 (3 extraction,
-# judge and arbiter passes each). Caps: api_cost_cap_usd 0.09 (about 1.5x the judged path;
+# the whole document): about $0.165 on the clean path (sorter + specialist), about
+# $0.283 with one judge pass per document, worst case $1.140 (3 extraction,
+# judge and arbiter passes each). Caps: api_cost_cap_usd 0.43 (about 1.5x the judged path;
 # checked before each document, concurrency 2 keeps the overshoot to the documents in flight),
 # max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
 # repository root:
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-qwen3.7-flash.jsonl sandbox run preflight --config config/runs/runbook-r01-smoke-qwen3.7-flash.yaml
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-qwen3.7-flash.jsonl sandbox run start --config config/runs/runbook-r01-smoke-qwen3.7-flash.yaml --initials <XX>
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-glm-5.3-flashx-legal.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-glm-5.3-flashx-legal.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-glm-5.3-flashx-legal.jsonl sandbox run start --config config/runs/rb1-r01-smoke-glm-5.3-flashx-legal.yaml --initials <XX>
 # Gate (offline, after the run):
-#   python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-qwen3.7-flash.jsonl --config config/runs/runbook-r01-smoke-qwen3.7-flash.yaml
+#   python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-glm-5.3-flashx-legal.jsonl --config config/runs/rb1-r01-smoke-glm-5.3-flashx-legal.yaml
 schema: sandbox.run/v1
-run_id: runbook-r01-smoke-qwen3.7-flash
+run_id: rb1-r01-smoke-glm-5.3-flashx-legal
 task: pipeline
 profile: openrouter
 
@@ -59,12 +62,12 @@ dataset:
 
 engine:
   kind: openrouter
-  model: qwen/qwen3.7-flash
+  model: z-ai/glm-5.3-flashx-legal
   modal: null
 
 agent_routes:
-  judge: {provider: openrouter, model: qwen/qwen3.7-flash}
-  boss: {provider: openrouter, model: qwen/qwen3.7-flash}
+  judge: {provider: openrouter, model: z-ai/glm-5.3-flashx-legal}
+  boss: {provider: openrouter, model: z-ai/glm-5.3-flashx-legal}
 
 job:
   mode: endpoint
@@ -72,9 +75,9 @@ job:
   max_retries: 1
   fail_fast: false
   concurrency: 2
-  cost_cap_usd: 0.09
+  cost_cap_usd: 0.43
   max_wall_seconds: 1800
-  api_cost_cap_usd: 0.09
+  api_cost_cap_usd: 0.43
 
 trace:
   sink: none
