@@ -650,7 +650,14 @@ def exact_noninferiority(ok_a: Sequence[bool], ok_b: Sequence[bool], margin: flo
     return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower, "p_value": p_value}
 
 
-def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPHA) -> dict[str, Any]:
+#: Classes exempt from the macro-F1 per-class support rule (owner decision, 2026-11-19). Merger
+#: agreements are the corpus's smallest class but its longest, densest documents: a split cannot
+#: hold 29 of them at dev-look1 size, so their shortfall is reported, not blocking.
+SUPPORT_EXEMPT_CLASSES: tuple[str, ...] = ("merger_agreement",)
+
+
+def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPHA,
+                        exempt: Sequence[str] = SUPPORT_EXEMPT_CLASSES) -> dict[str, Any]:
     """Per-class document support a macro-F1 non-inferiority claim needs.
 
     Macro-F1 weighs every class equally, so a class with few documents can hide a drop that moves
@@ -658,7 +665,8 @@ def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPH
     discordance in a class of n_c documents, its error rate is only bounded by 1 - alpha^(1/n_c)
     (rule of three). Moving the macro score by that much over K classes stays inside the margin
     only when n_c >= ln(alpha) / ln(1 - K * margin). A class under that count leaves the claim
-    unsupported, whatever the bootstrap says.
+    unsupported, whatever the bootstrap says. A class in ``exempt`` is listed under
+    ``exempt_underpowered`` instead and does not block the claim.
     """
     counts: dict[str, int] = defaultdict(int)
     for t in truth:
@@ -667,7 +675,8 @@ def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPH
     need = 1 if k == 0 or k * margin >= 1 else math.ceil(math.log(alpha) / math.log(1 - k * margin))
     short = {c: n for c, n in sorted(counts.items()) if n < need}
     return {"classes": k, "min_docs_per_class": need, "per_class": dict(sorted(counts.items())),
-            "underpowered": short}
+            "underpowered": {c: n for c, n in short.items() if c not in exempt},
+            "exempt_underpowered": {c: n for c, n in short.items() if c in exempt}}
 
 
 def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence[str],
@@ -1023,7 +1032,10 @@ def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> lis
                      f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)"
                      + (f"; {ni['unavailable']}" if ni.get("unavailable") else "")
                      + (f"; classes under {ni['class_support']['min_docs_per_class']} docs: "
-                        f"{ni['class_support']['underpowered']}" if (ni.get("class_support") or {}).get("underpowered") else ""))
+                        f"{ni['class_support']['underpowered']}" if (ni.get("class_support") or {}).get("underpowered") else "")
+                     + (f"; exempt, under {ni['class_support']['min_docs_per_class']}: "
+                        f"{ni['class_support']['exempt_underpowered']}"
+                        if (ni.get("class_support") or {}).get("exempt_underpowered") else ""))
     cost = p.get("cost")
     if cost:
         lo, hi = cost["per_1k_docs"]["ci95"]

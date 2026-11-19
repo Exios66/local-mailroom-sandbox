@@ -405,6 +405,9 @@ def test_macro_noninferiority_needs_per_class_support():
     # 5 classes and a 2-point margin: each class needs ln(0.05)/ln(0.9) -> 29 documents.
     support = sa.macro_class_support(["a"] * 40 + ["b"] * 40 + ["c"] * 40 + ["d"] * 40 + ["e"] * 1, 0.02)
     assert support["min_docs_per_class"] == 29 and support["underpowered"] == {"e": 1}
+    # merger_agreement is exempt (owner decision): its shortfall is reported but does not block.
+    mergers = sa.macro_class_support(["a"] * 40 + ["b"] * 40 + ["c"] * 40 + ["d"] * 40 + ["merger_agreement"] * 20, 0.02)
+    assert mergers["underpowered"] == {} and mergers["exempt_underpowered"] == {"merger_agreement": 20}
 
 
 def test_a_minority_class_both_arms_get_right_cannot_carry_macro_noninferiority(tmp_path, split):
