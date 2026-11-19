@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **Dependency contract alignment (#345).** FastAPI 0.163.1 and Modal 1.6.4 move together with the guarded CLI pin, installed-version checks, SDK contract fixtures and operator docs. Historical serving measurements retain their recorded versions. No deployment is performed.
+
 - **Backpressure on the pipeline's filesystem bins.** The bins act as queues, and nothing bounded them: the watcher queued every inbox file it saw, and `sandbox api eval` uploaded every row before waiting for any. Each stage now has a maximum depth (`MAILROOM_MAX_QUEUE_DEPTH_<INBOX|DISPATCH|PROCESSING|REVIEW>`, defaults 256 / 32 / 32 / off, in the new `mailroom_sandbox.backpressure`). At a limit, intake slows and nothing is dropped.
   - HF-005 wraps the vendored `pipeline.watcher._DispatchPool.submit`. Over a limit the file stays in `inbox/` and the 1-second rescan offers it again. It is `unavailable` (not stale) where langfuse is not installed, since the watcher imports it. Upstream draft J-4.
   - In-process pipeline runs wait before writing into a full shared inbox, for at most `MAILROOM_BACKPRESSURE_TIMEOUT_SECONDS` (default 600; `0` = no limit). Past it the document raises `BackpressureTimeout`: a job run records an error row and goes on (rerun on resume), and a direct eval stops as it does on any document error.

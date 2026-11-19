@@ -32,7 +32,7 @@ full verified command list, start with
 | Requirement | Version | Notes |
 | --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
-| Modal CLI | SDK 1.6.3 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
+| Modal CLI | SDK 1.6.4 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
 | Docker + Compose | latest | Langfuse tracing + the Jupyter image (optional providers) |
 | NVIDIA GPU (optional) | Any CUDA GPU | Only for the `vllm` compose profile / `vllm-local` |
 | Ollama (optional) | latest | Offline/CPU fallback (`--profile ollama`) |
@@ -59,7 +59,7 @@ cp config/.env.example .env          # edit as needed
 | `dev` | pytest, pytest-mock, pytest-cov, markdown-it-py, huggingface_hub, pyarrow (+ `[pipeline]`; the scoring vendored stack is in BASE deps) |
 | `notebooks` | jupyterlab, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
-| `deploy` | modal (SDK 1.6.3 pinned) |
+| `deploy` | modal (SDK 1.6.4 pinned) |
 | `pipeline` | langchain-core, langchain-openai, langgraph, fastapi, sqlalchemy/aiosqlite, pdf stack (the family code ships vendored, not as an extra) |
 | `observability` | langfuse, braintrust, opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
 | `decision` | pydantic-ai-slim[typesafe] (Decisions-API reviewer backend) |

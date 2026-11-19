@@ -58,7 +58,7 @@ The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 
 ## Modal
 
-Modal SDK **1.6.3** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.4** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (v0.29.0 flips the engine core — bump both pins
 after a parity run); full workflow (knobs, costs, security, troubleshooting)
 in [`deploy/README.md`](../../deploy/README.md).
