@@ -213,6 +213,17 @@ def _install_dispatch_backpressure(_module: Any, original: Callable[..., Any]) -
     return submit
 
 
+def _install_explicit_zero_confidence(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def confidence_missing(self: Any, result: dict) -> bool:
+        value = result.get("confidence")
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0:
+            return False
+        return original(self, result)
+
+    return confidence_missing
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -265,6 +276,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "when limited) are below MAILROOM_MAX_QUEUE_DEPTH_<STAGE>; a held file stays in "
                 "the inbox for the next rescan, never dropped (mailroom_sandbox.backpressure)",
         install=_install_dispatch_backpressure,
+    ),
+    Hotfix(
+        id="HF-006",
+        module="langchain_agents.specialist_agents",
+        attr="_SpecialistBase._confidence_missing",
+        source_sha256="dc2dacb46b6cfd3e7ccd3fd4bd4dff611ba1c91356f86c91567a57086078858c",
+        upstream="https://github.com/Exios66/llm-mailroom/issues/279",
+        summary="an explicit numeric confidence of zero remains zero on single and chunked "
+                "extractions instead of being replaced by field-presence confidence",
+        install=_install_explicit_zero_confidence,
     ),
 )
 

@@ -800,11 +800,17 @@ def _hotfix_check() -> dict[str, Any]:
 
     status = vendor_hotfixes.apply_hotfixes()
     stale = sorted(i for i, s in status.items() if s == "stale")
+    unavailable = sorted(i for i, s in status.items() if s != "applied" and s != "stale"
+                         and not (i == "HF-005" and s == "unavailable"))
     detail = ", ".join(f"{i} {s}" for i, s in sorted(status.items())) or "none"
     if stale:
         return {"name": "vendor_hotfixes", "ok": False,
                 "detail": f"{detail}: the vendored target changed; re-validate or retire {', '.join(stale)} "
                           "(docs/vendor-hotfixes.md)"}
+    if unavailable:
+        return {"name": "vendor_hotfixes", "ok": False,
+                "detail": f"{detail}: required hotfixes are not applied: {', '.join(unavailable)} "
+                          "(install the pipeline dependencies; docs/vendor-hotfixes.md)"}
     return {"name": "vendor_hotfixes", "ok": True, "detail": detail}
 
 

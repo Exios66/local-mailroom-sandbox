@@ -22,9 +22,10 @@ id (``SHF-001`` ...), and never silently:
 
 Outside a :func:`hotfixed` block every scoring-call fix is off, so a scorer that does not opt in
 gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
-threads never see each other's mode. Two fixes act outside a scoring call and are on whenever
+threads never see each other's mode. Three fixes act outside a scoring call and are on whenever
 they are current: SHF-010 during truth preparation (``gold_labels.apply_near_gold``) and SHF-009
-in the Decisions routing contract (``decision_backends``). See ``docs/scoring-hotfixes.md``.
+in the Decisions routing contract (``decision_backends``), and SHF-013 in isolated subclass
+scoring and sorter-arm comparisons. See ``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations

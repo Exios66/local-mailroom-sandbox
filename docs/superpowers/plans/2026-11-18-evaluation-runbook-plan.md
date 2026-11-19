@@ -12,6 +12,10 @@ discussion: "https://github.com/Exios66/local-mailroom-sandbox/discussions/343"
 
 # Mailroom sorter and extraction evaluation runbook — research plan
 
+The [campaign contract](../../EXPERIMENT-CAMPAIGN-CONTRACT.md) records the current dataset,
+truth precedence, sandbox patches, cost-estimate scope and remaining validation gates.
+The v9.3/runbook-v2 amendment is recorded in the Deviations log; historical run locks stay frozen.
+
 > Pre-registration contract for the runbook. Phase 0 (R00-R03, G0) has two parts:
 > offline preparation that runs in this sandbox today (split, leak audit, statistics,
 > schema registry, provider pins), and live work that needs human initials at the spend
@@ -29,6 +33,9 @@ sequential looks (300 / 600 / 900) and an exact-McNemar keep rule, transfer fini
 versions to DeepSeek V4.1 Flash and GLM 5.3 FlashX Legal, certify gates with one-sided
 Clopper-Pearson bounds on calibration, then run one sealed, Holm-adjusted confirmatory
 pass on held-out.
+
+Review and handoff checklist: [campaign preparation regressions](../../campaign-preparation-regressions.md).
+Cite applicable `CP-*` IDs, tested source and remaining acceptance; preparation is not G0 sign-off.
 
 ## Hypotheses (pre-registered on sign-off)
 

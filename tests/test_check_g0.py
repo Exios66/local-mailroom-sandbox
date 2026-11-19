@@ -21,6 +21,7 @@ def test_every_committed_smoke_config_is_a_gate():
     assert smoke, "R01 smoke configs are committed"
     assert [n.removeprefix("R01 smoke ") for n in names if n.startswith("R01 smoke ")] == smoke
     assert names[:2] == ["R00 split audit", "R00 schemas registry"]
+    assert "Campaign hotfixes" in names
     assert "R02 scorer hand-check" in names
     assert [n for n in names if n.startswith("R03")] == [f"R03 gold audit {x}" for x in g0.R03_LINEAGES]
 

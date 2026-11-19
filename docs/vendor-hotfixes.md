@@ -4,7 +4,9 @@
 so it is never edited. A pipeline fix an experiment needs before llm-mailroom ships it lives in
 [`src/mailroom_sandbox/vendor_hotfixes.py`](../src/mailroom_sandbox/vendor_hotfixes.py): each
 hotfix wraps one vendored function at activation, and every run that starts from this checkout
-gets it. Scoring is never patched here; the scorer is the Dojo pin.
+gets it. Scoring corrections have their own fingerprinted, dual-reported layer in
+[scoring-hotfixes.md](scoring-hotfixes.md). The combined conditions are in the
+[campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md).
 
 ## How a hotfix stays honest
 
@@ -24,6 +26,11 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
 
 ## Active hotfixes
 
+Run `python scripts/check_hotfixes.py` before a campaign checkpoint. Required fixes marked
+`unavailable` now fail alongside stale fixes. HF-005 is optional only where the watcher is
+not installed; `--require-watcher` requires it to be applied. G0 invokes this combined
+pipeline/scoring check, and run execution still verifies the locked identities.
+
 | Id | Target | Fix | Upstream |
 | --- | --- | --- | --- |
 | HF-001 | `langchain_agents.doc_inventories.enrich_extraction` | A null corporate `record_type` is filled from every corporate subclass through Dojo's subclass → `record_type` map. Upstream fills it only for the five Hub tokens, so indenture, board_resolution, officer_certificate, subsidiary_list, charter_amendment and certificate_of_formation left it null. | [Exios66/llm-mailroom#313](https://github.com/Exios66/llm-mailroom/issues/313) |
@@ -31,6 +38,7 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
 | HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` replaces the document only when it keeps 90% of its length and its words: aligned in order, no run of 8 or more source words and no more than 5% of them may be lost, so a reply that drops a clause is refused even at full length. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. | draft J-2 below (not filed) |
 | HF-004 | `pipeline.limits.record_usage` | Every returned call is priced against the run's `job.api_cost_cap_usd` as it returns (`job/call_guard.py`). With the provider-pin wrappers refusing any OpenRouter call once the cap or the per-document call ceiling (40 for `pipeline`, 16 otherwise) is reached, a document in flight cannot overspend; a document the guard cut short becomes an error row, never a score. The R01 smoke's two merger agreements ran ~140 calls past the between-document check. | draft J-3 below (not filed) |
 | HF-005 | `pipeline.watcher._DispatchPool.submit` | Backpressure. The watcher queues an inbox file for a worker slot only while the in-memory dispatch queue and `processing/` (and `review/`, when limited) are below their `MAILROOM_MAX_QUEUE_DEPTH_<STAGE>` limits (`mailroom_sandbox.backpressure`). Over a limit the file stays in `inbox/` and the next 1-second rescan offers it again, so intake slows and nothing is dropped. Upstream queued every inbox file with no bound. | draft J-4 below (not filed) |
+| HF-006 | `langchain_agents.specialist_agents._SpecialistBase._confidence_missing` | Preserve an explicit numeric `0.0` in single and chunked extraction. Only missing confidence receives the existing evidence-derived fallback; a zero-confidence window cannot be lifted by that fallback. | [Exios66/llm-mailroom#279](https://github.com/Exios66/llm-mailroom/issues/279) |
 
 ### Draft llm-mailroom issues (not filed)
 
