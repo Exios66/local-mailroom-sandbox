@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.summarize:
             result = gold_audit.summarize(Path(args.summarize), threshold=args.threshold)
             print(json.dumps(result, indent=2))
-            return {"pass": 0, "fail": 1}.get(result["gate"], 3)
+            return {"pass": 0, "fail": 1, "too_small": 1}.get(result["gate"], 3)
         if not (args.run and args.lineage and args.seed is not None):
             parser.error("building a sheet needs --run, --lineage and --seed")
         if args.n < 1:

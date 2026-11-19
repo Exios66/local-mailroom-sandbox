@@ -12,6 +12,11 @@ from mailroom_sandbox.paths import repo_root
 RUNS = repo_root() / "config" / "runs"
 QWEN = RUNS / "runbook-r01-smoke-qwen3.7-flash.yaml"
 LUNA = RUNS / "runbook-r01-smoke-gpt-6-luna-decisions.yaml"
+QWEN_RUN = yaml.safe_load(QWEN.read_text())["run_id"]
+LUNA_RUN = yaml.safe_load(LUNA.read_text())["run_id"]
+# The pipeline smoke draws 2 docs per class: the sorter (10) and the contract and merger
+# specialists (4) are LangChain calls, the other 6 specialists go through the retry path.
+PIPELINE_PATHS = ["langchain"] * 14 + ["retry_chat_completion"] * 6
 
 
 @pytest.fixture(scope="module")
@@ -22,9 +27,16 @@ def gate():
     return mod
 
 
-def _row(model, status="verified", provider="Alibaba", served=None, path="langchain"):
+def _row(model, status="verified", provider="Alibaba", served=None, path="langchain", run_id=None):
+    if run_id is None:
+        run_id = LUNA_RUN if path == "decisions" else QWEN_RUN
     return {"requested_model": model, "served_model": served or model, "served_provider": provider,
-            "pinned_order": ["Alibaba"], "status": status, "mismatch": status == "mismatch", "call_path": path}
+            "pinned_order": ["Alibaba"], "status": status, "mismatch": status == "mismatch", "call_path": path,
+            "run_id": run_id}
+
+
+def _pipeline_rows(model="qwen/qwen3.7-flash", extra=0):
+    return [_row(model, path=p) for p in PIPELINE_PATHS + ["retry_chat_completion"] * extra]
 
 
 def _ledger(tmp_path, rows, name="served.jsonl"):
@@ -39,7 +51,7 @@ def _run(gate, capsys, *args):
 
 
 def test_twenty_verified_rows_pass_the_pipeline_smoke(gate, tmp_path, capsys):
-    rows = [_row("qwen/qwen3.7-flash", path=p) for p in ["langchain"] * 12 + ["retry_chat_completion"] * 8]
+    rows = _pipeline_rows()
     code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, rows), "--config", QWEN)
     assert code == 0, out.out
     assert "PASS qwen/qwen3.7-flash: 20 rows (>= 20 expected" in out.out
@@ -59,7 +71,7 @@ def test_fewer_rows_than_expected_calls_fails(gate, tmp_path, capsys):
 
 @pytest.mark.parametrize("bad", [{"status": "unverified"}, {"status": "mismatch"}, {"status": None}])
 def test_any_row_that_is_not_verified_fails(gate, tmp_path, capsys, bad):
-    rows = [_row("qwen/qwen3.7-flash") for _ in range(24)]
+    rows = _pipeline_rows(extra=4)
     rows[3].update(bad)
     if bad["status"] is None:
         del rows[3]["status"]  # an old-format row carries no status: never evidence
@@ -70,13 +82,13 @@ def test_any_row_that_is_not_verified_fails(gate, tmp_path, capsys, bad):
 
 
 def test_mismatch_false_without_verified_status_is_not_evidence(gate, tmp_path, capsys):
-    rows = [{**_row("qwen/qwen3.7-flash"), "status": "unverified", "mismatch": False} for _ in range(20)]
+    rows = [{**r, "status": "unverified", "mismatch": False} for r in _pipeline_rows()]
     code, _ = _run(gate, capsys, "--ledger", _ledger(tmp_path, rows), "--config", QWEN)
     assert code == 1
 
 
 def test_rows_for_an_unnamed_model_fail_unless_allowed(gate, tmp_path, capsys):
-    rows = [_row("qwen/qwen3.7-flash")] * 20 + [_row("deepseek/deepseek-v4-flash", status="unverified")]
+    rows = _pipeline_rows() + [_row("deepseek/deepseek-v4-flash", status="unverified")]
     ledger = _ledger(tmp_path, rows)
     code, out = _run(gate, capsys, "--ledger", ledger, "--config", QWEN)
     assert code == 1 and "FAIL rows for models no config names: {'deepseek/deepseek-v4-flash': 1}" in out.out
@@ -93,7 +105,7 @@ def test_decision_smoke_expects_one_decision_per_document(gate, tmp_path, capsys
 
 
 def test_ledgers_and_configs_pool(gate, tmp_path, capsys):
-    a = _ledger(tmp_path, [_row("qwen/qwen3.7-flash")] * 20, "a.jsonl")
+    a = _ledger(tmp_path, _pipeline_rows(), "a.jsonl")
     b = _ledger(tmp_path, [_row("openai/gpt-6-luna-decisions", path="decisions")] * 10, "b.jsonl")
     code, out = _run(gate, capsys, "--ledger", a, "--ledger", b, "--config", QWEN, LUNA)
     assert code == 0, out.out
@@ -101,7 +113,7 @@ def test_ledgers_and_configs_pool(gate, tmp_path, capsys):
 
 
 def test_per_doc_override_and_unreadable_input(gate, tmp_path, capsys):
-    rows = [_row("qwen/qwen3.7-flash")] * 30
+    rows = _pipeline_rows(extra=10)
     code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, rows), "--config", QWEN, "--per-doc", "4")
     assert code == 1 and "30 rows < 40 expected" in out.out
     bad = tmp_path / "bad.jsonl"
@@ -116,7 +128,8 @@ def test_expected_calls_by_task(gate):
     from mailroom_sandbox.job.spec import load_run_spec
 
     sorter = load_run_spec(RUNS / "runbook-r03-sorter-v0-dev.yaml")
-    assert gate.expected_calls(sorter) == {"qwen/qwen3.7-flash": {"docs": 900, "per_doc": 1, "agents": ["sorter"]}}
+    assert gate.expected_calls(sorter) == {"qwen/qwen3.7-flash": {"docs": 900, "per_doc": 1, "agents": ["sorter"],
+                                                                  "paths": {"langchain": 900}}}
     pipeline = load_run_spec(QWEN)
     table = {"sorter": {"provider": "openrouter", "model": "a/m"},
              "contracts_specialist": {"provider": "openrouter", "model": "a/m"},
@@ -125,6 +138,7 @@ def test_expected_calls_by_task(gate):
         gate.expected_calls(pipeline, assignments=table)
     table["merger_agreement_specialist"]["model"] = "a/m"
     assert gate.expected_calls(pipeline, assignments=table)["a/m"]["per_doc"] == 2
+    assert gate.expected_calls(pipeline, assignments=table)["a/m"]["paths"] == {"langchain": 14, "retry_chat_completion": 6}
     table["sorter"] = {"provider": "modal-vllm", "model": "Qwen/x"}
     with pytest.raises(gate.GateInputError, match="not served over OpenRouter"):
         gate.expected_calls(pipeline, assignments=table)
@@ -155,3 +169,21 @@ def test_every_pinned_chat_model_has_a_smoke_config_that_calls_only_that_model(g
             assert models == {model}, f"{path.name} routes other models: {models}"
     assert {m: seen.get(m) for m in pins} == {m: 2 for m in pins}
     assert seen.get("openai/gpt-6-luna-decisions") == 1 and seen.get("typesafe/jev-1.14") == 1
+
+
+def test_right_total_with_no_langchain_rows_fails(gate, tmp_path, capsys):
+    """Retry-path rows (specialists, judge passes) cannot stand in for an unrecorded LangChain path."""
+    rows = [_row("qwen/qwen3.7-flash", path="retry_chat_completion") for _ in range(24)]
+    code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, rows), "--config", QWEN)
+    assert code == 1 and "0 langchain rows < 14 expected on that call path" in out.out
+
+
+def test_rows_from_another_run_are_set_aside(gate, tmp_path, capsys):
+    """A relaunch appending to the same ledger file never pools the earlier run's rows."""
+    stale = [{**r, "run_id": "an-earlier-launch"} for r in _pipeline_rows()]
+    unstamped = [{k: v for k, v in r.items() if k != "run_id"} for r in _pipeline_rows()]
+    code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, stale + unstamped), "--config", QWEN)
+    assert code == 1 and "no ledger rows" in out.out
+    assert "rows from other runs set aside: {'None': 20, 'an-earlier-launch': 20}" in out.out
+    code, _ = _run(gate, capsys, "--ledger", _ledger(tmp_path, stale, "s.jsonl"), "--config", QWEN, "--any-run")
+    assert code == 0

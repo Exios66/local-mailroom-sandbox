@@ -38,6 +38,27 @@ from typing import Any, Iterable
 
 SPECIALIST_TASKS = {"specialist"}
 SINGLE_CALL_TASKS = {"sorter", "isolated"}
+# Which ledger call path each agent's requests take: the vendored LangChain agents (the sorter
+# and the contracts and merger specialists) through the pinned ChatOpenAI subclass, the other
+# specialists through the wrapped retry_chat_completion, Decisions models through the Decisions API.
+LANGCHAIN_SPECIALIST_CLASSES = {"contract", "merger_agreement"}
+LANGCHAIN, RETRY, DECISIONS = "langchain", "retry_chat_completion", "decisions"
+
+
+def _class_counts(spec: Any) -> dict[str, int] | None:
+    """Documents per class when the config draws by ``strata`` buckets, else ``None``."""
+    strata = getattr(spec.dataset, "strata", None)
+    buckets = strata.get("buckets") if isinstance(strata, dict) else getattr(strata, "buckets", None)
+    if not buckets:
+        return None
+    counts: dict[str, int] = {}
+    for bucket in buckets:
+        cls = getattr(bucket, "doc_class", None) if not isinstance(bucket, dict) else bucket.get("doc_class")
+        n = getattr(bucket, "count", None) if not isinstance(bucket, dict) else bucket.get("count")
+        if not cls or not isinstance(n, int):
+            return None
+        counts[str(cls)] = counts.get(str(cls), 0) + n
+    return counts
 
 
 class GateInputError(ValueError):
@@ -78,35 +99,49 @@ def expected_calls(spec: Any, *, per_doc: int | None = None,
         raise GateInputError(f"{spec.run_id or 'config'}: dataset.limit must name the document count")
     reviewer = spec.reviewer
     if spec.task == "sorter_reviewer" and reviewer is not None and reviewer.backend == "decisions":
-        return {reviewer.model: {"docs": docs, "per_doc": per_doc or 1, "agents": ["sorter_reviewer (decisions)"]}}
+        return {reviewer.model: {"docs": docs, "per_doc": per_doc or 1, "agents": ["sorter_reviewer (decisions)"],
+                                 "paths": {} if per_doc else {DECISIONS: docs}}}
     table = assignments if assignments is not None else _assignments(spec)
     routed = {name: a["model"] for name, a in table.items() if a.get("provider") == "openrouter"}
     specialists = sorted(name for name in table if name.endswith("_specialist"))
     out: dict[str, dict[str, Any]] = {}
 
-    def add(model: str | None, agent: str) -> None:
+    counts = _class_counts(spec)
+
+    def add(model: str | None, agent: str, paths: dict[str, int] | None = None) -> None:
         if not model:
             raise GateInputError(f"{spec.run_id or 'config'}: {agent} is not served over OpenRouter, so no ledger row is written")
-        entry = out.setdefault(model, {"docs": docs, "per_doc": 0, "agents": []})
+        entry = out.setdefault(model, {"docs": docs, "per_doc": 0, "agents": [], "paths": {}})
         entry["per_doc"] += 1
         entry["agents"].append(agent)
+        for path, n in (paths or {}).items():
+            if n:
+                entry["paths"][path] = entry["paths"].get(path, 0) + n
+
+    def specialist_paths(classes: dict[str, int] | None) -> dict[str, int] | None:
+        if classes is None:
+            return None  # no per-class draw: only the total and the sorter's path are checked
+        lc = sum(n for c, n in classes.items() if c in LANGCHAIN_SPECIALIST_CLASSES)
+        return {LANGCHAIN: lc, RETRY: sum(classes.values()) - lc}
 
     if spec.task == "pipeline":
-        add(routed.get("sorter"), "sorter")
+        add(routed.get("sorter"), "sorter", {LANGCHAIN: docs})
         models = {routed.get(name) for name in specialists}
         if len(models) != 1:
             raise GateInputError(f"{spec.run_id or 'config'}: specialists are split across models {sorted(map(str, models))}; "
                                  "pass --per-doc to state the expected calls")
-        add(models.pop(), "specialist (one per document)")
+        add(models.pop(), "specialist (one per document)", specialist_paths(counts))
     elif spec.task in SINGLE_CALL_TASKS:
-        add(routed.get("sorter"), "sorter")
+        add(routed.get("sorter"), "sorter", {LANGCHAIN: docs})
     elif spec.task in SPECIALIST_TASKS:
         target = spec.target
         names = [n for n in specialists if not target or n == target or n.startswith(str(target))] or specialists
         models = {routed.get(name) for name in names}
         if len(models) != 1:
             raise GateInputError(f"{spec.run_id or 'config'}: specialists are split across models; pass --per-doc")
-        add(models.pop(), "specialist")
+        cls = next((c for c in (counts or {}) if c), None) if counts and len(counts) == 1 else None
+        path = (LANGCHAIN if cls in LANGCHAIN_SPECIALIST_CLASSES else RETRY) if cls else None
+        add(models.pop(), "specialist", {path: docs} if path else None)
     elif spec.task in table:
         add(routed.get(spec.task), spec.task)
     else:
@@ -114,14 +149,23 @@ def expected_calls(spec: Any, *, per_doc: int | None = None,
     if per_doc:
         for entry in out.values():
             entry["per_doc"] = per_doc
+            entry["paths"] = {}  # an override states the total only
     return out
 
 
 def gate(rows: list[dict[str, Any]], expected: dict[str, dict[str, Any]], *,
-         allow_extra_models: bool = False) -> dict[str, Any]:
-    """Per-model verdicts plus the overall result."""
+         allow_extra_models: bool = False, run_ids: set[str] | None = None) -> dict[str, Any]:
+    """Per-model verdicts plus the overall result.
+
+    With ``run_ids``, only rows stamped with one of those runs count; rows from another run or
+    with no ``run_id`` (an earlier launch appending to the same ledger file) are set aside.
+    """
     by_model: dict[str, list[dict[str, Any]]] = {}
+    other_runs = Counter()
     for row in rows:
+        if run_ids is not None and row.get("run_id") not in run_ids:
+            other_runs[str(row.get("run_id"))] += 1
+            continue
         by_model.setdefault(str(row["requested_model"]), []).append(row)
     models: dict[str, dict[str, Any]] = {}
     for model, want in sorted(expected.items()):
@@ -133,6 +177,10 @@ def gate(rows: list[dict[str, Any]], expected: dict[str, dict[str, Any]], *,
             reasons.append("no ledger rows")
         elif len(got) < need:
             reasons.append(f"{len(got)} rows < {need} expected ({want['docs']} docs x {want['per_doc']} per-doc agents)")
+        paths = Counter(str(r.get("call_path") or RETRY) for r in got)
+        for path, n_need in sorted((want.get("paths") or {}).items()):
+            if paths.get(path, 0) < n_need:
+                reasons.append(f"{paths.get(path, 0)} {path} rows < {n_need} expected on that call path")
         not_verified = sum(n for s, n in status.items() if s != "verified")
         if not_verified:
             reasons.append(f"{not_verified} row(s) not verified: {dict(sorted((s, n) for s, n in status.items() if s != 'verified'))}")
@@ -144,13 +192,14 @@ def gate(rows: list[dict[str, Any]], expected: dict[str, dict[str, Any]], *,
             "status": dict(sorted(status.items())),
             "providers": dict(sorted(Counter(str(r.get("served_provider")) for r in got).items())),
             "served_models": dict(sorted(Counter(str(r.get("served_model")) for r in got).items())),
-            "call_paths": dict(sorted(Counter(str(r.get("call_path") or "retry_chat_completion") for r in got).items())),
+            "call_paths": dict(sorted(paths.items())),
+            "expected_paths": dict(sorted((want.get("paths") or {}).items())),
             "pinned_orders": sorted({json.dumps(r.get("pinned_order") or []) for r in got}),
             "reasons": reasons,
         }
     extra = {m: len(r) for m, r in sorted(by_model.items()) if m not in expected}
     ok = all(m["ok"] for m in models.values()) and (allow_extra_models or not extra)
-    return {"ok": ok, "models": models, "extra_models": extra}
+    return {"ok": ok, "models": models, "extra_models": extra, "other_run_rows": dict(sorted(other_runs.items()))}
 
 
 def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
@@ -159,8 +208,10 @@ def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
         lines.append(f"{'PASS' if m['ok'] else 'FAIL'} {model}: {m['rows']} rows (>= {m['expected_min']} expected; "
                      f"{', '.join(m['agents'])})")
         lines.append(f"     status {m['status']}  providers {m['providers']}  served {m['served_models']}  "
-                     f"paths {m['call_paths']}  pins {', '.join(m['pinned_orders'])}")
+                     f"paths {m['call_paths']} (need {m['expected_paths']})  pins {', '.join(m['pinned_orders'])}")
         lines.extend(f"     - {reason}" for reason in m["reasons"])
+    if result.get("other_run_rows"):
+        lines.append(f"note rows from other runs set aside: {result['other_run_rows']}")
     if result["extra_models"]:
         tag = "note" if allow_extra_models else "FAIL"
         lines.append(f"{tag} rows for models no config names: {result['extra_models']}")
@@ -178,6 +229,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--allow-extra-models", action="store_true",
                     help="report, but do not fail on, rows for models no config names")
     ap.add_argument("--json", action="store_true", help="print the full result as JSON")
+    ap.add_argument("--any-run", action="store_true",
+                    help="count rows from any run (default: only rows whose run_id is a config's run_id)")
     args = ap.parse_args(argv)
     if args.per_doc is not None and args.per_doc < 1:
         ap.error("--per-doc must be >= 1")
@@ -187,14 +240,20 @@ def main(argv: list[str] | None = None) -> int:
 
         rows = read_ledger(args.ledger)
         expected: dict[str, dict[str, Any]] = {}
+        run_ids: set[str] = set()
         for path in configs:
             try:
                 spec = load_run_spec(path)
             except Exception as exc:  # noqa: BLE001 — one line per unreadable config
                 raise GateInputError(f"cannot load {path}: {exc}") from exc
+            if not spec.run_id:
+                raise GateInputError(f"{path}: the config needs a run_id, which ledger rows are matched on")
+            run_ids.add(str(spec.run_id))
             for model, want in expected_calls(spec, per_doc=args.per_doc).items():
                 if model in expected:  # two configs on one model: their documents add up
                     expected[model]["docs"] += want["docs"]
+                    for p, n in want.get("paths", {}).items():
+                        expected[model].setdefault("paths", {})[p] = expected[model]["paths"].get(p, 0) + n
                     if expected[model]["per_doc"] != want["per_doc"]:
                         raise GateInputError(f"{model}: configs disagree on per-document calls; gate them separately")
                     expected[model]["agents"] = sorted(set(expected[model]["agents"]) | set(want["agents"]))
@@ -203,7 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     except GateInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    result = gate(rows, expected, allow_extra_models=args.allow_extra_models)
+    result = gate(rows, expected, allow_extra_models=args.allow_extra_models,
+                  run_ids=None if args.any_run else run_ids)
     print(json.dumps(result, indent=2, sort_keys=True) if args.json else render(result, allow_extra_models=args.allow_extra_models))
     return 0 if result["ok"] else 1
 

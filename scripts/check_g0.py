@@ -39,7 +39,7 @@ def r01_pairs(root: Path = ROOT) -> list[tuple[Path, Path]]:
 
 def gates(root: Path = ROOT) -> list[tuple[str, list[str] | None, str]]:
     """(name, command or None when its evidence is missing, what is missing)."""
-    py = [sys.executable, "-I"]
+    py = [sys.executable]  # not -I: a worktree's gates must import that worktree's src via PYTHONPATH
     out: list[tuple[str, list[str] | None, str]] = [
         ("R00 split audit", [*SANDBOX, "splits", "audit"], ""),
         ("R00 schemas registry", [*SANDBOX, "schemas", "build", "--check"], ""),

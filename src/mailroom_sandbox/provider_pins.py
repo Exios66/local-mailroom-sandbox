@@ -56,6 +56,7 @@ import json
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -147,7 +148,22 @@ def served_provider(response: Any) -> str | None:
     return str(value) if value else None
 
 
+_RUN_CONTEXT: dict[str, Any] = {}
+
+
+def set_run_context(run_id: str | None, spec_hash: str | None = None) -> None:
+    """Stamp every later ledger row with the run that made it (``None`` clears it).
+
+    The R01 gate keeps only rows whose ``run_id`` matches its config, so rows a relaunch or an
+    earlier run appended to the same ``SANDBOX_SERVED_LOG`` file are never pooled into it.
+    """
+    _RUN_CONTEXT.clear()
+    if run_id:
+        _RUN_CONTEXT.update(run_id=run_id, spec_hash=spec_hash)
+
+
 def _append(entry: dict[str, Any]) -> None:
+    entry = {**entry, **_RUN_CONTEXT, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     with _LOCK:
         _LEDGER.append(entry)
         log = os.environ.get("SANDBOX_SERVED_LOG")
@@ -199,6 +215,8 @@ def record_decision(model: str, data: Any, canonical_slug: str | None) -> dict[s
     The pin is the dated ``canonical_slug``: ``verified`` needs one, and a served model equal
     to the requested id (with or without its ``:variant``) or the slug. A different served
     model is a ``mismatch``. The served provider is recorded when named, never compared.
+    ``version_confirmed`` is true only when the served model is the dated slug itself: an echo of
+    the undated id proves the model, not its version.
     """
     served_model = _field(data, "model")
     served = served_model if isinstance(served_model, str) and served_model else None
@@ -219,6 +237,8 @@ def record_decision(model: str, data: Any, canonical_slug: str | None) -> dict[s
         "mismatch": model_off,
         "status": "mismatch" if model_off else "verified" if verified else "unverified",
         "call_path": "decisions",
+        "version_confirmed": bool(canonical_slug) and served is not None
+        and served.casefold() == str(canonical_slug).casefold(),
     }
     _append(entry)
     if model_off:

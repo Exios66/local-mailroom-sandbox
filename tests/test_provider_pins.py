@@ -434,3 +434,19 @@ def test_decide_and_decide_extraction_record_the_served_model(monkeypatch):
     rows = pp.ledger()
     assert [(r["call_path"], r["status"], r["canonical_slug"]) for r in rows] == [("decisions", "verified", slug)] * 2
     pp.reset_ledger()
+
+
+def test_ledger_rows_carry_the_run_that_made_them(vendored):
+    seen, base = vendored
+    client = _Client("https://openrouter.ai/api/v1")
+    pins = {"q/m": {"order": ["Served-Co"], "allow_fallbacks": False, "canonical_slug": None}}
+    pp.apply_provider_pins(pins)
+    pp.set_run_context("run-a", "hash-a")
+    try:
+        base.retry_chat_completion(client, model="q/m")
+    finally:
+        pp.set_run_context(None)
+    base.retry_chat_completion(client, model="q/m")
+    stamped, bare = pp.ledger()[-2:]
+    assert (stamped["run_id"], stamped["spec_hash"]) == ("run-a", "hash-a") and stamped["recorded_at"]
+    assert "run_id" not in bare

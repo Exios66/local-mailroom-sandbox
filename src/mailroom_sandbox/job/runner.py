@@ -997,8 +997,14 @@ def run_job(
         verify_locked(lock)
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
-            summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
-                               max_items=max_items, tracer=tracer, on_event=wrapped)
+            from mailroom_sandbox.provider_pins import set_run_context
+
+            set_run_context(store.run_id, lock.get("spec_hash"))  # R01 ledger rows name their run
+            try:
+                summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
+                                   max_items=max_items, tracer=tracer, on_event=wrapped)
+            finally:
+                set_run_context(None)
     except BaseException:
         finish({"state": "failed"})
         raise

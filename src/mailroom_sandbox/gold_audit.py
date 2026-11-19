@@ -316,10 +316,37 @@ def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: P
               "mismatch_below": mismatch_below, "verdict_level": verdict_level, **counts,
               "disagreements": len(candidates), "sampled": len(chosen),
               "sampled_documents": len({c["doc_id"] for c in chosen}),
+              "sampled_rows_sha256": rows_digest(chosen),
               "by_field": dict(Counter(c["field"].split(":", 1)[0] for c in candidates).most_common()),
               "by_label_source": dict(Counter(c["label_source"] for c in chosen).most_common()),
               "scorer_errors": scorer_errors[:20]}
     return SheetResult(rows=chosen, digest=digest)
+
+
+MIN_AUDITED_DOCS = 100  # R03: ~100 disagreements per lineage, or all a run has when it has fewer
+
+
+def rows_digest(rows: list[dict[str, Any]]) -> str:
+    """sha256 of the sheet's (doc_id, field) rows, so a trimmed or padded sheet is detected."""
+    keys = sorted(f"{r['doc_id']}\t{r['field']}" for r in rows)
+    return hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()
+
+
+def check_sheet_size(rows: list[dict[str, Any]], meta: dict[str, Any] | None) -> list[str]:
+    """Why a sheet is too small or altered for the gate (empty when it is the builder's full sample)."""
+    if meta is None:
+        return ["no <sheet>.meta.json from build_gold_audit_sheet.py; the sample size cannot be checked"]
+    problems = []
+    if meta.get("sampled_rows_sha256") and rows_digest(rows) != meta["sampled_rows_sha256"]:
+        problems.append("the sheet's rows differ from the builder's sample (trimmed, padded or edited ids)")
+    if len(rows) != meta.get("sampled"):
+        problems.append(f"{len(rows)} rows, but the builder sampled {meta.get('sampled')}")
+    floor = min(MIN_AUDITED_DOCS, int(meta.get("documents_with_disagreement") or meta.get("disagreements") or 0))
+    docs = len({r["doc_id"] for r in rows})
+    if docs < floor or docs == 0:
+        problems.append(f"{docs} audited documents < {floor} required (min({MIN_AUDITED_DOCS}, the run's documents "
+                        "with a disagreement))")
+    return problems
 
 
 def write_sheet(rows: list[dict[str, Any]], path: Path) -> None:
@@ -378,8 +405,13 @@ def summarize(path: Path, *, threshold: float = GATE_MAX_GOLD_WRONG) -> dict[str
     for r in done:
         by_source[r["label_source"]][r["verdict"].strip()] += 1
     out["by_label_source"] = {s: dict(c) for s, c in sorted(by_source.items())}
+    meta_path = Path(path).with_suffix(".meta.json")
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else None
+    out["size_problems"] = check_sheet_size(rows, meta)
     if blank:
         out["gate"] = "incomplete"
+    elif out["size_problems"]:
+        out["gate"] = "too_small"
     else:
         out["gate"] = "pass" if out["per_document"]["rate"] <= threshold else "fail"
     out["upper_bound_within_threshold"] = out["per_document"]["ci95"][1] <= threshold

@@ -190,10 +190,31 @@ def test_sample_is_deterministic_and_caps_rows_per_document():
 
 # --- summary and gate ---------------------------------------------------------------------------
 
-def _sheet(path: Path, verdicts: list[tuple[str, str]]) -> Path:
+def _sheet(path: Path, verdicts: list[tuple[str, str]], *, meta: bool = True, run_docs: int | None = None) -> Path:
+    """A filled sheet plus the builder's meta digest (as if the builder sampled exactly these rows)."""
     rows = [{"doc_id": d, "field": f"f{i}", "label_source": "hub", "verdict": v} for i, (d, v) in enumerate(verdicts)]
     ga.write_sheet(rows, path)
+    if meta:
+        docs = len({d for d, _ in verdicts})
+        path.with_suffix(".meta.json").write_text(json.dumps({
+            "sampled": len(rows), "sampled_rows_sha256": ga.rows_digest(rows),
+            "documents_with_disagreement": run_docs if run_docs is not None else docs}), encoding="utf-8")
     return path
+
+
+def test_summary_refuses_a_sheet_too_small_trimmed_or_without_its_digest(tmp_path):
+    """A one-row sheet, a hand-trimmed sheet or a sheet with no builder digest never passes R03."""
+    tiny = ga.summarize(_sheet(tmp_path / "t.csv", [("D1", "model_wrong")], run_docs=250))
+    assert tiny["gate"] == "too_small" and "1 audited documents < 100 required" in tiny["size_problems"][0]
+    assert ga.summarize(_sheet(tmp_path / "n.csv", [("D1", "model_wrong")], meta=False))["gate"] == "too_small"
+    full = _sheet(tmp_path / "f.csv", [(f"D{i}", "model_wrong") for i in range(100)])
+    with full.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    ga.write_sheet(rows[:99], full)  # trimmed after building
+    out = ga.summarize(full)
+    assert out["gate"] == "too_small" and any("differ from the builder" in p for p in out["size_problems"])
+    small_run = ga.summarize(_sheet(tmp_path / "s.csv", [(f"D{i}", "model_wrong") for i in range(12)], run_docs=12))
+    assert small_run["gate"] == "pass"  # a run with only 12 disagreeing documents audits all 12
 
 
 def test_clopper_pearson_interval_matches_the_beta_quantiles():
