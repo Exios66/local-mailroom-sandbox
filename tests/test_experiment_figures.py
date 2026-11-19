@@ -108,9 +108,11 @@ def _report():
                      _arm("rb1-r13b-b-dec", "sorter_reviewer", "openai/gpt-6-luna-decisions", 4.0, 2.29, 1.0, 4, True),
                      _arm("rb1-r13b-c-dec", "sorter_reviewer", "openai/gpt-6-luna-decisions", 2.0, 2.29, 1.0, 4, True)],
             "pairs": {rid: {"differences": {"class_accuracy": {"estimate": 0.0, "ci95": [0.0, 0.0]},
+                                            "class_macro_f1": {"estimate": 0.0, "ci95": [0.0, 0.0]},
                                             "unit_accuracy": {"estimate": 0.05, "ci95": [0.0, 0.15]}},
-                            "tests": {"noninferiority_macro_f1": {"non_inferior": False},
-                                      "noninferiority_unit": {"non_inferior": False}}}
+                            "tests": {"noninferiority_macro_f1": {"non_inferior": False, "lower95_one_sided": -0.17},
+                                      "noninferiority_unit": {"non_inferior": False,
+                                                             "lower95_one_sided": -0.16}}}
                       for rid in ("rb1-r13b-b-dec", "rb1-r13b-c-dec")}}
 
 
@@ -128,7 +130,9 @@ def test_comparison_titles_state_the_finding_and_the_cost_basis():
     assert "Decision model runs finished 3.5–7.0× faster than the LLM sorter" in figs["runtime"]
     assert "Decision model runs cost $0.28 more per 1,000 documents than the LLM sorter" in figs["cost-quality"]
     assert "estimated from the price sheet: LLM sorter" in figs["cost-quality"]
-    assert "Non-inferiority not shown at n = 20" in figs["quality"]
+    assert "Non-inferiority not shown at n = 20: test bounds fall below the margins" in figs["quality"]
+    assert "test bound -17.0" in figs["quality"]  # the bound the test decides on is drawn and labelled
+    assert "test bound -16.0" in figs["quality"]
     assert figs == cf.build(_report(), {"rb1-r13b-x-llm": [3.0, 2.5], "rb1-r13b-b-dec": [0.7, 0.8],
                                         "rb1-r13b-c-dec": [0.6]})
 

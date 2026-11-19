@@ -20,9 +20,10 @@ from typing import Any
 
 from mailroom_sandbox import figure_style as fs
 
-MEASURES = (("class_accuracy", "Class accuracy", None),
-            ("class_macro_f1", "Class macro-F1", "class_macro_f1"),
-            ("unit_accuracy", "Subclass-unit accuracy", "unit_accuracy"))
+# (difference key, label, margin key, non-inferiority test key in the report)
+MEASURES = (("class_accuracy", "Class accuracy", None, None),
+            ("class_macro_f1", "Class macro-F1", "class_macro_f1", "noninferiority_macro_f1"),
+            ("unit_accuracy", "Subclass-unit accuracy", "unit_accuracy", "noninferiority_unit"))
 
 
 def _system(arm: Mapping[str, Any]) -> str:
@@ -97,12 +98,12 @@ def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     secs = [_seconds(a) for a in arms]
     ax.barh(y, secs, color=[fs.SYSTEM_COLOURS[_system(a)] for a in arms], height=0.56)
     for yi, a, s in zip(y, arms, secs):
-        rt = a["runtime"]
+        # rates from the same seconds the bar shows, so bar, rate and speed-up agree
+        answered = (a.get("runtime") or {}).get("answered") or a.get("n") or report.get("n") or 0
+        per_min = answered / s * 60 if s else 0
         bits = [fs.fmt_seconds(s)]
-        if rt.get("docs_per_minute"):
-            bits.append(f"{rt['docs_per_minute']:.0f} documents/min")
-        if rt.get("hours_per_100k_docs"):
-            bits.append(f"{rt['hours_per_100k_docs']:.1f} h per 100k")
+        if per_min:
+            bits += [f"{per_min:.0f} documents/min", f"{100_000 / per_min / 60:.1f} h per 100k"]
         ax.text(s + max(secs) * 0.015, yi, " · ".join(bits), va="center", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
     ax.set_yticks(y, [labels[a["run_id"]] for a in arms])
     ax.set_xlim(0, max(secs) * 1.75)
@@ -180,30 +181,37 @@ def _quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     arms = {a["run_id"]: a for a in report["arms"]}
     rows = []
     for rid, p in pairs.items():
-        for key, name, margin_key in MEASURES:
+        for key, name, margin_key, test_key in MEASURES:
             d = (p.get("differences") or {}).get(key) or {}
             if d.get("estimate") is None:
                 continue
             ci = d.get("ci95") or [d["estimate"], d["estimate"]]
             margin = (report.get("margins") or {}).get(margin_key) if margin_key else None
-            rows.append((rid, name, 100 * d["estimate"], 100 * ci[0], 100 * ci[1], margin))
+            test = ((p.get("tests") or {}).get(test_key) or {}) if test_key else {}
+            bound = test.get("lower95_one_sided")
+            rows.append((rid, name, 100 * d["estimate"], 100 * ci[0], 100 * ci[1], margin,
+                         100 * bound if isinstance(bound, (int, float)) else None))
     if not rows:
         return None
     fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 0.36 * len(rows) + 1.6))
     y = list(range(len(rows)))[::-1]
-    for yi, (rid, _name, est, lo, hi, margin) in zip(y, rows):
+    for yi, (rid, _name, est, lo, hi, margin, bound) in zip(y, rows):
         colour = fs.SYSTEM_COLOURS[_system(arms[rid])]
-        ax.plot([lo, hi], [yi, yi], color=colour, linewidth=2, solid_capstyle="butt", zorder=3)
+        if bound is not None:
+            # the bound the non-inferiority test decides on (exact, one-sided): thin ink line to it
+            ax.plot([bound, est], [yi, yi], color=fs.INK_2, linewidth=1, zorder=2)
+            ax.plot([bound], [yi], marker="|", markersize=9, markeredgewidth=1.6, color=fs.INK, zorder=3)
+        ax.plot([lo, hi], [yi, yi], color=colour, linewidth=2.5, solid_capstyle="butt", zorder=3)
         ax.scatter([est], [yi], s=46, color=colour, edgecolors=fs.SURFACE, linewidths=1.5, zorder=4)
         if margin:
             ax.plot([-100 * margin] * 2, [yi - 0.38, yi + 0.38], color=fs.CRITICAL, linewidth=1.2,
                     linestyle=(0, (3, 2)), zorder=2)
-        ax.text(max(hi, est) + 0.6, yi, f"{est:+.1f} [{lo:+.1f}, {hi:+.1f}]", va="center",
-                fontsize=fs.SIZE["annotation"], color=fs.INK_2)
+        note = f"{est:+.1f} [{lo:+.1f}, {hi:+.1f}]" + (f", test bound {bound:+.1f}" if bound is not None else "")
+        ax.text(max(hi, est) + 0.6, yi, note, va="center", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
     ax.axvline(0, color=fs.INK_2, linewidth=1, zorder=2)
     multi = len(pairs) > 1
     ax.set_yticks(y, [f"{name} · {labels[rid]}" if multi else name for rid, name, *_ in rows])
-    span = max(max(abs(r[3]), abs(r[4])) for r in rows) + 4
+    span = max(max(abs(r[3]), abs(r[4]), abs(r[6] or 0)) for r in rows) + 4
     ax.set_xlim(-span, span * 1.6)
     fs.value_axis(ax, "x")
     fs.axis_labels(ax, "Candidate minus reference (percentage points)")
@@ -215,12 +223,12 @@ def _quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     elif any(flags):
         title = "Non-inferiority shown on some margins but not all"
     else:
-        title = f"Non-inferiority not shown at n = {n}; intervals still cross the margins"
+        title = f"Non-inferiority not shown at n = {n}: test bounds fall below the margins"
     ref = arms.get(report["reference"])
-    sub = (f"Each arm minus the {_lower(labels[ref['run_id']]) if ref else 'reference'} · "
-           "95% paired bootstrap · dashed red: margin")
+    sub = (f"Each arm minus the {_lower(labels[ref['run_id']]) if ref else 'reference'} · colour: 95% bootstrap · "
+           "black tick: test bound · red: margin")
     if len(sub) > fs.SUBTITLE_MAX:
-        sub = "Candidate minus reference · 95% paired bootstrap · dashed red: non-inferiority margin"
+        sub = "Candidate minus reference · colour: 95% bootstrap · black tick: test bound · red: margin"
     fs.heading(fig, ax, title, sub, _source(report))
     return f.svg(fig)
 
