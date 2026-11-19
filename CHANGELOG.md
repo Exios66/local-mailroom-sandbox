@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+- **Backpressure on the pipeline's filesystem bins.** The bins act as queues, and nothing bounded them: the watcher queued every inbox file it saw, and `sandbox api eval` uploaded every row before waiting for any. Each stage now has a maximum depth (`MAILROOM_MAX_QUEUE_DEPTH_<INBOX|DISPATCH|PROCESSING|REVIEW>`, defaults 256 / 32 / 32 / off, in the new `mailroom_sandbox.backpressure`). At a limit, intake slows and nothing is dropped.
+  - HF-005 wraps the vendored `pipeline.watcher._DispatchPool.submit`. Over a limit the file stays in `inbox/` and the 1-second rescan offers it again. It is `unavailable` (not stale) where langfuse is not installed, since the watcher imports it. Upstream draft J-4.
+  - In-process pipeline runs wait before writing into a full shared inbox.
+  - `run_api_eval` keeps at most `max_in_flight` uploads unfinished (default: the inbox limit). It retries a 503 from the API's pause gate as it does a 429, and no longer marks that refusal as an unconfirmed upload. If the window does not drain within `doc_timeout`, it stops sending and reports the rows it did not send.
+  - Adding a hotfix changes `vendor_hotfixes.describe()`, so a run locked before this change refuses to resume until it is re-locked, and a Modal job worker needs a redeploy from this checkout.
+
 - **The offline notebooks run again and leave the checkout clean.** Notebook 03 failed with `NameError` (`sorter` and `run_pipeline_eval` were never defined or imported), and notebook 02 failed its last assertion whenever Jupyter started the kernel in `notebooks/`. A relative `MAILROOM_BASE_DIR=./data` from `.env` also put pipeline run stores in `notebooks/data/`.
   - New `mailroom_sandbox.notebook`: `bootstrap()` (finds the checkout from any working directory, pins an absolute `MAILROOM_BASE_DIR`, uses the offline `ollama` profile unless `SANDBOX_PROFILE` is set, turns tracing off and pipeline logs down to `WARNING`), `experiment_log_redirect()` (notebook evals append to `data/runtime/notebooks/experiment_log.jsonl`; `SANDBOX_NOTEBOOK_LOG=reports` keeps the old target), and `check_prepared_artifacts()`.
   - Notebooks 01–03 are rewritten (step tables, cost notes, validation of prepared artifacts, a determinism check, dry-run plans, per-document pipeline results, an opt-in provider probe). The new `04_experiment_log_explorer` gives a read-only view of the records. `notebooks/README.md` is now real Markdown, not `#` comments.
