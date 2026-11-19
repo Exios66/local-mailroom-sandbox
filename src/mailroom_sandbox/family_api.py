@@ -309,7 +309,7 @@ def _wait_for_window(api: MailroomAPI, pending: dict[str, dict[str, Any]], max_i
     """
     deadline = clock() + doc_timeout
     while len(pending) >= max_in_flight:
-        lookup_error = _poll_pending(api, pending, deadline=None, clock=clock)
+        lookup_error = _poll_pending(api, pending, deadline=deadline, clock=clock)
         if lookup_error:
             return f"{lookup_error}; later rows were not sent", True
         if len(pending) < max_in_flight:
@@ -384,6 +384,7 @@ def run_api_eval(
     per_doc: list[dict[str, Any]] = []
     unconfirmed: str | None = None
     lookup_failed = False
+    window_timed_out = False
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
         used_names: set[str] = set()
         for index, raw in enumerate(rows):
@@ -399,6 +400,7 @@ def run_api_eval(
                     api, pending, max_in_flight, doc_timeout=doc_timeout,
                     poll_seconds=poll_seconds, sleep=sleep, clock=clock)
                 if error:
+                    window_timed_out = not lookup_failed
                     break
             try:
                 accepted = _upload_with_backoff(api, local, matter_id=matter_id,
@@ -415,8 +417,10 @@ def run_api_eval(
             pending[accepted["file"]] = entry
             per_doc.append(entry)
 
+    # A window that timed out has just polled these documents after waiting doc_timeout on them:
+    # report them unfinished instead of waiting a second doc_timeout.
     deadline = clock() + doc_timeout
-    while pending and not lookup_failed:
+    while pending and not lookup_failed and not window_timed_out:
         lookup_error = _poll_pending(api, pending, deadline=deadline, clock=clock)
         if lookup_error:
             error = f"{error}; {lookup_error}" if error else lookup_error

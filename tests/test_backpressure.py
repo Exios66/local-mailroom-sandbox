@@ -47,6 +47,18 @@ def test_a_bad_limit_falls_back_to_the_default(monkeypatch, raw):
     assert bp.limit("dispatch") == bp.DEFAULT_LIMITS["dispatch"]
 
 
+def test_intake_timeout_default_override_off_and_bad_values(monkeypatch):
+    monkeypatch.delenv(bp.TIMEOUT_ENV, raising=False)
+    assert bp.intake_timeout() == bp.DEFAULT_INTAKE_TIMEOUT_SECONDS
+    monkeypatch.setenv(bp.TIMEOUT_ENV, "30")
+    assert bp.intake_timeout() == 30.0
+    monkeypatch.setenv(bp.TIMEOUT_ENV, "0")
+    assert bp.intake_timeout() is None
+    for raw in ("-1", "soon", "nan", "inf"):
+        monkeypatch.setenv(bp.TIMEOUT_ENV, raw)
+        assert bp.intake_timeout() == bp.DEFAULT_INTAKE_TIMEOUT_SECONDS
+
+
 def test_unknown_stage_is_refused():
     with pytest.raises(ValueError, match="unknown stage"):
         bp.limit("archive")
@@ -187,7 +199,7 @@ def test_pipeline_runner_waits_for_inbox_room_before_writing(monkeypatch, job_da
     seen = []
 
     def hold(stages, **kw):
-        seen.append((tuple(stages), kw.get("what", "")))
+        seen.append((tuple(stages), kw.get("what", ""), kw.get("timeout")))
         raise Held
 
     monkeypatch.setattr(bp, "wait_for_capacity", hold)
@@ -197,6 +209,7 @@ def test_pipeline_runner_waits_for_inbox_room_before_writing(monkeypatch, job_da
     from pipeline.bins import list_inbox_files  # type: ignore
 
     assert seen and seen[0][0] == ("inbox",) and "pipeline intake" in seen[0][1]
+    assert seen[0][2] == bp.DEFAULT_INTAKE_TIMEOUT_SECONDS  # bounded: never past the wall cap for good
     assert list_inbox_files() == []  # the gate runs before the document is written
 
 
@@ -264,6 +277,25 @@ def test_api_eval_stops_sending_and_reports_when_the_window_never_drains(api_row
     assert api.uploads == 2 and report["n"] == 2 and report["n_rows"] == len(api_rows)
     assert report["error"].startswith("backpressure: 2 uploaded documents stayed unfinished")
     assert report["ok"] is False and len(report["incomplete"]) == 2  # accepted documents are still reported
+    # The window already waited doc_timeout; the final wait does not add a second one.
+    assert now[0] <= 10 + 1
+
+
+def test_api_eval_window_wait_honours_the_deadline_within_a_lookup_pass(api_rows):
+    """Slow lookups across a full window stop at doc_timeout instead of finishing the pass."""
+    api = _API(never=True)
+    now = [0.0]
+    lookup = api.lookup
+
+    def slow_lookup(*, filename):
+        now[0] += 4  # each lookup takes 4s
+        return lookup(filename=filename)
+
+    api.lookup = slow_lookup
+    report = family_api.run_api_eval(api_rows, api, sleep=lambda s: now.__setitem__(0, now[0] + s),
+                                     clock=lambda: now[0], max_in_flight=4, doc_timeout=6, poll_seconds=1)
+    assert report["error"].startswith("backpressure:") and api.uploads == 4
+    assert now[0] <= 6 + 4  # at most one lookup past the deadline, and no second wait
 
 
 def test_api_eval_retries_an_upload_refused_by_the_pause_gate(api_rows):

@@ -49,6 +49,12 @@ INITIAL_WAIT_SECONDS = 0.25
 MAX_WAIT_SECONDS = 5.0
 LOG_EVERY_SECONDS = 30.0
 
+#: How long an in-process producer waits for room before it gives up on one document
+#: (``MAILROOM_BACKPRESSURE_TIMEOUT_SECONDS``; ``0`` waits for as long as it takes). Bounded by
+#: default because a run checks its ``job.max_wall_seconds`` only between documents.
+TIMEOUT_ENV = "MAILROOM_BACKPRESSURE_TIMEOUT_SECONDS"
+DEFAULT_INTAKE_TIMEOUT_SECONDS = 600.0
+
 
 @dataclass(frozen=True)
 class Saturation:
@@ -83,6 +89,22 @@ def limit(stage: str) -> int:
             return value
         _log.warning("ignoring %s%s=%r: not a non-negative integer", ENV_PREFIX, stage.upper(), raw)
     return DEFAULT_LIMITS[stage]
+
+
+def intake_timeout() -> float | None:
+    """Seconds a producer may wait for room (None = no limit). A bad env value falls back."""
+    raw = os.environ.get(TIMEOUT_ENV, "").strip()
+    value = DEFAULT_INTAKE_TIMEOUT_SECONDS
+    if raw:
+        try:
+            parsed = float(raw)
+        except ValueError:
+            parsed = -1.0
+        if parsed >= 0 and parsed == parsed and parsed != float("inf"):
+            value = parsed
+        else:
+            _log.warning("ignoring %s=%r: not a finite non-negative number", TIMEOUT_ENV, raw)
+    return value or None
 
 
 def limits() -> dict[str, int]:

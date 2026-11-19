@@ -1469,8 +1469,11 @@ def _wait_for_inbox_room(target: Path, name: str) -> None:
     """Backpressure: hold a write into the pipeline's own inbox while that inbox is full.
 
     A full inbox means a watcher sharing this base dir is behind; the document waits here until
-    it drains and is never dropped (``mailroom_sandbox.backpressure``). A write anywhere else,
-    such as the API eval's staging directory, is not held.
+    it drains (``mailroom_sandbox.backpressure``). A write anywhere else, such as the API eval's
+    staging directory, is not held. The wait is bounded by ``backpressure.intake_timeout()``: a
+    stalled inbox fails that document with ``BackpressureTimeout`` (reported, and rerun on resume)
+    instead of holding the run past its ``job.max_wall_seconds``, which is checked only between
+    documents.
     """
     try:
         from pipeline.bins import inbox_dir  # type: ignore
@@ -1481,7 +1484,8 @@ def _wait_for_inbox_room(target: Path, name: str) -> None:
     if is_inbox:
         from mailroom_sandbox import backpressure
 
-        backpressure.wait_for_capacity(("inbox",), what=f"pipeline intake of {name}")
+        backpressure.wait_for_capacity(("inbox",), timeout=backpressure.intake_timeout(),
+                                       what=f"pipeline intake of {name}")
 
 
 def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:

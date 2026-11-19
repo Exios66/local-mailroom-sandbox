@@ -75,9 +75,12 @@ Each pipeline bin has a maximum depth. When a stage reaches it, intake waits; no
 | --- | --- | --- | --- |
 | `inbox` | `MAILROOM_MAX_QUEUE_DEPTH_INBOX` | 256 | The sandbox's in-process pipeline runs wait before writing a document into the shared inbox. `sandbox api eval` keeps at most this many uploads unfinished at once. |
 | `dispatch` | `MAILROOM_MAX_QUEUE_DEPTH_DISPATCH` | 32 | The watcher's in-memory queue (HF-005): new inbox files stay in `inbox/`. |
-| `processing` | `MAILROOM_MAX_QUEUE_DEPTH_PROCESSING` | 32 | The watcher (HF-005), as for `dispatch`. |
+| `processing` | `MAILROOM_MAX_QUEUE_DEPTH_PROCESSING` | 32 | The watcher (HF-005), as for `dispatch`. It gates new dispatch: a worker claims a queued file into `processing/` only when its slot frees, so the bin passes the limit only through claims left behind by crashed workers, and then nothing new is queued. |
 | `review` | `MAILROOM_MAX_QUEUE_DEPTH_REVIEW` | 0 (off) | The watcher (HF-005). Only a person drains `review/`, so a limit there would stall an unattended batch; set one only where a reviewer is on hand. |
 
 `0` turns a limit off; a value that is not a non-negative integer falls back to the default, with a warning.
+An in-process pipeline run waits at most `MAILROOM_BACKPRESSURE_TIMEOUT_SECONDS` (default 600; `0` = no limit) for
+room in a full inbox. Past it that document fails with `BackpressureTimeout` (reported, and rerun on resume), so a
+stalled inbox cannot hold a run past `job.max_wall_seconds`, which is checked only between documents.
 `sandbox api eval` also retries an upload that the API's pause gate refused (HTTP 503 "paused") after the rate-limit
 back-off. If its window stays full for `doc_timeout`, it stops sending and reports the rows it did not send.
