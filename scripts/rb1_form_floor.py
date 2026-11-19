@@ -116,9 +116,21 @@ def _jsonl(path: Path) -> list[dict]:
 
 
 def _masses(run_dir: Path) -> dict[str, tuple[float | None, bool]]:
-    """``{item_id: (human mass, parked)}``; mass is None when the run did not record it."""
-    out = {}
-    for item in _jsonl(run_dir / "items.jsonl"):
+    """``{item_id: (human mass, parked)}``; mass is None when the run did not record it.
+
+    The run must cover its locked ``dataset.jsonl`` exactly once per row: a partial or
+    re-run directory would bias the negatives (or positives) the floor is fitted on.
+    """
+    out: dict[str, tuple[float | None, bool]] = {}
+    locked = [r["id"] for r in _jsonl(run_dir / "dataset.jsonl")]
+    items = _jsonl(run_dir / "items.jsonl")
+    ids = [i.get("item_id") for i in items]
+    dupes = sorted({i for i in ids if ids.count(i) > 1})
+    missing = sorted(set(locked) - set(ids))
+    if dupes or missing:
+        raise SystemExit(f"cannot fit: {run_dir.name} has {len(missing)} locked rows without a result "
+                         f"{missing[:5]} and {len(dupes)} duplicated results {dupes[:5]}")
+    for item in items:
         pred = item.get("pred") or {}
         mass = pred.get("document_form_human_mass")
         out[item["item_id"]] = (float(mass) if isinstance(mass, (int, float)) else None,

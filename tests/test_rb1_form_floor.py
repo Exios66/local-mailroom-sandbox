@@ -46,8 +46,10 @@ def test_build_is_deterministic_and_each_defect_is_a_defect():
     assert len({r["id"] for r in a}) == len(a)
 
 
-def _write_run(path, masses):
+def _write_run(path, masses, locked=None):
     path.mkdir(parents=True)
+    path.joinpath("dataset.jsonl").write_text("".join(json.dumps({"id": i}) + "\n" for i in (locked or masses)),
+                                              encoding="utf-8")
     path.joinpath("items.jsonl").write_text("".join(
         json.dumps({"item_id": i, "pred": {"document_form_human_mass": m, "abstained": m >= 0.5}}) + "\n"
         for i, m in masses.items()), encoding="utf-8")
@@ -75,4 +77,18 @@ def test_fit_refuses_missing_results_or_unrecorded_mass(tmp_path):
         ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
     (tmp_path / "defects" / "items.jsonl").write_text(json.dumps({"item_id": "d1", "pred": {}}) + "\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="no human mass"):
+        ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
+
+
+def test_fit_refuses_a_partial_or_duplicated_run(tmp_path):
+    defects = tmp_path / "defects.jsonl"
+    defects.write_text(json.dumps({"id": "d1", "expected_document_form": "fragment_or_excerpt"}) + "\n", encoding="utf-8")
+    _write_run(tmp_path / "defects", {"d1": 0.9})
+    _write_run(tmp_path / "intact", {"i1": 0.1}, locked=["i1", "i2"])  # i2 never ran
+    with pytest.raises(SystemExit, match="1 locked rows without a result"):
+        ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
+    items = tmp_path / "intact" / "items.jsonl"
+    items.write_text(items.read_text() * 2, encoding="utf-8")
+    (tmp_path / "intact" / "dataset.jsonl").write_text(json.dumps({"id": "i1"}) + "\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="1 duplicated results"):
         ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
