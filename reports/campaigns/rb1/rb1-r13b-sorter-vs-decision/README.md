@@ -10,6 +10,8 @@ Status: **2 done**
 - `config/runs/rb1-r13b-controls-decision-luna-v4.0.1.yaml`
 - `config/runs/rb1-r13b-decision-sorter-jev-1.14-dev-look1.yaml`
 - `config/runs/rb1-r13b-decision-sorter-luna-dev-look1.yaml`
+- `config/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1.yaml`
+- `config/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1.yaml`
 - `config/runs/rb1-r13b-smoke20-decision-sorter-luna.yaml`
 - `config/runs/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash.yaml`
 - `config/runs/rb1-r13b-smoke20b-decision-sorter-luna-v4.0.1.yaml`

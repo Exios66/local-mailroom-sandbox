@@ -1,0 +1,50 @@
+# rb1 R13b document-form FLOOR CALIBRATION, part 2 of 2: defects built from calibration rows (H5).
+# Fragments (closing signature page alone, opening title page alone, text cut mid-sentence; one
+# per source document where it is long enough) and bundles (two documents of different classes
+# joined, 4 per class), built by scripts/rb1_form_floor.py from part 1's locked rows, so the
+# correct document_form is known by construction. Class labels on bundles are placeholders
+# (class_label_scored false); this run is read by `rb1_form_floor.py fit`, never as H5 accuracy.
+# Build the file first (offline), after part 1 has run:
+#   .venv/bin/python scripts/rb1_form_floor.py build --source data/runtime/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1/dataset.jsonl --out data/runtime/rb1-r13b/formcal-defects.jsonl
+# Cost: ~70 rows, bundles with a merger ~80k tokens, about $0.15 input-only. Caps $0.40, 1800 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-formcal.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1.yaml --initials <XX>
+# Readout (offline):
+#   .venv/bin/python scripts/rb1_form_floor.py fit --intact-run data/runtime/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1 --defects-run data/runtime/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1 --defects data/runtime/rb1-r13b/formcal-defects.jsonl
+schema: sandbox.run/v1
+run_id: rb1-r13b-formcal-defects-decision-luna-v4.0.1
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/rb1-r13b/formcal-defects.jsonl
+  config: ground_truth
+  split: all
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.1
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.40
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.40
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, form-floor, defects, v4.0.1, decisions-api, decision-sorter, calibration]

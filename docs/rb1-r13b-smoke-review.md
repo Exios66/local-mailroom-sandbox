@@ -98,6 +98,33 @@ hold:
 The non-inferiority tests are expected to read "not shown" at n=20. They are not part of this
 bar; dev-look1 is where H5 starts to be measured.
 
+## Smoke 20b result and the document-form floor (2026-11-19)
+
+Controls: 4.0.0 got 5/7 (it parked both intact documents as `multiple_documents`); 4.0.1 got
+7/7. Smoke 20b met bars 1-4 and 6: both ledgers matched their estimates exactly, 2 corrections
+applied, class accuracy 20/20 on both arms. It **failed bar 5**: 4.0.1 parked 4 intact
+documents whose forced answers were correct (DOC-be1e form exhibit with blank signature lines,
+DOC-52f9 merger ending in its index, DOC-0a73 complete signed merger, DOC-b005 reply quoting the
+invitation). It fixed 3 of 4.0.0's 5 false parks, kept 2 and added 2, although its wording
+names every one of these cases.
+
+Smoke 20c reran the Luna arm with the form answer's probabilities recorded (PR #356). The
+forms were identical to 20b. The 4 false parks put 0.55-0.79 of the form probability on human
+forms; the 16 documents passed sat at 0.01-0.47. That separation is in-sample, so no floor is
+set from it. Instead a floor is fitted on the calibration split
+([`scripts/rb1_form_floor.py`](../scripts/rb1_form_floor.py)):
+
+1. `rb1-r13b-formcal-intact-decision-luna-v4.0.1`: 10 calibration documents per class, taken
+   as complete (negatives).
+2. `rb1-r13b-formcal-defects-decision-luna-v4.0.1`: fragments and bundles built from those same
+   rows, form known by construction (positives).
+3. `rb1_form_floor.py fit` tabulates, per candidate floor, the defects that would reach
+   extraction and the intact documents parked. The floor is the highest one that lets no
+   defect through; an intact document parked with high mass is read before any floor ships,
+   since it may be a real defect. The floor then ships as question set 4.0.2. dev-look1 is a
+   dev check of that calibration-fitted floor, not an out-of-sample measurement: 4.0.1's
+   wording was shaped on dev-look1, so its dev-look1 figures stay in-sample. Scale up by raising the bucket counts under a new run id.
+
 ## Confidence thresholds: what the smoke showed and how they will be calibrated
 
 Both arms' needless human routing (findings 7 and 8) is a threshold problem. Every routing
@@ -183,6 +210,7 @@ Every item records:
 - predicted class and subclass
 - the stage's confidence and, for decision models, the whole probability vectors
 - the forced answer and the park reason
+- for decision models with a form question, `document_form_probabilities` and `document_form_human_mass`
 - latency, tokens and cost
 
 The truth needed is the corrected subclass labels (SHF-013) and the split membership. The
