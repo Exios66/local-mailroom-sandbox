@@ -1,0 +1,22 @@
+# Closed-field resolver, question set 1.0.0 (Decisions API; llm-mailroom decision slot
+# closed_field_resolver, experiment Set B2).
+# Asked about ONE closed-label field whose extracted value is not on the field's taxonomy
+# vocabulary (llm-mailroom pipeline.label_vocab). The handoff carries the class, the field,
+# the off-list value and the allowed labels in taxonomy order; one pick-one question offers
+# every allowed label plus a none option. The mailroom applies a pick only when every
+# off-list field of the document got an allowed label at the slot's min_probability.
+# Uncalibrated: no run has scored this set yet.
+kind: closed_field_resolver
+version: 1.0.0
+handoff: closed_field
+max_input_chars: 1000000
+instructions: >-
+  The state holds a document and closed_field_handoff: one field another model extracted
+  from this {doc_type}. The field "{field}" must hold exactly one label from a fixed list,
+  and the extracted value {value} is not on that list. Read the document and pick the
+  listed label the document supports for this field. Pick none_of_these when no listed
+  label fits or the document does not state it. Do not pick a label only because it looks
+  like the extracted value.
+label_criterion: The document supports the label "{label}" for the field "{field}".
+none_option: none_of_these
+none_criterion: No listed label fits this document for the field, or the document does not state it.

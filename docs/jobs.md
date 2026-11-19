@@ -130,6 +130,32 @@ reviewer:                   # optional decision reviewer (SAND-085); see docs/ex
   model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
   classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
+extraction_gate:            # optional pipeline extraction gate (task: pipeline; Decisions-API model)
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.3.0
+
+decision_slots:             # optional llm-mailroom decision slots (task: pipeline). Every key but
+                            # `resolver` is written verbatim to the runtime taxonomy's
+                            # decision_slots: block and validated by the vendored mailroom at
+                            # preflight (an older vendor without graph/decision_slots.py refuses a
+                            # non-baseline block: re-vendor). archive_gate, judge_replacement,
+                            # arbiter_veto, judge_check and boss_check need the extraction_gate
+                            # block; reference: llm-mailroom
+                            # docs/pipeline-reference-llm-mailroom/decision-slots.md. Caps count
+                            # per process from a fresh ledger each run: a resume restarts them,
+                            # and with job.concurrency > 1 which documents hit a cap depends on
+                            # thread order. Mock runs never exercise the gate slots (the mock gate
+                            # answers no field_support, so they record `unavailable`).
+  archive_gate: {mode: enforce, park_cap: 0.10}
+  closed_field_resolver: {mode: resolve, min_probability: 0.9, release_cap: 0.03}
+  resolver:                 # needed when closed_field_resolver is not baseline; question set
+    model: openai/gpt-6-luna-decisions   # frozen by content in the lock
+    questions: closed_field_resolver_v1.0.0
+                            # Each document exports decision_slot_outcomes / _marks,
+                            # closed_field_resolutions and judge_source; `sandbox run gate`
+                            # adds a decision_slots section (Dojo analysis.risk_coverage:
+                            # per-slot rates and the gate key_field_score risk-coverage curve).
+
 confidence:                 # optional run-scoped routing thresholds, merged over the
                             # vendored + overlay `confidence` block. Locked; hashed
                             # only when set. Calibrate per model: self-reported
@@ -137,9 +163,16 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             # from `sandbox run routing`.
   arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
   judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes,
-                            #   judge_rejudge_retry (true/false only)
+                            #   and the true/false flags judge_rejudge_retry,
+                            #   judge_complete_archives, arbiter_accept_archives,
+                            #   judge_clears_low_confidence
   judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
                             # whose earlier attempt was judged, while judge passes remain
+  judge_complete_archives: false  # llm-mailroom #309 archive checks (need the vendor refresh: the
+                            # current vendored mailroom ignores them, so preflight refuses them); false keeps the checks on, true lets a
+                            # judge `complete` (and an unjudged retry it doubted) archive as before;
+                            # arbiter_accept_archives does the same for accept_with_caveats.
+                            # judge_check / boss_check / arbiter_veto matter only where these are true.
   by_class:
     contract: {high: 0.95}  # live doc classes only; unknown classes fail preflight
     corporate_record: {judge_rejudge_retry: true}   # per-class override (E2 treatment arm)
