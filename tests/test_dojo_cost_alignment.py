@@ -119,3 +119,32 @@ def test_per_call_usage_prices_each_call_at_its_own_tier():
     expected = (10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6
     assert rec["estimated_cost_usd"] == pytest.approx(expected, abs=1e-6)
     assert "cost_tier_approximate_items" not in rec
+
+
+def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monkeypatch, tmp_path):
+    # Capture from the pipeline accumulator, persist as a pipeline row does, then price the run.
+    import contextvars
+    import sys
+    import types
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+    from mailroom_sandbox.job.usage_capture import call_usage_from_pipeline
+
+    accumulator = contextvars.ContextVar("run_usage", default=[])
+    accumulator.set([{"prompt_tokens": 10_000, "completion_tokens": 10}, {"prompt_tokens": 50_000, "completion_tokens": 10}])
+    limits = types.ModuleType("pipeline.limits")
+    limits._run_usage = accumulator
+    package = types.ModuleType("pipeline")
+    package.limits = limits
+    monkeypatch.setitem(sys.modules, "pipeline", package)
+    monkeypatch.setitem(sys.modules, "pipeline.limits", limits)
+    calls = call_usage_from_pipeline()
+    assert calls == [[10_000, 10], [50_000, 10]]
+    store = RunStore(tmp_path / "r")
+    _persist_isolated_items(store, [{"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 5.0,
+                                     "prompt_tokens": 60_000, "completion_tokens": 20, "llm_calls": 2,
+                                     "call_usage": calls}])
+    rec = _record(store.load_items(), model="qwen/qwen3.7-flash")
+    assert rec["estimated_cost_usd"] == pytest.approx((10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6, abs=1e-6)
+    assert "cost_tier_approximate_items" not in rec

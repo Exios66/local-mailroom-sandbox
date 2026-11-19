@@ -1246,6 +1246,9 @@ def run_pipeline_eval(
                 raise
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
+        calls = usage_capture.call_usage_from_pipeline()
+        if calls:
+            usage = {**usage, "call_usage": calls}  # per-call tokens: a tiered price applies to each call
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
