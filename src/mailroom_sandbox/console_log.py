@@ -196,7 +196,7 @@ class ConsoleFormatter(logging.Formatter):
         fields.pop("run_id", None)
         fields.pop("doc_id", None)
         kind = getattr(record, _KIND_ATTR, None)
-        message = record.getMessage()
+        message = getattr(record, "sb_text", None) or record.getMessage()
         exc = self.formatException(record.exc_info) if record.exc_info else fields.pop("exception", None)
         if self.json_lines:
             payload = {
@@ -333,6 +333,88 @@ def _configure_structlog() -> None:
     )
 
 
+VERBOSITY_ENV = "SANDBOX_LOG_VERBOSITY"
+
+
+def resolve_verbosity(argv: Any, args: Any = None, environ: Mapping[str, str] | None = None) -> int:
+    """Verbosity from the command line, else ``SANDBOX_LOG_VERBOSITY``, else 0.
+
+    ``-v`` counts are summed across the whole argv (before ``--``), so ``sandbox -v run start -v``
+    is ``-vv`` even though argparse keeps only the subcommand's copy. ``-q`` wins over ``-v``.
+    """
+    env = os.environ if environ is None else environ
+    count, quiet = 0, bool(getattr(args, "quiet", False))
+    for token in list(argv or ()):
+        if token == "--":
+            break
+        if token == "--verbose":
+            count += 1
+        elif token == "--quiet":
+            quiet = True
+        elif token.startswith("-") and not token.startswith("--") and len(token) > 1 and set(token[1:]) <= {"v", "q"}:
+            count += token.count("v")
+            quiet = quiet or "q" in token
+    count = max(count, int(getattr(args, "verbose", 0) or 0))
+    if quiet:
+        return -1
+    if count:
+        return min(count, 2)
+    try:
+        return max(-1, min(2, int(env.get(VERBOSITY_ENV, "0") or 0)))
+    except ValueError:
+        return 0
+
+
+class _VendorLoggingGuard:
+    """Meta-path hook: once this process has configured the console, mark the vendored
+    ``pipeline.logging`` module as configured whenever it is (re)imported, so a vendor
+    entrypoint's module-level ``setup_logging()`` (``pipeline.watchdog``, ``pipeline.pager``)
+    cannot re-point structlog at stdout. Only runtime state changes; ``vendor/`` files do not."""
+
+    TARGET = "pipeline.logging"
+
+    def find_spec(self, name: str, path: Any = None, target: Any = None) -> Any:
+        if name != self.TARGET:
+            return None
+        for finder in sys.meta_path:
+            if finder is self or not hasattr(finder, "find_spec"):
+                continue
+            spec = finder.find_spec(name, path, target)
+            if spec is None:
+                continue
+            loader = spec.loader
+            exec_module = getattr(loader, "exec_module", None)
+            if exec_module is None:
+                return spec
+
+            def _exec(module: Any, _inner: Any = exec_module) -> None:
+                _inner(module)
+                _mark_vendor_configured(module)
+
+            try:
+                loader.exec_module = _exec  # type: ignore[union-attr]  # per-spec loader instance
+            except (AttributeError, TypeError):
+                pass
+            return spec
+        return None
+
+    def invalidate_caches(self) -> None:  # importlib protocol
+        return None
+
+
+def _mark_vendor_configured(module: Any) -> None:
+    if hasattr(module, "setup_logging") and hasattr(module, "_configured"):
+        module._configured = True
+
+
+def _guard_vendor_logging() -> None:
+    if not any(isinstance(f, _VendorLoggingGuard) for f in sys.meta_path):
+        sys.meta_path.insert(0, _VendorLoggingGuard())
+    loaded = sys.modules.get(_VendorLoggingGuard.TARGET)
+    if loaded is not None:
+        _mark_vendor_configured(loaded)
+
+
 def configure(verbosity: int = 0) -> None:
     """Install the console handler on the root logger (idempotent; re-callable)."""
     level_v = max(-1, min(2, int(verbosity)))
@@ -359,6 +441,7 @@ def configure(verbosity: int = 0) -> None:
     for name in ALWAYS_QUIET:
         logging.getLogger(name).setLevel(logging.WARNING)
     _configure_structlog()
+    _guard_vendor_logging()
     _state["configured"] = True
 
 
@@ -375,10 +458,16 @@ def _emit(level: int, kind: str | None, text: str, run_id: Any = None, doc_id: A
           fields: Mapping[str, Any] | None = None) -> None:
     if not _run_log.isEnabledFor(level):
         return
-    extra: dict[str, Any] = {"sb_fields": dict(fields or {}), "sb_run": run_id, "sb_doc": doc_id}
+    fields = dict(fields or {})
+    extra: dict[str, Any] = {"sb_fields": fields, "sb_run": run_id, "sb_doc": doc_id, "sb_text": text}
     if kind:
         extra[_KIND_ATTR] = kind
-    _run_log.log(level, text, extra=extra)
+    # The record's own message carries ids and fields too, so a process with a different
+    # formatter (the Modal worker's basicConfig, pytest's caplog) still shows a useful line.
+    ids = " ".join(bit for bit in (f"run={run_id}" if run_id else "",
+                                   f"doc={short_id(doc_id)}" if doc_id else "") if bit)
+    tail = format_fields(fields)
+    _run_log.log(level, "  ".join(bit for bit in (ids, text, tail) if bit), extra=extra)
 
 
 def run_event(run_id: Any, event: str, level: str = "info", detail: Mapping[str, Any] | None = None) -> None:

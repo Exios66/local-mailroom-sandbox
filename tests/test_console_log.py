@@ -210,8 +210,8 @@ def test_main_configures_console_from_flags(monkeypatch):
     args = parser.parse_args(["doctor", "-v"])
     args.handler = lambda _a: 0
     monkeypatch.setattr(cli, "build_parser", lambda: _Fixed(parser, args))
-    assert cli.main(["doctor", "-v"]) == 0
-    assert seen == [1]
+    assert cli.main(["-v", "doctor", "-v"]) == 0
+    assert seen == [2]
 
 
 class _Fixed:
@@ -270,3 +270,61 @@ def test_run_job_mock_prints_lifecycle_and_doc_lines(tmp_path, capsys):
     assert "n=3/3" in text
     events = [json.loads(ln)["event"] for ln in events_text.splitlines()]
     assert "item_done" in events  # events.jsonl unchanged by the console echo
+
+
+def test_resolve_verbosity_sums_flags_across_argv_and_reads_env():
+    resolve = console_log.resolve_verbosity
+    assert resolve(["pilot", "--mock"], environ={}) == 0
+    assert resolve(["-v", "run", "start", "-v"], environ={}) == 2
+    assert resolve(["-vvv", "pilot"], environ={}) == 2
+    assert resolve(["--verbose", "pilot"], environ={}) == 1
+    assert resolve(["-v", "pilot", "-q"], environ={}) == -1  # quiet wins
+    assert resolve(["pilot", "--", "-v"], environ={}) == 0  # passthrough args are not ours
+    assert resolve(["pilot"], environ={console_log.VERBOSITY_ENV: "1"}) == 1
+    assert resolve(["pilot"], environ={console_log.VERBOSITY_ENV: "junk"}) == 0
+    assert resolve(["-q", "pilot"], environ={console_log.VERBOSITY_ENV: "2"}) == -1
+
+
+def test_vendor_setup_logging_cannot_override_console(tmp_path, monkeypatch):
+    """A vendor module-level setup_logging() after configure() is a no-op (guarded on import)."""
+    import sys
+
+    pkg = tmp_path / "pipeline"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "logging.py").write_text(
+        "_configured = False\ncalls = []\n"
+        "def setup_logging():\n    if _configured:\n        return\n    calls.append(1)\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in ("pipeline", "pipeline.logging"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    console_log.configure(0)
+    import pipeline.logging as vendor_logging
+
+    vendor_logging.setup_logging()
+    assert vendor_logging._configured is True and vendor_logging.calls == []
+    monkeypatch.delitem(sys.modules, "pipeline.logging")
+    monkeypatch.delitem(sys.modules, "pipeline")
+    monkeypatch.setattr(sys, "meta_path", [f for f in sys.meta_path
+                                           if not isinstance(f, console_log._VendorLoggingGuard)])
+
+
+def test_run_records_read_well_under_a_foreign_formatter():
+    """The Modal worker uses basicConfig; its lines still carry ids and fields."""
+    records = []
+
+    class _Keep(logging.Handler):
+        def emit(self, record):
+            records.append(logging.Formatter("%(levelname)s %(name)s %(message)s").format(record))
+
+    handler = _Keep()
+    run_log = logging.getLogger(console_log.RUN_LOGGER)
+    run_log.addHandler(handler)
+    run_log.setLevel(logging.INFO)
+    try:
+        console_log.doc_done("r1", "d7", ok=True, done=2, total=5)
+    finally:
+        run_log.removeHandler(handler)
+        run_log.setLevel(logging.NOTSET)
+    assert records == ["INFO mailroom_sandbox.run run=r1 doc=d7  doc done  n=2/5"]

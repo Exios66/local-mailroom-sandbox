@@ -145,7 +145,10 @@ def main(argv: list[str] | None = None, *, injected: Sequence[str] = ()) -> int:
     args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
     from mailroom_sandbox import console_log
 
-    console_log.configure(-1 if getattr(args, "quiet", False) else int(getattr(args, "verbose", 0) or 0))
+    verbosity = console_log.resolve_verbosity(full, args)
+    console_log.configure(verbosity)
+    if argv is None:  # the console process: child `sandbox` runs (autoresearch, gates) inherit it
+        os.environ[console_log.VERBOSITY_ENV] = str(verbosity)
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
