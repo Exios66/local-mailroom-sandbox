@@ -540,6 +540,7 @@ def test_sign_flip_permutation_matches_exact_enumeration_and_uses_plus_one():
     assert p == pytest.approx(exact, abs=0.01)
     _, p_small = st.paired_permutation(base, cand, n_perm=9, seed=1)
     assert p_small * 10 == pytest.approx(round(p_small * 10))  # (k + 1) / (n + 1) with n = 9
+    assert p_small >= 1 / 10  # plus-one: never zero, even with no draw at the observed statistic
 
 
 def test_paired_macro_f1_matches_exact_swap_enumeration():
@@ -647,6 +648,14 @@ def test_noise_floor_and_keep_rule():
     assert st.keep_with_floor("keep", 0.05, floor, look=3)["decision"] == "drop"
     assert st.keep_with_floor("keep", 0.05, 0.02, look=2)["decision"] == "keep"
     assert st.keep_with_floor("keep", 0.01, 0.02, look=2)["decision"] == "continue"
+
+
+def test_a_gain_equal_to_the_repeat_noise_is_dropped():
+    # 450 and 454 of 900 correct: the floor is exactly 4/900, and a 4/900 gain is noise.
+    runs = {"r1": {i: i < 450 for i in range(900)}, "r2": {i: i < 454 for i in range(900)}}
+    floor = st.noise_floor(runs)
+    assert floor.floor == pytest.approx(4 / 900, abs=1e-12)
+    assert st.keep_with_floor("keep", 4 / 900, floor, look=3)["decision"] == "drop"
 
 
 # --- pipeline wrappers (HF-002) and cost evidence ---------------------------------------------------

@@ -412,12 +412,15 @@ def noise_floor(runs: Mapping[str, Mapping[str, object]]) -> NoiseFloor:
     if not shared:
         raise ValueError("no document was scored by every run")
     missing = {r: sorted((every - scored[r]), key=str) for r in labels if every - scored[r]}
-    per_run = tuple(round(sum(float(runs[r][d]) for d in shared) / len(shared), 6) for r in labels)
-    mean = sum(per_run) / len(per_run)
-    sd = math.sqrt(sum((m - mean) ** 2 for m in per_run) / (len(per_run) - 1)) if len(per_run) > 1 else 0.0
+    # Full precision for the decision quantities; only the reported per-run means are rounded
+    # (a rounded floor could sit below a gain equal to the repeat noise and keep it).
+    exact = [sum(float(runs[r][d]) for d in shared) / len(shared) for r in labels]
+    per_run = tuple(round(m, 6) for m in exact)
+    mean = sum(exact) / len(exact)
+    sd = math.sqrt(sum((m - mean) ** 2 for m in exact) / (len(exact) - 1)) if len(exact) > 1 else 0.0
     flips = sum(1 for d in shared if len({float(runs[r][d]) for r in labels}) > 1)
-    return NoiseFloor(len(labels), len(shared), per_run, round(mean, 6), round(sd, 6),
-                      round(max(per_run) - min(per_run), 6), round(flips / len(shared), 6), missing)
+    return NoiseFloor(len(labels), len(shared), per_run, mean, sd,
+                      max(exact) - min(exact), round(flips / len(shared), 6), missing)
 
 
 def keep_with_floor(decision: str, gain: float, floor: float | NoiseFloor, *, look: int) -> dict:
@@ -427,7 +430,7 @@ def keep_with_floor(decision: str, gain: float, floor: float | NoiseFloor, *, lo
     at an earlier look ``continue``. ``drop`` and ``continue`` pass through.
     """
     value = floor.floor if isinstance(floor, NoiseFloor) else float(floor)
-    if decision == "keep" and gain <= value:
+    if decision == "keep" and gain <= value + 1e-12:  # equal up to float error is within noise
         return {"decision": "drop" if look == 3 else "continue", "reason": "gain_within_noise_floor",
                 "gain": gain, "floor": value}
     return {"decision": decision, "reason": "rule" if decision != "keep" else "gain_above_noise_floor",

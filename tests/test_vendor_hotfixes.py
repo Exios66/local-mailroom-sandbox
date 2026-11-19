@@ -55,3 +55,15 @@ def test_preflight_check_and_lock_identity():
     ident = _hotfix_identity()
     assert ident["module_sha256"] == vh.module_sha256()
     assert [f["id"] for f in ident["fixes"]] == [f.id for f in vh.HOTFIXES]
+
+
+@pytest.mark.parametrize(("cleaned", "kept"), [("short", False), ("A" * 95, True)])
+def test_hf003_a_short_single_window_clean_never_replaces_the_document(cleaned, kept):
+    def original(self, doc_text, filename=None):
+        return {"cleaned": cleaned, "clean_stats": {"n": 1}, "changed": True, "windows": 1}
+
+    guarded = vh._install_intake_clean_guard(None, original)
+    prep = guarded(object(), "A" * 100, "doc.txt")
+    assert ("cleaned" in prep) is kept and prep["changed"] is kept
+    if not kept:
+        assert "clean_stats" not in prep and "HF-003" in prep["clean_refused"]

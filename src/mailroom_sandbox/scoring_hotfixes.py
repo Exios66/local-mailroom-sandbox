@@ -38,6 +38,7 @@ import json
 import logging
 import math
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
@@ -123,7 +124,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-007",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.agents:_score_class",
-                  "fc038e9b4d1f9a4b51c0191be894c9f89a7daa88f7cc973a1b3e7797b7fa6004"),),
+                  "fc038e9b4d1f9a4b51c0191be894c9f89a7daa88f7cc973a1b3e7797b7fa6004"),
+                 # the folding and the answer reading decide which labels match
+                 ("mailroom_sandbox.eval.agents:_fold",
+                  "c332fba81b273d2b661944556f62bbc6fa6271ae132b6ef38ea5b75a991164e4"),
+                 ("mailroom_sandbox.eval.agents:_class_answer",
+                  "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984")),
         upstream="sandbox",
         summary="class labels compare case- and whitespace-folded; a row without a truth "
                 "class is unscored, not a match; an abstention is its own outcome "
@@ -256,26 +262,34 @@ def module_sha256() -> str:
 
 
 def _fix_status(fix: ScoringHotfix) -> str:
+    """``stale`` when any readable target changed, else ``unavailable`` when one is unreadable."""
+    unavailable = False
     for target, sha in fix.targets:
         try:
             current = target_sha(target)
         except Exception as exc:  # noqa: BLE001 — optional module (pipeline extra)
             _log.debug("%s: %s unavailable: %s", fix.id, target, exc)
-            return "unavailable"
+            unavailable = True
+            continue
         if current != sha:
             _log.warning("%s not applied: %s changed since the fix was validated "
                          "(re-validate it or retire it; docs/scoring-hotfixes.md)", fix.id, target)
             return "stale"
-    return "current"
+    return "unavailable" if unavailable else "current"
 
 
 def status(fixes: Sequence[ScoringHotfix] | None = None, *, refresh: bool = False) -> dict[str, str]:
     """``{id: current | stale | unavailable}``; cached per process (``refresh`` recomputes)."""
     fixes = HOTFIXES if fixes is None else fixes
+    out: dict[str, str] = {}
     for fix in fixes:
+        if not any(fix is f for f in HOTFIXES):  # a caller's candidate never touches the cache
+            out[fix.id] = _fix_status(fix)
+            continue
         if refresh or fix.id not in _STATUS:
             _STATUS[fix.id] = _fix_status(fix)
-    return {fix.id: _STATUS[fix.id] for fix in fixes}
+        out[fix.id] = _STATUS[fix.id]
+    return out
 
 
 def current_ids() -> frozenset[str]:
@@ -399,7 +413,8 @@ def currencies(text: Any) -> set[str]:
                          ("HK", "HKD"), ("S", "SGD")):
         if re.search(rf"(?<![A-Z]){prefix}\$", t):
             found.add(code)
-    if re.search(r"(?<![A-Z])\$", t):
+    # A bare "$" means USD only when the string states no other currency ("CAD $1,000" is CAD).
+    if not found and re.search(r"(?<![A-Z])\$", t):
         found.add("USD")
     return found
 
@@ -438,6 +453,14 @@ def install() -> None:
     except Exception as exc:  # noqa: BLE001
         _log.debug("field scorers unavailable: %s", exc)
         return
+    with _INSTALL_LOCK:  # the scorer and its FIELD_SCORERS entries are swapped as one step
+        _install_field_fixes(fs)
+
+
+_INSTALL_LOCK = threading.Lock()
+
+
+def _install_field_fixes(fs: Any) -> None:
     for name, fix_id, fixed in _FIELD_FIXES:
         original = getattr(fs, name)
         if getattr(original, _MARK, None) == fix_id:

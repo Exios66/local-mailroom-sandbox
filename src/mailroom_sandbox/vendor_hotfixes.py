@@ -103,6 +103,29 @@ def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Ca
     return judge_completeness
 
 
+#: The least share of the source a single-window intake ``cleaned_text`` must keep to replace it.
+INTAKE_CLEAN_MIN_SHARE = 0.9
+
+
+def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def intake_run(self: Any, doc_text: str, filename: str | None = None) -> dict:
+        prep = original(self, doc_text, filename)
+        cleaned = prep.get("cleaned") if isinstance(prep, dict) else None
+        # Upstream accepts any non-empty cleaned_text from a single-window read, and the graph
+        # then replaces the whole document with it. Context fit sends a long document in one
+        # window while the output allowance stays ~2k tokens, so a short reply would replace a
+        # merger with a fragment. A repair that drops more than a tenth of the text is refused.
+        if cleaned and len(cleaned) < INTAKE_CLEAN_MIN_SHARE * len(doc_text or ""):
+            for key in ("cleaned", "clean_stats"):
+                prep.pop(key, None)
+            prep["changed"] = False
+            prep["clean_refused"] = f"cleaned_text kept {len(cleaned)} of {len(doc_text)} characters (HF-003)"
+        return prep
+
+    return intake_run
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -119,10 +142,20 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.judge",
         attr="CompletenessJudge.judge_completeness",
         source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
-        upstream="llm-mailroom: draft issue J-1 in docs/scoring-hotfixes.md (not filed)",
+        upstream="llm-mailroom: draft issue J-1 in docs/vendor-hotfixes.md (not filed)",
         summary="a completeness-judge parse failure is a judge error (human review, counted), "
                 "not an 'incomplete 0.0' verdict",
         install=_install_judge_parse_error,
+    ),
+    Hotfix(
+        id="HF-003",
+        module="agents.intake",
+        attr="IntakeAgent.intake_run",
+        source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
+        upstream="llm-mailroom: draft issue J-2 in docs/vendor-hotfixes.md (not filed)",
+        summary="a single-window intake cleaned_text that keeps under 90% of the document never "
+                "replaces it (context fit reads long documents in one window)",
+        install=_install_intake_clean_guard,
     ),
 )
 
