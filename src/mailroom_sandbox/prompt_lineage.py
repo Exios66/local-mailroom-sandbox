@@ -1,0 +1,86 @@
+"""Experiment-lineage prompt frontrunners: the default prompt for every agent that has one.
+
+The sandbox improves prompts in its own lineages (``config/prompts/sorter_condensed_lineage.yaml``
+and ``config/prompts/specialist_condensed_lineage.yaml``). An experiment starts from each agent's
+current frontrunner, never from the vendored llm-mailroom prompt it is meant to improve on. So a
+run spec whose ``prompt`` section does not name an agent gets that agent's frontrunner as an
+explicit ``{source: local, file: <stem>}`` entry. The entry is part of the spec hash and the run
+lock, so a lock always states the prompt text that ran.
+
+An explicit per-agent entry always wins, including ``{source: code-default}`` for a deliberate
+vendored baseline arm, and so does a ``prompt.versions`` selection for that agent.
+"""
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Mapping
+
+import yaml
+
+SORTER_LINEAGE = "sorter_condensed_lineage.yaml"
+SPECIALIST_LINEAGE = "specialist_condensed_lineage.yaml"
+
+
+def _prompts_dir() -> Path:
+    """The configured prompts dir; the code checkout's own when that has no lineage files.
+
+    A relocated config root (tests, a scratch tree) without lineage files still resolves the
+    checkout's frontrunners, never the vendored prompts; a missing lineage anywhere raises.
+    """
+    from mailroom_sandbox.paths import config_dir
+
+    configured = config_dir() / "prompts"
+    if (configured / SORTER_LINEAGE).is_file():
+        return configured
+    return Path(__file__).resolve().parents[2] / "config" / "prompts"
+
+
+@lru_cache(maxsize=1)
+def _frontrunners_cached(prompts_dir: str) -> tuple[tuple[str, str], ...]:
+    root = Path(prompts_dir)
+    out: dict[str, str] = {}
+    sorter = yaml.safe_load((root / SORTER_LINEAGE).read_text(encoding="utf-8")) or {}
+    if sorter.get("frontrunner"):
+        out[str(sorter.get("agent") or "sorter")] = str(sorter["frontrunner"])
+    specialists = yaml.safe_load((root / SPECIALIST_LINEAGE).read_text(encoding="utf-8")) or {}
+    for agent, row in (specialists.get("agents") or {}).items():
+        if isinstance(row, Mapping) and row.get("frontrunner"):
+            out[str(agent)] = str(row["frontrunner"])
+    for agent, stem in out.items():
+        if not (root / f"{stem}.txt").is_file():
+            raise FileNotFoundError(f"lineage frontrunner for {agent} has no prompt file: config/prompts/{stem}.txt")
+    return tuple(sorted(out.items()))
+
+
+def frontrunners() -> dict[str, str]:
+    """Agent name -> frontrunner prompt stem (``config/prompts/<stem>.txt``)."""
+    return dict(_frontrunners_cached(str(_prompts_dir())))
+
+
+def _agents_for(task: str | None, fronts: Mapping[str, str]) -> set[str]:
+    """Lineage agents a task executes: its own agent for an isolated-agent task, else all."""
+    if task:
+        try:
+            from mailroom_sandbox.prompt_registry import agent_prompt_names
+
+            if task in set(agent_prompt_names()):
+                return {task} & set(fronts)
+        except Exception:  # noqa: BLE001 — no pipeline extra: pin every lineage agent
+            pass
+    return set(fronts)
+
+
+def with_lineage_defaults(prompt: Mapping[str, Any], task: str | None = None) -> dict[str, Any]:
+    """Return ``prompt`` with every unnamed lineage agent ``task`` runs pinned to its frontrunner."""
+    out = dict(prompt)
+    agents = dict(out.get("agents") or {})
+    selected = set(out.get("versions") or {})
+    fronts = frontrunners()
+    for agent in sorted(_agents_for(task, fronts)):
+        stem = fronts[agent]
+        if agent not in agents and agent not in selected:
+            agents[agent] = {"source": "local", "file": stem}
+    if agents:
+        out["agents"] = dict(sorted(agents.items()))
+    return out

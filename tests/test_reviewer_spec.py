@@ -14,7 +14,8 @@ from mailroom_sandbox.runtime import activate
 
 # Computed with the spec implementation at 48c3f8f, before reviewer existed.
 # Pin the model and use a Hub request: local /tmp resolves differently on macOS.
-PRE_REVIEWER_HASH = "0b474bf41250f04433674038acc55a3e03326be20863bbf0fc0f74506837efd2"
+# Re-hashed 2026-11-19 (was 0b474bf4…): a sorter spec without a prompt pins its lineage frontrunner.
+PRE_REVIEWER_HASH = "13836770d753885f53e6a774b8fd7a221e1b8865fc1ae2ff7e3ff5624d94f22e"
 
 
 def _reviewer(**overrides) -> dict:

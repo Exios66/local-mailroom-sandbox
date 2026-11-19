@@ -1252,6 +1252,51 @@ def near_gold_fingerprint(root: Path | None = None) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
 
 
+#: Interim gap-fill bases near-gold never supersedes: the owner adopted the original email header over
+#: the text-only near-gold labels (data/labels/review/VALIDATION.md, issue 6).
+INTERIM_BASES_OVER_NEAR_GOLD = frozenset({"original_header"})
+_INTERIM_CACHE: dict[str, Any] = {}
+
+
+def _interim_labels_of(doc_id: str) -> Mapping[str, Any]:
+    from mailroom_sandbox import interim_labels as il
+
+    if "overlay" not in _INTERIM_CACHE:
+        _INTERIM_CACHE["overlay"] = il.load_overlay()
+    return ((_INTERIM_CACHE["overlay"].get(doc_id) or {}).get("labels")) or {}
+
+
+def supersede_interim_gap_fills(row: Mapping[str, Any], rec: Mapping[str, Any],
+                                interim: Mapping[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    """SHF-010: the interim gap fills on ``row`` that ``rec``'s near-gold labels supersede.
+
+    The owner's decision (``data/labels/review/INTERIM_AUDIT.md`` step 2): reviewed gold supersedes
+    an interim gap fill it conflicts with. An ``original_header`` fill is kept (the owner adopted the
+    header over near-gold), as are interim corrections of a Hub value and derived labels. Returns
+    ``{field: {"interim": value, "interim_presence": code, "near_gold": value}}``.
+    """
+    from mailroom_sandbox import interim_labels as il
+
+    applied = set(((row.get("interim_labels") or {}).get("fields")) or [])
+    if not applied:
+        return {}
+    labels = interim if interim is not None else _interim_labels_of(str(row.get("id")))
+    exp = il._expected(row)
+    pres = il._presence(exp)
+    out: dict[str, dict[str, Any]] = {}
+    for fld, lab in (rec.get("labels") or {}).items():
+        ilab = labels.get(fld) or {}
+        if (fld not in applied or ilab.get("status") != "gap_fill"
+                or str(ilab.get("basis") or "") in INTERIM_BASES_OVER_NEAR_GOLD
+                or not str(lab.get("basis") or "").startswith("near_gold:")):
+            continue
+        new, old = lab.get("value"), exp.get(fld)
+        if json.dumps(new, sort_keys=True, default=str) == json.dumps(old, sort_keys=True, default=str):
+            continue
+        out[fld] = {"interim": old, "interim_presence": pres.get(fld), "near_gold": new}
+    return out
+
+
 def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any]], *,
                     overlay_sha: str) -> dict[str, Any]:
     """The row with near-gold labels filling fields that nothing else labels.
@@ -1270,11 +1315,15 @@ def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, A
         return out
     exp = il._expected(row)
     pres = il._presence(exp)
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    # SHF-010 (docs/scoring-hotfixes.md): reviewed near-gold supersedes a conflicting interim gap fill.
+    overrides = supersede_interim_gap_fills(row, rec) if sh.enabled("SHF-010") else {}
     applied = []
     for fld, lab in sorted((rec.get("labels") or {}).items()):
         if not str(lab.get("basis") or "").startswith("near_gold:"):
             continue
-        if hub_labels(fld, exp):  # Hub GT, or an interim label merged before this
+        if hub_labels(fld, exp) and fld not in overrides:  # Hub GT, or an interim label merged before this
             continue
         value = lab.get("value")
         exp[fld] = value
@@ -1286,4 +1335,7 @@ def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, A
     out["expected_fields"] = (json.dumps(exp, ensure_ascii=False, sort_keys=True)
                               if isinstance(row.get("expected_fields"), str) else exp)
     out["near_gold_labels"] = {"fields": applied, "overlay_sha256": overlay_sha, "status": "near_gold"}
+    if overrides:
+        # The replaced interim truth stays on the row: the scorer reports it as the raw side.
+        out["truth_overrides"] = {"SHF-010": overrides}
     return out

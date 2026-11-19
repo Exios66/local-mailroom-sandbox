@@ -6,6 +6,10 @@ budget (``graph/build_graph.py:_run_chunked_extraction``), so the same budgets
 make a 1M-context OpenRouter model (``qwen/qwen3.7-flash``) chunk a 400k-char
 merger agreement into ~14 windows per pass.
 
+The sorter, sorter_reviewer and intake are fitted the same way: the vendored sorter and
+intake slide windows over the whole document at their budget, so an unfitted 12k budget
+reads a 380k-char merger agreement in ~100 calls.
+
 For agents routed to a long-context API provider, this raises the budget to what
 the model's ``context_length`` (``config/api_prices.yaml``) actually holds:
 ``(context_length - max_tokens - reserve_tokens) * chars_per_token``. A document
@@ -42,8 +46,11 @@ DEFAULTS: dict[str, Any] = {
     "reserve_tokens": 8000,
     "providers": ["openrouter"],
     # Agents that must read the whole document; "specialists" expands to every
-    # live doc-class specialist. Sorter/intake keep their (cheaper) excerpt.
-    "agents": ["specialists", "judge", "arbiter"],
+    # live doc-class specialist. The vendored sorter and intake slide windows over
+    # the WHOLE document at their budget (agents/sorter.py, agents/intake.py), so a
+    # 12k/25k budget turns a 380k-char merger into ~100 calls on a 1M-context model:
+    # they are fitted too, and read a document that fits in one call.
+    "agents": ["specialists", "judge", "arbiter", "sorter", "sorter_reviewer", "intake"],
 }
 _DEFAULT_CHUNK_CHARS = 90_000
 

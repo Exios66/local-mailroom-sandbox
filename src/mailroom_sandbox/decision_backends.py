@@ -674,6 +674,11 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         # 3.0.0+: the routing outcome against the sorter handoff, including the human-review cases.
         questions["verdict"] = {"type": "choice", "instructions": qset["verdict"]["instructions"],
                                 "criteria": dict(qset["verdict"]["criteria"])}
+    contract = _contract_enabled(qset)
+    if contract and qset.get("document_form"):
+        # 4.0.0+ (SHF-009): the state of the document as an extraction input.
+        questions["document_form"] = {"type": "choice", "instructions": qset["document_form"]["instructions"],
+                                      "criteria": dict(qset["document_form"]["criteria"])}
     for cls, block in (qset.get("subclass") or {}).items():
         if doc_types and cls not in criteria:
             continue
@@ -686,6 +691,9 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
         # answer is used.
         options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
+        if contract and qset.get("subclass_gate") and SUBCLASS_UNDETERMINED not in options:
+            # 4.0.0+ (SHF-009): every subclass question can abstain.
+            options[SUBCLASS_UNDETERMINED] = "The text does not settle which subclass this is."
         _checked_options(f"subclass.{cls}", list(options))
         questions[f"subclass__{cls}"] = {"type": "choice", "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
                                          "criteria": options}
@@ -786,6 +794,7 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     if not is_decisions_model(model):
         raise ValueError(f"{model!r} is not a Decisions-API model")
     text = doc_text or ""
+    original_chars = len(text)
     if len(text) > max_input_chars:
         text = text[:max_input_chars]
     text = mask_card_numbers(text)
@@ -827,7 +836,7 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     # The gating confidence: the doc_type probability, or 0 when the verdict sends the document
     # to a person, so every cutoff parks it.
     gated = 0.0 if route_to_human else doc_type_probability
-    return {
+    result = {
         "doc_type": doc_type,
         "doc_subclass": subclass,
         "doc_type_probability": doc_type_probability,
@@ -845,6 +854,88 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
                   "cost": usage.get("cost")},
     }
+    if _contract_enabled(qset):
+        result = apply_question_set_contract(result, answers, qset or {}, handoff=handoff,
+                                             truncated=original_chars > max_input_chars,
+                                             original_chars=original_chars, window_chars=max_input_chars)
+    return result
+
+
+#: Doc-type options that are not a class: probability on them is abstention mass (4.0.0 ``unknown_max``).
+NON_CLASS_OPTIONS = ("unknown",)
+
+
+def _contract_enabled(qset: Mapping[str, Any] | None) -> bool:
+    """A 4.0.0+ question set's routing contract applies (SHF-009 current; docs/scoring-hotfixes.md)."""
+    if not qset or not any(qset.get(k) for k in ("document_form", "abstain", "subclass_gate", "truncation_notice")):
+        return False
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    return sh.enabled("SHF-009")
+
+
+def apply_question_set_contract(result: Mapping[str, Any], answers: Mapping[str, Any], qset: Mapping[str, Any], *,
+                                handoff: Mapping[str, Any] | None = None, truncated: bool = False,
+                                original_chars: int | None = None, window_chars: int | None = None) -> dict[str, Any]:
+    """SHF-009: the 4.0.0 routing contract over one Decisions answer.
+
+    ``human_forms`` (a ``document_form`` answer), the ``abstain`` rules (top-two ``margin``,
+    ``subclass_not_this_class_max``, ``unknown_max``) and the per-class ``subclass_gate`` (``park``
+    folds the confidence to 0, ``keep_sorter`` passes the sorter's subclass through) decide whether
+    the document is parked. A parked document is an abstention: ``abstained`` and ``route_to_human``
+    are True, ``confidence`` is 0 and ``abstain_reasons`` names the rules that fired. The
+    forced-choice reading of the same answers (what decide returned before) is kept under
+    ``forced_choice``. ``truncation_notice`` records a window that still cut the document.
+    """
+    out = dict(result)
+    out["forced_choice"] = {k: result.get(k) for k in ("doc_type", "doc_subclass", "confidence", "route_to_human")}
+    reasons: list[str] = []
+    doc_type = result.get("doc_type")
+    form = ((answers.get("document_form") or {}).get("choice"))
+    out["document_form"] = form
+    if form and form in set(qset.get("human_forms") or []):
+        reasons.append(f"document_form:{form}")
+    rules = qset.get("abstain") or {}
+    probs = {k: float(v) for k, v in (result.get("probabilities") or {}).items() if isinstance(v, (int, float))}
+    if doc_type in NON_CLASS_OPTIONS:
+        reasons.append(f"doc_type:{doc_type}")
+    ranked = sorted(probs.values(), reverse=True)
+    if "margin" in rules and len(ranked) >= 2 and ranked[0] - ranked[1] < float(rules["margin"]):
+        reasons.append("margin")
+    if "unknown_max" in rules and sum(probs.get(k, 0.0) for k in NON_CLASS_OPTIONS) >= float(rules["unknown_max"]):
+        reasons.append("unknown_max")
+    sub_answer = answers.get(f"subclass__{doc_type}") or {}
+    sub_probs = sub_answer.get("probabilities") or {}
+    not_this = sub_probs.get(NOT_THIS_CLASS)
+    if ("subclass_not_this_class_max" in rules and isinstance(not_this, (int, float))
+            and float(not_this) >= float(rules["subclass_not_this_class_max"])):
+        reasons.append("subclass_not_this_class")
+    gate = qset.get("subclass_gate") or {}
+    block = ((qset.get("subclass") or {}).get(doc_type) or {}) if doc_type else {}
+    if gate and doc_type and not block.get("markers"):
+        choice = sub_answer.get("choice")
+        if choice in (None, NOT_THIS_CLASS, SUBCLASS_UNDETERMINED):
+            policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
+            out["subclass_gate"] = policy
+            if policy == "park":
+                reasons.append(f"subclass_gate:{choice or 'none'}")
+            else:
+                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass")
+                out["subclass_source"] = "sorter"
+                if doc_type == "contract":
+                    out["contract_subtype"] = out["doc_subclass"]
+    if qset.get("truncation_notice"):
+        out["truncated"] = bool(truncated)
+        if truncated:
+            out["truncation_notice"] = (f"the {window_chars}-character window cut a {original_chars}-character "
+                                        "document")
+    out["abstained"] = bool(reasons)
+    out["abstain_reasons"] = reasons
+    if reasons:
+        out["route_to_human"] = True
+        out["confidence"] = 0.0
+    out["scoring_hotfixes"] = ["SHF-009"]
+    return out
 
 
 def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping[str, Any] | None = None) -> "DecisionBackend":

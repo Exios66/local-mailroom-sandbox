@@ -74,14 +74,47 @@ def load_arm(run_dir: Path) -> dict[str, dict[str, Any]]:
             for doc in items if doc in rows}
 
 
-def _score(row: Mapping[str, Any], pred: Mapping[str, Any]) -> float | None:
+def _num(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _score_dual(row: Mapping[str, Any], pred: Mapping[str, Any]) -> tuple[float | None, float | None]:
+    """``(raw Dojo-pin, hotfixed)`` extraction score of one document (``docs/scoring-hotfixes.md``)."""
     from mailroom_sandbox.eval.runners import _score_pipeline_extraction
 
     if not _fields(row):
-        return None
+        return None, None
     scored = _score_pipeline_extraction(dict(row), dict(pred)) or {}
-    value = scored.get("overall_extraction_score")
-    return float(value) if isinstance(value, (int, float)) else None
+    fixed = _num(scored.get("overall_extraction_score"))
+    raw_side = scored.get("raw_dojo") or {}
+    raw = _num(raw_side["overall_extraction_score"]) if "overall_extraction_score" in raw_side else fixed
+    return raw, fixed
+
+
+def _score(row: Mapping[str, Any], pred: Mapping[str, Any]) -> float | None:
+    """The hotfixed (headline) extraction score of one document."""
+    return _score_dual(row, pred)[1]
+
+
+def _failed(item: Mapping[str, Any]) -> bool:
+    """A document the arm did not finish: not ok, an error, or a pipeline-failed stage."""
+    return (item.get("ok") is False or bool(item.get("error"))
+            or str((item.get("pred") or {}).get("stage") or "") == "failed")
+
+
+def _arm_score(item: Mapping[str, Any], row: Mapping[str, Any]) -> tuple[float | None, float | None]:
+    """``(raw, hotfixed)`` score of one arm's document.
+
+    Raw is the Dojo-pin score of the prediction whether or not the document finished; hotfixed
+    applies the extraction fixes (SHF-001..004, SHF-010). SHF-011: a failed document
+    scores 0 (when the row has truth), so a crash never keeps the credit of a partial extraction.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    raw, fixed = _score_dual(row, item.get("pred") or {})
+    if "SHF-011" in sh.current_ids() and _failed(item) and _fields(row):
+        return raw, 0.0
+    return raw, fixed
 
 
 def _ci(diffs: list[float]) -> tuple[float, float, float] | None:
@@ -133,34 +166,59 @@ def paired_report(control_dir: Path, treatment_dir: Path,
                            "only_control": sorted(set(control) - set(treatment)),
                            "only_treatment": sorted(set(treatment) - set(control)),
                            "label_mismatch": label_mismatch, "classes": {}}
+    from mailroom_sandbox import scoring_hotfixes as _sh
+
+    out["headline_basis"] = _sh.headline_basis()
     for cls, docs in sorted(by_class.items()):
         drop = templated.get(cls, ())
         lanes: dict[str, dict[str, list[float]]] = {"all_fields": {"c": [], "t": []}}
+        raw_lanes: dict[str, dict[str, list[float]]] = {"all_fields": {"c": [], "t": []}}
         if drop:
             lanes["without_templated"] = {"c": [], "t": []}
+            raw_lanes["without_templated"] = {"c": [], "t": []}
+        failed = {"c": 0, "t": 0}
         arms: dict[str, Counter] = {"c": Counter(), "t": Counter()}
         verdicts: dict[str, Counter] = {"c": Counter(), "t": Counter()}
+        per_doc: dict[str, dict[str, float | None]] = {}
         for doc in docs:
             for key, arm in (("c", control[doc]), ("t", treatment[doc])):
-                pred = (arm["item"].get("pred") or {})
-                lanes["all_fields"][key].append(_score(arm["row"], pred))
+                failed[key] += int(_failed(arm["item"]))
+                raw_value, value = _arm_score(arm["item"], arm["row"])
+                raw_lanes["all_fields"][key].append(raw_value)
+                lanes["all_fields"][key].append(value)
+                per_doc.setdefault(doc, {})["control" if key == "c" else "treatment"] = value
                 if drop:
-                    lanes["without_templated"][key].append(_score(without_fields(arm["row"], drop), pred))
+                    raw_value, value = _arm_score(arm["item"], without_fields(arm["row"], drop))
+                    raw_lanes["without_templated"][key].append(raw_value)
+                    lanes["without_templated"][key].append(value)
                 stats = _doc_stats(arm)
                 arms[key].update({"review": stats["stage"] == "review", "judge_calls": stats["judge_calls"],
                                   "retries": stats["retries"], "tokens": stats["tokens"],
                                   "cuad_fp": stats["cuad_fp"] or 0, "cuad_fn": stats["cuad_fn"] or 0})
                 verdicts[key].update(stats["verdicts"])
-        summary: dict[str, Any] = {"n": len(docs), "dropped_fields": list(drop)}
-        for lane, vals in lanes.items():
+        summary: dict[str, Any] = {"n": len(docs), "dropped_fields": list(drop),
+                                   "failed_control": failed["c"], "failed_treatment": failed["t"]}
+
+        def lane_summary(vals: Mapping[str, list[float | None]]) -> dict[str, Any]:
             pairs = [(c, t) for c, t in zip(vals["c"], vals["t"]) if c is not None and t is not None]
             ci = _ci([t - c for c, t in pairs])
-            summary[lane] = {
+            return {
                 "scored": len(pairs),
                 "control": statistics.fmean(c for c, _ in pairs) if pairs else None,
                 "treatment": statistics.fmean(t for _, t in pairs) if pairs else None,
                 "diff": ci[0] if ci else None, "ci95": _finite_bounds(ci),
             }
+
+        from mailroom_sandbox import scoring_hotfixes as sh
+
+        on = sorted(sh.current_ids() & (sh.EXTRACTION_FIXES | ({"SHF-011"} if failed["c"] or failed["t"] else set())))
+        for lane, vals in lanes.items():
+            raw_summary, fixed_summary = lane_summary(raw_lanes[lane]), lane_summary(vals)
+            summary[lane] = sh.merge_dual(raw_summary, fixed_summary, on,
+                                          keys=("scored", "control", "treatment", "diff"))
+        # Per-document hotfixed all-fields scores, keyed by doc id, for the paired tests
+        # (experiment_stats.align_by_id / paired_permutation); diff = treatment - control.
+        summary["per_doc"] = per_doc
         summary["control_counts"], summary["treatment_counts"] = dict(arms["c"]), dict(arms["t"])
         summary["control_verdicts"], summary["treatment_verdicts"] = dict(verdicts["c"]), dict(verdicts["t"])
         out["classes"][cls] = summary
@@ -189,6 +247,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                 f"{c.get('cuad_fn', 0)}→{t.get('cuad_fn', 0)} |")
     for cls, s in report["classes"].items():
         lines.append(f"\n{cls} judge verdicts: control {s['control_verdicts'] or {}}, treatment {s['treatment_verdicts'] or {}}")
+    lines.append("\nHeadline: hotfixed scores (docs/scoring-hotfixes.md); each lane keeps the raw Dojo-pin "
+                 "values under raw_dojo. Failed documents c→t: "
+                 + ", ".join(f"{cls} {s.get('failed_control', 0)}→{s.get('failed_treatment', 0)}"
+                             for cls, s in report["classes"].items()))
     if report["only_control"] or report["only_treatment"]:
         lines.append(f"\nUnpaired: control only {report['only_control']}, treatment only {report['only_treatment']}")
     if report.get("label_mismatch"):

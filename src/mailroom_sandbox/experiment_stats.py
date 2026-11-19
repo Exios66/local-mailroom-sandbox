@@ -54,11 +54,31 @@ __all__ = [
     "ClassGate",
     "zero_failure_n",
     "class_gate_plan",
+    "align_by_id",
+    "PairedAlignment",
+    "NoiseFloor",
+    "noise_floor",
+    "keep_with_floor",
+    "calibration_inputs",
+    "LOOK_SIZES",
 ]
+
+#: Documents at each sequential look (1, 2, 3).
+LOOK_SIZES = {1: 300, 2: 600, 3: 900}
 
 # Sequential-look keep thresholds from the prompt-iteration design: keep at
 # z >= 2.45 on the 600-doc look or z >= 2.00 on the full 900; look 1 only screens.
 KEEP_Z = {600: 2.45, 900: 2.00}
+
+
+def _binom_mid_p(k: int, n: int) -> float:
+    """Two-sided mid-p (p=0.5): twice the smaller tail with half the observed point mass, capped at 1."""
+    if n == 0:
+        return 1.0
+    k = min(k, n - k)
+    below = sum(math.comb(n, i) for i in range(k))
+    tail = (2 * below + math.comb(n, k)) / (2 * (1 << n))
+    return min(1.0, 2.0 * tail)
 
 
 def _binom_two_sided(k: int, n: int) -> float:
@@ -78,6 +98,7 @@ class McNemar:
     c: int  # baseline wrong, candidate right
     p_value: float
     z: float  # (c - b) / sqrt(b + c); 0 when no discordant pairs
+    p_mid: float | None = None  # mid-p variant (less conservative); the keep rule reads p_value
 
     @property
     def discordance(self) -> float:
@@ -90,13 +111,19 @@ class McNemar:
 
 
 def mcnemar(baseline: Sequence[bool], candidate: Sequence[bool]) -> McNemar:
-    """Exact McNemar test on paired per-document correctness."""
+    """Exact McNemar test on paired per-document correctness.
+
+    The p-value is the exact binomial one for every count of discordant pairs (integer
+    arithmetic, so it stays exact past 1,024 pairs, where ``2.0 ** n`` overflows); ``p_mid`` is
+    the mid-p variant. Pair the two vectors by document id first (:func:`align_by_id`).
+    """
     if len(baseline) != len(candidate):
         raise ValueError("paired sequences differ in length")
     b = sum(1 for x, y in zip(baseline, candidate) if x and not y)
     c = sum(1 for x, y in zip(baseline, candidate) if y and not x)
     z = (c - b) / math.sqrt(b + c) if (b + c) else 0.0
-    return McNemar(n=len(baseline), b=b, c=c, p_value=_binom_two_sided(c, b + c), z=z)
+    return McNemar(n=len(baseline), b=b, c=c, p_value=_binom_two_sided(c, b + c), z=z,
+                   p_mid=_binom_mid_p(c, b + c))
 
 
 def paired_permutation(
@@ -207,11 +234,16 @@ def keep_at_look(
     otherwise drop.
 
     ``look`` (1, 2 or 3) names the look explicitly, so a look that lost a few
-    documents to failed calls (n = 897 at look 3) still decides. Without it the
-    look is inferred from ``n``.
+    documents to failed calls (n = 897 at look 3) still decides. Without it ``n``
+    must be a look size (300, 600 or 900): inferring the look from any other n
+    read a 897-document final look as look 2 (``continue``, never a decision),
+    so an unnamed off-size look raises instead.
     """
     if look is None:
-        look = 3 if n >= 900 else 2 if n >= 600 else 1
+        by_size = {size: k for k, size in LOOK_SIZES.items()}
+        if n not in by_size:
+            raise ValueError(f"n={n} is not a look size {sorted(by_size)}; pass look= explicitly")
+        look = by_size[n]
     if look not in (1, 2, 3):
         raise ValueError(f"look must be 1, 2 or 3, got {look}")
     if look == 3:
@@ -292,6 +324,141 @@ def zero_failure_n(target_error: float, confidence: float = 0.95) -> int:
     while n > 1 and (clopper_pearson_upper(0, n - 1, confidence=confidence) or 1.0) <= target_error:
         n -= 1  # guard the float ceiling against an off-by-one
     return n
+
+
+@dataclass(frozen=True)
+class PairedAlignment:
+    """Two arms' per-document values on their shared documents, in one id order."""
+
+    ids: tuple[str, ...]
+    baseline: tuple
+    candidate: tuple
+    only_baseline: tuple[str, ...]  # missing or errored on the candidate arm
+    only_candidate: tuple[str, ...]  # missing or errored on the baseline arm
+    neither: tuple[str, ...] = ()  # errored on both arms
+
+    @property
+    def complete(self) -> bool:
+        return not self.only_baseline and not self.only_candidate and not self.neither
+
+    def report(self) -> dict:
+        return {"paired": len(self.ids), "only_baseline": list(self.only_baseline),
+                "only_candidate": list(self.only_candidate), "neither": list(self.neither)}
+
+
+def align_by_id(baseline: Mapping[str, object], candidate: Mapping[str, object], *,
+                errored_as: object | None = None) -> PairedAlignment:
+    """Pair two arms by document id (sorted ids, so both vectors share one order).
+
+    A ``None`` value is an errored or missing document. With ``errored_as`` (e.g. ``False`` for
+    correctness, ``0.0`` for a score) it stands in for the error and the pair is kept; otherwise
+    the pair is left out and the id is reported under ``only_baseline`` / ``only_candidate``, never
+    dropped silently. Every pairwise test here takes the aligned vectors.
+    """
+    ids, base, cand, only_b, only_c, neither = [], [], [], [], [], []
+    for doc in sorted(set(baseline) | set(candidate), key=str):
+        b, c = baseline.get(doc), candidate.get(doc)
+        in_b, in_c = doc in baseline, doc in candidate
+        if errored_as is not None and in_b and in_c:
+            b = errored_as if b is None else b
+            c = errored_as if c is None else c
+        b_ok, c_ok = in_b and b is not None, in_c and c is not None
+        if b_ok and c_ok:
+            ids.append(str(doc))
+            base.append(b)
+            cand.append(c)
+        elif b_ok:
+            only_b.append(str(doc))
+        elif c_ok:
+            only_c.append(str(doc))
+        else:
+            neither.append(str(doc))
+    return PairedAlignment(tuple(ids), tuple(base), tuple(cand), tuple(only_b), tuple(only_c), tuple(neither))
+
+
+@dataclass(frozen=True)
+class NoiseFloor:
+    """Run-to-run noise of one configuration repeated (R20's 5 runs, R40's repeats)."""
+
+    n_runs: int
+    n_docs: int  # documents every run scored
+    metric_by_run: tuple[float, ...]  # accuracy (or mean score) per run on the shared documents
+    mean: float
+    sd: float  # sample standard deviation across runs (0 for a single run)
+    floor: float  # the largest gap between two runs of the same config: a gain under it is noise
+    flip_rate: float  # share of shared documents whose outcome differs between at least two runs
+    missing: dict  # {run: [doc ids it did not score]}
+
+    def as_dict(self) -> dict:
+        return {"n_runs": self.n_runs, "n_docs": self.n_docs, "metric_by_run": list(self.metric_by_run),
+                "mean": self.mean, "sd": self.sd, "floor": self.floor, "flip_rate": self.flip_rate,
+                "missing": self.missing}
+
+
+def noise_floor(runs: Mapping[str, Mapping[str, object]]) -> NoiseFloor:
+    """Noise floor of repeated runs of one config, each ``{doc_id: correct | score | None}``.
+
+    Every run is restricted to the documents all runs scored (a ``None`` or absent document is
+    listed under ``missing`` for that run). ``floor`` is ``max - min`` of the per-run metric, the
+    largest difference chance produced between identical configurations; ``flip_rate`` the share
+    of documents whose outcome is not the same in every run.
+    """
+    if not runs:
+        raise ValueError("noise_floor needs at least one run")
+    labels = sorted(runs)
+    scored = {r: {d for d, v in runs[r].items() if v is not None} for r in labels}
+    every = set.union(*(set(runs[r]) for r in labels))
+    shared = sorted(set.intersection(*scored.values()), key=str)
+    if not shared:
+        raise ValueError("no document was scored by every run")
+    missing = {r: sorted((every - scored[r]), key=str) for r in labels if every - scored[r]}
+    per_run = tuple(round(sum(float(runs[r][d]) for d in shared) / len(shared), 6) for r in labels)
+    mean = sum(per_run) / len(per_run)
+    sd = math.sqrt(sum((m - mean) ** 2 for m in per_run) / (len(per_run) - 1)) if len(per_run) > 1 else 0.0
+    flips = sum(1 for d in shared if len({float(runs[r][d]) for r in labels}) > 1)
+    return NoiseFloor(len(labels), len(shared), per_run, round(mean, 6), round(sd, 6),
+                      round(max(per_run) - min(per_run), 6), round(flips / len(shared), 6), missing)
+
+
+def keep_with_floor(decision: str, gain: float, floor: float | NoiseFloor, *, look: int) -> dict:
+    """Apply the noise floor to a sequential-look decision.
+
+    A ``keep`` whose gain does not exceed the floor is noise: at the final look it is a ``drop``,
+    at an earlier look ``continue``. ``drop`` and ``continue`` pass through.
+    """
+    value = floor.floor if isinstance(floor, NoiseFloor) else float(floor)
+    if decision == "keep" and gain <= value:
+        return {"decision": "drop" if look == 3 else "continue", "reason": "gain_within_noise_floor",
+                "gain": gain, "floor": value}
+    return {"decision": decision, "reason": "rule" if decision != "keep" else "gain_above_noise_floor",
+            "gain": gain, "floor": value}
+
+
+def calibration_inputs(pairs: Sequence[tuple[object, object]]) -> tuple[list[tuple[float, bool]], dict]:
+    """``(confidence, correct)`` pairs the calibration math can use, plus what was dropped and why.
+
+    The Dojo's Brier / ECE drop an unusable confidence silently (None, NaN, a string, a bool, a value
+    outside [0, 1] such as 95 on a 0-100 scale). Nothing is clamped or rescaled here either; the
+    dropped count and reasons are returned so a report states its calibration n honestly.
+    """
+    clean: list[tuple[float, bool]] = []
+    reasons: dict[str, int] = {}
+
+    def drop(why: str) -> None:
+        reasons[why] = reasons.get(why, 0) + 1
+
+    for conf, correct in pairs:
+        if conf is None:
+            drop("missing")
+        elif isinstance(conf, bool) or not isinstance(conf, (int, float)):
+            drop("not_a_number")
+        elif not math.isfinite(float(conf)):
+            drop("not_finite")
+        elif not 0.0 <= float(conf) <= 1.0:
+            drop("out_of_range")
+        else:
+            clean.append((float(conf), bool(correct)))
+    return clean, {"n": len(clean), "n_dropped": len(pairs) - len(clean), "dropped": reasons}
 
 
 @dataclass(frozen=True)

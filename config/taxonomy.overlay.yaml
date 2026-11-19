@@ -48,13 +48,17 @@ cost_models:
 # them, so a document is chunked only when it exceeds the model's real window.
 # The judge/arbiter source excerpts follow the fitted judge/arbiter budgets
 # (mailroom_sandbox.source_windows). Modal/vLLM/Ollama routes are unchanged.
+# The sorter, sorter_reviewer and intake are fitted too: the vendored sorter and
+# intake slide windows over the whole document at their budget, so an unfitted
+# 12k budget read a 380k-char merger in ~100 calls (rb1 R01 smoke). On an API
+# route every reader makes one call per document that fits the model.
 # Run agent_knobs still win.
 context_fit:
   enabled: true
   chars_per_token: 2.4
   reserve_tokens: 8000
   providers: [openrouter]
-  agents: [specialists, judge, arbiter]
+  agents: [specialists, judge, arbiter, sorter, sorter_reviewer, intake]
 
 # DMR-072: run-level limits — 900s was too high for idle; 600s holds L4
 # saturation bursts (queue + decode under concurrency 4–5). The vendored

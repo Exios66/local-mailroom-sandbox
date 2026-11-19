@@ -13,8 +13,11 @@ function it wraps:
   target fingerprints and the sha256 of this module, so results name the code that scored them.
 
 Add a hotfix only for pipeline behavior an experiment depends on, with a test, an upstream
-issue or PR in ``upstream`` and the CHANGELOG entry. Never patch scoring here: the scorer is
-the Dojo pin. See ``docs/vendor-hotfixes.md``.
+issue or PR in ``upstream`` and the CHANGELOG entry. Scoring corrections do not go here: they
+live in ``scoring_hotfixes.py``, dual reported beside the Dojo pin's raw values. See
+``docs/vendor-hotfixes.md`` and ``docs/scoring-hotfixes.md``.
+
+``attr`` may name a method (``Class.method``); the wrapper then replaces it on the class.
 """
 
 from __future__ import annotations
@@ -77,6 +80,29 @@ def _install_record_type_from_subclass(_module: Any, original: Callable[..., Any
     return enrich_extraction
 
 
+#: The reasoning the vendored CompletenessJudge returns when its structured output failed to parse.
+JUDGE_PARSE_FAILURE = "judge output failed to parse"
+
+
+class JudgeParseError(RuntimeError):
+    """The completeness judge's answer did not parse: no verdict was reached (HF-002)."""
+
+
+def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def judge_completeness(self: Any, *args: Any, **kwargs: Any) -> dict:
+        out = original(self, *args, **kwargs)
+        # Upstream turns a parse failure into a real "incomplete 0.0" verdict, which sends the
+        # document to the arbiter as if the extraction were judged incomplete and is never counted
+        # as a judge error. Raising takes the graph's own hard-failure path: judge_verdict
+        # "judge_error", routed to human review and counted by the gate.
+        if str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0:
+            raise JudgeParseError(JUDGE_PARSE_FAILURE)
+        return out
+
+    return judge_completeness
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -87,6 +113,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="corporate_record: a null record_type is filled from every corporate subclass "
                 "through Dojo's subclass -> record_type map, not only the five Hub tokens",
         install=_install_record_type_from_subclass,
+    ),
+    Hotfix(
+        id="HF-002",
+        module="agents.judge",
+        attr="CompletenessJudge.judge_completeness",
+        source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
+        upstream="llm-mailroom: draft issue J-1 in docs/scoring-hotfixes.md (not filed)",
+        summary="a completeness-judge parse failure is a judge error (human review, counted), "
+                "not an 'incomplete 0.0' verdict",
+        install=_install_judge_parse_error,
     ),
 )
 
@@ -115,7 +151,11 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
             _log.debug("%s: %s unavailable: %s", fix.id, fix.module, exc)
             _STATUS[fix.id] = "unavailable"
             continue
-        current = getattr(module, fix.attr)
+        owner_path, _, name = fix.attr.rpartition(".")
+        owner: Any = module
+        for part in owner_path.split(".") if owner_path else ():
+            owner = getattr(owner, part)
+        current = getattr(owner, name)
         if getattr(current, _MARK, None) == fix.id:
             _STATUS[fix.id] = "applied"
             continue
@@ -126,7 +166,7 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
             continue
         wrapped = fix.install(module, current)
         setattr(wrapped, _MARK, fix.id)
-        setattr(module, fix.attr, wrapped)
+        setattr(owner, name, wrapped)
         _STATUS[fix.id] = "applied"
         _log.info("%s applied: %s", fix.id, fix.summary)
     return {fix.id: _STATUS[fix.id] for fix in hotfixes}

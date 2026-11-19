@@ -8,8 +8,16 @@
 # (corporate, correspondence and insurance specialists, sorter_reviewer, judge, arbiter;
 # call_path: retry_chat_completion). judge and boss are routed to the same model (the openrouter
 # profile otherwise sends judge to deepseek/deepseek-v4-flash), so every chat call is this model.
-# No agent_knobs: the overlay input caps (sorter 12k chars) and context fit apply; the smoke checks
-# routing, not accuracy.
+# No agent_knobs: context fit gives every reader (intake, sorter, sorter_reviewer, specialists,
+# judge, arbiter) the model's 1M-token window, so each reads a document in one call (the first
+# attempt windowed each merger ~100 times at the 12k sorter cap). Prompts: every agent runs its
+# lineage frontrunner (prompt_lineage; default code-default no longer means vendored). Routing is
+# blind (job.blind_routing defaults to true for pipelines). The smoke checks routing, not accuracy.
+#
+# Re-estimate after those fixes (~3.75 chars/token measured on this draw; the two mergers are
+# ~82k and ~102k tokens per read, priced at the 32k+ tier): about $0.06 clean, about $0.10 with
+# the review and judge reads, worst case about $0.25. api_cost_cap_usd 0.09 may stop the run
+# before the last documents; raising it is the owner's call.
 #
 # Blocked until config/provider_pins.yaml has a non-empty `order` for qwen/qwen3.7-flash
 # (python scripts/refresh_provider_pins.py; owner choice): with `order: []` every row is

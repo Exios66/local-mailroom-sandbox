@@ -115,10 +115,13 @@ job:
                             # cost_cap_usd when they warm a Modal GPU and
                             # api_cost_cap_usd when they bill API tokens. `experiment
                             # create` fills unset ceilings from a recommendation.
-  blind_routing: false      # task: pipeline only. true keeps the dataset labels
-                            # (expected class and fields) out of the graph's state,
-                            # so routing cannot read them (llm-mailroom #207); scoring
-                            # still uses the full locked row. Hashed only when true
+  blind_routing:            # task: pipeline only; unset = true. The dataset labels
+                            # (expected class and fields) stay out of the graph's
+                            # state, so it neither routes on them nor scores itself
+                            # against them mid-run (llm-mailroom #207); the sandbox
+                            # scores afterwards against the full locked row. false is
+                            # oracle routing: allowed only with job.mock (preflight
+                            # refuses it for a live run). Hashed only when true
   pipeline_handoff: false   # specialist tasks only. true sends each document the extract
                             # node's handoff (sorter-class line + the vendored
                             # doc_inventories note, no subclass) and applies the node's

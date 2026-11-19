@@ -121,6 +121,32 @@ def _score(task: str, expected: list[str], predicted: list[str]) -> dict[str, An
     return sc.score_classification(expected, predicted)
 
 
+ERRORED_PREDICTION = "__errored__"
+
+
+def _scored_pairs(task: str, expected: list[str], predicted: list[str], ok_by_index: dict[int, bool],
+                  n_rows: int) -> dict[str, Any]:
+    """Per-item run scores, dual reported (``docs/scoring-hotfixes.md``).
+
+    Raw (DMR-049 F4): only completed, ok rows are scored, so a failed row leaves the denominator.
+    SHF-005: a failed row is scored as a wrong prediction (``__errored__``), so timeouts and
+    parse failures cannot raise the accuracy; the raw value stays under ``raw_dojo``.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    ok_pairs = [(expected[i], predicted[i]) for i in range(n_rows)
+                if ok_by_index.get(i, False) and predicted[i] != ""]
+    raw_scores = _score(task, [e for e, _ in ok_pairs], [p for _, p in ok_pairs]) if ok_pairs else {}
+    if "SHF-005" not in sh.current_ids():
+        return sh.merge_dual(raw_scores, raw_scores, [])
+    all_pairs = [(expected[i], predicted[i] if ok_by_index.get(i, False) and predicted[i] != "" else ERRORED_PREDICTION)
+                 for i in range(n_rows)]
+    fixed = _score(task, [e for e, _ in all_pairs], [p for _, p in all_pairs]) if all_pairs else {}
+    fixed["n_errored_scored_wrong"] = sum(1 for _, p in all_pairs if p == ERRORED_PREDICTION)
+    used = ["SHF-005"] if fixed["n_errored_scored_wrong"] else []
+    return sh.merge_dual(raw_scores, fixed if used else raw_scores, used)
+
+
 def _task_defaults(store: RunStore) -> dict[str, Any]:
     lock = store.read_lock() or {}
     return lock.get("job", {})
@@ -819,6 +845,9 @@ def _persist_isolated_items(
                 "latency_ms": row.get("latency_ms"),
                 "prompt_tokens": row.get("prompt_tokens"),
                 "completion_tokens": row.get("completion_tokens"),
+                # The call count prices tiered models per call (autoresearch read a missing count as
+                # one call, which put a document's whole prompt in the top price tier).
+                **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
                 **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
                 "ts": utc_now(),
             }
@@ -1423,18 +1452,7 @@ def _run_job(
             "errors": error_count,
             "last_error": first_error,
         }
-    # Score only completed, ok rows — a failed row must never count as a wrong
-    # prediction, and the error count is reported explicitly (DMR-049 F4).
-    scored_pairs = [
-        (expected[i], predicted[i])
-        for i in range(len(rows))
-        if ok_by_index.get(i, False) and predicted[i] != ""
-    ]
-    scores = (
-        _score(task, [e for e, _ in scored_pairs], [p for _, p in scored_pairs])
-        if scored_pairs
-        else {}
-    )
+    scores = _scored_pairs(task, expected, predicted, ok_by_index, len(rows))
     if error_count:
         scores["error_count"] = error_count
     wall_seconds = round(time.perf_counter() - run_started, 3)
