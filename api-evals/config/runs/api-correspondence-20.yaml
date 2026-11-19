@@ -1,11 +1,14 @@
 # api-evals: correspondence_specialist on 20 CORRESPONDENCE docs via OpenRouter API.
-# COMPARABLE to the sandbox Modal specialist runs: the SAME draw
+# COMPARABLE to a paired sandbox Modal specialist run on the SAME draw
 # (split=all, bucket correspondence count 20, seed 42, pinned revision) and the
-# SAME prompt — both legs now resolve the lineage frontrunner at preflight
-# (correspondence_specialist_condensed_v3 today); the historical simplified-stem
-# pairs stay recorded in the run store. Only the engine differs:
-# profile=openrouter, model qwen/qwen3.7-flash (the OpenRouter champion that
-# maps to the Modal Qwen/Qwen3-8B row). Real API costs are captured per item
+# SAME prompt: a Modal leg that is an UNLOCKED run spec resolves the lineage
+# frontrunner at preflight too (prompt_lineage.with_lineage_defaults), so both
+# legs run correspondence_specialist_condensed_v3 today and only the engine
+# differs (profile=openrouter, model qwen/qwen3.7-flash — the OpenRouter
+# champion that maps to the Modal Qwen/Qwen3-8B row). The historical Modal
+# specs that pin correspondence_specialist_simplified are recorded history:
+# they compare draw and engine, not prompt, and are not this run's pair.
+# Real API costs are captured per item
 # (tokens x OpenRouter list price; cross-checked vs response usage.cost).
 schema: sandbox.run/v1
 run_id: api-correspondence-20

@@ -1,7 +1,9 @@
 # api-evals: correspondence_specialist on 40 CORRESPONDENCE docs via OpenRouter API.
-# COMPARABLE to the sandbox run-20-correspondence draw method: split=all, bucket
-# correspondence count 40, seed 42, pinned revision; SAME prompt stem
-# (correspondence_specialist_simplified). profile=openrouter, model
+# COMPARABLE to a paired sandbox Modal run on the SAME draw method: split=all,
+# bucket correspondence count 40, seed 42, pinned revision, and the SAME prompt
+# — an unlocked Modal leg resolves the lineage frontrunner at preflight, so
+# both legs run correspondence_specialist_condensed_v3 today and only the
+# engine differs. profile=openrouter, model
 # qwen/qwen3.7-flash. Real API costs are captured per item.
 schema: sandbox.run/v1
 run_id: api-correspondence-40

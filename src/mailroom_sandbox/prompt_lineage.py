@@ -109,19 +109,34 @@ def apply_eval_defaults(task: str | None) -> bool:
     direct eval paths (``sandbox eval pipeline`` / ``sorter`` / ``extract`` and the
     runners they call), which otherwise keep vendored code-default prompts — a silent
     regression to the pre-condensed stems. It is a no-op when a locked run policy is
-    active (the lock owns the surface) or an explicit ``--prompt-version`` selection is
-    set, and returns True only when lineage texts were applied.
+    active (the lock owns the surface). An explicit ``--prompt-version`` selection keeps
+    the roles it named, and the lineage defaults still apply to every role it did not
+    name: a partial selection must not silently revert the unnamed agents to vendored
+    prompts. Returns True only when lineage texts were applied.
     """
     from mailroom_sandbox import prompt_versions as pv
     from mailroom_sandbox.runtime import locked_policy
 
-    if pv.active_selection():
-        return False
     if locked_policy() is not None:
         return False
-    if not frontrunners():
+    selected_roles = set(pv.active_selection().prompts)
+    fronts = {agent: stem for agent, stem in frontrunners().items() if agent not in selected_roles}
+    if not fronts:
         return False
-    from mailroom_sandbox.prompt_registry import apply_locked_prompts, prompt_lock_block
+    agents = _agents_for(task, fronts)
+    if not agents:
+        return False
+    from mailroom_sandbox.prompt_registry import apply_runtime_overrides, prompt_lock_block
 
-    apply_locked_prompts(prompt_lock_block(with_lineage_defaults({}, task)))
+    block = prompt_lock_block({"agents": {agent: {"source": "local", "file": fronts[agent]}
+                                          for agent in sorted(agents)}})
+    texts = {role: ref["text"] for role, ref in block["agents"].items() if ref.get("text")}
+    if not texts:
+        return False
+    patched = apply_runtime_overrides(texts)
+    missing = sorted(set(texts) - set(patched))
+    if missing:
+        raise RuntimeError(
+            f"lineage default prompts {missing} could not be applied "
+            "(pipeline not importable) -- the run would execute vendored prompts")
     return True

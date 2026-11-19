@@ -17,6 +17,9 @@ prompt:
   # current condensed prompt and can never silently regress to a superseded
   # stem. Today that is contracts_specialist_v33_simplified (outside the
   # condensed lineage, the deployed frontrunner).
+# A paired Modal leg must be an UNLOCKED run spec, which resolves the same
+# frontrunner at preflight; historical Modal specs that pin a simplified stem
+# are recorded history, not this run's prompt pair.
   default: {source: code-default}
 
 dataset:

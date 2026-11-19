@@ -129,13 +129,35 @@ def test_apply_eval_defaults_pins_frontrunners_on_an_unlocked_eval():
         pv.clear_active_selection()
 
 
-def test_apply_eval_defaults_is_a_noop_under_a_selection_or_a_lock():
+def test_a_partial_selection_keeps_its_named_roles_and_defaults_the_rest():
+    from mailroom_sandbox import prompt_registry as pr
     from mailroom_sandbox import prompt_versions as pv
     from mailroom_sandbox.prompt_lineage import apply_eval_defaults
 
     try:
         pv.set_active_selection(pv.resolve_selection(["sorter=sorter_v1"]))
-        assert apply_eval_defaults("pipeline") is False
+        assert apply_eval_defaults("pipeline") is True
+        # The explicit selection keeps the role it named; every other lineage agent
+        # still gets its frontrunner (a partial selection must not revert the
+        # unnamed agents to vendored prompts — the regression this guard exists for).
+        assert "sorter" not in pr._OVERRIDE_STATE.table
+        for agent, stem in frontrunners().items():
+            if agent == "sorter":
+                continue
+            assert pr._OVERRIDE_STATE.table.get(agent) is not None, agent
+    finally:
+        pr.deactivate_runtime_overrides()
+        pv.clear_active_selection()
+
+
+def test_apply_eval_defaults_is_a_noop_when_the_selection_covers_the_whole_surface():
+    from mailroom_sandbox import prompt_versions as pv
+    from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+    try:
+        pv.set_active_selection(pv.resolve_selection(["sorter=sorter_v1"]))
+        # The isolated sorter task has no unnamed lineage agent left to default.
+        assert apply_eval_defaults("sorter") is False
     finally:
         pv.clear_active_selection()
 
