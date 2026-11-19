@@ -56,7 +56,7 @@ the Modal endpoint.
 ### Campaign patch readiness
 
 Before running an experimental campaign, follow
-[the campaign contract](../EXPERIMENT-CAMPAIGN-CONTRACT.md). From the intended checkout,
+[the campaign contract](../../EXPERIMENT-CAMPAIGN-CONTRACT.md). From the intended checkout,
 run `python scripts/check_hotfixes.py`, and use `--require-watcher` when the watcher
 will execute. Required unavailable or stale pipeline/scoring fixes fail readiness.
 G0 includes the same check; it still needs smoke ledgers and human label evidence.
