@@ -290,7 +290,7 @@ stdout keeps only the command's result (JSON summaries stay parseable):
 | Flag | Shows |
 |---|---|
 | `-q` / `--quiet` | warnings, errors and the final result (no banner or progress bar) |
-| default | key events: run start/finish, each document done/failed, spend checkpoints (25/50/75/90% of `job.api_cost_cap_usd`), cap aborts, cancel/pause, plus warnings and errors |
+| default | key events: run start/finish, each document done/failed (a resumed whole run marks re-processed documents `re-run; already recorded`), spend checkpoints (one line per mark crossed: 25/50/75/90% of `job.api_cost_cap_usd`), cap aborts, cancel/pause, plus warnings and errors |
 | `-v` | also routine INFO: per-call pipeline events (`llm_structured_call`, `audit_entry_written`, …), sandbox setup notes |
 | `-vv` | also DEBUG, and third-party loggers (httpx, huggingface_hub, langchain, …) at INFO; SQL echo stays off |
 

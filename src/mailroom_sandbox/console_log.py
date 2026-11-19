@@ -263,6 +263,7 @@ class _RepeatFilter(logging.Filter):
         try:
             fields = getattr(record, "sb_fields", None) or {}
             key = (record.name, record.levelno, record.getMessage(),
+                   getattr(record, "sb_run", None), getattr(record, "sb_doc", None),
                    json.dumps(fields, sort_keys=True, default=str))
         except Exception:  # noqa: BLE001
             return True
@@ -470,6 +471,14 @@ def _emit(level: int, kind: str | None, text: str, run_id: Any = None, doc_id: A
     _run_log.log(level, "  ".join(bit for bit in (ids, text, tail) if bit), extra=extra)
 
 
+_self_log = logging.getLogger("mailroom_sandbox.console_log")
+
+
+def _echo_failed() -> None:
+    """Console output must never break a run: note the failure at DEBUG and carry on."""
+    _self_log.debug("console echo failed", exc_info=True)
+
+
 def run_event(run_id: Any, event: str, level: str = "info", detail: Mapping[str, Any] | None = None) -> None:
     """Console echo of one run-store event (``events.jsonl`` itself is untouched)."""
     try:
@@ -479,8 +488,8 @@ def run_event(run_id: Any, event: str, level: str = "info", detail: Mapping[str,
             mapped = (lvl or logging.DEBUG, None, event.replace("_", " "))
         lvl, kind, message = mapped
         _emit(lvl, kind, message, run_id=run_id, fields=detail)
-    except Exception:  # noqa: BLE001 - console output must never break a run
-        pass
+    except Exception:  # noqa: BLE001
+        _echo_failed()
 
 
 def doc_done(
@@ -495,8 +504,13 @@ def doc_done(
     prompt_tokens: Any = None,
     completion_tokens: Any = None,
     spent_usd: float | None = None,
+    rerun: bool = False,
 ) -> None:
-    """One per-document completion line."""
+    """One per-document completion line.
+
+    ``rerun`` marks a document a resumed whole-run delegate processed again although an
+    earlier attempt already recorded it (its item row is kept; only the console says so).
+    """
     try:
         fields: dict[str, Any] = {}
         if done is not None and total:
@@ -509,20 +523,23 @@ def doc_done(
             fields["spent"] = f"${spent_usd:.4f}"
         if not ok and error:
             fields["error"] = str(error)[:160]
+        text = "doc done" if ok else "doc failed"
+        if rerun:
+            text += " (re-run; already recorded)"
         _emit(
             logging.INFO if ok else logging.WARNING,
             DOC_OK if ok else DOC_FAIL,
-            "doc done" if ok else "doc failed",
+            text,
             run_id=run_id,
             doc_id=item_id,
             fields=fields,
         )
     except Exception:  # noqa: BLE001
-        pass
+        _echo_failed()
 
 
 class SpendCheckpoints:
-    """Log once as API spend crosses each fraction of its cap."""
+    """Log once as API spend crosses each fraction of its cap (one line per mark crossed)."""
 
     MARKS = (0.25, 0.5, 0.75, 0.9)
 
@@ -537,17 +554,45 @@ class SpendCheckpoints:
             if cap <= 0:
                 return
             spent = float(getattr(self.budget, "spent_usd", 0) or 0)
-            crossed = [m for m in self.MARKS if spent >= m * cap and m not in self._passed]
-            if not crossed:
-                return
-            self._passed.update(crossed)
-            mark = max(crossed)
-            _emit(
-                logging.WARNING if mark >= 0.9 else logging.INFO,
-                SPEND,
-                f"spend at {int(mark * 100)}% of cap",
-                run_id=self.run_id,
-                fields={"spent": f"${spent:.4f}", "cap": f"${cap:.2f}"},
-            )
+            for mark in self.MARKS:
+                if spent < mark * cap or mark in self._passed:
+                    continue
+                self._passed.add(mark)
+                _emit(
+                    logging.WARNING if mark >= 0.9 else logging.INFO,
+                    SPEND,
+                    f"spend at {int(mark * 100)}% of cap",
+                    run_id=self.run_id,
+                    fields={"spent": f"${spent:.4f}", "cap": f"${cap:.2f}"},
+                )
         except Exception:  # noqa: BLE001
-            pass
+            _echo_failed()
+
+
+class DocEcho:
+    """Per-run console echo of document completions plus spend checkpoints."""
+
+    def __init__(self, run_id: Any, budget: Any = None) -> None:
+        self.run_id = run_id
+        self.budget = budget
+        self.marks = SpendCheckpoints(run_id, budget) if budget is not None else None
+
+    def __call__(self, item_id: Any, *, ok: bool, done: int | None, total: int | None,
+                 row: Mapping[str, Any] | None = None, error: Any = None, latency_ms: Any = None,
+                 rerun: bool = False) -> None:
+        row = row or {}
+        doc_done(
+            self.run_id,
+            item_id,
+            ok=ok,
+            done=done,
+            total=total,
+            error=error,
+            latency_ms=row.get("latency_ms") if latency_ms is None else latency_ms,
+            prompt_tokens=row.get("prompt_tokens"),
+            completion_tokens=row.get("completion_tokens"),
+            spent_usd=getattr(self.budget, "spent_usd", None),
+            rerun=rerun,
+        )
+        if self.marks is not None:
+            self.marks.check()

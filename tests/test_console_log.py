@@ -178,9 +178,10 @@ def test_spend_checkpoints_fire_once_per_mark(capsys):
     _Budget.spent_usd = 0.95
     marks.check()
     lines = _lines(capsys)
-    assert len(lines) == 2
+    assert len(lines) == 4  # a jump past several marks still reports each one
     assert "spend at 25% of cap" in lines[0] and "spent=$0.3000 cap=$1.00" in lines[0]
-    assert lines[1].split()[1] == "WARN" and "spend at 90% of cap" in lines[1]
+    assert ["50%" in lines[1], "75%" in lines[2]] == [True, True]
+    assert lines[3].split()[1] == "WARN" and "spend at 90% of cap" in lines[3]
 
 
 def test_unconfigured_run_logger_is_silent(capsys):
@@ -249,7 +250,6 @@ def test_quiet_console_skips_banner_and_progress(capsys):
 
 
 def test_run_job_mock_prints_lifecycle_and_doc_lines(tmp_path, capsys):
-    from tests.test_job_runner import _prepped_store
     from mailroom_sandbox.job import runner
 
     import shutil
@@ -328,3 +328,66 @@ def test_run_records_read_well_under_a_foreign_formatter():
         run_log.removeHandler(handler)
         run_log.setLevel(logging.NOTSET)
     assert records == ["INFO mailroom_sandbox.run run=r1 doc=d7  doc done  n=2/5"]
+
+
+def test_repeat_filter_keeps_identical_warnings_from_different_docs(capsys):
+    console_log.configure(0)
+    for doc in ("d1", "d1", "d2"):
+        console_log.doc_done("r1", doc, ok=False, error="timeout")
+    lines = _lines(capsys)
+    assert [ln.split("doc=")[1].split()[0] for ln in lines] == ["d1", "d2"]
+
+
+def test_doc_echo_reports_resumed_reruns_and_spend(capsys):
+    console_log.configure(0)
+
+    class _Budget:
+        cap_usd = 1.0
+        spent_usd = 0.26
+
+    echo = console_log.DocEcho("r1", _Budget)
+    echo("d1", ok=True, done=1, total=2, row={"latency_ms": 1500, "prompt_tokens": 10, "completion_tokens": 2},
+         rerun=True)
+    lines = _lines(capsys)
+    assert "doc done (re-run; already recorded)" in lines[0]
+    assert "latency=1.5s tokens=10/2 spent=$0.2600" in lines[0]
+    assert "spend at 25% of cap" in lines[1]
+
+
+def test_echo_failure_never_raises(caplog):
+    console_log.configure(0)
+    caplog.set_level(logging.DEBUG, logger="mailroom_sandbox.console_log")
+
+    class _Boom:
+        @property
+        def cap_usd(self):
+            raise RuntimeError("boom")
+
+    console_log.SpendCheckpoints("r1", _Boom()).check()
+    assert any("console echo failed" in r.getMessage() for r in caplog.records)
+
+
+def _prepped_store(tmp_path, rows, run_id):
+    """A prepared offline mock sorter run (mirrors tests/test_job_runner.py; bare `pytest`
+    does not put the repo root on sys.path, so test modules cannot import each other)."""
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
+
+    path = tmp_path / "f.jsonl"
+    with open(path, "w", encoding="utf-8") as fh:
+        for i in range(rows):
+            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": f"t{i}",
+                                 "expected": "contract" if i % 2 else "insurance_claim",
+                                 "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
+    spec = RunSpec(
+        run_id=run_id,
+        task="sorter",
+        dataset=DatasetSpec(local_path=f"file://{path}", limit=rows),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job={"mock": True},
+    )
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    return RunStore(run_dir(report["run_id"]))
