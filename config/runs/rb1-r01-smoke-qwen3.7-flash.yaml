@@ -14,23 +14,19 @@
 # lineage frontrunner (prompt_lineage; default code-default no longer means vendored). Routing is
 # blind (job.blind_routing defaults to true for pipelines). The smoke checks routing, not accuracy.
 #
-# Re-estimate after those fixes (~3.75 chars/token measured on this draw; the two mergers are
-# ~82k and ~102k tokens per read, priced at the 32k+ tier): about $0.06 clean, about $0.10 with
-# the review and judge reads, worst case about $0.25. api_cost_cap_usd 0.09 may stop the run
-# before the last documents; raising it is the owner's call.
-#
 # Blocked until config/provider_pins.yaml has a non-empty `order` for qwen/qwen3.7-flash
 # (python scripts/refresh_provider_pins.py; owner choice): with `order: []` every row is
 # `unverified` and the gate fails.
 #
 # Cost (config/api_prices.yaml list prices with tiers; the 10 drawn documents are 1k-383k
-# chars, ~4 chars/token, two merger agreements are ~70% of it; output assumed 300 tokens per
-# sorter call, 2,000 per specialist call, 500 per judge call; context fit lets the judge read
-# the whole document): about $0.032 on the clean path (sorter + specialist), about
-# $0.058 with one judge pass per document, worst case $0.248 (3 extraction,
-# judge and arbiter passes each). Caps: api_cost_cap_usd 0.09 (about 1.5x the judged path;
-# checked before each document, concurrency 2 keeps the overshoot to the documents in flight),
-# max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
+# chars, ~3.75 chars/token measured on this draw; the two mergers are ~82k and ~102k tokens
+# per whole-document read, priced at the 32k+ tier; output assumed 300 tokens per sorter
+# call, 2,000 per specialist call, 500 per judge call): about $0.06 on the clean path
+# (intake, sorter, specialist), about $0.10 with the review and judge reads, worst case
+# about $0.25 (3 extraction, judge and arbiter passes each). Caps: api_cost_cap_usd 0.09 is
+# below the judged path and may stop the run before the last documents (checked before each
+# document; concurrency 2 keeps the overshoot to the documents in flight); raising it is the
+# owner's call. max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
 # repository root:
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-flash.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-flash.jsonl sandbox run start --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml --initials <XX>

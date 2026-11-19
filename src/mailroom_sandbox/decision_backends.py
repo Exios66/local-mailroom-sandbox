@@ -75,6 +75,10 @@ def mock_backend(answers: Mapping[str, tuple[str, float]]) -> "DecisionBackend":
     return backend
 
 
+def _norm_class(value: Any) -> str:
+    return " ".join(str(value or "").split()).lower()
+
+
 def _checked_options(label: str, options: list[str]) -> list[str]:
     if len(options) > MAX_CHOICE_OPTIONS:
         raise ValueError(
@@ -677,8 +681,10 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
     contract = _contract_enabled(qset)
     if contract and qset.get("document_form"):
         # 4.0.0+ (SHF-009): the state of the document as an extraction input.
+        form = dict(qset["document_form"]["criteria"])
+        _checked_options("document_form", list(form))
         questions["document_form"] = {"type": "choice", "instructions": qset["document_form"]["instructions"],
-                                      "criteria": dict(qset["document_form"]["criteria"])}
+                                      "criteria": form}
     for cls, block in (qset.get("subclass") or {}).items():
         if doc_types and cls not in criteria:
             continue
@@ -920,8 +926,12 @@ def apply_question_set_contract(result: Mapping[str, Any], answers: Mapping[str,
             if policy == "park":
                 reasons.append(f"subclass_gate:{choice or 'none'}")
             else:
-                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass")
-                out["subclass_source"] = "sorter"
+                # The sorter's subclass belongs to the sorter's class: reuse it only when the
+                # classes agree, and never under the reviewer's probability for another answer.
+                same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
+                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+                out["subclass_source"] = "sorter" if same_class else "unresolved"
+                out["subclass_confidence"] = None
                 if doc_type == "contract":
                     out["contract_subtype"] = out["doc_subclass"]
     if qset.get("truncation_notice"):

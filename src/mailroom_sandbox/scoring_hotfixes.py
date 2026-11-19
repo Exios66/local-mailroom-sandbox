@@ -19,9 +19,11 @@ id (``SHF-001`` ...), and never silently:
   llm-dojo-scoring issue in ``docs/scoring-hotfixes.md``, or ``sandbox`` when the defect is in
   this repository's own scoring code).
 
-Outside a :func:`hotfixed` block every fix is off, so any caller that does not opt in gets the
-Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring threads never
-see each other's mode. See ``docs/scoring-hotfixes.md``.
+Outside a :func:`hotfixed` block every scoring-call fix is off, so a scorer that does not opt in
+gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
+threads never see each other's mode. Two fixes act outside a scoring call and are on whenever
+they are current: SHF-010 during truth preparation (``gold_labels.apply_near_gold``) and SHF-009
+in the Decisions routing contract (``decision_backends``). See ``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations
@@ -101,7 +103,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-005",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
-                  "e5ae1feb53a943e5d22520e7330c2876f582be052a6d92e79f1947ddc30f739c"),
+                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
                   "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e")),
         upstream="sandbox",
@@ -112,7 +114,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-006",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
-                  "e5ae1feb53a943e5d22520e7330c2876f582be052a6d92e79f1947ddc30f739c"),),
+                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),),
         upstream="sandbox",
         summary="a row with no truth to score is left out of the run mean and counted "
                 "(n_no_truth) instead of averaging in as 0",
@@ -131,7 +133,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-008",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.agents:_score_verdict",
-                  "3109d198295a03fd0f4bb55ac82a5e533383fc80b5cc1fa51cec3c87fbe93ac1"),),
+                  "fffe11dc169fd7a1ff52840d9ae4a2bf8f8952bada93f88d9909c7e39bc58f2e"),),
         upstream="sandbox",
         summary="judge / arbiter / boss rows without a truth verdict are unscored instead of "
                 "1.0 for any output, and a judge parse failure scores 0 with parse_error",
@@ -140,7 +142,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-009",
         layer="sandbox",
         targets=(("mailroom_sandbox.decision_backends:apply_question_set_contract",
-                  "f11496e61c5927a77989ab0cf4d0360b5853c4acbbfb51e9d805a24ea4e49dde"),),
+                  "c2c16b90d935e51d308a9206184866e4325ee86ea3b0fd751693e75634a8e8af"),),
         upstream="sandbox (decision_backends.decide)",
         summary="question set 4.0.0's document_form, abstain, subclass_gate and "
                 "truncation_notice keys are applied: an abstention parks the document "
@@ -174,7 +176,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",
-                  "1e10749b48b7f3648fcd88c04cbe27cd616490b32723ba9b2b273c5a3db9337a")),
+                  "e5bcf80dfa6598718cba4b7fd363f016e21d15cd73d8b5f0d530171824427f59")),
         upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: draft issue D-5)",
         summary="pipeline items record the final sorter/reviewer subclass and score it joint with the "
                 "class on the canonical subclass token (normalize_corpus_subclass), not the Dojo's "
@@ -563,9 +565,10 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
         if not r:
             out.append(None)
             continue
-        base = {k: v for k, v in r.items() if k not in ("n_documented_absent", "n_hallucinated",
-                                                         "hallucination_rate")}
-        base.update(r.get("raw_dojo") or {})
+        counts = ("n_documented_absent", "n_hallucinated", "hallucination_rate")
+        base = {k: v for k, v in r.items() if k not in counts}
+        # A count the raw pass did not produce stays absent (aggregate_extraction keys on presence).
+        base.update({k: v for k, v in (r.get("raw_dojo") or {}).items() if not (k in counts and v is None)})
         out.append(base)
     return out
 

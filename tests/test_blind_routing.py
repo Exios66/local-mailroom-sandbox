@@ -34,12 +34,21 @@ def test_pipeline_specs_are_blind_by_default_and_hash_it():
 def test_only_a_locked_oracle_run_turns_blind_routing_off(monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
     try:
-        with runtime.locked_runtime({"profile": "modal-vllm", "job": {"blind_routing": False}}, {}):
+        oracle = {"profile": "modal-vllm", "task": "pipeline", "job": {"blind_routing": False}}
+        with runtime.locked_runtime(oracle, {}):
             runtime.activate("modal-vllm", load_env_file=False)
         assert runtime.blind_routing_active() is False
         runtime.activate("modal-vllm", load_env_file=False)  # an unlocked activation is blind
         assert runtime.blind_routing_active() is True
-        with runtime.locked_runtime({"profile": "modal-vllm", "job": {}}, {}):
+        with runtime.locked_runtime({"profile": "modal-vllm", "task": "pipeline", "job": {}}, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        assert runtime.blind_routing_active() is True
+        # A sorter spec resolves blind_routing to false (pipeline-only key), yet a live sorter
+        # run calls the graph: it must stay blind.
+        sorter = _spec(task="sorter")
+        assert sorter.job.blind_routing is False
+        lock = {"profile": "modal-vllm", "task": "sorter", "job": sorter.job.model_dump()}
+        with runtime.locked_runtime(lock, {}):
             runtime.activate("modal-vllm", load_env_file=False)
         assert runtime.blind_routing_active() is True
     finally:

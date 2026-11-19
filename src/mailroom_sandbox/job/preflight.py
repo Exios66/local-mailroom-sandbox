@@ -820,11 +820,18 @@ def _scoring_hotfix_check() -> dict[str, Any]:
 
     status = scoring_hotfixes.status(refresh=True)
     stale = sorted(i for i, s in status.items() if s == "stale")
+    # An unavailable target also disables its fix (current_ids()), so the run would lock and
+    # report uncorrected metrics; it fails the check like a stale one.
+    missing = sorted(i for i, s in status.items() if s == "unavailable")
     detail = ", ".join(f"{i} {s}" for i, s in sorted(status.items())) or "none"
-    if stale:
+    if stale or missing:
+        why = []
+        if stale:
+            why.append(f"a scored target changed; re-validate or retire {', '.join(stale)}")
+        if missing:
+            why.append(f"a scored target could not be resolved for {', '.join(missing)}")
         return {"name": "scoring_hotfixes", "ok": False,
-                "detail": f"{detail}: a scored target changed; re-validate or retire {', '.join(stale)} "
-                          "(docs/scoring-hotfixes.md)"}
+                "detail": f"{detail}: {'; '.join(why)} (docs/scoring-hotfixes.md)"}
     return {"name": "scoring_hotfixes", "ok": True, "detail": detail}
 
 
@@ -1079,6 +1086,12 @@ def _preflight(
         if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != scoring_hotfixes.describe():
             return {"status": "drift_refused", "run_id": run_id,
                     "detail": "scoring hotfix set changed since this run was locked; restore it or use --force to re-lock"}
+        # A lock from before the scoring hotfix layer with completed work would resume its pending
+        # rows on the hotfixed basis next to rows scored raw: one run, two scoring bases.
+        if "scoring_hotfixes" not in existing and store.read_checkpoint():
+            return {"status": "drift_refused", "run_id": run_id,
+                    "detail": "this run was locked before the scoring hotfixes and has completed work; resuming "
+                              "would mix scoring bases: use --force to re-lock and rerun it"}
         selection = (existing.get("dataset") or {}).get("selection") or {}
         locked_filter = selection.get("require_task_gt")
         if type(locked_filter) is not bool:

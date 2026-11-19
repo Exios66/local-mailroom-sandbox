@@ -121,7 +121,11 @@ job:
                             # against them mid-run (llm-mailroom #207); the sandbox
                             # scores afterwards against the full locked row. false is
                             # oracle routing: allowed only with job.mock (preflight
-                            # refuses it for a live run). Hashed only when true
+                            # refuses it for a live run, and a live override of a
+                            # mock oracle lock is refused). Hashed only when true;
+                            # an omitted pipeline value resolves to true and hashes
+                            # the same as an explicit true. Other tasks resolve it to
+                            # false (unhashed) and always run blind
   pipeline_handoff: false   # specialist tasks only. true sends each document the extract
                             # node's handoff (sorter-class line + the vendored
                             # doc_inventories note, no subclass) and applies the node's

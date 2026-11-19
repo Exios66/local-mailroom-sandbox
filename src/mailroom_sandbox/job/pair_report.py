@@ -48,10 +48,28 @@ def _fields(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def without_fields(row: Mapping[str, Any], drop: Iterable[str]) -> dict[str, Any]:
-    """The row with ``drop`` removed from its expected fields (a copy)."""
+    """The row with ``drop`` removed from its expected fields (a copy).
+
+    A dropped field also leaves the ``gt_presence`` codes (SHF-001 would otherwise restore it as
+    an expected-empty field) and the SHF-010 ``truth_overrides`` (the raw side would otherwise
+    score its interim value again).
+    """
     drop = set(drop)
     fields = {k: v for k, v in _fields(row).items() if k not in drop}
-    return {**row, "expected_fields": fields}
+    pres = fields.get("gt_presence")
+    if pres:
+        try:
+            codes = json.loads(pres) if isinstance(pres, str) else dict(pres)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            codes = None
+        if isinstance(codes, dict):
+            fields["gt_presence"] = json.dumps({k: v for k, v in codes.items() if k not in drop}, sort_keys=True)
+    out = {**row, "expected_fields": fields}
+    overrides = row.get("truth_overrides")
+    if isinstance(overrides, Mapping) and isinstance(overrides.get("SHF-010"), Mapping):
+        out["truth_overrides"] = {**overrides,
+                                  "SHF-010": {k: v for k, v in overrides["SHF-010"].items() if k not in drop}}
+    return out
 
 
 def load_arm(run_dir: Path) -> dict[str, dict[str, Any]]:

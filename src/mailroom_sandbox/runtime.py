@@ -619,10 +619,13 @@ def activate(
     )
     global _ACTIVE_BLIND_ROUTING, _ACTIVE_PIPELINE_HANDOFF, _ACTIVE_SPECIALIST_SUBCLASS
     # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
-    locked_job = ((policy or {}).get("lock") or {}).get("job", {})
+    locked = (policy or {}).get("lock") or {}
+    locked_job = locked.get("job", {})
     # Blind unless a locked pipeline spec asked for oracle routing by name (job.blind_routing:
-    # false): an ad-hoc eval or a lock without the key never hands labels to the graph.
-    _ACTIVE_BLIND_ROUTING = locked_job.get("blind_routing") is not False
+    # false): an ad-hoc eval or a lock without the key never hands labels to the graph. Other
+    # tasks resolve blind_routing to false (it is pipeline-only), but a sorter run also calls the
+    # graph (_run_pipeline_doc), so their false must not mean oracle routing.
+    _ACTIVE_BLIND_ROUTING = not (locked.get("task") == "pipeline" and locked_job.get("blind_routing") is False)
     _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
     _ACTIVE_SPECIALIST_SUBCLASS = (str(locked_job.get("specialist_subclass") or "none"),
                                    locked_job.get("specialist_subclass_file"))

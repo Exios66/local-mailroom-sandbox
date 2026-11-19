@@ -133,7 +133,10 @@ def score_extraction_row(
         on = on & sh.EXTRACTION_FIXES
         if not (truth_overrides or {}).get("SHF-010"):
             on = on - {"SHF-010"}
-        fixed = _score_extraction_row_once(doc_type, predicted, expected, doc_text, doc_subclass,
+        # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
+        # the headline scores the restored truth too, so nothing moves without being named.
+        fixed_expected = expected if "SHF-010" in on else raw_expected
+        fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
                                            expected_subclass, field_scores=field_scores)
     out = sh.merge_dual(raw_payload, fixed, on)
     if field_scores:
@@ -403,7 +406,10 @@ def score_subclass(
             else:  # the Dojo pin: class-blind, a hit only on equal non-empty raw strings
                 truth.append(str(es).strip().lower())
                 hit = _dojo_subclass_match(es, ps)
-                pred.append(truth[-1] if hit else f"__miss__{str(ps or '').strip().lower()}")
+                # A miss keeps the predicted label, so macro-F1 counts its false positive; only a
+                # Dojo miss that folds to the truth label (a case difference) gets a distinct label.
+                label = str(ps or "").strip().lower() or "__none__"
+                pred.append(truth[-1] if hit else (f"__miss__{label}" if label == truth[-1] else label))
                 if _norm_label(ec) == _norm_label(pc):
                     given.append(hit)
         out: dict[str, Any] = {"subclass_n": len(truth), "subclass_n_no_truth": no_truth}

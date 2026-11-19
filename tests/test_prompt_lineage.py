@@ -29,7 +29,7 @@ def test_frontrunners_come_from_the_lineage_files():
         assert (prompts / f"{stem}.txt").is_file(), stem
 
 
-def test_a_code_default_spec_hashes_and_locks_the_frontrunners(tmp_path):
+def test_a_code_default_spec_hashes_and_locks_the_frontrunners(tmp_path, job_data_dir):
     from mailroom_sandbox.job import preflight
 
     spec = _spec({"default": {"source": "code-default"}})

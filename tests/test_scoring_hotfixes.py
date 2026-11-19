@@ -57,6 +57,21 @@ def test_a_changed_target_is_stale_not_applied_and_fails_preflight(monkeypatch):
     monkeypatch.setattr(sh, "_STATUS", {})
 
 
+def test_an_unresolvable_target_is_not_applied_and_fails_preflight(monkeypatch):
+    fix = sh.HOTFIXES[1]  # SHF-002
+    missing = sh.ScoringHotfix(fix.id, fix.layer, (("no_such_module_xyz:nothing", "0" * 64),),
+                               fix.upstream, fix.summary)
+    monkeypatch.setattr(sh, "HOTFIXES", tuple(missing if f.id == fix.id else f for f in sh.HOTFIXES))
+    monkeypatch.setattr(sh, "_STATUS", {})
+    assert sh.status()[fix.id] == "unavailable"
+    assert fix.id not in sh.current_ids()
+    from mailroom_sandbox.job.preflight import _scoring_hotfix_check
+
+    check = _scoring_hotfix_check()
+    assert check["ok"] is False and f"{fix.id} unavailable" in check["detail"]
+    monkeypatch.setattr(sh, "_STATUS", {})
+
+
 def test_preflight_check_and_lock_identity():
     from mailroom_sandbox.job.preflight import _scoring_hotfix_check, _scoring_hotfix_identity
 
@@ -237,6 +252,22 @@ def test_shf006_a_row_without_truth_is_not_averaged_as_zero():
     assert head["exact_match"] == 0.8 and head["n_no_truth"] == 1
 
 
+def test_the_raw_headline_reads_each_rows_raw_value():
+    from mailroom_sandbox.eval.runners import _isolated_headline
+
+    # SHF-007 case folding turned a raw 0.0 into 1.0 on the row; the raw headline keeps the 0.0.
+    rows = [{"score": {"match": 1.0, "raw_dojo": {"match": 0.0}}}, {"score": {"match": 1.0}}]
+    head = _isolated_headline(rows)
+    assert head["raw_dojo"]["exact_match"] == 0.5
+    assert head["exact_match"] == 1.0
+
+
+def test_raw_rows_keep_an_absent_count_absent():
+    rows = sh.raw_rows([{"match": 1.0, "n_documented_absent": 2, "n_hallucinated": 1,
+                         "raw_dojo": {"n_documented_absent": None, "n_hallucinated": None}}])
+    assert "n_documented_absent" not in rows[0] and "n_hallucinated" not in rows[0]
+
+
 # --- SHF-007: class labels, empty truth and abstention -------------------------------------------
 
 def test_shf007_class_match_folds_case_and_whitespace():
@@ -331,9 +362,47 @@ def test_shf009_each_v4_rule_parks_the_document(monkeypatch, answers, reason):
 
 def test_shf009_keep_sorter_gate_passes_the_sorter_subclass(monkeypatch):
     answers = _v4_answers(top=("contract", 0.9), second=("merger_agreement", 0.05), sub_choice="undetermined")
-    out = _decide(monkeypatch, answers, handoff={"sorter_doc_subclass": "license"})
+    out = _decide(monkeypatch, answers, handoff={"sorter_doc_type": "contract", "sorter_doc_subclass": "license"})
     assert out["abstained"] is False and out["doc_subclass"] == "license" and out["subclass_source"] == "sorter"
+    assert out["subclass_confidence"] is None  # the reviewer's probability was for "undetermined"
     assert out["forced_choice"]["doc_subclass"] == "undetermined"
+
+
+def test_shf009_keep_sorter_never_crosses_classes(monkeypatch):
+    answers = _v4_answers(top=("contract", 0.9), second=("merger_agreement", 0.05), sub_choice="undetermined")
+    out = _decide(monkeypatch, answers, handoff={"sorter_doc_type": "merger_agreement", "sorter_doc_subclass": "cash"})
+    assert out["doc_subclass"] is None and out["subclass_source"] == "unresolved"
+
+
+def test_shf012_raw_subclass_macro_f1_counts_the_predicted_label():
+    out = score_subclass(["contract", "contract"], ["license", "lease"], ["contract", "contract"], ["lease", "lease"])
+    # truth [license, lease], prediction [lease, lease]: lease F1 = 2/3, license F1 = 0.
+    assert out["subclass_raw_dojo"]["subclass_f1_macro"] == pytest.approx(1 / 3, abs=1e-6)
+
+
+def test_a_live_override_of_a_mock_oracle_lock_is_refused(monkeypatch):
+    from mailroom_sandbox.job import runner
+
+    class Store:
+        def read_lock(self):
+            return {"task": "pipeline", "job": {"mock": True, "blind_routing": False}}
+
+    monkeypatch.setattr(runner, "_lock_mock", lambda store, default: True)
+    with pytest.raises(ValueError, match="ground truth"):
+        runner._refuse_mock_override(Store(), False)
+    runner._refuse_mock_override(Store(), None)  # the mock oracle run itself stays allowed
+
+
+def test_a_dropped_lane_field_leaves_presence_and_overrides():
+    from mailroom_sandbox.job.pair_report import without_fields
+
+    row = {"expected_fields": {"sender": "A", "recipient": "", "gt_presence": json.dumps(
+               {"recipient": ABSENT, "sender": "present"})},
+           "truth_overrides": {"SHF-010": {"recipient": {"interim": "B"}, "sender": {"interim": "C"}}}}
+    out = without_fields(row, ["recipient"])
+    assert "recipient" not in out["expected_fields"]
+    assert json.loads(out["expected_fields"]["gt_presence"]) == {"sender": "present"}
+    assert list(out["truth_overrides"]["SHF-010"]) == ["sender"]
 
 
 def test_shf009_a_clear_answer_is_unchanged_and_a_cut_is_noted(monkeypatch):
@@ -378,6 +447,7 @@ def test_shf010_near_gold_supersedes_a_gate_gap_fill(monkeypatch):
 
     row, interim, rec = _overlay_row("gate_accepted_grounded")
     monkeypatch.setitem(gl._INTERIM_CACHE, "overlay", {"DOC-1": {"labels": interim}})
+    monkeypatch.setitem(gl._INTERIM_CACHE, "key", gl._interim_key())
     out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g")
     assert json.loads(out["expected_fields"])["sender"] == "Joe Parks"
     assert out["truth_overrides"] == {"SHF-010": {"sender": {"interim": "Frank Hayden", "interim_presence": "populated",
@@ -394,6 +464,7 @@ def test_shf010_keeps_an_original_header_fill(monkeypatch):
 
     row, interim, rec = _overlay_row("original_header")
     monkeypatch.setitem(gl._INTERIM_CACHE, "overlay", {"DOC-1": {"labels": interim}})
+    monkeypatch.setitem(gl._INTERIM_CACHE, "key", gl._interim_key())
     out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g")
     assert "truth_overrides" not in out
     assert json.loads(out["expected_fields"])["sender"] == "Frank Hayden"

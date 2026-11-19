@@ -21,8 +21,11 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
 - **Tracked upstream.** Each fix names where it belongs: a drafted llm-dojo-scoring issue
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 
-Outside a `hotfixed()` block every fix is off, so a caller that does not opt in gets the Dojo
-pin's behaviour unchanged.
+Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
+the Dojo pin's behaviour unchanged. Two fixes act outside a scoring call and are on whenever they
+are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`) and SHF-009 in the
+Decisions routing contract (`decision_backends`). SHF-009's `forced_choice` is the forced-choice
+answer from the same question-set response, not a second request.
 
 ## Fixes
 

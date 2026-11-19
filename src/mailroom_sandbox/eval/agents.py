@@ -491,7 +491,7 @@ def _score_verdict(row: dict[str, Any], pred: dict[str, Any], key: str, expected
     parse_failed = str(pred.get("reasoning") or "").strip() == JUDGE_PARSE_FAILURE or bool(pred.get("parse_error"))
     if parse_failed:
         fixed = {**raw, "match": 0.0, "parse_error": True}
-    elif row.get(expected_field):
+    elif str(row.get(expected_field) or "").strip():  # a blank truth verdict is no truth
         fixed = dict(raw)
     else:
         fixed = {"match": None, "outcome": "unscored"}

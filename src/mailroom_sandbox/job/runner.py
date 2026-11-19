@@ -630,10 +630,19 @@ def _refuse_mock_override(store: RunStore, mock: bool | None) -> None:
     Activation builds the locked extraction gate and closed-field resolver from the lock's own
     ``job.mock``, so a mock override would still call the Decisions API while skipping the API
     budget. A mock run of such a spec is preflighted with ``job.mock: true`` instead.
+
+    Also refuse a live override (``mock=False``) of a mock oracle-routing pipeline lock
+    (``job.blind_routing: false``): activation reads oracle routing from the lock, so the live
+    graph would receive the ground truth (llm-mailroom #207). Preflight refuses such a live spec.
     """
+    lock = store.read_lock() or {}
+    effective_mock = _lock_mock(store, False) if mock is None else bool(mock)
+    if (not effective_mock and lock.get("task") == "pipeline"
+            and (lock.get("job") or {}).get("blind_routing") is False):
+        raise ValueError("this lock routes on the ground truth (job.blind_routing: false), which only a mock "
+                         "run may do; a live run must be blind: preflight a spec without blind_routing: false")
     if not mock or _lock_mock(store, False):
         return
-    lock = store.read_lock() or {}
     if lock.get("extraction_gate") or (lock.get("decision_slots") or {}).get("resolver"):
         raise ValueError("this lock calls Decisions-API models (extraction_gate or decision_slots.resolver) "
                          "and is not a mock run; a mock override would still call them: preflight a job.mock spec")

@@ -75,6 +75,10 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     """
     if gpu or gpu_fleet:
         return gpu or "L4"
+    if not profile:  # activate(None) serves the default profile (modal-vllm unless configured)
+        from mailroom_sandbox.providers import default_profile
+
+        profile = default_profile()
     return "L4" if profile in _GPU_PROFILES else None
 
 
@@ -165,9 +169,14 @@ def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, A
     return spec.live_predict(row), False
 
 
-def _row_value(entry: Mapping[str, Any]) -> float | None:
-    """A row's scored value as the pre-hotfix aggregate read it (``match``, else the extraction score)."""
+def _row_value(entry: Mapping[str, Any], *, raw: bool = False) -> float | None:
+    """A row's scored value as the pre-hotfix aggregate read it (``match``, else the extraction score).
+
+    ``raw`` reads the row's ``raw_dojo`` values over the hotfixed ones (the raw headline side).
+    """
     scored = entry.get("score") or {}
+    if raw and isinstance(scored.get("raw_dojo"), Mapping):
+        scored = {**scored, **scored["raw_dojo"]}
     match = scored.get("match")
     if match is None and "overall_extraction_score" in scored:
         match = scored.get("overall_extraction_score") or 0.0
@@ -185,7 +194,7 @@ def _isolated_headline(per_row: Sequence[Mapping[str, Any] | None]) -> dict[str,
     from mailroom_sandbox import scoring_hotfixes as sh
 
     entries = [e for e in per_row if e is not None]
-    raw_values = [v for v in (_row_value(e) for e in entries) if v is not None]
+    raw_values = [v for v in (_row_value(e, raw=True) for e in entries) if v is not None]
     raw_mean = scoring.mean_or_zero(raw_values)
     on = sh.current_ids()
     values: list[float] = []
@@ -211,7 +220,9 @@ def _isolated_headline(per_row: Sequence[Mapping[str, Any] | None]) -> dict[str,
             value = _row_value(e)
             if value is not None:
                 values.append(value)
-    used = sorted(on & {"SHF-005", "SHF-006"})
+    # Provenance: the aggregation fixes plus every fix that moved a contributing row's score.
+    used = sorted((on & {"SHF-005", "SHF-006"})
+                  | {i for e in entries for i in ((e.get("score") or {}).get("scoring_hotfixes") or [])})
     raw_part = {"exact_match": raw_mean, "n_scored": len(raw_values)}
     fixed_part = {"exact_match": scoring.mean_or_zero(values) if values else (None if "SHF-006" in on else 0.0),
                   "n_scored": len(values), "n_no_truth": no_truth, "abstain": abstain}
@@ -453,7 +464,8 @@ def run_isolated_eval(
     routed = human_review.for_isolated(task, [(e or {}).get("pred") for e in per_row if e and e.get("ok", True) and not e.get("error")])
     if routed is not None:
         scores.update(routed)
-    tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", float(mean or 0.0))
+    if mean is not None:  # no truth anywhere: no score, not a zero (SHF-006)
+        tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", float(mean))
     tracing.flush_traces()
     if ScoreRecord is not None and mean is not None:  # no truth anywhere: nothing to emit (SHF-006)
         emit(

@@ -216,4 +216,4 @@ def test_dual_rows_keep_the_raw_values_and_name_every_change(default_dojo_settin
         if changed:
             moved[case["case_id"]] = changed
     # The hotfixes move some golden cases (each is named above); none moves silently.
-    assert all(moved.values())
+    assert moved and all(moved.values())

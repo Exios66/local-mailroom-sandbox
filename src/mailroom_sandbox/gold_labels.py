@@ -1258,11 +1258,24 @@ INTERIM_BASES_OVER_NEAR_GOLD = frozenset({"original_header"})
 _INTERIM_CACHE: dict[str, Any] = {}
 
 
+def _interim_key() -> tuple:
+    """The interim overlay files' state (name, mtime, size): the cache key of ``_INTERIM_CACHE``."""
+    from mailroom_sandbox import interim_labels as il
+
+    root = il.overlay_dir()
+    return tuple(sorted((p.name, p.stat().st_mtime_ns, p.stat().st_size)
+                        for p in root.glob("*") if p.is_file())) if root.is_dir() else ()
+
+
 def _interim_labels_of(doc_id: str) -> Mapping[str, Any]:
     from mailroom_sandbox import interim_labels as il
 
-    if "overlay" not in _INTERIM_CACHE:
+    # Keyed on the overlay files' state, so a preparation after an overlay edit (a fill's basis
+    # changed to original_header, say) checks precedence against the overlay it prepared with.
+    key = _interim_key()
+    if _INTERIM_CACHE.get("key") != key or "overlay" not in _INTERIM_CACHE:
         _INTERIM_CACHE["overlay"] = il.load_overlay()
+        _INTERIM_CACHE["key"] = key
     return ((_INTERIM_CACHE["overlay"].get(doc_id) or {}).get("labels")) or {}
 
 
@@ -1303,7 +1316,10 @@ def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, A
 
     Precedence is Hub GT, then the interim overlay's truth labels (applied before this), then
     near-gold: a field the row already labels (a value, or a presence code such as
-    ``schema_documented_absence``; :func:`hub_labels`) is left alone. A document whose text no longer matches the label's
+    ``schema_documented_absence``; :func:`hub_labels`) is left alone, with one exception: while
+    SHF-010 is current, a near-gold label replaces a conflicting interim gate gap fill (not an
+    ``original_header`` fill) and the replaced value is kept under ``truth_overrides``
+    (``docs/scoring-hotfixes.md``). A document whose text no longer matches the label's
     ``doc_sha256`` is untouched. ``near_gold_labels`` on the returned row names every field that
     came from here, so a score that used them is never read as a Hub-GT score.
     """
