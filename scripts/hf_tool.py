@@ -42,7 +42,7 @@ TRANSPORT = None
 def _default_transport(url: str, headers: dict[str, str]) -> tuple[int, bytes]:
     request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - the URL is always built by _hub_get against the fixed https://huggingface.co base (a single path segment plus quoted query/path values); read-only GETs
             return response.status, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read()
