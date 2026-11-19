@@ -45,6 +45,19 @@ answer from the same question-set response, not a second request.
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 |
 
+## Truth evidence check
+
+The truth the fixes score against is checked too. `mailroom_sandbox.notebook.label_overlay_grounding`
+reads every populated label of the near-gold overlay (`data/labels/gold-overlay/`, which SHF-010
+lets supersede interim gap fills) and the interim overlay (`data/labels/interim/`) and checks the
+value against the evidence the label stores, with the label gate's value rules
+(`gold_labels.evidence_support`: a whole date in one quote, money by value, token coverage for
+names and free text, the closed-label vocabulary). The gate's quote-length caps are not applied:
+a long `To:` header line is still evidence. A label with a value and no stored quote (derived
+fields, CUAD corrections, closed-label defaults) is counted as `no_evidence`, since it was checked
+against the full document when it was built. `tests/test_notebook.py` fails on any unsupported
+label outside its short, commented `KNOWN_UNSUPPORTED` list.
+
 ## Draft Dojo issues (not filed)
 
 - **D-1** `extraction_binary_metrics` treats a documented-absent field as a hallucination only

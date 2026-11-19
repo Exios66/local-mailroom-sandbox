@@ -262,3 +262,125 @@ def gold_field_grounding(
 def ungrounded(findings: Iterable[GroundingFinding]) -> list[GroundingFinding]:
     """The findings whose extractive value is not in the fixture text."""
     return [f for f in findings if f.status == UNGROUNDED]
+
+
+# --------------------------------------------------------------------------- agent fixtures
+
+#: Agent fixture keys that hold a span the agent must reproduce from the row's own text.
+AGENT_SNIPPET_KEYS: tuple[str, ...] = ("expected_snippet", "expected")
+
+
+def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[GroundingFinding]:
+    """``gold_field_grounding`` over ``data/fixtures/agents/*.jsonl``.
+
+    A row is checked when it has text: a catalog document (``subdir`` + ``filename``) or
+    inline ``text``. Its ``expected_fields`` and its expected snippets (``expected_snippet``,
+    ``expected``) must be written in that text. Rows that carry only model output to
+    judge (``extracted_data`` with no source document) or a binary ``file`` (image, PDF) have
+    no text to ground against and yield no findings. Row ids are ``<agent>/<id>``.
+    """
+    from mailroom_sandbox.paths import fixtures_dir
+    from mailroom_sandbox.prep import clean_agent_rows
+
+    if agents is None:
+        agents = sorted(p.stem for p in (fixtures_dir() / "agents").glob("*.jsonl"))
+    rows: list[dict[str, Any]] = []
+    for agent in agents:
+        prepared, _ = clean_agent_rows(agent)
+        for row in prepared:
+            text = row.get("text")
+            if not isinstance(text, str) or not text:
+                continue
+            gold = dict(row.get("expected_fields") or {})
+            gold.update({k: row[k] for k in AGENT_SNIPPET_KEYS if isinstance(row.get(k), str)})
+            if gold:
+                rows.append({"id": f"{agent}/{row['id']}", "text": text, "expected_fields": gold})
+    return gold_field_grounding(rows)
+
+
+# --------------------------------------------------------------------------- label overlays
+
+#: Label overlays the scoring fixes read as truth: the near-gold overlay (SHF-010 supersedes
+#: interim gap fills with it) and the interim overlay (``dataset.interim_labels``).
+LABEL_OVERLAYS: tuple[str, ...] = ("gold-overlay", "interim")
+
+NO_EVIDENCE = "no_evidence"
+
+
+@dataclass(frozen=True)
+class LabelFinding:
+    overlay: str
+    doc_id: str
+    doc_class: str
+    field: str
+    value: Any
+    status: str  # grounded | ungrounded | no_evidence
+    basis: str = ""
+    reason: str = ""
+
+
+def _evidence_quotes(label: Mapping[str, Any]) -> list[str]:
+    """The quoted text of a label's evidence: span ``text``, an email ``header`` line, or a string."""
+    quotes = []
+    for item in label.get("evidence") or []:
+        if isinstance(item, str):
+            quotes.append(item)
+        elif isinstance(item, Mapping):
+            quote = item.get("text") or item.get("header")
+            if isinstance(quote, str):
+                quotes.append(quote)
+    return [q for q in quotes if q.strip()]
+
+
+def label_overlay_grounding(
+    overlays: Iterable[str] = LABEL_OVERLAYS, *, root: Any = None
+) -> list[LabelFinding]:
+    """Every populated label in the scoring overlays, checked against its own evidence.
+
+    The source documents are Hub rows, not local files, so a label is checked against the
+    quotes it stores, with the label gate's value rules (``gold_labels.evidence_support``:
+    whole dates, money by value, token coverage, label vocabulary). A label with a value and no
+    stored quote is ``no_evidence``: it was checked against the full document when it was built
+    (interim ``support``, derived fields, CUAD corrections, closed-label defaults) and cannot be
+    re-checked offline. Empty values are not reported.
+    """
+    import json
+    from pathlib import Path
+
+    from mailroom_sandbox.gold_labels import evidence_support
+    from mailroom_sandbox.paths import repo_root
+
+    base = Path(root) if root is not None else repo_root() / "data" / "labels"
+    findings: list[LabelFinding] = []
+    for overlay in overlays:
+        for path in sorted((base / overlay).glob("*.jsonl")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                doc_class = str(record.get("doc_class") or path.stem)
+                for name, label in (record.get("labels") or {}).items():
+                    if not isinstance(label, Mapping):
+                        continue
+                    value = label.get("value")
+                    if value is None or value == "" or value == []:
+                        continue
+                    quotes = _evidence_quotes(label)
+                    if quotes:
+                        ok, reason = evidence_support(doc_class, name, value, quotes)
+                        status = GROUNDED if ok else UNGROUNDED
+                    else:
+                        status, reason = NO_EVIDENCE, ""
+                    findings.append(
+                        LabelFinding(
+                            overlay,
+                            str(record.get("doc_id") or ""),
+                            doc_class,
+                            name,
+                            value,
+                            status,
+                            str(label.get("basis") or ""),
+                            reason,
+                        )
+                    )
+    return findings

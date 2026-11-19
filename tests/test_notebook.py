@@ -6,6 +6,7 @@ import pytest
 
 from mailroom_sandbox.notebook import (
     ALIAS_FORM,
+    NO_EVIDENCE,
     CATEGORICAL,
     DATE_FORM,
     GROUNDED,
@@ -14,7 +15,9 @@ from mailroom_sandbox.notebook import (
     NUMBER_FORM,
     NUMERAL_FORM,
     UNGROUNDED,
+    agent_fixture_grounding,
     gold_field_grounding,
+    label_overlay_grounding,
     ungrounded,
 )
 
@@ -160,3 +163,89 @@ def test_alias_needs_its_written_form_not_a_longer_word():
     assert status("Filed under SECTION 13 of the Act.") == UNGROUNDED
     assert status("Filed with the Securities and Exchange Commission.") == GROUNDED_NORMALIZED
     assert status("Filed with the SEC.") == GROUNDED
+
+
+# --------------------------------------------------------------------------- agent fixtures
+
+
+def test_agent_fixture_gold_is_grounded_in_its_text():
+    findings = agent_fixture_grounding()
+    assert ungrounded(findings) == []
+    by_row = {(f.row_id, f.field, f.value): f.status for f in findings}
+    # The judge's MSA row once carried the 10-K's parties; it must name the MSA's own.
+    assert by_row[("judge/judge_msa", "parties", "ACME Corporation")] == GROUNDED
+    assert by_row[("judge/judge_msa", "parties", "Zenith Technologies LLC")] == GROUNDED
+    # Intake snippets match through the whitespace the agent must normalize (NBSP).
+    assert by_row[("intake/intake_nbsp", "expected", "Hello world")] == GROUNDED
+
+
+def test_agent_rows_without_source_text_yield_no_findings():
+    ids = {f.row_id.split("/", 1)[0] for f in agent_fixture_grounding()}
+    # arbiter/boss judge model output with no source document; image/PDF rows are binary.
+    assert ids.isdisjoint({"arbiter", "boss", "image_extractor", "pdf_transcriber"})
+
+
+# --------------------------------------------------------------------------- label overlays
+
+#: Labels whose evidence does not support them and that are kept on purpose. Each needs the
+#: reason and the owner who decides it; a new unsupported label fails the test below.
+KNOWN_UNSUPPORTED = {
+    # Reviewed original_header fill: the Exchange display name glues the org suffix to the
+    # surname ("Michael GrimesCORPENRON"), so "grimes" is not a token of the quoted header.
+    # The value is right; changing it is a review-file decision (data/labels/interim/README.md).
+    ("interim", "DOC-2ccf94f14bd5f040", "recipient"),
+}
+
+
+def test_scoring_overlays_are_supported_by_their_evidence():
+    findings = label_overlay_grounding()
+    unsupported = {(f.overlay, f.doc_id, f.field) for f in findings if f.status == UNGROUNDED}
+    assert unsupported == KNOWN_UNSUPPORTED
+    checked = [f for f in findings if f.status == GROUNDED]
+    assert {f.overlay for f in checked} == {"gold-overlay", "interim"}
+    assert len(checked) > 1000
+
+
+def _overlay(tmp_path, labels, doc_class="contract"):
+    import json
+
+    (tmp_path / "gold-overlay").mkdir()
+    record = {"doc_class": doc_class, "doc_id": "DOC-1", "labels": labels}
+    (tmp_path / "gold-overlay" / f"{doc_class}.jsonl").write_text(json.dumps(record) + "\n")
+    found = label_overlay_grounding(["gold-overlay"], root=tmp_path)
+    return {f.field: (f.status, f.reason) for f in found}
+
+
+def test_overlay_label_is_checked_against_each_evidence_shape(tmp_path):
+    span = {"text": "made on this 1st day of December, 2015 by and between"}
+    status = _overlay(
+        tmp_path,
+        {
+            "agreement_date": {"value": "2015-12-01", "evidence": [span]},
+            "effective_date": {"value": "2016-01-01", "evidence": [span]},
+            "document_name": {"value": "Supply Agreement", "evidence": ["THIS SUPPLY AGREEMENT"]},
+            "governing_law": {"value": "Delaware", "evidence": []},
+            "contract_value": {"value": None, "evidence": []},
+        },
+    )
+    assert status["agreement_date"] == (GROUNDED, "")
+    assert status["effective_date"][0] == UNGROUNDED
+    assert status["document_name"] == (GROUNDED, "")
+    assert status["governing_law"] == (NO_EVIDENCE, "")
+    assert "contract_value" not in status  # empty values are not reported
+
+
+def test_overlay_header_evidence_and_vocabulary(tmp_path):
+    header = {"header": "X-From: Schmidt, Ann M", "source": "cmu_enron_maildir"}
+    status = _overlay(
+        tmp_path,
+        {
+            "sender": {"value": "Ann M Schmidt", "evidence": [header]},
+            "recipient": {"value": "Jeff Dasovich", "evidence": [header]},
+            "intent": {"value": "not-a-label", "evidence": ["please review the attached draft"]},
+        },
+        doc_class="correspondence",
+    )
+    assert status["sender"] == (GROUNDED, "")
+    assert status["recipient"][0] == UNGROUNDED
+    assert status["intent"][0] == UNGROUNDED and status["intent"][1].startswith("out_of_vocabulary")
