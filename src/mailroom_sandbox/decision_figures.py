@@ -359,6 +359,99 @@ def _latency(f: fs.Fig, rows: list[dict[str, Any]], colour: str, source: str, wa
     return f.svg(fig)
 
 
+def _confidence_figures(f: fs.Fig, rows: list[dict[str, Any]], colour: str, source: str) -> dict[str, str | None]:
+    """``confidence`` and, when there is an error, ``risk-coverage``."""
+    figs: dict[str, str | None] = {}
+    scored = [r for r in rows if r["forced_correct"] is not None and r["class_probability"] is not None]
+    if scored:
+        right = [r["class_probability"] for r in scored if r["forced_correct"]]
+        wrong = [r["class_probability"] for r in scored if not r["forced_correct"]]
+        a = auroc(right, wrong)
+        if a is None:
+            title = (f"No class errors in {len(scored)} documents, so ranking is unmeasured" if not wrong
+                     else f"All {len(scored)} forced answers were wrong")
+        elif len(wrong) < FEW_ERRORS:
+            title = f"Only {plural(len(wrong), 'class error')}: too few to judge the ranking"
+        elif a > 0.5:
+            title = f"Class probability ranks right above wrong answers (AUROC {a:.2f})"
+        elif a < 0.5:
+            title = f"Class probability ranks wrong above right answers (AUROC {a:.2f})"
+        else:
+            title = "Class probability does not separate right from wrong answers (AUROC 0.50)"
+        sub = (f"AUROC {a:.3f} · " if a is not None else "") + f"{len(wrong)} wrong of {len(scored)} forced answers"
+        figs["confidence"] = _strip(
+            f, scored, "class_probability", ["Right class", "Wrong class"],
+            lambda r: "Right class" if r["forced_correct"] else "Wrong class",
+            title, sub, "Probability of the chosen class", source, None)
+        if wrong:
+            figs["risk-coverage"] = _risk_coverage(f, rows, colour, source)
+    return figs
+
+
+def _form_mass(f: fs.Fig, rows: list[dict[str, Any]], source: str) -> str | None:
+    """Document-form probability per group, against the 0.5 park line."""
+    massed = [r for r in rows if r["form_human_mass"] is not None]
+    if massed:
+        groups = _group_order(massed)
+        pos = [r["form_human_mass"] for r in massed if r["defect"]]
+        neg = [r["form_human_mass"] for r in massed if not r["defect"] and r["group"] == INTACT]
+        a = auroc(pos, neg)
+        low = sum(r["defect"] and r["form_human_mass"] < 0.5 for r in massed)
+        if pos:
+            title = f"{low} of {len(pos)} defects scored below the 0.5 park line"
+        else:
+            k = sum(r["form_human_mass"] >= 0.5 for r in massed)
+            title = f"{k} of {len(massed)} documents {'was' if k == 1 else 'were'} at or above the park line"
+        sub = "Probability mass on a human form, per group" + (f" · AUROC defects vs intact {a:.3f}" if a is not None else "")
+        return _strip(
+            f, massed, "form_human_mass", groups, lambda r: r["group"], title, sub,
+            "Probability of fragment, bundle, unreadable or non-English", source, (0.5, "Park line 0.5"))
+    return None
+
+
+def _park_reasons(f: fs.Fig, rows: list[dict[str, Any]], colour: str, source: str) -> str | None:
+    """Which park rules fired, most first."""
+    reasons: dict[str, int] = {}
+    for r in rows:
+        for reason in filter(None, r["park_reasons"].split(";")):
+            reasons[reason] = reasons.get(reason, 0) + 1
+    if reasons:
+        names = sorted(reasons, key=lambda k: (-reasons[k], k))
+        parked = sum(r["parked"] for r in rows)
+        top = names[0]
+        return _bars(
+            f, [reason_label(k) for k in names], [reasons[k] for k in names], [str(reasons[k]) for k in names],
+            colour, f"{reason_label(top)} parked the most documents ({reasons[top]})",
+            f"Park rules fired · {parked} documents parked; one document can fire several rules",
+            "Documents", source)
+    return None
+
+
+def _subclass(f: fs.Fig, rows: list[dict[str, Any]], colour: str, source: str) -> str | None:
+    """Subclass accuracy per truth class among archived documents, with Wilson intervals."""
+    sub_rows = [r for r in rows if r["subclass_match"] is not None and not r["parked"]]
+    if sub_rows:
+        classes = sorted({r["expected_class"] for r in sub_rows})
+        acc, notes, ci = [], [], []
+        for c in classes:
+            cell = [r["subclass_match"] for r in sub_rows if r["expected_class"] == c]
+            acc.append(sum(cell) / len(cell))
+            notes.append(f"{sum(cell):.0f}/{len(cell)}")
+            ci.append(wilson(sum(cell), len(cell)))
+        worst = min(range(len(classes)), key=lambda i: (acc[i], classes[i]))
+        total = sum(r["subclass_match"] for r in sub_rows)
+        title = (f"Subclass was right on {total:.0f} of {len(sub_rows)}; weakest is {fs.humanize(classes[worst]).lower()}"
+                 if acc[worst] < 1 else f"Subclass was right on every archived document ({len(sub_rows)})")
+        if len(title) > fs.TITLE_MAX:
+            title = f"Subclass was right on {total:.0f} of {len(sub_rows)} archived documents"
+        return _bars(
+            f, [fs.humanize(c) for c in classes], acc, notes, colour, title,
+            "Subclass accuracy per truth class among archived documents · whiskers: 95% Wilson interval",
+            "Subclass accuracy", source, share=True, ci=ci)
+    return None
+
+
+
 def build(stem: str, items: list[dict[str, Any]], rows_by_id: Mapping[str, Mapping[str, Any]] | None = None,
           wall_s: float | None = None, system: str | None = None) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """``({figure name: svg}, table rows)`` for a sorter or decision-model run; empty with no items."""
@@ -372,81 +465,10 @@ def build(stem: str, items: list[dict[str, Any]], rows_by_id: Mapping[str, Mappi
     with fs.Fig(stem) as f:
         out["routing"] = _routing(f, rows, source)
 
-        scored = [r for r in rows if r["forced_correct"] is not None and r["class_probability"] is not None]
-        if scored:
-            right = [r["class_probability"] for r in scored if r["forced_correct"]]
-            wrong = [r["class_probability"] for r in scored if not r["forced_correct"]]
-            a = auroc(right, wrong)
-            if a is None:
-                title = (f"No class errors in {len(scored)} documents, so ranking is unmeasured" if not wrong
-                         else f"All {len(scored)} forced answers were wrong")
-            elif len(wrong) < FEW_ERRORS:
-                title = f"Only {plural(len(wrong), 'class error')}: too few to judge the ranking"
-            elif a > 0.5:
-                title = f"Class probability ranks right above wrong answers (AUROC {a:.2f})"
-            elif a < 0.5:
-                title = f"Class probability ranks wrong above right answers (AUROC {a:.2f})"
-            else:
-                title = "Class probability does not separate right from wrong answers (AUROC 0.50)"
-            sub = (f"AUROC {a:.3f} · " if a is not None else "") + f"{len(wrong)} wrong of {len(scored)} forced answers"
-            out["confidence"] = _strip(
-                f, scored, "class_probability", ["Right class", "Wrong class"],
-                lambda r: "Right class" if r["forced_correct"] else "Wrong class",
-                title, sub, "Probability of the chosen class", source, None)
-            if wrong:
-                out["risk-coverage"] = _risk_coverage(f, rows, colour, source)
-
-        massed = [r for r in rows if r["form_human_mass"] is not None]
-        if massed:
-            groups = _group_order(massed)
-            pos = [r["form_human_mass"] for r in massed if r["defect"]]
-            neg = [r["form_human_mass"] for r in massed if not r["defect"] and r["group"] == INTACT]
-            a = auroc(pos, neg)
-            low = sum(r["defect"] and r["form_human_mass"] < 0.5 for r in massed)
-            if pos:
-                title = f"{low} of {len(pos)} defects scored below the 0.5 park line"
-            else:
-                k = sum(r["form_human_mass"] >= 0.5 for r in massed)
-                title = f"{k} of {len(massed)} documents {'was' if k == 1 else 'were'} at or above the park line"
-            sub = "Probability mass on a human form, per group" + (f" · AUROC defects vs intact {a:.3f}" if a is not None else "")
-            out["form-mass"] = _strip(
-                f, massed, "form_human_mass", groups, lambda r: r["group"], title, sub,
-                "Probability of fragment, bundle, unreadable or non-English", source, (0.5, "Park line 0.5"))
-
-        reasons: dict[str, int] = {}
-        for r in rows:
-            for reason in filter(None, r["park_reasons"].split(";")):
-                reasons[reason] = reasons.get(reason, 0) + 1
-        if reasons:
-            names = sorted(reasons, key=lambda k: (-reasons[k], k))
-            parked = sum(r["parked"] for r in rows)
-            top = names[0]
-            out["park-reasons"] = _bars(
-                f, [reason_label(k) for k in names], [reasons[k] for k in names], [str(reasons[k]) for k in names],
-                colour, f"{reason_label(top)} parked the most documents ({reasons[top]})",
-                f"Park rules fired · {parked} documents parked; one document can fire several rules",
-                "Documents", source)
-
-        sub_rows = [r for r in rows if r["subclass_match"] is not None and not r["parked"]]
-        if sub_rows:
-            classes = sorted({r["expected_class"] for r in sub_rows})
-            acc, notes, ci = [], [], []
-            for c in classes:
-                cell = [r["subclass_match"] for r in sub_rows if r["expected_class"] == c]
-                acc.append(sum(cell) / len(cell))
-                notes.append(f"{sum(cell):.0f}/{len(cell)}")
-                ci.append(wilson(sum(cell), len(cell)))
-            worst = min(range(len(classes)), key=lambda i: (acc[i], classes[i]))
-            total = sum(r["subclass_match"] for r in sub_rows)
-            title = (f"Subclass was right on {total:.0f} of {len(sub_rows)}; weakest is {fs.humanize(classes[worst]).lower()}"
-                     if acc[worst] < 1 else f"Subclass was right on every archived document ({len(sub_rows)})")
-            if len(title) > fs.TITLE_MAX:
-                title = f"Subclass was right on {total:.0f} of {len(sub_rows)} archived documents"
-            out["subclass"] = _bars(
-                f, [fs.humanize(c) for c in classes], acc, notes, colour, title,
-                "Subclass accuracy per truth class among archived documents · whiskers: 95% Wilson interval",
-                "Subclass accuracy", source, share=True, ci=ci)
-
+        out.update(_confidence_figures(f, rows, colour, source))
+        out["form-mass"] = _form_mass(f, rows, source)
+        out["park-reasons"] = _park_reasons(f, rows, colour, source)
+        out["subclass"] = _subclass(f, rows, colour, source)
         out["latency"] = _latency(f, rows, colour, source, wall_s)
     return {k: v for k, v in out.items() if v}, rows
 
