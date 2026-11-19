@@ -15,6 +15,7 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | 1 Pilot | `rb1-r11` | Sorter v0.1, one small edit | no runs | `rb1-r11-sorter-v0-1` |
 | 1 Pilot | `rb1-r12` | Specialists v0 | no runs | `rb1-r12-specialists-v0` |
 | 1 Pilot | `rb1-r13` | Decision models in the routing role | no runs | `rb1-r13-decision-routing` |
+| 1 Pilot | `rb1-r13b` | H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row) | 2 config(s), no runs built | [rb1-r13b-sorter-vs-decision](rb1-r13b-sorter-vs-decision/README.md) |
 | 1 Pilot | `rb1-r14` | Decoding sweep (temperature grid) | no runs | `rb1-r14-decoding-sweep` |
 | 1 Pilot | `rb1-r15` | Sorter input-cap sweep | no runs | `rb1-r15-input-cap-sweep` |
 | 1 Pilot | `rb1-g1` | Phase 1 checkpoint; re-run sizing with measured values | no runs | `rb1-g1-checkpoint` |
@@ -38,6 +39,7 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | 6b Load test | `rb1-r65` | Load test with a stub model replaying ingress streams | no runs | `rb1-r65-load-test` |
 | 6b Load test | `rb1-g6b` | Phase 6b checkpoint | no runs | `rb1-g6b-checkpoint` |
 | 7 Held-out (sealed) | `rb1-r70` | Held-out sorter finalists, final vs v0 | no runs | `rb1-r70-heldout-sorter` |
+| 7 Held-out (sealed) | `rb1-r70b` | H5 confirmatory: decision-model sorter vs LLM sorter on held-out (added row) | 1 config(s), no runs built | [rb1-r70b-sorter-vs-decision](rb1-r70b-sorter-vs-decision/README.md) |
 | 7 Held-out (sealed) | `rb1-r71` | Held-out full pipeline end to end, once | no runs | `rb1-r71-heldout-pipeline` |
 | 7 Held-out (sealed) | `rb1-r72` | Review reduction against production | no runs | `rb1-r72-review-reduction` |
 | 7 Held-out (sealed) | `rb1-r73` | Dropped | no runs | `rb1-r73-dropped` |

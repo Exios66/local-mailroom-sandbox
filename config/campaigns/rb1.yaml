@@ -26,6 +26,7 @@ experiments:
   - {row: r11, slug: sorter-v0-1, phase: "1 Pilot", title: "Sorter v0.1, one small edit"}
   - {row: r12, slug: specialists-v0, phase: "1 Pilot", title: "Specialists v0"}
   - {row: r13, slug: decision-routing, phase: "1 Pilot", title: "Decision models in the routing role"}
+  - {row: r13b, slug: sorter-vs-decision, phase: "1 Pilot", title: "H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row)"}
   - {row: r14, slug: decoding-sweep, phase: "1 Pilot", title: "Decoding sweep (temperature grid)"}
   - {row: r15, slug: input-cap-sweep, phase: "1 Pilot", title: "Sorter input-cap sweep"}
   - {row: g1, slug: checkpoint, phase: "1 Pilot", title: "Phase 1 checkpoint; re-run sizing with measured values"}
@@ -49,6 +50,7 @@ experiments:
   - {row: r65, slug: load-test, phase: "6b Load test", title: "Load test with a stub model replaying ingress streams"}
   - {row: g6b, slug: checkpoint, phase: "6b Load test", title: "Phase 6b checkpoint"}
   - {row: r70, slug: heldout-sorter, phase: "7 Held-out (sealed)", title: "Held-out sorter finalists, final vs v0"}
+  - {row: r70b, slug: sorter-vs-decision, phase: "7 Held-out (sealed)", title: "H5 confirmatory: decision-model sorter vs LLM sorter on held-out (added row)"}
   - {row: r71, slug: heldout-pipeline, phase: "7 Held-out (sealed)", title: "Held-out full pipeline end to end, once"}
   - {row: r72, slug: review-reduction, phase: "7 Held-out (sealed)", title: "Review reduction against production"}
   - {row: r73, slug: dropped, phase: "7 Held-out (sealed)", title: "Dropped"}

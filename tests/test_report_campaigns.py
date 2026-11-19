@@ -94,7 +94,10 @@ def test_every_committed_campaign_config_matches_the_grammar():
 # ── mapping ─────────────────────────────────────────────────────────────────
 def test_mapping_covers_the_runbook_rows():
     camp = rc.load_campaign("rb1")
-    assert camp.name == "runbook-v1" and len(camp.experiments) == 39
+    # 39 runbook CSV rows plus the plan's added rows (R13b, R70b for H5)
+    rows = [e.row for e in camp.experiments]
+    assert camp.name == "runbook-v1" and len(rows) == 41
+    assert {"r13b", "r70b"} <= set(rows) and len(set(rows)) == len(rows)
     assert camp.experiments[0].row == "r00" and camp.experiments[-1].row == "r90"
     _c, exp, key = rc.experiment_for_run("rb1-r03-sorter-v0-dev")
     assert exp.dirname == "rb1-r03-gold-audit" and key.experiment == "rb1-r03"
