@@ -342,3 +342,25 @@ def test_response_round_trip():
 
     raw = json.dumps({"fields": {"intent": "request"}, "abstain": []})
     assert loads_response(raw)["fields"]["intent"] == "request"
+
+
+def test_benchmark_gate_warns_on_a_superseded_pin():
+    """A v9.1 pin still passes (measured runs re-validate) but never silently."""
+    from mailroom_sandbox.job.benchmark_check import _check_spec_pins
+    from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS, load_run_spec
+    from mailroom_sandbox.paths import repo_root
+
+    spec = load_run_spec(repo_root() / "config/runs/legacy/run-30-contracts-specialist.yaml")
+
+    def pins(rev):
+        s = spec.model_copy(update={"dataset": spec.dataset.model_copy(update={"revision": rev})})
+        return _check_spec_pins(s)
+
+    for legacy in LEGACY_FAMILY_HF_REVISIONS["v9.1"]:
+        out = pins(legacy)
+        assert not [e for e in out["errors"] if "dataset revision" in e]
+        assert [w for w in out["warnings"] if "superseded tag v9.1" in w]
+    for current in (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION):
+        out = pins(current)
+        assert not [m for m in out["errors"] + out["warnings"] if "dataset revision" in m]
+    assert [e for e in pins("0" * 40)["errors"] if "dataset revision" in e]

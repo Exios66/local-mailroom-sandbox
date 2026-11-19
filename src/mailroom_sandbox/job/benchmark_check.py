@@ -63,6 +63,11 @@ BENCHMARK_EXPECTED = {
     "limit": 30,
 }
 
+# Superseded revision -> its Hub tag, for the gate's "superseded pin" warning.
+_LEGACY_REVISION_TAGS: dict[str, str] = {
+    sha: tag for tag, pair in LEGACY_FAMILY_HF_REVISIONS.items() for sha in pair
+}
+
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
@@ -518,6 +523,13 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     if rev not in accepted:
         errors.append(
             f"dataset revision={rev!r} expected pin {exp['revision']!r}"
+        )
+    elif rev in _LEGACY_REVISION_TAGS:
+        # Accepted only so runs measured on a superseded tag keep re-validating; a new
+        # benchmark must pin the current tag, so say so instead of passing silently.
+        warnings.append(
+            f"dataset revision={rev[:12]} is superseded tag {_LEGACY_REVISION_TAGS[rev]} "
+            f"(current pin {exp['revision'][:12]}); valid only for re-checking a run measured on it"
         )
     if spec.dataset.repo and spec.dataset.repo != exp["repo"]:
         warnings.append(f"dataset.repo={spec.dataset.repo!r}")
