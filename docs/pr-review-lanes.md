@@ -33,9 +33,15 @@ silent-failure classes still get a dedicated pass.
 
 ## Policy pack the domain bot must apply
 
+Always (every PR):
+
 - [`critical-regressions.md`](critical-regressions.md)
+- [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)
+
+When the diff touches campaigns, draws, labels, scoring/vendor hotfixes, or rb1
+prep:
+
 - [`campaign-preparation-regressions.md`](campaign-preparation-regressions.md)
 - [`scoring-hotfixes.md`](scoring-hotfixes.md)
 - [`vendor-hotfixes.md`](vendor-hotfixes.md)
 - [`dependency-snapshots.md`](dependency-snapshots.md)
-- [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)

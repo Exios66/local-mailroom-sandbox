@@ -46,27 +46,40 @@ and what you uniquely checked. If another bot already filed an equivalent
 finding, reply with "covered by \<bot\> — no duplicate" rather than a second
 thread.
 
+## Checkout root (path resolution)
+
+`home_package` is **local-mailroom-sandbox**. Resolve every policy and source
+path below from that package root (the standalone sandbox checkout, or the
+sandbox package directory inside Digital-Mailroom after materialize) — never
+from the Digital-Mailroom hub root alone. If a named path is missing at the
+current root, locate the sandbox package and re-resolve before marking the
+source unverified.
+
+Paths are package-root relative (e.g. `docs/critical-regressions.md`,
+`src/mailroom_sandbox/scoring_hotfixes.py`), not relative to
+`.opencode/agents/`.
+
 ## Policy sources (read before judging)
 
 Mandatory for every PR:
 
-1. [`docs/critical-regressions.md`](../../docs/critical-regressions.md) — rows **1–12**
-2. [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) — executive summary rules + Critical regressions checklist
-3. [`AGENTS.md`](../../AGENTS.md) / [`CLAUDE.md`](../../CLAUDE.md) — ownership, spend, vendor, PR write-up rules
-4. [`.coderabbit.yaml`](../../.coderabbit.yaml) — so you know CodeRabbit's path filters and docs audit
+1. `docs/critical-regressions.md` — rows **1–12**
+2. `.github/PULL_REQUEST_TEMPLATE.md` — executive summary rules + Critical regressions checklist
+3. `AGENTS.md` / `CLAUDE.md` — ownership, spend, vendor, PR write-up rules
+4. `.coderabbit.yaml` — so you know CodeRabbit's path filters and docs audit
 
 When the diff touches campaigns, draws, labels, scoring hotfixes, or rb1
 contracts, also read:
 
-1. [`docs/campaign-preparation-regressions.md`](../../docs/campaign-preparation-regressions.md) — **CP-01…CP-18**
-2. [`docs/scoring-hotfixes.md`](../../docs/scoring-hotfixes.md) — SHF-001…013 dual-report rules
-3. [`docs/vendor-hotfixes.md`](../../docs/vendor-hotfixes.md) — HF-001…006 fingerprint rules
-4. [`docs/dependency-snapshots.md`](../../docs/dependency-snapshots.md) — fetch ≠ select; lock digests
-5. [`vendor/llm-dojo-scoring/VENDOR.md`](../../vendor/llm-dojo-scoring/VENDOR.md) and [`vendor/llm-mailroom/VENDOR.md`](../../vendor/llm-mailroom/VENDOR.md)
+1. `docs/campaign-preparation-regressions.md` — **CP-01…CP-18**
+2. `docs/scoring-hotfixes.md` — SHF-001…013 dual-report rules
+3. `docs/vendor-hotfixes.md` — HF-001…006 fingerprint rules
+4. `docs/dependency-snapshots.md` — fetch ≠ select; lock digests
+5. `vendor/llm-dojo-scoring/VENDOR.md` and `vendor/llm-mailroom/VENDOR.md`
 
 When the diff edits agent prompts, skills, or `AGENTS.md`/`CLAUDE.md`:
 
-1. [`docs/agent-instruction-maintenance.md`](../../docs/agent-instruction-maintenance.md)
+1. `docs/agent-instruction-maintenance.md`
 
 ## Ownership map (hard boundaries)
 
@@ -84,7 +97,9 @@ Board prefixes: **`SAND-*`** here; **`DMR-*`** only as related family cites. Do 
 
 ## Method
 
-1. **Establish identity** — PR head SHA, base branch, changed paths. Prefer `git diff` / PR files over memory.
+1. **Establish identity** — PR head SHA, base branch, changed paths, and the
+   local-mailroom-sandbox package root (see Checkout root). Prefer `git diff` /
+   PR files over memory.
 2. **Classify the diff** — scoring, vendor/hotfixes, datasets/draws, run YAML/spend, serving/providers, docs/instructions, CI/gates, campaign. Skip empty classes.
 3. **Read the PR body** — executive summary (no requester quotes, no `User description`, no secrets, no Claude session links/footers). Critical regressions section must name touched rows and guards, or say why N/A.
 4. **Walk domain axes** below. For each finding: severity, file:line, regression row or CP-id, guard that should hold, smallest fix shape.
