@@ -1,11 +1,18 @@
 # OpenRouter provider pins for the evaluation runbook (R01). Applied at activation by
-# mailroom_sandbox.provider_pins to the vendored chat calls it wraps (agents.base / llm.retry
-# retry_chat_completion) on an OpenRouter base URL; the LangChain contract / merger agents and
-# modules that imported the function before activation are not covered.
+# mailroom_sandbox.provider_pins on an OpenRouter base URL to the vendored chat calls: the
+# wrapped retry_chat_completion (agents.base / llm.retry) and the LangChain agents' ChatOpenAI
+# requests (sorter, contracts / merger specialists; ledger call_path: langchain). Modules that
+# imported retry_chat_completion before activation are not covered.
 # A non-empty `order` sends extra_body.provider = {order, allow_fallbacks}. Every call's
 # served model and provider is recorded (SANDBOX_SERVED_LOG=<file> writes JSONL).
 #
-# `order: []` = not pinned yet (recorded only). Fill it from
+# Pins chosen by the owner on 2026-11-18: the first-party or full-precision endpoint of each
+# model, no fallbacks. Qwen3.7 Flash and GLM have a single endpoint; Qwen3.5-9B takes DeepInfra's
+# standard bf16 tier (not `flex`, which is cheaper but queues); DeepSeek takes DeepSeek's own
+# serving ($0.30/$1.20 per M, the price config/api_prices.yaml already caps on). A response names
+# the provider for display (DeepInfra, Z.AI), which matches a tag on its provider part.
+#
+# `order: []` = not pinned (recorded only). Re-list the endpoints with
 #   python scripts/refresh_provider_pins.py            # lists each model's endpoints (public GET, no key)
 # then run the R01 smoke test and require `status: verified` on every ledger row of every
 # smoke model before R10+ (`mismatch: false` alone is not evidence).
@@ -13,16 +20,16 @@
 # their dated canonical slug in config/decision_models.yaml, not here.
 models:
   qwen/qwen3.7-flash:
-    order: []
+    order: [alibaba]
     allow_fallbacks: false
   qwen/qwen3.5-9b:
-    order: []
+    order: [deepinfra/bf16]
     allow_fallbacks: false
   deepseek/deepseek-v4.1-flash-1017:
-    order: []
+    order: [deepseek]
     allow_fallbacks: false
   z-ai/glm-5.3-flashx-legal:
     # design pins the dated slug and its reasoning effort
     canonical_slug: z-ai/glm-5.3-flashx-legal-20261102
-    order: []
+    order: [z-ai/fp8]
     allow_fallbacks: false

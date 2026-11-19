@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Evaluation runbook R01 gate: did every smoke model's calls go to its pinned provider and model?
+
+Reads the served-provider ledger(s) that ``SANDBOX_SERVED_LOG`` wrote during the R01 smoke
+runs (``mailroom_sandbox.provider_pins``) and the run configs that produced them. For each
+model a config exercises, the gate fails when the ledger holds:
+
+* no rows for the model,
+* fewer rows than the expected calls (the config's ``dataset.limit`` documents times the
+  model's per-document agents), or
+* any row whose ``status`` is not ``verified`` (``unverified``, ``mismatch`` or missing;
+  ``mismatch: false`` alone is not evidence).
+
+Per-document agents are counted on the path every document takes: ``task: pipeline`` runs
+the sorter and one specialist per document (2 when both are on the model; judge, reviewer
+and arbiter calls are conditional and count only as extra rows); a sorter-only
+(``sorter``/``isolated``), specialist or single-agent task runs 1; a Decisions-API reviewer
+calibration (``task: sorter_reviewer``, ``reviewer.backend: decisions``) runs 1 decision per
+document. A document the graph parks before extraction therefore fails the gate on count,
+which is deliberate: the gate cannot tell a skipped call from an unrecorded one.
+``--per-doc N`` overrides the count for every config. Rows for a model no config names fail
+the gate too (something else served calls in the run) unless ``--allow-extra-models``.
+
+Offline and read-only: no network, no spend. Exit 0 when every model passes, 1 when any
+fails, 2 on unreadable input.
+
+    python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-qwen3.7-flash.jsonl \\
+        --config config/runs/runbook-r01-smoke-qwen3.7-flash.yaml
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Any, Iterable
+
+SPECIALIST_TASKS = {"specialist"}
+SINGLE_CALL_TASKS = {"sorter", "isolated"}
+# Which ledger call path each agent's requests take: the vendored LangChain agents (the sorter
+# and the contracts and merger specialists) through the pinned ChatOpenAI subclass, the other
+# specialists through the wrapped retry_chat_completion, Decisions models through the Decisions API.
+LANGCHAIN_SPECIALIST_CLASSES = {"contract", "merger_agreement"}
+LANGCHAIN, RETRY, DECISIONS = "langchain", "retry_chat_completion", "decisions"
+
+
+def _class_counts(spec: Any) -> dict[str, int] | None:
+    """Documents per class when the config draws by ``strata`` buckets, else ``None``."""
+    strata = getattr(spec.dataset, "strata", None)
+    buckets = strata.get("buckets") if isinstance(strata, dict) else getattr(strata, "buckets", None)
+    if not buckets:
+        return None
+    counts: dict[str, int] = {}
+    for bucket in buckets:
+        cls = getattr(bucket, "doc_class", None) if not isinstance(bucket, dict) else bucket.get("doc_class")
+        n = getattr(bucket, "count", None) if not isinstance(bucket, dict) else bucket.get("count")
+        if not cls or not isinstance(n, int):
+            return None
+        counts[str(cls)] = counts.get(str(cls), 0) + n
+    return counts
+
+
+class GateInputError(ValueError):
+    """A ledger or config the gate cannot read."""
+
+
+def read_ledger(paths: Iterable[Path]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in paths:
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise GateInputError(f"cannot read ledger {path}: {exc}") from exc
+        for number, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError as exc:
+                raise GateInputError(f"{path}:{number}: not JSON ({exc})") from exc
+            if not isinstance(row, dict) or not row.get("requested_model"):
+                raise GateInputError(f"{path}:{number}: not a served-provider ledger row")
+            rows.append(row)
+    return rows
+
+
+def _assignments(spec: Any) -> dict[str, dict[str, str]]:
+    from mailroom_sandbox.agent_routes import describe
+
+    return describe(spec)
+
+
+def _specialist_paths(classes: dict[str, int] | None) -> dict[str, int] | None:
+    """Specialist calls per path for a per-class draw (``None`` without one: only totals are checked)."""
+    if classes is None:
+        return None
+    lc = sum(n for c, n in classes.items() if c in LANGCHAIN_SPECIALIST_CLASSES)
+    return {LANGCHAIN: lc, RETRY: sum(classes.values()) - lc}
+
+
+def _one_model(spec: Any, routed: dict[str, str], names: list[str], what: str) -> str | None:
+    models = {routed.get(name) for name in names}
+    if len(models) != 1:
+        raise GateInputError(f"{spec.run_id or 'config'}: {what} are split across models {sorted(map(str, models))}; "
+                             "pass --per-doc to state the expected calls")
+    return models.pop()
+
+
+def _task_calls(spec: Any, table: dict[str, dict[str, str]], docs: int) -> list[tuple[str | None, str, dict[str, int] | None]]:
+    """(model, agent, calls per path) for every agent the task runs on each document."""
+    routed = {name: a["model"] for name, a in table.items() if a.get("provider") == "openrouter"}
+    specialists = sorted(name for name in table if name.endswith("_specialist"))
+    counts = _class_counts(spec)
+    if spec.task == "pipeline":
+        return [(routed.get("sorter"), "sorter", {LANGCHAIN: docs}),
+                (_one_model(spec, routed, specialists, "specialists"), "specialist (one per document)",
+                 _specialist_paths(counts))]
+    if spec.task in SINGLE_CALL_TASKS:
+        return [(routed.get("sorter"), "sorter", {LANGCHAIN: docs})]
+    if spec.task in SPECIALIST_TASKS:
+        target = spec.target
+        names = [n for n in specialists if not target or n == target or n.startswith(str(target))] or specialists
+        cls = next(iter(counts)) if counts and len(counts) == 1 else None
+        path = (LANGCHAIN if cls in LANGCHAIN_SPECIALIST_CLASSES else RETRY) if cls else None
+        return [(_one_model(spec, routed, names, "specialists"), "specialist", {path: docs} if path else None)]
+    if spec.task in table:
+        return [(routed.get(spec.task), spec.task, None)]
+    raise GateInputError(f"{spec.run_id or 'config'}: task {spec.task!r} has no R01 call count; pass --per-doc")
+
+
+def expected_calls(spec: Any, *, per_doc: int | None = None,
+                   assignments: dict[str, dict[str, str]] | None = None) -> dict[str, dict[str, Any]]:
+    """``{model: {"docs", "per_doc", "agents", "paths"}}`` for the models one run config exercises on every document."""
+    docs = spec.dataset.limit
+    if not isinstance(docs, int) or docs <= 0:
+        raise GateInputError(f"{spec.run_id or 'config'}: dataset.limit must name the document count")
+    reviewer = spec.reviewer
+    if spec.task == "sorter_reviewer" and reviewer is not None and reviewer.backend == "decisions":
+        return {reviewer.model: {"docs": docs, "per_doc": per_doc or 1, "agents": ["sorter_reviewer (decisions)"],
+                                 "paths": {} if per_doc else {DECISIONS: docs}}}
+    table = assignments if assignments is not None else _assignments(spec)
+    out: dict[str, dict[str, Any]] = {}
+    for model, agent, paths in _task_calls(spec, table, docs):
+        if not model:
+            raise GateInputError(f"{spec.run_id or 'config'}: {agent} is not served over OpenRouter, so no ledger row is written")
+        entry = out.setdefault(model, {"docs": docs, "per_doc": 0, "agents": [], "paths": {}})
+        entry["per_doc"] += 1
+        entry["agents"].append(agent)
+        for path, n in (paths or {}).items():
+            if n:
+                entry["paths"][path] = entry["paths"].get(path, 0) + n
+    if per_doc:
+        for entry in out.values():
+            entry["per_doc"] = per_doc
+            entry["paths"] = {}  # an override states the total only
+    return out
+
+
+def gate(rows: list[dict[str, Any]], expected: dict[str, dict[str, Any]], *,
+         allow_extra_models: bool = False, run_ids: set[str] | None = None) -> dict[str, Any]:
+    """Per-model verdicts plus the overall result.
+
+    With ``run_ids``, only rows stamped with one of those runs count; rows from another run or
+    with no ``run_id`` (an earlier launch appending to the same ledger file) are set aside.
+    """
+    by_model: dict[str, list[dict[str, Any]]] = {}
+    other_runs = Counter()
+    for row in rows:
+        if run_ids is not None and row.get("run_id") not in run_ids:
+            other_runs[str(row.get("run_id"))] += 1
+            continue
+        by_model.setdefault(str(row["requested_model"]), []).append(row)
+    models: dict[str, dict[str, Any]] = {}
+    for model, want in sorted(expected.items()):
+        got = by_model.get(model, [])
+        need = want["docs"] * want["per_doc"]
+        status = Counter(str(r.get("status") or "missing") for r in got)
+        reasons = []
+        if not got:
+            reasons.append("no ledger rows")
+        elif len(got) < need:
+            reasons.append(f"{len(got)} rows < {need} expected ({want['docs']} docs x {want['per_doc']} per-doc agents)")
+        paths = Counter(str(r.get("call_path") or RETRY) for r in got)
+        for path, n_need in sorted((want.get("paths") or {}).items()):
+            if paths.get(path, 0) < n_need:
+                reasons.append(f"{paths.get(path, 0)} {path} rows < {n_need} expected on that call path")
+        not_verified = sum(n for s, n in status.items() if s != "verified")
+        if not_verified:
+            reasons.append(f"{not_verified} row(s) not verified: {dict(sorted((s, n) for s, n in status.items() if s != 'verified'))}")
+        models[model] = {
+            "ok": not reasons,
+            "rows": len(got),
+            "expected_min": need,
+            "agents": want["agents"],
+            "status": dict(sorted(status.items())),
+            "providers": dict(sorted(Counter(str(r.get("served_provider")) for r in got).items())),
+            "served_models": dict(sorted(Counter(str(r.get("served_model")) for r in got).items())),
+            "call_paths": dict(sorted(paths.items())),
+            "expected_paths": dict(sorted((want.get("paths") or {}).items())),
+            "pinned_orders": sorted({json.dumps(r.get("pinned_order") or []) for r in got}),
+            "reasons": reasons,
+        }
+    extra = {m: len(r) for m, r in sorted(by_model.items()) if m not in expected}
+    ok = all(m["ok"] for m in models.values()) and (allow_extra_models or not extra)
+    return {"ok": ok, "models": models, "extra_models": extra, "other_run_rows": dict(sorted(other_runs.items()))}
+
+
+def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
+    lines = []
+    for model, m in result["models"].items():
+        lines.append(f"{'PASS' if m['ok'] else 'FAIL'} {model}: {m['rows']} rows (>= {m['expected_min']} expected; "
+                     f"{', '.join(m['agents'])})")
+        lines.append(f"     status {m['status']}  providers {m['providers']}  served {m['served_models']}  "
+                     f"paths {m['call_paths']} (need {m['expected_paths']})  pins {', '.join(m['pinned_orders'])}")
+        lines.extend(f"     - {reason}" for reason in m["reasons"])
+    if result.get("other_run_rows"):
+        lines.append(f"note rows from other runs set aside: {result['other_run_rows']}")
+    if result["extra_models"]:
+        tag = "note" if allow_extra_models else "FAIL"
+        lines.append(f"{tag} rows for models no config names: {result['extra_models']}")
+    lines.append(f"R01 gate: {'PASS' if result['ok'] else 'FAIL'}")
+    return "\n".join(lines)
+
+
+def _merge_expected(expected: dict[str, dict[str, Any]], model: str, want: dict[str, Any]) -> None:
+    """Add one config's expectation for ``model``: two configs on one model add their documents up."""
+    if model not in expected:
+        expected[model] = want
+        return
+    have = expected[model]
+    if have["per_doc"] != want["per_doc"]:
+        raise GateInputError(f"{model}: configs disagree on per-document calls; gate them separately")
+    have["docs"] += want["docs"]
+    for path, n in want.get("paths", {}).items():
+        have.setdefault("paths", {})[path] = have["paths"].get(path, 0) + n
+    have["agents"] = sorted(set(have["agents"]) | set(want["agents"]))
+
+
+def expectations(configs: list[Path], *, per_doc: int | None = None) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Expected calls per model over every config, and the run ids whose ledger rows count."""
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    expected: dict[str, dict[str, Any]] = {}
+    run_ids: set[str] = set()
+    for path in configs:
+        try:
+            spec = load_run_spec(path)
+        except Exception as exc:  # noqa: BLE001 — one line per unreadable config
+            raise GateInputError(f"cannot load {path}: {exc}") from exc
+        if not spec.run_id:
+            raise GateInputError(f"{path}: the config needs a run_id, which ledger rows are matched on")
+        run_ids.add(str(spec.run_id))
+        for model, want in expected_calls(spec, per_doc=per_doc).items():
+            _merge_expected(expected, model, want)
+    return expected, run_ids
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--ledger", action="append", required=True, type=Path,
+                    help="SANDBOX_SERVED_LOG JSONL (repeatable; rows are pooled)")
+    ap.add_argument("--config", action="append", required=True, type=Path, nargs="+",
+                    help="R01 smoke run config(s) whose models are gated")
+    ap.add_argument("--per-doc", type=int, default=None, help="override the per-document call count for every config")
+    ap.add_argument("--allow-extra-models", action="store_true",
+                    help="report, but do not fail on, rows for models no config names")
+    ap.add_argument("--json", action="store_true", help="print the full result as JSON")
+    ap.add_argument("--any-run", action="store_true",
+                    help="count rows from any run (default: only rows whose run_id is a config's run_id)")
+    args = ap.parse_args(argv)
+    if args.per_doc is not None and args.per_doc < 1:
+        ap.error("--per-doc must be >= 1")
+    configs = [path for group in args.config for path in group]
+    try:
+        rows = read_ledger(args.ledger)
+        expected, run_ids = expectations(configs, per_doc=args.per_doc)
+    except GateInputError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result = gate(rows, expected, allow_extra_models=args.allow_extra_models,
+                  run_ids=None if args.any_run else run_ids)
+    print(json.dumps(result, indent=2, sort_keys=True) if args.json else render(result, allow_extra_models=args.allow_extra_models))
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,122 @@
+{
+  "bars": {
+    "gated": [
+      "contract",
+      "corporate_record",
+      "correspondence",
+      "insurance_claim"
+    ],
+    "min_labelled": 2,
+    "min_scorable_per_class": 20,
+    "per_class_from_n": 500,
+    "quality": 0.9,
+    "review_max": 0.05,
+    "wrong_archive_max": 0.02
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "interim_labels": {
+      "fields_applied": 1167,
+      "overlay_sha256": "7fc65be9bf39e465dbef31e117f721fd5d262f5d687a91deac700022578feb67",
+      "rows_with_labels": 404
+    },
+    "near_gold_labels": {
+      "fields_applied": 993,
+      "overlay_sha256": "8fc7ace005365992a658c3fa827d6675e6db7b3927e0650c770a54819e9f6223",
+      "rows_with_labels": 207,
+      "status": "near_gold"
+    },
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "revision_resolved": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "e78ca06878a84f358340b334d779fb02a4cda510a08df7925d5afa080858130a",
+    "source": "huggingface",
+    "split": "all"
+  },
+  "documents": 20,
+  "labels": {
+    "checkout_head": "a1ab313a206066061d0063f85a0439cfd9d1bd70",
+    "interim_overlay_sha256": "7fc65be9bf39e465dbef31e117f721fd5d262f5d687a91deac700022578feb67",
+    "label_files_changed_since_named_commit": [
+      "data/labels/gold-overlay/MANIFEST.json",
+      "data/labels/gold-overlay/contract.jsonl",
+      "data/labels/gold-overlay/corporate_record.jsonl",
+      "data/labels/gold-overlay/correspondence.jsonl",
+      "data/labels/gold/MANIFEST.json",
+      "data/labels/gold/contract.jsonl",
+      "data/labels/interim/MANIFEST.json",
+      "data/labels/interim/README.md",
+      "data/labels/interim/correspondence.jsonl",
+      "data/labels/review/INTERIM_AUDIT.md",
+      "data/labels/review/README.md",
+      "data/labels/review/VALIDATION.md",
+      "data/labels/review/contract_value_review.jsonl",
+      "data/labels/review/decisions.jsonl",
+      "data/labels/review/decisions_held.jsonl",
+      "data/labels/review/human_reviews.jsonl",
+      "data/labels/review/interim_audit.jsonl",
+      "data/labels/review/interim_reviews.jsonl",
+      "data/labels/review/policy_questions.json",
+      "data/labels/review/verdicts.jsonl"
+    ],
+    "near_gold_overlay_sha256": "8fc7ace005365992a658c3fa827d6675e6db7b3927e0650c770a54819e9f6223",
+    "note": "the runbook's 'field scorer @ e90ac8b9' names a gold-label commit; the scorer is the Dojo pin",
+    "runbook_named_commit": "e90ac8b9469d29fa0c24447ab260a4840b1f9eee"
+  },
+  "schema": "mailroom.scorer_handcheck/v1",
+  "scorer": {
+    "dojo_package_version": "0.30.1",
+    "dojo_vendor_pin": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+    "entry_points": [
+      "mailroom_sandbox.eval.agents._score_class",
+      "mailroom_sandbox.eval.agents._score_extract (Dojo suite, CUAD, MAUD)",
+      "mailroom_sandbox.experiment_splits.unit_correct",
+      "mailroom_sandbox.job.gate.doc_status",
+      "mailroom_sandbox.eval.scoring.score_classification (Dojo sorter suite)"
+    ]
+  },
+  "selection": {
+    "classes": [
+      "contract",
+      "corporate_record",
+      "correspondence",
+      "insurance_claim",
+      "merger_agreement"
+    ],
+    "per_class": 4,
+    "profiles": [
+      "exact",
+      "normalised",
+      "mismatch",
+      "missing"
+    ],
+    "roles": [
+      "v0_class_error",
+      "v0_unit_error",
+      "v0_correct",
+      "v0_correct"
+    ],
+    "routes": {
+      "exact": "archive",
+      "mismatch": "review",
+      "missing": "archive",
+      "normalised": "archive"
+    },
+    "seed": "r02-handcheck-20261118"
+  },
+  "sorter_pass": {
+    "content_sha256_checked_per_document": true,
+    "dataset_revision": "ed7576b676343e0b402ec5412cded301e629bdee",
+    "dir": "data/handoff/sorter-qwen3.7-flash",
+    "files": {
+      "test.jsonl": "52164ff5cdb36fca1bd46c8160f480366806646563b7a7c5b9327bbdbf77c568",
+      "train.jsonl": "185cedaec9fe8bd3b3545cd3bd302340fda31f8ce6e2c6b1cb3ec54b10a00963"
+    },
+    "model": "qwen/qwen3.7-flash"
+  },
+  "split": {
+    "assignments_sha256": "ca7c4a18a59620b4f2c881307f59aa2ebb249ac0a1edfc0dc3aa1e24622f20fa",
+    "dev_ids_sha256": "75ed4f2bb32641e7abfc52de5a1cb3faa58ef0de39823c84d61b80e6a0991db1",
+    "dir": "config/splits/runbook-v1"
+  }
+}

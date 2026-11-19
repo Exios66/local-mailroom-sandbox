@@ -557,8 +557,9 @@ def activate(
         _log.warning("vendor hotfixes not applied: %s", exc)
 
     # R01: pin OpenRouter providers per model (config/provider_pins.yaml) and record the
-    # served model + provider of each wrapped retry_chat_completion call (not the LangChain
-    # contract / merger agents), without editing vendor/.
+    # served model + provider of each wrapped retry_chat_completion call and each vendored
+    # LangChain agent request (sorter, contracts / merger specialists), without editing vendor/.
+    # Runs after llm_timeout, whose ChatOpenAI subclass the pin subclass then extends.
     try:
         from mailroom_sandbox.provider_pins import apply_provider_pins
 

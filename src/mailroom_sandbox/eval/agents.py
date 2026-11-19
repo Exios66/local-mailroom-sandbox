@@ -442,7 +442,7 @@ def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     return {"match": float(expected == predicted), "expected": expected, "predicted": predicted}
 
 
-def _score_extract(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: bool = False) -> dict[str, Any]:
     expected = parse_expected_fields(row) or row.get("expected_fields") or {}
     if not isinstance(expected, dict):
         expected = {}
@@ -455,6 +455,7 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
         # Per-subclass scoring (sandbox #145): the row's GT subclass drives the
         # vendored corporate-record alignment (see scoring.py).
         expected_subclass=row.get("expected_subclass"),
+        field_scores=field_scores,
     )
 
 

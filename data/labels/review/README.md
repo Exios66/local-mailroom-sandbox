@@ -26,6 +26,7 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
 | `interim_reviews.jsonl` | Reviewed interim labels that `scripts/interim_labels.py review` writes into `data/labels/interim/`: 55 correspondence `intent` corrections of wrong Hub values, 1,795 correspondence header fields read from the original email and 44 corporate `entity_name` corrections. See below. |
 | `contract_value_review.jsonl` | 7 `correct` lines for `scripts/gold_labels.py review`: contract `contract_value` phrases rewritten as plain dollar figures that Dojo parses. They are applied to `data/labels/gold/contract.jsonl`. |
+| `r03-<lineage>-audit.csv` | Evaluation runbook R03 gold-audit sheets, one per lineage, with a `.meta.json` digest of how each was drawn. Not written until the v0 passes run. See "R03 gold audit" below. |
 
 ## Verdicts
 
@@ -154,3 +155,29 @@ earlier decisions as precedent. The majority value is applied; on a three-way sp
 stays `needs_human` (or held) with all three readings in its note. The votes are in
 `consensus_votes.jsonl`, the rule each group settled in `policy_questions.json`, and the guide
 states the rules that changed its meaning (`docs/gold-labels/LABELING_GUIDE.md`).
+
+## R03 gold audit
+
+Evaluation runbook row R03 (`docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md`, Task 4) adjudicates about 100 v0-vs-gold disagreements per lineage, correspondence first. Gate: gold is wrong on at most 15% of the audited documents, or the labels are corrected as a new labels version.
+
+1. The owner launches the v0 passes at the spend gate (`sandbox run preflight`, then `sandbox run start ... --initials <XX>`): `config/runs/runbook-r03-sorter-v0-dev.yaml` and one config per specialist lineage, `config/runs/runbook-r03-{insurance,correspondence,corporate,contracts,merger}-v0-dev.yaml`. Each runs on its class's dev documents of `config/splits/runbook-v1` with the interim and near-gold overlays; each header gives its cost estimate and caps.
+2. Build the sheet from the finished run (no model call):
+
+   ```bash
+   python scripts/build_gold_audit_sheet.py --run runbook-r03-correspondence-v0-dev \
+       --lineage correspondence --n 100 --seed 20261118
+   ```
+
+   It writes `data/labels/review/r03-<lineage>-audit.csv` and `r03-<lineage>-audit.meta.json`, and refuses to overwrite an existing sheet without `--force`. A run that holds any held-out, calibration or unknown id is refused: only dev and pool documents are audited.
+3. Fill `verdict` on every row with `model_wrong`, `gold_wrong` or `ambiguous`, and give the reason in `note`. Judge each row against the document text.
+4. Summarize: `python scripts/build_gold_audit_sheet.py --summarize data/labels/review/r03-<lineage>-audit.csv`. It prints the gold-wrong rate per audited document and per row with two-sided Clopper-Pearson 95% intervals, and the gate. It exits 0 on pass, 1 on fail and 3 while any verdict is blank.
+5. If the gate fails, correct the labels as a new labels version (the review files above, then `sandbox schemas build`) before G0.
+
+What the sheet lists:
+
+- Sorter: the class, or the subclass when the class is right. Contract subclasses are compared through the Dojo's `normalize_subtype`.
+- Specialists: each labelled field whose class verdict in `config/extraction/subclass_schemas.json` is `iterate` and whose Dojo field score is below 1.0 (`--verdict-level subclass` reads the subclass entry instead; `--mismatch-below` moves the threshold). Templated fields (`keywords`, `subject_matter` for corporate records and correspondence) are left out, as the slice gate leaves them out. Contract CUAD categories (`cuad_clauses:<category>`, missed or not in CUAD) and merger MAUD questions (`maud_clauses:<question>`, unanswered or answered differently) are listed through the Dojo's own CUAD and MAUD helpers.
+- Fields derived from the gold subclass, which `job.specialist_subclass: gold` copies from the truth, are never listed: insurance `cms_source_table`, corporate `record_type`, contract `cuad_family`. The merger pass runs with no subclass, since the spec refuses `gold` for it; merger consideration is scored through the Dojo's MAUD "Type of Consideration" backfill.
+- `label_source` is `interim` or `near_gold` when that overlay supplied the value on the row, else `hub`.
+
+The sample is deterministic: candidates are ordered by `sha256(seed:doc:field)` and, by default, one row per document (`--per-doc`), so the rows are the audited documents. Logic and tests: `src/mailroom_sandbox/gold_audit.py`, `tests/test_gold_audit.py`.
