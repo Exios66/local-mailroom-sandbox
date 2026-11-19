@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- **PR domain reviewer subagent and review-lane map.** New roster agent
+  `pr-domain-reviewer` (canonical `.opencode/agents/pr-domain-reviewer.md`, Claude
+  wrapper, Cursor stub) owns silent-failure / Dojo / spend / SHF-HF PR review and
+  meshes with CodeRabbit, CodeAnt and CodeFactor via companion notes. Lane map:
+  [`docs/pr-review-lanes.md`](docs/pr-review-lanes.md). CodeRabbit tone and
+  `src/**/*.py` path instructions defer that domain deep-dive. Complementary to
+  `adversarial-reviewer`. No paid run or deployment.
+
 - **Experiment figures in one house style, and H5 comparison figures (#373).** New `figure_style` (colour roles, type scale, deterministic SVG, text linter), `decision_figures` (per-run: routing, confidence, risk-coverage, form-mass, park-reasons, subclass, latency) and `comparison_figures` (H5: runtime, latency, quality against the margins, routing, cost-quality, list pricing by prompt size). Human guide: [`docs/experiment-figures.md`](docs/experiment-figures.md).
   - `sandbox report build --run <id>` now writes the full per-run figure set with alt text. Trees built earlier carry only `latency.svg`; rebuild them, then run `--campaign rb1` (which refreshes indexes only).
   - `scripts/compare_sorter_arms.py --figures DIR` is new, and `--write` also writes the figures. `--allow-mock` labels every figure simulated. Without `--split-dir` the arms pair on the split their locks drew from.

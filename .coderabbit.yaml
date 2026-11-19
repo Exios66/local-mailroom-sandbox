@@ -3,6 +3,13 @@ language: en-US
 tone_instructions: >-
   Be precise and brief. Cite the file and line that contradicts the finding.
   Prefer one consolidated finding for a fact that is wrong in several places.
+  Stay in the CodeRabbit lane (docs/link/consistency, lint/secret tools,
+  code↔doc sync). Do not re-litigate Dojo ownership, SHF/HF fingerprints,
+  spend-cap semantics, critical-regression rows 1–12, or campaign CP-* checks:
+  those belong to the pr-domain-reviewer subagent
+  (.opencode/agents/pr-domain-reviewer.md; docs/pr-review-lanes.md). When a
+  docs claim touches a pin, score meaning or spend rule, flag the doc mismatch
+  and note that domain confirmation is for pr-domain-reviewer.
 reviews:
   profile: assertive
   request_changes_workflow: false
@@ -63,6 +70,10 @@ reviews:
         version or a count, check that README.md, AGENTS.md, CHANGELOG.md and docs/
         were updated in the same change. Name the documents that are now stale. Flag
         changed docstrings and comments that no longer describe the code.
+        If the change touches scoring adapters, vendor_hotfixes, scoring_hotfixes,
+        spend validation, provider pins, dataset selection or vendor pins, leave a
+        one-line companion note that pr-domain-reviewer should confirm critical
+        regressions / Dojo ownership (do not duplicate that deep review here).
     - path: "config/**"
       instructions: |
         Code and documentation must agree. When this change alters behaviour, a
