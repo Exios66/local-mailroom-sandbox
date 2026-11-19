@@ -823,14 +823,99 @@ class ExtractionGateSpec(BaseModel):
         return self
 
 
+class ClosedFieldResolverSpec(BaseModel):
+    """The Decisions-model closed-field resolver of a ``decision_slots`` block (llm-mailroom
+    ``agents.closed_field_resolver``)."""
+    model_config = {"extra": "forbid"}
+    model: str = Field(min_length=1)
+    # The question-set stem, config/decisions/<stem>.yaml, of kind closed_field_resolver (locked by content).
+    questions: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _decisions_model(self) -> "ClosedFieldResolverSpec":
+        from mailroom_sandbox.decision_backends import is_decisions_model
+
+        if not is_decisions_model(self.model):
+            raise ValueError(f"decision_slots.resolver model {self.model!r} is not a Decisions-API model")
+        return self
+
+
+# llm-mailroom graph/decision_slots.py: the slot names and the shared keys of its taxonomy
+# ``decision_slots:`` block. The vendored module validates the values (preflight); these
+# names only catch a typo before anything is loaded.
+DECISION_SLOT_NAMES = ("sorter_reviewer", "archive_gate", "judge_replacement", "arbiter_veto",
+                       "judge_check", "boss_check", "closed_field_resolver", "field_review")
+_DECISION_SLOT_SHARED = ("gate_support_min", "cap_warmup", "gate_key_fields")
+# Slots that read the pipeline extraction gate's field_support.
+GATE_SLOTS = ("archive_gate", "judge_replacement", "arbiter_veto", "judge_check", "boss_check")
+
+
+def _slot_mode(slots: dict[str, Any], slot: str) -> str:
+    block = slots.get(slot) or {}
+    return str(block.get("mode", "baseline")) if isinstance(block, dict) else "baseline"
+
+
+def slots_are_baseline(slots: dict[str, Any] | None) -> bool:
+    """True when a ``decision_slots`` mapping changes nothing: every mode baseline, no reviewer park cap.
+
+    Shared by preflight and runtime activation, so an older vendored mailroom without slot
+    support runs exactly the blocks preflight accepted.
+    """
+    slots = slots or {}
+    reviewer = slots.get("sorter_reviewer") or {}
+    park_cap = reviewer.get("park_cap") if isinstance(reviewer, dict) else None
+    return all(_slot_mode(slots, s) == "baseline" for s in DECISION_SLOT_NAMES) and park_cap is None
+
+
+class DecisionSlotsSpec(BaseModel):
+    """llm-mailroom's ``decision_slots`` for a pipeline run, plus the resolver model.
+
+    Every key but ``resolver`` is written verbatim to the runtime taxonomy's
+    ``decision_slots:`` block (the vendored llm-mailroom validates it at preflight).
+    Slots that read the gate need the run's ``extraction_gate`` block; a
+    ``closed_field_resolver`` mode other than baseline needs ``resolver``; a
+    ``sorter_reviewer.park_cap`` needs a ``reviewer`` block.
+    """
+    model_config = {"extra": "allow"}
+    resolver: ClosedFieldResolverSpec | None = None
+
+    @model_validator(mode="after")
+    def _names(self) -> "DecisionSlotsSpec":
+        extra = dict(self.model_extra or {})
+        unknown = sorted(set(extra) - set(DECISION_SLOT_NAMES) - set(_DECISION_SLOT_SHARED))
+        if unknown:
+            raise ValueError(f"decision_slots: unknown keys {unknown}; slots are {list(DECISION_SLOT_NAMES)}")
+        for name in DECISION_SLOT_NAMES:
+            block = extra.get(name)
+            if block is not None and not isinstance(block, dict):
+                raise ValueError(f"decision_slots.{name} must be a mapping")
+            if isinstance(block, dict) and isinstance(block.get("mode"), bool):
+                raise ValueError(f"decision_slots.{name}.mode is a YAML boolean; write the mode as a word")
+        return self
+
+    def slots(self) -> dict[str, Any]:
+        """The llm-mailroom ``decision_slots:`` block (everything but ``resolver``)."""
+        return {k: v for k, v in sorted((self.model_extra or {}).items())}
+
+    def mode(self, slot: str) -> str:
+        return _slot_mode(self.slots(), slot)
+
+    def is_baseline(self) -> bool:
+        """True when no slot would change anything (every mode baseline, no reviewer park cap)."""
+        return slots_are_baseline(self.slots())
+
+
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
 _THRESHOLD_UNIT = ("high", "low", "judge_band_high")
 _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
 # Routing flags. judge_rejudge_retry (llm-mailroom #241, ships false): a retry whose
 # earlier attempt was judged goes back to judge_verify while judge passes remain.
 # Upstream reads it by truthiness, so only a real boolean is accepted here: a quoted
-# "false" would otherwise switch it on.
-_THRESHOLD_FLAG = ("judge_rejudge_retry",)
+# "false" would otherwise switch it on. The archive checks (llm-mailroom #309, all ship
+# false, which keeps the checks on): judge_complete_archives, arbiter_accept_archives and
+# judge_clears_low_confidence; true restores the old route, e.g. for a baseline arm.
+_THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
+                   "judge_clears_low_confidence")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:
@@ -878,6 +963,7 @@ class RunSpec(BaseModel):
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
     reviewer: ReviewerSpec | None = None
     extraction_gate: ExtractionGateSpec | None = None
+    decision_slots: DecisionSlotsSpec | None = None
     # Run-scoped routing thresholds (the taxonomy `confidence` block), merged over the
     # vendored + overlay values. Thresholds are calibrated per model: a self-reported
     # confidence scale differs between Qwen on OpenRouter and a Modal-served 9B.
@@ -926,6 +1012,24 @@ class RunSpec(BaseModel):
         if self.extraction_gate is not None and self.task != "pipeline":
             raise ValueError(f"extraction_gate reviews pipeline extractions; task {self.task!r} runs none "
                              "(calibrate the gate with task: extraction_gate and a reviewer block)")
+        return self
+
+    @model_validator(mode="after")
+    def _slots_in_pipeline(self) -> "RunSpec":
+        slots = self.decision_slots
+        if slots is None:
+            return self
+        if self.task != "pipeline":
+            raise ValueError(f"decision_slots change pipeline routing; task {self.task!r} runs none")
+        needs_gate = [s for s in GATE_SLOTS if slots.mode(s) != "baseline"]
+        if needs_gate and self.extraction_gate is None:
+            raise ValueError(f"decision_slots {needs_gate} read the extraction gate: add an extraction_gate block")
+        if slots.mode("closed_field_resolver") != "baseline" and slots.resolver is None:
+            raise ValueError("decision_slots.closed_field_resolver needs decision_slots.resolver (model, questions)")
+        if slots.resolver is not None and slots.mode("closed_field_resolver") == "baseline":
+            raise ValueError("decision_slots.resolver is set but closed_field_resolver is baseline: nothing would call it")
+        if (slots.slots().get("sorter_reviewer") or {}).get("park_cap") is not None and self.reviewer is None:
+            raise ValueError("decision_slots.sorter_reviewer.park_cap caps the decision reviewer: add a reviewer block")
         return self
 
     @model_validator(mode="after")
@@ -1065,6 +1169,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
         **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"extraction_gate": spec.extraction_gate.model_dump()} if spec.extraction_gate else {}),
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"decision_slots": spec.decision_slots.model_dump()} if spec.decision_slots else {}),
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"confidence": spec.confidence} if spec.confidence else {}),
         "task": spec.task,

@@ -61,6 +61,10 @@ def api_models(lock: Mapping[str, Any]) -> list[str]:
     gate = lock.get("extraction_gate") or {}
     if gate.get("model"):
         models.add(str(gate["model"]))
+    # So does the decision_slots closed-field resolver.
+    resolver = (lock.get("decision_slots") or {}).get("resolver") or {}
+    if resolver.get("model"):
+        models.add(str(resolver["model"]))
     return sorted(model for model in models if model)
 
 
@@ -73,6 +77,9 @@ def spec_api_models(spec: Any) -> list[str]:
     }
     if getattr(spec, "extraction_gate", None) is not None:
         shaped["extraction_gate"] = {"model": spec.extraction_gate.model}
+    slots = getattr(spec, "decision_slots", None)
+    if slots is not None and slots.resolver is not None:
+        shaped["decision_slots"] = {"resolver": {"model": slots.resolver.model}}
     if spec.agent_routes or spec.agent_knobs or spec.agent_models:
         from mailroom_sandbox.agent_routes import describe
 

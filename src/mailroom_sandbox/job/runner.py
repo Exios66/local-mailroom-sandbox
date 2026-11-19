@@ -595,6 +595,21 @@ def _lock_mock(store: RunStore, default: bool) -> bool:
     return bool(_task_defaults(store).get("mock", default))
 
 
+def _refuse_mock_override(store: RunStore, mock: bool | None) -> None:
+    """Refuse ``mock=True`` on a live lock that registers Decisions-API models.
+
+    Activation builds the locked extraction gate and closed-field resolver from the lock's own
+    ``job.mock``, so a mock override would still call the Decisions API while skipping the API
+    budget. A mock run of such a spec is preflighted with ``job.mock: true`` instead.
+    """
+    if not mock or _lock_mock(store, False):
+        return
+    lock = store.read_lock() or {}
+    if lock.get("extraction_gate") or (lock.get("decision_slots") or {}).get("resolver"):
+        raise ValueError("this lock calls Decisions-API models (extraction_gate or decision_slots.resolver) "
+                         "and is not a mock run; a mock override would still call them: preflight a job.mock spec")
+
+
 def _fingerprint(store: RunStore) -> str:
     rows = store.dataset_rows()
     if not rows:
@@ -967,6 +982,7 @@ def run_job(
     """
     if not dry_run:
         store.verify_generation()
+        _refuse_mock_override(store, mock)
     if dry_run:
         return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
                         max_items=max_items, tracer=tracer, on_event=on_event)

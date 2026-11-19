@@ -54,6 +54,15 @@ def test_judge_rejudge_retry_is_a_strict_boolean_run_knob():
     assert core_hash(spec_core(on, source_sha256="0" * 64)) != core_hash(spec_core(off, source_sha256="0" * 64))
 
 
+@pytest.mark.parametrize("flag", ["judge_complete_archives", "arbiter_accept_archives", "judge_clears_low_confidence"])
+def test_archive_checks_are_strict_boolean_run_knobs(flag):
+    """A baseline arm can restore the old route per class; a quoted "false" never switches it on."""
+    spec = _spec(confidence={flag: False, "by_class": {"contract": {flag: True}}})
+    assert spec.confidence["by_class"]["contract"][flag] is True
+    with pytest.raises(ValidationError, match=f"{flag} must be true or false"):
+        _spec(confidence={flag: "false"})
+
+
 def test_activation_applies_judge_rejudge_retry_and_routing_reads_it(monkeypatch):
     pytest.importorskip("pipeline.config")
     from graph import routing

@@ -24,6 +24,7 @@ types (``DecisionAnswer``) are imported lazily too, after
 from __future__ import annotations
 
 import functools
+import json
 import re
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping, Optional
 
@@ -340,6 +341,8 @@ def load_question_set(stem: str) -> dict[str, Any]:
     qset = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if qset.get("kind") == EXTRACTION_GATE:
         return _checked_gate_set(stem, qset)
+    if qset.get("kind") == CLOSED_FIELD_RESOLVER:
+        return _checked_resolver_set(stem, qset)
     doc_type = qset.get("doc_type") or {}
     if not isinstance(doc_type.get("criteria"), dict) or len(doc_type["criteria"]) < 2:
         raise ValueError(f"{stem}: doc_type needs instructions and at least two criteria")
@@ -479,6 +482,96 @@ def mock_extraction_gate_backend(model: str, qset: Mapping[str, Any]) -> Callabl
     return gate
 
 
+CLOSED_FIELD_RESOLVER = "closed_field_resolver"
+
+
+def _checked_resolver_set(stem: str, qset: dict[str, Any]) -> dict[str, Any]:
+    """A ``kind: closed_field_resolver`` set: instructions, a per-label criterion and a none option."""
+    for key in ("instructions", "label_criterion", "none_option", "none_criterion"):
+        if not str(qset.get(key) or "").strip():
+            raise ValueError(f"{stem}: a closed-field resolver set needs {key}")
+    try:
+        resolver_question(qset, {"doc_type": "contract", "field": "f", "value": "v", "allowed": ["a", "b"]})
+    except (KeyError, IndexError, ValueError) as exc:
+        raise ValueError(f"{stem}: the resolver texts do not format: {exc!r}") from exc
+    return qset
+
+
+def resolver_question(qset: Mapping[str, Any], handoff: Mapping[str, Any]) -> dict[str, Any]:
+    """The one pick-one question: every allowed label of the handoff's field plus the none option."""
+    field, doc_type = str(handoff.get("field") or ""), str(handoff.get("doc_type") or "")
+    value = json.dumps(handoff.get("value"), ensure_ascii=False)[:200]
+    allowed = [str(v) for v in dict.fromkeys(handoff.get("allowed") or []) if str(v).strip()]
+    none = str(qset["none_option"])
+    if not allowed:
+        raise ValueError(f"closed-field resolver: field {field!r} has no allowed labels")
+    if none in allowed:
+        raise ValueError(f"closed-field resolver: none option {none!r} is also an allowed label of {field!r}")
+    criteria = {label: str(qset["label_criterion"]).format(label=label, field=field, doc_type=doc_type)
+                for label in allowed}
+    criteria[none] = str(qset["none_criterion"]).format(field=field, doc_type=doc_type)
+    _checked_options(f"closed field {field}", list(criteria))
+    return {"label": {"type": "choice", "criteria": criteria,
+                      "instructions": str(qset["instructions"]).format(field=field, doc_type=doc_type, value=value)}}
+
+
+def decide_closed_field(doc_text: str, handoff: Mapping[str, Any], *, model: str, qset: Mapping[str, Any],
+                        timeout: float = 120.0, attempts: int = 3) -> dict[str, Any]:
+    """One resolver request: ``{document, closed_field_handoff}`` and the pick-one question.
+
+    Returns the picked ``value`` (``None`` when the model picked the none option) and its
+    ``probability``, the full ``probabilities`` and the usage. llm-mailroom checks the pick
+    against the field's vocabulary again and applies it only at its own ``min_probability``.
+    """
+    if not is_decisions_model(model):
+        raise ValueError(f"{model!r} is not a Decisions-API model")
+    limit = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
+    text = mask_card_numbers((doc_text or "")[:limit])
+    masked = _mask_card_values(dict(handoff))  # the value is quoted in the question text too
+    body = {"model": model,
+            "state": {"document": text if text.strip() else "(empty document)", "closed_field_handoff": masked},
+            "questions": resolver_question(qset, masked)}
+    data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
+    usage = data.get("usage") or {}
+    _record_usage(model, usage, agent=CLOSED_FIELD_RESOLVER)
+    answer = (data.get("answers") or {}).get("label") or {}
+    probs = {str(k): float(v) for k, v in (answer.get("probabilities") or {}).items()
+             if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    choice = answer.get("choice")
+    picked = None if choice in (None, qset["none_option"]) else str(choice)
+    return {"value": picked, "probability": probs.get(str(choice)) if choice is not None else None,
+            "probabilities": probs, "truncated": len(doc_text or "") > limit, "served_model": data.get("model"),
+            "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
+                      "cost": usage.get("cost")}}
+
+
+def closed_field_resolver_backend(model: str, qset: Mapping[str, Any]) -> Callable[[str, Mapping[str, Any]], dict[str, Any]]:
+    """The resolver registered with llm-mailroom (``agents.closed_field_resolver``)."""
+    if not is_decisions_model(model):
+        raise ValueError(f"{model!r} is not a Decisions-API model")
+    if qset.get("kind") != CLOSED_FIELD_RESOLVER:
+        raise ValueError("the closed-field resolver needs a closed_field_resolver question set")
+    version = str(qset.get("version") or "")
+
+    def resolver(doc_text: str, handoff: Mapping[str, Any]) -> dict[str, Any]:
+        """Pick an allowed label for one off-list closed field."""
+        out = decide_closed_field(doc_text, handoff, model=model, qset=qset)
+        return {**out, "question_set": version, "model": model}
+
+    return resolver
+
+
+def mock_closed_field_resolver_backend(model: str, qset: Mapping[str, Any]) -> Callable[[str, Mapping[str, Any]], dict[str, Any]]:
+    """An offline resolver for mock runs: always the none option, so nothing is ever applied."""
+    version = str((qset or {}).get("version") or "")
+
+    def resolver(doc_text: str, handoff: Mapping[str, Any]) -> dict[str, Any]:
+        """Answer one off-list field without calling the Decisions API."""
+        return {"value": None, "probability": None, "question_set": version, "model": model, "mock": True}
+
+    return resolver
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
@@ -551,8 +644,10 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
         "accept_probability": probs.get("accept"),
         "human_review_probability": sum(v for k, v in probs.items() if k in human) if probs else None,
         "field_support": fields,
-        "key_field_score": key_field_score(
-            fields, [k.removeprefix("field__") for k in questions if k.startswith("field__")]),
+        # The key fields asked, kept as evidence (llm-mailroom's decision slots judge coverage
+        # from their own taxonomy gate_key_fields, never from this list).
+        "fields_asked": (asked := [k.removeprefix("field__") for k in questions if k.startswith("field__")]),
+        "key_field_score": key_field_score(fields, asked),
         "confidence": probs.get("accept"),
         "served_model": data.get("model"),
         "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
