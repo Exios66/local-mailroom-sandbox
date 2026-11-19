@@ -7,8 +7,8 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
 ## Rules
 
 - **Bound to the code it corrects.** Each fix lists its targets (`module:qualname`) with the
-  sha256 of the target's source as written in its module file. When a vendor refresh or an
-  edit changes a target, the fix is `stale`: it is not applied, and `sandbox run preflight`
+  sha256 of the target's source as written in its module file, or a reviewed data file it reads
+  (`file:<repo path>` with the file's sha256). When a vendor refresh or an edit changes a target, the fix is `stale`: it is not applied, and `sandbox run preflight`
   fails on the `scoring_hotfixes` check until the fix is re-validated (update the sha after
   checking the fix still holds) or retired. Patching a target at run time (for example
   `monkeypatch.setattr` in a test) does not change its fingerprint.
@@ -23,9 +23,12 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 
 Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
-the Dojo pin's behaviour unchanged. Two fixes act outside a scoring call and are on whenever they
-are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`) and SHF-009 in the
-Decisions routing contract (`decision_backends`). SHF-009's `forced_choice` is the forced-choice
+the Dojo pin's behaviour unchanged. Three fixes act outside a `hotfixed()` block and are on whenever
+they are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`), SHF-009 in the
+Decisions routing contract (`decision_backends`), and SHF-013 in the isolated sorter and
+`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`. SHF-013 always
+keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
+still match the pinned fingerprint when it is read, or scoring stops. SHF-009's `forced_choice` is the forced-choice
 answer from the same question-set response, not a second request.
 
 ## Fixes
@@ -44,6 +47,7 @@ answer from the same question-set response, not a second request.
 | SHF-010 | sandbox | A near-gold label supersedes a conflicting interim gate gap fill (not an `original_header` fill); the replaced value is kept under `truth_overrides` and scored as raw. Precedence reads the interim overlay the row was prepared with; when that snapshot is not passed and the current overlay's fingerprint differs from the row's, nothing is superseded. | sandbox (owner decision, `data/labels/review/INTERIM_AUDIT.md` step 2) |
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 |
+| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
 
 ## Truth evidence check
 

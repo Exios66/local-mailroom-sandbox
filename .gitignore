@@ -115,6 +115,8 @@ cursor-record/
 .cache/
 # Possible others (customize for direct project needs)
 logs/
+# ...except a committed campaign report's locked inputs (report_campaigns writes them)
+!reports/campaigns/**/logs/
 tmp/
 temp/
 data/mailroom.db-shm

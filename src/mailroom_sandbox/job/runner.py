@@ -14,6 +14,7 @@ import logging
 import time
 from typing import Any
 
+from mailroom_sandbox import console_log
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
@@ -297,9 +298,15 @@ def _run_whole_run(
     # persisted is billed again. Its second bill has no item row; it is kept as an event (once per attempt).
     rebilled: set[Any] = set(persisted)
 
+    echo = console_log.DocEcho(store.run_id, api_budget)
+
     def _row_sink(entry: dict[str, Any]) -> None:
+        already = entry.get("id") in persisted
+        error = entry.get("error") or (entry.get("score") or {}).get("parse_error")
         if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled):
             spans.item(entry)
+        echo(entry.get("id"), ok=not error, done=len(persisted), total=startup_total, row=entry,
+             error=error, rerun=already)
 
     def _node_sink(record: dict[str, Any]) -> None:
         store.append_node(record)
@@ -863,6 +870,11 @@ def _persist_isolated_items(
                 # one call, which put a document's whole prompt in the top price tier).
                 **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
                 **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
+                # Per-call (prompt, completion) tokens, so a tiered price applies to each call.
+                **({"call_usage": row["call_usage"]} if row.get("call_usage") else {}),
+                # The evaluator's execution window; ``ts`` is when the row was persisted, which can
+                # trail the answer while the main thread drains results.
+                **{k: row[k] for k in ("started_at_ns", "finished_at_ns") if isinstance(row.get(k), int)},
                 "ts": utc_now(),
             }
         )
@@ -1178,6 +1190,7 @@ def _run_job(
     cost_cap = _cost_cap_usd(store)
     max_wall = _max_wall_seconds(store)
     api_budget = None if mock else _api_budget(store)
+    echo = console_log.DocEcho(store.run_id, api_budget)
     cap_abort_reason: str | None = None
     cap_abort_type: str | None = None
 
@@ -1303,6 +1316,7 @@ def _run_job(
                 )
         if api_budget is not None:
             api_budget.add_usage(item)
+        echo(item_id, ok=ok, done=done_count, total=total, row=item, error=error, latency_ms=latency_ms)
         # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
         if not mock and cap_abort_reason is None:
             wall_s = time.perf_counter() - run_started

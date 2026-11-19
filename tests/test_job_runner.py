@@ -1166,3 +1166,19 @@ def test_run_job_accepts_a_lock_from_before_the_hotfix_layer(tmp_path):
         lock.pop(key)
     store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
     assert runner.run_job(store, mock=None)["state"] == "done"
+
+
+def test_persist_isolated_items_keeps_the_execution_window_and_per_call_usage(tmp_path):
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    row = {"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 1000.0, "prompt_tokens": 60_000,
+           "completion_tokens": 20, "llm_calls": 2, "call_usage": [[10_000, 10], [50_000, 10]],
+           "started_at_ns": 1_700_000_000_000_000_000, "finished_at_ns": 1_700_000_001_000_000_000}
+    _persist_isolated_items(store, [row])
+    item = json.loads(store.items_path.read_text().splitlines()[0])
+    assert item["call_usage"] == [[10_000, 10], [50_000, 10]]
+    assert (item["started_at_ns"], item["finished_at_ns"]) == (row["started_at_ns"], row["finished_at_ns"])

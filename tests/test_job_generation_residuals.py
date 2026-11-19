@@ -180,6 +180,7 @@ def worker_body(monkeypatch, store):
         def debian_slim(cls, **kwargs): return cls()
         def add_local_python_source(self, *args, **kwargs): return self
         def add_local_dir(self, *args, **kwargs): return self
+        def add_local_file(self, *args, **kwargs): return self
         def uv_pip_install(self, *args, **kwargs): return self
         def env(self, *args, **kwargs): return self
     class Volume:

@@ -246,7 +246,7 @@ def test_scores_failures_subclass_and_units(tmp_path, split):
 
 def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
     ids = _dev_ids()
-    _write_run(tmp_path / "runs", "A", ids=ids)
+    _write_run(tmp_path / "runs", "A", ids=ids, conf=1.0)
     parked = {"DOC-000": "document_form: unknown", "DOC-001": "subclass_gate: contract",
               "DOC-005": "document_form: unknown"}
     _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids,
@@ -262,12 +262,49 @@ def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
     assert r["abstain_reasons"] == {"document_form": 1, "subclass_gate": 1}
     # Forced-choice accuracy still counts the parked documents.
     assert b["class_accuracy"] == pytest.approx(27 / 30)
-    assert "parked 2/29" in sa.render(report)
-    # A decision arm with no abstentions still reports its 0% routing rate; the LLM arm does not.
-    _write_run(tmp_path / "runs2", "A", ids=ids)
+    assert "to a person 2/29" in sa.render(report)
+    # Every arm reports its routing line, a measured 0% included.
+    _write_run(tmp_path / "runs2", "A", ids=ids, conf=1.0)
     _write_run(tmp_path / "runs2", "B", task="sorter_reviewer", model=LUNA, ids=ids)
     quiet = sa.render(sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs2", n_boot=50, n_perm=50))
-    assert "B: parked 0/30" in quiet and "A: parked" not in quiet
+    assert "B: to a person 0/30" in quiet and "A: to a person 0/30" in quiet
+
+
+def test_llm_arm_routes_by_its_class_band(tmp_path, split):
+    # The LLM sorter's answer goes to a person under its class's `high` band (the pipeline rule the
+    # run report counts): 0.9 is under every class's band (correspondence is 0.95), 1.0 is over all of them.
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, conf=0.9)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    a = _cmp(tmp_path, split)["arms"][0]["routing"]
+    assert (a["answered"], a["abstained"], a["auto_routed"]) == (30, 30, 0)
+    assert set(a["abstain_reasons"]) == {"below_high_band"} and a["abstain_reasons"]["below_high_band"] == 30
+
+
+def test_runtime_reports_wall_time_throughput_and_concurrency(tmp_path, split):
+    ids = _dev_ids(10)
+    for run_id, task, model, lat_s in (("A", "isolated", QWEN, 10.0), ("B", "sorter_reviewer", LUNA, 1.0)):
+        run = _write_run(tmp_path / "runs", run_id, task=task, model=model, ids=ids)
+        lock = json.loads((run / "spec.lock.json").read_text())
+        lock["job"]["concurrency"] = 5
+        (run / "spec.lock.json").write_text(json.dumps(lock))
+        items = [json.loads(line) for line in (run / "items.jsonl").read_text().splitlines()]
+        for k, item in enumerate(items):  # two waves of 5 parallel calls, each lat_s long
+            item["latency_ms"] = lat_s * 1000
+            item["ts"] = f"2026-11-19T08:00:{int(lat_s * (1 + k // 5)):02d}.000+00:00"
+        (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items))
+        (run / "events.jsonl").write_text(
+            json.dumps({"event": "start", "ts": "2026-11-19T07:59:59.000+00:00"}) + "\n"
+            + json.dumps({"event": "done", "ts": f"2026-11-19T08:00:{int(2 * lat_s) + 1:02d}.000+00:00"}) + "\n")
+    report = sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs", set_name=None, n_boot=50, n_perm=50)
+    a, b = (arm["runtime"] for arm in report["arms"])
+    assert a["concurrency"] == b["concurrency"] == 5
+    assert a["active_seconds"] == pytest.approx(20.0) and b["active_seconds"] == pytest.approx(2.0)
+    assert a["run_wall_seconds"] == pytest.approx(22.0) and b["run_wall_seconds"] == pytest.approx(4.0)
+    assert a["latency_sum_seconds"] == pytest.approx(100.0) and a["docs_per_minute_per_worker"] == pytest.approx(6.0)
+    assert b["docs_per_minute"] == pytest.approx(300.0) and b["hours_per_100k_docs"] == pytest.approx(100_000 / 300 / 60)
+    text = sa.render(report)
+    assert "runtime (compared documents)" in text and "10.0x" in text
 
 
 def test_fast_macro_f1_matches_experiment_stats():
@@ -283,14 +320,115 @@ def test_noninferiority_decides_on_constructed_examples(tmp_path, split):
     _write_run(tmp_path / "runs", "A", ids=ids)
     _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, tokens=(1_000, 0))
     same = _cmp(tmp_path, split)["pairs"]["B"]["tests"]
-    assert same["noninferiority_macro_f1"]["non_inferior"] and same["noninferiority_unit"]["non_inferior"]
-    assert same["noninferiority_macro_f1"]["p_value"] < 0.01
+    # 30 agreeing documents cannot rule out a 2-point loss: the bootstrap alone said p ~ 0.003 here.
+    for key in ("noninferiority_macro_f1", "noninferiority_unit"):
+        assert not same[key]["non_inferior"] and same[key]["bootstrap"]["p_value"] < 0.01
+        assert same[key]["exact"]["losses"] == 0 and same[key]["lower95_one_sided"] < -0.09
     worse = tmp_path / "w"
     _write_run(worse / "runs", "A", ids=ids)
     _write_run(worse / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, wrong=set(ids[:6]))
     tests = sa.compare(["A", "B"], split_dir=split, runs_root=worse / "runs", n_boot=300, n_perm=300)["pairs"]["B"]["tests"]
     assert not tests["noninferiority_macro_f1"]["non_inferior"] and tests["noninferiority_macro_f1"]["p_value"] > 0.5
     assert not tests["noninferiority_unit"]["non_inferior"]
+
+
+def test_exact_noninferiority_floor_scales_with_n():
+    # No discordant documents: each rate is bounded at alpha/2, so 20 docs give -(1 - 0.025^(1/20)),
+    # about -17 points, and cannot show a 4-point margin; 900 docs can show 2 points.
+    small = sa.exact_noninferiority([True] * 20, [True] * 20, 0.04)
+    assert small["lower95_one_sided"] == pytest.approx(-(1 - 0.025 ** (1 / 20)), abs=1e-6)
+    # p inverts the bound: the smallest alpha with 1 - (alpha/2)^(1/20) < 0.04.
+    assert small["p_value"] == pytest.approx(2 * 0.96 ** 20, abs=1e-6) and small["p_value"] > 0.05
+    big = sa.exact_noninferiority([True] * 900, [True] * 900, 0.02)
+    assert big["p_value"] < 1e-6 and big["lower95_one_sided"] > -0.005
+    # Losses outweighing gains are never non-inferior at a 2-point margin.
+    a = [True] * 900
+    b = [False] * 40 + [True] * 860
+    worse = sa.exact_noninferiority(a, b, 0.02)
+    assert worse["losses"] == 40 and worse["p_value"] > 0.5
+    # Gains offset losses: 10 losses and 10 gains in 900 is a zero difference, non-inferior at 2 points.
+    a2 = [True] * 10 + [False] * 10 + [True] * 880
+    b2 = [False] * 10 + [True] * 10 + [True] * 880
+    even = sa.exact_noninferiority(a2, b2, 0.02)
+    assert (even["gains"], even["losses"]) == (10, 10) and even["p_value"] < 0.01
+    assert even["lower95_one_sided"] > -0.02
+
+
+def test_exact_bound_counts_the_sampling_error_in_gains():
+    # 3 gains and no losses in 50: taking 3/50 as fixed would put the bound above 0; bounding the
+    # gain rate too keeps it well below, so a few lucky gains cannot carry non-inferiority.
+    a = [False] * 3 + [True] * 47
+    b = [True] * 50
+    r = sa.exact_noninferiority(a, b, 0.02)
+    assert (r["gains"], r["losses"]) == (3, 0)
+    assert 3 / 50 - sa._cp_upper(0, 50) > 0 > r["lower95_one_sided"]
+    assert r["lower95_one_sided"] == pytest.approx(sa._cp_lower(3, 50, 0.025) - sa._cp_upper(0, 50, 0.025))
+    assert r["p_value"] > 0.05
+    # The p-value and the bound agree: non-inferior at the 5% level exactly when the bound clears -margin.
+    for gains, losses, n, margin in ((5, 2, 400, 0.02), (0, 0, 300, 0.02), (12, 9, 900, 0.02), (1, 4, 120, 0.04)):
+        a = [False] * gains + [True] * losses + [True] * (n - gains - losses)
+        b = [True] * gains + [False] * losses + [True] * (n - gains - losses)
+        r = sa.exact_noninferiority(a, b, margin)
+        assert (r["p_value"] < 0.05) == (r["lower95_one_sided"] > -margin)
+
+
+def test_runtime_throughput_counts_only_answered_documents():
+    from types import SimpleNamespace as NS
+    arm = NS(concurrency=1, run_wall_seconds=12.0)
+    ok = [NS(started_ts=float(k), finished_ts=float(k + 1), latency_ms=1000.0, failed=False) for k in range(10)]
+    failed = [NS(started_ts=None, finished_ts=None, latency_ms=None, failed=True) for _ in range(10)]
+    rt = sa._runtime(arm, ok + failed)
+    # 10 answered documents over 10 active seconds and 10 latency seconds; the failures add neither.
+    assert rt["active_seconds"] == pytest.approx(10.0)
+    assert rt["docs_per_minute"] == pytest.approx(60.0) and rt["docs_per_minute_per_worker"] == pytest.approx(60.0)
+    assert rt["hours_per_100k_docs"] == pytest.approx(100_000 / 60 / 60)
+
+
+def test_runtime_charges_failed_attempt_time_and_prefers_the_execution_window():
+    from types import SimpleNamespace as NS
+    arm = NS(concurrency=1, run_wall_seconds=None)
+    # one 1-second answer, then a 60-second attempt that failed: 1 document delivered in 61 seconds.
+    ok = NS(started_ts=0.0, finished_ts=1.0, latency_ms=1000.0, failed=False)
+    timeout = NS(started_ts=1.0, finished_ts=61.0, latency_ms=60_000.0, failed=True)
+    rt = sa._runtime(arm, [ok, timeout])
+    assert rt["active_seconds"] == pytest.approx(61.0) and rt["latency_sum_seconds"] == pytest.approx(61.0)
+    assert (rt["answered"], rt["failed"]) == (1, 1)
+    assert rt["docs_per_minute"] == pytest.approx(60 / 61) and rt["timing_basis"] == "execution"
+    # Persisted at 30 s, long after a 1-second answer: the window, not ts - latency, places the request.
+    late = NS(started_ts=0.0, finished_ts=1.0, latency_ms=1000.0, failed=False)
+    assert sa._runtime(arm, [late])["active_seconds"] == pytest.approx(1.0)
+    legacy = NS(started_ts=None, finished_ts=30.0, latency_ms=1000.0, failed=False)
+    assert sa._runtime(arm, [legacy])["timing_basis"] == "estimate"
+
+
+def test_macro_noninferiority_needs_per_class_support():
+    # 5 classes and a 2-point margin: each class needs ln(0.05)/ln(0.9) -> 29 documents.
+    support = sa.macro_class_support(["a"] * 40 + ["b"] * 40 + ["c"] * 40 + ["d"] * 40 + ["e"] * 1, 0.02)
+    assert support["min_docs_per_class"] == 29 and support["underpowered"] == {"e": 1}
+    # merger_agreement is exempt (owner decision): its shortfall is reported but does not block.
+    mergers = sa.macro_class_support(["a"] * 40 + ["b"] * 40 + ["c"] * 40 + ["d"] * 40 + ["merger_agreement"] * 20, 0.02)
+    assert mergers["underpowered"] == {} and mergers["exempt_underpowered"] == {"merger_agreement": 20}
+
+
+def test_a_minority_class_both_arms_get_right_cannot_carry_macro_noninferiority(tmp_path, split):
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    report = sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs", set_name=None, n_boot=50, n_perm=50)
+    ni = report["pairs"]["B"]["tests"]["noninferiority_macro_f1"]
+    assert ni["class_support"]["underpowered"] and ni["non_inferior"] is False and ni["p_value"] == 1.0
+    assert "classes under" in sa.render(report)
+
+
+def test_no_scored_units_leaves_unit_noninferiority_unavailable():
+    outs = [sa.Outcome(doc_id=f"D{i}", truth_class="contract", pred_class="contract", class_ok=True,
+                       sub_scored=False, sub_ok=False, unit_scored=False, unit_ok=False, failed=False,
+                       confidence=0.9, latency_ms=1.0, cost_usd=0.0, reported_cost_usd=None, tokens=(1, 1))
+            for i in range(30)]
+    result = sa.compare_pair(outs, outs, labels=["contract"], n_boot=20, n_perm=20)
+    unit = result["tests"]["noninferiority_unit"]
+    assert result["unit_n"] == 0 and unit["non_inferior"] is False and unit["unavailable"]
+    assert result["tests"]["noninferiority_macro_f1"]["lower95_one_sided"] is not None
 
 
 def test_compare_is_deterministic(tmp_path, split):
@@ -492,3 +630,48 @@ def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, c
     capsys.readouterr()
     assert cli.main([*common, "--experiment-key", "h5", "--write"]) == 2
     assert cli.main([*common, "--write", "--allow-mock"]) == 2
+
+
+def test_reviewed_subclass_corrections_score_subclass_and_unit_on_the_corrected_truth(tmp_path, split, monkeypatch):
+    """SHF-013: a reviewed correction replaces the Hub subclass; the Hub-truth figures stay beside it."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    with (split / "assignments.jsonl").open("a", encoding="utf-8") as fh:  # give the corrected value a unit
+        fh.write(json.dumps({"id": "DOC-900", "doc_class": "correspondence", "subclass": "other", "set": "pool",
+                             "hf_split": "train", "tuned": False, "unit": "correspondence/other",
+                             "unit_kind": "subclass"}) + "\n")
+    monkeypatch.setattr(sh, "subclass_corrections", lambda: {"DOC-004": {
+        "doc_id": "DOC-004", "doc_class": "correspondence", "hub_subclass": "email", "subclass": "other",
+        "verdict": "correct"}})
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, sub_wrong={"DOC-004"})  # answers "other" on DOC-004
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    report = _cmp(tmp_path, split)
+    a, b = report["arms"]
+    assert a["subclass_corrections_applied"] == b["subclass_corrections_applied"] == 1
+    assert a["subclass_accuracy"] == a["unit_accuracy"] == 1.0
+    assert a["hub_truth"]["subclass_accuracy"] == a["hub_truth"]["unit_accuracy"] == pytest.approx(29 / 30)
+    assert b["subclass_accuracy"] == b["unit_accuracy"] == pytest.approx(29 / 30)
+    assert b["hub_truth"]["subclass_accuracy"] == b["hub_truth"]["unit_accuracy"] == 1.0
+    assert "1 reviewed subclass correction(s) applied (SHF-013)" in sa.render(report)
+
+    monkeypatch.setattr(sh, "enabled", lambda fix_id: fix_id != "SHF-013")  # fix off: the Hub truth only
+    report = _cmp(tmp_path, split)
+    a, b = report["arms"]
+    assert a["subclass_corrections_applied"] == 0 and a["subclass_accuracy"] == pytest.approx(29 / 30)
+    assert b["unit_accuracy"] == 1.0 and "SHF-013" not in sa.render(report)
+
+
+def test_class_support_alone_vetoes_macro_noninferiority():
+    # 801 agreeing documents clear the exact and bootstrap floors; only the one-document class blocks.
+    classes = ["contract"] * 200 + ["corporate_record"] * 200 + ["correspondence"] * 200 + ["insurance_claim"] * 200
+    outs = [sa.Outcome(doc_id=f"D{i}", truth_class=c, pred_class=c, class_ok=True, sub_scored=False, sub_ok=False,
+                       unit_scored=False, unit_ok=False, failed=False, confidence=0.9, latency_ms=1.0, cost_usd=0.0,
+                       reported_cost_usd=None, tokens=(1, 1))
+            for i, c in enumerate(classes + ["unknown"])]
+    ni = sa.compare_pair(outs, outs, labels=sorted(set(classes) | {"unknown"}), n_boot=50, n_perm=20)[
+        "tests"]["noninferiority_macro_f1"]
+    assert ni["exact"]["p_value"] < sa.ALPHA and ni["bootstrap"]["p_value"] < sa.ALPHA
+    assert ni["exact"]["lower95_one_sided"] > -sa.MARGIN_MACRO_F1
+    assert ni["class_support"]["underpowered"] == {"unknown": 1}
+    assert ni["non_inferior"] is False and ni["p_value"] == 1.0

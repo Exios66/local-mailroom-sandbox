@@ -192,6 +192,7 @@ modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([dep
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
 sandbox watch [TARGET] [--web]        # terminal TUI or localhost browser UI (SSE); TARGET = run ID | run YAML | config/runs name | experiment.yaml/folder; none = data/runtime/sand032/current when it exists, else the newest run, switching live (--config/--follow still work)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch] [--initials JB]
+sandbox -q|-v|-vv <command>          # console verbosity on stderr: quiet / key events (default) / +per-call INFO / +DEBUG; docs/pretty-logging/mailroom-themed-logging.md
 sandbox run gate --run-id <id> [--prev-run-id <id>] [--thresholds]  # offline production slice gate → gate.json/gate.md; docs/runbooks/production-slices.md
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox report build --run <run_id> [--iteration N] [--check] | --campaign rb1 [--check]  # campaign report tree reports/campaigns/ from run logs (reports/campaigns/README.md)

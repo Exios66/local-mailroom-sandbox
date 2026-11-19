@@ -143,6 +143,12 @@ def main(argv: list[str] | None = None, *, injected: Sequence[str] = ()) -> int:
         parser = build_parser()
         args = parser.parse_args(full if injected else argv)
     args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
+    from mailroom_sandbox import console_log
+
+    verbosity = console_log.resolve_verbosity(full, args)
+    console_log.configure(verbosity)
+    if argv is None:  # the console process: child `sandbox` runs (autoresearch, gates) inherit it
+        os.environ[console_log.VERBOSITY_ENV] = str(verbosity)
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
@@ -278,6 +284,20 @@ def build_parser() -> argparse.ArgumentParser:
             dest="agent_models",
             metavar="NAME=TAG",
             help="Surgical per-agent model override (repeatable)",
+        )
+        flags.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0 if root else argparse.SUPPRESS,
+            help="More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG",
+        )
+        flags.add_argument(
+            "-q",
+            "--quiet",
+            action="store_true",
+            default=False if root else argparse.SUPPRESS,
+            help="Console shows only warnings, errors and the final result",
         )
         return flags
 

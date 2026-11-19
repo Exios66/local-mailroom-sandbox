@@ -1,0 +1,81 @@
+{
+  "archived": false,
+  "campaign": "rb1",
+  "caveats": [
+    "No experiment-log record matches this generation: headline scores are not recorded (never recomputed here).",
+    "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
+    "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
+  ],
+  "checkpoint": {
+    "cursor": 20,
+    "last_error": null,
+    "state": "done",
+    "total": 20
+  },
+  "config": {
+    "bytes": 2827,
+    "path": "config/runs/rb1-r13b-smoke20-decision-sorter-luna.yaml",
+    "sha256": "cfe9e1c952ed95d47d5c8bf6130acc4c050128ee42d645a98fd96c43e9bb0850"
+  },
+  "cost": {
+    "completion_tokens": null,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.0022735,
+    "estimated_cost_usd": 0.04547,
+    "prompt_tokens": 454698,
+    "wall_seconds": 107.583
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "limit": 20,
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9",
+    "split": "all"
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "experiment": "rb1-r13b",
+  "finished": "2026-11-19T07:43:47.877+00:00",
+  "generation_id": "f2bbf3aa4d3a4740b9ce3d0c04a3fb7d",
+  "git": {
+    "commit": "f0aa39f3",
+    "dirty": true
+  },
+  "headline": {},
+  "headline_source": null,
+  "items": {
+    "failed": 0,
+    "ok": 20,
+    "total": 20
+  },
+  "iteration": "i01",
+  "launches": [
+    {
+      "event": "start",
+      "ts": "2026-11-19T07:43:40.978+00:00"
+    }
+  ],
+  "lock_sha256": "382a847a473e2129c9a847fbe1f7d9c0cedf407b41f830c3e0931f4ce027da6d",
+  "mock": false,
+  "model": "openai/gpt-6-luna-decisions",
+  "profile": "openrouter",
+  "run_id": "rb1-r13b-smoke20-decision-sorter-luna",
+  "schema": "sandbox.campaign-run-report/v1",
+  "spec_hash": "4513c54a798af2d1a823a77971f6a6952e92140644d46b410d375437b9fd9ddf",
+  "started": "2026-11-19T07:43:40.978+00:00",
+  "status": "done",
+  "task": "sorter_reviewer"
+}

@@ -474,6 +474,30 @@ def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     return sh.merge_dual(raw, fixed, ["SHF-007"])
 
 
+def _score_sorter(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+    """The class score (SHF-007) plus the row's subclass outcome (SHF-013), dual reported.
+
+    ``subclass_match`` is on the corrected truth and ``raw_dojo.subclass_match`` on the Hub truth
+    (``eval.scoring.sorter_subclass_row``); a row without a truth subclass gets no subclass keys.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.eval.scoring import sorter_subclass_row
+
+    scored = _score_class(row, pred)
+    if "SHF-013" not in sh.current_ids():
+        return scored
+    sub = sorter_subclass_row(row, pred)
+    if sub is None:
+        return scored
+    hub = sub.pop("hub_subclass_match")
+    scored.update(sub)
+    scored.setdefault("raw_dojo", {})["subclass_match"] = hub
+    scored["scoring_hotfixes"] = sorted({*scored.get("scoring_hotfixes", []), "SHF-013"})
+    if hub != sub["subclass_match"]:
+        scored["scoring_hotfixes_changed"] = sorted({*scored.get("scoring_hotfixes_changed", []), "subclass_match"})
+    return scored
+
+
 def _score_verdict(row: dict[str, Any], pred: dict[str, Any], key: str, expected_field: str) -> dict[str, Any]:
     """Judge / arbiter / boss verdict match, dual reported.
 
@@ -651,7 +675,7 @@ _register(
         load_rows=load_manifest,
         mock_predict=_mock_classify,
         live_predict=_live_sorter,
-        score_one=_score_class,
+        score_one=_score_sorter,
     )
 )
 _register(
@@ -662,7 +686,7 @@ _register(
         load_rows=_reviewer_rows,
         mock_predict=_mock_classify,
         live_predict=_live_reviewer,
-        score_one=_score_class,
+        score_one=_score_sorter,
     )
 )
 

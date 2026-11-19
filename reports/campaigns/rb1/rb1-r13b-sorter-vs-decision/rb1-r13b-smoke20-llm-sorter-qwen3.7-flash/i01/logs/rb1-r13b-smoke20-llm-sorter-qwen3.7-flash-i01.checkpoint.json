@@ -1,0 +1,12 @@
+{
+  "cursor": 20,
+  "generation_id": "4b6d30407c934cf6a7ea36c8e260cdcf",
+  "last_error": null,
+  "remote": null,
+  "run_id": "rb1-r13b-smoke20-llm-sorter-qwen3.7-flash",
+  "schema_version": 1,
+  "spec_hash": "731dd25f080dc460b4e70374e99dca754374b2f74fe00d1cb0e38f3028fe3eaa",
+  "state": "done",
+  "total": 20,
+  "updated_at": "2026-11-19T07:41:31.857+00:00"
+}

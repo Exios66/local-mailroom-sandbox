@@ -1,0 +1,16 @@
+{
+  "copy_cap_bytes": 262144,
+  "note": "files over the cap (and every dataset, span mirror and trace pack) are referenced by path + sha256, not copied",
+  "references": {
+    "dataset": {
+      "bytes": 2019572,
+      "path": "data/runtime/runs/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash/dataset.jsonl",
+      "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9"
+    },
+    "spans": {
+      "bytes": 4139,
+      "path": "data/traces/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash.spans.jsonl.gz",
+      "sha256": "511a77ca52008912676e8fef72291b1cf4d510072ac0b2d8352a555881eea40c"
+    }
+  }
+}
