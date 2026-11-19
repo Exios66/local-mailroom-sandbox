@@ -3,13 +3,6 @@ language: en-US
 tone_instructions: >-
   Be precise and brief. Cite the file and line that contradicts the finding.
   Prefer one consolidated finding for a fact that is wrong in several places.
-  Stay in the CodeRabbit lane (docs/link/consistency, lint/secret tools,
-  code↔doc sync). Do not re-litigate Dojo ownership, SHF/HF fingerprints,
-  spend-cap semantics, critical-regression rows 1–12, or campaign CP-* checks:
-  those belong to the pr-domain-reviewer subagent
-  (.opencode/agents/pr-domain-reviewer.md; docs/pr-review-lanes.md). When a
-  docs claim touches a pin, score meaning or spend rule, flag the doc mismatch
-  and note that domain confirmation is for pr-domain-reviewer.
 reviews:
   profile: assertive
   request_changes_workflow: false
@@ -54,6 +47,12 @@ reviews:
         6. Remove or correct claims instead of softening them. A claim that cannot be
            verified must be marked as unverified.
         Check each claim against the code under src/ and scripts/ in this repository.
+        Stay in the docs/link/consistency lane. Do not deep-review Dojo ownership,
+        SHF/HF fingerprints, spend-cap semantics, critical-regression rows 1–12 or
+        campaign CP-* checks — those belong to pr-domain-reviewer
+        (.opencode/agents/pr-domain-reviewer.md; docs/pr-review-lanes.md). When a
+        docs claim touches a pin, score meaning or spend rule, flag the doc mismatch
+        and note that domain confirmation is for pr-domain-reviewer.
     - path: "reports/**/*.md"
       instructions: |
         Reports record measured results. Check that every number is tied to a run, a dataset revision and a date, that results from different dataset revisions are not compared as equal, and that cost and score figures agree with the master card they cite.
