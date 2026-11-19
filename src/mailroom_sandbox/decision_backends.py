@@ -592,6 +592,11 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
         raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
     last: Exception | None = None
     for attempt in range(max(1, attempts)):
+        # Decisions calls bypass the chat provider wrappers; enforce the same run guard
+        # before each HTTP attempt, including retries.
+        from mailroom_sandbox.job import call_guard
+
+        call_guard.before_call()
         try:
             resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=timeout,
                               headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})

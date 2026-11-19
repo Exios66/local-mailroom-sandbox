@@ -42,9 +42,9 @@ Decisions-API calls (``decision_backends.decide`` / ``decide_extraction``) are r
 served model equals the requested id or that slug, ``mismatch`` when it differs, and
 ``unverified`` when the response omits it or the catalog has no slug.
 
-Not covered: any module that imported ``retry_chat_completion`` by name before
-activation (for example the PDF transcriber), and LangChain requests sent through the
-Responses API or streamed (the vendored agents do neither). A smoke run that relies on
+Not covered: other modules that import ``retry_chat_completion`` by name before
+activation, and LangChain requests sent through the Responses API or streamed (the vendored
+agents do neither). The known PDF transcriber binding is updated when already imported. A smoke run that relies on
 those paths leaves rows missing, and the R01 gate (``scripts/check_r01_smoke.py``) fails
 on missing rows.
 """
@@ -56,6 +56,7 @@ import json
 import logging
 import math
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -341,6 +342,12 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
     pinned_retry_chat_completion.__wrapped__ = original  # type: ignore[attr-defined]
     retry.retry_chat_completion = pinned_retry_chat_completion
     base.retry_chat_completion = pinned_retry_chat_completion
+    # The PDF transcriber imports this function by value; it may have loaded
+    # before activation. Future imports see the patched retry module directly.
+    pdf = sys.modules.get("agents.pdf_transcriber")
+    pdf_retry = getattr(pdf, "retry_chat_completion", None)
+    if pdf is not None and (pdf_retry is original or getattr(pdf_retry, "__wrapped__", None) is original):
+        pdf.retry_chat_completion = pinned_retry_chat_completion
     apply_langchain_pins()
     return sum(1 for p in _ACTIVE.values() if p["order"])
 
@@ -435,4 +442,7 @@ def restore() -> None:
 
     retry.retry_chat_completion = _ORIGINAL
     base.retry_chat_completion = _ORIGINAL
+    pdf = sys.modules.get("agents.pdf_transcriber")
+    if pdf is not None and getattr(getattr(pdf, "retry_chat_completion", None), "__wrapped__", None) is _ORIGINAL:
+        pdf.retry_chat_completion = _ORIGINAL
     _ORIGINAL = None
