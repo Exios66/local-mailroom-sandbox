@@ -274,8 +274,11 @@ def _invariants(spec: Scenario, admitted: int, held: int, error_rows: int, injec
                 failure: dict[str, Any], results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The checks a paid experiment depends on; every one must hold for the run to count.
 
-    Each check compares an observed value against a bound computed independently of the
-    seam under test, so a broken seam (not just a broken report) makes it fail.
+    The two checks that guard seam behavior compare an observed value against a bound
+    computed independently of the seam under test (admission against a spec-derived
+    bound; the call ceiling against every document's tracked count). The others are
+    consistency tripwires over values the harness itself records, so a report bug
+    cannot hide a broken run even where it cannot re-derive the seam.
     """
     # The guard refuses a call when the projected spend has reached the cap, so the true
     # bound is "within one call of the cap" (plus float noise in the cumulative sum),
