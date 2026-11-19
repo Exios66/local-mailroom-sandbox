@@ -59,65 +59,48 @@
     },
     "corporate_record": {
       "effective_date": {
-        "candidate": 365,
-        "near_gold": 60
+        "near_gold": 425
       },
       "entity_name": {
-        "candidate": 36,
-        "near_gold": 2
+        "near_gold": 38
       },
       "jurisdiction": {
-        "candidate": 349,
-        "near_gold": 23
+        "near_gold": 372
       },
       "signatories": {
-        "candidate": 346,
-        "near_gold": 26
+        "near_gold": 372
       }
     },
     "correspondence": {
       "action_items": {
-        "candidate": 269,
-        "disputed": 42,
-        "near_gold": 688
+        "near_gold": 999
       },
       "additional_recipients": {
-        "candidate": 318,
-        "disputed": 4,
-        "near_gold": 676
+        "near_gold": 998
       },
       "communication_date": {
-        "candidate": 265,
-        "disputed": 4,
-        "near_gold": 730
+        "near_gold": 999
       },
       "demand_amount": {
-        "candidate": 366,
-        "near_gold": 634
+        "near_gold": 1000
       },
       "recipient": {
-        "candidate": 265,
-        "disputed": 17,
-        "near_gold": 718
+        "near_gold": 1000
       },
       "sender": {
-        "candidate": 260,
-        "disputed": 7,
-        "near_gold": 731
+        "near_gold": 998
       },
       "urgency": {
-        "candidate": 331,
-        "disputed": 11,
-        "near_gold": 658
+        "near_gold": 1000
       }
     }
   },
   "files": {
     "contract.jsonl": "edf2401362b5885d1cae98927ee72c75334214722602f29d086de127d8b357d3",
-    "corporate_record.jsonl": "9a86c4da835c3a4cf2e78570747b462fee3322fdbf54f6abbeeba80b2b2321f4",
-    "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
+    "corporate_record.jsonl": "cce111a1cae4bda15b15fdc12c426ee05de035029ac67a5cb11bb472c8a8c462",
+    "correspondence.jsonl": "63cb3e9abd61e36412043c7aa877cf1b9d7ac117e2c95653dc2f3ab03b03f209"
   },
-  "reviewed_at": "2026-11-18T23:01:55Z",
+  "reviewed_at": "2026-11-19T04:21:49Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -370,6 +353,8 @@
     ],
     "review": [
       "contract_value_review.jsonl",
+      "decisions.jsonl",
+      "decisions_supersede.jsonl",
       "review-audit-1.jsonl",
       "review-corp-1.jsonl",
       "review-corr-000-001.jsonl",

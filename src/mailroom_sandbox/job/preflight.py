@@ -981,6 +981,16 @@ def _preflight(
     if dry_run:
         return report
 
+    # 0) sealed held-out (runbook R70-R72): refused before anything is prepared, on a fresh
+    #    preparation and on the start that reuses a lock alike.
+    from mailroom_sandbox.heldout_seal import seal_errors
+
+    sealed = seal_errors(spec, run_id)
+    if sealed:
+        report["status"] = "failed"
+        report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(sealed)})
+        return report
+
     # 1) prompt surface — resolves all agent overrides (fails fast on typos).
     #    Resolved FIRST so the drift check can hash the prompt TEXTS: spec_hash
     #    covers refs only, and two identical refs whose file bodies changed
@@ -1156,6 +1166,16 @@ def _preflight(
         report["status"] = "failed"
         report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
         return report
+
+    from mailroom_sandbox.heldout_seal import leak_errors
+
+    if spec.dataset.exclude_ids_file:
+        leaked = leak_errors(spec, (r.get("id") for r in store.dataset_rows()))
+        if leaked:
+            store.dataset_path.unlink(missing_ok=True)  # no held-out text stays behind unlocked
+            report["status"] = "failed"
+            report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
+            return report
 
     if spec.target:
         # Level-2 target: the lock keeps the prepared subset (its sha is the
