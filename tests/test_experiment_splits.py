@@ -463,6 +463,11 @@ def test_rb1_configs_draw_whole_sets_of_the_split_they_name():
         exclude = str(spec.dataset.exclude_ids_file or "")
         if "config/splits/" not in exclude:
             continue
+        if path.stem.startswith("rb1-r13b-formcal2-intact-"):
+            # These deliberately draw a fresh subset through a calibration complement plus
+            # spent IDs, covered by test_formcal_draw2_uses_fresh_v93_calibration_documents.
+            assert exclude.endswith("rb1-r13b/formcal-v93-draw2.exclude.ids")
+            continue
         split_dir = es.split_dir_of_spec({"exclude_ids_file": exclude}, es.DEFAULT_OUT_ROOT)
         assert split_dir is not None, path.name
         assert es.split_revision(split_dir) == spec.dataset.revision, path.name
@@ -504,7 +509,9 @@ def test_formcal_draw2_uses_fresh_v93_calibration_documents():
     root = es.REPO_ROOT
     used = es.read_id_file(root / "config/splits/rb1-r13b/formcal-draw1.ids", required=True)
     complement = es.read_id_file(es.current_split_dir() / "calibration.exclude.ids", required=True)
-    for path in sorted((root / "config/runs").glob("rb1-r13b-formcal2-intact-*.yaml")):
+    paths = sorted((root / "config/runs").glob("rb1-r13b-formcal2-intact-*.yaml"))
+    assert len(paths) == 2
+    for path in paths:
         spec = load_run_spec(path)
         assert spec.dataset.revision == FAMILY_HF_REVISION
         assert es.read_id_file(root / spec.dataset.exclude_ids_file, required=True) == complement | used
