@@ -38,7 +38,15 @@ from mailroom_sandbox.prep import prepare_offline_datasets
 
 @pytest.fixture
 def isolated_env(tmp_path, monkeypatch):
-    """Undo every variable ``bootstrap`` sets, and keep data writes under tmp_path."""
+    """Restore activation state in place, including variables created by real activation."""
+    from mailroom_sandbox import runtime
+    import pipeline.config as cfg
+
+    before = dict(notebook.os.environ)
+    for name, value in list(vars(runtime).items()):
+        if name.startswith("_ACTIVE"):
+            monkeypatch.setattr(runtime, name, value)
+    monkeypatch.setattr(cfg, "CONFIG_PATH", cfg.CONFIG_PATH)
     for var in (
         "SANDBOX_RUN_MODE",
         "OBSERVABILITY_PROVIDER",
@@ -50,7 +58,10 @@ def isolated_env(tmp_path, monkeypatch):
     ):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path / "data"))
-    return tmp_path
+    yield tmp_path
+    notebook.os.environ.clear()
+    notebook.os.environ.update(before)
+    cfg.load_config.cache_clear()
 
 
 def test_find_repo_root_walks_up_from_notebooks_dir(monkeypatch):
@@ -105,6 +116,10 @@ def test_notebook_honours_the_suite_dotenv_opt_out(tmp_path, monkeypatch):
         ({"name": "openrouter", "base_url": "https://openrouter.ai/api/v1"}, None, "openrouter.ai"),
         ({"name": "modal-vllm"}, "https://someone--vllm.modal.run/v1", "modal.run"),
         ({"name": "modal-vllm"}, None, "no endpoint"),
+        ({"name": "ollama", "base_url": "http://localhost:11434/v1",
+          "health": {"chat_url": "https://remote.example/chat"}}, None, "remote.example"),
+        ({"name": "ollama", "base_url": "http://localhost:11434/v1",
+          "health": {"models_url": "https://remote.example/models"}}, None, "remote.example"),
     ],
 )
 def test_probe_refusal_allows_only_local_endpoints(monkeypatch, spec, override, refused):
@@ -855,3 +870,19 @@ def test_merged_truth_lists_unsettled_hub_conflicts_and_keeps_the_hub_value():
     )
     # The gate's value is in the text and the Hub's is not: evidence for a review, not a verdict.
     assert (conflict.hub_grounded, conflict.overlay_grounded) == (False, True)
+
+
+def test_notebook_local_probe_timeout_never_lists_modal_apps(monkeypatch):
+    import httpx
+    from mailroom_sandbox import health
+
+    monkeypatch.setattr(health, "load_profile", lambda _: {
+        "name": "modal-vllm", "base_url_env": "VLLM_BASE_URL", "provider": "vllm"})
+    monkeypatch.setenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setattr(health, "explain_modal_timeout", lambda *a: pytest.fail("cloud diagnostics"))
+    def timeout(*a, **kw):
+        raise httpx.ReadTimeout("local server timed out")
+    monkeypatch.setattr(httpx, "get", timeout)
+    result = health.health_check("modal-vllm", cloud_diagnostics=False)
+    assert not result["ok"]
+    assert "ReadTimeout" in result["models"]["detail"]

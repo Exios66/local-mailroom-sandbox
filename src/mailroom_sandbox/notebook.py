@@ -504,10 +504,12 @@ def probe_refusal(profile: str) -> str | None:
     spec = load_profile(profile)
     if missing_modal_endpoint(spec):
         return f"profile {profile!r} has no endpoint configured"
-    url = endpoints_for(spec, base_url_override=_effective_base_url(spec)).base_url
-    host = (urlsplit(str(url)).hostname or "").lower()
-    if host not in LOCAL_PROBE_HOSTS:
-        return f"profile {profile!r} resolves to {host or url!r}, not a local endpoint"
+    endpoints = endpoints_for(spec, base_url_override=_effective_base_url(spec))
+    for url in (endpoints.base_url, endpoints.models_url, endpoints.chat_url):
+        parsed = urlsplit(str(url))
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme not in {"http", "https"} or host not in LOCAL_PROBE_HOSTS:
+            return f"profile {profile!r} resolves to {host or url!r}, not a local endpoint"
     return None
 
 

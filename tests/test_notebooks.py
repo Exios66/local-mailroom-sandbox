@@ -100,3 +100,25 @@ def test_notebooks_execute(tmp_path, monkeypatch):
     log = tmp_path / "log" / "experiment_log.jsonl"
     names = {json.loads(line)["experiment_name"] for line in log.read_text(encoding="utf-8").splitlines()}
     assert {"notebook_sorter_fixtures", "notebook_sorter_balanced", "notebook_offline_pipeline"} <= names
+
+
+def test_setup_dotenv_cell_honours_the_test_opt_out(tmp_path, monkeypatch):
+    import os
+    from types import SimpleNamespace
+
+    import dotenv
+    from mailroom_sandbox import prep
+
+    env_path = tmp_path / '.env'
+    env_path.write_text('SANDBOX_PROFILE=sentinel\n', encoding='utf-8')
+    monkeypatch.setattr(prep, 'ensure_dotenv_from_example', lambda: env_path)
+    calls = []
+    monkeypatch.setattr(dotenv, 'dotenv_values', lambda path: calls.append(path) or {})
+    cell = next(c for c in _load(NOTEBOOK_DIR / EXPECTED[0])['cells'] if c['id'] == '01-06')
+    scope = {'os': os, 'ctx': SimpleNamespace(root=tmp_path, profile='ollama')}
+    monkeypatch.setenv('SANDBOX_SKIP_DOTENV', '1')
+    exec(compile(_source(cell), 'notebook-dotenv-cell', 'exec'), scope)
+    assert calls == []
+    monkeypatch.delenv('SANDBOX_SKIP_DOTENV')
+    exec(compile(_source(cell), 'notebook-dotenv-cell', 'exec'), scope)
+    assert calls == [env_path]
