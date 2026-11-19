@@ -1390,6 +1390,11 @@ def run_pipeline_eval(
     from mailroom_sandbox.eval import human_review
 
     scores.update(human_review.for_pipeline(results))
+    # The incorrect-archive metric beside the review metric (eval/archive_correctness.py):
+    # per-class wrong/incomplete archives with reasons, gate semantics (quality bar 0.90).
+    from mailroom_sandbox.eval import archive_correctness
+
+    scores.update(archive_correctness.for_pipeline(rows, results, extraction_rows=extraction_rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))
