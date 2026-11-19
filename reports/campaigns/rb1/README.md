@@ -15,7 +15,7 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | 1 Pilot | `rb1-r11` | Sorter v0.1, one small edit | no runs | `rb1-r11-sorter-v0-1` |
 | 1 Pilot | `rb1-r12` | Specialists v0 | no runs | `rb1-r12-specialists-v0` |
 | 1 Pilot | `rb1-r13` | Decision models in the routing role | no runs | `rb1-r13-decision-routing` |
-| 1 Pilot | `rb1-r13b` | H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row) | 2 done | [rb1-r13b-sorter-vs-decision](rb1-r13b-sorter-vs-decision/README.md) |
+| 1 Pilot | `rb1-r13b` | H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row) | 9 done | [rb1-r13b-sorter-vs-decision](rb1-r13b-sorter-vs-decision/README.md) |
 | 1 Pilot | `rb1-r14` | Decoding sweep (temperature grid) | no runs | `rb1-r14-decoding-sweep` |
 | 1 Pilot | `rb1-r15` | Sorter input-cap sweep | no runs | `rb1-r15-input-cap-sweep` |
 | 1 Pilot | `rb1-g1` | Phase 1 checkpoint; re-run sizing with measured values | no runs | `rb1-g1-checkpoint` |

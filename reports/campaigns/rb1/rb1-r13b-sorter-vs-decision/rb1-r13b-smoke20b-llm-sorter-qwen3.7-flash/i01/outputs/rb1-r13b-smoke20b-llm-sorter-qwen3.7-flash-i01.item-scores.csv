@@ -1,0 +1,21 @@
+item_id,ok,abstain,expected,expected_subclass,hub_subclass,match,outcome,predicted,predicted_subclass,subclass_corrected,subclass_match
+DOC-245be46fde113498,True,False,contract,Joint Venture _ Filing,,1.0,correct,contract,joint_venture,,1.0
+DOC-eee7c0d4e99e5be4,True,False,corporate_record,powers_of_attorney,,1.0,correct,corporate_record,powers_of_attorney,,1.0
+DOC-be1eccde5bae9c82,True,False,contract,Affiliate_Agreements,,1.0,correct,contract,affiliate,,1.0
+DOC-59d072355f2c3b14,True,False,corporate_record,charter_amendment,board_resolution,1.0,correct,corporate_record,charter_amendment,True,1.0
+DOC-874e9964d8a3835e,True,False,corporate_record,rights_instrument,,1.0,correct,corporate_record,rights_instrument,,1.0
+DOC-de8b3ad35e4b9060,True,False,contract,Distributor,,1.0,correct,contract,distributor,,1.0
+DOC-1a8aa868227dbd45,True,False,contract,Distributor,,1.0,correct,contract,distributor,,1.0
+DOC-6a668bc87f798c50,True,False,insurance_claim,carrier,,1.0,correct,insurance_claim,carrier,,1.0
+DOC-f4ce492b979c34e3,True,False,correspondence,demand,,1.0,correct,correspondence,email,,0.0
+DOC-690cb07fef21747b,True,False,correspondence,email,,1.0,correct,correspondence,email,,1.0
+DOC-6775dc31dac37ceb,True,False,correspondence,email,,1.0,correct,correspondence,email,,1.0
+DOC-b0055813bc08a29c,True,False,correspondence,meeting_request,,1.0,correct,correspondence,meeting_request,,1.0
+DOC-51fa0b34607ac5fa,True,False,corporate_record,indenture,,1.0,correct,corporate_record,indenture,,1.0
+DOC-68d0e23b4cfcaeb8,True,False,insurance_claim,property,,1.0,correct,insurance_claim,property,,1.0
+DOC-d460ba48aced73ea,True,False,insurance_claim,outpatient,,1.0,correct,insurance_claim,outpatient,,1.0
+DOC-bf518ec27ab190de,True,False,insurance_claim,property,,1.0,correct,insurance_claim,property,,1.0
+DOC-0a733ab86f2390ae,True,False,merger_agreement,all_cash,,1.0,correct,merger_agreement,all_cash,,1.0
+DOC-cf1ba08690065ad0,True,False,merger_agreement,all_cash,other,1.0,correct,merger_agreement,all_cash,True,1.0
+DOC-52f9a5be69429299,True,False,merger_agreement,mixed_cash_stock,,1.0,correct,merger_agreement,mixed_cash_stock,,1.0
+DOC-d8df0ba021e7d19d,True,False,merger_agreement,mixed_cash_stock,,1.0,correct,merger_agreement,mixed_cash_stock,,1.0

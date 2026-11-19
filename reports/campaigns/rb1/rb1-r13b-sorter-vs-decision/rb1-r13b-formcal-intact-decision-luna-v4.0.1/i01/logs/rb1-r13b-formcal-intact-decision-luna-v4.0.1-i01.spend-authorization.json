@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "api_cost_cap_usd": 0.3,
+    "api_models": {
+      "openai/gpt-6-luna-decisions": [
+        0.1,
+        0.0
+      ]
+    },
+    "gpu_cost_cap_usd": 0.3,
+    "max_wall_seconds": 1800
+  },
+  "fingerprint": "776a9274e67d8b4e323dcdc8f4b97623d3781d79aaaff0e4b952c8a808f72bd6",
+  "generation_id": "46e8a1164c134420af7a4447d8a76780",
+  "note": "digest only; the signer's initials stay in the run store",
+  "signed": true,
+  "signed_at": 1795103784.091525,
+  "source": {
+    "bytes": 6011,
+    "path": "data/runtime/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1/spend-authorization.json",
+    "sha256": "abc89c64628aebc828874b695d3a3ab5505d2ea17a45095016f1cdfb0b6b3ddc"
+  }
+}

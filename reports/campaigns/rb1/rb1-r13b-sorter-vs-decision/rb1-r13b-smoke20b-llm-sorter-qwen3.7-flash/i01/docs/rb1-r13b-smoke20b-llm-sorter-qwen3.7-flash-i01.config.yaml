@@ -1,0 +1,64 @@
+# CHECKPOINT smoke 20b (H5, SAND-108): the same 20 dev-look1 documents as smoke20, re-run on the
+# fixes from the smoke20 review: local-only tracing for sink none, per-item tier pricing, provider
+# cost in the served ledger, subclass scoring and reviewed subclass corrections (SHF-013), the
+# exact non-inferiority floor, runtime/throughput in the comparison, and (decision arm)
+# question set 4.0.1. Passing it, with the form controls, unlocks dev-look1 (300); see
+# docs/rb1-r13b-smoke-review.md for the bar. Launch ONE arm at a time, LLM arm first.
+#
+# Arm A: LLM sorter, sorter_condensed_v5 (code-default) on qwen/qwen3.7-flash, whole documents.
+# Cost: ~$0.04 at per-call tiers (smoke20 billed $0.0402). Caps $0.15, 1800 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-qwen3.7-flash-20b.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-qwen3.7-flash-20b.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash.yaml --initials <XX>
+# Readout (offline, after both arms):
+#   python scripts/compare_sorter_arms.py --a rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash --b rb1-r13b-smoke20b-decision-sorter-luna-v4.0.1 --experiment-key rb1-r13b --write
+schema: sandbox.run/v1
+run_id: rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 4}
+      - {doc_class: corporate_record, count: 4}
+      - {doc_class: correspondence, count: 4}
+      - {doc_class: insurance_claim, count: 4}
+      - {doc_class: merger_agreement, count: 4}
+  limit: 20
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.15
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.15
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, smoke20b, llm-sorter, dev-look1]

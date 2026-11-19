@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "api_cost_cap_usd": 0.15,
+    "api_models": {
+      "qwen/qwen3.7-flash": [
+        0.03,
+        0.13
+      ]
+    },
+    "gpu_cost_cap_usd": 0.15,
+    "max_wall_seconds": 1800
+  },
+  "fingerprint": "efff0d109fc5b44c6da7cdd8ebfe7ffed8046c74a27bf2a7a6d08d321b323a15",
+  "generation_id": "a896a982f9b7448fb0eb5c7c7dd063fd",
+  "note": "digest only; the signer's initials stay in the run store",
+  "signed": true,
+  "signed_at": 1795086642.148552,
+  "source": {
+    "bytes": 8035,
+    "path": "data/runtime/runs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash/spend-authorization.json",
+    "sha256": "0820220ccd10d1b7578871e4b06b9a631dcfcf1e021d532a28b9b4f096cbd1ad"
+  }
+}

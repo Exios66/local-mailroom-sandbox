@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "api_cost_cap_usd": 0.4,
+    "api_models": {
+      "openai/gpt-6-luna-decisions": [
+        0.1,
+        0.0
+      ]
+    },
+    "gpu_cost_cap_usd": 0.4,
+    "max_wall_seconds": 1800
+  },
+  "fingerprint": "9733af7d126a4fc86db422f52059fe1f89f987eab44104fe6ae844e424beda10",
+  "generation_id": "5e436aedff45498a8cd0493f52b306d9",
+  "note": "digest only; the signer's initials stay in the run store",
+  "signed": true,
+  "signed_at": 1795103844.425056,
+  "source": {
+    "bytes": 4143,
+    "path": "data/runtime/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1/spend-authorization.json",
+    "sha256": "768b48a3cd4b92216b7c2baeaff2a21b8e745972b88a54eebe923890767afd6f"
+  }
+}

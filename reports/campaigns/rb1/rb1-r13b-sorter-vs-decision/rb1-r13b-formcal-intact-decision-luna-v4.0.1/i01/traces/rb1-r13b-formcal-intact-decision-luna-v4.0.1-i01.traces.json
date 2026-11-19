@@ -1,0 +1,16 @@
+{
+  "copy_cap_bytes": 262144,
+  "note": "files over the cap (and every dataset, span mirror and trace pack) are referenced by path + sha256, not copied",
+  "references": {
+    "dataset": {
+      "bytes": 4626016,
+      "path": "data/runtime/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1/dataset.jsonl",
+      "sha256": "d8b343e825cd69db08a0d544e99f5ec857bd8a6592f60ba813ab25f6059be3e5"
+    },
+    "spans": {
+      "bytes": 3935,
+      "path": "data/traces/rb1-r13b-formcal-intact-decision-luna-v4.0.1.spans.jsonl.gz",
+      "sha256": "1acc0f18af7c3645350e63f0778262d43cc9c4231b8929c1566871d03ad3be14"
+    }
+  }
+}

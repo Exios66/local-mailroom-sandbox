@@ -1,0 +1,121 @@
+{
+  "archived": false,
+  "campaign": "rb1",
+  "caveats": [
+    "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
+    "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
+  ],
+  "checkpoint": {
+    "cursor": 7,
+    "last_error": null,
+    "state": "done",
+    "total": 7
+  },
+  "config": {
+    "bytes": 2063,
+    "path": "config/runs/rb1-r13b-controls-decision-luna-v4.0.0.yaml",
+    "sha256": "3d7a781c43d2ce7b875f97c00871b6f8f7a33da189c454db5648447f379082ec"
+  },
+  "cost": {
+    "completion_tokens": null,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.00159271,
+    "estimated_cost_usd": 0.011149,
+    "prompt_tokens": 111486,
+    "wall_seconds": 260.065
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "limit": null,
+    "repo": "form-controls.jsonl",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "7aa795c7f8f6aa592a6e038680e308e5b0455732778ca11796114bd2ea9bf34c",
+    "split": "all"
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "experiment": "rb1-r13b",
+  "figures": [
+    "confidence",
+    "latency",
+    "park-reasons",
+    "risk-coverage",
+    "routing"
+  ],
+  "finished": "2026-11-19T11:09:36.162+00:00",
+  "generation_id": "28607ec7bea549e8a2efa76eb0d0743c",
+  "git": {
+    "commit": "fdfb399b",
+    "dirty": true
+  },
+  "headline": {
+    "error_count": 0,
+    "exact_match": 0.0,
+    "n": 7,
+    "subclass_corrections_applied": 0,
+    "subclass_match": 0.0,
+    "subclass_match_hub_truth": 0.0,
+    "subclass_scored": 7
+  },
+  "headline_source": "experiment log",
+  "items": {
+    "failed": 0,
+    "ok": 7,
+    "total": 7
+  },
+  "iteration": "i01",
+  "launches": [
+    {
+      "event": "start",
+      "ts": "2026-11-19T11:09:34.932+00:00"
+    }
+  ],
+  "lock_sha256": "af56a26c1cb756377c4db01023730360e742b4b208973a7771c01774ee600c04",
+  "mock": false,
+  "model": "openai/gpt-6-luna-decisions",
+  "profile": "openrouter",
+  "run_id": "rb1-r13b-controls-decision-luna-v4.0.0",
+  "schema": "sandbox.campaign-run-report/v1",
+  "spec_hash": "4cecaff35132c13b499f01c008567473e951dea900466b93b3de31fef926a3f6",
+  "started": "2026-11-19T11:09:34.932+00:00",
+  "status": "done",
+  "subclass_by_class": {
+    "contract": {
+      "accuracy": 0.0,
+      "correct": 0,
+      "hub_truth_accuracy": 0.0,
+      "n": 1
+    },
+    "corporate_record": {
+      "accuracy": 0.0,
+      "correct": 0,
+      "hub_truth_accuracy": 0.0,
+      "n": 1
+    },
+    "insurance_claim": {
+      "accuracy": 0.0,
+      "correct": 0,
+      "hub_truth_accuracy": 0.0,
+      "n": 2
+    },
+    "merger_agreement": {
+      "accuracy": 0.0,
+      "correct": 0,
+      "hub_truth_accuracy": 0.0,
+      "n": 3
+    }
+  },
+  "task": "sorter_reviewer"
+}

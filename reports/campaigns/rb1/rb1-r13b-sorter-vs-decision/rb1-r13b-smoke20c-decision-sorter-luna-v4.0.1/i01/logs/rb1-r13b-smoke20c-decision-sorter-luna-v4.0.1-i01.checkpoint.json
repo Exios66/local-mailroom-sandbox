@@ -1,0 +1,12 @@
+{
+  "cursor": 20,
+  "generation_id": "1cb9ce2d80f743a7ae33a065524a834f",
+  "last_error": null,
+  "remote": null,
+  "run_id": "rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1",
+  "schema_version": 1,
+  "spec_hash": "8c595ad317476b8e2f2a7f1840a7733210483b72e62614c4b269e6c33b864b4c",
+  "state": "done",
+  "total": 20,
+  "updated_at": "2026-11-19T11:20:34.720+00:00"
+}

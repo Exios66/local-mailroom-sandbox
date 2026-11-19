@@ -1,0 +1,33 @@
+{
+  "files": {
+    "README.md": "b80ca9a1dda2c4b37b478e65d24dedfe8e9405606990009f48b5d710b4fde2ce",
+    "analysis/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.confusion.csv": "31f76a4bf0ca69d92387b82ea0433e5f25b5ead81f0a7ea8372062ae3f2873cf",
+    "analysis/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.figure-data.csv": "03d951449da23bc3842189e746ccb6df803384cc9af36bbb1d7da58546f9144a",
+    "analysis/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.metrics.json": "38d97abb0f58206e41c209505d9e6e5ea830b430b71613e67949aa73701f79b3",
+    "analysis/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.stats.json": "328360d39657308d2e191c20579d09e0057e60f6f8b762adce697dcb5dcd526d",
+    "docs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.caveats.md": "b5c9ca766698a239fa512418fb3240cff4d703b4ade5de7b48f11f89fe2a09de",
+    "docs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.config.yaml": "0b8887c4a3f78fa1d307e589b43f2120e5b4a37e45233450b0be87495b7cad5a",
+    "docs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.prompt-lock.json": "7cf65f1cfe8ea337421d505cba9a7c1fd0133e69a11bcd729de9990275ac9801",
+    "docs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.spec-core.json": "155cc8dd611316c283b646d46a47491a48e842e4ce8a43871fdd5d3b0003f99b",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.confidence.svg": "ed30be3ad1f7844eaaddc783906ee249e3e30a4394faed8fd65dae7d35cf26bc",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.form-mass.svg": "93a5e6499bfedde40c8154b5e39e96b07602eeb77792b8d5d8bdbe9cd50f8994",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.latency.svg": "0acc809edf821956d41b1ef395cdd4d10bc2863eb5f6c241ac18ef51df5ae9a9",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.park-reasons.svg": "4469471701b2ae7d3f65db1b4fd885ccc536e36a8ee700628ecc16d068ff6854",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.risk-coverage.svg": "a9f01ea18c8e4acd810d0af8b79fc159d2de7914396b62f4d0ba987ca624835b",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.routing.svg": "d4b1b7c47aa99740c146b03c86e874f77c5a97d96bbd81c2803c4faf0d611441",
+    "figures/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.subclass.svg": "e146aa4605e1ef490e358fe5bc54b1fc0aabad28ff969ed02d4e3a87a0a48a46",
+    "logs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.checkpoint.json": "22a3eec4ae07704000d7fbb90f8d6ba9828d71758841420cb9cece49eb976987",
+    "logs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.events.jsonl": "8836ae02049d57bee6a11a25089fe464412b489e3c8432014260be2972fa9748",
+    "logs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.served-digest.json": "da4fd50b87a0c8777bb76bb69787c37d1a036736b4edd510e384a3229da87bd9",
+    "logs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.spec-lock.json": "f8cdb6d363e2ffaf8f58e5423d62906262876af9b3afed01cf6e58ab5d3b6924",
+    "logs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.spend-authorization.json": "aba57c6cdcb17475b23adbe5f8de2eb0e327d5f86b2018659a041105e52b5f4c",
+    "outputs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.item-scores.csv": "8f04cd171d6f1f82c4c9323bfd0185701632c545eb56d56cd95e604f762e8327",
+    "outputs/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.predictions.csv": "fc10617ea680e0e42177fef9492c505aedd05d01715d662c2f1e0aa92c1a51c0",
+    "report/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.report.json": "99624cac2af105aba361d5362a1617e74717574ae26a405ad9afc301f69d37cc",
+    "report/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.report.md": "efe222267b1f8cd7ecf59e9a6e6a124edcc73b7b8cca9fea8da0ff8bacfbc631",
+    "traces/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.items.jsonl": "6322040d50fb6ea401c5d216c0ba23abe894d04743eb8f478a3b5164ae0a64a1",
+    "traces/rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01.traces.json": "7e042f9b2710cbacdf28f2558ce7d029fb3e5bc69d6297f23c63e879f533484f"
+  },
+  "schema": "sandbox.campaign-manifest/v1",
+  "stem": "rb1-r13b-formcal-defects-decision-luna-v4.0.1-i01"
+}

@@ -1,0 +1,128 @@
+{
+  "archived": false,
+  "campaign": "rb1",
+  "caveats": [
+    "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
+    "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
+  ],
+  "checkpoint": {
+    "cursor": 20,
+    "last_error": null,
+    "state": "done",
+    "total": 20
+  },
+  "config": {
+    "bytes": 2295,
+    "path": "config/runs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1.yaml",
+    "sha256": "fd48da945734d65b4357af349bb1a3dd4580655e36c875bdc96ad2c450fd6b70"
+  },
+  "cost": {
+    "completion_tokens": null,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.0022887,
+    "estimated_cost_usd": 0.045774,
+    "prompt_tokens": 457738,
+    "wall_seconds": 19.085
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "limit": 20,
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9",
+    "split": "all"
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "experiment": "rb1-r13b",
+  "figures": [
+    "confidence",
+    "form-mass",
+    "latency",
+    "park-reasons",
+    "routing",
+    "subclass"
+  ],
+  "finished": "2026-11-19T11:20:34.722+00:00",
+  "generation_id": "1cb9ce2d80f743a7ae33a065524a834f",
+  "git": {
+    "commit": "b7bd4133",
+    "dirty": true
+  },
+  "headline": {
+    "error_count": 0,
+    "exact_match": 0.8,
+    "n": 20,
+    "subclass_corrections_applied": 2,
+    "subclass_match": 0.8,
+    "subclass_match_hub_truth": 0.7,
+    "subclass_scored": 20
+  },
+  "headline_source": "experiment log",
+  "items": {
+    "failed": 0,
+    "ok": 20,
+    "total": 20
+  },
+  "iteration": "i01",
+  "launches": [
+    {
+      "event": "start",
+      "ts": "2026-11-19T11:20:32.471+00:00"
+    }
+  ],
+  "lock_sha256": "4af44ee2eedbb585968180d826b7b1b1afe78bdd4e886ca4ef57c421fc25599e",
+  "mock": false,
+  "model": "openai/gpt-6-luna-decisions",
+  "profile": "openrouter",
+  "run_id": "rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1",
+  "schema": "sandbox.campaign-run-report/v1",
+  "spec_hash": "8c595ad317476b8e2f2a7f1840a7733210483b72e62614c4b269e6c33b864b4c",
+  "started": "2026-11-19T11:20:32.471+00:00",
+  "status": "done",
+  "subclass_by_class": {
+    "contract": {
+      "accuracy": 0.75,
+      "correct": 3,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    },
+    "corporate_record": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    },
+    "correspondence": {
+      "accuracy": 0.75,
+      "correct": 3,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    },
+    "insurance_claim": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 1.0,
+      "n": 4
+    },
+    "merger_agreement": {
+      "accuracy": 0.5,
+      "correct": 2,
+      "hub_truth_accuracy": 0.25,
+      "n": 4
+    }
+  },
+  "task": "sorter_reviewer"
+}

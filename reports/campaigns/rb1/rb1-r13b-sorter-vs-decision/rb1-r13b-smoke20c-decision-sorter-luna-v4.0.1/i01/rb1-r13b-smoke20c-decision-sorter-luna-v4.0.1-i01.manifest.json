@@ -1,0 +1,32 @@
+{
+  "files": {
+    "README.md": "90a13f6fcbe11e937d1ab33bb3d4ead46153d18683b65ede2264047766ef5867",
+    "analysis/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.confusion.csv": "b610388634b78935c422fff205cbde2a87eb501285ba6e60080e4ad00be792d8",
+    "analysis/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.figure-data.csv": "05a7884205d08164834400b9ac9201ae1f13a75eb194eda8a0d4d871765e1f87",
+    "analysis/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.metrics.json": "3dd584062e2f2db14164e53f3a6b235c22eb036c3bf3469c078b06c918bc5991",
+    "analysis/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.stats.json": "5fa9444a7b4b396b5f41e99fcb90f394d25bd6a0a12b26539a4aafdb82f2cf9c",
+    "docs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.caveats.md": "b67c713e9b48417034dd5b46e0ff396f18754ba4cec92d92ceacae9b275a72b6",
+    "docs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.config.yaml": "fd48da945734d65b4357af349bb1a3dd4580655e36c875bdc96ad2c450fd6b70",
+    "docs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.prompt-lock.json": "7cf65f1cfe8ea337421d505cba9a7c1fd0133e69a11bcd729de9990275ac9801",
+    "docs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.spec-core.json": "ac62f9ac75753c8b2a67cc3dc75b7ddd5602b0a591064c68892767e6515262f8",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.confidence.svg": "cfac94878d63f3d7168feacffd46c82e72277781728ba4ea21f2bbe726afd031",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.form-mass.svg": "c4f764333b4e895174f1ddd11718d5556fc02fe44b8396590cdef9bd88975126",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.latency.svg": "31f6ef68c1d145effc164c5e64fd349fc15f549ecdf21d4066e68206f4165a6b",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.park-reasons.svg": "22bd4b586ee3fd0c3da68c24118868309e609946f52a90e4dddc7ad262a65deb",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.routing.svg": "4c03fc195ede9dad22a6fbab2e151f32b4c51c93d8811e1f7047c8714457089d",
+    "figures/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.subclass.svg": "0a46e6697bccac880e0089915412b2fc622c34f60197d8faa1f027ea91653ba2",
+    "logs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.checkpoint.json": "4299a1d758295e2cfb1489610b006f0a1d6eb24c274acf649f54739f2f6c37a9",
+    "logs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.events.jsonl": "304ac3f018423cfa4627e8d2204aab662ce3de0fc39f99ad2e1343a9e16ea41c",
+    "logs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.served-digest.json": "567158ef9293827aa97365529dc60f1db7135f874dc9af41db291ee2b3f1566b",
+    "logs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.spec-lock.json": "83b4ec75cacbad6aed13adcb10b3a3876406d247d50717334bdcc725e90850c4",
+    "logs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.spend-authorization.json": "da38bf012b34e5664576e4f466425375903b21d00d965e9cc5dd1e369cad3e8e",
+    "outputs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.item-scores.csv": "c6136e67b223b5c532e804c36ce99f98785b015eb0371a7f10f82d30d9f61355",
+    "outputs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.predictions.csv": "687e323966109930314416ac80ceb162b8683077ab486a063fc3ba2531eec3d2",
+    "report/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.report.json": "3637f18a420d1529c37f66e7bfd8a17ead5237d4eae57119f190d5aa826097b2",
+    "report/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.report.md": "8010410cd6ca5194ea159c6c045f1c571cc5d40fb4fccaf7e465dce24b0e79fc",
+    "traces/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.items.jsonl": "620a4d458c210309724a726a19d9dd571cec99b3b8c500cf33cc04bd2ade2e67",
+    "traces/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01.traces.json": "fa1b2681e47208eb8e3ebdccb30f63c957497cecf4ce8ab373e4bd712d2d70e8"
+  },
+  "schema": "sandbox.campaign-manifest/v1",
+  "stem": "rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1-i01"
+}

@@ -1,0 +1,54 @@
+{
+  "abstained": 5,
+  "accuracy": 0.2857142857142857,
+  "applicable": true,
+  "brier_null_floor": 0.204082,
+  "confusion": {
+    "(abstained)": {
+      "(abstained)": 0,
+      "contract": 0,
+      "corporate_record": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "contract": {
+      "(abstained)": 1,
+      "contract": 0,
+      "corporate_record": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "corporate_record": {
+      "(abstained)": 1,
+      "contract": 0,
+      "corporate_record": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "insurance_claim": {
+      "(abstained)": 1,
+      "contract": 0,
+      "corporate_record": 0,
+      "insurance_claim": 1,
+      "merger_agreement": 0
+    },
+    "merger_agreement": {
+      "(abstained)": 2,
+      "contract": 0,
+      "corporate_record": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 1
+    }
+  },
+  "labels": [
+    "(abstained)",
+    "contract",
+    "corporate_record",
+    "insurance_claim",
+    "merger_agreement"
+  ],
+  "macro_f1": 0.29166666666666663,
+  "n": 7,
+  "paired_tests": "McNemar / paired permutation need two arms; see the experiment's analysis/",
+  "source": "mailroom_sandbox.experiment_stats on items.jsonl truth vs predicted doc_type (parked = abstained)"
+}
