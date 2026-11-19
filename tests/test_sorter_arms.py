@@ -263,6 +263,11 @@ def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
     # Forced-choice accuracy still counts the parked documents.
     assert b["class_accuracy"] == pytest.approx(27 / 30)
     assert "parked 2/29" in sa.render(report)
+    # A decision arm with no abstentions still reports its 0% routing rate; the LLM arm does not.
+    _write_run(tmp_path / "runs2", "A", ids=ids)
+    _write_run(tmp_path / "runs2", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    quiet = sa.render(sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs2", n_boot=50, n_perm=50))
+    assert "B: parked 0/30" in quiet and "A: parked" not in quiet
 
 
 def test_fast_macro_f1_matches_experiment_stats():

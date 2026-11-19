@@ -718,7 +718,8 @@ def render(report: Mapping[str, Any]) -> str:
             f"{_usd(s['cost']['per_1k_docs_usd']):>8} {_usd(s['cost']['per_class_correct_usd']):>8}")
     for s in report["arms"]:
         r = s.get("routing") or {}
-        if r.get("abstained"):
+        # Decision arms always show their routing line, so a measured 0% is not mistaken for missing data.
+        if r.get("abstained") or s.get("task") == "sorter_reviewer":
             lines.append(f"  {s['run_id'][:44]}: parked {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
                          f"auto-routed acc {_pct(r['auto_class_accuracy'])}, unit {_pct(r['auto_unit_accuracy'])}; "
                          f"reasons {r['abstain_reasons']}")
