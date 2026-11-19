@@ -6,6 +6,7 @@ Task 5):
 
 * R00: ``sandbox splits audit`` (the frozen split rebuilds from its seed, no leak).
 * R00+: ``sandbox schemas build --check`` (the extraction registry matches the committed labels).
+* Campaign hotfixes: ``scripts/check_hotfixes.py`` (required pipeline and scoring fixes match).
 * R01: ``scripts/check_r01_smoke.py`` over each smoke config and its served-provider ledger
   (``data/runtime/rb1-r01/served-<stem>.jsonl``, written by the launched smoke run).
 * R02: ``scripts/check_scorer_handcheck.py`` (a person confirmed every hand score).
