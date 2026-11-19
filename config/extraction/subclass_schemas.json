@@ -9127,22 +9127,23 @@
      "dojo_status": "partial",
      "dominant": {
       "kind": "value",
-      "share": 0.086,
-      "value": null
+      "share": 0.036,
+      "value": "NMI Holdings, Inc."
      },
      "effective_status": "scored",
      "guide": "name: The corporation or entity the record is about, full legal name as written.",
      "in_output_schema": true,
-     "labeled": 220,
+     "labeled": 450,
      "labeled_by_set": {
-      "calibration": 74,
-      "dev": 84,
-      "heldout": 62,
+      "calibration": 137,
+      "dev": 156,
+      "heldout": 157,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 194,
+      "hub": 368,
+      "interim": 56,
       "near_gold": 26
      },
      "verdict": "iterate"
@@ -9181,24 +9182,24 @@
      "dojo_status": "not_applicable",
      "dominant": {
       "kind": "value",
-      "share": 0.93,
+      "share": 0.964,
       "value": null
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 47,
+     "labeled": 44,
      "labeled_by_set": {
-      "calibration": 25,
+      "calibration": 24,
       "dev": 12,
-      "heldout": 10,
+      "heldout": 8,
       "pool": 0
      },
      "subclasses_with_truth": 3,
      "truth": {
-      "interim": 47
+      "interim": 44
      },
-     "truth_ignored_not_applicable": 138,
-     "verdict": "thin"
+     "truth_ignored_not_applicable": 314,
+     "verdict": "constant"
     },
     "guarantors": {
      "dojo_status": "pending_annotation",
@@ -9264,7 +9265,7 @@
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.316,
+      "share": 0.298,
       "value": "entity_formation"
      },
      "effective_status": "scored",
@@ -9286,7 +9287,7 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.558,
+      "share": 0.508,
       "value": "Delaware"
      },
      "effective_status": "scored",
@@ -9304,20 +9305,17 @@
       "interim": 139,
       "near_gold": 245
      },
-     "truth_ignored_not_applicable": 14,
+     "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
     },
     "keywords": {
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.004,
+      "share": 0.02,
       "value": [
-       "bylaws",
-       "EX-3.2",
-       "S-1/A",
-       "0001477932-25-002363",
-       "GBank Financial Holdings Inc.  (GBFH)  (CIK 0001791145)"
+       "Officer certificate",
+       "Cardiff Lexington Corp"
       ]
      },
      "effective_status": "scored",
@@ -9444,21 +9442,21 @@
      "dojo_status": "derived",
      "dominant": {
       "kind": "value",
-      "share": 0.45,
+      "share": 0.456,
       "value": "other"
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 200,
+     "labeled": 450,
      "labeled_by_set": {
-      "calibration": 64,
-      "dev": 78,
-      "heldout": 58,
+      "calibration": 137,
+      "dev": 156,
+      "heldout": 157,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 200
+      "hub": 450
      },
      "verdict": "iterate"
     },
@@ -9541,7 +9539,7 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.163,
+      "share": 0.227,
       "value": []
      },
      "effective_status": "scored",
@@ -9559,15 +9557,15 @@
       "interim": 136,
       "near_gold": 248
      },
-     "truth_ignored_not_applicable": 21,
+     "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
     },
     "subject_matter": {
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.009,
-      "value": "articles_of_incorporation of Expion360 Inc.  (XPON)  (CIK 0001894954) (SEC EDGAR exhibit)."
+      "share": 0.02,
+      "value": "Officer certificate of Cardiff Lexington Corp."
      },
      "effective_status": "scored",
      "in_output_schema": true,
@@ -9668,46 +9666,47 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.344,
+        "share": 0.358,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 19,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 17,
         "pool": 0
        },
        "truth": {
-        "interim": 7,
-        "near_gold": 54
+        "interim": 6,
+        "near_gold": 47
        },
        "type": "date",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "entity_name": {
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.098,
+        "share": 0.074,
         "value": "Incumaker, Inc."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 41,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 13,
-        "heldout": 11,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 28,
-        "near_gold": 13
+        "hub": 36,
+        "interim": 11,
+        "near_gold": 7
        },
        "type": "name",
        "verdict": "thin"
@@ -9716,20 +9715,20 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.955,
+        "share": 0.95,
         "value": null
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 8,
+        "calibration": 7,
         "dev": 7,
-        "heldout": 7,
+        "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "interim": 20
        },
        "type": "id",
        "verdict": "constant"
@@ -9763,15 +9762,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "label",
        "verdict": "constant"
@@ -9780,56 +9779,50 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.23,
+        "share": 0.226,
         "value": "Nevada"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 19,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 17,
         "pool": 0
        },
        "truth": {
-        "interim": 23,
-        "near_gold": 38
+        "interim": 21,
+        "near_gold": 32
        },
        "type": "name",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "keywords": {
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.032,
+        "share": 0.093,
         "value": [
-         "Certificate of Incorporation",
-         "Incumaker, Inc.",
-         "Delaware",
-         "capital stock",
-         "common stock",
-         "preferred stock",
-         "Series B Convertible Preferred Stock",
-         "classified directors"
+         "Articles of incorporation",
+         "NCO Funding, Inc."
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "entity_list:name",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -9840,15 +9833,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 23,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 7,
-        "heldout": 8,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 23
+        "hub": 54
        },
        "type": "name",
        "verdict": "constant"
@@ -9877,57 +9870,57 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.148,
+        "share": 0.189,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 19,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 17,
         "pool": 0
        },
        "truth": {
-        "interim": 16,
-        "near_gold": 45
+        "interim": 14,
+        "near_gold": 39
        },
        "type": "entity_list:name",
-       "verdict": "iterate"
+       "verdict": "thin"
       },
       "subject_matter": {
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.065,
-        "value": "articles_of_incorporation of Expion360 Inc.  (XPON)  (CIK 0001894954) (SEC EDGAR exhibit)."
+        "share": 0.093,
+        "value": "Articles of incorporation of NCO Funding, Inc."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 54,
        "labeled_by_set": {
-        "calibration": 22,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 18,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "hub": 62
+        "hub": 54
        },
        "type": "free_text",
-       "verdict": "iterate"
+       "verdict": "thin"
       }
      },
      "intent": "entity_formation",
      "notes": "",
      "record_type": "articles_of_incorporation",
-     "rows": 62,
+     "rows": 54,
      "rows_by_set": {
-      "calibration": 22,
-      "dev": 20,
-      "heldout": 20,
+      "calibration": 18,
+      "dev": 18,
+      "heldout": 18,
       "pool": 0
      },
      "salient": [
@@ -9937,9 +9930,8 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 5,
       "no_truth": 3,
-      "thin": 1
+      "thin": 6
      }
     },
     "board_resolution": {
@@ -10010,18 +10002,24 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.188,
+        "value": "Electric City Corp."
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 12,
-        "heldout": 7,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 22,
+        "interim": 10
        },
        "type": "name",
        "verdict": "thin"
@@ -10030,14 +10028,15 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
+        "hub": 10,
         "interim": 22
        },
        "type": "id",
@@ -10093,13 +10092,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.031,
+        "share": 0.188,
         "value": [
-         "board_resolution",
-         "EX-3",
-         "8-K",
-         "0000828940-03-000001",
-         "COVENANT FINANCIAL CORP  (CIK 0000828940)"
+         "Board resolution",
+         "LIME ENERGY CO."
         ]
        },
        "effective_status": "scored",
@@ -10126,15 +10122,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 32
        },
        "type": "name",
        "verdict": "constant"
@@ -10190,8 +10186,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
-        "value": "board_resolution of LIME ENERGY CO.  (CIK 0001065860) (SEC EDGAR exhibit). CERTIFICATE OF AMENDMENT TO CERTIFICATE OF INCORPORATION"
+        "share": 0.188,
+        "value": "Board resolution of LIME ENERGY CO."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -10257,22 +10253,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.643,
+        "share": 0.556,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
-        "near_gold": 10
+        "interim": 20,
+        "near_gold": 16
        },
        "type": "date",
        "verdict": "thin"
@@ -10281,22 +10277,23 @@
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
-        "value": "NCM FINANCIAL, INC."
+        "share": 0.083,
+        "value": "NCM Financial"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 24,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 22,
-        "near_gold": 2
+        "hub": 24,
+        "interim": 5,
+        "near_gold": 7
        },
        "type": "name",
        "verdict": "thin"
@@ -10305,15 +10302,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 11,
+        "interim": 25
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -10327,15 +10325,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "label",
        "verdict": "constant"
@@ -10344,22 +10342,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.643,
+        "share": 0.556,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 17,
-        "near_gold": 11
+        "interim": 20,
+        "near_gold": 16
        },
        "type": "name",
        "verdict": "thin"
@@ -10368,26 +10366,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.071,
+        "share": 0.083,
         "value": [
-         "bylaws",
-         "EX-3.2",
-         "S-1/A",
-         "0001477932-25-002363",
-         "GBank Financial Holdings Inc.  (GBFH)  (CIK 0001791145)"
+         "Bylaws",
+         "NCM Financial"
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10421,15 +10416,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 36
        },
        "type": "name",
        "verdict": "constant"
@@ -10438,22 +10433,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.357,
-        "value": null
+        "share": 0.611,
+        "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 20,
-        "near_gold": 8
+        "interim": 23,
+        "near_gold": 13
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10462,20 +10457,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.107,
-        "value": "bylaws of NCM Financial  (CIK 0001530983) (SEC EDGAR exhibit). BYLAWS"
+        "share": 0.083,
+        "value": "Bylaws of NCM Financial."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 36,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 14,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 36
        },
        "type": "free_text",
        "verdict": "thin"
@@ -10484,11 +10479,11 @@
      "intent": "governance_rules",
      "notes": "No filing_number: bylaws are not filed with a state office.",
      "record_type": "bylaws",
-     "rows": 28,
+     "rows": 36,
      "rows_by_set": {
-      "calibration": 11,
-      "dev": 8,
-      "heldout": 9,
+      "calibration": 14,
+      "dev": 11,
+      "heldout": 11,
       "pool": 0
      },
      "salient": [
@@ -10773,24 +10768,25 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.048,
-        "value": "SOMAXON PHARMACEUTICALS, INC."
+        "share": 0.025,
+        "value": "ARTES MEDICAL INC"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 80,
        "labeled_by_set": {
-        "calibration": 15,
-        "dev": 4,
-        "heldout": 2,
+        "calibration": 40,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 79,
+        "interim": 1
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "pending_annotation",
@@ -10864,13 +10860,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.013,
+        "share": 0.025,
         "value": [
-         "charter_amendment",
-         "EX-3.2",
-         "S-1/A",
-         "0000898430-01-503595",
-         "VCA ANTECH INC  (CIK 0000817366)"
+         "Charter amendment",
+         "ARTES MEDICAL INC"
         ]
        },
        "effective_status": "scored",
@@ -10917,15 +10910,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 80,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 4,
-        "heldout": 2,
+        "calibration": 40,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 80
        },
        "type": "name",
        "verdict": "constant"
@@ -10934,7 +10927,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.056,
+        "share": 0.097,
         "value": []
        },
        "effective_status": "scored",
@@ -10959,7 +10952,7 @@
        "dominant": {
         "kind": "value",
         "share": 0.025,
-        "value": "charter_amendment of ARTES MEDICAL INC  (CIK 0001351197) (SEC EDGAR exhibit). EXHIBIT 3.3"
+        "value": "Charter amendment of ARTES MEDICAL INC."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -10994,9 +10987,9 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 2,
+      "iterate": 3,
       "no_truth": 3,
-      "thin": 4
+      "thin": 3
      }
     },
     "indenture": {
@@ -11027,34 +11020,41 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.07,
+        "value": "OneMain Financial Holdings, Inc."
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 6,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 53,
+        "interim": 4
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 8,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 35,
         "interim": 22
        },
        "type": "id",
@@ -11130,13 +11130,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.018,
+        "share": 0.07,
         "value": [
-         "indenture",
-         "EX-4.1",
-         "S-1/A",
-         "0000950120-07-000187",
-         "MP Environmental Funding LLC  (CIK 0001384732)"
+         "Indenture",
+         "OneMain Financial Holdings, Inc."
         ]
        },
        "effective_status": "scored",
@@ -11203,15 +11200,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 57,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 8,
-        "heldout": 5,
+        "calibration": 17,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 57
        },
        "type": "name",
        "verdict": "constant"
@@ -11240,7 +11237,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.446,
+        "share": 0.482,
         "value": []
        },
        "effective_status": "scored",
@@ -11264,8 +11261,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.035,
-        "value": "indenture of VOLKSWAGEN AUTO LEASE UNDERWRITTEN FUNDING LLC  (CIK 0001182534) (SEC EDGAR exhibit). FORM OF INDENTURE"
+        "share": 0.07,
+        "value": "Indenture of OneMain Financial Holdings, Inc."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -11322,10 +11319,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 5,
+      "iterate": 6,
       "no_truth": 5,
-      "not_applicable": 1,
-      "thin": 1
+      "not_applicable": 1
      }
     },
     "officer_certificate": {
@@ -11418,37 +11414,39 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.182,
-        "value": null
+        "share": 0.148,
+        "value": "Cardiff Lexington Corp"
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 57,
+        "interim": 4
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 39,
         "interim": 22
        },
        "type": "id",
@@ -11504,13 +11502,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.016,
+        "share": 0.148,
         "value": [
-         "officer_certificate",
-         "EX-3.10",
-         "S-1/A",
-         "0000950123-09-074380",
-         "XSTREAM SYSTEMS INC  (CIK 0001323163)"
+         "Officer certificate",
+         "Cardiff Lexington Corp"
         ]
        },
        "effective_status": "scored",
@@ -11557,15 +11552,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 61
        },
        "type": "name",
        "verdict": "constant"
@@ -11574,7 +11569,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.246,
+        "share": 0.361,
         "value": []
        },
        "effective_status": "scored",
@@ -11598,8 +11593,8 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.033,
-        "value": "officer_certificate of Ceres, Inc.  (CIK 0000767884) (SEC EDGAR exhibit). EXHIBIT 3.2"
+        "share": 0.148,
+        "value": "Officer certificate of Cardiff Lexington Corp."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -11635,10 +11630,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 5,
+      "iterate": 6,
       "no_truth": 4,
-      "not_applicable": 1,
-      "thin": 1
+      "not_applicable": 1
      }
     },
     "other": {
@@ -11648,15 +11642,14 @@
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 1,
         "near_gold": 2
        },
        "type": "date",
@@ -11667,15 +11660,15 @@
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "hub": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11684,15 +11677,15 @@
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "interim": 2
        },
        "type": "id",
        "verdict": "thin"
@@ -11701,15 +11694,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "label",
        "verdict": "thin"
@@ -11719,15 +11712,15 @@
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "interim": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11736,15 +11729,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -11753,15 +11746,15 @@
        "dojo_status": "derived",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 3
+        "hub": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -11771,15 +11764,15 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 2,
+        "interim": 1,
         "near_gold": 1
        },
        "type": "entity_list:name",
@@ -11789,15 +11782,15 @@
        "dojo_status": "scored",
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 1,
         "dev": 1,
-        "heldout": 1,
+        "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "hub": 3
+        "hub": 2
        },
        "type": "free_text",
        "verdict": "thin"
@@ -11806,11 +11799,11 @@
      "intent": "other",
      "notes": "Extract only the core fields actually present.",
      "record_type": "other",
-     "rows": 3,
+     "rows": 2,
      "rows_by_set": {
       "calibration": 1,
       "dev": 1,
-      "heldout": 1,
+      "heldout": 0,
       "pool": 0
      },
      "verdicts": {
@@ -11863,21 +11856,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.071,
-        "value": null
+        "share": 0.077,
+        "value": "2011-03-24"
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 11,
+        "dev": 9,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 12,
+        "interim": 10,
         "near_gold": 16
        },
        "type": "date",
@@ -11885,18 +11878,24 @@
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.115,
+        "value": "MetLife Insurance CO of Connecticut"
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 8,
-        "heldout": 7,
+        "calibration": 6,
+        "dev": 9,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "hub": 25,
+        "interim": 1
        },
        "type": "name",
        "verdict": "thin"
@@ -11925,15 +11924,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 11,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 6,
-        "heldout": 3,
+        "calibration": 6,
+        "dev": 9,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 11
+        "hub": 17,
+        "interim": 9
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -11947,15 +11947,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 11,
+        "dev": 9,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "label",
        "verdict": "constant"
@@ -11964,21 +11964,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.571,
+        "share": 0.615,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 11,
+        "dev": 9,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
+        "interim": 16,
         "near_gold": 10
        },
        "type": "name",
@@ -11988,29 +11988,23 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.036,
+        "share": 0.115,
         "value": [
-         "Bylaws",
-         "stockholders",
-         "Board of Directors",
-         "officers",
-         "annual meeting",
-         "quorum",
-         "voting",
-         "indemnification"
+         "Power of attorney",
+         "MetLife Insurance CO of Connecticut"
         ]
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 11,
+        "dev": 9,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -12044,15 +12038,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 26,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 10,
-        "heldout": 7,
+        "calibration": 6,
+        "dev": 9,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "hub": 26
        },
        "type": "name",
        "verdict": "constant"
@@ -12061,7 +12055,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.111,
+        "share": 0.12,
         "value": [
          "Michael K. Farrell",
          "Maria R. Morris",
@@ -12073,15 +12067,15 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 25,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 10,
+        "dev": 8,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 12,
+        "interim": 10,
         "near_gold": 15
        },
        "type": "entity_list:name",
@@ -12091,20 +12085,20 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.107,
-        "value": "powers_of_attorney of MetLife Insurance CO of Connecticut  (CIK 0000733076) (SEC EDGAR exhibit). EX-24"
+        "share": 0.115,
+        "value": "Power of attorney of MetLife Insurance CO of Connecticut."
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 11,
+        "dev": 9,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "hub": 28
+        "hub": 26
        },
        "type": "free_text",
        "verdict": "thin"
@@ -12113,10 +12107,10 @@
      "intent": "authority_delegation",
      "notes": "entity_name is the registrant the POA relates to; the principal may be an individual director/officer.",
      "record_type": "powers_of_attorney",
-     "rows": 28,
+     "rows": 26,
      "rows_by_set": {
       "calibration": 6,
-      "dev": 11,
+      "dev": 9,
       "heldout": 11,
       "pool": 0
      },
@@ -12139,49 +12133,50 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.178,
+        "share": 0.208,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 45,
+       "labeled": 48,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 19,
-        "heldout": 20,
+        "calibration": 7,
+        "dev": 20,
+        "heldout": 21,
         "pool": 0
        },
        "truth": {
-        "interim": 17,
-        "near_gold": 28
+        "interim": 19,
+        "near_gold": 29
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.258,
+        "share": 0.224,
         "value": "NMI Holdings, Inc."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 31,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 14,
-        "heldout": 12,
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
         "pool": 0
        },
        "truth": {
-        "interim": 20,
-        "near_gold": 11
+        "hub": 27,
+        "interim": 10,
+        "near_gold": 12
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "exercise_price": {
        "dojo_status": "pending_annotation",
@@ -12207,15 +12202,16 @@
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 18,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 8,
-        "heldout": 8,
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
         "pool": 0
        },
        "truth": {
-        "interim": 18
+        "hub": 29,
+        "interim": 20
        },
        "type": "id",
        "verdict": "not_applicable"
@@ -12269,15 +12265,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 46,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 20,
-        "heldout": 20,
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "hub": 49
        },
        "type": "label",
        "verdict": "constant"
@@ -12286,43 +12282,11 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.581,
+        "share": 0.609,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
-       "in_output_schema": true,
-       "labeled": 43,
-       "labeled_by_set": {
-        "calibration": 5,
-        "dev": 19,
-        "heldout": 19,
-        "pool": 0
-       },
-       "truth": {
-        "interim": 10,
-        "near_gold": 33
-       },
-       "type": "name",
-       "verdict": "thin"
-      },
-      "keywords": {
-       "dojo_status": "scored",
-       "dominant": {
-        "kind": "value",
-        "share": 0.022,
-        "value": [
-         "Warrant",
-         "300,000 shares",
-         "Common Stock",
-         "Art Dimensions, Inc.",
-         "Exercise Price $0.001",
-         "Expiration May 31, 2013",
-         "Transfer restrictions",
-         "Securities Act of 1933"
-        ]
-       },
-       "effective_status": "scored",
        "in_output_schema": true,
        "labeled": 46,
        "labeled_by_set": {
@@ -12332,7 +12296,33 @@
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "interim": 12,
+        "near_gold": 34
+       },
+       "type": "name",
+       "verdict": "iterate"
+      },
+      "keywords": {
+       "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.061,
+        "value": [
+         "Rights instrument",
+         "ARAMARK WORLDWIDE CORP"
+        ]
+       },
+       "effective_status": "scored",
+       "in_output_schema": true,
+       "labeled": 49,
+       "labeled_by_set": {
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
+        "pool": 0
+       },
+       "truth": {
+        "hub": 49
        },
        "type": "entity_list:name",
        "verdict": "iterate"
@@ -12346,15 +12336,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 49,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 10,
-        "heldout": 9,
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 49
        },
        "type": "name",
        "verdict": "constant"
@@ -12403,44 +12393,44 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.114,
+        "share": 0.17,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 44,
+       "labeled": 47,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 19,
-        "heldout": 19,
-        "pool": 0
-       },
-       "truth": {
-        "interim": 9,
-        "near_gold": 35
-       },
-       "type": "entity_list:name",
-       "verdict": "thin"
-      },
-      "subject_matter": {
-       "dojo_status": "scored",
-       "dominant": {
-        "kind": "value",
-        "share": 0.043,
-        "value": "rights_instrument of GREEN DOT CORP  (GDOT)  (CIK 0001386278) (SEC EDGAR exhibit). EX-4.02"
-       },
-       "effective_status": "scored",
-       "in_output_schema": true,
-       "labeled": 46,
-       "labeled_by_set": {
-        "calibration": 6,
+        "calibration": 7,
         "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "hub": 46
+        "interim": 11,
+        "near_gold": 36
+       },
+       "type": "entity_list:name",
+       "verdict": "iterate"
+      },
+      "subject_matter": {
+       "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.061,
+        "value": "Rights instrument of ARAMARK WORLDWIDE CORP."
+       },
+       "effective_status": "scored",
+       "in_output_schema": true,
+       "labeled": 49,
+       "labeled_by_set": {
+        "calibration": 7,
+        "dev": 21,
+        "heldout": 21,
+        "pool": 0
+       },
+       "truth": {
+        "hub": 49
        },
        "type": "free_text",
        "verdict": "iterate"
@@ -12449,11 +12439,11 @@
      "intent": "investor_rights",
      "notes": "",
      "record_type": "rights_instrument",
-     "rows": 46,
+     "rows": 49,
      "rows_by_set": {
-      "calibration": 6,
-      "dev": 20,
-      "heldout": 20,
+      "calibration": 7,
+      "dev": 21,
+      "heldout": 21,
       "pool": 0
      },
      "salient": [
@@ -12465,10 +12455,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 2,
+      "iterate": 6,
       "no_truth": 5,
-      "not_applicable": 1,
-      "thin": 4
+      "not_applicable": 1
      }
     },
     "subsidiary_list": {
@@ -12501,37 +12490,39 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.524,
+        "share": 0.151,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 10,
-        "heldout": 5,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 43,
+        "interim": 10
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 32,
         "interim": 21
        },
        "type": "id",
@@ -12564,14 +12555,15 @@
        "effective_status": "not_applicable",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 14,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 8,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 39,
         "interim": 14
        },
        "type": "name",
@@ -12581,13 +12573,10 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.019,
+        "share": 0.038,
         "value": [
-         "subsidiary_list",
-         "EX-21.1",
-         "S-1/A",
-         "0000898430-02-003224",
-         "ACCREDITED HOME LENDERS HOLDING CO  (CIK 0001174735)"
+         "List of subsidiaries",
+         "Compressco Partners, L.P."
         ]
        },
        "effective_status": "scored",
@@ -12614,15 +12603,15 @@
        },
        "effective_status": "scored",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 21
+        "hub": 53
        },
        "type": "name",
        "verdict": "constant"
@@ -12632,14 +12621,15 @@
        "effective_status": "not_applicable",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 13,
-        "heldout": 3,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
+        "hub": 32,
         "interim": 21
        },
        "type": "entity_list:name",
@@ -12650,7 +12640,7 @@
        "dominant": {
         "kind": "value",
         "share": 0.038,
-        "value": "subsidiary_list of Compressco Partners, L.P.  (CIK 0001449488) (SEC EDGAR exhibit). EX-21.1"
+        "value": "List of subsidiaries of Compressco Partners, L.P."
        },
        "effective_status": "scored",
        "in_output_schema": true,
@@ -12724,10 +12714,9 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 2,
+      "iterate": 3,
       "no_truth": 2,
-      "not_applicable": 3,
-      "thin": 1
+      "not_applicable": 3
      }
     }
    }
@@ -20666,7 +20655,7 @@
  },
  "inputs": {
   "constant_share": 0.95,
-  "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+  "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "6176bc0afaaa5d6d83b508256cbc712b996bda7d50a1b9bdc34349556fa0bf41",
   "min_dev": 20,
@@ -20694,17 +20683,17 @@
   {
    "class": "corporate_record",
    "field": "signatories",
-   "labeled_but_not_applicable": 21
+   "labeled_but_not_applicable": 53
   },
   {
    "class": "corporate_record",
    "field": "jurisdiction",
-   "labeled_but_not_applicable": 14
+   "labeled_but_not_applicable": 53
   },
   {
    "class": "corporate_record",
    "field": "filing_number",
-   "labeled_but_not_applicable": 138
+   "labeled_but_not_applicable": 314
   }
  ],
  "status_repairs": [
