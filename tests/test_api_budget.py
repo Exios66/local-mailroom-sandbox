@@ -59,14 +59,15 @@ def test_a_gpu_run_still_needs_the_gpu_cap():
 
 def test_the_budget_prices_at_the_highest_api_price_and_seeds_from_persisted_items():
     lock = _lock(agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.5-27b"}},
-                 job={"mock": False, "api_cost_cap_usd": 0.01})
+                 job={"mock": False, "api_cost_cap_usd": 0.005})
     budget = api_budget.budget_for(lock, [{"prompt_tokens": 10_000, "completion_tokens": 1_000}])
-    assert (budget.usd_per_m_in, budget.usd_per_m_out) == (0.26, 2.60)
-    assert budget.spent_usd == pytest.approx(0.0052)
+    # The refreshed live-catalog sheet (config/api_prices.yaml): 0.195/1.56 per 1M.
+    assert (budget.usd_per_m_in, budget.usd_per_m_out) == (0.195, 1.56)
+    assert budget.spent_usd == pytest.approx(0.00351)
     assert budget.exceeded() is None
     budget.add(10_000, 1_000)
-    assert "api_cost_cap_usd=0.01 reached" in budget.exceeded()
-    assert api_budget.budget_for({**lock, "job": {"mock": True, "api_cost_cap_usd": 0.01}}) is None
+    assert "api_cost_cap_usd=0.005 reached" in budget.exceeded()
+    assert api_budget.budget_for({**lock, "job": {"mock": True, "api_cost_cap_usd": 0.005}}) is None
 
 
 def test_the_pipeline_stops_before_the_next_document_once_api_spend_reaches_the_cap(monkeypatch):

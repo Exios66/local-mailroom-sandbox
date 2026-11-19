@@ -486,3 +486,14 @@ def test_served_usage_keeps_object_zeros_and_drops_non_finite_values():
     assert pp.served_usage(zero) == {"prompt_tokens": 120, "completion_tokens": 0, "reported_cost_usd": 0.0}
     bad = {"usage": {"prompt_tokens": 50, "completion_tokens": float("inf"), "cost": float("nan")}}
     assert pp.served_usage(bad) == {"prompt_tokens": 50}
+
+
+def test_preimported_pdf_transcriber_uses_pinned_guarded_transport(vendored, monkeypatch):
+    seen, base = vendored
+    pdf = types.ModuleType("agents.pdf_transcriber")
+    pdf.retry_chat_completion = base.retry_chat_completion
+    monkeypatch.setitem(sys.modules, "agents.pdf_transcriber", pdf)
+    pp.apply_provider_pins(PINS)
+    pdf.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash")
+    assert seen[-1]["extra_body"]["provider"]["order"] == ["Alibaba"]
+    assert len(pp.ledger()) == 1

@@ -291,9 +291,16 @@ def run_isolated_eval(
 
     spec = spec_for(task)
     if prompt_version is None:
-        from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+        # No --prompt: the agent's lineage frontrunner (the same default a locked run
+        # gets), never a silent regression to the pre-condensed stem. An explicit
+        # --prompt-version selection owns the surface instead; agents outside the
+        # condensed lineages keep their eval-environment parity stem.
+        from mailroom_sandbox import prompt_versions as pv
 
-        prompt_version = default_prompt_variant(task)
+        if not pv.active_selection():
+            from mailroom_sandbox.prompt_lineage import default_stem_for
+
+            prompt_version = default_stem_for(task)
     rows = spec.load_rows() if rows is None else rows
     if sample is not None:
         if sample <= 0:
@@ -610,6 +617,12 @@ def run_sorter_eval(
         return plan
 
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("sorter")
     predicted: list[str] = []
     expected: list[str] = []
     for row in rows:
@@ -688,6 +701,12 @@ def run_extract_eval(
     if dry_run:
         return plan
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("extract")
     overall: list[float] = []
     schema_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -1173,6 +1192,12 @@ def run_pipeline_eval(
     activation = activate(
         profile, model=model, prompt_variant=prompt_version, agent_models=agent_models
     )
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("pipeline")
     session = tracing.session_id_for("pipeline")
     import threading
     import time
@@ -1390,6 +1415,11 @@ def run_pipeline_eval(
     from mailroom_sandbox.eval import human_review
 
     scores.update(human_review.for_pipeline(results))
+    # The incorrect-archive metric beside the review metric (eval/archive_correctness.py):
+    # per-class wrong/incomplete archives with reasons, gate semantics (quality bar 0.90).
+    from mailroom_sandbox.eval import archive_correctness
+
+    scores.update(archive_correctness.for_pipeline(rows, results, extraction_rows=extraction_rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))

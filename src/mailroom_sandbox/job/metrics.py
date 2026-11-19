@@ -57,26 +57,26 @@ API_PROFILES = ("openrouter",)
 SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
     # SAND-077: Qwen3.5 rows price at their own OpenRouter twin (same weights),
-    # list price checked 2026-10-30.
+    # list price checked 2026-11-19.
     "Qwen/Qwen3.5-9B": (0.17, 0.25),  # qwen/qwen3.5-9b
     "Qwen/Qwen3.5-35B-A3B": (0.14, 1.00),  # qwen/qwen3.5-35b-a3b
-    "Qwen/Qwen3.5-27B": (0.26, 2.60),  # qwen/qwen3.5-27b
+    "Qwen/Qwen3.5-27B": (0.195, 1.56),  # qwen/qwen3.5-27b
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
     # SAND-027 Granite twin: OpenRouter ibm-granite/granite-4.2-8b list price
-    # ($0.06/$0.25 per 1M) applies to both the bf16 id and the -fp8 Modal leg
+    # ($0.06/$0.15 per 1M) applies to both the bf16 id and the -fp8 Modal leg
     # (same weights; FP8 is the 1×L4 serve form).
-    "ibm-granite/granite-4.2-8b": (0.06, 0.25),
-    "ibm-granite/granite-4.2-8b-fp8": (0.06, 0.25),
+    "ibm-granite/granite-4.2-8b": (0.06, 0.15),
+    "ibm-granite/granite-4.2-8b-fp8": (0.06, 0.15),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
     # SAND-089: the OpenRouter ids themselves, so a paid API run can price (and cap)
-    # its token spend. OpenRouter /api/v1/models list price, checked 2026-10-31.
+    # its token spend. OpenRouter /api/v1/models list price, checked 2026-11-19.
     "qwen/qwen3.5-9b": (0.17, 0.25),
     "qwen/qwen3.5-35b-a3b": (0.14, 1.00),
-    "qwen/qwen3.5-27b": (0.26, 2.60),
+    "qwen/qwen3.5-27b": (0.195, 1.56),
     "openai/gpt-4o": (2.50, 10.00),
     "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
     "openai/gpt-6-luna": (0.10, 0.50),
@@ -85,12 +85,12 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
 }
 
 # Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
-# GET https://openrouter.ai/api/v1/models, checked 2026-11-18. A tier applies to a whole call
+# GET https://openrouter.ai/api/v1/models, checked 2026-11-19. A tier applies to a whole call
 # whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
 # tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
 # long document. The live copy is config/api_prices.yaml (refresh it with
 # scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
-API_PRICES_CHECKED = "2026-11-18"
+API_PRICES_CHECKED = "2026-11-19"
 API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     "qwen/qwen3.7-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
@@ -107,6 +107,15 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     ],
     "deepseek/deepseek-v4-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.09, "completion": 0.18, "cache_read": 0.018},
+    ],
+    "qwen/qwen3.5-35b-a3b": [
+        {"min_prompt_tokens": 0, "prompt": 0.14, "completion": 1.00, "cache_read": 0.05},
+    ],
+    "qwen/qwen3.5-27b": [
+        {"min_prompt_tokens": 0, "prompt": 0.195, "completion": 1.56},
+    ],
+    "ibm-granite/granite-4.2-8b": [
+        {"min_prompt_tokens": 0, "prompt": 0.06, "completion": 0.15, "cache_read": 0.015},
     ],
 }
 

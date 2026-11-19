@@ -105,3 +105,40 @@ def test_a_document_the_guard_cut_short_is_an_error_row_not_a_score(monkeypatch)
     assert len(calls) == 6  # stopped at the cap, not 140 calls later
     assert "API call guard" in str(raised.value) or "api_cost_cap_usd" in str(raised.value)
     assert not [i for i in items if not i.get("error")]  # nothing scored as a pipeline outcome
+
+
+def test_decisions_transport_obeys_the_run_guard_before_each_attempt(monkeypatch):
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    calls = []
+    monkeypatch.setattr("httpx.post", lambda *a, **k: calls.append(1))
+    budget = _budget()
+    call_guard.arm(budget, ceiling=1)
+    with call_guard.document():
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        with pytest.raises(Exception, match="per-document ceiling"):
+            db._post_decision({}, timeout=1, attempts=3)
+    assert calls == []
+
+
+def test_decisions_rechecks_budget_before_retry(monkeypatch):
+    import httpx
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    calls = []
+
+    def first_attempt(*args, **kwargs):
+        calls.append(1)
+        # A different in-flight request reaches the shared cap while this one fails.
+        call_guard.after_call({"prompt_tokens": 600_000, "completion_tokens": 1})
+        raise httpx.ConnectError("temporary")
+
+    monkeypatch.setattr("httpx.post", first_attempt)
+    call_guard.arm(_budget(), ceiling=40)
+    with call_guard.document():
+        with pytest.raises(Exception, match="api_cost_cap_usd"):
+            db._post_decision({}, timeout=1, attempts=3)
+    assert len(calls) == 1
