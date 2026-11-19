@@ -1,0 +1,60 @@
+# Campaign rb1 (runbook-v1): the evaluation runbook, phases 0-9, rows R00..R90.
+#
+# Read by src/mailroom_sandbox/report_campaigns.py. Built once from the runbook CSV
+# (experiment_runbook.csv, kept outside the repo); only the row IDs, phases and a short
+# paraphrased title are copied here. The naming grammar lives in reports/campaigns/README.md:
+#
+#   experiment key   <campaign>-<row>          rb1-r01
+#   experiment dir   <key>-<slug>              rb1-r01-provider-pin-smoke
+#   run_id           <key>-<rest>              rb1-r01-smoke-qwen3.7-flash
+#   iteration        iNN                       i01
+#   artifact         <run_id>-<iNN>.<name>.<ext>
+#
+# A run belongs to the experiment whose key prefixes its run_id; its committed config is
+# config/runs/<run_id>.yaml. Gate rows (gN) and analysis-only rows have no runs of their own.
+schema: sandbox.campaign/v1
+campaign: rb1
+name: runbook-v1
+title: Evaluation runbook v1
+experiments:
+  - {row: r00, slug: splits-freeze, phase: "0 Setup", title: "Build and freeze splits and subclass families; leak and length audit"}
+  - {row: r01, slug: provider-pin-smoke, phase: "0 Setup", title: "Pin slugs and providers; 10-doc smoke per model"}
+  - {row: r02, slug: scorer-handcheck, phase: "0 Setup", title: "Scoring harness hand-check (F1, cost-weighted error, Brier/ECE, null floors)"}
+  - {row: r03, slug: gold-audit, phase: "0 Setup", title: "Gold-label audit of v0-vs-gold disagreements per lineage"}
+  - {row: g0, slug: checkpoint, phase: "0 Setup", title: "Phase 0 checkpoint (QC, review, stop)"}
+  - {row: r10, slug: pilot-repeatability, phase: "1 Pilot", title: "Merged into R14 (temperature-0 arm repeats)"}
+  - {row: r11, slug: sorter-v0-1, phase: "1 Pilot", title: "Sorter v0.1, one small edit"}
+  - {row: r12, slug: specialists-v0, phase: "1 Pilot", title: "Specialists v0"}
+  - {row: r13, slug: decision-routing, phase: "1 Pilot", title: "Decision models in the routing role"}
+  - {row: r13b, slug: sorter-vs-decision, phase: "1 Pilot", title: "H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row)"}
+  - {row: r14, slug: decoding-sweep, phase: "1 Pilot", title: "Decoding sweep (temperature grid)"}
+  - {row: r15, slug: input-cap-sweep, phase: "1 Pilot", title: "Sorter input-cap sweep"}
+  - {row: g1, slug: checkpoint, phase: "1 Pilot", title: "Phase 1 checkpoint; re-run sizing with measured values"}
+  - {row: r20, slug: sorter-v0-baselines, phase: "2 Model screen", title: "Sorter v0 baselines and iteration floor"}
+  - {row: g2, slug: checkpoint, phase: "2 Model screen", title: "Phase 2 checkpoint"}
+  - {row: r30, slug: sorter-iteration, phase: "3 Sorter iteration", title: "Sorter-condensed iteration on the iteration model"}
+  - {row: r31, slug: dev-rotation, phase: "3 Sorter iteration", title: "Dev rotation from the pool"}
+  - {row: r32, slug: sorter-transfer, phase: "3 Sorter iteration", title: "Transfer the final sorter to the stronger models"}
+  - {row: g3, slug: checkpoint, phase: "3 Sorter iteration", title: "Phase 3 checkpoint"}
+  - {row: r40, slug: specialist-noise-floor, phase: "4 Specialists", title: "Specialist noise floor across lineages"}
+  - {row: r41, slug: specialist-iteration, phase: "4 Specialists", title: "Specialist iteration"}
+  - {row: r42, slug: specialist-transfer, phase: "4 Specialists", title: "Transfer final specialists to the production extractor"}
+  - {row: g4, slug: checkpoint, phase: "4 Specialists", title: "Phase 4 checkpoint"}
+  - {row: r50, slug: calibration-run, phase: "5 Calibration", title: "Final sorter on the production model over the calibration set"}
+  - {row: r51, slug: calibration-fit, phase: "5 Calibration", title: "Fit calibrators and certify gates"}
+  - {row: g5, slug: checkpoint, phase: "5 Calibration", title: "Phase 5 checkpoint"}
+  - {row: r60, slug: decision-screen, phase: "6 Decision models", title: "Screen decision models in all three roles"}
+  - {row: r61, slug: decision-transfer, phase: "6 Decision models", title: "Transfer the top decision models per role"}
+  - {row: r62, slug: decision-cycles, phase: "6 Decision models", title: "Decision-model cycles and repeatability probe"}
+  - {row: g6, slug: checkpoint, phase: "6 Decision models", title: "Phase 6 checkpoint"}
+  - {row: r65, slug: load-test, phase: "6b Load test", title: "Load test with a stub model replaying ingress streams"}
+  - {row: g6b, slug: checkpoint, phase: "6b Load test", title: "Phase 6b checkpoint"}
+  - {row: r70, slug: heldout-sorter, phase: "7 Held-out (sealed)", title: "Held-out sorter finalists, final vs v0"}
+  - {row: r70b, slug: sorter-vs-decision, phase: "7 Held-out (sealed)", title: "H5 confirmatory: decision-model sorter vs LLM sorter on held-out (added row)"}
+  - {row: r71, slug: heldout-pipeline, phase: "7 Held-out (sealed)", title: "Held-out full pipeline end to end, once"}
+  - {row: r72, slug: review-reduction, phase: "7 Held-out (sealed)", title: "Review reduction against production"}
+  - {row: r73, slug: dropped, phase: "7 Held-out (sealed)", title: "Dropped"}
+  - {row: g7, slug: checkpoint, phase: "7 Held-out", title: "Phase 7 checkpoint"}
+  - {row: r80, slug: readout, phase: "8 Report", title: "Final readout (F1, gates, review reduction, backlog)"}
+  - {row: g8, slug: checkpoint, phase: "8 Report", title: "Phase 8 checkpoint"}
+  - {row: r90, slug: production-shadow, phase: "9 Production shadow", title: "Production shadow run with weekly audits"}

@@ -278,6 +278,10 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
     return out
 
 
+#: Label fields of constructed control rows that normalize_rows keeps (see there).
+CONTROL_FIELDS = ("expected_document_form", "control", "derived_from", "class_label_scored")
+
+
 def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Canonical dataset.jsonl row shape; verifies/fills content_sha256."""
     out: list[dict[str, Any]] = []
@@ -321,6 +325,22 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "split": row.get("split", ""),
             "source_revision": row.get("source_revision", ""),
         }
+        # Constructed control rows (scripts/rb1_form_floor.py, rb1_build_form_controls.py) carry
+        # their known-by-construction labels into the lock, so a run and its report can read them.
+        for key in CONTROL_FIELDS:
+            if row.get(key) is not None:
+                normalized[key] = row[key]
+        # A bundle of two documents has no one true class: its class labels are placeholders
+        # (``class_label_scored: false``). The row gets no truth class, so scoring leaves it
+        # unscored (SHF-007) instead of calling the model's answer wrong; the placeholders stay.
+        # A row that was already normalized (a locked bundle reused as local input) carries its
+        # placeholders and no truth class; keep them rather than overwrite them with None.
+        if row.get("class_label_scored") is False:
+            for truth, placeholder in (("expected_doc_class", "placeholder_doc_class"),
+                                       ("expected_subclass", "placeholder_subclass")):
+                value = normalized.pop(truth)
+                normalized[placeholder] = value if value not in (None, "") else row.get(placeholder)
+                normalized[truth] = None
         # LegalBench-style rows keep their question/answer for the live path.
         if row.get("question") is not None:
             normalized["question"] = row.get("question")
@@ -738,7 +758,8 @@ def select_rows(
     return sorted(chosen, key=_stable_key)
 
 
-def _apply_near_gold_overlay(chosen: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _apply_near_gold_overlay(chosen: list[dict[str, Any]], interim: dict[str, Any] | None = None,
+                            ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Fill unlabelled fields from the near-gold overlay; return the rows and their provenance."""
     from mailroom_sandbox import gold_labels as gl
 
@@ -746,7 +767,7 @@ def _apply_near_gold_overlay(chosen: list[dict[str, Any]]) -> tuple[list[dict[st
     overlay, overlay_sha, problems = gl.near_gold_snapshot()
     if problems:
         raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
-    rows = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+    rows = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha, interim=interim) for r in chosen]
     labelled = [r for r in rows if r.get("near_gold_labels")]
     return rows, {"overlay_sha256": overlay_sha, "status": "near_gold", "rows_with_labels": len(labelled),
                   "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in labelled)}
@@ -827,20 +848,22 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
+    interim_overlay = None
     if getattr(spec, "interim_labels", False):
         from mailroom_sandbox import interim_labels as il
 
         problems = il.verify()
         if problems:
             raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
-        overlay, overlay_sha = il.load_overlay(), il.overlay_fingerprint()
-        chosen = [il.apply_overlay(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+        interim_overlay, overlay_sha = il.load_overlay(), il.overlay_fingerprint()
+        chosen = [il.apply_overlay(r, interim_overlay, overlay_sha=overlay_sha) for r in chosen]
         source_meta = {**source_meta, "interim_labels": {
             "overlay_sha256": overlay_sha,
             "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
             "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
     if getattr(spec, "near_gold_labels", False):
-        chosen, meta = _apply_near_gold_overlay(chosen)
+        # SHF-010 precedence reads the interim overlay these rows were prepared with.
+        chosen, meta = _apply_near_gold_overlay(chosen, interim_overlay)
         source_meta = {**source_meta, "near_gold_labels": meta}
 
     payload = "".join(_cache_line(r) for r in chosen)

@@ -429,7 +429,7 @@ def _live_intake(row: dict[str, Any]) -> dict[str, Any]:
         return {"text": cleaned, **(stats or {}), "offline_fallback": True}
 
 
-def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+def _class_answer(row: dict[str, Any], pred: dict[str, Any]) -> tuple[str, str]:
     expected = str(row.get("expected_doc_class") or row.get("doc_type") or "")
     predicted = str(pred.get("doc_type") or pred.get("value") or "")
     if predicted.startswith("("):  # legacy stringified classify() tuple (SAND-032 s6)
@@ -439,10 +439,94 @@ def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
             predicted = str(ast.literal_eval(predicted)[0])
         except (ValueError, SyntaxError, IndexError, TypeError):
             pass
-    return {"match": float(expected == predicted), "expected": expected, "predicted": predicted}
+    return expected, predicted
 
 
-def _score_extract(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+def _fold(label: str) -> str:
+    return " ".join(label.strip().lower().replace("-", "_").split()).replace(" ", "_")
+
+
+def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+    """Class match, dual reported: raw is exact string equality (an empty truth equals an empty answer).
+
+    SHF-007: labels compare case-, hyphen- and whitespace-folded; a row with no truth class is
+    unscored (``match`` None); an abstention (``route_to_human`` / ``abstained`` / no answer) is its
+    own outcome, ``abstain: True``, scored wrong and routed to review, never correct and never dropped.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    expected, predicted = _class_answer(row, pred)
+    raw = {"match": float(expected == predicted), "expected": expected, "predicted": predicted}
+    if "SHF-007" not in sh.current_ids():
+        return sh.merge_dual(raw, raw, [])
+    abstained = bool(pred.get("abstained") or pred.get("route_to_human") or not predicted.strip())
+    if not expected.strip():
+        match = None
+    elif abstained:
+        match = 0.0
+    else:
+        match = float(_fold(expected) == _fold(predicted))
+    fixed = {"match": match, "expected": expected, "predicted": predicted, "abstain": abstained,
+             "outcome": "unscored" if match is None else "abstain" if abstained else
+             "correct" if match else "wrong"}
+    if abstained:
+        fixed["routed_to_review"] = True
+    return sh.merge_dual(raw, fixed, ["SHF-007"])
+
+
+def _score_sorter(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+    """The class score (SHF-007) plus the row's subclass outcome (SHF-013), dual reported.
+
+    ``subclass_match`` is on the corrected truth and ``raw_dojo.subclass_match`` on the Hub truth
+    (``eval.scoring.sorter_subclass_row``); a row without a truth subclass gets no subclass keys.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.eval.scoring import sorter_subclass_row
+
+    scored = _score_class(row, pred)
+    if "SHF-013" not in sh.current_ids():
+        return scored
+    sub = sorter_subclass_row(row, pred)
+    if sub is None:
+        return scored
+    hub = sub.pop("hub_subclass_match")
+    scored.update(sub)
+    scored.setdefault("raw_dojo", {})["subclass_match"] = hub
+    scored["scoring_hotfixes"] = sorted({*scored.get("scoring_hotfixes", []), "SHF-013"})
+    if hub != sub["subclass_match"]:
+        scored["scoring_hotfixes_changed"] = sorted({*scored.get("scoring_hotfixes_changed", []), "subclass_match"})
+    return scored
+
+
+def _score_verdict(row: dict[str, Any], pred: dict[str, Any], key: str, expected_field: str) -> dict[str, Any]:
+    """Judge / arbiter / boss verdict match, dual reported.
+
+    Raw: with a truth verdict, a case-folded label match; without one, 1.0 for any non-empty output.
+    SHF-008: without a truth verdict the row is unscored (``match`` None); a judge parse failure
+    (the vendored judge's ``judge output failed to parse`` fallback) scores 0 with ``parse_error``.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    present = bool(pred.get(key)) if key != "completeness_label" else bool(pred)
+    raw = (_score_label(row, pred, key, expected_field) if row.get(expected_field)
+           else {"match": 1.0 if present else 0.0})
+    if "SHF-008" not in sh.current_ids():
+        return sh.merge_dual(raw, raw, [])
+    parse_failed = str(pred.get("reasoning") or "").strip() == JUDGE_PARSE_FAILURE or bool(pred.get("parse_error"))
+    if parse_failed:
+        fixed = {**raw, "match": 0.0, "parse_error": True}
+    elif str(row.get(expected_field) or "").strip():  # a blank truth verdict is no truth
+        fixed = dict(raw)
+    else:
+        fixed = {"match": None, "outcome": "unscored"}
+    return sh.merge_dual(raw, fixed, ["SHF-008"])
+
+
+#: The vendored CompletenessJudge's reasoning when its structured output failed to parse.
+JUDGE_PARSE_FAILURE = "judge output failed to parse"
+
+
+def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: bool = False) -> dict[str, Any]:
     expected = parse_expected_fields(row) or row.get("expected_fields") or {}
     if not isinstance(expected, dict):
         expected = {}
@@ -455,6 +539,8 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
         # Per-subclass scoring (sandbox #145): the row's GT subclass drives the
         # vendored corporate-record alignment (see scoring.py).
         expected_subclass=row.get("expected_subclass"),
+        field_scores=field_scores,
+        truth_overrides=row.get("truth_overrides"),
     )
 
 
@@ -589,7 +675,7 @@ _register(
         load_rows=load_manifest,
         mock_predict=_mock_classify,
         live_predict=_live_sorter,
-        score_one=_score_class,
+        score_one=_score_sorter,
     )
 )
 _register(
@@ -600,7 +686,7 @@ _register(
         load_rows=_reviewer_rows,
         mock_predict=_mock_classify,
         live_predict=_live_reviewer,
-        score_one=_score_class,
+        score_one=_score_sorter,
     )
 )
 
@@ -641,11 +727,7 @@ _register(
             "reasoning": "mock",
         },
         live_predict=_live_judge,
-        score_one=lambda row, pred: _score_label(
-            row, pred, "completeness_label", "expected_verdict"
-        )
-        if row.get("expected_verdict")
-        else {"match": 1.0 if pred else 0.0},
+        score_one=lambda row, pred: _score_verdict(row, pred, "completeness_label", "expected_verdict"),
     )
 )
 _register(
@@ -661,9 +743,7 @@ _register(
             "handoff_summary": "",
         },
         live_predict=_live_arbiter,
-        score_one=lambda row, pred: _score_label(row, pred, "decision", "expected_decision")
-        if row.get("expected_decision")
-        else {"match": 1.0 if pred.get("decision") else 0.0},
+        score_one=lambda row, pred: _score_verdict(row, pred, "decision", "expected_decision"),
     )
 )
 _register(
@@ -677,9 +757,7 @@ _register(
             "reasoning": "mock",
         },
         live_predict=_live_boss,
-        score_one=lambda row, pred: _score_label(row, pred, "decision", "expected_decision")
-        if row.get("expected_decision")
-        else {"match": 1.0 if pred.get("decision") else 0.0},
+        score_one=lambda row, pred: _score_verdict(row, pred, "decision", "expected_decision"),
     )
 )
 _register(

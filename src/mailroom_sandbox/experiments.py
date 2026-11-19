@@ -313,6 +313,9 @@ def _create(args) -> int:
             if args.local_dataset:
                 ds.update(provider='file', local_path=str(Path(args.local_dataset).resolve()))
             data['job']['task'] = data['task']
+            # The template's blind_routing was resolved for its own task; unset it so the new task
+            # resolves its own (blind for a pipeline, never an inherited oracle-routing false).
+            data['job']['blind_routing'] = None
             data['trace'].update(sink=args.trace_sink, otlp=args.trace_sink != 'none', endpoint=args.trace_endpoint,
                                  environment=args.study, tags=['sandbox', 'experiment', args.study, label])
             data['agent_knobs'] = {name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in (known_agents() if args.task == 'pipeline' else [data['task']])}

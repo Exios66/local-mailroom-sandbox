@@ -808,6 +808,33 @@ def _hotfix_check() -> dict[str, Any]:
     return {"name": "vendor_hotfixes", "ok": True, "detail": detail}
 
 
+def _scoring_hotfix_identity() -> dict[str, Any]:
+    from mailroom_sandbox import scoring_hotfixes
+
+    return scoring_hotfixes.describe()
+
+
+def _scoring_hotfix_check() -> dict[str, Any]:
+    """Every scoring hotfix still matches the code it corrects (mailroom_sandbox.scoring_hotfixes)."""
+    from mailroom_sandbox import scoring_hotfixes
+
+    status = scoring_hotfixes.status(refresh=True)
+    stale = sorted(i for i, s in status.items() if s == "stale")
+    # An unavailable target also disables its fix (current_ids()), so the run would lock and
+    # report uncorrected metrics; it fails the check like a stale one.
+    missing = sorted(i for i, s in status.items() if s == "unavailable")
+    detail = ", ".join(f"{i} {s}" for i, s in sorted(status.items())) or "none"
+    if stale or missing:
+        why = []
+        if stale:
+            why.append(f"a scored target changed; re-validate or retire {', '.join(stale)}")
+        if missing:
+            why.append(f"a scored target could not be resolved for {', '.join(missing)}")
+        return {"name": "scoring_hotfixes", "ok": False,
+                "detail": f"{detail}: {'; '.join(why)} (docs/scoring-hotfixes.md)"}
+    return {"name": "scoring_hotfixes", "ok": True, "detail": detail}
+
+
 def _checkout_check(package: Mapping[str, Any]) -> dict[str, Any]:
     """Fail when the launch checkout and the imported code's checkout differ."""
     cwd = _cwd_checkout()
@@ -981,12 +1008,25 @@ def _preflight(
     if dry_run:
         return report
 
+    # 0) sealed held-out (runbook R70-R72): refused before anything is prepared, on a fresh
+    #    preparation and on the start that reuses a lock alike.
+    from mailroom_sandbox.heldout_seal import seal_errors
+
+    sealed = seal_errors(spec, run_id)
+    if sealed:
+        report["status"] = "failed"
+        report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(sealed)})
+        return report
+
     # 1) prompt surface — resolves all agent overrides (fails fast on typos).
     #    Resolved FIRST so the drift check can hash the prompt TEXTS: spec_hash
     #    covers refs only, and two identical refs whose file bodies changed
     #    would otherwise resume with different prompt text (DMR-049).
     try:
-        prompt_block = prompt_lock_block(spec.prompt, offline=offline)
+        # Unnamed agents run their lineage frontrunner, never the vendored prompt (prompt_lineage).
+        from mailroom_sandbox.prompt_lineage import with_lineage_defaults
+
+        prompt_block = prompt_lock_block(with_lineage_defaults(spec.prompt, spec.task), offline=offline)
     except (KeyError, PromptSelectionError) as exc:
         report["status"] = "failed"
         report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
@@ -995,6 +1035,14 @@ def _preflight(
     report["checks"].append(
         {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
     )
+    if spec.task == "pipeline" and spec.job.blind_routing is False and not spec.job.mock:
+        # Oracle routing hands the gold class and fields to the graph: it routes on them and
+        # scores itself against them mid-run, so its accuracy is leaked, not measured.
+        report["status"] = "failed"
+        report["checks"].append({"name": "blind_routing", "ok": False, "detail": (
+            "job.blind_routing: false gives the pipeline graph the ground truth (oracle routing, "
+            "llm-mailroom #207); a live run must be blind: drop the key or set it to true")})
+        return report
 
     try:
         report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
@@ -1017,6 +1065,10 @@ def _preflight(
     if not report["checks"][-1]["ok"]:
         report["status"] = "failed"
         return report
+    report["checks"].append(_scoring_hotfix_check())
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
+        return report
 
     if existing and not force:
         try:
@@ -1029,6 +1081,17 @@ def _preflight(
         if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != vendor_hotfixes.describe():
             return {"status": "drift_refused", "run_id": run_id,
                     "detail": "vendor hotfix set changed since this run was locked; restore it or use --force to re-lock"}
+        from mailroom_sandbox import scoring_hotfixes
+
+        if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != scoring_hotfixes.describe():
+            return {"status": "drift_refused", "run_id": run_id,
+                    "detail": "scoring hotfix set changed since this run was locked; restore it or use --force to re-lock"}
+        # A lock from before the scoring hotfix layer with completed work would resume its pending
+        # rows on the hotfixed basis next to rows scored raw: one run, two scoring bases.
+        if "scoring_hotfixes" not in existing and store.read_checkpoint():
+            return {"status": "drift_refused", "run_id": run_id,
+                    "detail": "this run was locked before the scoring hotfixes and has completed work; resuming "
+                              "would mix scoring bases: use --force to re-lock and rerun it"}
         selection = (existing.get("dataset") or {}).get("selection") or {}
         locked_filter = selection.get("require_task_gt")
         if type(locked_filter) is not bool:
@@ -1157,6 +1220,16 @@ def _preflight(
         report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
         return report
 
+    from mailroom_sandbox.heldout_seal import leak_errors
+
+    if spec.dataset.exclude_ids_file:
+        leaked = leak_errors(spec, (r.get("id") for r in store.dataset_rows()))
+        if leaked:
+            store.dataset_path.unlink(missing_ok=True)  # no held-out text stays behind unlocked
+            report["status"] = "failed"
+            report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
+            return report
+
     if spec.target:
         # Level-2 target: the lock keeps the prepared subset (its sha is the
         # dataset identity); the runner narrows it. Zero matching rows is a
@@ -1281,6 +1354,7 @@ def _preflight(
         "versions": _versions(),
         "dependency_sources": describe(),
         "vendor_hotfixes": _hotfix_identity(),
+        "scoring_hotfixes": _scoring_hotfix_identity(),
         "git": git_snapshot(),
         "package": dict(package),
         "spec_core": frozen_core,

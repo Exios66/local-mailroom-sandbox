@@ -143,6 +143,12 @@ def main(argv: list[str] | None = None, *, injected: Sequence[str] = ()) -> int:
         parser = build_parser()
         args = parser.parse_args(full if injected else argv)
     args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
+    from mailroom_sandbox import console_log
+
+    verbosity = console_log.resolve_verbosity(full, args)
+    console_log.configure(verbosity)
+    if argv is None:  # the console process: child `sandbox` runs (autoresearch, gates) inherit it
+        os.environ[console_log.VERBOSITY_ENV] = str(verbosity)
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
@@ -278,6 +284,20 @@ def build_parser() -> argparse.ArgumentParser:
             dest="agent_models",
             metavar="NAME=TAG",
             help="Surgical per-agent model override (repeatable)",
+        )
+        flags.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0 if root else argparse.SUPPRESS,
+            help="More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG",
+        )
+        flags.add_argument(
+            "-q",
+            "--quiet",
+            action="store_true",
+            default=False if root else argparse.SUPPRESS,
+            help="Console shows only warnings, errors and the final result",
         )
         return flags
 
@@ -907,6 +927,33 @@ def build_parser() -> argparse.ArgumentParser:
     score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
     score_p.add_argument("--serving-dir", default=None, help="default: reports/serving (nested SAND trees and legacy flat exports)")
     score_p.set_defaults(handler=_cmd_scorecard)
+
+    rep = sub.add_parser(
+        "report",
+        help="campaign report tree under reports/campaigns/ (built from run logs)",
+        parents=[leaf],
+    )
+    rep_sub = rep.add_subparsers(dest="report_cmd")
+    rep_build = rep_sub.add_parser(
+        "build",
+        parents=[leaf],
+        help="build one run's tree (--run) or a campaign's indexes (--campaign); --check fails on stale output",
+    )
+    rep_build.add_argument("--run", dest="run_id", default=None,
+                           help="run id in the campaign grammar (rb1-r03-...); one of --run / --campaign")
+    rep_build.add_argument("--campaign", default=None, help="campaign id (rb1): rebuild README + index.jsonl only")
+    rep_build.add_argument("--iteration", default=None, help="only this iteration (1 or i01); default: every one")
+    rep_build.add_argument("--check", action="store_true", help="write nothing; exit 1 when any output is stale")
+    rep_build.add_argument("--runs-dir", default=None, help="read run stores here (default: data/runtime/runs)")
+    rep_build.add_argument("--experiment-log", default=None, help="default: reports/experiment_log.jsonl")
+    rep_build.add_argument("--served-log", action="append", default=[],
+                           help="served-provider ledger (repeatable; default: data/runtime/<key>/served-*.jsonl"
+                                " and SANDBOX_SERVED_LOG)")
+    rep_build.add_argument("--max-copy-bytes", type=_positive_int, default=None,
+                           help="copy logs/traces up to this size; larger ones are referenced by sha256")
+    rep_build.add_argument("--json", action="store_true")
+    rep_build.set_defaults(handler=_cmd_report_build)
+    rep.set_defaults(handler=_cmd_report_help)
 
     rb = sub.add_parser(
         "runbook",
@@ -3314,6 +3361,44 @@ def _cmd_scorecard(args) -> int:
     store = RunStore(spec_mod.runs_root() / str(args.run_id))
     serving = Path(args.serving_dir) if args.serving_dir else reports_dir() / "serving"
     return watch_mod.print_scorecard(store, serving_dir=serving)
+
+
+def _cmd_report_help(args) -> int:
+    print("Use: sandbox report build --run <run_id> [--iteration N] [--check]\n"
+          "     sandbox report build --campaign <campaign> [--check]\n"
+          "Layout and naming: reports/campaigns/README.md")
+    return 0
+
+
+def _cmd_report_build(args) -> int:
+    """Build or check the campaign report tree; exit 1 on stale output with --check, 2 on bad input."""
+    from mailroom_sandbox import report_campaigns as rc
+
+    if bool(args.run_id) == bool(args.campaign):
+        print("error: give exactly one of --run <run_id> or --campaign <campaign>", file=sys.stderr)
+        return 2
+    opts = rc.BuildOptions(
+        runs_dir=Path(args.runs_dir).expanduser() if args.runs_dir else None,
+        experiment_log=Path(args.experiment_log).expanduser() if args.experiment_log else None,
+        served_logs=tuple(Path(p).expanduser() for p in args.served_log),
+        copy_cap=args.max_copy_bytes or rc.COPY_CAP_BYTES,
+    )
+    try:
+        if args.run_id:
+            result = rc.build_run(args.run_id, args.iteration, check=args.check, opts=opts)
+        else:
+            result = rc.build_campaign(args.campaign, check=args.check)
+    except rc.CampaignError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        _print(result)
+    else:
+        verb = "stale" if args.check else "updated"
+        for path in result["stale"]:
+            print(f"{verb}: {path}")
+        print(f"{len(result['stale'])} file(s) {verb}")
+    return 1 if args.check and result["stale"] else 0
 
 
 def _cmd_run_suite(args) -> int:

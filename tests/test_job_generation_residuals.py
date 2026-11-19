@@ -180,6 +180,7 @@ def worker_body(monkeypatch, store):
         def debian_slim(cls, **kwargs): return cls()
         def add_local_python_source(self, *args, **kwargs): return self
         def add_local_dir(self, *args, **kwargs): return self
+        def add_local_file(self, *args, **kwargs): return self
         def uv_pip_install(self, *args, **kwargs): return self
         def env(self, *args, **kwargs): return self
     class Volume:
@@ -354,7 +355,8 @@ def test_old_empty_hash_and_empty_knob_replay_remain_compatible(tmp_path, source
     # fp8 / text-only serve flags), so the all-defaults hash moved once. Every
     # committed run YAML pins engine.model and keeps its hash. The property
     # under test is unchanged: an empty agent_models map adds nothing.
-    bare = "0419b616f6485018dd300ec638c1f64a416140b77a714115167a0c5e9e82e899"
+    # Moved again 2026-11-19 (was 0419b616…): a bare sorter spec now pins sorter_condensed_v5 (prompt_lineage).
+    bare = "0f5a43eee825f8a1253f5510afd5545876eb28bc00cb40a2df933fc156d60cb8"
     assert RunSpec().spec_hash() == bare
     assert RunSpec(agent_models={}).spec_hash() == bare
     spec, _, store, _ = spec_file(tmp_path, source_root)

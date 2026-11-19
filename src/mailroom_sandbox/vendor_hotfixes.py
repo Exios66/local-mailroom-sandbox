@@ -13,17 +13,22 @@ function it wraps:
   target fingerprints and the sha256 of this module, so results name the code that scored them.
 
 Add a hotfix only for pipeline behavior an experiment depends on, with a test, an upstream
-issue or PR in ``upstream`` and the CHANGELOG entry. Never patch scoring here: the scorer is
-the Dojo pin. See ``docs/vendor-hotfixes.md``.
+issue or PR in ``upstream`` and the CHANGELOG entry. Scoring corrections do not go here: they
+live in ``scoring_hotfixes.py``, dual reported beside the Dojo pin's raw values. See
+``docs/vendor-hotfixes.md`` and ``docs/scoring-hotfixes.md``.
+
+``attr`` may name a method (``Class.method``); the wrapper then replaces it on the class.
 """
 
 from __future__ import annotations
 
+import difflib
 import functools
 import hashlib
 import importlib
 import inspect
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -77,6 +82,137 @@ def _install_record_type_from_subclass(_module: Any, original: Callable[..., Any
     return enrich_extraction
 
 
+#: The reasoning the vendored CompletenessJudge returns when its structured output failed to parse.
+JUDGE_PARSE_FAILURE = "judge output failed to parse"
+
+
+class JudgeParseError(RuntimeError):
+    """The completeness judge's answer did not parse: no verdict was reached (HF-002)."""
+
+
+def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def judge_completeness(self: Any, *args: Any, **kwargs: Any) -> dict:
+        out = original(self, *args, **kwargs)
+        # Upstream turns a parse failure into a real "incomplete 0.0" verdict, which sends the
+        # document to the arbiter as if the extraction were judged incomplete and is never counted
+        # as a judge error. Raising takes the graph's own hard-failure path: judge_verdict
+        # "judge_error", routed to human review and counted by the gate.
+        if str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0:
+            raise JudgeParseError(JUDGE_PARSE_FAILURE)
+        return out
+
+    return judge_completeness
+
+
+#: The least share of the source a single-window intake ``cleaned_text`` must keep to replace it.
+INTAKE_CLEAN_MIN_SHARE = 0.9
+#: Content check: the source and cleaned words are aligned in order; the longest run of source
+#: words with no counterpart and the share of such words are bounded.
+INTAKE_CLEAN_MAX_LOST_RUN = 8
+INTAKE_CLEAN_MAX_LOST_SHARE = 0.05
+
+_WORD = re.compile(r"\w+")
+
+
+def lost_words(source: str, cleaned: str) -> tuple[int, float]:
+    """``(longest run, share)`` of source words the cleaned text does not keep, in order.
+
+    Words are case-folded and aligned with :class:`difflib.SequenceMatcher` (its autojunk
+    heuristic keeps a 400k-character document to milliseconds). An OCR or hyphenation repair
+    loses a word or two; a dropped clause loses every word in it, in one run, even when the same
+    wording recurs elsewhere in the document (a set of n-grams would miss that).
+    """
+    src = [w.casefold() for w in _WORD.findall(source or "")]
+    dst = [w.casefold() for w in _WORD.findall(cleaned or "")]
+    if not src:
+        return 0, 0.0
+    longest = matched = prev = 0
+    for block in difflib.SequenceMatcher(None, src, dst).get_matching_blocks():
+        longest = max(longest, block.a - prev)
+        prev = block.a + block.size
+        matched += block.size
+    return longest, (len(src) - matched) / len(src)
+
+
+def _intake_clean_refusal(doc_text: str, cleaned: str) -> str | None:
+    """Why a single-window ``cleaned`` may not replace ``doc_text`` (None when it may)."""
+    if len(cleaned) < INTAKE_CLEAN_MIN_SHARE * len(doc_text or ""):
+        return f"cleaned_text kept {len(cleaned)} of {len(doc_text or '')} characters (HF-003)"
+    run, share = lost_words(doc_text, cleaned)
+    if run >= INTAKE_CLEAN_MAX_LOST_RUN or share > INTAKE_CLEAN_MAX_LOST_SHARE:
+        return f"cleaned_text lost {share:.1%} of the source words, {run} in a row (HF-003)"
+    return None
+
+
+def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def intake_run(self: Any, doc_text: str, filename: str | None = None) -> dict:
+        prep = original(self, doc_text, filename)
+        cleaned = prep.get("cleaned") if isinstance(prep, dict) else None
+        # Upstream accepts any non-empty cleaned_text from a single-window read, and the graph
+        # then replaces the whole document with it. Context fit sends a long document in one
+        # window while the output allowance stays ~2k tokens, so a short or partial reply would
+        # replace a merger with a fragment. The source stands unless the cleaned text keeps its
+        # length and its words: a dropped clause is refused even when the length survives.
+        refusal = _intake_clean_refusal(doc_text, cleaned) if cleaned else None
+        if refusal:
+            for key in ("cleaned", "clean_stats"):
+                prep.pop(key, None)
+            prep["changed"] = False
+            prep["clean_refused"] = refusal
+        return prep
+
+    return intake_run
+
+
+def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def record_usage(usage: Any, model: str | None = None, agent: str | None = None,
+                     served_model: str | None = None) -> None:
+        original(usage, model, agent=agent, served_model=served_model)
+        # Upstream records usage per document for reporting only; the run's API cap was checked
+        # between documents, so one long document could spend without bound. Each returned call
+        # is priced against the run's cap here (job.call_guard; no-op unless a budget is armed).
+        if usage is not None:
+            from mailroom_sandbox.job import call_guard
+
+            call_guard.after_call(usage)
+
+    return record_usage
+
+
+#: Seconds between "holding" log lines from the watcher's backpressure gate (HF-005).
+DISPATCH_HOLD_LOG_SECONDS = 30.0
+
+
+def _install_dispatch_backpressure(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    last_log = [0.0]
+
+    @functools.wraps(original)
+    def submit(self: Any, name: str, fn: Any, path: Any) -> bool:
+        # Upstream queues every inbox file the 1-second rescan sees, with no bound on the
+        # in-memory dispatch queue or on processing/. Over a limit the file is not queued: it
+        # stays in inbox/ and the next rescan offers it again, so intake slows and nothing is
+        # dropped. submit's False ("not queued") is the return its callers already ignore.
+        import time
+
+        from mailroom_sandbox import backpressure
+
+        full = backpressure.saturated(("dispatch", "processing", "review"),
+                                      depths={"dispatch": self.queued_count()})
+        if full:
+            now = time.monotonic()
+            if now - last_log[0] >= DISPATCH_HOLD_LOG_SECONDS:
+                last_log[0] = now
+                _log.warning("HF-005 backpressure: %s stays in the inbox while %s",
+                             name, ", ".join(map(str, full)))
+            return False
+        return original(self, name, fn, path)
+
+    return submit
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -87,6 +223,48 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="corporate_record: a null record_type is filled from every corporate subclass "
                 "through Dojo's subclass -> record_type map, not only the five Hub tokens",
         install=_install_record_type_from_subclass,
+    ),
+    Hotfix(
+        id="HF-002",
+        module="agents.judge",
+        attr="CompletenessJudge.judge_completeness",
+        source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
+        upstream="llm-mailroom: draft issue J-1 in docs/vendor-hotfixes.md (not filed)",
+        summary="a completeness-judge parse failure is a judge error (human review, counted), "
+                "not an 'incomplete 0.0' verdict",
+        install=_install_judge_parse_error,
+    ),
+    Hotfix(
+        id="HF-003",
+        module="agents.intake",
+        attr="IntakeAgent.intake_run",
+        source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
+        upstream="llm-mailroom: draft issue J-2 in docs/vendor-hotfixes.md (not filed)",
+        summary="a single-window intake cleaned_text replaces the document only when it keeps "
+                "90% of its length and its words (no dropped run of 8+ words, under 5% lost); "
+                "context fit reads long documents in one window",
+        install=_install_intake_clean_guard,
+    ),
+    Hotfix(
+        id="HF-004",
+        module="pipeline.limits",
+        attr="record_usage",
+        source_sha256="f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
+        upstream="llm-mailroom: draft issue J-3 in docs/vendor-hotfixes.md (not filed)",
+        summary="every returned call is priced against the run's API cap as it returns, so a "
+                "document in flight cannot spend past job.api_cost_cap_usd (job.call_guard)",
+        install=_install_call_spend,
+    ),
+    Hotfix(
+        id="HF-005",
+        module="pipeline.watcher",
+        attr="_DispatchPool.submit",
+        source_sha256="be8d41188d093a667196d2c9af16342b0d35a237188660eca75308df0292018c",
+        upstream="llm-mailroom: draft issue J-4 in docs/vendor-hotfixes.md (not filed)",
+        summary="the watcher queues an inbox file only while dispatch, processing (and review, "
+                "when limited) are below MAILROOM_MAX_QUEUE_DEPTH_<STAGE>; a held file stays in "
+                "the inbox for the next rescan, never dropped (mailroom_sandbox.backpressure)",
+        install=_install_dispatch_backpressure,
     ),
 )
 
@@ -115,7 +293,11 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
             _log.debug("%s: %s unavailable: %s", fix.id, fix.module, exc)
             _STATUS[fix.id] = "unavailable"
             continue
-        current = getattr(module, fix.attr)
+        owner_path, _, name = fix.attr.rpartition(".")
+        owner: Any = module
+        for part in owner_path.split(".") if owner_path else ():
+            owner = getattr(owner, part)
+        current = getattr(owner, name)
         if getattr(current, _MARK, None) == fix.id:
             _STATUS[fix.id] = "applied"
             continue
@@ -126,7 +308,7 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
             continue
         wrapped = fix.install(module, current)
         setattr(wrapped, _MARK, fix.id)
-        setattr(module, fix.attr, wrapped)
+        setattr(owner, name, wrapped)
         _STATUS[fix.id] = "applied"
         _log.info("%s applied: %s", fix.id, fix.summary)
     return {fix.id: _STATUS[fix.id] for fix in hotfixes}

@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -61,6 +61,25 @@ def _estimated_gpu_usd(
     if gpu_fleet:
         return fleet_gpu_cost_usd(wall, gpu_fleet)
     return float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0)
+
+
+_GPU_PROFILES = ("modal-vllm", "vllm-local", "vllm-remote")
+
+
+def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: str | None) -> str | None:
+    """The GPU class a ``cost_cap_usd`` guard bills, or None when no GPU serves the run.
+
+    An explicit engine GPU or a routed fleet bills; a GPU serving profile without either claims
+    the default L4. An API-only run (OpenRouter) bills no GPU, so its wall clock never trips the
+    GPU cap (rb1 R01: an OpenRouter smoke died on an L4 estimate); job.api_cost_cap_usd bounds it.
+    """
+    if gpu or gpu_fleet:
+        return gpu or "L4"
+    if not profile:  # activate(None) serves the default profile (modal-vllm unless configured)
+        from mailroom_sandbox.providers import default_profile
+
+        profile = default_profile()
+    return "L4" if profile in _GPU_PROFILES else None
 
 
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
@@ -150,6 +169,78 @@ def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, A
     return spec.live_predict(row), False
 
 
+def _row_value(entry: Mapping[str, Any], *, raw: bool = False) -> float | None:
+    """A row's scored value as the pre-hotfix aggregate read it (``match``, else the extraction score).
+
+    ``raw`` reads the row's ``raw_dojo`` values over the hotfixed ones (the raw headline side).
+    """
+    scored = entry.get("score") or {}
+    if raw and isinstance(scored.get("raw_dojo"), Mapping):
+        scored = {**scored, **scored["raw_dojo"]}
+    match = scored.get("match")
+    if match is None and "overall_extraction_score" in scored:
+        match = scored.get("overall_extraction_score") or 0.0
+    return float(match) if isinstance(match, (int, float)) and not isinstance(match, bool) else None
+
+
+def _isolated_headline(per_row: Sequence[Mapping[str, Any] | None]) -> dict[str, Any]:
+    """Run headline of an isolated eval, dual reported (``docs/scoring-hotfixes.md``).
+
+    Raw (the pre-hotfix aggregate): the mean over rows that produced a value; an errored row
+    leaves the denominator and a row without truth averages in as 0.
+    SHF-005: an errored row scores 0. SHF-006: a row without truth (no ``match`` and no
+    extraction score) is left out and counted under ``n_no_truth``. Abstentions are counted.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    entries = [e for e in per_row if e is not None]
+    raw_values = [v for v in (_row_value(e, raw=True) for e in entries) if v is not None]
+    raw_mean = scoring.mean_or_zero(raw_values)
+    on = sh.current_ids()
+    values: list[float] = []
+    no_truth = abstain = 0
+    for e in entries:
+        scored = e.get("score") or {}
+        if (scored.get("raw_dojo") or {}).get("abstain") or scored.get("abstain"):
+            abstain += 1
+        if e.get("error") and "SHF-005" in on:
+            values.append(0.0)
+            continue
+        if e.get("error"):
+            continue
+        if "SHF-006" in on:
+            value = scored.get("match")
+            if value is None:
+                value = scored.get("overall_extraction_score")
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                no_truth += 1
+                continue
+            values.append(float(value))
+        else:
+            value = _row_value(e)
+            if value is not None:
+                values.append(value)
+    # Provenance: the aggregation fixes plus every fix that moved a contributing row's score.
+    used = sorted((on & {"SHF-005", "SHF-006"})
+                  | {i for e in entries for i in ((e.get("score") or {}).get("scoring_hotfixes") or [])})
+    raw_part = {"exact_match": raw_mean, "n_scored": len(raw_values)}
+    fixed_part = {"exact_match": scoring.mean_or_zero(values) if values else (None if "SHF-006" in on else 0.0),
+                  "n_scored": len(values), "n_no_truth": no_truth, "abstain": abstain}
+    return sh.merge_dual(raw_part, fixed_part, used)
+
+
+def _merge_subclass_headline(scores: dict[str, Any], sub: Mapping[str, Any]) -> None:
+    """Fold SHF-013's dual subclass scores into an isolated run headline (raw side under ``raw_dojo``)."""
+    if not sub:
+        return
+    scores.update({k: v for k, v in sub.items()
+                   if k not in ("raw_dojo", "scoring_hotfixes", "scoring_hotfixes_changed")})
+    scores.setdefault("raw_dojo", {}).update(sub.get("raw_dojo") or {})
+    scores["scoring_hotfixes"] = sorted({*scores.get("scoring_hotfixes", []), *sub.get("scoring_hotfixes", [])})
+    scores["scoring_hotfixes_changed"] = sorted({*scores.get("scoring_hotfixes_changed", []),
+                                                 *sub.get("scoring_hotfixes_changed", [])})
+
+
 def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
     return resolve_logged_prompt_version(prompt_version, task=task)
 
@@ -192,6 +283,7 @@ def run_isolated_eval(
     import time
 
     from mailroom_sandbox.job.usage_capture import (
+        call_usage_from_pipeline,
         merge_item_metrics,
         reset_usage,
         usage_from_pipeline,
@@ -268,6 +360,7 @@ def run_isolated_eval(
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
             # SAND-089: a call made before the failure was still billed; keep its tokens.
             usage = usage_from_pipeline()
+        calls = call_usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -277,6 +370,8 @@ def run_isolated_eval(
             "started_at_ns": started_ns,
             "finished_at_ns": time.time_ns(),
         }
+        if calls:
+            entry["call_usage"] = calls
         entry.update(
             merge_item_metrics(
                 latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
@@ -313,8 +408,9 @@ def run_isolated_eval(
                 f"isolated eval aborted: max_wall_seconds={max_wall_seconds} "
                 f"exceeded (wall={wall:.1f}s) — protecting spend"
             )
-        if cost_cap_usd is not None:
-            est = _estimated_gpu_usd(wall, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
+        if cost_cap_usd is not None and _cap_gpu(gpu, gpu_fleet, profile):
+            est = _estimated_gpu_usd(wall, gpu=_cap_gpu(gpu, gpu_fleet, profile), replicas=replicas,
+                                     gpu_fleet=gpu_fleet)
             if est >= float(cost_cap_usd):
                 raise RuntimeError(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
@@ -355,13 +451,25 @@ def run_isolated_eval(
             f"live eval {task!r}: all {len(rows)} row(s) failed — the live path was not "
             f"exercised (last error: {(last_error or {}).get('error')})"
         )
-    mean = scoring.mean_or_zero(matches)
+    headline = _isolated_headline(per_row)
+    mean = headline["exact_match"]
     scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
+    scores.update({k: v for k, v in headline.items() if k != "exact_match"})
     # hub#56: decide overall_extraction_score presence from ANY row, not just
     # per_row[0] — the old check silently dropped the aggregate when the first
     # row lacked the key but later rows carried it.
-    if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
+    if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row if r):
         scores["overall_extraction_score"] = mean
+        scores["raw_dojo"]["overall_extraction_score"] = scores["raw_dojo"]["exact_match"]
+        from mailroom_sandbox import scoring_hotfixes as sh
+
+        fixed_rows = [(r or {}).get("score") for r in per_row]
+        extraction = sh.aggregate_extraction(fixed_rows)
+        raw_extraction = sh.aggregate_extraction(sh.raw_rows(fixed_rows))
+        scores.update(extraction)
+        scores["raw_dojo"].update({k: raw_extraction.get(k) for k in extraction})
+    if task in scoring.SORTER_SUBCLASS_TASKS:
+        _merge_subclass_headline(scores, scoring.sorter_subclass_scores(list(zip(rows, per_row))))
     schema_rows = [
         r.get("score") or {}
         for r in per_row
@@ -374,9 +482,10 @@ def run_isolated_eval(
     routed = human_review.for_isolated(task, [(e or {}).get("pred") for e in per_row if e and e.get("ok", True) and not e.get("error")])
     if routed is not None:
         scores.update(routed)
-    tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
+    if mean is not None:  # no truth anywhere: no score, not a zero (SHF-006)
+        tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", float(mean))
     tracing.flush_traces()
-    if ScoreRecord is not None:
+    if ScoreRecord is not None and mean is not None:  # no truth anywhere: nothing to emit (SHF-006)
         emit(
             ScoreRecord(
                 metric="exact_match",
@@ -984,7 +1093,37 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
         # Per-subclass scoring (sandbox #145): the row's GT subclass
         # drives the vendored corporate-record alignment.
         expected_subclass=row.get("expected_subclass"),
+        truth_overrides=row.get("truth_overrides"),
     )
+
+
+def _pipeline_extraction_scores(extraction_rows: Sequence[Mapping[str, Any] | None],
+                                class_ok: Sequence[bool]) -> dict[str, Any]:
+    """Run-level extraction headline of a pipeline run, dual reported (``docs/scoring-hotfixes.md``).
+
+    ``extraction_overall`` is the mean per-document Dojo extraction score; ``extraction_f1_micro`` /
+    ``extraction_f1_mean`` the field F1 over events and per document; ``hallucination_rate`` the
+    share of documented-absent fields a value was stated on (SHF-001).
+    ``extraction_overall_correct_class`` restricts the mean to documents the sorter routed to
+    their true class, so a misrouted document's partial credit is never read as specialist quality.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    def overall(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> float | None:
+        vals = [float(r["overall_extraction_score"]) for i, r in enumerate(rows)
+                if r and isinstance(r.get("overall_extraction_score"), (int, float))
+                and (mask is None or mask[i])]
+        return scoring.mean_or_zero(vals) if vals else None
+
+    raw = sh.raw_rows(extraction_rows)
+    fixed_part = {"extraction_overall": overall(extraction_rows),
+                  "extraction_overall_correct_class": overall(extraction_rows, class_ok),
+                  **sh.aggregate_extraction(extraction_rows)}
+    raw_part = {"extraction_overall": overall(raw), "extraction_overall_correct_class": overall(raw, class_ok),
+                **sh.aggregate_extraction(raw)}
+    used = sorted({i for r in extraction_rows if r for i in r.get("scoring_hotfixes") or []})
+    keys = tuple(dict.fromkeys([*fixed_part, *raw_part]))
+    return sh.merge_dual(raw_part, fixed_part, used, keys=keys)
 
 
 def run_pipeline_eval(
@@ -1060,8 +1199,9 @@ def run_pipeline_eval(
         elapsed = time.monotonic() - started
         if max_wall_seconds is not None and elapsed >= max_wall_seconds:
             raise RuntimeError("pipeline wall-time cap exceeded before next document")
-        if cost_cap_usd is not None:
-            if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
+        cap_gpu = _cap_gpu(gpu, gpu_fleet, profile)
+        if cost_cap_usd is not None and cap_gpu:
+            if _estimated_gpu_usd(elapsed, gpu=cap_gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                 raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
@@ -1106,6 +1246,9 @@ def run_pipeline_eval(
                 raise
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
+        calls = usage_capture.call_usage_from_pipeline()
+        if calls:
+            usage = {**usage, "call_usage": calls}  # per-call tokens: a tiered price applies to each call
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
@@ -1140,6 +1283,11 @@ def run_pipeline_eval(
             # The same scorer output the run-level aggregate uses, so a report can read it per document.
             score.update({k: v for k, v in (scored or {}).items()
                           if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            # SHF-012: the document's subclass outcome, hotfixed and raw (docs/scoring-hotfixes.md).
+            sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
+                                           result.get("doc_type"), scoring.predicted_subclass(result))
+            if sub is not None:
+                score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
             # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
             score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
             timing = {"started_at_ns": window[0], "finished_at_ns": window[1]} if window else {}
@@ -1218,15 +1366,11 @@ def run_pipeline_eval(
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
-    extract_vals: list[float] = []
-    schema_rows: list[dict[str, Any]] = []
-    for scored in extraction_rows:
-        if scored is None:
-            continue
-        schema_rows.append(scored)
-        value = scored.get("overall_extraction_score")
-        if isinstance(value, (int, float)):
-            extract_vals.append(float(value))
+    schema_rows: list[dict[str, Any]] = [scored for scored in extraction_rows if scored is not None]
+    extraction = _pipeline_extraction_scores(extraction_rows, [e == p for e, p in zip(expected, predicted)])
+    subclass_scores = scoring.score_subclass(
+        expected, [r.get("expected_subclass") for r in rows], predicted,
+        [scoring.predicted_subclass(r) for r in results])
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)
@@ -1234,10 +1378,15 @@ def run_pipeline_eval(
         **class_scores,
         "class_correct": class_scores.get("exact_match"),
         "stage_correct": stage_scores.get("stage_correct"),
-        "extraction_overall": scoring.mean_or_zero(extract_vals) if extract_vals else None,
+        "extraction_overall": extraction["extraction_overall"],
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
+        **{k: v for k, v in extraction.items() if k != "extraction_overall"},
+        **subclass_scores,
     }
+    from mailroom_sandbox import scoring_hotfixes as _sh
+
+    scores["headline_basis"] = _sh.headline_basis()
     from mailroom_sandbox.eval import human_review
 
     scores.update(human_review.for_pipeline(results))
@@ -1316,6 +1465,30 @@ def _doc_source_name(row: dict[str, Any]) -> str:
     return f"{ident}.txt"
 
 
+def _wait_for_inbox_room(target: Path, name: str) -> None:
+    """Backpressure: hold a write into the pipeline's own inbox while that inbox is full.
+
+    A full inbox means a watcher sharing this base dir is behind; the document waits here until
+    it drains (``mailroom_sandbox.backpressure``). A write anywhere else, such as the API eval's
+    staging directory, is not held. The wait is bounded by ``backpressure.intake_timeout()``, so a
+    stalled inbox cannot hold a run past its ``job.max_wall_seconds``, which is checked only
+    between documents. Past it the document raises ``BackpressureTimeout`` like any document
+    error: a job run records an error row for it and goes on (rerun on resume), and a direct
+    ``run_pipeline_eval`` call stops after its in-flight documents, as it does on any failure.
+    """
+    try:
+        from pipeline.bins import inbox_dir  # type: ignore
+
+        is_inbox = target.resolve() == inbox_dir().resolve()
+    except Exception:  # noqa: BLE001 — no vendored pipeline: no shared inbox to protect
+        return
+    if is_inbox:
+        from mailroom_sandbox import backpressure
+
+        backpressure.wait_for_capacity(("inbox",), timeout=backpressure.intake_timeout(),
+                                       what=f"pipeline intake of {name}")
+
+
 def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     """Place the row's document in the inbox and return the queued path.
 
@@ -1326,6 +1499,7 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     import shutil
 
     queued = inbox / _doc_source_name(row)
+    _wait_for_inbox_room(inbox, queued.name)
     doc_text = row.get("doc_text") or row.get("text")
     if doc_text:
         if queued.suffix.lower() not in _TEXT_SUFFIXES:
@@ -1337,7 +1511,23 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     return queued
 
 
-def _run_pipeline_doc(
+def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    """:func:`_run_pipeline_doc_once` inside one document scope of the API call guard.
+
+    When the guard refused a call (the run's API cap or the document's call ceiling), the graph
+    aborted the document through its run-limit path; that abort is not a pipeline outcome, so the
+    document raises and becomes an error row instead of a scored one (rb1 R01 smoke).
+    """
+    from mailroom_sandbox.job import call_guard
+
+    with call_guard.document() as scope:
+        result = _run_pipeline_doc_once(row, **kwargs)
+    if scope["refused"]:
+        raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+    return result
+
+
+def _run_pipeline_doc_once(
     row: dict[str, Any],
     *,
     mock: bool,
@@ -1397,7 +1587,7 @@ def _run_pipeline_doc(
     inbox.mkdir(parents=True, exist_ok=True)
     queued = _materialize_row(row, inbox)
     matter_id = sandbox_matter_id(row, run_id or experiment_name)
-    # Mailroom strips expected_fields before the trace; keep it for in-graph scoring.
+    # Labels for an oracle-routing run only (job.blind_routing: false); a blind run passes none.
     gt = {**public_gt, "expected_doc_class": str(row.get("expected_doc_class") or "")}
     fields = parse_expected_fields(row)
     if fields:
@@ -1421,9 +1611,10 @@ def _run_pipeline_doc(
     }
     with ExitStack() as stack:
         # Since llm-mailroom #264 (vendored at 63f6841) routing ignores ground_truth unless oracle
-        # routing is on. A run without job.blind_routing keeps its historic meaning, routing on the
-        # labels it is given, so locked configs reproduce; a blind run forces it off, whatever
-        # MAILROOM_ORACLE_ROUTING says.
+        # routing is on. Runs are blind by default (labels never enter the graph, so it neither
+        # routes on them nor scores itself against them mid-run) and force oracle routing off,
+        # whatever MAILROOM_ORACLE_ROUTING says. Only a locked mock spec with
+        # job.blind_routing: false routes on the labels (preflight refuses it for a live run).
         stack.enter_context(oracle_routing_override(not blind))
         if mock:
             stack.enter_context(
@@ -1451,8 +1642,14 @@ def _run_pipeline_doc(
         # The judge gate's input: routing calibration needs it beside the score.
         "extraction_confidence": result.get("extraction_confidence"),
         **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
+        # SHF-012: the final subclass (the sorter's, or the reviewer's when it overrode the class) is
+        # recorded on every item, so pipeline runs can score subclass; the reviewer's own answer too.
+        "doc_subclass": result.get("doc_subclass"),
+        "contract_subtype": result.get("contract_subtype"),
+        "reviewer_doc_subclass": outcome.get("reviewer_doc_subclass"),
+        "reviewer_contract_subtype": outcome.get("reviewer_contract_subtype"),
         # Present only when a pipeline extraction gate is registered (advisory).
-        **({"doc_subclass": result.get("doc_subclass"), "extraction_gate": result.get("extraction_gate")}
+        **({"extraction_gate": result.get("extraction_gate")}
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},

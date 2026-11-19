@@ -695,3 +695,31 @@ def test_single_class_bucket_draws_are_nested():
     assert len(d20) == 20 and len(d50) == 50 and len(d100) == 100
     assert d20 <= d50 <= d100
     assert all(i.startswith("d") for i in d100)
+
+
+def test_normalize_keeps_control_labels_and_unscores_a_bundle_class():
+    frag = {"id": "CAL-cut-a", "doc_text": "Part of a", "expected_doc_class": "contract", "expected_subclass": "x",
+            "expected_document_form": "fragment_or_excerpt", "control": "cut", "derived_from": ["DOC-a"],
+            "class_label_scored": True}
+    join = {**frag, "id": "CAL-join-a-b", "expected_document_form": "multiple_documents", "control": "join",
+            "derived_from": ["DOC-a", "DOC-b"], "class_label_scored": False}
+    plain = {"id": "DOC-c", "doc_text": "Whole", "expected_doc_class": "contract", "expected_subclass": "x"}
+    f, j, p = normalize_rows([frag, join, plain])
+    assert {k: f[k] for k in ("expected_document_form", "control", "derived_from", "class_label_scored")} == {
+        "expected_document_form": "fragment_or_excerpt", "control": "cut", "derived_from": ["DOC-a"],
+        "class_label_scored": True}
+    assert f["expected_doc_class"] == "contract"
+    # a bundle has no one true class: no truth class (so SHF-007 leaves it unscored), placeholders kept
+    assert j["expected_doc_class"] is None and j["expected_subclass"] is None
+    assert (j["placeholder_doc_class"], j["placeholder_subclass"]) == ("contract", "x")
+    assert not set(p) & {"control", "class_label_scored", "placeholder_doc_class"}
+
+
+def test_renormalizing_a_locked_bundle_keeps_its_placeholders():
+    join = {"id": "CAL-join-a-b", "doc_text": "A then B", "expected_doc_class": "contract", "expected_subclass": "x",
+            "expected_document_form": "multiple_documents", "control": "join", "derived_from": ["DOC-a", "DOC-b"],
+            "class_label_scored": False}
+    (locked,) = normalize_rows([join])
+    (again,) = normalize_rows([locked])  # a locked dataset reused as local JSONL input
+    assert again["expected_doc_class"] is None and again["expected_subclass"] is None
+    assert (again["placeholder_doc_class"], again["placeholder_subclass"]) == ("contract", "x")

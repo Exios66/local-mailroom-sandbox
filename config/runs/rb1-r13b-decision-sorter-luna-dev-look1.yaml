@@ -1,0 +1,66 @@
+# Evaluation runbook R13b (SAND-108, hypothesis H5): dev screen of the Decisions-API model
+# openai/gpt-6-luna-decisions acting as the SORTER, on dev-look1 (300 docs, corpus revision bc9eab28).
+# task: sorter_reviewer with question set reviewer_decisions_v4.0.0, which has no `handoff:`, so
+# decision_backends.decide classifies doc_type and subclass from the document alone (one request per
+# document, no sorter answer in the state). It is scored like the LLM sorter by
+# scripts/compare_sorter_arms.py (class, subclass, subclass unit; per-item tokens priced from
+# config/decision_models.yaml). Arm A is the R03 sorter v0 pass (rb1-r03-sorter-v0-dev, formerly runbook-r03-sorter-v0-dev; 900 dev
+# docs, a superset of dev-look1): the comparison pairs against it directly with --set dev-look1.
+# Scoring hotfix SHF-009 applies v4.0.0's document_form, abstain, subclass_gate and truncation_notice
+# contract: parked documents keep their forced-choice doc_type/subclass (scored as usual) and carry
+# abstained/route_to_human/abstain_reasons, which compare_sorter_arms reports under `routing`.
+#
+# Cost: the Decisions API bills input only (0.1 USD per 1M input tokens). About 5.0M input
+# tokens (the saved Qwen pass's prompt tokens for these 300 documents less ~2.3k sorter-prompt
+# tokens each, plus ~4k question tokens each; 3.8M by chars/4) = about $0.50. Caps:
+# api_cost_cap_usd 0.80 (~1.5x), max_wall_seconds 3600. R01 gate rows: one `decisions` row per
+# document (300). Launch only with the owner's initials at the spend gate, from the repository root:
+#   SANDBOX_SERVED_LOG=data/runtime/r13b/served-luna.jsonl sandbox run preflight --config config/runs/rb1-r13b-decision-sorter-luna-dev-look1.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/r13b/served-luna.jsonl sandbox run start --config config/runs/rb1-r13b-decision-sorter-luna-dev-look1.yaml --initials <XX>
+# Readout (offline, after both arms finished):
+#   python scripts/compare_sorter_arms.py --a rb1-r03-sorter-v0-dev --b rb1-r13b-decision-sorter-luna-dev-look1 --set dev-look1 --volume-docs-per-month 100000 --experiment-key rb1-r13b --write
+schema: sandbox.run/v1
+run_id: rb1-r13b-decision-sorter-luna-dev-look1
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  limit: 300
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.0
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.80
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.80
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, decisions-api, decision-sorter, H5, dev-look1]

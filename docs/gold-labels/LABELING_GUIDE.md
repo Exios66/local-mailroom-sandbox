@@ -156,8 +156,15 @@ the attached notice", "check it out") is not an action item; a direct question o
 the reader is. Promotional or bulk mail (newsletters, fare alerts, store offers, event
 ticket announcements) has no action items: its calls to action are not requests put to the
 reader. Its `urgency` is `routine`: an offer deadline ("sale ends June 10"), a countdown or a
-shouted "URGENT" in a mass mailing is sales pressure, not pressure on the reader. A request in a quoted message that the reader made of someone else is not an action
-item of this document. A calendar entry's sender is its chairperson or organiser, and its "Date:" is the
+shouted "URGENT" in a mass mailing is sales pressure, not pressure on the reader. Association,
+exchange, club and event mailings to a membership or list are bulk mail too: their opt-in asks
+(RSVP, enroll, register, file a claim within 10 days, click to acknowledge) are not action items.
+A cancellation ("please disregard"), a permission to stop, a suggestion floated to a group or a
+rallying statement is not an action item either. A request in a quoted message that the reader made of someone else is not an action
+item of this document, unless the top note hands it to the reader ("Please handle"): then the
+quoted concrete asks are the action items (the bare "Please handle" is not one) and their
+deadline sets `urgency`. An "ASAP" about the sender's own speed, or an already-answered one in
+older quoted mail, is not urgency for the reader. A calendar entry's sender is its chairperson or organiser, and its "Date:" is the
 event date, not a send date. A meeting reminder or a standing invitation is `routine`; it is
 `time-sensitive` when it asks the reader to do or confirm something today, tomorrow or by a
 stated near date. Record any other
@@ -173,6 +180,17 @@ Source: the pipeline's corporate records specialist prompt and the Dojo corporat
 | `effective_date` | date | The date the record takes effect, or its adoption or filing date when no effective date is stated. |
 | `signatories` | list of names | People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block. |
 | `jurisdiction` | name | The state or country under whose law the entity is organised (for example "Delaware"). |
+
+`entity_name` is the entity the record itself names, not the filer of the EDGAR submission it
+came from; null when the record never names it (for example a list of subsidiaries or a power of
+attorney that names only the attorney-in-fact). A signatory has signed: an `/s/` or a filled
+signature in an execution block. Names typed under blank signature lines, marked `*` as
+previously filed, or named only in an opening certification or a notary acknowledgment are not
+signatories, so a record nobody signed is `[]`. When no effective, adoption or filing date is
+stated, the record's own signing or as-of date is its `effective_date`. A filing that bundles
+several records (articles plus later amendments, several powers of attorney) is labelled by its
+first record for `effective_date` and `jurisdiction`; `signatories` lists everyone who signs any
+of the bundled records, but not a Secretary of State's certifying signature.
 
 ## Contract fields
 

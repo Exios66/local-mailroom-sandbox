@@ -9,8 +9,13 @@ pytest.importorskip("langchain_agents.doc_inventories")
 
 
 def test_every_hotfix_matches_the_vendored_code_it_was_written_against():
+    import importlib.util
+
     status = vh.apply_hotfixes()
-    assert status and all(s == "applied" for s in status.values()), status
+    # HF-005 wraps pipeline.watcher, which imports langfuse (the observability extra); without it
+    # the watcher is not importable here and the fix is unavailable, never stale.
+    optional = {} if importlib.util.find_spec("langfuse") else {"HF-005": "unavailable"}
+    assert status and all(s == optional.get(i, "applied") for i, s in status.items()), status
     assert vh.apply_hotfixes() == status  # idempotent: no wrapper stacking
     from langchain_agents import doc_inventories as di
 
@@ -55,3 +60,45 @@ def test_preflight_check_and_lock_identity():
     ident = _hotfix_identity()
     assert ident["module_sha256"] == vh.module_sha256()
     assert [f["id"] for f in ident["fixes"]] == [f.id for f in vh.HOTFIXES]
+
+
+_CLAUSES = [f"Section {i}. The Borrower shall deliver notice {i} to the Agent within ten days."
+            for i in range(1, 41)]
+_SOURCE = "\n".join(_CLAUSES)
+# A 12-word clause dropped and padded back: length stays over 90%, content does not.
+_DROPPED = "\n".join(_CLAUSES[:20] + _CLAUSES[21:]) + " " * len(_CLAUSES[20])
+
+
+@pytest.mark.parametrize(("cleaned", "kept"), [
+    ("short", False),                                                  # length
+    (_DROPPED, False),                                                 # near-threshold partial reply
+    (_SOURCE.replace("\n", "\n\n"), True),                             # layout repair
+    (_SOURCE.replace("notice 7", "notlce 7").replace("ten days", "ten  days"), True),  # OCR repair
+])
+def test_hf003_a_single_window_clean_replaces_the_document_only_when_it_keeps_it(cleaned, kept):
+    def original(self, doc_text, filename=None):
+        return {"cleaned": cleaned, "clean_stats": {"n": 1}, "changed": True, "windows": 1}
+
+    assert len(_DROPPED) >= vh.INTAKE_CLEAN_MIN_SHARE * len(_SOURCE)
+    guarded = vh._install_intake_clean_guard(None, original)
+    prep = guarded(object(), _SOURCE, "doc.txt")
+    assert ("cleaned" in prep) is kept and prep["changed"] is kept
+    if not kept:
+        assert "clean_stats" not in prep and "HF-003" in prep["clean_refused"]
+
+
+def test_hf003_the_vendored_intake_keeps_the_source_over_a_partial_reply(monkeypatch):
+    """Downstream: the real IntakeAgent.intake_run, one window, a reply that drops one clause."""
+    assert vh.apply_hotfixes()["HF-003"] == "applied"
+    from agents.intake import IntakeAgent
+
+    agent = object.__new__(IntakeAgent)
+    monkeypatch.setattr(agent, "_configured_max_input_chars", lambda: 10 * len(_SOURCE), raising=False)
+    monkeypatch.setattr(agent, "_call_one", lambda window, name: {"cleaned_text": _DROPPED.strip()},
+                        raising=False)
+    prep = IntakeAgent.intake_run(agent, _SOURCE, "merger.txt")
+    assert prep["windows"] == 1 and "cleaned" not in prep and "HF-003" in prep["clean_refused"]
+
+    monkeypatch.setattr(agent, "_call_one", lambda window, name: {"cleaned_text": _SOURCE + "\n"},
+                        raising=False)
+    assert "clean_refused" not in IntakeAgent.intake_run(agent, _SOURCE + "  ", "merger.txt")

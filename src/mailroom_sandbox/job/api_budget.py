@@ -132,7 +132,13 @@ def budget_errors(lock: Mapping[str, Any]) -> list[str]:
 
 
 class ApiBudget:
-    """Running API token spend against ``job.api_cost_cap_usd``; checked between documents."""
+    """Running API token spend against ``job.api_cost_cap_usd``.
+
+    Checked between documents (finished-document usage) and, once live tracking starts, before
+    every API call (``job.call_guard``): ``add_live`` prices each call as it returns, so a long
+    document in flight is bounded too (rb1 R01: two merger documents ran ~140 calls past the
+    between-document check).
+    """
 
     def __init__(self, cap_usd: float, usd_per_m_in: float, usd_per_m_out: float, models: list[str]):
         self.cap_usd = float(cap_usd)
@@ -141,9 +147,11 @@ class ApiBudget:
         self.models = list(models)
         self.spent_usd = 0.0
         self.documents = 0
+        self.live_usd = 0.0  # per-call spend since start_live()
+        self._live_base: float | None = None  # spent_usd when live tracking started
         self._lock = threading.Lock()
 
-    def add(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> None:
+    def _cost(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> float:
         """Price the tokens at each model's tier for the average call size, the dearest model winning."""
         from mailroom_sandbox.job.metrics import call_cost
 
@@ -151,9 +159,29 @@ class ApiBudget:
         completion = float(completion_tokens or 0)
         costs = [call_cost(m, prompt, completion, calls=int(calls or 1)) for m in self.models]
         known = [c for c in costs if c is not None]
-        cost = max(known) if known else (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
+        return max(known) if known else (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
+
+    def add(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> None:
+        cost = self._cost(prompt_tokens, completion_tokens, calls)
         with self._lock:
             self.spent_usd += cost
+
+    def start_live(self) -> None:
+        """Begin per-call tracking from the spend persisted so far (a resume's items included)."""
+        with self._lock:
+            self._live_base = self.spent_usd
+            self.live_usd = 0.0
+
+    def add_live(self, prompt_tokens: Any, completion_tokens: Any) -> None:
+        """Add one API call's usage as it returns (documents still in flight included)."""
+        cost = self._cost(prompt_tokens, completion_tokens, 1)
+        with self._lock:
+            self.live_usd += cost
+
+    def live_total_usd(self) -> float:
+        """Spend observed call by call since ``start_live`` on top of the spend before it (0 when off)."""
+        with self._lock:
+            return 0.0 if self._live_base is None else self._live_base + self.live_usd
 
     def add_usage(self, usage: Mapping[str, Any] | None) -> None:
         """Add one finished (or failed) document's token usage."""
@@ -174,7 +202,8 @@ class ApiBudget:
         ``in_flight`` documents have started but not finished: their spend is not in the total yet,
         so concurrent runs count each at the mean finished-document cost.
         """
-        projected = self.projected_usd(in_flight)
+        # Per-call spend bounds documents still running; the projection covers the rest.
+        projected = max(self.projected_usd(in_flight), self.live_total_usd())
         if projected >= self.cap_usd:
             pending = f", {in_flight} in flight" if in_flight else ""
             return (f"api_cost_cap_usd={self.cap_usd} reached (est_api_usd={projected:.4f}{pending} "

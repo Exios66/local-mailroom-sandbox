@@ -276,6 +276,42 @@ For endpoint runs against Modal vLLM, still run **`sandbox watch --web`** in ano
 
 Plain output (no colour / banners): set `NO_COLOR=1` or `SANDBOX_PLAIN_LOGS=1`, or redirect stderr to a file.
 
+### Console log lines and verbosity
+
+Every `sandbox` command logs to **stderr** in one format (`mailroom_sandbox.console_log`);
+stdout keeps only the command's result (JSON summaries stay parseable):
+
+```text
+01:44:11 INFO  run       run=rb1-r13 doc=cba5ebbc  doc done  n=3/12 latency=3.2s tokens=900/40 spent=$0.0412
+01:44:12 WARN  pipeline  run=rb1-r13  classification_guardrail_triggered  issues=[doc_subclass_missing]
+01:44:30 INFO  run       run=rb1-r13  spend at 50% of cap  spent=$0.5012 cap=$1.00
+```
+
+| Flag | Shows |
+|---|---|
+| `-q` / `--quiet` | warnings, errors and the final result (no banner or progress bar) |
+| default | key events: run start/finish, each document done/failed (a resumed whole run marks re-processed documents `re-run; already recorded`), spend checkpoints (one line per mark crossed: 25/50/75/90% of `job.api_cost_cap_usd`), cap aborts, cancel/pause, plus warnings and errors |
+| `-v` | also routine INFO: per-call pipeline events (`llm_structured_call`, `audit_entry_written`, …), sandbox setup notes |
+| `-vv` | also DEBUG, and third-party loggers (httpx, huggingface_hub, langchain, …) at INFO; SQL echo stays off |
+
+The flags work before or after the subcommand and add up (`sandbox -v run start -v` is `-vv`);
+`-q` wins over `-v`. Without flags, `SANDBOX_LOG_VERBOSITY` (-1 to 2) sets the level, and a
+`sandbox` process exports its level there so child `sandbox` runs (autoresearch, gate scripts)
+inherit it. Colours (TTY only): run lifecycle bold cyan,
+document done green, document failed bold red, spend/cap bold magenta, cancel/pause bold yellow,
+warnings yellow, errors bold red, DEBUG dim. `LOG_FORMAT=json` prints uncolored JSON lines.
+The progress bar prints at each quarter of the run. `events.jsonl`, `items.jsonl` and run locks
+are unchanged; the console only echoes them.
+
+Stdout carries only the command's result. Pipeline log lines that used to land on stdout are
+on stderr now, so use `2>&1` to capture both. Once a `sandbox` process has configured the
+console, an in-process import of the vendored `pipeline.logging` is marked configured, so a
+vendor entrypoint's `setup_logging()` cannot send structlog back to stdout. This changes only
+runtime state; `vendor/` files are untouched. Processes that never run the `sandbox` CLI, such
+as the Modal job worker and `python -m pipeline.watcher`, keep their own logging. Run and
+document lines still read well under a plain formatter: each record's message carries the
+run/doc ids and fields.
+
 ---
 
 ## Scorecard (finished run)

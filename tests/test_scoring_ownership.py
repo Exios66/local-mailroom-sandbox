@@ -114,7 +114,8 @@ def test_row_keeps_dojo_benchmark_headline_and_suite_score(monkeypatch, doc_type
     assert out["suite_overall_extraction_score"] == 0.83
     assert out["canonical_marker"] is True
     assert out["scoring_method"] == f"suite+{benchmark}"
-    assert calls == [raw_gt] and calls[0] is raw_gt
+    # Dual reporting scores the row twice (raw, then hotfixed), each time on the raw labels.
+    assert calls == [raw_gt, raw_gt] and all(call is raw_gt for call in calls)
 
 
 def _card(tmp_path, scores):

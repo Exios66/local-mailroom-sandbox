@@ -147,7 +147,10 @@ def test_resume_reports_run_wide_errors_and_scored_denominator(tmp_path):
     assert (out["ok"], out["errors"], out["cursor"]) == (2, 1, 3)
     assert out["last_error"] == "ValueError: earlier failure"
     assert out["scores"]["error_count"] == 1
-    assert out["scores"]["n"] == 2
+    # SHF-005: the errored row is scored wrong in the headline; the raw Dojo value leaves it out.
+    assert out["scores"]["n"] == 3
+    assert out["scores"]["n_errored_scored_wrong"] == 1
+    assert "SHF-005" in out["scores"]["scoring_hotfixes"]
     assert out["record"]["scores"]["error_count"] == 1
     assert store.summary()["errors"] == 1
 
@@ -310,6 +313,7 @@ if sys.argv[2] == "worker":
         def debian_slim(cls,**kwargs): return cls()
         def add_local_python_source(self,*args,**kwargs): return self
         def add_local_dir(self,*args,**kwargs): return self
+        def add_local_file(self,*args,**kwargs): return self
         def uv_pip_install(self,*args,**kwargs): return self
         def env(self,*args,**kwargs): return self
     class Volume:

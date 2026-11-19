@@ -1127,3 +1127,58 @@ def test_a_pipeline_item_carries_usage_by_agent_from_the_real_capture_path_to_it
     # the split is the same accumulator the totals come from
     assert sum(s["prompt_tokens"] for s in by_agent.values()) == item["prompt_tokens"] > 0
     assert sum(s["completion_tokens"] for s in by_agent.values()) == item["completion_tokens"]
+
+
+# --- hotfixes at run start (local runner and the Modal job worker, which calls run_job) ----------
+
+@pytest.mark.parametrize("layer", ["vendor", "scoring"])
+def test_run_job_refuses_a_stale_hotfix_at_run_start(tmp_path, monkeypatch, layer):
+    """Preflight gated the hotfixes on the deploying machine; the executing one must match."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    store = _prepped_store(tmp_path, rows=2)
+    if layer == "vendor":
+        monkeypatch.setattr(vh, "apply_hotfixes", lambda *a, **k: {"HF-003": "stale"})
+    else:
+        monkeypatch.setattr(sh, "status", lambda *a, **k: {"SHF-010": "stale"})
+    with pytest.raises(RuntimeError, match="hotfix"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()  # nothing ran
+
+
+@pytest.mark.parametrize("key", ["vendor_hotfixes", "scoring_hotfixes"])
+def test_run_job_refuses_hotfix_code_other_than_the_locked_set(tmp_path, key):
+    """A worker deployed from other hotfix code (older image) never runs a locked job."""
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock[key] = {**lock[key], "module_sha256": "0" * 64}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="hotfix"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()
+
+
+def test_run_job_accepts_a_lock_from_before_the_hotfix_layer(tmp_path):
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    for key in ("vendor_hotfixes", "scoring_hotfixes"):
+        lock.pop(key)
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    assert runner.run_job(store, mock=None)["state"] == "done"
+
+
+def test_persist_isolated_items_keeps_the_execution_window_and_per_call_usage(tmp_path):
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    row = {"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 1000.0, "prompt_tokens": 60_000,
+           "completion_tokens": 20, "llm_calls": 2, "call_usage": [[10_000, 10], [50_000, 10]],
+           "started_at_ns": 1_700_000_000_000_000_000, "finished_at_ns": 1_700_000_001_000_000_000}
+    _persist_isolated_items(store, [row])
+    item = json.loads(store.items_path.read_text().splitlines()[0])
+    assert item["call_usage"] == [[10_000, 10], [50_000, 10]]
+    assert (item["started_at_ns"], item["finished_at_ns"]) == (row["started_at_ns"], row["finished_at_ns"])

@@ -14,28 +14,58 @@ def _spec(task="pipeline", **job):
                    engine={"kind": "vllm-local", "modal": None}, job={"mock": True, **job})
 
 
-def test_blind_routing_is_hashed_only_when_set_and_only_for_pipelines():
-    plain, blind = _spec(), _spec(blind_routing=True)
-    assert "blind_routing" not in spec_core(plain, source_sha256="0" * 64)["job"]
-    assert spec_core(blind, source_sha256="0" * 64)["job"]["blind_routing"] is True
-    assert core_hash(spec_core(plain, source_sha256="0" * 64)) != core_hash(spec_core(blind, source_sha256="0" * 64))
+def _core(spec):
+    return spec_core(spec, source_sha256="0" * 64)
+
+
+def test_pipeline_specs_are_blind_by_default_and_hash_it():
+    plain, blind, oracle = _spec(), _spec(blind_routing=True), _spec(blind_routing=False)
+    assert plain.job.blind_routing is True  # unset resolves to blind for task: pipeline
+    assert _core(plain)["job"]["blind_routing"] is True
+    assert core_hash(_core(plain)) == core_hash(_core(blind))
+    assert "blind_routing" not in _core(oracle)["job"]  # false is the pre-fix oracle posture
+    assert core_hash(_core(plain)) != core_hash(_core(oracle))
+    sorter = _spec(task="sorter")
+    assert sorter.job.blind_routing is False and "blind_routing" not in _core(sorter)["job"]
     with pytest.raises(ValidationError, match="blind_routing"):
         _spec(task="sorter", blind_routing=True)
 
 
-def test_only_a_locked_blind_run_activates_blind_routing(monkeypatch):
+def test_only_a_locked_oracle_run_turns_blind_routing_off(monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
     try:
-        with runtime.locked_runtime({"profile": "modal-vllm", "job": {"blind_routing": True}}, {}):
+        oracle = {"profile": "modal-vllm", "task": "pipeline", "job": {"blind_routing": False}}
+        with runtime.locked_runtime(oracle, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        assert runtime.blind_routing_active() is False
+        runtime.activate("modal-vllm", load_env_file=False)  # an unlocked activation is blind
+        assert runtime.blind_routing_active() is True
+        with runtime.locked_runtime({"profile": "modal-vllm", "task": "pipeline", "job": {}}, {}):
             runtime.activate("modal-vllm", load_env_file=False)
         assert runtime.blind_routing_active() is True
-        runtime.activate("modal-vllm", load_env_file=False)  # an unlocked activation is never blind
-        assert runtime.blind_routing_active() is False
-        with runtime.locked_runtime({"profile": "modal-vllm", "job": {}}, {}):
+        # A sorter spec resolves blind_routing to false (pipeline-only key), yet a live sorter
+        # run calls the graph: it must stay blind.
+        sorter = _spec(task="sorter")
+        assert sorter.job.blind_routing is False
+        lock = {"profile": "modal-vllm", "task": "sorter", "job": sorter.job.model_dump()}
+        with runtime.locked_runtime(lock, {}):
             runtime.activate("modal-vllm", load_env_file=False)
-        assert runtime.blind_routing_active() is False
+        assert runtime.blind_routing_active() is True
     finally:
         runtime.activate("modal-vllm", load_env_file=False)
+
+
+def test_preflight_refuses_a_live_oracle_routing_run(tmp_path):
+    from mailroom_sandbox.job import preflight
+
+    data = tmp_path / "d.jsonl"
+    data.write_text('{"id": "a", "filename": "a.txt", "doc_text": "x", "expected_doc_class": "contract"}\n')
+    spec = RunSpec(run_id="r-oracle", task="pipeline", dataset=DatasetSpec(local_path=f"file://{data}"),
+                   engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"},
+                   job={"mock": False, "blind_routing": False, "max_wall_seconds": 60})
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "failed"
+    assert any(c["name"] == "blind_routing" and not c["ok"] for c in report["checks"]), report
 
 
 @pytest.mark.parametrize("blind", [False, True])

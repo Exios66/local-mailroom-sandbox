@@ -175,3 +175,18 @@ def test_per_item_run_record_prices_the_routed_fleet(tmp_path, monkeypatch):
     rec = _build_record(store, "contracts_specialist", None, {}, mock=False, wall_seconds=3570.0)
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(_estimate_run_gpu_usd(store, 3600.0))
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
+
+
+def test_an_api_only_run_never_trips_the_gpu_cap(monkeypatch):
+    """rb1 R01: an OpenRouter pipeline smoke died on an L4 wall-clock estimate it never billed."""
+    from mailroom_sandbox import providers
+    from mailroom_sandbox.eval.runners import _cap_gpu
+
+    assert _cap_gpu(None, None, "openrouter") is None
+    monkeypatch.setattr(providers, "default_profile", lambda: "openrouter")
+    assert _cap_gpu(None, [], None) is None  # no profile serves the default profile
+    monkeypatch.setattr(providers, "default_profile", lambda: "modal-vllm")
+    assert _cap_gpu(None, [], None) == "L4"  # a default modal-vllm run keeps its GPU cap
+    assert _cap_gpu(None, None, "modal-vllm") == "L4"  # a GPU serving profile claims the default class
+    assert _cap_gpu("A100", None, "openrouter") == "A100"
+    assert _cap_gpu(None, [("L4", 2)], "openrouter") == "L4"

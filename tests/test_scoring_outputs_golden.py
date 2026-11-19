@@ -25,6 +25,12 @@ runs with).
 
 Regenerate after an intentional behaviour change with
 ``SCORING_GOLDEN_WRITE=1 pytest tests/test_scoring_outputs_golden.py``.
+
+The frozen outputs are the RAW side: every scoring hotfix off (``scoring_hotfixes.raw``), with the
+event counts (``tp`` / ``fp`` / ``fn``) the run aggregates added since left out. So a scoring hotfix
+can never move these goldens; ``test_dual_rows_keep_the_raw_values_and_name_every_change`` checks
+that the dual row ``score_extraction_row`` returns carries those raw values and names every
+headline key a hotfix moved (``docs/scoring-hotfixes.md``).
 """
 
 from __future__ import annotations
@@ -40,7 +46,18 @@ import pytest
 
 from llm_dojo_scoring import ScoreRecord
 from llm_dojo_scoring.config import clear_settings_cache
-from mailroom_sandbox.eval.scoring import emit, score_extraction_row
+from mailroom_sandbox import scoring_hotfixes as sh
+from mailroom_sandbox.eval.scoring import _score_extraction_row_once, emit, score_extraction_row
+
+#: Keys the scorer added after these goldens were frozen (run-level micro F1 needs them).
+ADDED_KEYS = ("tp", "fp", "fn")
+
+
+def raw_score_row(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """One raw pass (every scoring hotfix off), without the keys added since the freeze."""
+    with sh.raw():
+        row = _score_extraction_row_once(*args, **kwargs)
+    return {k: v for k, v in row.items() if k not in ADDED_KEYS}
 from mailroom_sandbox.eval.serving_parity import to_dojo_serving_record
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scoring_golden"
@@ -77,7 +94,7 @@ def _numeric(row: Any) -> dict[str, float]:
 def _capture_case(case: dict, tmp_path: Path) -> dict[str, Any]:
     out: dict[str, Any] = {}
     try:
-        row = score_extraction_row(
+        row = raw_score_row(
             case["doc_type"],
             case["predicted"],
             case["expected"],
@@ -168,3 +185,35 @@ def test_scoring_outputs_match_goldens(tmp_path, default_dojo_settings):
         if _dump(actual[cid].get(kind)) != _dump(expected[cid].get(kind))
     ]
     assert not bad, f"golden drift in {len(bad)} outputs, first: {bad[:10]}"
+
+
+def _raw_pass(args: tuple, kwargs: dict) -> dict | None:
+    """The raw (every fix off) extraction score, or None for a case that raises."""
+    try:
+        with sh.raw():
+            return _score_extraction_row_once(*args, **kwargs)
+    except Exception:  # noqa: BLE001 — the raising cases are frozen as errors above
+        return None
+
+
+def test_dual_rows_keep_the_raw_values_and_name_every_change(default_dojo_settings):
+    """Every golden case: raw_dojo equals the raw pass, and each moved headline key is named."""
+    moved: dict[str, list[str]] = {}
+    for case in json.loads(INPUTS.read_text())["cases"]:
+        args = (case["doc_type"], case["predicted"], case["expected"])
+        kwargs = {"doc_text": case.get("doc_text"), "doc_subclass": case.get("doc_subclass"),
+                  "expected_subclass": case.get("expected_subclass")}
+        raw = _raw_pass(args, kwargs)
+        if raw is None:  # the raising cases are frozen as errors above
+            continue
+        dual = score_extraction_row(*args, **kwargs)
+        for key, value in dual["raw_dojo"].items():
+            assert _dump(value) == _dump(raw.get(key)), (case["case_id"], key)
+        changed = [k for k in sh.HEADLINE_KEYS if k in dual or k in raw
+                   if _dump(dual.get(k)) != _dump(raw.get(k))]
+        assert sorted(changed) == dual["scoring_hotfixes_changed"], case["case_id"]
+        assert set(dual["scoring_hotfixes"]) <= sh.EXTRACTION_FIXES
+        if changed:
+            moved[case["case_id"]] = changed
+    # The hotfixes move some golden cases (each is named above); none moves silently.
+    assert moved and all(moved.values())

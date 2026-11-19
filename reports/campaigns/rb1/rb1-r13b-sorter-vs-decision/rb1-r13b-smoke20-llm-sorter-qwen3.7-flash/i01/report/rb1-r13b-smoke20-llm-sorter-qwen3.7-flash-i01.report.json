@@ -1,0 +1,81 @@
+{
+  "archived": false,
+  "campaign": "rb1",
+  "caveats": [
+    "No experiment-log record matches this generation: headline scores are not recorded (never recomputed here).",
+    "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
+    "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
+  ],
+  "checkpoint": {
+    "cursor": 20,
+    "last_error": null,
+    "state": "done",
+    "total": 20
+  },
+  "config": {
+    "bytes": 2488,
+    "path": "config/runs/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash.yaml",
+    "sha256": "d76209f4f3676984776cca2cbd74e10b635e388fd4ca5bb714c627c4c19764ab"
+  },
+  "cost": {
+    "completion_tokens": 2110,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.0020106,
+    "estimated_cost_usd": 0.040212,
+    "prompt_tokens": 474650,
+    "wall_seconds": 127.99
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "limit": 20,
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9",
+    "split": "all"
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "experiment": "rb1-r13b",
+  "finished": "2026-11-19T07:41:31.859+00:00",
+  "generation_id": "4b6d30407c934cf6a7ea36c8e260cdcf",
+  "git": {
+    "commit": "f0aa39f3",
+    "dirty": true
+  },
+  "headline": {},
+  "headline_source": null,
+  "items": {
+    "failed": 0,
+    "ok": 20,
+    "total": 20
+  },
+  "iteration": "i01",
+  "launches": [
+    {
+      "event": "start",
+      "ts": "2026-11-19T07:41:07.594+00:00"
+    }
+  ],
+  "lock_sha256": "a6963c11f796d33c3ebc9d09abc19e19cd516a0e5013337b285d2060b02abcce",
+  "mock": false,
+  "model": "qwen/qwen3.7-flash",
+  "profile": "openrouter",
+  "run_id": "rb1-r13b-smoke20-llm-sorter-qwen3.7-flash",
+  "schema": "sandbox.campaign-run-report/v1",
+  "spec_hash": "731dd25f080dc460b4e70374e99dca754374b2f74fe00d1cb0e38f3028fe3eaa",
+  "started": "2026-11-19T07:41:07.594+00:00",
+  "status": "done",
+  "task": "isolated"
+}

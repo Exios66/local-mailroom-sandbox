@@ -9103,23 +9103,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.453,
+      "share": 0.371,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
      "in_output_schema": true,
-     "labeled": 172,
+     "labeled": 434,
      "labeled_by_set": {
-      "calibration": 45,
-      "dev": 66,
-      "heldout": 61,
+      "calibration": 128,
+      "dev": 152,
+      "heldout": 154,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 134,
-      "near_gold": 38
+      "interim": 127,
+      "near_gold": 307
      },
      "verdict": "iterate"
     },
@@ -9127,23 +9127,23 @@
      "dojo_status": "partial",
      "dominant": {
       "kind": "value",
-      "share": 0.058,
+      "share": 0.086,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: The corporation or entity the record is about, full legal name as written.",
      "in_output_schema": true,
-     "labeled": 173,
+     "labeled": 220,
      "labeled_by_set": {
-      "calibration": 60,
-      "dev": 64,
-      "heldout": 49,
+      "calibration": 74,
+      "dev": 84,
+      "heldout": 62,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
-      "interim": 172,
-      "near_gold": 1
+      "interim": 194,
+      "near_gold": 26
      },
      "verdict": "iterate"
     },
@@ -9286,23 +9286,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.427,
+      "share": 0.558,
       "value": "Delaware"
      },
      "effective_status": "scored",
      "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
      "in_output_schema": true,
-     "labeled": 157,
+     "labeled": 384,
      "labeled_by_set": {
-      "calibration": 54,
-      "dev": 52,
-      "heldout": 51,
+      "calibration": 118,
+      "dev": 133,
+      "heldout": 133,
       "pool": 0
      },
      "subclasses_with_truth": 9,
      "truth": {
       "interim": 139,
-      "near_gold": 18
+      "near_gold": 245
      },
      "truth_ignored_not_applicable": 14,
      "verdict": "iterate"
@@ -9541,23 +9541,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.311,
-      "value": null
+      "share": 0.163,
+      "value": []
      },
      "effective_status": "scored",
      "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
      "in_output_schema": true,
-     "labeled": 162,
+     "labeled": 384,
      "labeled_by_set": {
-      "calibration": 55,
-      "dev": 51,
-      "heldout": 56,
+      "calibration": 119,
+      "dev": 132,
+      "heldout": 133,
       "pool": 0
      },
      "subclasses_with_truth": 9,
      "truth": {
-      "interim": 141,
-      "near_gold": 21
+      "interim": 136,
+      "near_gold": 248
      },
      "truth_ignored_not_applicable": 21,
      "verdict": "iterate"
@@ -9666,43 +9666,48 @@
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.344,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 13,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 5,
-        "heldout": 4,
+        "calibration": 22,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 9,
-        "near_gold": 4
+        "interim": 7,
+        "near_gold": 54
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.083,
-        "value": null
+        "share": 0.098,
+        "value": "Incumaker, Inc."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 24,
+       "labeled": 41,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 8,
-        "heldout": 8,
+        "calibration": 17,
+        "dev": 13,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 23,
-        "near_gold": 1
+        "interim": 28,
+        "near_gold": 13
        },
        "type": "name",
        "verdict": "thin"
@@ -9775,25 +9780,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.148,
-        "value": "Delaware"
+        "share": 0.23,
+        "value": "Nevada"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 9,
-        "heldout": 9,
+        "calibration": 22,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
         "interim": 23,
-        "near_gold": 4
+        "near_gold": 38
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -9872,25 +9877,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.273,
-        "value": null
+        "share": 0.148,
+        "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 6,
-        "heldout": 8,
+        "calibration": 22,
+        "dev": 20,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
-        "near_gold": 4
+        "interim": 16,
+        "near_gold": 45
        },
        "type": "entity_list:name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -9932,9 +9937,9 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 2,
+      "iterate": 5,
       "no_truth": 3,
-      "thin": 4
+      "thin": 1
      }
     },
     "board_resolution": {
@@ -9983,22 +9988,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.05,
-        "value": "2003-06-24"
+        "share": 0.188,
+        "value": "2002-07-31"
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 20,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 10,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
         "interim": 18,
-        "near_gold": 2
+        "near_gold": 14
        },
        "type": "date",
        "verdict": "thin"
@@ -10008,15 +10013,15 @@
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 13,
+       "labeled": 19,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 7,
-        "heldout": 6,
+        "dev": 12,
+        "heldout": 7,
         "pool": 0
        },
        "truth": {
-        "interim": 13
+        "interim": 19
        },
        "type": "name",
        "verdict": "thin"
@@ -10064,22 +10069,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.429,
+        "share": 0.531,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 21,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
         "interim": 20,
-        "near_gold": 1
+        "near_gold": 12
        },
        "type": "name",
        "verdict": "thin"
@@ -10158,24 +10163,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.182,
+        "share": 0.188,
         "value": [
-         "James M. Cassidy"
+         "Jeffrey Mistarz",
+         "Greg Rice"
         ]
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 10,
-        "heldout": 12,
+        "dev": 16,
+        "heldout": 16,
         "pool": 0
        },
        "truth": {
         "interim": 21,
-        "near_gold": 1
+        "near_gold": 11
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10249,19 +10255,24 @@
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.643,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 28,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 6,
-        "heldout": 5,
+        "calibration": 11,
+        "dev": 8,
+        "heldout": 9,
         "pool": 0
        },
        "truth": {
         "interim": 18,
-        "near_gold": 1
+        "near_gold": 10
        },
        "type": "date",
        "verdict": "thin"
@@ -10270,21 +10281,22 @@
        "dojo_status": "partial",
        "dominant": {
         "kind": "value",
-        "share": 0.136,
+        "share": 0.125,
         "value": "NCM FINANCIAL, INC."
        },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "dev": 8,
+        "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "interim": 22,
+        "near_gold": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -10330,18 +10342,24 @@
       },
       "jurisdiction": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.643,
+        "value": "Delaware"
+       },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 17,
+       "labeled": 28,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 6,
-        "heldout": 3,
+        "calibration": 11,
+        "dev": 8,
+        "heldout": 9,
         "pool": 0
        },
        "truth": {
-        "interim": 17
+        "interim": 17,
+        "near_gold": 11
        },
        "type": "name",
        "verdict": "thin"
@@ -10420,22 +10438,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.455,
+        "share": 0.357,
         "value": null
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 28,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 7,
-        "heldout": 5,
+        "calibration": 11,
+        "dev": 8,
+        "heldout": 9,
         "pool": 0
        },
        "truth": {
-        "interim": 21,
-        "near_gold": 1
+        "interim": 20,
+        "near_gold": 8
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10729,19 +10747,24 @@
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.159,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 11,
+       "labeled": 69,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 1,
-        "heldout": 2,
+        "calibration": 34,
+        "dev": 17,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 8,
-        "near_gold": 3
+        "interim": 7,
+        "near_gold": 62
        },
        "type": "date",
        "verdict": "thin"
@@ -10817,22 +10840,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.92,
+        "share": 0.931,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 25,
+       "labeled": 72,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 4,
-        "heldout": 3,
+        "calibration": 36,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
         "interim": 22,
-        "near_gold": 3
+        "near_gold": 50
        },
        "type": "name",
        "verdict": "thin"
@@ -10911,22 +10934,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
-        "value": null
+        "share": 0.056,
+        "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 24,
+       "labeled": 72,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 4,
-        "heldout": 3,
+        "calibration": 36,
+        "dev": 18,
+        "heldout": 18,
         "pool": 0
        },
        "truth": {
-        "interim": 21,
-        "near_gold": 3
+        "interim": 19,
+        "near_gold": 53
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -10982,40 +11005,40 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.1,
+        "share": 0.321,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 20,
+       "labeled": 56,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 7,
-        "heldout": 6,
+        "calibration": 16,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 18,
-        "near_gold": 2
+        "interim": 15,
+        "near_gold": 41
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "scored",
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 19,
        "labeled_by_set": {
         "calibration": 8,
-        "dev": 5,
-        "heldout": 3,
+        "dev": 6,
+        "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "interim": 16
+        "interim": 19
        },
        "type": "name",
        "verdict": "thin"
@@ -11081,22 +11104,27 @@
       },
       "jurisdiction": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.786,
+        "value": "Delaware"
+       },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 56,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 0,
-        "heldout": 2,
+        "calibration": 16,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 4,
-        "near_gold": 2
+        "near_gold": 52
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -11210,22 +11238,27 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.446,
+        "value": []
+       },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 56,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 5,
-        "heldout": 7,
+        "calibration": 16,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 17,
-        "near_gold": 2
+        "near_gold": 39
        },
        "type": "entity_list:name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -11289,10 +11322,10 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 2,
+      "iterate": 5,
       "no_truth": 5,
       "not_applicable": 1,
-      "thin": 4
+      "thin": 1
      }
     },
     "officer_certificate": {
@@ -11361,25 +11394,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.45,
+        "share": 0.508,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 20,
+       "labeled": 59,
        "labeled_by_set": {
-        "calibration": 5,
-        "dev": 5,
-        "heldout": 10,
+        "calibration": 19,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 12,
-        "near_gold": 8
+        "interim": 11,
+        "near_gold": 48
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "scored",
@@ -11447,25 +11480,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.533,
+        "share": 0.541,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 30,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 9,
-        "heldout": 11,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 22,
-        "near_gold": 8
+        "near_gold": 39
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -11541,25 +11574,25 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.25,
-        "value": null
+        "share": 0.246,
+        "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 61,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 9,
-        "heldout": 11,
+        "calibration": 21,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 20,
-        "near_gold": 8
+        "near_gold": 41
        },
        "type": "entity_list:name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -11602,10 +11635,10 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 2,
+      "iterate": 5,
       "no_truth": 4,
       "not_applicable": 1,
-      "thin": 4
+      "thin": 1
      }
     },
     "other": {
@@ -11615,15 +11648,16 @@
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "interim": 1
+        "interim": 1,
+        "near_gold": 2
        },
        "type": "date",
        "verdict": "thin"
@@ -11737,15 +11771,16 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "interim": 2
+        "interim": 2,
+        "near_gold": 1
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -11826,18 +11861,24 @@
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.071,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 12,
+       "labeled": 28,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 7,
-        "heldout": 3,
+        "calibration": 6,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 12
+        "interim": 12,
+        "near_gold": 16
        },
        "type": "date",
        "verdict": "thin"
@@ -11921,18 +11962,24 @@
       },
       "jurisdiction": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.571,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 18,
+       "labeled": 28,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 8,
-        "heldout": 6,
+        "calibration": 6,
+        "dev": 11,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "interim": 18
+        "interim": 18,
+        "near_gold": 10
        },
        "type": "name",
        "verdict": "thin"
@@ -12012,19 +12059,30 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.111,
+        "value": [
+         "Michael K. Farrell",
+         "Maria R. Morris",
+         "Robert E. Sollmann, Jr.",
+         "Stanley J. Talbi",
+         "Peter M. Carlson"
+        ]
+       },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 13,
+       "labeled": 27,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 5,
-        "heldout": 4,
+        "calibration": 6,
+        "dev": 10,
+        "heldout": 11,
         "pool": 0
        },
        "truth": {
         "interim": 12,
-        "near_gold": 1
+        "near_gold": 15
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -12079,36 +12137,48 @@
      "fields": {
       "effective_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.178,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 17,
+       "labeled": 45,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 7,
-        "heldout": 8,
+        "calibration": 6,
+        "dev": 19,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
-        "interim": 17
+        "interim": 17,
+        "near_gold": 28
        },
        "type": "date",
        "verdict": "thin"
       },
       "entity_name": {
        "dojo_status": "partial",
+       "dominant": {
+        "kind": "value",
+        "share": 0.258,
+        "value": "NMI Holdings, Inc."
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 31,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 8,
-        "heldout": 9,
+        "calibration": 5,
+        "dev": 14,
+        "heldout": 12,
         "pool": 0
        },
        "truth": {
-        "interim": 19
+        "interim": 20,
+        "near_gold": 11
        },
        "type": "name",
        "verdict": "thin"
@@ -12214,18 +12284,24 @@
       },
       "jurisdiction": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.581,
+        "value": "Delaware"
+       },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 10,
+       "labeled": 43,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 6,
-        "heldout": 4,
+        "calibration": 5,
+        "dev": 19,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
-        "interim": 10
+        "interim": 10,
+        "near_gold": 33
        },
        "type": "name",
        "verdict": "thin"
@@ -12325,19 +12401,24 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.114,
+        "value": []
+       },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 10,
+       "labeled": 44,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 4,
-        "heldout": 5,
+        "calibration": 6,
+        "dev": 19,
+        "heldout": 19,
         "pool": 0
        },
        "truth": {
         "interim": 9,
-        "near_gold": 1
+        "near_gold": 35
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -12396,40 +12477,45 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 1.0,
+        "share": 0.962,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 39,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 18,
-        "heldout": 12,
+        "calibration": 13,
+        "dev": 20,
+        "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 21,
-        "near_gold": 18
+        "near_gold": 32
        },
        "type": "date",
        "verdict": "constant"
       },
       "entity_name": {
        "dojo_status": "scored",
+       "dominant": {
+        "kind": "value",
+        "share": 0.524,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "name: The corporation or entity the record is about, full legal name as written.",
        "in_output_schema": true,
-       "labeled": 14,
+       "labeled": 21,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 8,
-        "heldout": 2,
+        "calibration": 6,
+        "dev": 10,
+        "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "interim": 14
+        "interim": 21
        },
        "type": "name",
        "verdict": "thin"
@@ -12652,22 +12738,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.589,
+      "share": 0.592,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 688,
+     "labeled": 999,
      "labeled_by_set": {
-      "calibration": 242,
-      "dev": 137,
-      "heldout": 167,
-      "pool": 142
+      "calibration": 347,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "near_gold": 688
+      "near_gold": 999
      },
      "verdict": "iterate"
     },
@@ -12675,23 +12761,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.503,
+      "share": 0.572,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 768,
+     "labeled": 998,
      "labeled_by_set": {
-      "calibration": 274,
-      "dev": 142,
-      "heldout": 194,
-      "pool": 158
+      "calibration": 347,
+      "dev": 205,
+      "heldout": 252,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
       "interim": 350,
-      "near_gold": 418
+      "near_gold": 648
      },
      "verdict": "iterate"
     },
@@ -12699,23 +12785,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.092,
+      "share": 0.108,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
      "in_output_schema": true,
-     "labeled": 866,
+     "labeled": 999,
      "labeled_by_set": {
-      "calibration": 295,
-      "dev": 176,
-      "heldout": 222,
-      "pool": 173
+      "calibration": 348,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 193
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "interim": 731,
-      "near_gold": 135
+      "interim": 730,
+      "near_gold": 269
      },
      "verdict": "iterate"
     },
@@ -12768,16 +12854,16 @@
      "effective_status": "scored",
      "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
      "in_output_schema": true,
-     "labeled": 634,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 223,
-      "dev": 127,
-      "heldout": 155,
-      "pool": 129
+      "calibration": 348,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "near_gold": 634
+      "near_gold": 1000
      },
      "verdict": "constant"
     },
@@ -12785,7 +12871,7 @@
      "dojo_status": "scored",
      "dominant": {
       "kind": "value",
-      "share": 0.244,
+      "share": 0.245,
       "value": "request"
      },
      "effective_status": "scored",
@@ -12799,8 +12885,8 @@
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "hub": 948,
-      "interim": 52
+      "hub": 945,
+      "interim": 55
      },
      "verdict": "iterate"
     },
@@ -12836,23 +12922,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.109,
+      "share": 0.15,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
      "in_output_schema": true,
-     "labeled": 845,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 297,
-      "dev": 164,
-      "heldout": 213,
-      "pool": 171
+      "calibration": 348,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "interim": 584,
-      "near_gold": 261
+      "interim": 552,
+      "near_gold": 448
      },
      "verdict": "iterate"
     },
@@ -12860,23 +12946,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.022,
+      "share": 0.023,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
      "in_output_schema": true,
-     "labeled": 824,
+     "labeled": 998,
      "labeled_by_set": {
-      "calibration": 289,
-      "dev": 163,
-      "heldout": 207,
-      "pool": 165
+      "calibration": 346,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "interim": 503,
-      "near_gold": 321
+      "interim": 437,
+      "near_gold": 561
      },
      "verdict": "iterate"
     },
@@ -12923,22 +13009,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.881,
+      "share": 0.876,
       "value": "routine"
      },
      "effective_status": "scored",
      "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
      "in_output_schema": true,
-     "labeled": 658,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 234,
-      "dev": 130,
-      "heldout": 161,
-      "pool": 133
+      "calibration": 348,
+      "dev": 205,
+      "heldout": 253,
+      "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "near_gold": 658
+      "near_gold": 1000
      },
      "verdict": "iterate"
     }
@@ -13077,7 +13163,8 @@
         "pool": 1
        },
        "truth": {
-        "hub": 3
+        "hub": 2,
+        "interim": 1
        },
        "type": "label",
        "verdict": "thin"
@@ -13131,7 +13218,8 @@
         "pool": 1
        },
        "truth": {
-        "interim": 3
+        "interim": 1,
+        "near_gold": 2
        },
        "type": "name",
        "verdict": "thin"
@@ -13207,69 +13295,69 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.488,
+        "share": 0.485,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 41,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 8,
-        "dev": 15,
-        "heldout": 12,
-        "pool": 6
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 41
+        "near_gold": 66
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.333,
+        "share": 0.409,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 54,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 17,
-        "heldout": 19,
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
         "pool": 8
        },
        "truth": {
         "interim": 35,
-        "near_gold": 19
+        "near_gold": 31
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.083,
-        "value": "2002-03-08"
+        "share": 0.106,
+        "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 60,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 20,
-        "heldout": 22,
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
         "pool": 8
        },
        "truth": {
         "interim": 56,
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "date",
        "verdict": "iterate"
@@ -13323,15 +13411,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 40,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 13,
-        "heldout": 13,
-        "pool": 5
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 40
+        "near_gold": 66
        },
        "type": "money",
        "verdict": "constant"
@@ -13353,8 +13441,8 @@
         "pool": 8
        },
        "truth": {
-        "hub": 49,
-        "interim": 17
+        "hub": 48,
+        "interim": 18
        },
        "type": "label",
        "verdict": "iterate"
@@ -13391,46 +13479,46 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.125,
+        "share": 0.197,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 56,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 10,
-        "dev": 19,
-        "heldout": 20,
-        "pool": 7
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 8
        },
        "truth": {
-        "interim": 45,
-        "near_gold": 11
+        "interim": 43,
+        "near_gold": 23
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sender": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.119,
-        "value": "Louis R. DiCarlo"
+        "share": 0.121,
+        "value": "Louis R. DiCarlo, ENA Gas Structuring"
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 59,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 21,
-        "heldout": 20,
-        "pool": 7
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 8
        },
        "truth": {
-        "interim": 47,
-        "near_gold": 12
+        "interim": 35,
+        "near_gold": 31
        },
        "type": "name",
        "verdict": "iterate"
@@ -13478,24 +13566,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.837,
+        "share": 0.833,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 43,
+       "labeled": 66,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 15,
-        "heldout": 14,
-        "pool": 5
+        "calibration": 12,
+        "dev": 23,
+        "heldout": 23,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 43
+        "near_gold": 66
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 66,
@@ -13508,8 +13596,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 5,
-      "thin": 4
+      "iterate": 9
      }
     },
     "email": {
@@ -13518,21 +13605,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.607,
+        "share": 0.6,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 410,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 172,
-        "dev": 52,
-        "heldout": 77,
-        "pool": 109
+        "calibration": 239,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 149
        },
        "truth": {
-        "near_gold": 410
+        "near_gold": 557
        },
        "type": "entity_list",
        "verdict": "iterate"
@@ -13541,22 +13628,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.55,
+        "share": 0.596,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 456,
+       "labeled": 555,
        "labeled_by_set": {
-        "calibration": 194,
-        "dev": 54,
-        "heldout": 86,
-        "pool": 122
+        "calibration": 238,
+        "dev": 66,
+        "heldout": 102,
+        "pool": 149
        },
        "truth": {
         "interim": 188,
-        "near_gold": 268
+        "near_gold": 367
        },
        "type": "entity_list",
        "verdict": "iterate"
@@ -13565,22 +13652,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.076,
+        "share": 0.086,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 487,
+       "labeled": 556,
        "labeled_by_set": {
-        "calibration": 205,
-        "dev": 60,
-        "heldout": 90,
-        "pool": 132
+        "calibration": 239,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 148
        },
        "truth": {
         "interim": 397,
-        "near_gold": 90
+        "near_gold": 159
        },
        "type": "date",
        "verdict": "iterate"
@@ -13634,15 +13721,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 382,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 159,
-        "dev": 49,
-        "heldout": 72,
-        "pool": 102
+        "calibration": 239,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 149
        },
        "truth": {
-        "near_gold": 382
+        "near_gold": 557
        },
        "type": "money",
        "verdict": "constant"
@@ -13702,22 +13789,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.111,
+        "share": 0.129,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 486,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 208,
-        "dev": 57,
-        "heldout": 91,
-        "pool": 130
+        "calibration": 239,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 149
        },
        "truth": {
-        "interim": 303,
-        "near_gold": 183
+        "interim": 301,
+        "near_gold": 256
        },
        "type": "name",
        "verdict": "iterate"
@@ -13726,22 +13813,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.017,
-        "value": "Tana Jones"
+        "share": 0.023,
+        "value": null
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 470,
+       "labeled": 555,
        "labeled_by_set": {
-        "calibration": 200,
-        "dev": 57,
-        "heldout": 88,
-        "pool": 125
+        "calibration": 237,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 149
        },
        "truth": {
-        "interim": 241,
-        "near_gold": 229
+        "interim": 237,
+        "near_gold": 318
        },
        "type": "name",
        "verdict": "iterate"
@@ -13789,21 +13876,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.898,
+        "share": 0.899,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 394,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 167,
-        "dev": 49,
-        "heldout": 75,
-        "pool": 103
+        "calibration": 239,
+        "dev": 66,
+        "heldout": 103,
+        "pool": 149
        },
        "truth": {
-        "near_gold": 394
+        "near_gold": 557
        },
        "type": "label",
        "verdict": "iterate"
@@ -13828,72 +13915,72 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.722,
+        "share": 0.671,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 54,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 14,
-        "heldout": 18,
-        "pool": 6
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 7
        },
        "truth": {
-        "near_gold": 54
+        "near_gold": 79
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.714,
+        "share": 0.797,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 56,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 12,
-        "heldout": 20,
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
         "pool": 7
        },
        "truth": {
         "interim": 14,
-        "near_gold": 42
+        "near_gold": 65
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.236,
+        "share": 0.291,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 72,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 19,
+        "calibration": 23,
+        "dev": 23,
         "heldout": 26,
         "pool": 7
        },
        "truth": {
         "interim": 60,
-        "near_gold": 12
+        "near_gold": 19
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_type": {
        "dojo_status": "derived",
@@ -13944,15 +14031,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 53,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 11,
-        "heldout": 19,
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
         "pool": 7
        },
        "truth": {
-        "near_gold": 53
+        "near_gold": 79
        },
        "type": "money",
        "verdict": "constant"
@@ -14015,49 +14102,49 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.079,
-        "value": "Vince"
+        "share": 0.114,
+        "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 63,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 17,
-        "heldout": 20,
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
         "pool": 7
        },
        "truth": {
-        "interim": 45,
-        "near_gold": 18
+        "interim": 43,
+        "near_gold": 36
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sender": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.081,
+        "share": 0.063,
         "value": "The Travelocity Team"
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 62,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 16,
-        "heldout": 20,
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
         "pool": 7
        },
        "truth": {
-        "interim": 41,
-        "near_gold": 21
+        "interim": 27,
+        "near_gold": 52
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sentiment_label": {
        "dojo_status": "label_task",
@@ -14102,24 +14189,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.945,
+        "share": 0.924,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 55,
+       "labeled": 79,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 13,
-        "heldout": 20,
-        "pool": 6
+        "calibration": 23,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 7
        },
        "truth": {
-        "near_gold": 55
+        "near_gold": 79
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 79,
@@ -14132,8 +14219,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 3,
-      "thin": 6
+      "iterate": 9
      }
     },
     "meeting_request": {
@@ -14142,69 +14228,69 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.295,
+        "share": 0.358,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 44,
+       "labeled": 53,
        "labeled_by_set": {
         "calibration": 8,
-        "dev": 17,
-        "heldout": 18,
-        "pool": 1
+        "dev": 21,
+        "heldout": 22,
+        "pool": 2
        },
        "truth": {
-        "near_gold": 44
+        "near_gold": 53
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.279,
+        "share": 0.321,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 43,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 18,
-        "heldout": 18,
-        "pool": 0
+        "calibration": 8,
+        "dev": 21,
+        "heldout": 22,
+        "pool": 2
        },
        "truth": {
         "interim": 30,
-        "near_gold": 13
+        "near_gold": 23
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.078,
+        "share": 0.113,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 51,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 7,
+        "calibration": 8,
         "dev": 21,
         "heldout": 22,
-        "pool": 1
+        "pool": 2
        },
        "truth": {
-        "interim": 50,
-        "near_gold": 1
+        "interim": 49,
+        "near_gold": 4
        },
        "type": "date",
        "verdict": "iterate"
@@ -14258,15 +14344,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 37,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 17,
-        "heldout": 12,
-        "pool": 1
+        "calibration": 8,
+        "dev": 21,
+        "heldout": 22,
+        "pool": 2
        },
        "truth": {
-        "near_gold": 37
+        "near_gold": 53
        },
        "type": "money",
        "verdict": "constant"
@@ -14328,22 +14414,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.039,
-        "value": "NYISO_TECH_EXCHANGE Discussion List"
+        "share": 0.057,
+        "value": "Jeff"
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 51,
+       "labeled": 53,
        "labeled_by_set": {
         "calibration": 8,
-        "dev": 20,
-        "heldout": 21,
+        "dev": 21,
+        "heldout": 22,
         "pool": 2
        },
        "truth": {
-        "interim": 41,
-        "near_gold": 10
+        "interim": 37,
+        "near_gold": 16
        },
        "type": "name",
        "verdict": "iterate"
@@ -14352,22 +14438,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.058,
+        "share": 0.057,
         "value": "Jeff"
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 52,
+       "labeled": 53,
        "labeled_by_set": {
         "calibration": 8,
-        "dev": 20,
+        "dev": 21,
         "heldout": 22,
         "pool": 2
        },
        "truth": {
-        "interim": 40,
-        "near_gold": 12
+        "interim": 35,
+        "near_gold": 18
        },
        "type": "name",
        "verdict": "iterate"
@@ -14415,24 +14501,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.568,
+        "share": 0.642,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 37,
+       "labeled": 53,
        "labeled_by_set": {
-        "calibration": 7,
-        "dev": 15,
-        "heldout": 14,
-        "pool": 1
+        "calibration": 8,
+        "dev": 21,
+        "heldout": 22,
+        "pool": 2
        },
        "truth": {
-        "near_gold": 37
+        "near_gold": 53
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 53,
@@ -14445,8 +14531,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 6,
-      "thin": 3
+      "iterate": 9
      }
     },
     "memo": {
@@ -14455,72 +14540,72 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.51,
+        "share": 0.542,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 49,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 13,
-        "dev": 16,
-        "heldout": 14,
-        "pool": 6
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 49
+        "near_gold": 83
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.415,
+        "share": 0.518,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 53,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 15,
-        "heldout": 15,
-        "pool": 7
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
+        "pool": 8
        },
        "truth": {
         "interim": 24,
-        "near_gold": 29
+        "near_gold": 59
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.109,
+        "share": 0.096,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 64,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 19,
-        "heldout": 18,
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
         "pool": 8
        },
        "truth": {
         "interim": 54,
-        "near_gold": 10
+        "near_gold": 29
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_type": {
        "dojo_status": "derived",
@@ -14571,15 +14656,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 44,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 15,
-        "heldout": 14,
-        "pool": 4
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 44
+        "near_gold": 83
        },
        "type": "money",
        "verdict": "constant"
@@ -14639,49 +14724,49 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.079,
+        "share": 0.072,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 63,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 20,
-        "dev": 18,
-        "heldout": 17,
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
         "pool": 8
        },
        "truth": {
-        "interim": 47,
-        "near_gold": 16
+        "interim": 37,
+        "near_gold": 46
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sender": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.049,
+        "share": 0.06,
         "value": "J. Robert Collins, Jr., President"
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 61,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 19,
-        "dev": 17,
-        "heldout": 17,
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
         "pool": 8
        },
        "truth": {
-        "interim": 42,
-        "near_gold": 19
+        "interim": 31,
+        "near_gold": 52
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sentiment_label": {
        "dojo_status": "label_task",
@@ -14726,24 +14811,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.867,
+        "share": 0.855,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 45,
+       "labeled": 83,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 15,
-        "heldout": 14,
-        "pool": 4
+        "calibration": 27,
+        "dev": 24,
+        "heldout": 24,
+        "pool": 8
        },
        "truth": {
-        "near_gold": 45
+        "near_gold": 83
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 83,
@@ -14756,8 +14841,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 3,
-      "thin": 6
+      "iterate": 9
      }
     },
     "notice": {
@@ -14766,72 +14850,72 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.558,
+        "share": 0.556,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 43,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 10,
-        "heldout": 14,
-        "pool": 8
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
-        "near_gold": 43
+        "near_gold": 81
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.393,
+        "share": 0.531,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 56,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 15,
-        "dev": 14,
-        "heldout": 18,
-        "pool": 9
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
         "interim": 32,
-        "near_gold": 24
+        "near_gold": 49
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.042,
-        "value": "2001-06-07"
+        "share": 0.062,
+        "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 71,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 18,
-        "dev": 19,
-        "heldout": 23,
-        "pool": 11
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
         "interim": 62,
-        "near_gold": 9
+        "near_gold": 19
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_type": {
        "dojo_status": "derived",
@@ -14882,15 +14966,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 39,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 9,
-        "heldout": 12,
-        "pool": 6
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
-        "near_gold": 39
+        "near_gold": 81
        },
        "type": "money",
        "verdict": "constant"
@@ -14899,7 +14983,7 @@
        "dojo_status": "scored",
        "dominant": {
         "kind": "value",
-        "share": 0.617,
+        "share": 0.605,
         "value": "notice"
        },
        "effective_status": "scored",
@@ -14912,8 +14996,8 @@
         "pool": 12
        },
        "truth": {
-        "hub": 70,
-        "interim": 11
+        "hub": 69,
+        "interim": 12
        },
        "type": "label",
        "verdict": "iterate"
@@ -14950,49 +15034,49 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.076,
+        "share": 0.222,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 66,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 16,
-        "heldout": 22,
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
         "pool": 12
        },
        "truth": {
-        "interim": 54,
-        "near_gold": 12
+        "interim": 45,
+        "near_gold": 36
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sender": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.047,
+        "share": 0.037,
         "value": "COLUMBIA GAS TRANSMISSION CORPORATION"
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 64,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 17,
-        "dev": 15,
-        "heldout": 21,
-        "pool": 11
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
-        "interim": 50,
-        "near_gold": 14
+        "interim": 40,
+        "near_gold": 41
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sentiment_label": {
        "dojo_status": "label_task",
@@ -15037,24 +15121,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.927,
+        "share": 0.827,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 41,
+       "labeled": 81,
        "labeled_by_set": {
-        "calibration": 11,
-        "dev": 10,
-        "heldout": 11,
-        "pool": 9
+        "calibration": 20,
+        "dev": 23,
+        "heldout": 26,
+        "pool": 12
        },
        "truth": {
-        "near_gold": 41
+        "near_gold": 81
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 81,
@@ -15067,8 +15151,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 3,
-      "thin": 6
+      "iterate": 9
      }
     },
     "other": {
@@ -15295,72 +15378,72 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.75,
+        "share": 0.792,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 44,
+       "labeled": 77,
        "labeled_by_set": {
-        "calibration": 14,
-        "dev": 12,
-        "heldout": 13,
-        "pool": 5
+        "calibration": 18,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
-        "near_gold": 44
+        "near_gold": 77
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "additional_recipients": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.383,
+        "share": 0.564,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 47,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 15,
-        "dev": 11,
-        "heldout": 17,
-        "pool": 4
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
         "interim": 27,
-        "near_gold": 20
+        "near_gold": 51
        },
        "type": "entity_list",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_date": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.103,
+        "share": 0.115,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
        "in_output_schema": true,
-       "labeled": 58,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 17,
-        "heldout": 20,
-        "pool": 5
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
         "interim": 49,
-        "near_gold": 9
+        "near_gold": 29
        },
        "type": "date",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "communication_type": {
        "dojo_status": "derived",
@@ -15411,15 +15494,15 @@
        "effective_status": "scored",
        "guide": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
        "in_output_schema": true,
-       "labeled": 36,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 9,
-        "dev": 12,
-        "heldout": 12,
-        "pool": 3
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
-        "near_gold": 36
+        "near_gold": 78
        },
        "type": "money",
        "verdict": "constant"
@@ -15479,49 +15562,49 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.246,
+        "share": 0.372,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
        "in_output_schema": true,
-       "labeled": 57,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 16,
-        "dev": 16,
-        "heldout": 21,
-        "pool": 4
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
-        "interim": 47,
-        "near_gold": 10
+        "interim": 44,
+        "near_gold": 34
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sender": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.075,
+        "share": 0.051,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 53,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 15,
-        "dev": 16,
-        "heldout": 18,
-        "pool": 4
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
-        "interim": 39,
-        "near_gold": 14
+        "interim": 31,
+        "near_gold": 47
        },
        "type": "name",
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "sentiment_label": {
        "dojo_status": "label_task",
@@ -15566,24 +15649,24 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.925,
+        "share": 0.923,
         "value": "routine"
        },
        "effective_status": "scored",
        "guide": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent.",
        "in_output_schema": true,
-       "labeled": 40,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 12,
-        "dev": 12,
-        "heldout": 12,
-        "pool": 4
+        "calibration": 19,
+        "dev": 24,
+        "heldout": 28,
+        "pool": 7
        },
        "truth": {
-        "near_gold": 40
+        "near_gold": 78
        },
        "type": "label",
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "rows": 78,
@@ -15596,8 +15679,7 @@
      "verdicts": {
       "constant": 2,
       "fixed": 2,
-      "iterate": 3,
-      "thin": 6
+      "iterate": 9
      }
     }
    }
@@ -20585,10 +20667,10 @@
  "inputs": {
   "constant_share": 0.95,
   "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
-  "interim_overlay_sha256": "7fc65be9bf39e465dbef31e117f721fd5d262f5d687a91deac700022578feb67",
-  "labeling_guide_sha256": "36dea23ffa9855c6d7ffe0b0b7953d878f6f9aa07b2ae201d132443c2c5c6b2b",
+  "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
+  "labeling_guide_sha256": "6176bc0afaaa5d6d83b508256cbc712b996bda7d50a1b9bdc34349556fa0bf41",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "8fc7ace005365992a658c3fa827d6675e6db7b3927e0650c770a54819e9f6223",
+  "near_gold_overlay_sha256": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
   "split_assignments_sha256": "ca7c4a18a59620b4f2c881307f59aa2ebb249ac0a1edfc0dc3aa1e24622f20fa"
  },
  "problems": [],

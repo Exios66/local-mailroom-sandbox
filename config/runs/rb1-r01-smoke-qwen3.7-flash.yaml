@@ -1,0 +1,86 @@
+# Evaluation runbook R01 (SAND-108): 10-document provider-pin smoke for qwen/qwen3.7-flash.
+# Gate: every ledger row for qwen/qwen3.7-flash is `status: verified` (non-empty provider_pins.yaml
+# `order`, served provider inside it, served model equal to the id or its canonical_slug), and
+# the ledger holds at least 10 docs x 2 per-document agents = 20 rows (scripts/check_r01_smoke.py).
+# The whole pipeline (task: pipeline) on 2 dev-look1 documents per class, so the sorter and all
+# five specialists run on this model: the LangChain path (sorter, contracts and merger
+# specialists; ledger call_path: langchain) and the wrapped retry_chat_completion path
+# (corporate, correspondence and insurance specialists, sorter_reviewer, judge, arbiter;
+# call_path: retry_chat_completion). judge and boss are routed to the same model (the openrouter
+# profile otherwise sends judge to deepseek/deepseek-v4-flash), so every chat call is this model.
+# No agent_knobs: context fit gives every reader (intake, sorter, sorter_reviewer, specialists,
+# judge, arbiter) the model's 1M-token window, so each reads a document in one call (the first
+# attempt windowed each merger ~100 times at the 12k sorter cap). Prompts: every agent runs its
+# lineage frontrunner (prompt_lineage; default code-default no longer means vendored). Routing is
+# blind (job.blind_routing defaults to true for pipelines). The smoke checks routing, not accuracy.
+#
+# Blocked until config/provider_pins.yaml has a non-empty `order` for qwen/qwen3.7-flash
+# (python scripts/refresh_provider_pins.py; owner choice): with `order: []` every row is
+# `unverified` and the gate fails.
+#
+# Cost (config/api_prices.yaml list prices with tiers; the 10 drawn documents are 1k-383k
+# chars, ~3.75 chars/token measured on this draw; the two mergers are ~82k and ~102k tokens
+# per whole-document read, priced at the 32k+ tier; output assumed 300 tokens per sorter
+# call, 2,000 per specialist call, 500 per judge call): about $0.06 on the clean path
+# (intake, sorter, specialist), about $0.10 with the review and judge reads, worst case
+# about $0.25 (3 extraction, judge and arbiter passes each). Caps: api_cost_cap_usd 0.09 is
+# below the judged path and may stop the run before the last documents (checked before each
+# document; concurrency 2 keeps the overshoot to the documents in flight); raising it is the
+# owner's call. max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
+# repository root:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-flash.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-flash.jsonl sandbox run start --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml --initials <XX>
+# Gate (offline, after the run):
+#   python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-qwen3.7-flash.jsonl --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml
+schema: sandbox.run/v1
+run_id: rb1-r01-smoke-qwen3.7-flash
+task: pipeline
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 2}
+      - {doc_class: corporate_record, count: 2}
+      - {doc_class: correspondence, count: 2}
+      - {doc_class: insurance_claim, count: 2}
+      - {doc_class: merger_agreement, count: 2}
+  limit: 10
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_routes:
+  judge: {provider: openrouter, model: qwen/qwen3.7-flash}
+  boss: {provider: openrouter, model: qwen/qwen3.7-flash}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 2
+  cost_cap_usd: 0.09
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.09
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R01, provider-pin-smoke]

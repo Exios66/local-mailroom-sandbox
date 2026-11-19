@@ -56,9 +56,11 @@ _DOC_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 class FamilyAPIError(ServiceError):
     """The mailroom API was unreachable, refused a request, or answered off-contract."""
 
-    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+    def __init__(self, message: str, *, status_code: int | None = None, detail: str = "") -> None:
         super().__init__(message)
         self.status_code = status_code
+        #: The server's own error detail (response body), without the URL or method in the message.
+        self.detail = detail
 
 
 def _default_transport() -> httpx.BaseTransport | None:
@@ -121,7 +123,7 @@ class MailroomAPI:
             detail = review_cli._detail(resp, self._token)
             raise FamilyAPIError(review_cli._scrub(
                 f"HTTP {resp.status_code} from {self.base_url} for {method} {path}: {detail}", self._token),
-                status_code=resp.status_code)
+                status_code=resp.status_code, detail=review_cli._scrub(str(detail), self._token))
         try:
             return resp.json()
         except ValueError:
@@ -262,16 +264,66 @@ def _upload_ready(path: Path, row: Mapping[str, Any]) -> Path:
     return path
 
 
+def _retryable_refusal(exc: FamilyAPIError) -> bool:
+    """The API refused before storing anything and asked the client to come back later.
+
+    429 is the upload rate limit; 503 whose response detail says "paused" is the ingestion pause
+    gate, which the API checks before it reads the file. Only the detail is read: the message also
+    carries the base URL, which may itself contain the word. Any other 5xx may have stored the
+    file, so it is not retried.
+    """
+    return exc.status_code == 429 or (exc.status_code == 503 and "paused" in (exc.detail or "").lower())
+
+
 def _upload_with_backoff(api: MailroomAPI, path: Path, *, matter_id: str, filename: str,
                          sleep: Callable[[float], None]) -> dict[str, Any]:
     for attempt in range(RATE_LIMIT_RETRIES + 1):
         try:
             return api.upload(path, matter_id=matter_id, filename=filename)
         except FamilyAPIError as exc:
-            if exc.status_code != 429 or attempt == RATE_LIMIT_RETRIES:
+            if not _retryable_refusal(exc) or attempt == RATE_LIMIT_RETRIES:
                 raise
             sleep(RATE_LIMIT_BACKOFF_SECONDS)
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _poll_pending(api: MailroomAPI, pending: dict[str, dict[str, Any]], *,
+                  deadline: float | None, clock: Callable[[], float]) -> str | None:
+    """One lookup pass: move terminal documents out of ``pending``; the lookup error, if any."""
+    for name in list(pending):
+        if deadline is not None and clock() >= deadline:
+            break
+        try:
+            doc = api.lookup(filename=name)
+        except FamilyAPIError as exc:
+            return f"lookup failed while waiting for results: {exc}"
+        if doc and str(doc.get("stage") or "").lower() in TERMINAL_STAGES:
+            pending.pop(name)["document"] = doc
+    return None
+
+
+def _wait_for_window(api: MailroomAPI, pending: dict[str, dict[str, Any]], max_in_flight: int, *,
+                     doc_timeout: float, poll_seconds: float, sleep: Callable[[float], None],
+                     clock: Callable[[], float]) -> tuple[str | None, bool]:
+    """Hold the next upload until fewer than ``max_in_flight`` are unfinished.
+
+    Returns ``(error, lookup_failed)``. The wait ends with an error when a lookup fails or when
+    no document finishes within ``doc_timeout`` (the window stayed full); the caller then stops
+    sending.
+    """
+    deadline = clock() + doc_timeout
+    while len(pending) >= max_in_flight:
+        lookup_error = _poll_pending(api, pending, deadline=deadline, clock=clock)
+        if lookup_error:
+            return f"{lookup_error}; later rows were not sent", True
+        if len(pending) < max_in_flight:
+            break
+        now = clock()
+        if now >= deadline:
+            return (f"backpressure: {len(pending)} uploaded documents stayed unfinished for "
+                    f"{doc_timeout:.0f}s (max_in_flight {max_in_flight}); later rows were not sent"), False
+        sleep(min(poll_seconds, deadline - now))
+    return None, False
 
 
 def run_api_eval(
@@ -284,6 +336,7 @@ def run_api_eval(
     run_tag: str | None = None,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    max_in_flight: int | None = None,
 ) -> dict[str, Any]:
     """Upload ``rows``, wait for each to reach a terminal stage, and score the results.
 
@@ -305,8 +358,14 @@ def run_api_eval(
     under ``incomplete`` and are not scored. ``ok`` is False when any document is
     incomplete or failed, or when the API errored mid-run; then ``error`` says why and
     the report still lists every document that was accepted, so nothing uploaded is lost.
-    An upload refused with HTTP 429 (the API's upload rate limit) is retried after a
-    back-off.
+    An upload refused with HTTP 429 (the API's upload rate limit) or 503 "paused" (its
+    ingestion pause gate) is retried after a back-off.
+
+    Backpressure: at most ``max_in_flight`` uploads wait unfinished at once (default
+    ``MAILROOM_MAX_QUEUE_DEPTH_INBOX``, see ``mailroom_sandbox.backpressure``; 0 = no bound).
+    At the bound the next upload waits for one to finish, so a large eval never floods the
+    API's inbox. If none finishes within ``doc_timeout`` the remaining rows are not sent and
+    ``error`` says so; every accepted document is still reported.
     """
     from mailroom_sandbox.eval import scoring
     from mailroom_sandbox.eval.runners import _materialize_row, _score_pipeline_extraction
@@ -318,12 +377,19 @@ def run_api_eval(
     poll_seconds = max(poll_seconds, MIN_POLL_SECONDS)
     doc_timeout = max(doc_timeout, 0.0)
     tag = run_tag or f"apieval-{uuid.uuid4().hex[:8]}"
+    if max_in_flight is None:
+        from mailroom_sandbox import backpressure
+
+        max_in_flight = backpressure.limit("inbox")
+    max_in_flight = max(int(max_in_flight), 0)
     started = clock()
     health = api.health()
     error: str | None = None
     pending: dict[str, dict[str, Any]] = {}
     per_doc: list[dict[str, Any]] = []
     unconfirmed: str | None = None
+    lookup_failed = False
+    window_timed_out = False
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
         used_names: set[str] = set()
         for index, raw in enumerate(rows):
@@ -334,12 +400,19 @@ def run_api_eval(
                 # answers by inbox name, so a repeat would overwrite the first row's pending entry.
                 local = local.rename(local.with_name(f"{index:04d}-{local.name}"))
             used_names.add(local.name)
+            if max_in_flight and len(pending) >= max_in_flight:
+                error, lookup_failed = _wait_for_window(
+                    api, pending, max_in_flight, doc_timeout=doc_timeout,
+                    poll_seconds=poll_seconds, sleep=sleep, clock=clock)
+                if error:
+                    window_timed_out = not lookup_failed
+                    break
             try:
                 accepted = _upload_with_backoff(api, local, matter_id=matter_id,
                                                 filename=f"{tag}-{local.name}", sleep=sleep)
             except FamilyAPIError as exc:
                 error = f"upload of {local.name} failed; later rows were not sent: {exc}"
-                if exc.status_code is None or exc.status_code >= 500:
+                if (exc.status_code is None or exc.status_code >= 500) and not _retryable_refusal(exc):
                     # No answer (timeout, dropped connection) or a server error: the API may still
                     # have stored the file, so name it rather than lose track of it.
                     unconfirmed = f"{tag}-{local.name}"
@@ -349,24 +422,18 @@ def run_api_eval(
             pending[accepted["file"]] = entry
             per_doc.append(entry)
 
+    # A window that timed out has just polled these documents after waiting doc_timeout on them:
+    # report them unfinished instead of waiting a second doc_timeout.
     deadline = clock() + doc_timeout
-    lookup_failed = False
-    while pending and not lookup_failed:
-        for name in list(pending):
-            if clock() >= deadline:
-                break
-            try:
-                doc = api.lookup(filename=name)
-            except FamilyAPIError as exc:
-                lookup_error = f"lookup failed while waiting for results: {exc}"
-                error = f"{error}; {lookup_error}" if error else lookup_error
-                lookup_failed = True
-                break
-            if doc and str(doc.get("stage") or "").lower() in TERMINAL_STAGES:
-                pending.pop(name)["document"] = doc
-        if not pending or lookup_failed or clock() >= deadline:
+    while pending and not lookup_failed and not window_timed_out:
+        lookup_error = _poll_pending(api, pending, deadline=deadline, clock=clock)
+        if lookup_error:
+            error = f"{error}; {lookup_error}" if error else lookup_error
+            lookup_failed = True
+        now = clock()
+        if not pending or lookup_failed or now >= deadline:
             break
-        sleep(poll_seconds)
+        sleep(min(poll_seconds, deadline - now))
 
     expected: list[str] = []
     predicted: list[str] = []

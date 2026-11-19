@@ -1,0 +1,74 @@
+# Evaluation runbook R03 (SAND-108, decisions 2-3): the v0 correspondence specialist pass on the
+# frozen dev set, so the gold audit has v0-vs-gold disagreements before G0.
+# correspondence_specialist (isolated) at its decided v0 stem
+# correspondence_specialist_condensed_v3 on qwen/qwen3.7-flash (the iteration model), the whole
+# document in one call (longest dev letter 21,462 chars; the 15,312-char overlay cap would cut 3),
+# on the 205 correspondence documents of config/splits/runbook-v1 dev (corpus revision bc9eab28).
+# Truth is the repaired overlay (interim + near-gold).
+# job.pipeline_handoff with job.specialist_subclass: gold hands the specialist the gold subclass
+# (the pipeline behind a correct sorter), so the fields derived from it copy the truth; the audit
+# sheet skips them.
+# job.schema_guide stays off: the plan turns it on for the candidate A/Bs (finding 16), and the v0
+# stem is the frontrunner baseline.
+#
+# Cost: priced per document on the saved sorter pass's prompt tokens
+# (data/handoff/sorter-qwen3.7-flash) with the tiers of config/api_prices.yaml (<32k: $0.03/$0.13,
+# >=32k: $0.10/$0.40, >=256k: $0.20/$0.80 per 1M; a document the saved pass cut at 600,000 chars
+# scaled to its full length) and ~2k output tokens per call: about $0.09 list for 205 documents.
+# The sorter prompt is longer than the specialist's, so this errs high. The caps are ~1.5x. Launch
+# only with the owner's initials at the spend gate:
+#   sandbox run preflight --config config/runs/rb1-r03-correspondence-v0-dev.yaml
+#   sandbox run start --config config/runs/rb1-r03-correspondence-v0-dev.yaml --initials <XX>
+# Then build the audit sheet (data/labels/review/README.md, R03 gold audit):
+#   python scripts/build_gold_audit_sheet.py --run rb1-r03-correspondence-v0-dev --lineage correspondence \
+#       --n 100 --seed 20261118
+schema: sandbox.run/v1
+run_id: rb1-r03-correspondence-v0-dev
+task: correspondence_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v3}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 205}
+  limit: 205
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  correspondence_specialist: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.14
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.14
+  pipeline_handoff: true
+  specialist_subclass: gold
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R03, correspondence-v0, dev]
