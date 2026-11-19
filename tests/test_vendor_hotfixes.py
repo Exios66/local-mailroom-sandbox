@@ -9,8 +9,13 @@ pytest.importorskip("langchain_agents.doc_inventories")
 
 
 def test_every_hotfix_matches_the_vendored_code_it_was_written_against():
+    import importlib.util
+
     status = vh.apply_hotfixes()
-    assert status and all(s == "applied" for s in status.values()), status
+    # HF-005 wraps pipeline.watcher, which imports langfuse (the observability extra); without it
+    # the watcher is not importable here and the fix is unavailable, never stale.
+    optional = {} if importlib.util.find_spec("langfuse") else {"HF-005": "unavailable"}
+    assert status and all(s == optional.get(i, "applied") for i, s in status.items()), status
     assert vh.apply_hotfixes() == status  # idempotent: no wrapper stacking
     from langchain_agents import doc_inventories as di
 
