@@ -72,7 +72,7 @@ refresh rewrote them.
 .venv/bin/python -m pytest tests/test_vendor.py tests/test_vendor_drift.py \
   tests/test_vendor_refresh_git.py tests/test_vendor_sync_script.py -q
 .venv/bin/python -m pytest -q -m "not local_llm"
-ruff check src tests scripts deploy reports
+ruff check src tests scripts deploy reports notebooks
 ```
 
 Expected: both pytest runs exit 0 with no failures (skips are fine; any failure blocks the

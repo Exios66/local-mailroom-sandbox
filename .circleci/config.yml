@@ -92,7 +92,7 @@ jobs:
             - ~/.cache/pip
       - run:
           name: ruff (correctness gate, config in pyproject.toml)
-          command: ruff check src tests scripts deploy reports
+          command: ruff check src tests scripts deploy reports notebooks
       - run:
           name: bandit (medium+ severity; LOW findings are not gated)
           command: bandit -q -ll -r src deploy scripts

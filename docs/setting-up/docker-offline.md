@@ -62,8 +62,13 @@ fi
 | [`notebooks/01_offline_environment_setup.ipynb`](../../notebooks/01_offline_environment_setup.ipynb) | Copy `.env`, activate profile, verify Dockerfile/compose/fixtures |
 | [`notebooks/02_load_clean_prepare_data.ipynb`](../../notebooks/02_load_clean_prepare_data.ipynb) | Load catalog + HF + agent gold; clean; write `data/runtime/prepared/` |
 | [`notebooks/03_offline_sandbox_smoke.ipynb`](../../notebooks/03_offline_sandbox_smoke.ipynb) | Mock pilot / sorter smoke against prepared JSONL (no live LLM) |
+| [`notebooks/04_experiment_log_explorer.ipynb`](../../notebooks/04_experiment_log_explorer.ipynb) | Read-only table and charts of experiment-log records |
 
-Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environment_checklist`).
+Run order, outputs and environment switches: [`notebooks/README.md`](../../notebooks/README.md).
+Prep helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environment_checklist`).
+The shared notebook bootstrap (`mailroom_sandbox.notebook.bootstrap`) pins an absolute
+`MAILROOM_BASE_DIR`, uses the `ollama` profile unless `SANDBOX_PROFILE` is set, and sends
+notebook eval records to `data/runtime/notebooks/experiment_log.jsonl`.
 
 ## Compose profiles
 
