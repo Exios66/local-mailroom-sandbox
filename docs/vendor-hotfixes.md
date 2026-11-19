@@ -25,13 +25,13 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
 | --- | --- | --- | --- |
 | HF-001 | `langchain_agents.doc_inventories.enrich_extraction` | A null corporate `record_type` is filled from every corporate subclass through Dojo's subclass → `record_type` map. Upstream fills it only for the five Hub tokens, so indenture, board_resolution, officer_certificate, subsidiary_list, charter_amendment and certificate_of_formation left it null. | [Exios66/llm-mailroom#313](https://github.com/Exios66/llm-mailroom/issues/313) |
 | HF-002 | `agents.judge.CompletenessJudge.judge_completeness` | A completeness-judge parse failure raises instead of returning a real "incomplete 0.0" verdict, so the graph takes its judge-error path (human review, counted by the gate) instead of sending the document to the arbiter as if it were judged incomplete. | draft J-1 below (not filed) |
-| HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` that keeps under 90% of the document never replaces it. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. | draft J-2 below (not filed) |
+| HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` replaces the document only when it keeps 90% of its length and its words: aligned in order, no run of 8 or more source words and no more than 5% of them may be lost, so a reply that drops a clause is refused even at full length. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. | draft J-2 below (not filed) |
 
 ### Draft llm-mailroom issues (not filed)
 
 - **J-1** `CompletenessJudge.judge_completeness` turns a structured-output parse failure into an
   `incomplete` 0.0 verdict instead of a judge error.
-- **J-2** `IntakeAgent.intake_run` accepts a single-window `cleaned_text` with no length check, and
+- **J-2** `IntakeAgent.intake_run` accepts a single-window `cleaned_text` with no length or content check, and
   `build_graph` replaces the document with it.
 
 Filing these upstream is an owner decision.

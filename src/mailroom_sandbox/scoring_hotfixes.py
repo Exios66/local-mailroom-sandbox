@@ -158,7 +158,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-010",
         layer="sandbox",
         targets=(("mailroom_sandbox.gold_labels:supersede_interim_gap_fills",
-                  "cd7011f027ed1b328854b0d1dadf9ee546cf7f0f506eafc8c6cbd2f645b554a5"),),
+                  "708f35c78dd7bdb9dcdcd69a0102b2d408ec94ddfbf19aa02a57869edc5f0ec2"),),
         upstream="sandbox (owner decision: reviewed gold supersedes interim gap fills; "
                  "data/labels/review/INTERIM_AUDIT.md step 2)",
         summary="a near-gold label supersedes a conflicting interim gate gap fill (not an "

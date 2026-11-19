@@ -22,11 +22,13 @@ live in ``scoring_hotfixes.py``, dual reported beside the Dojo pin's raw values.
 
 from __future__ import annotations
 
+import difflib
 import functools
 import hashlib
 import importlib
 import inspect
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -105,6 +107,42 @@ def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Ca
 
 #: The least share of the source a single-window intake ``cleaned_text`` must keep to replace it.
 INTAKE_CLEAN_MIN_SHARE = 0.9
+#: Content check: the source and cleaned words are aligned in order; the longest run of source
+#: words with no counterpart and the share of such words are bounded.
+INTAKE_CLEAN_MAX_LOST_RUN = 8
+INTAKE_CLEAN_MAX_LOST_SHARE = 0.05
+
+_WORD = re.compile(r"\w+")
+
+
+def lost_words(source: str, cleaned: str) -> tuple[int, float]:
+    """``(longest run, share)`` of source words the cleaned text does not keep, in order.
+
+    Words are case-folded and aligned with :class:`difflib.SequenceMatcher` (its autojunk
+    heuristic keeps a 400k-character document to milliseconds). An OCR or hyphenation repair
+    loses a word or two; a dropped clause loses every word in it, in one run, even when the same
+    wording recurs elsewhere in the document (a set of n-grams would miss that).
+    """
+    src = [w.casefold() for w in _WORD.findall(source or "")]
+    dst = [w.casefold() for w in _WORD.findall(cleaned or "")]
+    if not src:
+        return 0, 0.0
+    longest = matched = prev = 0
+    for block in difflib.SequenceMatcher(None, src, dst).get_matching_blocks():
+        longest = max(longest, block.a - prev)
+        prev = block.a + block.size
+        matched += block.size
+    return longest, (len(src) - matched) / len(src)
+
+
+def _intake_clean_refusal(doc_text: str, cleaned: str) -> str | None:
+    """Why a single-window ``cleaned`` may not replace ``doc_text`` (None when it may)."""
+    if len(cleaned) < INTAKE_CLEAN_MIN_SHARE * len(doc_text or ""):
+        return f"cleaned_text kept {len(cleaned)} of {len(doc_text or '')} characters (HF-003)"
+    run, share = lost_words(doc_text, cleaned)
+    if run >= INTAKE_CLEAN_MAX_LOST_RUN or share > INTAKE_CLEAN_MAX_LOST_SHARE:
+        return f"cleaned_text lost {share:.1%} of the source words, {run} in a row (HF-003)"
+    return None
 
 
 def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
@@ -114,13 +152,15 @@ def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> C
         cleaned = prep.get("cleaned") if isinstance(prep, dict) else None
         # Upstream accepts any non-empty cleaned_text from a single-window read, and the graph
         # then replaces the whole document with it. Context fit sends a long document in one
-        # window while the output allowance stays ~2k tokens, so a short reply would replace a
-        # merger with a fragment. A repair that drops more than a tenth of the text is refused.
-        if cleaned and len(cleaned) < INTAKE_CLEAN_MIN_SHARE * len(doc_text or ""):
+        # window while the output allowance stays ~2k tokens, so a short or partial reply would
+        # replace a merger with a fragment. The source stands unless the cleaned text keeps its
+        # length and its words: a dropped clause is refused even when the length survives.
+        refusal = _intake_clean_refusal(doc_text, cleaned) if cleaned else None
+        if refusal:
             for key in ("cleaned", "clean_stats"):
                 prep.pop(key, None)
             prep["changed"] = False
-            prep["clean_refused"] = f"cleaned_text kept {len(cleaned)} of {len(doc_text)} characters (HF-003)"
+            prep["clean_refused"] = refusal
         return prep
 
     return intake_run
@@ -153,8 +193,9 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="IntakeAgent.intake_run",
         source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
         upstream="llm-mailroom: draft issue J-2 in docs/vendor-hotfixes.md (not filed)",
-        summary="a single-window intake cleaned_text that keeps under 90% of the document never "
-                "replaces it (context fit reads long documents in one window)",
+        summary="a single-window intake cleaned_text replaces the document only when it keeps "
+                "90% of its length and its words (no dropped run of 8+ words, under 5% lost); "
+                "context fit reads long documents in one window",
         install=_install_intake_clean_guard,
     ),
 )

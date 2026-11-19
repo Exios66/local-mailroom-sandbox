@@ -448,6 +448,7 @@ def test_shf010_near_gold_supersedes_a_gate_gap_fill(monkeypatch):
     row, interim, rec = _overlay_row("gate_accepted_grounded")
     monkeypatch.setitem(gl._INTERIM_CACHE, "overlay", {"DOC-1": {"labels": interim}})
     monkeypatch.setitem(gl._INTERIM_CACHE, "key", gl._interim_key())
+    monkeypatch.setitem(gl._INTERIM_CACHE, "sha", "x")  # the overlay the row was prepared with
     out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g")
     assert json.loads(out["expected_fields"])["sender"] == "Joe Parks"
     assert out["truth_overrides"] == {"SHF-010": {"sender": {"interim": "Frank Hayden", "interim_presence": "populated",
@@ -465,9 +466,27 @@ def test_shf010_keeps_an_original_header_fill(monkeypatch):
     row, interim, rec = _overlay_row("original_header")
     monkeypatch.setitem(gl._INTERIM_CACHE, "overlay", {"DOC-1": {"labels": interim}})
     monkeypatch.setitem(gl._INTERIM_CACHE, "key", gl._interim_key())
+    monkeypatch.setitem(gl._INTERIM_CACHE, "sha", "x")  # the overlay the row was prepared with
     out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g")
     assert "truth_overrides" not in out
     assert json.loads(out["expected_fields"])["sender"] == "Frank Hayden"
+
+
+def test_shf010_precedence_reads_the_overlay_the_row_was_prepared_with(monkeypatch):
+    """The overlay changes between preparation and precedence: the prepared snapshot decides."""
+    from mailroom_sandbox import gold_labels as gl
+
+    row, prepared, rec = _overlay_row("original_header")
+    _, edited, _ = _overlay_row("gate_accepted_grounded")
+    monkeypatch.setitem(gl._INTERIM_CACHE, "overlay", {"DOC-1": {"labels": edited}})
+    monkeypatch.setitem(gl._INTERIM_CACHE, "key", gl._interim_key())
+    monkeypatch.setitem(gl._INTERIM_CACHE, "sha", "edited")
+    out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g", interim={"DOC-1": {"labels": prepared}})
+    assert "truth_overrides" not in out and json.loads(out["expected_fields"])["sender"] == "Frank Hayden"
+    # Without the snapshot, a current overlay that is not the row's (fingerprint "edited" != "x")
+    # supersedes nothing: the prepared interim value stands.
+    out = gl.apply_near_gold(row, {"DOC-1": rec}, overlay_sha="g")
+    assert "truth_overrides" not in out and json.loads(out["expected_fields"])["sender"] == "Frank Hayden"
 
 
 # --- SHF-011: paired A/B report -------------------------------------------------------------------

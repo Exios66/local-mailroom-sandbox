@@ -1267,15 +1267,21 @@ def _interim_key() -> tuple:
                         for p in root.glob("*") if p.is_file())) if root.is_dir() else ()
 
 
-def _interim_labels_of(doc_id: str) -> Mapping[str, Any]:
+def _interim_labels_of(doc_id: str, overlay_sha: str | None = None) -> Mapping[str, Any] | None:
+    """The current interim overlay's labels for ``doc_id``; None when the overlay is not the one
+    (``overlay_sha``) the row was prepared with, so precedence never reads a newer overlay."""
     from mailroom_sandbox import interim_labels as il
 
-    # Keyed on the overlay files' state, so a preparation after an overlay edit (a fill's basis
-    # changed to original_header, say) checks precedence against the overlay it prepared with.
     key = _interim_key()
     if _INTERIM_CACHE.get("key") != key or "overlay" not in _INTERIM_CACHE:
         _INTERIM_CACHE["overlay"] = il.load_overlay()
         _INTERIM_CACHE["key"] = key
+        _INTERIM_CACHE.pop("sha", None)
+    if overlay_sha is not None:
+        if "sha" not in _INTERIM_CACHE:
+            _INTERIM_CACHE["sha"] = il.overlay_fingerprint()
+        if _INTERIM_CACHE["sha"] != overlay_sha:
+            return None
     return ((_INTERIM_CACHE["overlay"].get(doc_id) or {}).get("labels")) or {}
 
 
@@ -1290,10 +1296,17 @@ def supersede_interim_gap_fills(row: Mapping[str, Any], rec: Mapping[str, Any],
     """
     from mailroom_sandbox import interim_labels as il
 
-    applied = set(((row.get("interim_labels") or {}).get("fields")) or [])
+    mark = row.get("interim_labels") or {}
+    applied = set(mark.get("fields") or [])
     if not applied:
         return {}
-    labels = interim if interim is not None else _interim_labels_of(str(row.get("id")))
+    # ``interim`` is the overlay snapshot the row was prepared from. Without it, the current
+    # overlay is read only when it is that snapshot (its fingerprint matches the row's); after an
+    # overlay edit nothing is superseded, so the prepared interim value stands.
+    labels = interim if interim is not None else _interim_labels_of(
+        str(row.get("id")), str(mark.get("overlay_sha256") or ""))
+    if labels is None:
+        return {}
     exp = il._expected(row)
     pres = il._presence(exp)
     out: dict[str, dict[str, Any]] = {}
@@ -1311,7 +1324,7 @@ def supersede_interim_gap_fills(row: Mapping[str, Any], rec: Mapping[str, Any],
 
 
 def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any]], *,
-                    overlay_sha: str) -> dict[str, Any]:
+                    overlay_sha: str, interim: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any]:
     """The row with near-gold labels filling fields that nothing else labels.
 
     Precedence is Hub GT, then the interim overlay's truth labels (applied before this), then
@@ -1334,7 +1347,9 @@ def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, A
     from mailroom_sandbox import scoring_hotfixes as sh
 
     # SHF-010 (docs/scoring-hotfixes.md): reviewed near-gold supersedes a conflicting interim gap fill.
-    overrides = supersede_interim_gap_fills(row, rec) if sh.enabled("SHF-010") else {}
+    # ``interim`` is the interim overlay the row was prepared with (doc id -> record).
+    snap = None if interim is None else ((interim.get(str(row.get("id"))) or {}).get("labels") or {})
+    overrides = supersede_interim_gap_fills(row, rec, snap) if sh.enabled("SHF-010") else {}
     applied = []
     for fld, lab in sorted((rec.get("labels") or {}).items()):
         if not str(lab.get("basis") or "").startswith("near_gold:"):
