@@ -110,8 +110,14 @@ def score_extraction_row(
     doc_text: str | None = None,
     doc_subclass: str | None = None,
     expected_subclass: str | None = None,
+    *,
+    field_scores: bool = False,
 ) -> dict[str, Any]:
     """Row-level extraction scoring through the vendored dojo suite.
+
+    ``field_scores=True`` also returns the suite's per-field scores (``{field: score}``,
+    the Dojo ``ExtractionScoreResult.field_scores``) under ``field_scores``; off by default so
+    run payloads are unchanged. The R02 hand-check reads them.
 
     ``doc_subclass`` / ``expected_subclass``: the row's GT record subclass
     (``expected_subclass`` on a Hub row, e.g. ``bylaws``). For
@@ -219,6 +225,9 @@ def score_extraction_row(
             for k, v in vars(extraction_obj).items()
             if k != "field_scores" and not k.startswith("_")
         }
+    if field_scores:
+        per_field = getattr(extraction_obj, "field_scores", None)
+        payload["field_scores"] = dict(per_field) if isinstance(per_field, Mapping) else {}
     if hasattr(result, "__dict__"):
         try:
             prf = extraction_binary_metrics(

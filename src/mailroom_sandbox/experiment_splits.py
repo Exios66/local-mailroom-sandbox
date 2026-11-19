@@ -294,6 +294,53 @@ def assign_units(docs: Sequence[Doc], families: dict[str, Any]) -> dict[str, dic
     return units
 
 
+def _subclass_token(doc_class: str, subclass: Any) -> str:
+    """The canonical subclass token (Dojo ``normalize_corpus_subclass``), so a sorter's
+    ``license`` and the corpus's CUAD folder ``License_Agreements`` meet on one key."""
+    from mailroom_sandbox.corpus import _normalize_subclass
+
+    return str(_normalize_subclass(doc_class, str(subclass or "").strip()) or "").strip().lower()
+
+
+def unit_table(assignments: Iterable[dict[str, Any]]) -> dict[tuple[str, str], str]:
+    """``(class, canonical subclass) -> score unit`` from a split's ``assignments.jsonl`` rows.
+
+    Raises :class:`SplitError` when two subclasses that normalize to one token sit in
+    different units (the lookup would then depend on spelling).
+    """
+    table: dict[tuple[str, str], str] = {}
+    for row in assignments:
+        key = (str(row["doc_class"]), _subclass_token(str(row["doc_class"]), row.get("subclass")))
+        unit = str(row["unit"])
+        if table.setdefault(key, unit) != unit:
+            raise SplitError(f"subclass {key} maps to two units: {table[key]} and {unit}")
+    return table
+
+
+def load_unit_table(out_dir: Path) -> dict[tuple[str, str], str]:
+    """:func:`unit_table` over ``<out_dir>/assignments.jsonl``."""
+    path = Path(out_dir) / "assignments.jsonl"
+    with path.open(encoding="utf-8") as fh:
+        return unit_table(json.loads(line) for line in fh if line.strip())
+
+
+def unit_of(doc_class: str, subclass: Any, table: dict[tuple[str, str], str]) -> str | None:
+    """The score unit a (class, subclass) answer falls in; None for a subclass the split never saw."""
+    return table.get((str(doc_class or ""), _subclass_token(str(doc_class or ""), subclass)))
+
+
+def unit_correct(truth_class: str, truth_subclass: Any, pred_class: str, pred_subclass: Any,
+                 table: dict[tuple[str, str], str]) -> bool:
+    """Subclass scored at its unit: right class and the predicted subclass in the truth's unit.
+
+    A subclass outside the split's vocabulary is wrong, never a match by absence.
+    """
+    if str(pred_class or "") != str(truth_class or ""):
+        return False
+    truth_unit = unit_of(truth_class, truth_subclass, table)
+    return truth_unit is not None and unit_of(pred_class, pred_subclass, table) == truth_unit
+
+
 def build_components(docs: Sequence[Doc]) -> dict[str, list[Doc]]:
     """Union-find over shared link keys; component id = smallest member id."""
     parent: dict[str, str] = {d.id: d.id for d in docs}
