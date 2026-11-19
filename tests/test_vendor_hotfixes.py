@@ -62,6 +62,56 @@ def test_preflight_check_and_lock_identity():
     assert [f["id"] for f in ident["fixes"]] == [f.id for f in vh.HOTFIXES]
 
 
+@pytest.mark.parametrize("status,ok", [({"HF-003": "unavailable"}, False),
+                                     ({"HF-005": "unavailable"}, True)])
+def test_required_hotfixes_cannot_silently_be_unavailable(monkeypatch, status, ok):
+    from mailroom_sandbox.job.preflight import _hotfix_check
+
+    monkeypatch.setattr(vh, "apply_hotfixes", lambda: status)
+    assert _hotfix_check()["ok"] is ok
+
+
+def test_campaign_hotfix_check_requires_the_watcher_only_when_requested(monkeypatch):
+    import importlib.util
+
+    from mailroom_sandbox.paths import repo_root
+
+    spec = importlib.util.spec_from_file_location("check_hotfixes", repo_root() / "scripts/check_hotfixes.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(vh, "apply_hotfixes", lambda: {"HF-001": "applied", "HF-005": "unavailable"})
+    assert mod.check()["ok"]
+    assert not mod.check(require_watcher=True)["ok"]
+
+
+@pytest.mark.parametrize("class_name", ["ContractsSpecialist", "CorporateRecordsSpecialist",
+                                       "CorrespondenceSpecialist", "MergerAgreementSpecialist"])
+@pytest.mark.parametrize("confidence", [0, 0.0, 0.4, None])
+def test_hf006_explicit_confidence_survives_extraction(monkeypatch, class_name, confidence):
+    from langchain_agents import specialist_agents as sa
+
+    vh.apply_hotfixes()
+    agent = object.__new__(getattr(sa, class_name))
+    monkeypatch.setattr(agent, "truncate_input", lambda text: text)
+    monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: {"confidence": confidence})
+    monkeypatch.setattr(agent, "_evidence_confidence", lambda result: 0.9)
+    assert agent.extract("source")["confidence"] == (0.9 if confidence is None else confidence)
+
+
+def test_hf006_a_zero_confidence_chunk_cannot_be_hidden(monkeypatch):
+    from langchain_agents.specialist_agents import CorporateRecordsSpecialist
+
+    vh.apply_hotfixes()
+    agent = object.__new__(CorporateRecordsSpecialist)
+    agent._last_usage = None
+    monkeypatch.setattr(agent, "_split_chunks", lambda *a: ["first", "last"])
+    replies = iter([{"entity_name": "First", "confidence": 0.9},
+                    {"entity_name": "Last", "confidence": 0.0}])
+    monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: next(replies))
+    monkeypatch.setattr(agent, "_evidence_confidence", lambda result: 0.9)
+    assert agent.extract_chunked("first last")["confidence"] == 0.0
+
+
 _CLAUSES = [f"Section {i}. The Borrower shall deliver notice {i} to the Agent within ten days."
             for i in range(1, 41)]
 _SOURCE = "\n".join(_CLAUSES)

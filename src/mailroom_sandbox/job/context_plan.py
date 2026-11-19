@@ -260,7 +260,7 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
 
     ``clean`` is one extraction pass with the judge skipped. ``judged`` adds one
     passing judge call. ``worst`` is every pass the thresholds allow:
-    ``1 + arbiter_retry_max`` extractions, ``judge_max_passes`` judge calls and up
+    ``1 + retry_max + arbiter_retry_max`` extractions, ``judge_max_passes`` judge calls and up
     to ``arbiter_retry_max + 1`` arbiter calls. Prompt sizes use 2.4 chars/token
     plus 8k tokens of prompt, so these are upper bounds. Tiered API prices apply
     per call. None when an agent is not token-billed (Modal/vLLM GPU-hour serving)
@@ -269,7 +269,8 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     conf = taxonomy.get("confidence") or {}
     th = {**{k: v for k, v in conf.items() if k != "by_class"}, **((conf.get("by_class") or {}).get(cls) or {})}
     retries = int(th.get("arbiter_retry_max", 2))
-    judge_passes = int(th.get("judge_max_passes", 1 + retries))
+    confidence_retries = int(th.get("retry_max", 2))
+    judge_passes = int(th.get("judge_max_passes", 3))
     chunk_chars, overlap = window
     chunk_in = min(longest, chunk_chars + (overlap if per_pass > 1 else 0))
     extract = _calls_cost(_model(taxonomy, specialist, models), per_pass, chunk_in)
@@ -277,10 +278,21 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     arbiter = _calls_cost(_model(taxonomy, "arbiter", models), 1, min(longest, arbiter_w or longest))
     if None in (extract, judge, arbiter):
         return None
-    worst = (1 + retries) * extract + judge_passes * judge + min(judge_passes, retries + 1) * arbiter
+    extract_passes = 1 + confidence_retries + retries
+    worst = extract_passes * extract + judge_passes * judge + min(judge_passes, retries + 1) * arbiter
+    # A high-confidence retry used to archive without another judge call. With rejudge enabled
+    # that same path owes a new verdict, subject to the judge pass cap. Keep this named scenario
+    # separate from the worst-case bound: an ambiguous retry can reach the judge even with the
+    # flag off, so the flag must not artificially inflate the maximum pass budget.
+    rejudge = bool(th.get("judge_rejudge_retry", False)) and judge_passes > 1
+    retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter) if retries else None
     return {"clean": round(extract, 5), "judged": round(extract + judge, 5), "worst": round(worst, 5),
-            "worst_calls": {"extract_passes": 1 + retries, "judge": judge_passes,
-                            "arbiter": min(judge_passes, retries + 1)}}
+            "worst_calls": {"extract_passes": extract_passes, "judge": judge_passes,
+                            "arbiter": min(judge_passes, retries + 1)},
+            "high_confidence_retry": {"input_usd": round(retry_cost, 5) if retry_cost is not None else None,
+                                      "judge_calls": 1 + int(rejudge) if retries else None},
+            "keep_best_attempt_adds_calls": False,
+            "basis": "input-only upper bound; excludes output tokens, intake, classification and transport retries"}
 
 
 def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:

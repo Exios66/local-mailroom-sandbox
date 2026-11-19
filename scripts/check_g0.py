@@ -45,6 +45,7 @@ def gates(root: Path = ROOT) -> list[tuple[str, list[str] | None, str]]:
     out: list[tuple[str, list[str] | None, str]] = [
         ("R00 split audit", [*SANDBOX, "splits", "audit"], ""),
         ("R00 schemas registry", [*SANDBOX, "schemas", "build", "--check"], ""),
+        ("Campaign hotfixes", [*py, str(root / "scripts/check_hotfixes.py")], ""),
     ]
     pairs = r01_pairs(root)
     if not pairs:
