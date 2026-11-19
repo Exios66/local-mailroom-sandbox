@@ -1,5 +1,5 @@
 # Dependabot for mailroom-sandbox.
-# Auto-merge: patch/minor via .github/workflows/dependabot-auto-merge.yml.
+# Dependabot PRs are reviewed and merged by hand (GitHub Actions is off; CI is CircleCI only).
 
 version: 2
 updates:
