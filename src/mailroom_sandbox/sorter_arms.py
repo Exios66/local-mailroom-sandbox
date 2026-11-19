@@ -953,12 +953,19 @@ def compare(refs: Sequence[str | Path], *, set_name: str | None = None, split_di
 def gate_h5_cost(report: dict[str, Any]) -> None:
     """H5's lower-cost leg is a cost claim: an arm whose three tests pass is ``undecided`` (not
     supported) until its costs are a comparison (``cost_not_comparable`` is empty)."""
-    for b, verdict in (report.get("h5") or {}).get("verdicts", {}).items():
-        why = cost_not_comparable(report, [report["reference"], b])
-        verdict["cost_not_comparable"] = why
+    why = cost_not_comparable(report, _arm_ids(report))
+    for verdict in (report.get("h5") or {}).get("verdicts", {}).values():
+        verdict["cost_not_comparable"] = list(why)
         verdict["undecided"] = bool(why) and verdict["supported"]
         if why:
             verdict["supported"] = False
+
+
+def _arm_ids(report: Mapping[str, Any]) -> list[str]:
+    """Every arm of the comparison, reference first: a cost claim needs all of them billed and in agreement."""
+    ids = [a["run_id"] for a in report.get("arms") or []]
+    ref = report.get("reference")
+    return ([ref] if ref in ids else []) + [r for r in ids if r != ref]
 
 
 # --------------------------------------------------------------------------- planning
@@ -1070,7 +1077,7 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
     # a speed-up compares windows known to time all of, and only, the compared documents
     shared = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("interleaved_docs")]
     unknown = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("interleaved_docs") is None
-               or (s.get("runtime") or {}).get("timing_complete") is False]
+               or (s.get("runtime") or {}).get("timing_complete") is not True]
     for s in report["arms"]:
         rt = s.get("runtime") or {}
         speed = (ref_rt["active_seconds"] / rt["active_seconds"]
@@ -1119,9 +1126,12 @@ def cost_not_comparable(report: Mapping[str, Any], run_ids: Sequence[str]) -> li
     why = [f"n = {n}, under {COST_CLAIM_MIN_DOCS:,} paired documents"] if n < COST_CLAIM_MIN_DOCS else []
     arms = {a["run_id"]: a for a in report.get("arms") or []}
     unbilled = [r for r in run_ids if r in arms and billed_per_1k(arms[r]) is None]
+    unpriced = [r for r in run_ids if r in arms and (arms[r].get("cost") or {}).get("per_1k_docs_usd") is None]
     if unbilled:
         why.append("no billed cost for: " + ", ".join(unbilled))
-    else:
+    if unpriced:  # no list-price ranking to check against the bill
+        why.append("no list-price cost for: " + ", ".join(unpriced))
+    if not unbilled:
         # the cost lines and the frontier rank by list price × tokens; they stand for the billed
         # direction only if every pair of arms agrees
         known = [r for r in run_ids if r in arms and (arms[r].get("cost") or {}).get("per_1k_docs_usd") is not None]
@@ -1164,7 +1174,7 @@ def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> lis
         lo, hi = cost["per_1k_docs"]["ci95"]
         lines.append(f"  list-price cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
                      f"lower-cost p={cost['lower_cost_p_value']:.4f}")
-        why = cost_not_comparable(report, [report["reference"], b])
+        why = cost_not_comparable(report, _arm_ids(report))
         if why:
             lines.append("  not a cost comparison yet (" + "; ".join(why) + ")")
         if cost.get("monthly"):
@@ -1187,10 +1197,12 @@ def _render_h5(report: Mapping[str, Any]) -> list[str]:
     lines.append(f"\nH5 confirmatory family (Holm, alpha {h5['alpha']}):")
     for key, adj in h5["holm"].items():
         lines.append(f"  {key:70} raw {h5['raw'][key]:.4f}  holm {adj:.4f}")
+    # recomputed, so a report saved before the gate existed cannot print SUPPORTED on list price
+    why = cost_not_comparable(report, _arm_ids(report))
     for b, v in h5["verdicts"].items():
-        if v.get("undecided"):
+        if v.get("undecided") or (why and v.get("supported")):
             lines.append(f"  {b}: undecided: the tests pass on list-price cost, which is not a cost comparison yet "
-                         f"({'; '.join(v['cost_not_comparable'])})")
+                         f"({'; '.join(why or v.get('cost_not_comparable') or [])})")
         else:
             lines.append(f"  {b}: {'SUPPORTED' if v['supported'] else 'not supported (' + ', '.join(v['failed']) + ')'}")
     if report.get("frontier"):

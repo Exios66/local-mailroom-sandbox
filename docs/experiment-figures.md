@@ -106,7 +106,8 @@ Cost is the easiest number to misread, so the figures and digest follow one rule
   digest says `list-price and billed costs disagree on direction for <arm> and <arm>`. Every pair
   of arms is checked, so a reversed ranking between two candidates also blocks the claim.
 - H5's lower-cost leg is a cost claim too. An arm whose three tests pass on list-price cost is
-  reported as `undecided`, not `SUPPORTED`, until its costs are a comparison.
+  reported as `undecided`, not `SUPPORTED`, until every arm in the comparison is billed, priced
+  and in agreement. The digest re-checks this for reports saved before the gate existed.
 - Per-document cost depends on the length mix: qwen3.7-flash is tiered by prompt size and
   charges for output, while the decision model charges a flat input-only rate. The `pricing`
   figure shows both schedules. Check the sheet with `python scripts/refresh_api_prices.py --check`
