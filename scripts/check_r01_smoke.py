@@ -91,9 +91,47 @@ def _assignments(spec: Any) -> dict[str, dict[str, str]]:
     return describe(spec)
 
 
+def _specialist_paths(classes: dict[str, int] | None) -> dict[str, int] | None:
+    """Specialist calls per path for a per-class draw (``None`` without one: only totals are checked)."""
+    if classes is None:
+        return None
+    lc = sum(n for c, n in classes.items() if c in LANGCHAIN_SPECIALIST_CLASSES)
+    return {LANGCHAIN: lc, RETRY: sum(classes.values()) - lc}
+
+
+def _one_model(spec: Any, routed: dict[str, str], names: list[str], what: str) -> str | None:
+    models = {routed.get(name) for name in names}
+    if len(models) != 1:
+        raise GateInputError(f"{spec.run_id or 'config'}: {what} are split across models {sorted(map(str, models))}; "
+                             "pass --per-doc to state the expected calls")
+    return models.pop()
+
+
+def _task_calls(spec: Any, table: dict[str, dict[str, str]], docs: int) -> list[tuple[str | None, str, dict[str, int] | None]]:
+    """(model, agent, calls per path) for every agent the task runs on each document."""
+    routed = {name: a["model"] for name, a in table.items() if a.get("provider") == "openrouter"}
+    specialists = sorted(name for name in table if name.endswith("_specialist"))
+    counts = _class_counts(spec)
+    if spec.task == "pipeline":
+        return [(routed.get("sorter"), "sorter", {LANGCHAIN: docs}),
+                (_one_model(spec, routed, specialists, "specialists"), "specialist (one per document)",
+                 _specialist_paths(counts))]
+    if spec.task in SINGLE_CALL_TASKS:
+        return [(routed.get("sorter"), "sorter", {LANGCHAIN: docs})]
+    if spec.task in SPECIALIST_TASKS:
+        target = spec.target
+        names = [n for n in specialists if not target or n == target or n.startswith(str(target))] or specialists
+        cls = next(iter(counts)) if counts and len(counts) == 1 else None
+        path = (LANGCHAIN if cls in LANGCHAIN_SPECIALIST_CLASSES else RETRY) if cls else None
+        return [(_one_model(spec, routed, names, "specialists"), "specialist", {path: docs} if path else None)]
+    if spec.task in table:
+        return [(routed.get(spec.task), spec.task, None)]
+    raise GateInputError(f"{spec.run_id or 'config'}: task {spec.task!r} has no R01 call count; pass --per-doc")
+
+
 def expected_calls(spec: Any, *, per_doc: int | None = None,
                    assignments: dict[str, dict[str, str]] | None = None) -> dict[str, dict[str, Any]]:
-    """``{model: {"docs", "per_doc", "agents"}}`` for the models one run config exercises on every document."""
+    """``{model: {"docs", "per_doc", "agents", "paths"}}`` for the models one run config exercises on every document."""
     docs = spec.dataset.limit
     if not isinstance(docs, int) or docs <= 0:
         raise GateInputError(f"{spec.run_id or 'config'}: dataset.limit must name the document count")
@@ -102,13 +140,8 @@ def expected_calls(spec: Any, *, per_doc: int | None = None,
         return {reviewer.model: {"docs": docs, "per_doc": per_doc or 1, "agents": ["sorter_reviewer (decisions)"],
                                  "paths": {} if per_doc else {DECISIONS: docs}}}
     table = assignments if assignments is not None else _assignments(spec)
-    routed = {name: a["model"] for name, a in table.items() if a.get("provider") == "openrouter"}
-    specialists = sorted(name for name in table if name.endswith("_specialist"))
     out: dict[str, dict[str, Any]] = {}
-
-    counts = _class_counts(spec)
-
-    def add(model: str | None, agent: str, paths: dict[str, int] | None = None) -> None:
+    for model, agent, paths in _task_calls(spec, table, docs):
         if not model:
             raise GateInputError(f"{spec.run_id or 'config'}: {agent} is not served over OpenRouter, so no ledger row is written")
         entry = out.setdefault(model, {"docs": docs, "per_doc": 0, "agents": [], "paths": {}})
@@ -117,35 +150,6 @@ def expected_calls(spec: Any, *, per_doc: int | None = None,
         for path, n in (paths or {}).items():
             if n:
                 entry["paths"][path] = entry["paths"].get(path, 0) + n
-
-    def specialist_paths(classes: dict[str, int] | None) -> dict[str, int] | None:
-        if classes is None:
-            return None  # no per-class draw: only the total and the sorter's path are checked
-        lc = sum(n for c, n in classes.items() if c in LANGCHAIN_SPECIALIST_CLASSES)
-        return {LANGCHAIN: lc, RETRY: sum(classes.values()) - lc}
-
-    if spec.task == "pipeline":
-        add(routed.get("sorter"), "sorter", {LANGCHAIN: docs})
-        models = {routed.get(name) for name in specialists}
-        if len(models) != 1:
-            raise GateInputError(f"{spec.run_id or 'config'}: specialists are split across models {sorted(map(str, models))}; "
-                                 "pass --per-doc to state the expected calls")
-        add(models.pop(), "specialist (one per document)", specialist_paths(counts))
-    elif spec.task in SINGLE_CALL_TASKS:
-        add(routed.get("sorter"), "sorter", {LANGCHAIN: docs})
-    elif spec.task in SPECIALIST_TASKS:
-        target = spec.target
-        names = [n for n in specialists if not target or n == target or n.startswith(str(target))] or specialists
-        models = {routed.get(name) for name in names}
-        if len(models) != 1:
-            raise GateInputError(f"{spec.run_id or 'config'}: specialists are split across models; pass --per-doc")
-        cls = next((c for c in (counts or {}) if c), None) if counts and len(counts) == 1 else None
-        path = (LANGCHAIN if cls in LANGCHAIN_SPECIALIST_CLASSES else RETRY) if cls else None
-        add(models.pop(), "specialist", {path: docs} if path else None)
-    elif spec.task in table:
-        add(routed.get(spec.task), spec.task)
-    else:
-        raise GateInputError(f"{spec.run_id or 'config'}: task {spec.task!r} has no R01 call count; pass --per-doc")
     if per_doc:
         for entry in out.values():
             entry["per_doc"] = per_doc
@@ -219,6 +223,39 @@ def render(result: dict[str, Any], *, allow_extra_models: bool = False) -> str:
     return "\n".join(lines)
 
 
+def _merge_expected(expected: dict[str, dict[str, Any]], model: str, want: dict[str, Any]) -> None:
+    """Add one config's expectation for ``model``: two configs on one model add their documents up."""
+    if model not in expected:
+        expected[model] = want
+        return
+    have = expected[model]
+    if have["per_doc"] != want["per_doc"]:
+        raise GateInputError(f"{model}: configs disagree on per-document calls; gate them separately")
+    have["docs"] += want["docs"]
+    for path, n in want.get("paths", {}).items():
+        have.setdefault("paths", {})[path] = have["paths"].get(path, 0) + n
+    have["agents"] = sorted(set(have["agents"]) | set(want["agents"]))
+
+
+def expectations(configs: list[Path], *, per_doc: int | None = None) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Expected calls per model over every config, and the run ids whose ledger rows count."""
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    expected: dict[str, dict[str, Any]] = {}
+    run_ids: set[str] = set()
+    for path in configs:
+        try:
+            spec = load_run_spec(path)
+        except Exception as exc:  # noqa: BLE001 — one line per unreadable config
+            raise GateInputError(f"cannot load {path}: {exc}") from exc
+        if not spec.run_id:
+            raise GateInputError(f"{path}: the config needs a run_id, which ledger rows are matched on")
+        run_ids.add(str(spec.run_id))
+        for model, want in expected_calls(spec, per_doc=per_doc).items():
+            _merge_expected(expected, model, want)
+    return expected, run_ids
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--ledger", action="append", required=True, type=Path,
@@ -236,29 +273,8 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--per-doc must be >= 1")
     configs = [path for group in args.config for path in group]
     try:
-        from mailroom_sandbox.job.spec import load_run_spec
-
         rows = read_ledger(args.ledger)
-        expected: dict[str, dict[str, Any]] = {}
-        run_ids: set[str] = set()
-        for path in configs:
-            try:
-                spec = load_run_spec(path)
-            except Exception as exc:  # noqa: BLE001 — one line per unreadable config
-                raise GateInputError(f"cannot load {path}: {exc}") from exc
-            if not spec.run_id:
-                raise GateInputError(f"{path}: the config needs a run_id, which ledger rows are matched on")
-            run_ids.add(str(spec.run_id))
-            for model, want in expected_calls(spec, per_doc=args.per_doc).items():
-                if model in expected:  # two configs on one model: their documents add up
-                    expected[model]["docs"] += want["docs"]
-                    for p, n in want.get("paths", {}).items():
-                        expected[model].setdefault("paths", {})[p] = expected[model]["paths"].get(p, 0) + n
-                    if expected[model]["per_doc"] != want["per_doc"]:
-                        raise GateInputError(f"{model}: configs disagree on per-document calls; gate them separately")
-                    expected[model]["agents"] = sorted(set(expected[model]["agents"]) | set(want["agents"]))
-                else:
-                    expected[model] = want
+        expected, run_ids = expectations(configs, per_doc=args.per_doc)
     except GateInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
