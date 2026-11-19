@@ -78,7 +78,7 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 | R02 statistics | `mailroom_sandbox.experiment_stats`: exact McNemar (exact past 1,024 discordant pairs), paired macro-F1 swap permutation, sign-flip permutation (rejects NaN scores), Holm, sequential-look keep rule, cost-weighted error, Brier/ECE null floors; Clopper-Pearson / ECE / Brier / AUROC re-exported from the Dojo | Unit-tested |
 | Offline corpus access | `corpus.load_hf_rows` falls back to the local HF cache for a pinned sha | Preflight and prepare work with `HF_HUB_OFFLINE=1` once both the `default` and `ground_truth` shards of the pin are cached (`sandbox datasets pull`); an uncached `ground_truth` shard is refused, not read as blind rows |
 | R00+ label readiness | `sandbox schemas build`, `sandbox schemas build --check`, `sandbox schemas show`; `config/extraction/subclass_schemas.json` | Per-class and per-subclass field schemas graded against Hub + interim + near-gold truth (finding 15) |
-| Prompt and schema alignment | `job.schema_guide: true`; `corporate_records_specialist_condensed_v2`, `correspondence_specialist_condensed_v4` (candidates) | Off by default and hashed only when set; candidates need an A/B on dev before adoption (finding 16) |
+| Prompt and schema alignment | `job.schema_guide: true`; candidates `corporate_records_specialist_condensed_v2`, `correspondence_specialist_condensed_v4`, `contracts_specialist_condensed_v1`, `insurance_claims_specialist_condensed_v6`, each parented on its deployed frontrunner (decision 3) | Off by default and hashed only when set; candidates need an A/B on dev before adoption (finding 16) |
 
 ## Tasks — Phase 0
 

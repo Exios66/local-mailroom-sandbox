@@ -37,7 +37,8 @@ GUIDE_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "expiration_date": "End of the initial term as YYYY-MM-DD, only when the text states it as a date; else null",
         "termination_notice_period": "Notice needed to terminate the contract or to stop a renewal, as stated",
         "dispute_forum": "Courts or arbitral seat for disputes, as stated; never the governing law",
-        "contract_value": ("Monetary consideration copied as a plain currency phrase ('$2,000,000'); "
+        "contract_value": ("Monetary consideration as a plain dollar figure the scorer parses ('$2,000,000'): "
+                           "a scale word written out, no currency code, no rate ('per month'); "
                            "$0 is a stated amount; never computed or summed"),
         "payment_terms": "How and when the consideration is paid, as stated",
         "territory": "The stated territory of the grant, distribution or service, as stated",

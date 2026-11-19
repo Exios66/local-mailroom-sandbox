@@ -43,6 +43,13 @@ candidate with `dataset.interim_labels: true`, `dataset.near_gold_labels: true` 
 `job.schema_guide: true` in both arms, on `config/splits/runbook-v1` dev (`sandbox splits show`).
 `sandbox schemas show --class <class> --verdict iterate` lists the fields worth scoring.
 
+Also from the repaired schema registry (SAND-108 decision 3, each parented on the deployed frontrunner):
+`contracts_specialist_condensed_v1` (from `contracts_specialist_v33_simplified`; names the 8 repaired
+contract fields that prompt never lists, the `party_roles` vocabulary, and `contract_value` as the plain
+dollar figure Dojo parses) and `insurance_claims_specialist_condensed_v6` (from v3; `cms_source_table`).
+The contracts frontrunner stays `v33_simplified`, outside the condensed lineage, until a candidate validates.
+Merger stays on `merger_agreement_specialist_maud_v2`: its only scored fields are the generated MAUD answers.
+
 Contracts and merger agreements are outside this lineage and keep their frozen production prompts.
 
 ## Specialist production pins (DMR-074) — vendor mirrors

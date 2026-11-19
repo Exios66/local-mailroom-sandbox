@@ -18,6 +18,7 @@ lineage: specialist-condensed
 budget_chars: 3000
 budget_chars_by_agent:
   insurance_claims_specialist: 4500   # six source templates, each with its own field map (v3)
+  contracts_specialist: 5000          # 26 CUAD families and 41 exact Atticus category names
 max_mean_drop: 0.02
 agents:
   insurance_claims_specialist:
@@ -57,6 +58,11 @@ agents:
         reference_run: specialist-condensed-v5-insurance-claim-qwen-v4arm
         validation_run: specialist-condensed-v5-insurance-claim-qwen-v5arm
         status: candidate   # waits for llm-mailroom #280 to merge and be vendored
+      - version: insurance_claims_specialist_condensed_v6
+        parent: "insurance_claims_specialist_condensed_v3, the deployed frontrunner (one change: cms_source_table, a scored field with truth on 536 documents that v3 never names, is the printed CMS table on the two Medicare templates and null on the others; SAND-108 decision 3)"
+        reference_run: runbook-pi-i-v3arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-i-v6arm
+        status: candidate   # written 2026-11-18 from the repaired schema registry; not yet run
   correspondence_specialist:
     frontrunner: correspondence_specialist_condensed_v3
     versions:
@@ -97,3 +103,12 @@ agents:
         reference_run: runbook-pi-r-v1arm (to be run on config/splits/runbook-v1 dev-look1)
         validation_run: runbook-pi-r-v2arm
         status: candidate   # written 2026-11-18 from the label audit; not yet run
+  contracts_specialist:
+    frontrunner: contracts_specialist_v33_simplified   # deployed; outside this lineage (not a condensed file)
+    frontrunner_outside_lineage: true
+    versions:
+      - version: contracts_specialist_condensed_v1
+        parent: "contracts_specialist_v33_simplified, the deployed frontrunner (half its length; names the 8 repaired fields v33_simplified never lists: party_roles with its role vocabulary, signatories, agreement_date, expiration_date, termination_notice_period, dispute_forum, payment_terms, territory; contract_value as the plain dollar figure Dojo parses; the per-family brief becomes the title rule; SAND-108 decision 3)"
+        reference_run: runbook-pi-c-v33arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-c-v1arm
+        status: candidate   # written 2026-11-18 from the repaired schema registry; not yet run
