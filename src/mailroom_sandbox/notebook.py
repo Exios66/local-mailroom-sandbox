@@ -364,6 +364,44 @@ def cached_doc_rows(path: Any = None) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def _reviewed_label_status(
+    doc_class: str, name: str, label: Mapping[str, Any], quotes: list[str]
+) -> tuple[str, str]:
+    """A reviewed label, by the review file's rule (``interim_labels``), then its quote if any."""
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
+
+    value, basis = label.get("value"), str(label.get("basis") or "")
+    problem = il._review_value_problem(name, value)
+    if not problem and basis == "original_header":
+        problem = il._header_problem(name, value, label.get("evidence"))
+    elif not problem and basis == "review_read_record":
+        problem = il._record_quote_problem(value, label.get("evidence"))
+    if problem:
+        return UNGROUNDED, problem
+    if basis != "original_header" and quotes:
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+        return (GROUNDED, "") if ok else (UNGROUNDED, reason)
+    return (GROUNDED, "") if quotes else (IN_VOCABULARY, "")
+
+
+def _hub_row_label_status(
+    row: Mapping[str, Any], name: str, label: Mapping[str, Any]
+) -> tuple[str, str]:
+    """An unquoted label against its document's Hub row, by the build's own rule."""
+    from mailroom_sandbox import interim_labels as il
+
+    value, basis = label.get("value"), str(label.get("basis") or "")
+    if label.get("status") == "correction" and basis.startswith("cuad_"):
+        if il.contract_correction(name, value, il._expected(row)) == basis:
+            return GROUNDED, ""
+        return UNGROUNDED, f"not supported by the row's CUAD spans ({basis})"
+    text = row.get("doc_text") if row.get("doc_text") is not None else row.get("text")
+    if il.grounded(value, str(text or "")):
+        return GROUNDED, ""
+    return UNGROUNDED, "value not in the document"
+
+
 def _check_label(
     record: Mapping[str, Any],
     doc_class: str,
@@ -399,18 +437,7 @@ def _check_label(
         )
     quotes = _evidence_quotes(label)
     if label.get("review"):
-        basis = str(label.get("basis") or "")
-        problem = il._review_value_problem(name, value)
-        if not problem and basis == "original_header":
-            problem = il._header_problem(name, value, label.get("evidence"))
-        elif not problem and basis == "review_read_record":
-            problem = il._record_quote_problem(value, label.get("evidence"))
-        if problem:
-            return UNGROUNDED, problem
-        if basis != "original_header" and quotes:
-            ok, reason = gl.evidence_support(doc_class, name, value, quotes)
-            return (GROUNDED, "") if ok else (UNGROUNDED, reason)
-        return (GROUNDED, "") if quotes else (IN_VOCABULARY, "")
+        return _reviewed_label_status(doc_class, name, label, quotes)
     if quotes:
         ok, reason = gl.evidence_support(doc_class, name, value, quotes)
         return (GROUNDED, "") if ok else (UNGROUNDED, reason)
@@ -420,22 +447,7 @@ def _check_label(
         return (IN_VOCABULARY, "") if ok else (UNGROUNDED, f"out_of_vocabulary: {value!r}")
     row = rows.get(str(record.get("doc_id") or ""))
     if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
-        basis = str(label.get("basis") or "")
-        if status == "correction" and basis.startswith("cuad_"):
-            ok = il.contract_correction(name, value, il._expected(row)) == basis
-            return (
-                (GROUNDED, "")
-                if ok
-                else (UNGROUNDED, f"not supported by the row's CUAD spans ({basis})")
-            )
-        text = str(
-            row.get("doc_text") if row.get("doc_text") is not None else row.get("text") or ""
-        )
-        return (
-            (GROUNDED, "")
-            if il.grounded(value, text)
-            else (UNGROUNDED, "value not in the document")
-        )
+        return _hub_row_label_status(row, name, label)
     support = label.get("support")
     if status == "gap_fill" and isinstance(support, (int, float)) and support < il.SUPPORT_MIN:
         return UNGROUNDED, f"support {support} is under the admission threshold {il.SUPPORT_MIN}"
