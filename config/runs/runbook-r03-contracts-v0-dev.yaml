@@ -1,0 +1,75 @@
+# Evaluation runbook R03 (SAND-108, decisions 2-3): the v0 contracts specialist pass on the frozen
+# dev set, so the gold audit has v0-vs-gold disagreements before G0. contracts_specialist
+# (isolated) at its decided v0 stem contracts_specialist_v33_simplified on qwen/qwen3.7-flash (the
+# iteration model), the whole document in one call (longest dev contract 616,016 chars; the
+# 18,000-char overlay cap would cut 178), on the 247 contract documents of
+# config/splits/runbook-v1 dev (corpus revision bc9eab28). Truth is the repaired overlay (interim
+# + near-gold).
+# job.pipeline_handoff with job.specialist_subclass: gold hands the specialist the gold subclass
+# (the pipeline behind a correct sorter), so the fields derived from it copy the truth; the audit
+# sheet skips them.
+# job.schema_guide stays off: the plan turns it on for the candidate A/Bs (finding 16), and the v0
+# stem is the frontrunner baseline.
+#
+# Cost: priced per document on the saved sorter pass's prompt tokens
+# (data/handoff/sorter-qwen3.7-flash) with the tiers of config/api_prices.yaml (<32k: $0.03/$0.13,
+# >=32k: $0.10/$0.40, >=256k: $0.20/$0.80 per 1M; a document the saved pass cut at 600,000 chars
+# scaled to its full length) and ~2k output tokens per call: about $0.30 list for 247 documents,
+# 18 of them over 32k prompt tokens and 1 over 256k. The sorter prompt is longer than the
+# specialist's, so this errs high. The caps are ~1.5x. Launch only with the owner's initials at
+# the spend gate:
+#   sandbox run preflight --config config/runs/runbook-r03-contracts-v0-dev.yaml
+#   sandbox run start --config config/runs/runbook-r03-contracts-v0-dev.yaml --initials <XX>
+# Then build the audit sheet (data/labels/review/README.md, R03 gold audit):
+#   python scripts/build_gold_audit_sheet.py --run runbook-r03-contracts-v0-dev --lineage contracts \
+#       --n 100 --seed 20261118
+schema: sandbox.run/v1
+run_id: runbook-r03-contracts-v0-dev
+task: contracts_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist: {source: local, file: contracts_specialist_v33_simplified}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 247}
+  limit: 247
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  contracts_specialist: {max_input_chars: 700000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.45
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.45
+  pipeline_handoff: true
+  specialist_subclass: gold
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R03, contracts-v0, dev]
