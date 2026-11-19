@@ -237,3 +237,36 @@ comparison in the same H5 family).
 
 Append to `reports/experiment_log.jsonl` (sandbox-local) whenever scope, method, data
 or the split changes after sign-off, citing this plan's path.
+
+### 2026-11-18: rb1 batch 1 configured before G0 closes
+
+- **Owner direction.** On 2026-11-18 the owner directed that the Phase 1 pilots run before G0
+  closes. Batch 1 is R11, R12, R14, R15 and the finding-16 prompt A/Bs, 37 configs under
+  `config/runs/rb1-*.yaml`, launched by `scripts/rb1_launch_batch1.sh`. R13 is not in the batch.
+  Every config draws only dev or the rotation pool; none can select a held-out or calibration id.
+- **R12 runs on dev-look1, not the pool.** The pool holds only correspondence and insurance, so
+  the five specialists v0 run on the dev-look1 class buckets with the R03 settings. This lets
+  field ICC be computed against R03. R11 and R14 stay on the pool, so they cover two classes only.
+- **R15 caps are head + tail windows.** `max_input_chars` keeps a head and a tail window
+  (`base_agent.truncate_input`, 40% tail), at 4 characters per token. It is not a first-N-token
+  cut. R15 scores the 298 long dev + pool documents (`config/splits/rb1/r15-long.ids`, built by
+  `scripts/rb1_build_selections.py`) and reports that stratum on its own.
+- **R14 settings are provisional.** The two reasoning levels are `none` and `medium`. The
+  temp-0 arm that repeats three times is `rnone`. The GLM reasoning-effort pin is not named yet.
+  The "best setting" arms for DeepSeek and GLM (R14) and their best-cap arms (R15) wait for the
+  Qwen results and are not written.
+- **The A/Bs sit under the existing row R41.** They use experiment key `rb1-r41`
+  ("Specialist iteration"), so no new campaign row is added. The promotion rule (Holm across the
+  four pairs, the keep rule at look 2, no rise in hallucination) is in
+  `docs/rb1-prompt-promotion.md`. A look-2 "continue" needs a full-dev look 3, which is an owner
+  decision.
+- **R11 sorter v0.1** is `sorter_condensed_v6`: one clause change to v5, drawn from dev errors
+  only (system and scheduling logs and pasted data tables read as `unknown`). It is paired with
+  `rb1-r14-qwen3.7-flash-t0-rnone-rep1` on the same 300 pool documents.
+- **Whole-document reads; estimates provisional.** Per the owner's rule, no batch-1 config windows
+  or caps a read on the API route: every `max_input_chars` knob is at or above the longest dev or
+  pool document of the classes the run draws, and no config sets `job.chunking`. R15's cap arms
+  are the one deliberate exception. The estimates assume one call per document per reader and
+  stay provisional until the API chunking default (`job.chunking`, auto = off on OpenRouter) lands;
+  re-preflight then. `config/splits/rb1/heldout.ids` copies the split's held-out list so the
+  preflight held-out seal also checks the R15 draw.

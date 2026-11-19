@@ -12,12 +12,12 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | 0 Setup | `rb1-r03` | Gold-label audit of v0-vs-gold disagreements per lineage | 6 config(s), no runs built | [rb1-r03-gold-audit](rb1-r03-gold-audit/README.md) |
 | 0 Setup | `rb1-g0` | Phase 0 checkpoint (QC, review, stop) | gate not passed | [rb1-g0-checkpoint](rb1-g0-checkpoint/README.md) |
 | 1 Pilot | `rb1-r10` | Merged into R14 (temperature-0 arm repeats) | no runs | `rb1-r10-pilot-repeatability` |
-| 1 Pilot | `rb1-r11` | Sorter v0.1, one small edit | no runs | `rb1-r11-sorter-v0-1` |
-| 1 Pilot | `rb1-r12` | Specialists v0 | no runs | `rb1-r12-specialists-v0` |
+| 1 Pilot | `rb1-r11` | Sorter v0.1, one small edit | 1 config(s), no runs built | [rb1-r11-sorter-v0-1](rb1-r11-sorter-v0-1/README.md) |
+| 1 Pilot | `rb1-r12` | Specialists v0 | 5 config(s), no runs built | [rb1-r12-specialists-v0](rb1-r12-specialists-v0/README.md) |
 | 1 Pilot | `rb1-r13` | Decision models in the routing role | no runs | `rb1-r13-decision-routing` |
 | 1 Pilot | `rb1-r13b` | H5 dev screen: decision model acting as the sorter vs the LLM sorter (added row) | 2 config(s), no runs built | [rb1-r13b-sorter-vs-decision](rb1-r13b-sorter-vs-decision/README.md) |
-| 1 Pilot | `rb1-r14` | Decoding sweep (temperature grid) | no runs | `rb1-r14-decoding-sweep` |
-| 1 Pilot | `rb1-r15` | Sorter input-cap sweep | no runs | `rb1-r15-input-cap-sweep` |
+| 1 Pilot | `rb1-r14` | Decoding sweep (temperature grid) | 10 config(s), no runs built | [rb1-r14-decoding-sweep](rb1-r14-decoding-sweep/README.md) |
+| 1 Pilot | `rb1-r15` | Sorter input-cap sweep | 5 config(s), no runs built | [rb1-r15-input-cap-sweep](rb1-r15-input-cap-sweep/README.md) |
 | 1 Pilot | `rb1-g1` | Phase 1 checkpoint; re-run sizing with measured values | no runs | `rb1-g1-checkpoint` |
 | 2 Model screen | `rb1-r20` | Sorter v0 baselines and iteration floor | no runs | `rb1-r20-sorter-v0-baselines` |
 | 2 Model screen | `rb1-g2` | Phase 2 checkpoint | no runs | `rb1-g2-checkpoint` |
@@ -26,7 +26,7 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | 3 Sorter iteration | `rb1-r32` | Transfer the final sorter to the stronger models | no runs | `rb1-r32-sorter-transfer` |
 | 3 Sorter iteration | `rb1-g3` | Phase 3 checkpoint | no runs | `rb1-g3-checkpoint` |
 | 4 Specialists | `rb1-r40` | Specialist noise floor across lineages | no runs | `rb1-r40-specialist-noise-floor` |
-| 4 Specialists | `rb1-r41` | Specialist iteration | no runs | `rb1-r41-specialist-iteration` |
+| 4 Specialists | `rb1-r41` | Specialist iteration | 16 config(s), no runs built | [rb1-r41-specialist-iteration](rb1-r41-specialist-iteration/README.md) |
 | 4 Specialists | `rb1-r42` | Transfer final specialists to the production extractor | no runs | `rb1-r42-specialist-transfer` |
 | 4 Specialists | `rb1-g4` | Phase 4 checkpoint | no runs | `rb1-g4-checkpoint` |
 | 5 Calibration | `rb1-r50` | Final sorter on the production model over the calibration set | no runs | `rb1-r50-calibration-run` |

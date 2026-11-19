@@ -1,0 +1,63 @@
+# Evaluation runbook R14 (rb1 batch 1, SAND-108; R10 is merged into it): decoding sweep, sorter v0.
+# qwen/qwen3.7-flash at temperature 0, reasoning effort none (max_tokens 2048), production sorter prompt (code-default = sorter_condensed_v5),
+# the whole document in one call, on the same 300 rotation-pool documents as R11
+# (pool.exclude.ids, ranked draw, seed 20261118; correspondence and insurance_claim only).
+# Grid (plan finding 6, 3,600 calls): Qwen 3 temperatures x 2 reasoning levels plus the
+# temperature-0 / reasoning-none arm run 3 times (8 x 300), then temperature 0 vs Qwen's best setting on
+# DeepSeek V4.1 Flash and GLM 5.3 FlashX Legal (2 x 300 each).
+# Repeat 1 of 3 of the temperature-0 arm: flip rate = class disagreement between repeats (R10); rep1 is also R11's v0 arm.
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Cost: 300 calls, about $0.029 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.05 (~1.5x, at least $0.05), max_wall_seconds 1800.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r14/served-rb1-r14-qwen3.7-flash-t0-rnone-rep1.jsonl sandbox run preflight --config config/runs/rb1-r14-qwen3.7-flash-t0-rnone-rep1.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r14/served-rb1-r14-qwen3.7-flash-t0-rnone-rep1.jsonl sandbox run start --config config/runs/rb1-r14-qwen3.7-flash-t0-rnone-rep1.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r14-qwen3.7-flash-t0-rnone-rep1
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/pool.exclude.ids
+  limit: 300
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000, temperature: 0, reasoning_effort: "none", max_tokens: 2048}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 0.05
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R14, t0, rnone, rep1]

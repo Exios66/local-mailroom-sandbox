@@ -1,0 +1,69 @@
+# Evaluation runbook R41 prompt A/B (rb1 batch 1, SAND-108, plan finding 16): corporate lineage, the frontrunner arm.
+# corporate_records_specialist with corporate_records_specialist_condensed_v1 on qwen/qwen3.7-flash, on the 102 corporate_record documents of
+# config/splits/runbook-v1 dev-look2 (600-document look; look 1 is inside look 2).
+# Both arms: interim + near-gold overlays, job.schema_guide true, pipeline_handoff with the gold
+# subclass, the same documents and knobs. The pair differs only in the prompt (other arm: corporate_records_specialist_condensed_v2).
+# Verdict: python scripts/rb1_promote.py (docs/rb1-prompt-promotion.md): sequential keep rule +
+# Holm-adjusted paired permutation on per-document field F1 across the four A/Bs, hallucination not up.
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Cost: 102 calls, about $0.081 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.13 (~1.5x, at least $0.05), max_wall_seconds 3600.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r41/served-rb1-r41-corporate-condensed-v1-look2.jsonl sandbox run preflight --config config/runs/rb1-r41-corporate-condensed-v1-look2.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r41/served-rb1-r41-corporate-condensed-v1-look2.jsonl sandbox run start --config config/runs/rb1-r41-corporate-condensed-v1-look2.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r41-corporate-condensed-v1-look2
+task: corporate_records_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look2.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: corporate_record, count: 102}
+  limit: 102
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  corporate_records_specialist: {max_input_chars: 700000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.13
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.13
+  pipeline_handoff: true
+  specialist_subclass: gold
+  schema_guide: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R41, finding-16, corporate, condensed-v1, look2]

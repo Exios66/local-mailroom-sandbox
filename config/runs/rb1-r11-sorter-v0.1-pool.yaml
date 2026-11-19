@@ -1,0 +1,69 @@
+# Evaluation runbook R11 (rb1 batch 1, SAND-108): sorter v0.1, one small edit to sorter v0.
+# v0 is the production sorter (code-default = vendored sorter_condensed_v5, the R03 v0 stem); v0.1 is
+# config/prompts/sorter_condensed_v6.txt (lineage candidate, parent sorter_condensed_v5): B2 also names a
+# system/scheduling log message and a pasted data table as correspondence, from the dev-only evidence that
+# correspondence -> unknown is the largest class error left after the condensed rewrite.
+# Docs: 300 of the 402 rotation-pool documents (config/splits/runbook-v1/pool.exclude.ids, ranked draw,
+# seed 20261118). The pool holds only correspondence (194) and insurance_claim (208), so this pilot
+# measures the edit on those two classes. Decoding: temperature 0, reasoning none, max_tokens 2048, the
+# whole document in one call.
+# Pairing: the v0 arm is rb1-r14-qwen3.7-flash-t0-rnone-rep1 (same 300 docs, same model and decoding;
+# only the sorter prompt differs). Discordance = share of the 300 docs whose class correctness differs
+# (experiment_stats.mcnemar(...).discordance); rb1-r14 rep1/rep2/rep3 give the v0-vs-v0 flip floor.
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Cost: 300 calls, about $0.029 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.05 (~1.5x, at least $0.05), max_wall_seconds 1800.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r11/served-rb1-r11-sorter-v0.1-pool.jsonl sandbox run preflight --config config/runs/rb1-r11-sorter-v0.1-pool.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r11/served-rb1-r11-sorter-v0.1-pool.jsonl sandbox run start --config config/runs/rb1-r11-sorter-v0.1-pool.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r11-sorter-v0.1-pool
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v6}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/pool.exclude.ids
+  limit: 300
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000, temperature: 0, reasoning_effort: "none", max_tokens: 2048}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 0.05
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R11, sorter-v0.1, pool]

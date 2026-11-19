@@ -1,0 +1,69 @@
+# Evaluation runbook R12 (rb1 batch 1, SAND-108): specialists v0, the insurance lineage.
+# insurance_claims_specialist at its decided v0 stem insurance_claims_specialist_condensed_v3 (plan decision 3, the lineage frontrunner) on
+# qwen/qwen3.7-flash, on the 75 insurance_claim documents of config/splits/runbook-v1 dev-look1.
+# The five R12 configs together are the 300 dev-look1 documents, 300 calls (the rotation pool holds
+# only correspondence and insurance, so it cannot exercise all five specialists; deviation logged).
+# Settings equal runbook-r03-insurance-v0-dev (same prompt, knobs, handoff and subclass mode, schema_guide
+# off), so its dev-look1 documents are a repeat measurement: field ICC = intraclass correlation of
+# per-document extraction_f1 between this run and the R03 v0 pass on the same documents.
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Cost: 75 calls, about $0.018 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.05 (~1.5x, at least $0.05), max_wall_seconds 3600.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r12/served-rb1-r12-insurance-v0-look1.jsonl sandbox run preflight --config config/runs/rb1-r12-insurance-v0-look1.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r12/served-rb1-r12-insurance-v0-look1.jsonl sandbox run start --config config/runs/rb1-r12-insurance-v0-look1.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r12-insurance-v0-look1
+task: insurance_claims_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: insurance_claim, count: 75}
+  limit: 75
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  insurance_claims_specialist: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.05
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.05
+  pipeline_handoff: true
+  specialist_subclass: gold
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R12, insurance-v0, dev-look1]

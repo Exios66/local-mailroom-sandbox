@@ -1,0 +1,66 @@
+# Evaluation runbook R15 (rb1 batch 1, SAND-108): input-cap sweep, sorter v0 (code-default) on
+# qwen/qwen3.7-flash with max_input_chars 16,000 (4K tokens).
+# Docs: the 298 long documents of dev and the rotation pool, every one above the <=4k band
+# (config/splits/rb1/r15-long.exclude.ids, built by scripts/rb1_build_selections.py; dev 294 + pool 4;
+# contract 174, merger 59, corporate 57, correspondence 6, insurance 2). Plan finding 7, decision 5:
+# the long documents are their own stratum; report them separately, and fold them into an all-document
+# average only with that split shown (a cap leaves every <=4k document unchanged).
+# A cap is the sorter's max_input_chars at 4 chars per token: the pipeline keeps a head + tail window
+# (base_agent.truncate_input, 60% head / 40% tail), not the first N tokens the runbook names (deviation).
+# Decoding: temperature 0, reasoning none (R14's baseline arm; rerun if R14 picks another setting).
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Deliberate input-cap sweep: R15 is the one batch-1 experiment whose max_input_chars may cut a
+# document. Every other rb1 config reads the whole document in one call per reader.
+# Cost: 298 calls, about $0.062 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.10 (~1.5x, at least $0.05), max_wall_seconds 3600.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r15/served-rb1-r15-qwen3.7-flash-cap4k.jsonl sandbox run preflight --config config/runs/rb1-r15-qwen3.7-flash-cap4k.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r15/served-rb1-r15-qwen3.7-flash-cap4k.jsonl sandbox run start --config config/runs/rb1-r15-qwen3.7-flash-cap4k.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r15-qwen3.7-flash-cap4k
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/rb1/r15-long.exclude.ids
+  limit: 298
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 16000, temperature: 0, reasoning_effort: "none", max_tokens: 2048}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.10
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R15, cap4k, long-docs]

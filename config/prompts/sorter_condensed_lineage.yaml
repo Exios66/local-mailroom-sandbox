@@ -47,3 +47,9 @@ versions:
     rendered_chars: 3681
     status: adopted   # user directive 2026-11-07 ("BYLAWS ARE BYLAWS"), not by a compare. Not validated: v1's prime-sample numbers do not carry over. The v9.3 truth files 8 board-adopted bylaw amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10 relabels them. llm-mailroom #179 ships the same bytes as sorter_condensed_v5
     validation_run: none
+  - version: sorter_condensed_v6
+    file: sorter_condensed_v6.txt
+    parent: "sorter_condensed_v5 (one change, runbook R11 sorter v0.1: B2 names two more mailbox forms that are correspondence, a system/scheduling log message and a pasted data table. Evidence from dev only: correspondence -> unknown is the largest class error the condensed rewrite left (prime-sample compare: 10 of 30 still wrong); on the saved Qwen3.7 Flash pass its 5 dev documents are all Enron mailbox items, 2 ISO schedule-parse logs, a weather/gas data table, an attachment note and a header fragment)"
+    rendered_chars: 3735
+    status: candidate   # written 2026-11-18; pilot rb1-r11-sorter-v0.1-pool (300 rotation-pool docs) pairs with the v0 arm rb1-r14-qwen3.7-flash-t0-rnone-rep1 (same docs, same decoding); rep2/rep3 give the v0-vs-v0 flip floor. R11 measures discordance; the keep decision is R30's (dev looks)
+    validation_run: rb1-r11-sorter-v0.1-pool (vs rb1-r14-qwen3.7-flash-t0-rnone-rep1)

@@ -1,0 +1,60 @@
+# Evaluation runbook R14 (rb1 batch 1, SAND-108): decoding sweep, sorter v0, transfer target.
+# deepseek/deepseek-v4.1-flash-1017 at temperature 0, reasoning effort none, production sorter prompt (code-default), the whole
+# document in one call, on the same 300 rotation-pool documents as the Qwen arms.
+# Its second arm (Qwen's best setting) is not written: that setting is known only after the 8 Qwen
+# arms are scored (blocked, owner step).
+#
+# Estimate is provisional: one call per document per reader; re-preflight after the API chunking
+# default (job.chunking, auto = off on OpenRouter) lands. This config does not set job.chunking.
+# Cost: 300 calls, about $0.290 list (scripts/estimate_spend.py method on the
+# preflighted documents: config/api_prices.yaml tiers per call, 4 chars per token, the condensed sorter
+# prompt or the pinned specialist prompt, 150 / 1,500 output tokens per sorter / specialist call).
+# Caps: api_cost_cap_usd and cost_cap_usd $0.44 (~1.5x, at least $0.05), max_wall_seconds 1800.
+# Launch only with the owner's initials at the spend gate, from the repository root (a worktree also
+# needs PYTHONPATH=$PWD/src); the served-provider ledger must be set for the start, not only the preflight:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r14/served-rb1-r14-deepseek-v4.1-flash-t0-rnone.jsonl sandbox run preflight --config config/runs/rb1-r14-deepseek-v4.1-flash-t0-rnone.yaml && \
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r14/served-rb1-r14-deepseek-v4.1-flash-t0-rnone.jsonl sandbox run start --config config/runs/rb1-r14-deepseek-v4.1-flash-t0-rnone.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r14-deepseek-v4.1-flash-t0-rnone
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/pool.exclude.ids
+  limit: 300
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: deepseek/deepseek-v4.1-flash-1017
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000, temperature: 0, reasoning_effort: "none", max_tokens: 2048}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 16
+  cost_cap_usd: 0.44
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.44
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, rb1, R14, t0, rnone, deepseek-v4.1-flash]
