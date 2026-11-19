@@ -299,7 +299,8 @@ def test_api_eval_window_wait_honours_the_deadline_within_a_lookup_pass(api_rows
 
 
 def test_api_eval_retries_an_upload_refused_by_the_pause_gate(api_rows):
-    paused = family_api.FamilyAPIError("HTTP 503: Ingestion is paused by the ops monitor", status_code=503)
+    paused = family_api.FamilyAPIError("HTTP 503 from http://mailroom.test for POST /upload: Ingestion is paused",
+                                       status_code=503, detail="Ingestion is paused by the ops monitor")
     api = _API(ticks=1, refuse=[paused, paused])
     slept: list[float] = []
     report = family_api.run_api_eval(api_rows[:1], api, sleep=slept.append, max_in_flight=0)
@@ -308,7 +309,7 @@ def test_api_eval_retries_an_upload_refused_by_the_pause_gate(api_rows):
 
 
 def test_a_plain_503_is_not_retried_and_stays_unconfirmed(api_rows):
-    gateway = family_api.FamilyAPIError("HTTP 503: upstream unavailable", status_code=503)
+    gateway = family_api.FamilyAPIError("HTTP 503: upstream unavailable", status_code=503, detail="upstream unavailable")
     report = family_api.run_api_eval(api_rows[:1], _API(refuse=[gateway]), sleep=lambda s: None)
     assert report["n"] == 0 and report["unconfirmed_upload"]
 
@@ -316,6 +317,42 @@ def test_a_plain_503_is_not_retried_and_stays_unconfirmed(api_rows):
 def test_retryable_refusal_rules():
     err = family_api.FamilyAPIError
     assert family_api._retryable_refusal(err("x", status_code=429))
-    assert family_api._retryable_refusal(err("Ingestion is PAUSED", status_code=503))
+    assert family_api._retryable_refusal(err("HTTP 503", status_code=503, detail="Ingestion is PAUSED"))
+    # The base URL in the message never makes an unrelated 503 retryable.
+    assert not family_api._retryable_refusal(
+        err("HTTP 503 from https://paused.example.org for POST /upload: storage failure",
+            status_code=503, detail="storage failure"))
     assert not family_api._retryable_refusal(err("bad gateway", status_code=502))
     assert not family_api._retryable_refusal(err("no answer"))
+
+
+def test_window_sleep_never_passes_the_deadline(api_rows):
+    api = _API(never=True)
+    now = [0.0]
+    slept: list[float] = []
+
+    def sleep(s):
+        slept.append(s)
+        now[0] += s
+
+    report = family_api.run_api_eval(api_rows, api, sleep=sleep, clock=lambda: now[0],
+                                     max_in_flight=1, doc_timeout=1, poll_seconds=600)
+    assert report["error"].startswith("backpressure:")
+    assert slept and max(slept) <= 1 and now[0] <= 1
+
+
+@pytest.mark.parametrize(("base_url", "detail", "retryable"), [
+    ("http://mailroom.test", "Ingestion is paused by the ops monitor — try again later", True),
+    ("https://paused.example.org", "storage failure", False),
+])
+def test_pause_refusal_is_read_from_the_response_detail(base_url, detail, retryable):
+    import httpx
+
+    def answer(request):
+        return httpx.Response(503, json={"detail": detail})
+
+    api = family_api.MailroomAPI(base_url, None, transport=httpx.MockTransport(answer))
+    with pytest.raises(family_api.FamilyAPIError) as info:
+        api.health()
+    assert info.value.detail == detail
+    assert family_api._retryable_refusal(info.value) is retryable

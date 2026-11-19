@@ -1470,10 +1470,11 @@ def _wait_for_inbox_room(target: Path, name: str) -> None:
 
     A full inbox means a watcher sharing this base dir is behind; the document waits here until
     it drains (``mailroom_sandbox.backpressure``). A write anywhere else, such as the API eval's
-    staging directory, is not held. The wait is bounded by ``backpressure.intake_timeout()``: a
-    stalled inbox fails that document with ``BackpressureTimeout`` (reported, and rerun on resume)
-    instead of holding the run past its ``job.max_wall_seconds``, which is checked only between
-    documents.
+    staging directory, is not held. The wait is bounded by ``backpressure.intake_timeout()``, so a
+    stalled inbox cannot hold a run past its ``job.max_wall_seconds``, which is checked only
+    between documents. Past it the document raises ``BackpressureTimeout`` like any document
+    error: a job run records an error row for it and goes on (rerun on resume), and a direct
+    ``run_pipeline_eval`` call stops after its in-flight documents, as it does on any failure.
     """
     try:
         from pipeline.bins import inbox_dir  # type: ignore

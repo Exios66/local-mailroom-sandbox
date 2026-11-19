@@ -80,7 +80,9 @@ Each pipeline bin has a maximum depth. When a stage reaches it, intake waits; no
 
 `0` turns a limit off; a value that is not a non-negative integer falls back to the default, with a warning.
 An in-process pipeline run waits at most `MAILROOM_BACKPRESSURE_TIMEOUT_SECONDS` (default 600; `0` = no limit) for
-room in a full inbox. Past it that document fails with `BackpressureTimeout` (reported, and rerun on resume), so a
-stalled inbox cannot hold a run past `job.max_wall_seconds`, which is checked only between documents.
+room in a full inbox, so a stalled inbox cannot hold a run past `job.max_wall_seconds`, which is checked only
+between documents. Past it the document raises `BackpressureTimeout` like any document error: a job run
+(`sandbox run start`) records an error row for it and goes on, rerunning it on resume; a direct eval stops after
+its in-flight documents, as it does on any failure.
 `sandbox api eval` also retries an upload that the API's pause gate refused (HTTP 503 "paused") after the rate-limit
 back-off. If its window stays full for `doc_timeout`, it stops sending and reports the rows it did not send.

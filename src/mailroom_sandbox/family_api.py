@@ -56,9 +56,11 @@ _DOC_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 class FamilyAPIError(ServiceError):
     """The mailroom API was unreachable, refused a request, or answered off-contract."""
 
-    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+    def __init__(self, message: str, *, status_code: int | None = None, detail: str = "") -> None:
         super().__init__(message)
         self.status_code = status_code
+        #: The server's own error detail (response body), without the URL or method in the message.
+        self.detail = detail
 
 
 def _default_transport() -> httpx.BaseTransport | None:
@@ -121,7 +123,7 @@ class MailroomAPI:
             detail = review_cli._detail(resp, self._token)
             raise FamilyAPIError(review_cli._scrub(
                 f"HTTP {resp.status_code} from {self.base_url} for {method} {path}: {detail}", self._token),
-                status_code=resp.status_code)
+                status_code=resp.status_code, detail=review_cli._scrub(str(detail), self._token))
         try:
             return resp.json()
         except ValueError:
@@ -265,10 +267,12 @@ def _upload_ready(path: Path, row: Mapping[str, Any]) -> Path:
 def _retryable_refusal(exc: FamilyAPIError) -> bool:
     """The API refused before storing anything and asked the client to come back later.
 
-    429 is the upload rate limit; 503 with "paused" is the ingestion pause gate, which the API
-    checks before it reads the file. Any other 5xx may have stored the file, so it is not retried.
+    429 is the upload rate limit; 503 whose response detail says "paused" is the ingestion pause
+    gate, which the API checks before it reads the file. Only the detail is read: the message also
+    carries the base URL, which may itself contain the word. Any other 5xx may have stored the
+    file, so it is not retried.
     """
-    return exc.status_code == 429 or (exc.status_code == 503 and "paused" in str(exc).lower())
+    return exc.status_code == 429 or (exc.status_code == 503 and "paused" in (exc.detail or "").lower())
 
 
 def _upload_with_backoff(api: MailroomAPI, path: Path, *, matter_id: str, filename: str,
@@ -314,10 +318,11 @@ def _wait_for_window(api: MailroomAPI, pending: dict[str, dict[str, Any]], max_i
             return f"{lookup_error}; later rows were not sent", True
         if len(pending) < max_in_flight:
             break
-        if clock() >= deadline:
+        now = clock()
+        if now >= deadline:
             return (f"backpressure: {len(pending)} uploaded documents stayed unfinished for "
                     f"{doc_timeout:.0f}s (max_in_flight {max_in_flight}); later rows were not sent"), False
-        sleep(poll_seconds)
+        sleep(min(poll_seconds, deadline - now))
     return None, False
 
 
@@ -425,9 +430,10 @@ def run_api_eval(
         if lookup_error:
             error = f"{error}; {lookup_error}" if error else lookup_error
             lookup_failed = True
-        if not pending or lookup_failed or clock() >= deadline:
+        now = clock()
+        if not pending or lookup_failed or now >= deadline:
             break
-        sleep(poll_seconds)
+        sleep(min(poll_seconds, deadline - now))
 
     expected: list[str] = []
     predicted: list[str] = []
