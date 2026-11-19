@@ -59,7 +59,7 @@ The comparison now reports this per arm and per pair (see Fixes).
 | 3 | Served ledger had provider and model but no cost | Spend could not be checked against the provider | Ledger rows carry the provider's `usage.cost` and token counts when reported. The run digest sums `reported_cost_usd`. |
 | 4 | The comparison declared B non-inferior at p=0.0005 from 20 agreeing documents | Silent wrong statistics | A bootstrap cannot see a loss it never observed. An exact Clopper-Pearson floor on discordant losses now applies, and the more conservative result wins. The 20-doc smoke now reads "not shown" (lower95 -13.9 / -8.9 pts). |
 | 5 | The run report scored only doc_type, with no subclass metric | Subclass errors invisible per run | SHF-013 adds subclass scoring with canonical matching to the run report, dual-reported against `raw_dojo`. |
-| 6 | 3 subclass "misses" looked like label errors: charter amendment labelled `board_resolution`; $9.50 all-cash merger labelled `other`; internal email about "demand letter recipients" labelled `demand` | Arms penalised for correct answers | SHF-013 applies 2 reviewed corrections at scoring time (`data/labels/review/subclass_corrections.jsonl`) and keeps raw figures under `raw_dojo` / `hub_truth`. The third is **held**: the arms disagree on it (qwen `email`, luna `demand`), and luna follows the Hub's own convention that a demand mentioned in an ordinary email counts as `demand`. Correcting one row would change the convention for that row only, and it flips the smoke's unit difference from +5 to −5 points. Owner decision: which correspondence convention is truth. |
+| 6 | 3 subclass "misses" looked like label errors: charter amendment labelled `board_resolution`; $9.50 all-cash merger labelled `other`; internal email about "demand letter recipients" labelled `demand` | Arms penalised for correct answers | SHF-013 applies 2 reviewed corrections at scoring time (`data/labels/review/subclass_corrections.jsonl`) and keeps raw figures under `raw_dojo` / `hub_truth`. The third was **rejected** on review: the corpus labels correspondence by marker precedence (first marker anywhere in the text wins), and all 37 correspondence documents that contain "demand letter" are labelled `demand` or `attorney_demand`, none `email`. The Hub `demand` stands, so qwen's `email` is a real miss and luna's `demand` is right. |
 | 7 | 4.0.0 parked 5/20 documents, and all 5 were false: FNOL claim files with their invoice; a merger with its amendment; a merger ending in its index; an unsigned form exhibit | 25% needless human routing | Question set 4.0.1 narrows `document_form` only. Positive controls (`scripts/rb1_build_form_controls.py`) must show real fragments and bundles still park. |
 | 8 | The LLM sorter routed 6/20 to a person, all correct | 30% needless human routing on arm A | qwen states 0.95 on every contract, below the 0.98 `high` band, so its verbal confidence carries no ranking information. The comparison should report routing for both arms (open). This is a calibration/threshold question for R03-style sorter work, not a code bug. |
 
@@ -74,6 +74,7 @@ The comparison now reports this per arm and per pair (see Fixes).
 ## Checkpoint: smoke 20b and the form controls
 
 Order of launch:
+
 1. Controls on 4.0.0, then on 4.0.1.
 2. `rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash`.
 3. `rb1-r13b-smoke20b-decision-sorter-luna-v4.0.1`.
@@ -101,6 +102,7 @@ bar; dev-look1 is where H5 starts to be measured.
 
 Both arms' needless human routing (findings 7 and 8) is a threshold problem. Every routing
 threshold in the pipeline today is hand-set. They come from three places:
+
 - `pipeline.config` confidence bands: sorter `high` 0.95 to 0.98 per class, `low`, and
   `judge_band_high`.
 - The decision sets' `abstain` rules: `margin` 0.10, `unknown_max` 0.34 and
@@ -108,6 +110,7 @@ threshold in the pipeline today is hand-set. They come from three places:
 - The per-class `subclass_gate`.
 
 None of them has been fitted to evidence. The runbook already reserves the calibration step:
+
 - R50 runs the final sorter over the 1,000-document calibration split.
 - R51 fits the calibrators and certifies per-class gates. That is H3: at most 2% wrong
   auto-routes, as a one-sided 95% Clopper-Pearson upper bound, per class.
@@ -117,6 +120,7 @@ The smoke adds three requirements before that work can succeed.
 ### 1. A threshold needs a confidence signal that ranks
 
 A cutoff only helps if right and wrong answers differ in confidence.
+
 - qwen's stated confidence is close to a constant: 0.95 on every contract and 1.0 on most
   other documents. No cutoff on it can separate right from wrong, so the 0.98 contract band
   simply routes every contract to a person.
@@ -126,10 +130,12 @@ A cutoff only helps if right and wrong answers differ in confidence.
   against correctness) is therefore still unmeasured.
 
 Before any threshold is fitted, each run is checked for whether its signal ranks:
+
 - per-class AUROC with a CI
 - the share of answers at the top value (saturation, already in `calibrate_reviewer.py`)
 
 A stage whose signal does not rank gets a different signal instead of a threshold. Candidates:
+
 - the decision model's probability as the gate on the LLM sorter's answer (the 3.1.0 reviewer
   role)
 - agreement between the LLM sorter and the decision model
@@ -173,6 +179,7 @@ A stage whose signal does not rank gets a different signal instead of a threshol
 ### What each upcoming run must record (already true; keep it true)
 
 Every item records:
+
 - predicted class and subclass
 - the stage's confidence and, for decision models, the whole probability vectors
 - the forced answer and the park reason

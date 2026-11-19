@@ -198,7 +198,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                   "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
-                  "f070cd33ec1aba9aefc3bdfb6fababa2379c1c9eefb4902aefba8a505298148f")),
+                  "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3")),
         upstream="sandbox (isolated sorter / sorter_reviewer runs scored doc_type only; reviewed "
                  "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
         summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "

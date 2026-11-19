@@ -59,14 +59,14 @@ def test_the_reviewed_corrections_file_is_well_formed_and_quotes_its_evidence():
     assert len({e["doc_id"] for e in lines}) == len(lines)
     for e in lines:
         assert set(e) >= {"doc_id", "doc_class", "hub_subclass", "subclass", "review", "evidence", "verdict"}
-        assert e["verdict"] in {"correct", "held"} and e["subclass"] != e["hub_subclass"]
+        assert e["verdict"] in {"correct", "held", "rejected"} and e["subclass"] != e["hub_subclass"]
         assert e["review"]["reviewer"] == "Claude (agent)" and e["review"]["note"]
         assert e["evidence"] and all(isinstance(q, str) and q.strip() for q in e["evidence"])
     applied = sh.subclass_corrections()
     assert set(applied) == {e["doc_id"] for e in lines if e["verdict"] == "correct"}
     assert sh.corrected_subclass("DOC-59d072355f2c3b14", "corporate_record", "board_resolution") == "charter_amendment"
     assert sh.corrected_subclass("DOC-cf1ba08690065ad0", "merger_agreement", "other") == "all_cash"
-    assert sh.corrected_subclass("DOC-f4ce492b979c34e3", "correspondence", "demand") is None  # held
+    assert sh.corrected_subclass("DOC-f4ce492b979c34e3", "correspondence", "demand") is None  # rejected: Hub demand stands
 
 
 def test_a_correction_applies_only_to_the_class_and_hub_value_it_reviewed(corrections):

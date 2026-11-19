@@ -172,14 +172,17 @@ from the document text).
   and `subclass_corrections_applied` counts the documents. A line is applied only when the row's
   class and Hub subclass still equal `doc_class` and `hub_subclass`.
 - `verdict: held` lines are recorded and not applied; the note says what decision they wait for.
+- `verdict: rejected` lines record a proposed correction that review turned down; `subclass` keeps
+  the rejected proposal, the Hub value stands, and the note gives the evidence.
 - Run artifacts, splits and `data/labels/interim/` are not rewritten. The file's sha256 is a
   SHF-013 target, so editing it makes the fix stale until the fingerprint is updated, and every
   run lock records which file a run was scored against.
 
-Held: `DOC-f4ce492b979c34e3` (correspondence, Hub `demand`). Read as content, the message is an
-internal email (`email`); but question set 4.0.0 and the Hub follow a marker convention for
-correspondence (a message that mentions a demand is `demand`), and the H5 arms split on it. It
-waits for the owner's decision on that convention.
+Rejected: `DOC-f4ce492b979c34e3` (correspondence, Hub `demand`, proposed `email`). The corpus
+labels correspondence by marker precedence (`CORRESPONDENCE_SUBCLASS_PRECEDENCE` in the Dojo's
+`schemas/sorter_guide.py`: the first form whose marker appears anywhere in the text), and the
+message says "demand letter". All 37 correspondence documents that contain "demand letter" are
+labelled `demand` (35) or `attorney_demand` (2), none `email`, so the Hub label is correct.
 
 ## R03 gold audit
 
