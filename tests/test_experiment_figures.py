@@ -92,6 +92,16 @@ def test_llm_run_reads_string_confidence_and_wears_the_llm_colour():
     assert fs.LLM in figs["latency"] and fs.DECISION not in figs["latency"]
 
 
+
+def test_an_explicit_zero_probability_stays_zero():
+    # critical regression 12: a numeric zero is a value, never "missing" with a fallback
+    items = [{"item_id": "D0", "pred": {"doc_type": "contract", "doc_type_probability": 0.0, "confidence": 0.9},
+              "score": {"expected": "contract", "outcome": "correct"}},
+             {"item_id": "D1", "pred": {"doc_type": "contract", "confidence": 0},
+              "score": {"expected": "contract", "outcome": "correct"}}]
+    rows = dfig.figure_rows(items)
+    assert [r["class_probability"] for r in rows] == [0.0, 0.0]
+
 def _arm(run_id, task, model, secs, cost, unit, parked, billed):
     return {"run_id": run_id, "task": task, "model": model, "n": 20, "failed": 0, "unit_accuracy": unit,
             "runtime": {"run_wall_seconds": secs, "docs_per_minute": 20 / secs * 60, "concurrency": 8,
