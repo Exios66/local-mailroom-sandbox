@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The cost figure or notes.md says the LLM sorter's cost is estimated from the price sheet while the decision model's is billed, and no title calls an arm cheapest without that caveat
+The cost figure or notes.md says the LLM sorter's cost is estimated from list prices while the decision model's is billed, and no title or note claims either arm is cheaper or more expensive on these 20 documents

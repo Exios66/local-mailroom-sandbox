@@ -62,7 +62,7 @@ def frontier_csv(report: dict) -> str:
 
 def figures(report: dict, refs: list[str], *, set_name: str | None, split_dir: Path | None,
             runs_root: Path | None, confirmatory: bool, allow_mock: bool) -> dict[str, str]:
-    """``{name: svg}`` for the report, with per-document latencies of the compared documents."""
+    """``{name: svg}`` for the report, with per-document latencies and prompt sizes of the compared documents."""
     from mailroom_sandbox import comparison_figures
 
     arms = [sorter_arms.load_arm(r, runs_root=runs_root) for r in refs]
@@ -70,7 +70,9 @@ def figures(report: dict, refs: list[str], *, set_name: str | None, split_dir: P
                            confirmatory=confirmatory, allow_mock=allow_mock)
     latencies = {a.run_id: [float(a.items[i]["latency_ms"]) / 1000.0 for i in ids
                             if isinstance((a.items.get(i) or {}).get("latency_ms"), (int, float))] for a in arms}
-    return comparison_figures.build(report, latencies)
+    prompt_tokens = {a.run_id: [float(a.items[i]["prompt_tokens"]) for i in ids
+                                if isinstance((a.items.get(i) or {}).get("prompt_tokens"), (int, float))] for a in arms}
+    return comparison_figures.build(report, latencies, prompt_tokens)
 
 
 def main(argv: list[str] | None = None) -> int:

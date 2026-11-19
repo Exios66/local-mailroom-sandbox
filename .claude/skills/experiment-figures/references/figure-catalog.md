@@ -28,11 +28,14 @@ Built by `comparison_figures.build` from `sorter_arms.compare`; written by
 | `latency` | How long does one document take? | Dot strip per arm on a log axis, median bar and label |
 | `quality` | Is the decision model non-inferior? | Forest plot: candidate minus reference, 95% paired bootstrap, dashed red margins |
 | `routing` | How many documents does each arm send to a person, and how many does it auto-route wrongly? | Stacked bars, status colours |
-| `cost-quality` | What does each arm cost for its accuracy? | Scatter of cost per 1,000 documents against subclass-unit accuracy, direct labels, cost basis in the subtitle |
+| `cost-quality` | What does each arm cost for its accuracy, at this sample's length mix? | Scatter of cost per 1,000 documents against subclass-unit accuracy, direct labels, cost basis in the subtitle; a cost direction in the title only when all arms are billed and n ≥ 1,000 |
+| `pricing` | What does each model charge, by prompt size? | Step line of list input price per 1M tokens against prompt tokens (log), from `config/api_prices.yaml` with its checked date; the compared documents' prompt sizes as tick rows |
 
 Run time is only comparable at the same concurrency on the same documents; the figure says when
-concurrency differs. Cost is only comparable on the same basis; the subtitle names any arm whose
-cost is estimated from `config/api_prices.yaml` rather than billed.
+concurrency differs. Cost is only comparable on the same basis and at scale: the subtitle names any arm priced from
+`config/api_prices.yaml` rather than billed, and no figure claims a cheaper arm before a clean
+comparison of at least 1,000 billed, paired documents. Refresh the sheet with
+`scripts/refresh_api_prices.py --check` before quoting a price.
 
 ## Form-floor calibration (question set A vs B)
 

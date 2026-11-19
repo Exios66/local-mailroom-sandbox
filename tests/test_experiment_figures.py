@@ -124,12 +124,17 @@ def test_arm_labels_name_the_system_and_tell_same_system_runs_apart():
 
 def test_comparison_titles_state_the_finding_and_the_cost_basis():
     figs = cf.build(_report(), {"rb1-r13b-x-llm": [3.0, 2.5], "rb1-r13b-b-dec": [0.7, 0.8], "rb1-r13b-c-dec": [0.6]})
-    assert set(figs) == {"runtime", "latency", "quality", "routing", "cost-quality"}
+    assert set(figs) == {"runtime", "latency", "quality", "routing", "cost-quality", "pricing"}
     for name, svg in figs.items():
         assert fs.lint_svg(svg) == [], name
     assert "Decision model runs finished 3.5–7.0× faster than the LLM sorter" in figs["runtime"]
-    assert "Decision model runs cost $0.28 more per 1,000 documents than the LLM sorter" in figs["cost-quality"]
-    assert "estimated from the price sheet: LLM sorter" in figs["cost-quality"]
+    # 20 documents with an estimated LLM sorter cost: no cost direction is claimed
+    assert "Cost is not yet comparable: n = 20 and LLM sorter cost estimated" in figs["cost-quality"]
+    assert "priced from list prices: LLM sorter" in figs["cost-quality"]
+    for word in ("more per 1,000", "less per 1,000", "cheaper", "cheapest"):
+        assert word not in figs["cost-quality"]
+    assert "List input price per million tokens, by prompt size" in figs["pricing"]
+    assert "OpenRouter list prices" in figs["pricing"]
     assert "Non-inferiority not shown at n = 20: test bounds fall below the margins" in figs["quality"]
     assert "test bound -17.0" in figs["quality"]  # the bound the test decides on is drawn and labelled
     assert "test bound -16.0" in figs["quality"]
@@ -143,3 +148,31 @@ def test_lint_cli_reports_and_exits_nonzero(tmp_path, capsys):
     assert fs.main(["lint", str(tmp_path)]) == 1
     out = capsys.readouterr().out
     assert "starts lower-case" in out and "system font stack" in out
+
+
+def test_cost_direction_is_claimed_only_on_billed_costs_over_a_clean_sample():
+    def report(n, billed_llm):
+        r = _report()
+        r["n"] = n
+        for a in r["arms"]:
+            a["n"] = n
+            a["cost"]["provider_reported_docs"] = n if (billed_llm or not a["run_id"].endswith("-llm")) else 0
+        return r
+
+    small = cf.build(report(20, True))["cost-quality"]
+    assert "Cost is not yet comparable: n = 20" in small and "more per 1,000" not in small
+    big_estimated = cf.build(report(cf.COST_CLAIM_MIN_DOCS, False))["cost-quality"]
+    assert "Cost is not yet comparable: LLM sorter cost estimated" in big_estimated
+    clean = cf.build(report(cf.COST_CLAIM_MIN_DOCS, True))["cost-quality"]
+    assert "Decision model runs cost $0.28 more per 1,000 documents than the LLM sorter" in clean
+    assert "all costs as billed" in clean
+    for svg in (small, big_estimated, clean):
+        assert fs.lint_svg(svg) == []
+
+
+def test_pricing_figure_marks_each_documents_prompt_size():
+    svg = cf.build(_report(), prompt_tokens={"rb1-r13b-x-llm": [5_000.0, 40_000.0],
+                                             "rb1-r13b-b-dec": [6_000.0, 41_000.0]})["pricing"]
+    assert "LLM sorter documents" in svg and "Decision model documents" in svg
+    assert fs.LLM in svg and fs.DECISION in svg
+    assert fs.lint_svg(svg) == []

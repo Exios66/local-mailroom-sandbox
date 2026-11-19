@@ -12,8 +12,9 @@ and `python -m mailroom_sandbox.figure_style lint` checks the mechanical ones.
 - Subjects agree with numbers: "1 class error", "3 class errors", "1 of 50 was". Never "(s)".
 - Name systems, never run ids: "the decision model", "decision model runs", "the LLM sorter".
 - Only claim what the data supports. Say "not shown at n = 20" rather than implying equivalence;
-  "too few to judge" under five errors; a cost difference rather than "cheapest" when the
-  difference is small or a cost is estimated.
+  "too few to judge" under five errors. Never state a cost direction ("costs more", "cheaper")
+  unless every arm is billed and at least 1,000 paired documents were compared; otherwise say
+  "Cost is not yet comparable" and why, and point to the list prices.
 - When a computed title would run over 80 characters, fall back to a plain description of the
   measure, and put the numbers in the subtitle.
 
@@ -21,7 +22,7 @@ and `python -m mailroom_sandbox.figure_style lint` checks the mechanical ones.
 | --- | --- |
 | Where each document went | 9 of 67 constructed defects reached extraction |
 | Total run time | Decision model runs finished 3.7–6.3× faster than the LLM sorter |
-| Cost vs quality | Decision model runs cost $0.28 more per 1,000 documents than the LLM sorter |
+| Cost vs quality (20 documents, one arm estimated) | Cost is not yet comparable: n = 20 and LLM sorter cost estimated |
 | Only 1 class error(s) | Only 1 class error: too few to judge the ranking |
 | Latency for rb1-r13b-smoke20c | Median latency was 0.63 s per document |
 

@@ -33,7 +33,7 @@ Commands:
 ```bash
 # per-run figures: written with every run report
 sandbox report build --campaign rb1
-# H5 comparison figures (total run time, latency, quality, routing, cost)
+# H5 comparison figures (total run time, latency, quality, routing, cost, list pricing)
 python scripts/compare_sorter_arms.py --a <llm run> --b <decision run> [--b <another>] --figures <dir>
 python scripts/compare_sorter_arms.py ... --experiment-key rb1-r13b --write   # into the campaign tree
 # check any figure against the text and typography rules
@@ -72,8 +72,14 @@ one-off matplotlib script. A figure outside them drifts: its own colours, fonts 
 ## Rules that are easy to get wrong
 
 - **Every claim in a title must survive the data.** Compute titles from the numbers; recheck
-  them whenever inputs change. "Cheapest" from 20 documents and an estimated price is not a
-  finding; "$0.28 more per 1,000 documents than the LLM sorter, LLM cost estimated" is.
+  them whenever inputs change.
+- **No cost direction without a clean comparison.** Never say one arm costs more or less, or is
+  cheaper, unless every arm's cost is billed and at least 1,000 paired documents were compared
+  (`COST_CLAIM_MIN_DOCS`). Per-document cost depends on the document-length mix, and the LLM
+  sorter's cost is priced from the sheet, not billed. Below that, the title says why cost is not
+  yet comparable ("Cost is not yet comparable: n = 20 and LLM sorter cost estimated"), and the
+  ground truth shown is the list pricing itself (`pricing` figure from `config/api_prices.yaml`,
+  with its checked date). This holds in notes, summaries and chat too, not only in titles.
 - **Compare like with like.** Same documents (paired), same concurrency for run time, same
   pricing basis for cost, same question set unless the question set is the variable. If any
   differs, the subtitle says so, or the figure is not made.

@@ -9,7 +9,14 @@ latencies), so every number in a figure is a number in ``comparison.json``:
 - ``quality``: candidate minus reference on class accuracy, class macro-F1 and subclass-unit
   accuracy, 95% paired-bootstrap intervals, with the pre-registered non-inferiority margins.
 - ``routing``: per arm, auto-routed and right, auto-routed and wrong, parked for a person, failed.
-- ``cost-quality``: cost per 1,000 documents against subclass-unit accuracy.
+- ``cost-quality``: cost per 1,000 documents at the compared documents' mix against subclass-unit
+  accuracy. Its title names a cheaper arm only when every arm's cost is billed and at least
+  ``COST_CLAIM_MIN_DOCS`` paired documents were compared; otherwise it says why cost is not yet
+  comparable. A per-document cost depends on the document-length mix, so a small sample is not a
+  price comparison.
+- ``pricing``: each arm's list input price per million tokens against prompt size, from
+  ``config/api_prices.yaml`` (OpenRouter's sheet), with the compared documents' prompt sizes
+  marked. This is the ground truth any cost figure rests on.
 
 Colour follows the system (``figure_style.SYSTEM_COLOURS``), never the arm's position.
 """
@@ -19,6 +26,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from mailroom_sandbox import figure_style as fs
+
+# A cost direction ("costs more", "cheaper") is a claim only on billed costs over at least this many
+# paired documents; below it, or with any arm priced from the sheet, the figure says it is not comparable.
+COST_CLAIM_MIN_DOCS = 1000
 
 # (difference key, label, margin key, non-inferiority test key in the report)
 MEASURES = (("class_accuracy", "Class accuracy", None, None),
@@ -310,33 +321,118 @@ def _cost_quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str
     ax.xaxis.set_major_formatter(lambda v, _: f"${v:.2f}")
     ax.grid(True)
     ax.set_axisbelow(True)
-    fs.axis_labels(ax, "Cost per 1,000 documents (USD)", "Subclass-unit accuracy")
+    fs.axis_labels(ax, "Cost per 1,000 documents at this mix (USD)", "Subclass-unit accuracy")
     ref = _ref(report, arms)
-    cost = {a["run_id"]: a["cost"]["per_1k_docs_usd"] for a in arms}
-    grp = _group(arms, ref)
-    if grp:
-        diffs = [cost[o["run_id"]] - cost[ref["run_id"]] for o in grp[1]]
-        word = "more" if all(d > 0 for d in diffs) else "less" if all(d < 0 for d in diffs) else None
-        title = (f"{_cap(grp[0])} cost ${_span([abs(d) for d in diffs], '.2f')} {word} per 1,000 documents than "
-                 f"the {_lower(labels[ref['run_id']])}" if word else "Cost per 1,000 documents against subclass-unit accuracy")
-    else:
-        title = "Cost per 1,000 documents against subclass-unit accuracy"
-    if len(title) > fs.TITLE_MAX:
-        title = "Cost per 1,000 documents against subclass-unit accuracy"
-    # say where each cost comes from: billed by the provider, or priced from the price sheet
+    n = int(report.get("n") or 0)
+    # where each cost comes from: billed by the provider, or priced from the list prices
     est = [labels[a["run_id"]] for a in arms
            if (a["cost"].get("provider_reported_docs") or 0) < (a.get("n") or 0)]
+    cost = {a["run_id"]: a["cost"]["per_1k_docs_usd"] for a in arms}
+    grp = _group(arms, ref)
+    title = None
+    if grp and not est and n >= COST_CLAIM_MIN_DOCS:
+        diffs = [cost[o["run_id"]] - cost[ref["run_id"]] for o in grp[1]]
+        word = "more" if all(d > 0 for d in diffs) else "less" if all(d < 0 for d in diffs) else None
+        if word:
+            title = (f"{_cap(grp[0])} cost ${_span([abs(d) for d in diffs], '.2f')} {word} per 1,000 documents "
+                     f"than the {_lower(labels[ref['run_id']])}")
+    if title is None:
+        why = ([f"n = {n}"] if n < COST_CLAIM_MIN_DOCS else []) + (
+            [f"{_lower(est[0])} cost estimated"] if len(est) == 1 else ["costs estimated"] if est else [])
+        title = "Cost is not yet comparable: " + " and ".join(why) if why else \
+            "Cost per 1,000 documents against subclass-unit accuracy"
+    if len(title) > fs.TITLE_MAX:
+        title = "Cost is not yet comparable" if est or n < COST_CLAIM_MIN_DOCS else \
+            "Cost per 1,000 documents against subclass-unit accuracy"
     basis = ("all costs as billed" if not est else
-             "estimated from the price sheet: " + ", ".join(_lower(e) for e in est)
-             if len(est) < len(arms) else "all costs estimated from the price sheet")
-    sub = f"Same {report.get('n')} documents · up and left is better · {basis}"
+             "priced from list prices: " + ", ".join(_lower(e) for e in est)
+             if len(est) < len(arms) else "all costs priced from list prices")
+    sub = f"Same {n} documents, this sample's length mix · up and left is better · {basis}"
     if len(sub) > fs.SUBTITLE_MAX:
-        sub = f"Same {report.get('n')} documents · up and left is better · some costs estimated"
+        sub = f"Same {n} documents, this sample's length mix · {basis}"
+    if len(sub) > fs.SUBTITLE_MAX:
+        sub = f"Same {n} documents, this sample's length mix · some costs priced from list prices"
     fs.heading(fig, ax, title, sub, _source(report))
     return f.svg(fig)
 
 
-def build(report: Mapping[str, Any], latencies: Mapping[str, Sequence[float]] | None = None) -> dict[str, str]:
+def _price_checked() -> str | None:
+    """The date ``config/api_prices.yaml`` was last checked against OpenRouter."""
+    try:
+        import yaml
+
+        from mailroom_sandbox.paths import repo_root
+
+        doc = yaml.safe_load((repo_root() / "config" / "api_prices.yaml").read_text(encoding="utf-8")) or {}
+        return str(doc["checked"]) if doc.get("checked") else None
+    except Exception:  # noqa: BLE001 - the date is a caption, never a reason to drop the figure
+        return None
+
+
+def _pricing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
+             prompt_tokens: Mapping[str, Sequence[float]]) -> str | None:
+    """List input price per million tokens against prompt size, one step line per model."""
+    from matplotlib.ticker import FixedLocator, NullLocator
+
+    from mailroom_sandbox.job import metrics
+
+    models: dict[str, Mapping[str, Any]] = {}
+    for a in report["arms"]:
+        models.setdefault(str(a.get("model") or ""), a)
+    sheets = {m: metrics.price_sheet(m) for m in models if m}
+    sheets = {m: sh for m, sh in sheets.items() if sh}
+    if len(sheets) < 2:
+        return None
+    lo_x, hi_x = 1_000, 1_000_000
+    fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 3.2))
+    top = 0.0
+    for m, sheet in sheets.items():
+        arm = models[m]
+        colour = fs.SYSTEM_COLOURS[_system(arm)]
+        xs, ys = [], []
+        for i, tier in enumerate(sheet):
+            start = max(lo_x, float(tier.get("min_prompt_tokens") or 0))
+            end = float(sheet[i + 1]["min_prompt_tokens"]) if i + 1 < len(sheet) else hi_x
+            if end <= lo_x:
+                continue
+            xs += [start, end]
+            ys += [float(tier["prompt"])] * 2
+        top = max(top, *ys)
+        ax.plot(xs, ys, color=colour, linewidth=2, drawstyle="default", zorder=3)
+        name = fs.SYSTEM_NAMES[_system(arm)]
+        # a flat price is labelled at the left, a tiered one at its last step, so no step cuts a label
+        at, ha, dx = ((xs[0], ys[0]), "left", 4) if len(set(ys)) == 1 else ((xs[-1], ys[-1]), "right", -4)
+        ax.annotate(f"{name} ({fs.short_model(m)})", at, textcoords="offset points",
+                    xytext=(dx, 6), ha=ha, va="bottom", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
+    # the compared documents' prompt sizes, one tick row per system
+    systems = []
+    for a in report["arms"]:
+        toks = [t for t in prompt_tokens.get(a["run_id"], []) if t]
+        if toks and _system(a) not in systems:
+            systems.append(_system(a))
+            yrow = -top * (0.06 + 0.07 * (len(systems) - 1))
+            ax.scatter([min(max(t, lo_x), hi_x) for t in toks], [yrow] * len(toks), marker="|", s=60,
+                       linewidths=1.2, color=fs.SYSTEM_COLOURS[_system(a)], zorder=3, clip_on=False)
+            ax.annotate(f"{fs.SYSTEM_NAMES[_system(a)]} documents", (hi_x, yrow), textcoords="offset points",
+                        xytext=(-4, 0), ha="right", va="center", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
+    ax.set_xscale("log")
+    ax.set_xlim(lo_x, hi_x)
+    ax.set_ylim(-top * (0.06 + 0.07 * max(len(systems), 1)), top * 1.25)
+    ax.xaxis.set_major_locator(FixedLocator([1e3, 1e4, 3.2e4, 1e5, 2.56e5, 1e6]))
+    ax.xaxis.set_minor_locator(NullLocator())
+    ax.xaxis.set_major_formatter(lambda v, _: f"{v / 1000:g}k" if v < 1e6 else "1M")
+    ax.yaxis.set_major_formatter(lambda v, _: f"${v:.2f}" if v >= 0 else "")
+    fs.value_axis(ax, "y")
+    fs.axis_labels(ax, "Prompt size of one call (tokens, log scale)", "Input price per 1M tokens (USD)")
+    checked = _price_checked()
+    sub = (f"OpenRouter list prices{', checked ' + checked if checked else ''} · output billed separately · "
+           "ticks: each document's prompt size")
+    fs.heading(fig, ax, "List input price per million tokens, by prompt size", sub, _source(report))
+    return f.svg(fig)
+
+
+def build(report: Mapping[str, Any], latencies: Mapping[str, Sequence[float]] | None = None,
+          prompt_tokens: Mapping[str, Sequence[float]] | None = None) -> dict[str, str]:
     """``{figure name: svg}`` for a ``sorter_arms`` comparison report."""
     labels = arm_labels(report["arms"])
     out: dict[str, str | None] = {}
@@ -346,4 +442,5 @@ def build(report: Mapping[str, Any], latencies: Mapping[str, Sequence[float]] | 
         out["quality"] = _quality(f, report, labels)
         out["routing"] = _routing(f, report, labels)
         out["cost-quality"] = _cost_quality(f, report, labels)
+        out["pricing"] = _pricing(f, report, labels, prompt_tokens or {})
     return {k: v for k, v in out.items() if v}

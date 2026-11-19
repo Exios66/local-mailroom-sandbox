@@ -1098,7 +1098,7 @@ def _render_h5(report: Mapping[str, Any]) -> list[str]:
     for b, v in h5["verdicts"].items():
         lines.append(f"  {b}: {'SUPPORTED' if v['supported'] else 'not supported (' + ', '.join(v['failed']) + ')'}")
     if report.get("frontier"):
-        lines.append("\ncost-quality frontier (cheapest first):")
+        lines.append("\ncost-quality frontier (ordered by cost per 1k docs; see each arm's cost basis):")
         for r in report["frontier"]:
             lines.append(f"  {r['run_id'][:44]:44} mF1 {_pct(r['class_macro_f1'])} unit {_pct(r['unit_accuracy'])} "
                          f"{_usd(r['per_1k_docs_usd'])}/1k  {'dominated by ' + r['dominated_by'] if r['dominated_by'] else 'frontier'}")

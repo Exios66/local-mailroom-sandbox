@@ -541,12 +541,15 @@ def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsy
     assert cli.main(["--a", "A", "--b", "B", *common, "--figures", str(figs)]) == 0
     capsys.readouterr()
     names = sorted(p.name for p in figs.glob("*.svg"))
-    assert names == [f"rb1-r13b-sorter-arms.{n}.svg" for n in ("cost-quality", "latency", "quality", "routing")]
+    assert names == [f"rb1-r13b-sorter-arms.{n}.svg" for n in ("cost-quality", "latency", "pricing", "quality", "routing")]
     assert fs.lint_paths(figs.glob("*.svg")) == {}
     lat = (figs / "rb1-r13b-sorter-arms.latency.svg").read_text()
     assert fs.DECISION in lat and fs.LLM in lat  # colour follows the system, both present
     cost = (figs / "rb1-r13b-sorter-arms.cost-quality.svg").read_text()
-    assert "estimated from the price sheet: LLM sorter" in cost  # the LLM arm has no billed cost
+    assert "priced from list prices: LLM sorter" in cost  # the LLM arm has no billed cost
+    assert "Cost is not yet comparable" in cost and "more per 1,000" not in cost  # no direction from a small sample
+    pricing = (figs / "rb1-r13b-sorter-arms.pricing.svg").read_text()
+    assert "LLM sorter documents" in pricing  # each document's prompt size, from the run items
 
 
 # ---------------------------------------------------------------- held-out seal and configs
@@ -666,7 +669,7 @@ def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, c
     assert files == sorted(["analysis/rb1-r13b-sorter-arms.comparison.json", "analysis/rb1-r13b-sorter-arms.digest.txt",
                             "figures/rb1-r13b-sorter-arms.frontier.csv",
                             *[f"figures/rb1-r13b-sorter-arms.{n}.svg"
-                              for n in ("cost-quality", "latency", "quality", "routing")]])
+                              for n in ("cost-quality", "latency", "pricing", "quality", "routing")]])
     assert json.loads((base / files[0]).read_text())["experiment_key"] == "rb1-r13b"
     assert (base / "figures/rb1-r13b-sorter-arms.frontier.csv").read_text().splitlines()[0].startswith(
         "run_id,model,class_macro_f1")
