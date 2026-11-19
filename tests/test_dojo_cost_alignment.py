@@ -122,29 +122,28 @@ def test_per_call_usage_prices_each_call_at_its_own_tier():
 
 
 def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monkeypatch, tmp_path):
-    # Capture from the pipeline accumulator, persist as a pipeline row does, then price the run.
-    import contextvars
-    import sys
-    import types
+    # Through run_pipeline_eval: the document's two calls are recorded in the vendored accumulator,
+    # captured per call, persisted by the job runner, then priced call by call in the serving record.
+    from pipeline.limits import record_usage
 
+    from mailroom_sandbox.eval import runners
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.runner import _persist_isolated_items
-    from mailroom_sandbox.job.usage_capture import call_usage_from_pipeline
 
-    accumulator = contextvars.ContextVar("run_usage", default=[])
-    accumulator.set([{"prompt_tokens": 10_000, "completion_tokens": 10}, {"prompt_tokens": 50_000, "completion_tokens": 10}])
-    limits = types.ModuleType("pipeline.limits")
-    limits._run_usage = accumulator
-    package = types.ModuleType("pipeline")
-    package.limits = limits
-    monkeypatch.setitem(sys.modules, "pipeline", package)
-    monkeypatch.setitem(sys.modules, "pipeline.limits", limits)
-    calls = call_usage_from_pipeline()
-    assert calls == [[10_000, 10], [50_000, 10]]
+    def fake_doc(row, **_):
+        record_usage({"prompt_tokens": 10_000, "completion_tokens": 10}, model="qwen/qwen3.7-flash", agent="sorter")
+        record_usage({"prompt_tokens": 50_000, "completion_tokens": 10}, model="qwen/qwen3.7-flash", agent="specialist")
+        return {"stage": "archived", "doc_type": "contract"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    rows = []
+    runners.run_pipeline_eval(profile="ollama", rows=[{"id": "a", "expected_doc_class": "contract", "text": "x"}],
+                              mock=False, connected=False, row_cb=rows.append)
+    assert rows[0]["call_usage"] == [[10_000, 10], [50_000, 10]] and rows[0]["llm_calls"] == 2
     store = RunStore(tmp_path / "r")
-    _persist_isolated_items(store, [{"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 5.0,
-                                     "prompt_tokens": 60_000, "completion_tokens": 20, "llm_calls": 2,
-                                     "call_usage": calls}])
-    rec = _record(store.load_items(), model="qwen/qwen3.7-flash")
+    _persist_isolated_items(store, rows)
+    items = store.load_items()
+    assert items[0]["call_usage"] == [[10_000, 10], [50_000, 10]]
+    rec = _record(items, model="qwen/qwen3.7-flash")
     assert rec["estimated_cost_usd"] == pytest.approx((10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6, abs=1e-6)
     assert "cost_tier_approximate_items" not in rec
