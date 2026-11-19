@@ -160,3 +160,75 @@ def test_a_decisions_variant_is_refused_by_every_public_price_function_not_just_
 def test_a_shipped_decisions_variant_has_no_price_so_a_paid_run_refuses_it(model):
     assert metrics.price_sheet(model) is None
     assert metrics.price_sheet(model.split(":")[0])                      # while its pinned base is priced
+
+
+# ── the three candidate ledgers: core OpenRouter sheet, decisions catalog, Modal matrix ──
+
+
+def test_every_models_yaml_openrouter_id_is_priced_or_a_decisions_model():
+    """All experimental OpenRouter candidates the model catalog names carry a
+    verified price: the core ``config/api_prices.yaml`` sheet for chat ids, the
+    decisions catalog for Decisions ids — never an unpriced candidate."""
+    models = yaml.safe_load((ROOT / "config" / "models.yaml").read_text(encoding="utf-8"))
+    decisions = set((yaml.safe_load((ROOT / "config" / "decision_models.yaml").read_text(encoding="utf-8"))
+                     .get("models") or {}))
+    chat: set[str] = set(models.get("openrouter_preference") or [])
+
+    def _collect(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key == "openrouter" and isinstance(item, str):
+                    chat.add(item)
+                else:
+                    _collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                _collect(item)
+
+    _collect(models.get("map") or {})
+    _collect(models.get("critical_tier") or {})
+    assert chat, "models.yaml names no OpenRouter candidates"
+    for model in sorted(chat):
+        assert metrics.token_price(model) or model in decisions, model
+
+
+def test_every_modal_models_row_carries_a_serve_posture():
+    """The Modal experimental ledger (``config/models.yaml`` ``modal_models:``)
+    stays deployable: every candidate row names its GPU, quantization, context
+    cap and tensor-parallel size, so a new candidate cannot land half-specified."""
+    models = yaml.safe_load((ROOT / "config" / "models.yaml").read_text(encoding="utf-8"))
+    rows = models.get("modal_models") or {}
+    assert "Qwen/Qwen3.5-9B" in rows and "Qwen/Qwen3.5-35B-A3B" in rows and "Qwen/Qwen3.5-27B" in rows
+    for model, row in rows.items():
+        assert isinstance(row, dict), model
+        for key in ("gpu", "quantization", "max_model_len", "tp_size"):
+            assert key in row and row[key] is not None, f"{model}: missing {key}"
+        assert row["gpu"], model
+        assert int(row["tp_size"]) >= 1 and int(row["max_model_len"]) > 0, model
+        assert "notes" in row, model
+
+
+def test_the_granite_twin_pair_is_priced_on_both_legs():
+    """A first-party twin pair (SAND-027) must be priced on BOTH legs: the
+    OpenRouter chat id in the core sheet, the Modal FP8 serve form in the matrix."""
+    assert metrics.price_sheet("ibm-granite/granite-4.2-8b")
+    models = yaml.safe_load((ROOT / "config" / "models.yaml").read_text(encoding="utf-8"))
+    assert "ibm-granite/granite-4.2-8b-fp8" in (models.get("modal_models") or {})
+
+
+def test_api_evals_cost_falls_back_to_the_core_ledger_not_its_own_pin(monkeypatch):
+    """The api-evals harness must not carry a second, drift-prone price pin: its
+    offline fallback is the CORE ledger row the sandbox bills with (network-free:
+    the live refresh is stubbed off)."""
+    api_evals_root = ROOT / "api-evals"
+    monkeypatch.syspath_prepend(str(api_evals_root))
+    import importlib
+
+    cost = importlib.import_module("api_evals.cost")
+    monkeypatch.setattr(cost, "live_prices", lambda model, timeout=15.0: None)
+    assert cost.core_ledger_prices("qwen/qwen3.7-flash") == (0.03, 0.13)  # the core ledger's base tier
+    # A Decisions id is priced input-only by the same ledger (no output charge):
+    assert cost.core_ledger_prices("openai/gpt-6-luna-decisions") == (0.10, 0.0)
+    assert cost.core_ledger_prices("vendor/unknown-model") is None  # the honest gap
+    assert cost.resolve_prices("qwen/qwen3.7-flash") == (0.03, 0.13)
+    assert cost.resolve_prices("vendor/unknown-model") is None

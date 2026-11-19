@@ -694,3 +694,26 @@ def test_upload_names_stay_unique_when_two_rows_normalize_to_one_name(tmp_path):
         family_api.run_api_eval(rows, Api(), run_tag="t", poll_seconds=0, doc_timeout=0.0,
                                 sleep=lambda s: None, clock=lambda: 0.0)
     assert len(seen) == 2 and len(set(seen)) == 2
+
+
+def test_the_upload_rename_touches_only_the_staging_copy(tmp_path):
+    """api-eval must not interfere with the shared fixture tree: the ``.txt``
+    rename for the upload allow-list (``_upload_ready``) touches only the
+    staging copy, never a fixture file the pipeline runs read."""
+    from mailroom_sandbox.datasets import fixture_file
+    from mailroom_sandbox.eval.runners import _materialize_row
+
+    row = next(r for r in load_manifest() if not (r.get("doc_text") or r.get("text")) and r.get("filename"))
+    source = fixture_file(row)
+    assert source.is_file()
+    before = source.read_bytes()
+    staging = tmp_path / "stage"
+    staging.mkdir()
+    local = family_api._upload_ready(_materialize_row(row, staging), row)
+    if source.suffix.lower() in family_api._UPLOAD_TEXT_SUFFIXES:
+        assert local == staging / source.name
+    else:
+        assert local.name == source.name + ".txt"
+        assert not (staging / source.name).exists()
+    assert source.read_bytes() == before  # the shared fixture file is byte-identical
+    assert source.is_file()

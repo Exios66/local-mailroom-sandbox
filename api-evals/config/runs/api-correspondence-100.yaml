@@ -9,11 +9,13 @@ task: correspondence_specialist
 profile: openrouter
 
 prompt:
+  # No explicit agent stem: preflight fills the agent's lineage frontrunner
+  # (prompt_lineage.with_lineage_defaults), so this harness always runs the
+  # current condensed prompt and can never silently regress to a superseded
+  # stem. Today that is correspondence_specialist_condensed_v3; the frozen
+  # simplified-stem pairs (and the Modal legs they compared against) remain
+  # recorded in the run store and reports history.
   default: {source: code-default}
-  agents:
-    correspondence_specialist:
-      source: local
-      file: correspondence_specialist_simplified
 
 dataset:
   provider: huggingface

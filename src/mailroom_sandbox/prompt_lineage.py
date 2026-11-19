@@ -83,3 +83,45 @@ def with_lineage_defaults(prompt: Mapping[str, Any], task: str | None = None) ->
     if agents:
         out["agents"] = dict(sorted(agents.items()))
     return out
+
+
+def default_stem_for(task: str) -> str | None:
+    """The prompt stem an unlocked isolated-agent eval runs for ``task`` without ``--prompt``.
+
+    The lineage frontrunner when the agent has one (the same default a locked run spec
+    gets), else the eval-environment frozen stem it was re-frozen to — for the agents
+    whose parity stem is the deliberate default (contracts / merger keep theirs; there is
+    no condensed lineage for the other positions yet). None when neither exists.
+    """
+    fronts = frontrunners()
+    if task in fronts:
+        return fronts[task]
+    from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+
+    return default_prompt_variant(task)
+
+
+def apply_eval_defaults(task: str | None) -> bool:
+    """Pin an unlocked eval run's unnamed lineage agents to their frontrunners, in place.
+
+    The locked ``sandbox run`` path resolves its prompt surface at preflight and applies
+    the lock inside :func:`mailroom_sandbox.runtime.activate`; this helper is for the
+    direct eval paths (``sandbox eval pipeline`` / ``sorter`` / ``extract`` and the
+    runners they call), which otherwise keep vendored code-default prompts — a silent
+    regression to the pre-condensed stems. It is a no-op when a locked run policy is
+    active (the lock owns the surface) or an explicit ``--prompt-version`` selection is
+    set, and returns True only when lineage texts were applied.
+    """
+    from mailroom_sandbox import prompt_versions as pv
+    from mailroom_sandbox.runtime import locked_policy
+
+    if pv.active_selection():
+        return False
+    if locked_policy() is not None:
+        return False
+    if not frontrunners():
+        return False
+    from mailroom_sandbox.prompt_registry import apply_locked_prompts, prompt_lock_block
+
+    apply_locked_prompts(prompt_lock_block(with_lineage_defaults({}, task)))
+    return True
