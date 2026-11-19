@@ -24,9 +24,10 @@
      "evidence": ["ruff clean on all new/changed files", "test_vendor_drift + test_autoresearch_keep + test_gate + test_human_review_metric + test_eval: 74 passed / 3 skipped"]},
     {"hop": 5, "subcommand": "verify (pending_verify -> adversarial review round 1)", "outcome": "progressed",
      "evidence": ["adversarial-reviewer verdict NEEDS-FIXES: B-1 dead FAMILY_HF_REPO import (status pin check), B-2 network-by-accident offline status test, B-3 tautological invariants (mutation-proven), B-4 metric drift (case sensitivity, scorable gate, silent zip truncation)", "all fixed in 5b56d4dd: HF_DEFAULT_REPO + online-branch tests, transport-injected offline test with zero-call assert, spec-derived invariant bounds + mutation-style failure tests, gate-faithful lowercase comparison, loud length mismatch, docstring framing, CHANGELOG"]},
-    {"hop": 6, "subcommand": "verify round 2 (re-review of fixes)", "outcome": "pending"}
+    {"hop": 6, "subcommand": "verify round 2 (re-review of fixes)", "outcome": "progressed",
+     "evidence": ["adversarial-reviewer verdict SHIP-READY: B-1..B-4 all verified fixed with file:line evidence; mutation probes now caught by the invariants; socket-sentry confirms the suite is network-free by construction (62 passed, zero connection attempts)", "cosmetic notes N-2.1/N-2.2 fixed in the final commit", "merge gates remaining: green hosted CI (full suite + 84% coverage + checks) on the current head, then explicit operator approval"]}
   ],
-  "pending_verify": true,
+  "pending_verify": false,
   "fork_rounds_since_progress": 0,
   "conflict_avoidance": {
     "pr367": ["src/mailroom_sandbox/vendor_hotfixes.py", "src/mailroom_sandbox/scoring_hotfixes.py", "src/mailroom_sandbox/job/preflight.py", "src/mailroom_sandbox/job/context_plan.py", "scripts/check_hotfixes.py", "scripts/check_g0.py", "tests/test_routing_calibration.py", "tests/test_check_g0.py", "tests/test_vendor_hotfixes.py"],
