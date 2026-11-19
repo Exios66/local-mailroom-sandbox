@@ -27,6 +27,7 @@ they stay distinguishable from literal ones.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from collections.abc import Iterable, Mapping
@@ -271,6 +272,25 @@ def ungrounded(findings: Iterable[GroundingFinding]) -> list[GroundingFinding]:
 AGENT_SNIPPET_KEYS: tuple[str, ...] = ("expected_snippet", "expected")
 
 
+def _agent_rows(agent: str) -> list[dict[str, Any]]:
+    """The agent's prepared rows plus catalog rows the cleaner dropped for empty text."""
+    from mailroom_sandbox.prep import clean_agent_rows, load_agent_fixtures
+
+    prepared, _ = clean_agent_rows(agent)
+    kept = {row["id"] for row in prepared}
+    for raw in load_agent_fixtures(agent):
+        row_id = str(raw.get("id") or "").strip()
+        if row_id and row_id not in kept and raw.get("subdir") and raw.get("filename"):
+            gold = raw.get("expected_fields")
+            if isinstance(gold, str):
+                try:
+                    gold = json.loads(gold)
+                except json.JSONDecodeError:
+                    gold = {}
+            prepared.append({**raw, "id": row_id, "text": "", "expected_fields": gold})
+    return prepared
+
+
 def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[GroundingFinding]:
     """``gold_field_grounding`` over ``data/fixtures/agents/*.jsonl``.
 
@@ -279,23 +299,22 @@ def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[Groundi
     ``expected``) must be written in that text. Rows that carry only model output to
     judge (``extracted_data`` with no source document) or a binary ``file`` (image, PDF) have
     no text to ground against and yield no findings. A row whose catalog document is missing
-    is checked against empty text, so its gold is reported ungrounded rather than skipped.
+    or empty is checked against empty text, so its gold is reported ungrounded rather than
+    skipped.
     Row ids are ``<agent>/<id>``.
     """
     from mailroom_sandbox.paths import fixtures_dir
-    from mailroom_sandbox.prep import clean_agent_rows
 
     if agents is None:
         agents = sorted(p.stem for p in (fixtures_dir() / "agents").glob("*.jsonl"))
     rows: list[dict[str, Any]] = []
     for agent in agents:
-        prepared, _ = clean_agent_rows(agent)
-        for row in prepared:
+        for row in _agent_rows(agent):
             text = row.get("text")
             if not isinstance(text, str) or not text:
                 if not (row.get("subdir") and row.get("filename")):
                     continue
-                text = ""  # named catalog document is missing: all its gold is ungrounded
+                text = ""  # named catalog document is missing or empty: its gold is ungrounded
             gold = dict(row.get("expected_fields") or {})
             gold.update({k: row[k] for k in AGENT_SNIPPET_KEYS if isinstance(row.get(k), str)})
             if gold:
@@ -368,7 +387,11 @@ def cached_doc_rows(path: Any = None) -> dict[str, dict[str, Any]]:
 def _reviewed_label_status(
     doc_class: str, name: str, label: Mapping[str, Any], quotes: list[str]
 ) -> tuple[str, str]:
-    """A reviewed label, by the review file's rule (``interim_labels``), then its quote if any."""
+    """A reviewed label, by the review file's rule (``interim_labels``), then its quote if any.
+
+    A reviewed intent (``review_read_message``) is checked by the vocabulary rule alone: the
+    review file takes no quote minimum, so an optional quote is not held to the gate's.
+    """
     from mailroom_sandbox import gold_labels as gl
     from mailroom_sandbox import interim_labels as il
 
@@ -380,6 +403,8 @@ def _reviewed_label_status(
         problem = il._record_quote_problem(value, label.get("evidence"))
     if problem:
         return UNGROUNDED, problem
+    if basis == "review_read_message":
+        return IN_VOCABULARY, ""  # a reviewed intent: the vocabulary rule; quotes are optional
     if basis != "original_header" and quotes:
         ok, reason = gl.evidence_support(doc_class, name, value, quotes)
         return (GROUNDED, "") if ok else (UNGROUNDED, reason)
@@ -414,14 +439,16 @@ def _check_label(
 
     - ``derived``: recomputed from the record's own ``doc_subclass``.
     - a reviewed label (``review``): the review file's rule (``interim_labels``): header lines
-      for ``original_header``, the quote for ``review_read_record``, the vocabulary for intents.
+      for ``original_header``, the quote for ``review_read_record``, the vocabulary alone for
+      intents (``in_vocabulary``).
     - a stored quote: the label gate's value rules (``gold_labels.evidence_support``).
     - no quote, a closed label: the value is in the field's vocabulary (``in_vocabulary``).
     - no quote, the document's Hub row available (``rows``, bound by ``doc_sha256``): the
       build's own rule. A gap fill's every token is in the text (``interim_labels.grounded``);
       a CUAD correction agrees with the row's CUAD spans (``interim_labels.contract_correction``).
-    - otherwise ``no_evidence``; a gap fill whose stored ``support`` is under the admission
-      threshold is ``ungrounded``.
+    - a gap fill whose stored ``support`` is under the admission threshold is ``ungrounded``
+      before any document check: the build requires both the support and the text.
+    - otherwise ``no_evidence``.
     """
     from mailroom_sandbox import gold_labels as gl
     from mailroom_sandbox import interim_labels as il
@@ -446,12 +473,12 @@ def _check_label(
     if allowed is not None:
         ok = value in allowed
         return (IN_VOCABULARY, "") if ok else (UNGROUNDED, f"out_of_vocabulary: {value!r}")
-    row = rows.get(str(record.get("doc_id") or ""))
-    if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
-        return _hub_row_label_status(row, name, label)
     support = label.get("support")
     if status == "gap_fill" and isinstance(support, (int, float)) and support < il.SUPPORT_MIN:
         return UNGROUNDED, f"support {support} is under the admission threshold {il.SUPPORT_MIN}"
+    row = rows.get(str(record.get("doc_id") or ""))
+    if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
+        return _hub_row_label_status(row, name, label)
     if row is not None:
         return NO_EVIDENCE, "document text changed since the label was read"
     return NO_EVIDENCE, ""
@@ -666,6 +693,8 @@ def _merge_row(
     from mailroom_sandbox import interim_labels as il
 
     doc_id, cls = il.row_id(row), str(row.get("expected_doc_class") or "")
+    if row.get("id") != doc_id:
+        row = {**row, "id": doc_id}  # a raw Hub row keys on document_id; apply_near_gold on id
     hub = il._expected(row)
     hub_fields = _labelled(hub)
     after_interim = il.apply_overlay(row, interim, overlay_sha=shas[0])

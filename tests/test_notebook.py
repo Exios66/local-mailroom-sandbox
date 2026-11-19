@@ -213,6 +213,30 @@ def test_agent_row_with_missing_catalog_file_is_ungrounded(tmp_path, monkeypatch
     assert (finding.row_id, finding.status) == ("judge/r1", UNGROUNDED)
 
 
+def test_agent_row_with_empty_catalog_file_is_ungrounded(tmp_path, monkeypatch):
+    import mailroom_sandbox.datasets as datasets
+    import mailroom_sandbox.paths as paths
+    import mailroom_sandbox.prep as prep
+
+    (tmp_path / "agents").mkdir()
+    (tmp_path / "contract").mkdir()
+    (tmp_path / "contract" / "blank.txt").write_text("   \n")
+    rows = [
+        {
+            "id": "r1",
+            "subdir": "contract",
+            "filename": "blank.txt",
+            "expected_fields": {"parties": ["ACME Corporation"]},
+        },
+        {"id": "r2", "expected_fields": {"parties": ["ACME Corporation"]}},  # no source text
+    ]
+    (tmp_path / "agents" / "judge.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    for module in (datasets, paths, prep):
+        monkeypatch.setattr(module, "fixtures_dir", lambda: tmp_path)
+    [finding] = agent_fixture_grounding(["judge"])
+    assert (finding.row_id, finding.status) == ("judge/r1", UNGROUNDED)
+
+
 # --------------------------------------------------------------------------- label overlays
 
 
@@ -350,6 +374,25 @@ def test_overlay_checks_reviewed_labels_by_the_review_rule(tmp_path):
     assert status["intent"] == (IN_VOCABULARY, "")  # a reviewed intent quotes nothing
 
 
+def test_reviewed_intent_is_held_to_the_vocabulary_rule_only(tmp_path):
+    review = {"reviewer": {"role": "review"}, "note": "n", "file": "f"}
+    status = _overlay(
+        tmp_path,
+        {
+            "intent": {
+                "value": "request",
+                "basis": "review_read_message",
+                "evidence": ["Please"],  # an optional quote under the gate's token minimum
+                "status": "correction",
+                "review": review,
+            },
+        },
+        "correspondence",
+        "interim",
+    )
+    assert status["intent"] == (IN_VOCABULARY, "")
+
+
 def test_overlay_closed_labels_disputed_and_support(tmp_path):
     status = _overlay(
         tmp_path,
@@ -408,6 +451,12 @@ def test_overlay_checks_unquoted_labels_against_the_hub_row(tmp_path):
         tmp_path / "b", labels, "contract", "interim", {"DOC-1": row}, doc_sha256="0" * 16
     )
     assert stale["parties"] == (NO_EVIDENCE, "document text changed since the label was read")
+    weak = {"recipient": {"value": "Alpha Inc.", "status": "gap_fill", "support": 0.5}}
+    low = _overlay(
+        tmp_path / "d", weak, "contract", "interim", {"DOC-1": row}, doc_sha256=doc_sha(text)
+    )
+    assert low["recipient"][0] == UNGROUNDED  # in the text, but under the admission threshold
+    assert "admission threshold" in low["recipient"][1]
     assert _overlay(tmp_path / "c", labels, "contract", "interim")["parties"] == (NO_EVIDENCE, "")
 
 
@@ -487,6 +536,15 @@ def test_merged_truth_names_each_fields_source_and_overlap():
             NEAR_GOLD: 1,
         }
     }
+
+
+def test_merged_truth_resolves_a_raw_hub_row_by_document_id():
+    row, interim, near_gold = _merge_fixture()
+    raw = {k: v for k, v in row.items() if k != "id"} | {"document_id": row["id"]}
+    prepared = merged_truth([row], interim=interim, near_gold=near_gold)
+    merge = merged_truth([raw], interim=interim, near_gold=near_gold)
+    assert merge.fields == prepared.fields
+    assert {f.field: f.source for f in merge.fields}["urgency"] == NEAR_GOLD
 
 
 def test_merged_truth_reports_an_overlay_replacing_a_hub_label(monkeypatch):

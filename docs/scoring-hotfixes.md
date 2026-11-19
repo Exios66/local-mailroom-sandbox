@@ -59,10 +59,10 @@ checks each one by the rule that admitted it:
 | Label | Rule |
 | --- | --- |
 | A stored quote | The label gate's value rules (`gold_labels.evidence_support`): a whole date in one quote, money by value, token coverage for names and free text, the closed-label vocabulary and the per-field rules. The quote-length caps are not applied: a long `To:` header line is still evidence. |
-| Reviewed (`review`) | The review file's rule (`interim_labels`): header lines for `original_header`, the record quote for `review_read_record`, the vocabulary for a reviewed intent. |
+| Reviewed (`review`) | The review file's rule (`interim_labels`): header lines for `original_header`, the record quote for `review_read_record`, the vocabulary alone for a reviewed intent (an optional quote is not held to the gate's minimum). |
 | `derived` | Recomputed from the record's own `doc_subclass`. |
 | A closed label with no quote | The value is in the field's vocabulary (`in_vocabulary`). |
-| A gap fill or CUAD correction with no quote | The build's rule, against the document's Hub row when one is supplied (`rows`, bound by `doc_sha256`): every token in the text, or agreement with the row's CUAD spans. Otherwise `no_evidence`, or `ungrounded` if the stored support is under the admission threshold. |
+| A gap fill or CUAD correction with no quote | The build's rule, against the document's Hub row when one is supplied (`rows`, bound by `doc_sha256`): every token in the text, or agreement with the row's CUAD spans. A gap fill whose stored support is under the admission threshold is `ungrounded` first, with or without the row. Otherwise `no_evidence`. |
 
 Interim `disputed` labels are not truth and are not checked. `tests/test_notebook.py` fails on any
 unsupported label. Pytest never reads `data/cache`, so in CI the 803 interim gap fills and CUAD
