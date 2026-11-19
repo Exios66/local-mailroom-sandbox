@@ -17,6 +17,11 @@ With ``--check-run <run dir>`` it instead scores a finished run on those rows: e
 Each output row keeps the dataset row shape (``id``, ``doc_text``, ``expected_doc_class``,
 ``expected_subclass``, ``source_revision``) and adds ``expected_document_form``,
 ``control`` (how it was made) and ``derived_from``. Prints a digest and the file's sha256.
+
+A joined control has no single correct class: it carries its first source's class and subclass
+only because a dataset row needs them, and marks that with ``class_label_scored: false``. A
+controls run is judged by ``--check-run`` on ``document_form`` and the park alone. The class and
+subclass accuracy in its run report are not a measure, and controls never enter H5.
 """
 from __future__ import annotations
 
@@ -79,6 +84,8 @@ def build(rows: dict[str, dict]) -> list[dict]:
             "expected_document_form": form,
             "control": recipe,
             "derived_from": list(sources),
+            # a bundle of different documents has no one true class; its labels are placeholders
+            "class_label_scored": recipe != "join",
         })
     return out
 

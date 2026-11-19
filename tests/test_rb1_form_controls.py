@@ -36,6 +36,7 @@ def test_build_is_deterministic_and_known_by_construction(tmp_path):
     assert cut[-1] not in ".;:!?" and not cut.endswith("Signed.")
     joined = rows["CTRL-claim-plus-email"]
     assert joined["derived_from"] == ["DOC-bf518ec27ab190de", "DOC-6775dc31dac37ceb"] and "\n\n" in joined["doc_text"]
+    assert joined["class_label_scored"] is False and rows["CTRL-signature-page"]["class_label_scored"] is True
     forms = {r["expected_document_form"] for r in rows.values()}
     assert forms == {"fragment_or_excerpt", "multiple_documents", "complete_instrument"}
 
