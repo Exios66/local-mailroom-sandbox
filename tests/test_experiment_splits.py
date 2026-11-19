@@ -479,3 +479,20 @@ def test_rb1_configs_draw_whole_sets_of_the_split_they_name():
             assert spec.dataset.limit == len(ids), (path.name, spec.dataset.limit, len(ids))
             checked += 1
     assert checked >= 9
+
+
+def test_current_split_excludes_every_formcal_draw1_document_from_heldout():
+    used = es.read_id_file(es.REPO_ROOT / "config/splits/rb1-r13b/formcal-draw1.ids", required=True)
+    exposed = es.read_id_file(es.REPO_ROOT / "config/splits/runbook-v2-exposure.txt", required=True)
+    held = es.read_id_file(es.current_split_dir() / "heldout.ids", required=True)
+    assert len(used) == 50
+    assert used <= exposed
+    assert used.isdisjoint(held)
+
+
+def test_spent_formcal_draw1_keeps_its_v91_config():
+    from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS, load_run_spec
+
+    spec = load_run_spec(es.REPO_ROOT / "config/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1.yaml")
+    assert spec.dataset.revision == LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
+    assert "runbook-v1/calibration.exclude.ids" in str(spec.dataset.exclude_ids_file)

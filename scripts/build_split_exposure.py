@@ -21,6 +21,7 @@ only committed files and runs offline in CI. Campaign rb1, runbook-v2::
     python scripts/build_split_exposure.py \\
         --base config/production/excluded-ids.txt \\
         --add config/splits/runbook-v1/dev-look1.ids \\
+        --add config/splits/rb1-r13b/formcal-draw1.ids \\
         --add-ids-in reports/campaigns/rb1/rb1-r02-scorer-handcheck/rb1-r02.cases.jsonl \\
         --add-ids-in reports/campaigns/rb1/rb1-r13b-sorter-vs-decision/rb1-r13b-smoke20-decision-sorter-luna/i01/outputs/rb1-r13b-smoke20-decision-sorter-luna-i01.item-scores.csv \\
         --add-ids-in reports/campaigns/rb1/rb1-r13b-sorter-vs-decision/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash/i01/outputs/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash-i01.item-scores.csv \\

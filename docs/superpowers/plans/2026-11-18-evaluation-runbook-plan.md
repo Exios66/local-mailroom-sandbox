@@ -315,11 +315,11 @@ by the owner.
   record, moves 12 subclasses and relabels `annotation_method` on 1,541 rows, so v9.1 truth
   would grade every later look on superseded labels. What: `sandbox splits build --name
   runbook-v2 --revision ff4ca546… --exposure config/splits/runbook-v2-exposure.txt`, seed
-  20261118. 859 of 900 dev, 280 of 300 dev-look1 and 969 of 1,000 held-out documents are the
-  same as runbook-v1's. Calibration shares 710 of 1,000. The corporate units move with the
+  20261118. 820 of 900 dev, 265 of 300 dev-look1 and 969 of 1,000 held-out documents are the
+  same as runbook-v1's. Calibration shares 633 of 1,000. The corporate units move with the
   subclass repair: `bylaws` (36) becomes its own unit and `governance_instruments` drops to
   28, pooled. Held-out holds none of runbook-v1's
-  spent dev-look1 or the R02 and smoke documents. Spent so far, on runbook-v1: the R13b
+  spent dev-look1, the R02 and smoke documents, or the 50 draw-1 calibration documents used to write question set 4.0.2. Spent so far, on runbook-v1: the R13b
   smoke20/20b/20c runs (20 dev-look1 documents) and the R02 sheet (20 dev documents); their
   configs and reports stay on v9.1. Because 4.0.1's wording was shaped on runbook-v1
-  dev-look1, runbook-v2 dev-look1 figures stay in-sample for it. Nothing that ran is re-run.
+  dev-look1, runbook-v2 dev-look1 figures stay in-sample for it. The draw-1 intact config also stays on v9.1: it already ran. Before this repair one of its 50 documents entered the proposed v9.3 held-out set; the exposure list now excludes all 50 and the split and registry have been rebuilt. Nothing that ran is re-run.
