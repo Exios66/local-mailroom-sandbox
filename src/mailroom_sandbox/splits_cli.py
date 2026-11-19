@@ -21,7 +21,8 @@ def register(sub, leaf) -> None:
     commands = parser.add_subparsers(dest="splits_command", required=True)
 
     def common(p):
-        p.add_argument("--name", default=DEFAULT_NAME, help=f"split directory under config/splits (default {DEFAULT_NAME})")
+        p.add_argument("--name", default=DEFAULT_NAME, type=_split_name,
+                       help=f"split directory under config/splits (default {DEFAULT_NAME})")
         p.add_argument("--families", default=str(es.DEFAULT_FAMILIES), help="subclass family vocabulary (YAML)")
         p.add_argument("--exposure", default=str(es.DEFAULT_EXPOSURE),
                        help="ids already used for tuning; held-out avoids them ('' for none)")
@@ -46,20 +47,35 @@ def register(sub, leaf) -> None:
     show.set_defaults(handler=_show)
 
 
+def _split_name(value: str) -> str:
+    """One plain directory name: no separators, '..' or absolute paths escaping config/splits."""
+    import argparse
+    import re
+
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value or "") or ".." in value:
+        raise argparse.ArgumentTypeError(f"invalid split name {value!r}: use letters, digits, '.', '_' or '-'")
+    return value
+
+
 def _out_dir(name: str) -> Path:
     return es.DEFAULT_OUT_ROOT / name
 
 
 def _exposure(path: str) -> Path | None:
-    return Path(path) if path else None
+    """The tuning-exposure list; only an explicit '' means none. A missing file is refused."""
+    if not path:
+        return None
+    if not Path(path).is_file():
+        raise es.SplitError(f"exposure list {path} does not exist; pass --exposure '' to build with none")
+    return Path(path)
 
 
 def _load(args):
     from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
 
     revision = args.revision or FAMILY_HF_REVISION
+    exposure = _exposure(args.exposure)  # refuse a mistyped list before reading the corpus
     rows = es.load_cached_rows(revision=revision)
-    exposure = _exposure(args.exposure)
     docs = es.docs_from_rows(rows, es.read_id_file(exposure))
     families = es.load_families(Path(args.families))
     return revision, docs, families, exposure
@@ -148,5 +164,9 @@ def _show(args) -> int:
     n = manifest["looks"].get(args.set) or manifest["sizes"].get(args.set)
     print(f"\nrun-config dataset block for {args.set} ({n} docs):")
     print("dataset:\n  split: all\n  draw: ranked\n  require_task_gt: false\n"
-          f"  exclude_ids_file: {rel}\n  limit: {n}")
+          f"  revision: {manifest['dataset']['revision']}   # the split's frozen corpus revision\n"
+          f"  exclude_ids_file: {rel}\n  limit: {n}\n"
+          "  interim_labels: true      # repaired truth (data/labels/interim); see `sandbox schemas show`\n"
+          "  near_gold_labels: true    # near-gold truth (data/labels/gold-overlay)")
+    print("job:\n  schema_guide: true        # output-schema descriptions follow the labeling guide")
     return 0

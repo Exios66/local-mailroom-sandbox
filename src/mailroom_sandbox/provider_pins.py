@@ -18,7 +18,14 @@ activation instead of editing ``vendor/`` (drift-guarded):
 Provider names compare case-insensitively. A served model that is neither the
 requested id nor its ``canonical_slug`` (dated slug) is also a mismatch. A request
 that already names a fallback chain (``extra_body.models``) is recorded but not
-pinned, since its route is meant to move.
+pinned, since its route is meant to move: any model in that chain is allowed and its
+provider is not compared.
+
+Each entry's ``status`` is ``verified`` only when a non-empty pin and the response's
+provider and model were all observed and agree; ``mismatch`` when a difference was
+seen; otherwise ``unverified`` (no pin, an unpinned fallback chain, or the response
+omitted its provider or model). ``mismatch: false`` alone is not evidence: R01
+requires ``status: verified``.
 
 Not covered: the LangChain contract / merger agents (``ChatOpenAI``) and any module
 that imported ``retry_chat_completion`` by name before activation (for example the
@@ -92,25 +99,35 @@ def served_provider(response: Any) -> str | None:
     return str(value) if value else None
 
 
-def _record(model: str, response: Any, pins: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
+            fallback_models: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
+    """Ledger entry for one response, checked against the route the request actually used."""
     pin = pins.get(model) or {}
     provider = served_provider(response)
     served_model = getattr(response, "model", None)
-    order = pin.get("order") or []
-    served = served_model if isinstance(served_model, str) else None
+    served = served_model if isinstance(served_model, str) and served_model else None
+    order = [] if fallback_models else list(pin.get("order") or [])  # a fallback chain is not pinned
     provider_off = bool(order) and provider is not None and provider.casefold() not in {
         p.casefold() for p in order
     }
-    allowed = {model.casefold()} | ({str(pin["canonical_slug"]).casefold()} if pin.get("canonical_slug") else set())
-    model_off = bool(pin) and served is not None and served.casefold() not in allowed
+    allowed = {model.casefold()} | {str(m).casefold() for m in fallback_models}
+    for m in (model, *fallback_models):
+        slug = (pins.get(str(m)) or {}).get("canonical_slug")
+        if slug:
+            allowed.add(str(slug).casefold())
+    model_off = bool(pin or fallback_models) and served is not None and served.casefold() not in allowed
+    verified = bool(order) and provider is not None and served is not None and not (provider_off or model_off)
+    status = "mismatch" if provider_off or model_off else "verified" if verified else "unverified"
     entry = {
         "requested_model": model,
         "served_model": served,
         "served_provider": provider,
         "pinned_order": order,
+        "fallback_models": list(fallback_models),
         "provider_mismatch": provider_off,
         "model_mismatch": model_off,
         "mismatch": provider_off or model_off,
+        "status": status,
     }
     with _LOCK:
         _LEDGER.append(entry)
@@ -135,14 +152,18 @@ def reset_ledger() -> None:
 
 
 def summarize(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Per requested model: calls, served models, served providers, mismatches."""
+    """Per requested model: calls, served models, served providers, and mismatch / verified / unverified counts."""
     out: dict[str, dict[str, Any]] = {}
     for e in entries:
-        s = out.setdefault(e["requested_model"], {"calls": 0, "served_models": {}, "providers": {}, "mismatches": 0})
+        s = out.setdefault(e["requested_model"], {"calls": 0, "served_models": {}, "providers": {}, "mismatches": 0,
+                                                  "verified": 0, "unverified": 0})
         s["calls"] += 1
         s["served_models"][str(e["served_model"])] = s["served_models"].get(str(e["served_model"]), 0) + 1
         s["providers"][str(e["served_provider"])] = s["providers"].get(str(e["served_provider"]), 0) + 1
         s["mismatches"] += int(e["mismatch"])
+        status = e.get("status") or ("mismatch" if e["mismatch"] else "unverified")
+        if status in ("verified", "unverified"):
+            s[status] += 1
     return out
 
 
@@ -164,12 +185,13 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
     def pinned_retry_chat_completion(client, **kwargs):
         model = str(kwargs.get("model") or "")
         openrouter = _is_openrouter(client)
+        fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
         if openrouter:
             kwargs = pinned_kwargs(model, kwargs, _ACTIVE)
         response = original(client, **kwargs)
         if openrouter:
             try:
-                _record(model, response, _ACTIVE)
+                _record(model, response, _ACTIVE, fallback_models=fallback)
             except Exception as exc:  # noqa: BLE001 — recording never fails a call
                 _log.warning("served-provider record failed: %s", exc)
         return response

@@ -240,6 +240,14 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
         ground_truth = read_config("ground_truth", split)
         if ground_truth is not None:
             merged = merge_default_and_gt(default or [], ground_truth)
+        elif default is not None and files is None:
+            # Offline, an uncached ground_truth shard is indistinguishable from an absent
+            # one; returning the blind rows would score them unlabeled or drift from an
+            # online read of the same pin. Refuse whatever config was asked for.
+            raise CorpusRefusal(
+                f"{repo}@{resolved[:12]} {shard('ground_truth', split)} is not in the local cache "
+                f"(offline, so its absence cannot be confirmed); run `sandbox datasets pull` once (network) first"
+            )
         elif default is not None:
             if spec.config in ("", "ground_truth"):
                 # The blind rows would be scored as unlabeled (expected_doc_class

@@ -1147,6 +1147,9 @@ def build_parser() -> argparse.ArgumentParser:
     from mailroom_sandbox import splits_cli
 
     splits_cli.register(sub, leaf)
+    from mailroom_sandbox import schemas_cli
+
+    schemas_cli.register(sub, leaf)
     from mailroom_sandbox.autoresearch import cli as autoresearch_cli
 
     autoresearch_cli.register(sub, leaf)

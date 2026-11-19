@@ -187,8 +187,8 @@ def test_heldout_prefers_untuned_train_over_tuned():
     untuned_train_out = [d for d in docs if d.exposure_tier == 1 and res.assignment[d.id] != "heldout"]
     comps = es.build_components(docs)
     tuned_in = [d for d in docs if res.assignment[d.id] == "heldout"
-                and min(m.exposure_tier for m in comps[d.component]) == 2]
-    assert untuned_train_out and not tuned_in  # tuned only when linked to a less-exposed doc
+                and max(m.exposure_tier for m in comps[d.component]) == 2]
+    assert untuned_train_out and not tuned_in  # no tuning-exposed component while clean ones remain
     assert [d.exposure_tier for d in docs[:3]] == [0, 2, 1]
 
 
@@ -215,3 +215,75 @@ def test_correspondence_subjects_link_reply_threads():
     assert comp["DOC-3"] != comp["DOC-4"]  # subjects under 4 chars are not a thread signal
     assert comp["DOC-5"] != comp["DOC-1"]  # only correspondence links by subject
     assert len(comps[comp["DOC-1"]]) == 2
+
+
+def _resign(out, name):
+    """Rewrite one file's manifest hash, as a careless hand edit would."""
+    manifest = json.loads((out / "manifest.json").read_text())
+    manifest["files"][name] = es._sha((out / name).read_bytes())
+    (out / "manifest.json").write_text(json.dumps(manifest))
+
+
+def test_heldout_skips_a_never_tuned_doc_linked_to_a_tuned_one():
+    docs = _corpus()
+    docs[9].links.append("msg:thread-b")  # DOC-0009: never-tuned (test split)
+    docs[1].links.append("msg:thread-b")  # DOC-0001: tuned below
+    docs[1].tuned = True
+    res = es.build_split(docs, FAMILIES, seed=3, sizes=SIZES)
+    assert res.assignment["DOC-0009"] != "heldout" and res.assignment["DOC-0001"] != "heldout"
+
+
+def test_a_missing_exposure_file_is_refused_not_read_as_empty(tmp_path):
+    with pytest.raises(es.SplitError, match="does not exist"):
+        es.read_id_file(tmp_path / "typo.txt", required=True)
+    assert es.read_id_file(None, required=True) == set()
+
+
+def test_identical_content_links_documents():
+    rows = [{"id": "A", "expected_doc_class": "contract", "content_sha256": "f" * 64},
+            {"id": "B", "expected_doc_class": "contract", "content_sha256": "f" * 64},
+            {"id": "C", "expected_doc_class": "contract", "content_sha256": "0" * 64}]
+    docs = es.docs_from_rows(rows, set())
+    comps = es.build_components(docs)
+    by = {d.id: d.component for d in docs}
+    assert by["A"] == by["B"] != by["C"] and len(comps[by["A"]]) == 2
+
+
+def test_audit_catches_an_edited_ledger_and_look_complement(tmp_path, monkeypatch):
+    out, _ = _written(tmp_path, monkeypatch)
+    rows = [json.loads(line) for line in (out / "assignments.jsonl").read_text().splitlines()]
+    rows[0]["tuned"] = not rows[0]["tuned"]
+    (out / "assignments.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+    _resign(out, "assignments.jsonl")
+    (out / "dev-look1.exclude.ids").write_text("# emptied\n")
+    _resign(out, "dev-look1.exclude.ids")
+    names = {c.name: c for c in es.audit(out, _corpus(), FAMILIES)}
+    assert names["file hashes match manifest"].ok
+    assert not names["assignments.jsonl matches the rebuild"].ok
+    assert not names["dev-look1.exclude.ids is the exact complement"].ok
+
+
+@pytest.mark.parametrize("name", ["../escape", "/abs", "a/b", "..", ""])
+def test_split_name_rejects_paths(name):
+    import argparse
+
+    from mailroom_sandbox import splits_cli
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        splits_cli._split_name(name)
+    assert splits_cli._split_name("runbook-v2.1") == "runbook-v2.1"
+
+
+def test_cli_refuses_a_missing_exposure_list(tmp_path, capsys):
+    from mailroom_sandbox.cli import main
+
+    assert main(["splits", "build", "--dry-run", "--exposure", str(tmp_path / "typo.txt")]) == 2
+    assert "does not exist" in capsys.readouterr().err
+
+
+def test_show_prints_the_frozen_revision(capsys):
+    from mailroom_sandbox.cli import main
+
+    assert main(["splits", "show", "--set", "heldout"]) == 0
+    manifest = json.loads((es.DEFAULT_OUT_ROOT / "runbook-v1" / "manifest.json").read_text())
+    assert f"revision: {manifest['dataset']['revision']}" in capsys.readouterr().out

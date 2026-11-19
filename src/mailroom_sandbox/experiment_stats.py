@@ -5,7 +5,9 @@ Clopper-Pearson upper bounds, ECE, Brier, AUROC, Wilson and bootstrap intervals.
 This module re-exports those and adds the paired tests the keep and transfer rules
 need, which the Dojo does not ship:
 
-* exact McNemar on paired correct/incorrect outcomes (sorter keep rule),
+* exact McNemar on paired correct/incorrect outcomes (sorter accuracy keep rule),
+* class macro-F1 and a paired swap-permutation test for it (H1: McNemar tests accuracy,
+  not macro-F1, so a macro-F1 claim needs a test of macro-F1 itself),
 * a sign-flip permutation test on per-document score differences (specialist field F1),
 * Holm step-down adjustment (sealed held-out confirmatory family),
 * the sequential-look z for 300 / 600 / 900 dev looks,
@@ -38,6 +40,8 @@ __all__ = [
     "McNemar",
     "mcnemar",
     "paired_permutation",
+    "macro_f1",
+    "paired_macro_f1",
     "holm",
     "look_z",
     "keep_at_look",
@@ -57,7 +61,8 @@ def _binom_two_sided(k: int, n: int) -> float:
     if n == 0:
         return 1.0
     k = min(k, n - k)
-    tail = sum(math.comb(n, i) for i in range(k + 1)) / 2.0**n
+    # integer true division stays exact past 2**1023, where 2.0**n overflows
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / (1 << n)
     return min(1.0, 2.0 * tail)
 
 
@@ -99,10 +104,14 @@ def paired_permutation(
     """Two-sided sign-flip permutation test on paired differences.
 
     Returns ``(mean_difference, p_value)`` with the +1 correction, so p is never 0.
+    A NaN or infinite score raises instead of yielding a finite p for an invalid comparison.
     """
     if len(baseline) != len(candidate):
         raise ValueError("paired sequences differ in length")
     diffs = [float(y) - float(x) for x, y in zip(baseline, candidate)]
+    bad = [i for i, d in enumerate(diffs) if not math.isfinite(d)]
+    if bad:
+        raise ValueError(f"non-finite paired difference at {len(bad)} position(s), e.g. index {bad[0]}")
     n = len(diffs)
     if n == 0:
         return 0.0, 1.0
@@ -117,6 +126,52 @@ def paired_permutation(
         if abs(s) >= observed - 1e-12:
             hits += 1
     return sum(diffs) / n, (hits + 1) / (n_perm + 1)
+
+
+def macro_f1(truth: Sequence[str], pred: Sequence[str], labels: Sequence[str] | None = None) -> float:
+    """Unweighted mean of per-class F1 over ``labels`` (default: every class in ``truth``)."""
+    if len(truth) != len(pred):
+        raise ValueError("truth and predictions differ in length")
+    classes = sorted(set(labels) if labels is not None else set(truth))
+    if not classes:
+        return 0.0
+    total = 0.0
+    for c in classes:
+        tp = sum(1 for t, p in zip(truth, pred) if t == c and p == c)
+        fp = sum(1 for t, p in zip(truth, pred) if t != c and p == c)
+        fn = sum(1 for t, p in zip(truth, pred) if t == c and p != c)
+        total += 2 * tp / (2 * tp + fp + fn) if tp else 0.0
+    return total / len(classes)
+
+
+def paired_macro_f1(
+    truth: Sequence[str],
+    baseline: Sequence[str],
+    candidate: Sequence[str],
+    *,
+    n_perm: int = 10_000,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """Two-sided paired test of a macro-F1 difference: swap each document's two predictions
+    with probability 1/2 and recompute. Returns ``(candidate - baseline, p)`` with the +1
+    correction. The class set is fixed to ``truth``'s classes across permutations."""
+    if not (len(truth) == len(baseline) == len(candidate)):
+        raise ValueError("truth, baseline and candidate differ in length")
+    labels = sorted(set(truth))
+    observed = macro_f1(truth, candidate, labels) - macro_f1(truth, baseline, labels)
+    differ = [i for i, (a, b) in enumerate(zip(baseline, candidate)) if a != b]
+    if not differ:
+        return observed, 1.0
+    rng = random.Random(seed)
+    hits = 0
+    for _ in range(n_perm):
+        a, b = list(baseline), list(candidate)
+        for i in differ:
+            if rng.random() < 0.5:
+                a[i], b[i] = b[i], a[i]
+        if abs(macro_f1(truth, b, labels) - macro_f1(truth, a, labels)) >= abs(observed) - 1e-12:
+            hits += 1
+    return observed, (hits + 1) / (n_perm + 1)
 
 
 def holm(p_values: Mapping[str, float] | Sequence[float]) -> dict:

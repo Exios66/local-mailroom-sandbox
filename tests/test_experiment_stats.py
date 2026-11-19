@@ -78,3 +78,32 @@ def test_null_floors():
 def test_dojo_reexports_are_live():
     assert st.clopper_pearson_upper(0, 299) == pytest.approx(0.00997, abs=1e-4)
     assert st.brier_score([(1.0, True), (0.0, False)]) == 0.0
+
+
+def test_mcnemar_exact_past_float_overflow():
+    r = st.mcnemar([True] * 512 + [False] * 512, [False] * 512 + [True] * 512)
+    assert (r.b, r.c, r.p_value) == (512, 512, 1.0)
+    assert 0.0 <= st.mcnemar([True] * 1100, [False] * 1100).p_value < 1e-300  # no OverflowError
+
+
+def test_paired_permutation_rejects_non_finite_scores():
+    with pytest.raises(ValueError, match="non-finite"):
+        st.paired_permutation([0.5, float("nan")], [0.6, 0.7])
+    with pytest.raises(ValueError, match="non-finite"):
+        st.paired_permutation([0.5, 0.1], [float("inf"), 0.7])
+
+
+def test_macro_f1_moves_where_mcnemar_cannot():
+    """90 class-a / 10 class-b docs: 5 a-regressions for 5 b-wins leave McNemar at p=1
+    while macro-F1 rises by more than 16 points; the paired macro-F1 test responds to it."""
+    truth = ["a"] * 90 + ["b"] * 10
+    base = ["a"] * 80 + ["b"] * 10 + ["a"] * 10  # 80/90 a right, 0/10 b right
+    cand = ["a"] * 75 + ["b"] * 15 + ["a"] * 5 + ["b"] * 5  # 75/90 a right, 5/10 b right
+    m = st.mcnemar([t == p for t, p in zip(truth, base)], [t == p for t, p in zip(truth, cand)])
+    assert (m.b, m.c, m.p_value) == (5, 5, 1.0)
+    gain, p = st.paired_macro_f1(truth, base, cand, n_perm=2000, seed=1)
+    assert gain > 0.16 and p < 0.1  # McNemar: p = 1
+    assert st.paired_macro_f1(truth, base, base) == (0.0, 1.0)
+    assert st.macro_f1(["a", "b"], ["a", "b"]) == 1.0
+    with pytest.raises(ValueError):
+        st.paired_macro_f1(truth, base, cand[:-1])

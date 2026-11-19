@@ -134,3 +134,40 @@ def test_explicit_fallback_chain_is_recorded_not_pinned(vendored):
     base.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash", extra_body=body)
     assert "provider" not in seen[-1]["extra_body"]
     assert len(pp.ledger()) == 1
+
+
+def test_status_is_verified_only_with_a_pin_and_observed_provider_and_model(vendored, monkeypatch):
+    seen, base = vendored
+    client = _Client("https://openrouter.ai/api/v1")
+    pins = {"q/m": {"order": ["Served-Co"], "allow_fallbacks": False, "canonical_slug": None}}
+    pp.apply_provider_pins(pins)
+    base.retry_chat_completion(client, model="q/m")
+    assert pp.ledger()[-1]["status"] == "verified"
+
+    def silent(client, **kwargs):
+        return _Resp(kwargs["model"], None)  # the response omits its provider
+
+    monkeypatch.setattr(pp, "_ORIGINAL", silent)
+    pp.apply_provider_pins(pins)
+    base.retry_chat_completion(client, model="q/m")
+    row = pp.ledger()[-1]
+    assert row["mismatch"] is False and row["status"] == "unverified"
+    pp.apply_provider_pins({"q/m": {"order": [], "allow_fallbacks": False, "canonical_slug": None}})
+    monkeypatch.setattr(pp, "_ORIGINAL", None)
+    summary = pp.summarize(pp.ledger())["q/m"]
+    assert (summary["verified"], summary["unverified"], summary["mismatches"]) == (1, 1, 0)
+
+
+def test_fallback_chain_allows_its_models_and_skips_the_provider_pin(vendored, monkeypatch):
+    seen, base = vendored
+
+    def fell_back(client, **kwargs):
+        return _Resp("deepseek/x", "Other-Co")
+
+    monkeypatch.setattr(pp, "_ORIGINAL", fell_back)
+    pp.apply_provider_pins(PINS)
+    body = {"models": ["qwen/qwen3.7-flash", "deepseek/x"]}
+    base.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash", extra_body=body)
+    row = pp.ledger()[-1]
+    assert row["mismatch"] is False and row["pinned_order"] == [] and row["status"] == "unverified"
+    assert row["fallback_models"] == ["qwen/qwen3.7-flash", "deepseek/x"]

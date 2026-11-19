@@ -7,6 +7,7 @@ import json
 import pytest
 
 from mailroom_sandbox.corpus import (
+    CorpusRefusal,
     _normalize_subclass,
     _stable_key,
     load_hf_rows,
@@ -271,6 +272,25 @@ def test_load_hf_rows_reads_the_cache_when_the_tree_cannot_be_listed(monkeypatch
     rows = load_hf_rows(DatasetSpec(provider="huggingface", revision=FAMILY_HF_REVISION))
     assert len(rows) == 3
     assert calls and all(calls)
+
+
+@pytest.mark.parametrize("config", ["", "ground_truth", "default"])
+def test_load_hf_rows_offline_refuses_an_uncached_ground_truth_shard(monkeypatch, tmp_path, config):
+    """Offline, a cached default shard without its ground_truth shard is refused, not read blind."""
+    import huggingface_hub
+
+    _stub_hub(monkeypatch, tmp_path)
+    cached = huggingface_hub.hf_hub_download
+
+    def default_only(repo, filename, revision=None, repo_type=None, **kw):
+        if "ground_truth" in filename:
+            raise FileNotFoundError(filename)
+        return cached(repo, filename, revision=revision, repo_type=repo_type)
+
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", default_only)
+    with pytest.raises(CorpusRefusal, match="not in the local cache"):
+        load_hf_rows(DatasetSpec(provider="huggingface", revision=FAMILY_HF_REVISION, config=config))
 
 
 def test_load_hf_rows_offline_refuses_a_moving_revision(monkeypatch, tmp_path):

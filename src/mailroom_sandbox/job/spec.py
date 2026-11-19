@@ -647,6 +647,10 @@ class JobSpec(BaseModel):
     # the vendored doc_inventories note, no subclass) and apply the node's post-extraction
     # inventory normalization, so an isolated A/B sees what the pipeline's specialist sees.
     pipeline_handoff: bool = False
+    # Specialist output-schema field descriptions follow the gold labeling guide for the fields
+    # the repaired (interim / near-gold) labels score (mailroom_sandbox.schema_guide). Off by
+    # default, so a baseline keeps the vendored descriptions; hashed only when set.
+    schema_guide: bool = False
 
     @field_validator("task")
     @classmethod
@@ -1042,11 +1046,11 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd, blind_routing and pipeline_handoff are hashed only when set, so older
-        # YAMLs keep their hash.
+        # api_cost_cap_usd, blind_routing, pipeline_handoff and schema_guide are hashed only when
+        # set, so older YAMLs keep their hash.
         "job": {key: value for key, value in spec.job.model_dump().items()
                 if not (key == "api_cost_cap_usd" and value is None)
-                and not (key in ("blind_routing", "pipeline_handoff") and value is False)},
+                and not (key in ("blind_routing", "pipeline_handoff", "schema_guide") and value is False)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,

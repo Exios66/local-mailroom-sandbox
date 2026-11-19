@@ -461,7 +461,8 @@ def activate(
         _log.warning("source-window override failed — vendored 16k excerpts stand: %s", exc)
 
     # R01: pin OpenRouter providers per model (config/provider_pins.yaml) and record the
-    # served model + provider of every vendored chat call, without editing vendor/.
+    # served model + provider of each wrapped retry_chat_completion call (not the LangChain
+    # contract / merger agents), without editing vendor/.
     try:
         from mailroom_sandbox.provider_pins import apply_provider_pins
 
@@ -523,6 +524,14 @@ def activate(
     locked_job = ((policy or {}).get("lock") or {}).get("job", {})
     _ACTIVE_BLIND_ROUTING = bool(locked_job.get("blind_routing"))
     _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
+    try:  # every activation sets or restores the descriptions, so one run's choice never leaks
+        from mailroom_sandbox.schema_guide import apply_schema_guide
+
+        apply_schema_guide(bool(locked_job.get("schema_guide")))
+    except Exception as exc:  # noqa: BLE001
+        if locked_job.get("schema_guide"):
+            raise
+        _log.warning("schema guide not restored: %s", exc)
     _ACTIVE = activation
     runtime_dir()  # ensure exists
     return activation

@@ -77,6 +77,13 @@ agents:
         reference_run: specialist-condensed-v3-correspondence-qwen-v2arm-r2
         validation_run: specialist-condensed-v3-correspondence-qwen-v3arm
         status: adopted   # paired A/B, 40 held-out documents: mean +0.015 (0.332 -> 0.346), 8 wins / 29 ties / 3 losses, communication_type 2 -> 3 of 10 exact, intent 23 -> 24 of 40, 0 parse errors, +4% input tokens
+      - version: correspondence_specialist_condensed_v4
+        parent: "correspondence_specialist_condensed_v3 (one change: the contact, demand, action and urgency rules follow docs/gold-labels/LABELING_GUIDE.md, the convention the repaired near-gold/interim labels use: recipient = first To: entry or a named-group salutation, generic salutation null; demand_amount only when demanded of the recipient; action_items need no deadline; urgency definitions)"
+        # Score it with dataset.interim_labels + near_gold_labels on (every earlier A/B scored only
+        # intent / subject_matter / keywords / communication_type) and job.schema_guide on in both arms.
+        reference_run: runbook-pi-e-v3arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-e-v4arm
+        status: candidate   # written 2026-11-18 from the label audit; not yet run
   corporate_records_specialist:
     frontrunner: corporate_records_specialist_condensed_v1
     versions:
@@ -85,3 +92,8 @@ agents:
         reference_run: extraction-gate-specialist-corporate-record-qwen
         validation_run: specialist-condensed-v1-corporate-record-qwen-ab
         status: adopted   # mean +0.075 (0.352 -> 0.427), intent 19 -> 27 exact, 0 parse errors, fewer tokens
+      - version: corporate_records_specialist_condensed_v2
+        parent: "corporate_records_specialist_condensed_v1 (one change: the map and core-field rules follow the Dojo subclass schema and LABELING_GUIDE.md: Certificate of Designation -> other/governance_rules, registration/investor/subscription agreements -> rights_instrument, effective_date falls back to the adoption/filing date, indenture jurisdiction = governing-law state, signatories only from the execution block)"
+        reference_run: runbook-pi-r-v1arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-r-v2arm
+        status: candidate   # written 2026-11-18 from the label audit; not yet run

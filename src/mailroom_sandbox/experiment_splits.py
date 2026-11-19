@@ -171,8 +171,14 @@ def load_cached_rows(revision: str | None = None, repo: str | None = None) -> li
     return normalized
 
 
-def read_id_file(path: Path | None) -> set[str]:
-    if path is None or not Path(path).is_file():
+def read_id_file(path: Path | None, *, required: bool = False) -> set[str]:
+    """Ids in ``path`` (``#`` comments allowed). ``None`` is no list; a missing file is empty
+    unless ``required``, which raises so a mistyped exposure list never reads as "nothing tuned"."""
+    if path is None:
+        return set()
+    if not Path(path).is_file():
+        if required:
+            raise SplitError(f"id list {path} does not exist (pass '' explicitly for no list)")
         return set()
     ids = set()
     for line in Path(path).read_text(encoding="utf-8").splitlines():
@@ -214,7 +220,7 @@ def docs_from_rows(rows: Iterable[dict[str, Any]], exposure: set[str]) -> list[D
         for key in ("matter_id", "group_id"):
             if r.get(key):
                 links.append(f"{key}:{r[key]}")
-        for key in ("normalized_text_sha256",):
+        for key in ("normalized_text_sha256", "content_sha256"):
             if r.get(key):
                 links.append(f"text:{r[key]}")
         if str(r.get("expected_doc_class") or r.get("expected") or "") == "correspondence":
@@ -387,8 +393,11 @@ def build_split(
     units = assign_units(docs, families)
     comps = build_components(docs)
     comp_of = {d.id: d.component for d in docs}
-    # a leak component moves as one, so rank it by its least-exposed member
-    tier = {d.id: min(m.exposure_tier for m in comps[d.component]) for d in docs}
+    # a leak component moves as one, so rank it by its most-exposed member: held-out takes a
+    # document linked to a tuned one only after every clean component is placed. Among equally
+    # exposed components, those holding a never-tuned document come first.
+    tier = {d.id: (max(m.exposure_tier for m in comps[d.component]),
+                   min(m.exposure_tier for m in comps[d.component])) for d in docs}
     min_pooled = int(families["min_pooled_per_set"])
     assignment: dict[str, str] = {}
     filled: Counter[str] = Counter()
@@ -430,7 +439,7 @@ def build_split(
             if target == "heldout":
                 order.sort(key=lambda d: tier[d.id])
             else:
-                order.sort(key=lambda d: -tier[d.id])
+                order.sort(key=lambda d: (-tier[d.id][0], -tier[d.id][1]))
             for d in order:
                 if unit_count[target][unit] >= quotas[unit]:
                     break
@@ -443,7 +452,7 @@ def build_split(
             if sub_count[target][key]:
                 continue
             cands = [d for d in docs if (d.doc_class, d.subclass) == key and d.id not in assignment]
-            cands.sort(key=lambda d: (tier[d.id] if target == "heldout" else -tier[d.id],
+            cands.sort(key=lambda d: (tier[d.id] if target == "heldout" else (-tier[d.id][0], -tier[d.id][1]),
                                       _h(seed, "rare", target, d.id)))
             for d in cands:
                 if place(comp_of[d.id], target):
@@ -462,7 +471,7 @@ def build_split(
                 per_stratum[(d.doc_class, d.source_corpus)].append(d)
         for key, ds in per_stratum.items():
             order = _band_interleaved(ds, seed, f"fill:{target}:{key}")
-            order.sort(key=lambda d: tier[d.id] if prefer_never_tuned else -tier[d.id])
+            order.sort(key=lambda d: tier[d.id] if prefer_never_tuned else (-tier[d.id][0], -tier[d.id][1]))
             queues[key] = order
         have = Counter((d.doc_class, d.source_corpus) for d in docs if assignment.get(d.id) == target)
         while filled[target] < sizes[target]:
@@ -500,18 +509,22 @@ def build_split(
     for d in remaining:
         strata[(d.doc_class, d.source_corpus, d.band)].append(d)
     debt = 0.0  # error diffusion across strata keeps the pool total on target
-    for key in sorted(strata):
-        for d in sorted(strata[key], key=lambda d: _h(seed, "rem", d.id)):
-            if d.id in assignment:
-                continue
-            debt += share
-            target = "pool" if debt >= 0.5 else "calibration"
-            if target == "pool":
-                debt -= 1.0
+    ordered = [d for key in sorted(strata) for d in sorted(strata[key], key=lambda d: _h(seed, "rem", d.id))]
+    # linked components first, largest first, so singletons always fill what is left
+    multi = sorted((d for d in ordered if len(comps[comp_of[d.id]]) > 1),
+                   key=lambda d: -len(comps[comp_of[d.id]]))
+    for d in [*multi, *(d for d in ordered if len(comps[comp_of[d.id]]) == 1)]:
+        if d.id in assignment:
+            continue
+        size = len(comps[comp_of[d.id]])
+        debt += share * size
+        target = "pool" if debt >= 0.5 * size else "calibration"
+        if not place(comp_of[d.id], target):
+            target = "calibration" if target == "pool" else "pool"
             if not place(comp_of[d.id], target):
-                other = "calibration" if target == "pool" else "pool"
-                if not place(comp_of[d.id], other):
-                    raise SplitError(f"could not place {d.id}: calibration and pool are full")
+                raise SplitError(f"could not place {d.id}: calibration and pool are full")
+        if target == "pool":
+            debt -= size
     for s in SETS:
         if filled[s] != sizes[s]:
             raise SplitError(f"{s} has {filled[s]} documents, expected {sizes[s]}")
@@ -555,6 +568,17 @@ def _ids_bytes(ids: Iterable[str], header: str) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def assignment_rows(result: SplitResult) -> list[dict[str, Any]]:
+    by_id = {d.id: d for d in result.docs}
+    return [
+        {"id": i, "set": result.assignment[i], "doc_class": by_id[i].doc_class,
+         "subclass": by_id[i].subclass, "unit": by_id[i].unit, "unit_kind": by_id[i].unit_kind,
+         "band": by_id[i].band, "component": by_id[i].component, "hf_split": by_id[i].hf_split,
+         "tuned": by_id[i].tuned}
+        for i in sorted(result.assignment)
+    ]
+
+
 def write_split(
     result: SplitResult,
     out_dir: Path,
@@ -582,14 +606,7 @@ def write_split(
         emit(f"{look}.ids", set(ids), f"{look}: nested stratified prefix of dev ({len(ids)})")
         emit(f"{look}.exclude.ids", all_ids - set(ids), f"complement of {look}")
 
-    by_id = {d.id: d for d in result.docs}
-    rows = [
-        {"id": i, "set": result.assignment[i], "doc_class": by_id[i].doc_class,
-         "subclass": by_id[i].subclass, "unit": by_id[i].unit, "unit_kind": by_id[i].unit_kind,
-         "band": by_id[i].band, "component": by_id[i].component, "hf_split": by_id[i].hf_split,
-         "tuned": by_id[i].tuned}
-        for i in sorted(result.assignment)
-    ]
+    rows = assignment_rows(result)
     data = ("\n".join(json.dumps(r, sort_keys=True) for r in rows) + "\n").encode()
     (out_dir / "assignments.jsonl").write_bytes(data)
     files["assignments.jsonl"] = _sha(data)
@@ -649,6 +666,21 @@ def _max_gap(a: dict[str, float], b: dict[str, float]) -> tuple[float, str]:
     return gap, worst
 
 
+def _ledger_check(out_dir: Path, rebuilt: SplitResult) -> Check:
+    """``assignments.jsonl`` must hold exactly the rebuilt rows (set, unit, band, component, tuned, ...)."""
+    path = out_dir / "assignments.jsonl"
+    try:
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, ValueError) as exc:
+        return Check("assignments.jsonl matches the rebuild", False, f"unreadable: {exc}")
+    got = {r.get("id"): r for r in rows}
+    want = {r["id"]: r for r in assignment_rows(rebuilt)}
+    bad = sorted(i for i in set(got) | set(want) if got.get(i) != want.get(i))
+    dup = len(rows) - len(got)
+    return Check("assignments.jsonl matches the rebuild", not bad and not dup,
+                 f"{len(rows)} rows; {len(bad)} differ, {dup} duplicated" + (f"; e.g. {bad[:3]}" if bad else ""))
+
+
 def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Check]:
     """Re-derive every split rule from the written files; ``docs`` = fresh corpus load."""
     checks: list[Check] = []
@@ -688,15 +720,22 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
         comp = read_id_file(out_dir / f"{s}.exclude.ids")
         ok = comp == corpus_ids - {i for i, t in assignment.items() if t == s}
         checks.append(Check(f"{s}.exclude.ids is the exact complement", ok, f"{len(comp)} ids"))
+    for look in manifest.get("looks") or {}:
+        ids = read_id_file(out_dir / f"{look}.ids")
+        comp = read_id_file(out_dir / f"{look}.exclude.ids")
+        checks.append(Check(f"{look}.exclude.ids is the exact complement", comp == corpus_ids - ids,
+                            f"{len(comp)} ids"))
 
     # the written split must be exactly what the seed produces (catches a consistent swap)
     try:
         rebuilt = build_split(docs, families, seed=int(manifest["seed"]), sizes=dict(manifest["sizes"]))
         differ = sorted(i for i in rebuilt.assignment if rebuilt.assignment[i] != assignment.get(i))
-        looks_ok = all(set(ids) == read_id_file(out_dir / f"{k}.ids") for k, ids in rebuilt.looks.items())
+        looks_ok = set(rebuilt.looks) == set(manifest.get("looks") or {}) and all(
+            set(ids) == read_id_file(out_dir / f"{k}.ids") for k, ids in rebuilt.looks.items())
         checks.append(Check("split reproduces from its seed and inputs", not differ and looks_ok,
                             f"{len(differ)} documents differ from a rebuild; looks match: {looks_ok}"
                             + (f"; e.g. {differ[:3]}" if differ else "")))
+        checks.append(_ledger_check(out_dir, rebuilt))
     except SplitError as exc:
         checks.append(Check("split reproduces from its seed and inputs", False, f"rebuild refused: {exc}"))
 
@@ -794,23 +833,22 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
 
     # held-out exposure
     ho = by_set["heldout"]
-    never = sum(1 for d in ho if d.never_tuned)
-    avail = sum(1 for d in docs if d.never_tuned)
-    tuned = sum(1 for d in ho if d.tuned)
-    placed_never = sum(1 for d in docs if d.never_tuned and assignment.get(d.id) == "heldout")
-    need = min(avail, manifest["sizes"]["heldout"])
-    checks.append(Check("held-out takes every never-tuned document", placed_never >= need,
-                        f"{never}/{len(ho)} held-out docs never tuned ({avail} available)"))
-    comp_tier = {}
-    for d in docs:
-        comp_tier[d.component] = min(comp_tier.get(d.component, 9), d.exposure_tier)
-    unlinked_tuned = [d.id for d in docs if assignment.get(d.id) == "heldout" and d.exposure_tier == 2
-                      and comp_tier[d.component] == 2]
-    spare_untuned = sum(1 for d in docs if comp_tier[d.component] == 1 and assignment.get(d.id) != "heldout")
-    checks.append(Check("held-out holds a tuning-list document only when linked to an untuned one",
-                        not unlinked_tuned or spare_untuned == 0,
-                        f"{tuned} tuning-list docs in held-out ({len(unlinked_tuned)} not linked to an untuned doc); "
-                        f"{spare_untuned} untuned train docs outside it"))
+    comp_tier: dict[str, int] = {}
+    for d in docs:  # a component is as exposed as its most-exposed member
+        comp_tier[d.component] = max(comp_tier.get(d.component, 0), d.exposure_tier)
+    clean_never = [d for d in docs if d.never_tuned and comp_tier[d.component] < 2]
+    placed_never = sum(1 for d in clean_never if assignment.get(d.id) == "heldout")
+    need = min(len(clean_never), manifest["sizes"]["heldout"])
+    linked_never = sum(1 for d in docs if d.never_tuned) - len(clean_never)
+    checks.append(Check("held-out takes every never-tuned document not linked to a tuned one", placed_never >= need,
+                        f"{placed_never}/{len(clean_never)} placed; {linked_never} never-tuned docs share a "
+                        "component with a tuning-list doc and stay out of held-out"))
+    exposed = [d.id for d in ho if comp_tier[d.component] == 2]
+    spare_clean = sum(1 for d in docs if comp_tier[d.component] < 2 and assignment.get(d.id) != "heldout")
+    checks.append(Check("held-out holds no tuning-exposed component while clean documents remain outside it",
+                        not exposed or spare_clean == 0,
+                        f"{len(exposed)} held-out docs in a component with a tuning-list doc; "
+                        f"{spare_clean} clean docs outside held-out" + (f"; e.g. {exposed[:3]}" if exposed else "")))
     return checks
 
 
