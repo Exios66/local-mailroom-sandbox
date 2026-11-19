@@ -1180,12 +1180,13 @@ def build_parser() -> argparse.ArgumentParser:
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
 
-    from mailroom_sandbox.services import doctor, hf_cli, modal_cli, vllm_cli
+    from mailroom_sandbox.services import circleci, doctor, hf_cli, modal_cli, vllm_cli
     from mailroom_sandbox import experiments
 
     from mailroom_sandbox import snapshots
 
     snapshots.register(sub, leaf)
+    circleci.register(sub, leaf)
     doctor.register(sub, leaf)
     modal_cli.register(sub, leaf)
     vllm_cli.register(sub, leaf)

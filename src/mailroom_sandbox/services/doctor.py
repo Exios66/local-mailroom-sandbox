@@ -23,7 +23,7 @@ from mailroom_sandbox.services._redact import redact_urls
 
 SERVICES = (
     "modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
-    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose",
+    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose", "circleci",
 )
 _MARK = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "skipped": "skip"}
 
@@ -224,6 +224,19 @@ def _compose(*, live: bool, docker_present: bool) -> ServiceStatus:
     return ServiceStatus("compose", "warn", "no compose service running", "sandbox up")
 
 
+def _circleci(*, live: bool) -> ServiceStatus:
+    if not os.environ.get("CIRCLE_TOKEN"):
+        return ServiceStatus("circleci", "warn", "CIRCLE_TOKEN not set", "set CIRCLE_TOKEN for CircleCI logs")
+    if not live:
+        return ServiceStatus("circleci", "ok", "CIRCLE_TOKEN present (not authenticated)", readiness="configured")
+    from mailroom_sandbox.services.circleci import API, _get
+    try:
+        _get(API + "/v2/me")
+    except ServiceError:
+        return ServiceStatus("circleci", "warn", "CircleCI API check failed", "check CircleCI access and availability", readiness="configured")
+    return ServiceStatus("circleci", "ok", "CircleCI API authenticated", readiness="authenticated")
+
+
 def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | None = None) -> list[ServiceStatus]:
     """Evaluate the requested checks (default: all) for ``profile_name``."""
     import shutil
@@ -247,6 +260,7 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
         "phoenix": lambda: _phoenix(live=live),
         "tunnel": lambda: _tunnel(profile, live=live),
         "compose": lambda: _compose(live=live, docker_present=docker_present),
+        "circleci": lambda: _circleci(live=live),
     }
     wanted = [name for name in SERVICES if not services or name in services]
     rows = []

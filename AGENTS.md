@@ -318,7 +318,7 @@ first, then run a bounded local reproduction only when needed.
 CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
 markdownlint), a `checks` job for committed generated files (reports hub,
 requirements mirrors, CLI reference, runbook docs, campaign report indexes), the full pytest suite (4 parallel
-containers) and a combined coverage gate. There are no dedicated full-corpus campaign
+containers), dedicated offline notebook execution, and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending
 or unverified until evidence exists. Passing ordinary CI does not certify it.

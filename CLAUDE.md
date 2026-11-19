@@ -44,7 +44,7 @@ require matching provenance before accepting its results.
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest -q tests/test_job_spec.py -n 0 --no-cov  # focused local check
-ruff check src tests scripts deploy reports                 # correctness gate, config in pyproject
+ruff check src tests scripts deploy reports notebooks       # correctness gate, config in pyproject
 python scripts/sync_requirements.py --check                 # requirements/*.txt mirror pyproject
 python reports/dashboard/build_hub.py --check               # committed reports-hub snapshot
 sandbox pilot --mock                                        # no LLM, no spend

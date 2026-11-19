@@ -352,7 +352,7 @@ docs/prompts/        catalog of every eval-environment prompt version: memos, ch
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
 deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
-notebooks/           offline env setup + data prep + mock smoke
+notebooks/           offline env setup + data prep + mock smoke + log explorer
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
 vendor/              tracked family snapshots (llm-mailroom + llm-dojo-scoring; exact source commits in each VENDOR.md)

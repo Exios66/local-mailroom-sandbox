@@ -305,11 +305,11 @@ def environment_checklist(profile: str = "ollama") -> dict[str, Any]:
         "dockerfile_ok": dockerfile_ok,
         "notebooks": [str(p.relative_to(root)) for p in notebooks],
         "mailroom_src": str(mailroom) if mailroom else None,
-        "runtime_taxonomy": str(activation.taxonomy_path.relative_to(root)) if activation else None,
+        "runtime_taxonomy": _display_path(activation.taxonomy_path) if activation else None,
         "agent_count": len(activation.assignments) if activation else 0,
         "activation_ok": activation is not None,
         "activation_error": activation_error,
-        "prepared_dir": str(prepared_dir().relative_to(root)),
+        "prepared_dir": _display_path(prepared_dir()),
         "offline_ready": bool(
             fixtures_ok and compose_ok and dockerfile_ok and activation is not None and env_found is not None
         ),
