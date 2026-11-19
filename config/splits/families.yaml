@@ -1,0 +1,21 @@
+# Subclass families for the runbook split (R00). A subclass with fewer than
+# `min_scored` documents is scored through its family; a family with
+# `min_scored`+ documents is scored like a subclass, a smaller one is a pooled
+# group (>= `min_pooled_per_set` per set where the corpus allows).
+# Frozen before any run: the split manifest records this file's sha256.
+# Families group related agreement / record types; edit only before R00 runs.
+min_scored: 30
+min_pooled_per_set: 10
+families:
+  contract:
+    licensing_ip: [Affiliate_Agreements, Franchise, Non_Compete_Non_Solicit]
+    supply_distribution: [Agency Agreements, Reseller, Manufacturing, Transportation]
+    services_outsourcing: [Hosting, Outsourcing, Development]
+    alliances_jv: [Joint Venture, Joint Venture _ Filing, Collaboration]
+    marketing_sponsorship: [Co_Branding, Endorsement, Marketing, Promotion]
+  corporate_record:
+    governance_instruments: [bylaws, powers_of_attorney, other]
+  correspondence:
+    legal_demand_rare: [attorney_demand]
+  merger_agreement:
+    stock_or_mixed: [all_stock, mixed_cash_stock, mixed_cash_stock_election]

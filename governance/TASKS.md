@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-108`**
+**Next ID: `SAND-109`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -34,6 +34,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-108 | Evaluation runbook Phase 0: frozen split, leak audit, paired stats, provider pins | Claude 2026-11-18 | **review** | Plan + runbook audit: `docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md`. Adds `sandbox splits`, `experiment_stats`, `provider_pins`, offline HF cache fallback and `docs/critical-regressions.md`. Open before G0: families sign-off, provider `order`, R01 smoke (initials), R03 v0 pass. |
 | SAND-107 | Post-landing issue acceptance and historical evidence reconciliation | Codex 2026-11-11 | **review** | Audit all 20 open sandbox issues against main `8764599`; correct stale adoption/dependency/topology status, preserve outstanding live/upstream/measurement work, and correct sorter fixed-minus-broken figures from committed JSON reports. See the [audit](../docs/audits/2026-11-11-pr-stack-issue-audit.md). |
 | SAND-106 | Post-landing review fixes and provider-agnostic floor replay | Codex 2026-11-10 | **done** | Closes top-level findings from #281/#283/#286 and the PR #274 floor follow-up: final-refresh retry, readiness evidence, non-HTTP signed-URI redaction, frozen dataset-lock identity, `nodes.jsonl` Modal transfer, doctor missing-agent guard, and resource-hook parsing. Adds `sandbox floor --replay-run PATH_OR_RUN` (plus `--replay-speed`) to replay recorded runs from Modal vLLM, OpenRouter, Ollama or any provider through one timeline normalizer, preserving provider provenance, rejecting non-regular files, symlinks and oversized artifacts and labelling synthetic or incomplete timelines. Landed in #292 (`8764599`); final head `98101d5` / CircleCI #749: 3,138 passed / 28 skipped, 86.33% coverage (floor 84), lint/security passed and all review threads resolved. Replay copies are view-only at execution and remote-control boundaries. |
 | SAND-105 | Post-merge landing audit and bootstrap/workspace refresh fixes | Codex 2026-11-10 | **done** | Landed in #288 (`1e398de`). Repaired early dotenv reads, partial workspace-copy writes and prompt override leakage between tests. Final head `5d167e4` / CircleCI #720: 2,959 passed / 28 skipped, 86.23% coverage (floor 84); lint, security and final reviews pass, all threads resolved. See the [audit report](../docs/audits/2026-11-10-landed-pr-audit.md). |

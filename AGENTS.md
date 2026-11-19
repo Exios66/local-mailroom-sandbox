@@ -63,7 +63,14 @@ commit message or handoff record. Do not use a `User description` section or
 label a requirement as a quotation. `User description` is not a problem
 statement: explain the problem in your own words.
 
-Use the PR template: `Summary`, `Changes`, `Validation`, `Risks / follow-ups`.
+Use the PR template: `Summary`, `Changes`, `Validation`, `Critical regressions`,
+`Risks / follow-ups`. Check every diff against
+[`docs/critical-regressions.md`](docs/critical-regressions.md): silent empty ground
+truth, selection drift, tuning/evaluation leakage, model or provider substitution,
+spend-guard bypass, wrong code or vendor revision, credential misrouting, simulated
+output cited as evidence, resume corruption, offline paths reaching the network, and
+loosened gates. Name the guard covering each touched row, or why it does not apply;
+a new failure class gets a row in the same PR as its fix.
 The same rule applies when editing an existing PR description or opening an
 issue from a conversation. If an integration adds a `User description` wrapper
 after creation, edit the body to remove it before requesting review.

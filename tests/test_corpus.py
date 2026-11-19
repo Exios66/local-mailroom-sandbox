@@ -251,6 +251,38 @@ def test_load_hf_rows_merges_and_verifies(monkeypatch, tmp_path):
         assert r["source_revision"] == FAMILY_HF_REVISION
 
 
+def test_load_hf_rows_reads_the_cache_when_the_tree_cannot_be_listed(monkeypatch, tmp_path):
+    """A pinned sha with cached shards loads offline (HF_HUB_OFFLINE=1 / no network)."""
+    import huggingface_hub
+
+    _stub_hub(monkeypatch, tmp_path)
+    cached = huggingface_hub.hf_hub_download
+    calls = []
+
+    def offline(*a, **k):
+        raise OSError("offline mode is enabled")
+
+    def local_only(repo, filename, revision=None, repo_type=None, **kw):
+        calls.append(kw.get("local_files_only"))
+        return cached(repo, filename, revision=revision, repo_type=repo_type)
+
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", offline)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", local_only)
+    rows = load_hf_rows(DatasetSpec(provider="huggingface", revision=FAMILY_HF_REVISION))
+    assert len(rows) == 3
+    assert calls and all(calls)
+
+
+def test_load_hf_rows_offline_refuses_a_moving_revision(monkeypatch, tmp_path):
+    import huggingface_hub
+
+    _stub_hub(monkeypatch, tmp_path)
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
+    monkeypatch.setattr("mailroom_sandbox.corpus._resolve_revision", lambda repo, rev: "main")
+    with pytest.raises(OSError):
+        load_hf_rows(DatasetSpec(provider="huggingface", revision="main"))
+
+
 def test_normalize_rows_maps_hub_gt_fields(monkeypatch, tmp_path):
     """SAND-019: Hub ground_truth labels live in ``gt_fields`` (JSON string).
 

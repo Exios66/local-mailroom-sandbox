@@ -460,6 +460,15 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("source-window override failed — vendored 16k excerpts stand: %s", exc)
 
+    # R01: pin OpenRouter providers per model (config/provider_pins.yaml) and record the
+    # served model + provider of every vendored chat call, without editing vendor/.
+    try:
+        from mailroom_sandbox.provider_pins import apply_provider_pins
+
+        apply_provider_pins()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("provider pins not applied — OpenRouter may route freely: %s", exc)
+
     # SAND-038: the vendored LangChain agents default api_key to
     # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
     # which 401s every contracts/merger row against Modal vLLM when .env holds

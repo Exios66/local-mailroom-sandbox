@@ -24,6 +24,9 @@ digest instead of many tool calls.
 PR and issue descriptions use an executive summary, never a transcript: no
 direct quotes from the requester, names, handles or credentials, and no
 `User description` section. Paraphrase the intent and use the PR template.
+Before opening or approving a PR, check the diff against
+[`docs/critical-regressions.md`](docs/critical-regressions.md) (silent wrong scores,
+draws, models or costs) and fill the template's **Critical regressions** section.
 
 ## Dependency source selection
 
