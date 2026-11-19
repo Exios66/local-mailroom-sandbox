@@ -1,5 +1,5 @@
 # Evaluation runbook R01 (SAND-108): 10-document served-model smoke for the Decisions-API
-# model typesafe/jev-1.14 (LINEAGE.yaml `candidate_models` (decision 9)).
+# model openai/gpt-6-luna-decisions (LINEAGE.yaml `model` (every reviewer_decisions version)).
 # The decision reviewer alone (task: sorter_reviewer, a calibration-shaped run that routes
 # nothing) with question set reviewer_decisions_v4.0.0, the set the runbook's decision lineage
 # starts from (decision 3), on 2 dev-look1 documents per class. OpenRouter takes no provider
@@ -7,17 +7,17 @@
 # and each call's ledger row (call_path: decisions) is `verified` when the served model is the
 # id or that slug. Gate: at least 10 rows, all verified (scripts/check_r01_smoke.py).
 #
-# Cost: the Decisions API bills input only (0.042 USD per 1M input tokens); about
+# Cost: the Decisions API bills input only (0.1 USD per 1M input tokens); about
 # 292,483 input tokens (the 10 drawn documents whole, under the set's 1M-char
-# max_input_chars, at ~4 chars/token plus ~4k question tokens each) = about $0.012. Caps: api_cost_cap_usd 0.05,
+# max_input_chars, at ~4 chars/token plus ~4k question tokens each) = about $0.029. Caps: api_cost_cap_usd 0.06,
 # max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
 # repository root:
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-jev-1.14.jsonl sandbox run preflight --config config/runs/runbook-r01-smoke-jev-1.14.yaml
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-jev-1.14.jsonl sandbox run start --config config/runs/runbook-r01-smoke-jev-1.14.yaml --initials <XX>
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-gpt-6-luna-decisions.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-gpt-6-luna-decisions.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-gpt-6-luna-decisions.jsonl sandbox run start --config config/runs/rb1-r01-smoke-gpt-6-luna-decisions.yaml --initials <XX>
 # Gate (offline, after the run):
-#   python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-jev-1.14.jsonl --config config/runs/runbook-r01-smoke-jev-1.14.yaml
+#   python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-gpt-6-luna-decisions.jsonl --config config/runs/rb1-r01-smoke-gpt-6-luna-decisions.yaml
 schema: sandbox.run/v1
-run_id: runbook-r01-smoke-jev-1.14
+run_id: rb1-r01-smoke-gpt-6-luna-decisions
 task: sorter_reviewer
 profile: openrouter
 
@@ -47,12 +47,12 @@ dataset:
 
 engine:
   kind: openrouter
-  model: typesafe/jev-1.14
+  model: openai/gpt-6-luna-decisions
   modal: null
 
 reviewer:
   backend: decisions
-  model: typesafe/jev-1.14
+  model: openai/gpt-6-luna-decisions
   questions: reviewer_decisions_v4.0.0
 
 job:
@@ -61,9 +61,9 @@ job:
   max_retries: 1
   fail_fast: false
   concurrency: 2
-  cost_cap_usd: 0.05
+  cost_cap_usd: 0.06
   max_wall_seconds: 1800
-  api_cost_cap_usd: 0.05
+  api_cost_cap_usd: 0.06
 
 trace:
   sink: none

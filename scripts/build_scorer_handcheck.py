@@ -8,13 +8,13 @@ with the interim and near-gold overlays, read from the local HF cache exactly as
 ``interim_labels: true`` and ``near_gold_labels: true`` prepares it. The sorter answers are the
 saved real v0 pass in ``data/handoff/sorter-qwen3.7-flash`` (checked per document against the
 truth row's ``content_sha256``); the extractions are the truth perturbed in known ways
-(``mailroom_sandbox.scorer_handcheck``). Writes to ``reports/runbook/r02-handcheck/``:
+(``mailroom_sandbox.scorer_handcheck``). Writes to ``reports/campaigns/rb1/rb1-r02-scorer-handcheck/``:
 
-* ``sheet.csv``: one row per check with truth, prediction and an empty ``hand_score``;
+* ``rb1-r02.sheet.csv``: one row per check with truth, prediction and an empty ``hand_score``;
   ``--draft`` pre-fills the rows the labeling guide and the documented scorer rules settle,
   marked ``hand_scored_by=agent-draft`` (a person must still confirm every row);
-* ``cases.jsonl``: the replayable prediction per document (no document text);
-* ``provenance.json``: label commit named by the runbook (e90ac8b9) and the label files changed
+* ``rb1-r02.cases.jsonl``: the replayable prediction per document (no document text);
+* ``rb1-r02.provenance.json``: label commit named by the runbook (e90ac8b9) and the label files changed
   since, overlay fingerprints, the vendored Dojo pin, dataset revision, split and sorter-pass hashes.
 
 A sheet holding any person's score is never overwritten without ``--force``.
@@ -37,7 +37,7 @@ from mailroom_sandbox.paths import repo_root
 
 DEFAULT_SPLIT = Path("config/splits/runbook-v1")
 DEFAULT_PASS = Path("data/handoff/sorter-qwen3.7-flash")
-DEFAULT_OUT = Path("reports/runbook/r02-handcheck")
+DEFAULT_OUT = Path("reports/campaigns/rb1/rb1-r02-scorer-handcheck")
 
 
 def _sha_file(path: Path) -> str:
@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     pass_dir = args.sorter_pass or root / DEFAULT_PASS
     out = args.out or root / DEFAULT_OUT
 
-    sheet_path = out / "sheet.csv"
+    sheet_path = out / hc.SHEET_FILE
     if sheet_path.is_file() and not args.force:
         scored = hc.human_scored(hc.read_sheet(sheet_path))
         if scored:
@@ -175,10 +175,10 @@ def main(argv: list[str] | None = None) -> int:
 
     out.mkdir(parents=True, exist_ok=True)
     hc.write_sheet(sheet, sheet_path)
-    (out / "cases.jsonl").write_text("".join(json.dumps(hc.case_record(c), ensure_ascii=False, sort_keys=True) + "\n"
+    (out / hc.CASES_FILE).write_text("".join(json.dumps(hc.case_record(c), ensure_ascii=False, sort_keys=True) + "\n"
                                              for c in cases), encoding="utf-8")
     prov = provenance(root, split_dir, pass_dir, truth_meta, bars, len(cases), args.per_class)
-    (out / "provenance.json").write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out / hc.PROVENANCE_FILE).write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     filled = sum(1 for r in sheet if r["hand_score"])
     print(f"documents {len(cases)}  sheet rows {len(sheet)}  agent-draft filled {filled}  blank {len(sheet) - filled}")
@@ -190,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
           f"(truth is HEAD {str(prov['labels']['checkout_head'])[:8]} with overlays)")
     print(f"scorer: Dojo vendor pin {str(prov['scorer']['dojo_vendor_pin'])[:12]} "
           f"(package {prov['scorer']['dojo_package_version']})")
-    print(f"wrote {sheet_path}, {out / 'cases.jsonl'}, {out / 'provenance.json'}")
+    print(f"wrote {sheet_path}, {out / hc.CASES_FILE}, {out / hc.PROVENANCE_FILE}")
     return 0
 
 

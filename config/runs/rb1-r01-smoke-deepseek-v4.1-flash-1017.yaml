@@ -24,12 +24,12 @@
 # checked before each document, concurrency 2 keeps the overshoot to the documents in flight),
 # max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
 # repository root:
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-deepseek-v4.1-flash-1017.jsonl sandbox run preflight --config config/runs/runbook-r01-smoke-deepseek-v4.1-flash-1017.yaml
-#   SANDBOX_SERVED_LOG=data/runtime/r01/served-deepseek-v4.1-flash-1017.jsonl sandbox run start --config config/runs/runbook-r01-smoke-deepseek-v4.1-flash-1017.yaml --initials <XX>
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-deepseek-v4.1-flash-1017.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-deepseek-v4.1-flash-1017.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-deepseek-v4.1-flash-1017.jsonl sandbox run start --config config/runs/rb1-r01-smoke-deepseek-v4.1-flash-1017.yaml --initials <XX>
 # Gate (offline, after the run):
-#   python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-deepseek-v4.1-flash-1017.jsonl --config config/runs/runbook-r01-smoke-deepseek-v4.1-flash-1017.yaml
+#   python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-deepseek-v4.1-flash-1017.jsonl --config config/runs/rb1-r01-smoke-deepseek-v4.1-flash-1017.yaml
 schema: sandbox.run/v1
-run_id: runbook-r01-smoke-deepseek-v4.1-flash-1017
+run_id: rb1-r01-smoke-deepseek-v4.1-flash-1017
 task: pipeline
 profile: openrouter
 

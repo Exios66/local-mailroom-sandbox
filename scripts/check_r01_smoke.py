@@ -21,11 +21,12 @@ which is deliberate: the gate cannot tell a skipped call from an unrecorded one.
 ``--per-doc N`` overrides the count for every config. Rows for a model no config names fail
 the gate too (something else served calls in the run) unless ``--allow-extra-models``.
 
-Offline and read-only: no network, no spend. Exit 0 when every model passes, 1 when any
-fails, 2 on unreadable input.
+Offline: no network, no spend. Nothing is written unless ``--write-docs`` files the JSON result
+as ``docs/<run_id>-<iNN>.r01-gate.json`` in each run's campaign tree. Exit 0 when every model
+passes, 1 when any fails, 2 on unreadable input.
 
-    python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-qwen3.7-flash.jsonl \\
-        --config config/runs/runbook-r01-smoke-qwen3.7-flash.yaml
+    python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-qwen3.7-flash.jsonl \\
+        --config config/runs/rb1-r01-smoke-qwen3.7-flash.yaml
 """
 from __future__ import annotations
 
@@ -268,6 +269,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print the full result as JSON")
     ap.add_argument("--any-run", action="store_true",
                     help="count rows from any run (default: only rows whose run_id is a config's run_id)")
+    ap.add_argument("--write-docs", action="store_true",
+                    help="also file the JSON result as docs/<run_id>-<iNN>.r01-gate.json in each run's campaign tree")
+    ap.add_argument("--iteration", default=None, help="with --write-docs: the iteration (default: the run store's latest)")
     args = ap.parse_args(argv)
     if args.per_doc is not None and args.per_doc < 1:
         ap.error("--per-doc must be >= 1")
@@ -281,7 +285,34 @@ def main(argv: list[str] | None = None) -> int:
     result = gate(rows, expected, allow_extra_models=args.allow_extra_models,
                   run_ids=None if args.any_run else run_ids)
     print(json.dumps(result, indent=2, sort_keys=True) if args.json else render(result, allow_extra_models=args.allow_extra_models))
+    if args.write_docs:
+        for path in write_docs(result, run_ids, ledgers=args.ledger, configs=configs, iteration=args.iteration):
+            print(f"wrote {path}", file=sys.stderr)
     return 0 if result["ok"] else 1
+
+
+def write_docs(result: dict[str, Any], run_ids: Iterable[str], *, ledgers: Iterable[Path], configs: Iterable[Path],
+               iteration: str | None = None, root: Path | None = None) -> list[Path]:
+    """File the gate result in each run's ``docs/`` and refresh the campaign indexes."""
+    from mailroom_sandbox import report_campaigns as rc
+
+    doc = {"schema": "sandbox.r01-gate/v1", "ok": result["ok"], "result": result,
+           "ledgers": [{"path": Path(p).name, "sha256": rc.sha256_file(Path(p))} for p in ledgers if Path(p).is_file()],
+           "configs": sorted(Path(c).name for c in configs)}
+    written, campaigns = [], set()
+    for run_id in sorted(run_ids):
+        paths = rc.campaign_paths(run_id, iteration, root=root)
+        dest = paths.file("docs", "r01-gate", "json")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps({**doc, "run_id": run_id}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        written.append(dest)
+        campaigns.add(paths.key.campaign)
+    for campaign in sorted(campaigns):
+        try:
+            rc.build_campaign(campaign, root=root)
+        except Exception as exc:  # noqa: BLE001 - the gate file is written; the index refresh is best-effort
+            print(f"warning: campaign index not refreshed: {exc}", file=sys.stderr)
+    return written
 
 
 if __name__ == "__main__":

@@ -194,6 +194,7 @@ sandbox watch [TARGET] [--web]        # terminal TUI or localhost browser UI (SS
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch] [--initials JB]
 sandbox run gate --run-id <id> [--prev-run-id <id>] [--thresholds]  # offline production slice gate → gate.json/gate.md; docs/runbooks/production-slices.md
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
+sandbox report build --run <run_id> [--iteration N] [--check] | --campaign rb1 [--check]  # campaign report tree reports/campaigns/ from run logs (reports/campaigns/README.md)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
 sandbox subagents sync --harness project [--check]  # project OpenCode + Cursor; --check writes nothing
@@ -309,7 +310,7 @@ first, then run a bounded local reproduction only when needed.
 
 CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
 markdownlint), a `checks` job for committed generated files (reports hub,
-requirements mirrors, CLI reference, runbook docs), the full pytest suite (4 parallel
+requirements mirrors, CLI reference, runbook docs, campaign report indexes), the full pytest suite (4 parallel
 containers) and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending

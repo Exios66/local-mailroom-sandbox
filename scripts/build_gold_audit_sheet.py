@@ -7,7 +7,7 @@ with empty ``verdict`` (model_wrong / gold_wrong / ambiguous) and ``note`` colum
 ``<sheet>.meta.json`` digest. Only dev and pool documents are audited: a run holding held-out or
 calibration ids is refused. An existing sheet is never overwritten without ``--force``.
 
-    python scripts/build_gold_audit_sheet.py --run runbook-r03-correspondence-v0-dev \\
+    python scripts/build_gold_audit_sheet.py --run rb1-r03-correspondence-v0-dev \\
         --lineage correspondence --n 100 --seed 20261118
 
 Summarize: the gold-wrong rate per audited document and per row with two-sided Clopper-Pearson 95%

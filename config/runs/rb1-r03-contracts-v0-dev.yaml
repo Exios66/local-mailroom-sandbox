@@ -18,13 +18,13 @@
 # 18 of them over 32k prompt tokens and 1 over 256k. The sorter prompt is longer than the
 # specialist's, so this errs high. The caps are ~1.5x. Launch only with the owner's initials at
 # the spend gate:
-#   sandbox run preflight --config config/runs/runbook-r03-contracts-v0-dev.yaml
-#   sandbox run start --config config/runs/runbook-r03-contracts-v0-dev.yaml --initials <XX>
+#   sandbox run preflight --config config/runs/rb1-r03-contracts-v0-dev.yaml
+#   sandbox run start --config config/runs/rb1-r03-contracts-v0-dev.yaml --initials <XX>
 # Then build the audit sheet (data/labels/review/README.md, R03 gold audit):
-#   python scripts/build_gold_audit_sheet.py --run runbook-r03-contracts-v0-dev --lineage contracts \
+#   python scripts/build_gold_audit_sheet.py --run rb1-r03-contracts-v0-dev --lineage contracts \
 #       --n 100 --seed 20261118
 schema: sandbox.run/v1
-run_id: runbook-r03-contracts-v0-dev
+run_id: rb1-r03-contracts-v0-dev
 task: contracts_specialist
 profile: openrouter
 

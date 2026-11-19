@@ -44,6 +44,10 @@ SCHEMA = "mailroom.scorer_handcheck/v1"
 # The runbook names this commit for the field scorer; it is a gold-label commit (plan finding 3).
 LABELS_COMMIT = "e90ac8b9469d29fa0c24447ab260a4840b1f9eee"
 SEED = "r02-handcheck-20261118"
+# File names inside reports/campaigns/rb1/rb1-r02-scorer-handcheck/ (campaign grammar: <key>.<name>.<ext>).
+SHEET_FILE = "rb1-r02.sheet.csv"
+CASES_FILE = "rb1-r02.cases.jsonl"
+PROVENANCE_FILE = "rb1-r02.provenance.json"
 CLASSES = ("contract", "corporate_record", "correspondence", "insurance_claim", "merger_agreement")
 PER_CLASS = 4
 PROFILES = ("exact", "normalised", "mismatch", "missing")

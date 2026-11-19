@@ -8,13 +8,13 @@
 # config/api_prices.yaml (>=32k prompt tokens: $0.10/$0.40 per 1M): about $0.92 list, of which
 # merger agreements (58 of 59 over 32k) are $0.48. The caps leave ~60% headroom. Launch only
 # with the owner's initials at the spend gate:
-#   sandbox run preflight --config config/runs/runbook-r03-sorter-v0-dev.yaml
-#   sandbox run start --config config/runs/runbook-r03-sorter-v0-dev.yaml --initials <XX>
+#   sandbox run preflight --config config/runs/rb1-r03-sorter-v0-dev.yaml
+#   sandbox run start --config config/runs/rb1-r03-sorter-v0-dev.yaml --initials <XX>
 # A saved pass of the same prompt and model already covers these 900 ids at revision
 # ed7576b6 (data/handoff/sorter-qwen3.7-flash/train.jsonl); this run re-measures them on the
 # split's own revision and the current vendor pin.
 schema: sandbox.run/v1
-run_id: runbook-r03-sorter-v0-dev
+run_id: rb1-r03-sorter-v0-dev
 task: isolated
 profile: openrouter
 

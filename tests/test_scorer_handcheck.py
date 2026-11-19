@@ -223,10 +223,10 @@ def test_build_and_check_scripts_round_trip(tmp_path, capsys):
     build, check = _script("build_scorer_handcheck"), _script("check_scorer_handcheck")
     common = ["--split-dir", str(paths["split"]), "--rows", str(paths["rows"])]
     assert build.main([*common, "--sorter-pass", str(paths["pass"]), "--out", str(paths["out"]), "--per-class", "1"]) == 0
-    sheet_path = paths["out"] / "sheet.csv"
+    sheet_path = paths["out"] / hc.SHEET_FILE
     sheet = _read(sheet_path)
     assert all(r["hand_score"] == "" and r["hand_scored_by"] == "" for r in sheet)  # blank without --draft
-    prov = json.loads((paths["out"] / "provenance.json").read_text())
+    prov = json.loads((paths["out"] / hc.PROVENANCE_FILE).read_text())
     assert prov["labels"]["runbook_named_commit"] == hc.LABELS_COMMIT
     assert prov["scorer"]["dojo_vendor_pin"] and prov["dataset"]["revision"] == "f" * 40
     assert not Path(prov["dataset"]["path"]).is_absolute()

@@ -26,6 +26,20 @@ python reports/dashboard/build_hub.py --check   # fail if the page, data or snap
 Tabs: Overview · Specialists · Serving (Modal L4) · API models · **Modal vs API** (cost vs quality per
 specialist task and for the sorter, both routes on one axis) · Classifier (ModernBERT) · ML diagnostics · Data quality.
 
+## Campaign reports
+
+Runbook-style campaigns file every run's records under `campaigns/<campaign>/` (today `rb1`,
+the evaluation runbook v1). Each run iteration gets `logs/`, `traces/`, `outputs/`, `report/`,
+`analysis/`, `figures/` and `docs/`, generated from the run logs by `sandbox report build` and,
+for non-mock runs, at the end of the run. Every file name carries its full key
+(`<run_id>-<iNN>.<name>.<ext>`), and `campaigns/rb1/index.jsonl` lists every run iteration.
+Layout, naming grammar and the paths API: [campaigns/README.md](campaigns/README.md).
+
+```bash
+sandbox report build --run <run_id>          # one run's tree (all iterations)
+sandbox report build --campaign rb1 --check  # fail if the committed indexes are stale
+```
+
 ## Decision-reviewer reports
 
 `decisions/` holds the reports, figures and dashboard for the Decisions-model reviewer experiments (SAND-085): cost

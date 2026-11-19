@@ -10,8 +10,8 @@ import yaml
 from mailroom_sandbox.paths import repo_root
 
 RUNS = repo_root() / "config" / "runs"
-QWEN = RUNS / "runbook-r01-smoke-qwen3.7-flash.yaml"
-LUNA = RUNS / "runbook-r01-smoke-gpt-6-luna-decisions.yaml"
+QWEN = RUNS / "rb1-r01-smoke-qwen3.7-flash.yaml"
+LUNA = RUNS / "rb1-r01-smoke-gpt-6-luna-decisions.yaml"
 QWEN_RUN = yaml.safe_load(QWEN.read_text())["run_id"]
 LUNA_RUN = yaml.safe_load(LUNA.read_text())["run_id"]
 # The pipeline smoke draws 2 docs per class: the sorter (10) and the contract and merger
@@ -127,7 +127,7 @@ def test_per_doc_override_and_unreadable_input(gate, tmp_path, capsys):
 def test_expected_calls_by_task(gate):
     from mailroom_sandbox.job.spec import load_run_spec
 
-    sorter = load_run_spec(RUNS / "runbook-r03-sorter-v0-dev.yaml")
+    sorter = load_run_spec(RUNS / "rb1-r03-sorter-v0-dev.yaml")
     assert gate.expected_calls(sorter) == {"qwen/qwen3.7-flash": {"docs": 900, "per_doc": 1, "agents": ["sorter"],
                                                                   "paths": {"langchain": 900}}}
     pipeline = load_run_spec(QWEN)
@@ -151,14 +151,14 @@ def test_every_pinned_chat_model_has_a_smoke_config_that_calls_only_that_model(g
 
     pins = yaml.safe_load((repo_root() / "config" / "provider_pins.yaml").read_text())["models"]
     seen = {}
-    for path in sorted(RUNS.glob("runbook-r01-smoke-*.yaml")):
+    for path in sorted(RUNS.glob("rb1-r01-smoke-*.yaml")):
         spec = load_run_spec(path)
         text = path.read_text()
         assert spec.run_id == path.stem and spec.dataset.limit == 10
         assert spec.dataset.exclude_ids_file == "config/splits/runbook-v1/dev-look1.exclude.ids"
-        assert spec.dataset.revision == load_run_spec(RUNS / "runbook-r03-sorter-v0-dev.yaml").dataset.revision
+        assert spec.dataset.revision == load_run_spec(RUNS / "rb1-r03-sorter-v0-dev.yaml").dataset.revision
         assert spec.job.max_wall_seconds and spec.job.api_cost_cap_usd and spec.job.cost_cap_usd
-        assert f"SANDBOX_SERVED_LOG=data/runtime/r01/served-{path.stem.removeprefix('runbook-r01-smoke-')}.jsonl" in text
+        assert f"SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-{path.stem.removeprefix('rb1-r01-smoke-')}.jsonl" in text
         assert "--initials <XX>" in text and "sandbox run start" in text
         expected = gate.expected_calls(spec)
         assert len(expected) == 1
