@@ -58,6 +58,12 @@ def test_environment_checklist_and_dockerfile():
 
 
 def test_environment_checklist_with_base_dir_outside_checkout(tmp_path, monkeypatch):
+    from mailroom_sandbox import overlay, paths
+
+    # Exercise the production directory resolver. The autouse xdist fixture pins
+    # overlay.runtime_dir before this test sets MAILROOM_BASE_DIR. tmp_path is
+    # already unique per test and worker, so restoring the real resolver is safe.
+    monkeypatch.setattr(overlay, "runtime_dir", paths.runtime_dir)
     # Compose or a relocated install can put MAILROOM_BASE_DIR outside the repo.
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     check = environment_checklist("ollama")
