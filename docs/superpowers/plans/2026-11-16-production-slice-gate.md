@@ -9,6 +9,7 @@ mechanism bugs are diagnosed.
 
 **Architecture:** `sandbox run gate` reads a finished run directory and writes `gate.json` /
 `gate.md`. It needs no LLM.
+
 - **Scoring** reuses `job/pair_report.py`: the Dojo aggregate, with the templated fields
   dropped.
 - **Cause buckets** come from `items.jsonl` / `nodes.jsonl`.
@@ -70,6 +71,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 1: Exclude tuning documents from the draw (`dataset.exclude_ids_file`)
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/spec.py` (`DatasetSpec`, `spec_core`)
 - Modify: `src/mailroom_sandbox/corpus.py` (`select_rows`)
 - Modify: the preflight path that calls `select_rows` (`src/mailroom_sandbox/job/preflight.py`), so
@@ -77,6 +79,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 - Test: `tests/test_exclude_ids.py`
 
 **Interfaces:**
+
 - Produces:
   - `DatasetSpec.exclude_ids_file: str | None = None`: a repo-relative path to a text file with
     one document `id` per line; `#` comments and blank lines are ignored.
@@ -108,11 +111,13 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 2: Committed held-out exclusion list
 
 **Files:**
+
 - Create: `scripts/build_excluded_ids.py`
 - Create: `config/production/excluded-ids.txt` (generated, committed)
 - Test: `tests/test_build_excluded_ids.py`
 
 **Interfaces:**
+
 - Consumes: the `corpus.read_id_list` format from Task 1.
 - Produces: `build(run_dirs: list[Path]) -> list[str]` (sorted unique `id`s from each run's
   `dataset.jsonl`) and a CLI:
@@ -141,11 +146,13 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 3: Gate core: bars, per-document status and slice verdict
 
 **Files:**
+
 - Create: `config/production/bars.yaml`
 - Create: `src/mailroom_sandbox/job/gate.py`
 - Test: `tests/test_gate.py`
 
 **Interfaces:**
+
 - Consumes:
   - `pair_report.load_arm(run_dir) -> {doc_id: {"row", "item", "nodes"}}`;
   - `pair_report._score(row, pred) -> float | None`;
@@ -212,12 +219,14 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 4: Cause buckets
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/gate_causes.py`
 - Modify: `src/mailroom_sandbox/job/gate.py` (attach `cause` to every `review`, `wrong_archive` and
   `crashed` status, and add `buckets` to the report)
 - Test: `tests/test_gate_causes.py`
 
 **Interfaces:**
+
 - Consumes: the `doc_status` dicts and the `load_arm` doc records (`item["pred"]["review_causes"]`,
   `item["pred"]["doc_type"]`, `nodes`) from Task 3.
 - Produces:
@@ -263,12 +272,14 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 5: Audit-trail check (spans, node log, hash archive)
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/gate_audit.py`
 - Modify: `src/mailroom_sandbox/job/gate.py` (fill `archive` / `trace_id`; add `audit` to the
   report; audit failures add verdict reasons)
 - Test: `tests/test_gate_audit.py`
 
 **Interfaces:**
+
 - Consumes:
   - the run's `spec.lock.json` (`run_id`, trace path);
   - `data/traces/<run_id>.spans.jsonl.gz`, one JSON span per line, with
@@ -305,10 +316,12 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 6: Step-up section and threshold evidence
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/gate_compare.py`
 - Test: `tests/test_gate_compare.py`
 
 **Interfaces:**
+
 - Consumes: `gate_report` (Task 3) and `pair_report.paired_report(control_dir, treatment_dir)`.
 - Produces:
   - `step_up(prev_dir: Path, next_dir: Path, bars: Bars) -> dict`, with keys:
@@ -342,6 +355,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 > `gate.md` into the run directory, and `ledger.py` is unchanged.
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/cli.py` (a `gate` subparser next to `routing`, near line 1163, and
   a `_cmd_run_gate` handler next to `_cmd_run_routing`, near line 3673)
 - Create: `src/mailroom_sandbox/job/gate_render.py`
@@ -350,6 +364,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 - Test: `tests/test_gate_cli.py`
 
 **Interfaces:**
+
 - Consumes: `gate_report`, `step_up`, `threshold_evidence` and `load_bars`.
 - Produces:
   - **Command:**
@@ -379,6 +394,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 8: Production slice configs
 
 **Files:**
+
 - Create: `config/runs/production/slice-0100.yaml`, `slice-0250.yaml`, `slice-0500.yaml` and
   `slice-full.yaml`
 - Create: `config/runs/production/slice-0100-modal-host.yaml`, `slice-0250-modal-host.yaml` and
@@ -386,6 +402,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 - Test: `tests/test_production_slices.py`
 
 **Interfaces:**
+
 - Consumes: `exclude_ids_file` (Task 1), `config/production/excluded-ids.txt` (Task 2) and the
   r3 blocks from `config/runs/pipeline-qwen-flash-25-fit-r3.yaml`.
 - Produces:
@@ -433,11 +450,13 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 9: Diagnose the contract second-pass judge `TypeError`
 
 **Files:**
+
 - Test: `tests/test_judge_second_pass.py`
 - Modify: wherever the root cause lives. If it is in `vendor/`, do not edit: file the issue on
   llm-mailroom with the reproduction and mark the test `xfail(strict=True)`, citing the issue.
 
 **Interfaces:**
+
 - Consumes:
   - the archived state of `DOC-2fbe8b3db2901e16` (E3) and `DOC-47d391f2646c0506` (r3) in their
     run dirs (`items.jsonl`, `nodes.jsonl`);
@@ -464,11 +483,13 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 10: Diagnose the decision reviewer's `unknown` on correspondence email
 
 **Files:**
+
 - Test: `tests/test_reviewer_unknown.py`
 - Modify: per the root cause: the reviewer question set (`reviewer_decisions_v2`), its label
   mapping, or an upstream issue.
 
 **Interfaces:**
+
 - Consumes: `DOC-49642fa25902b91e` (E3) and its r3 counterpart: the items with
   `reviewer_doc_type == "unknown"` and the reviewer request/response recorded in the spans.
 - Produces: the root cause, and a fix or an issue.
@@ -487,11 +508,13 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 ### Task 11: Operator docs and changelog
 
 **Files:**
+
 - Create: `docs/runbooks/production-slices.md`
 - Modify: `docs/jobs.md` (a `sandbox run gate` section, `dataset.exclude_ids_file`),
   `CHANGELOG.md` and `AGENTS.md` (the command reference line for `run gate`)
 
 **Interfaces:**
+
 - Consumes: the CLI and file names from Tasks 1–8.
 
 - [ ] **Step 1: Write the runbook.**

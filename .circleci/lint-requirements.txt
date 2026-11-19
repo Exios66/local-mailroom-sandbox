@@ -1,0 +1,7 @@
+# Lint-lane tool pins for .circleci/config.yml (the cache key is this file's checksum).
+# Not part of pyproject.toml: these tools never import the package. Bump deliberately,
+# run them locally on the whole tree, and fix new findings in the same change.
+ruff==0.17.5
+bandit==1.9.4
+yamllint==1.38.0
+shellcheck-py==0.11.0.1

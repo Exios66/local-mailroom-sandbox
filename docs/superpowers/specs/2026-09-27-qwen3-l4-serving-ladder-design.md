@@ -65,6 +65,8 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
    - Correspondence test split has only 62 rows, so the draws use `split: all` (every class has ≥152 rows).
    - The sampler is not nested (issue #38), so draw 100 per class once and slice 20/50 from it.
    - Contracts has no extraction ground truth, so contracts results are serving-only.
+7. **Vendor trees are byte-locked** by `tests/test_vendor_drift.py`. No vendor edits; all changes live
+   in `src/mailroom_sandbox/`, `deploy/`, `config/`.
 8. **Latest 1×L4 c8 AWQ runs (origin/main 08f43e3):**
    - **corporate_records n=20:** 20/20 ok, score 0.4231, schema_valid 0.95, ~$0.0076/doc busy.
    - **merger n=20:** 15/20 ok, run through `contracts_specialist`. That agent confound gives a score of
@@ -75,12 +77,11 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
      - Busy-wall cost can badly understate billed cost.
      - Proxy/connection behavior must be fixed before c16.
      - Stage 3 must use `merger_agreement_specialist` (AGENTS.md 1:1 mapping).
-7. **Vendor trees are byte-locked** by `tests/test_vendor_drift.py`. No vendor edits; all changes live
-   in `src/mailroom_sandbox/`, `deploy/`, `config/`.
 
 ## 3. Approach: staged, gated ladder
 
 **Rejected alternatives:**
+
 - Tuning directly on the 2-replica fleet: every variant pays 2× boot cost.
 - Freezing knobs from reasoning alone: cheapest, but leaves the optimization unmeasured.
 
@@ -118,12 +119,14 @@ Rungs are cumulative, with one knob per rung. Each rung is a fresh boot, and boo
 | L5 | + CUDA graphs (`enforce_eager=0`, capture sizes 1,2,4,8,16) | Decode speed vs boot delta |
 
 **Per-rung gate** (paired on the same 20 docs):
+
 - ok 20/20
 - mean score ≥ L0 − 0.02
 - schema_valid ≥ L0 − 0.05
 - $/doc not worse than the previous kept rung
 
 **Gate outcomes:**
+
 - A rung that fails is reverted, **except L3**: a quality regression under fp8 KV is reported, not reverted.
 - The frozen config is the best passing stack, always with fp8 KV.
 - **Stop rule:** if Stage 1 spend exceeds $0.50, freeze the best config so far.
@@ -138,6 +141,7 @@ Rungs are cumulative, with one knob per rung. Each rung is a fresh boot, and boo
 ### Stage 3 — 5-specialist sweep (2 replicas kept warm, c16, one suite, cheapest first)
 
 Order:
+
 1. correspondence n=50 (a slice of the 100; consistency check against 2b)
 2. insurance_claims n=50
 3. corporate_records n=50

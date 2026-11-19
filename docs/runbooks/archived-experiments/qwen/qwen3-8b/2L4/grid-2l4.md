@@ -55,7 +55,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 ## Notes
 
-- Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
+- Reports: each run brackets start with vLLM /metrics scrapes and writes `reports/SAND-37/2L4/<specialist>/<run_id>.card.md` + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
 - Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml)"; set +a. The export block below is identical.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.

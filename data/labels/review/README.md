@@ -21,6 +21,8 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `decisions.jsonl` | The review as `scripts/gold_labels.py build --review` lines for the correspondence and corporate-record catalogs: 3,069 `accept` (each names the current value) and 173 `correct` (each passes the gate). See below. |
 | `decisions_held.jsonl` | The 10 reviewed labels that could not become a decision, each with the reason. |
 | `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
+| `interim_reviews.jsonl` | Reviewed interim labels that `scripts/interim_labels.py review` writes into `data/labels/interim/`: 52 correspondence `intent` corrections of wrong Hub values and 1,795 correspondence header fields read from the original email. See below. |
+| `contract_value_review.jsonl` | 7 `correct` lines for `scripts/gold_labels.py review`: contract `contract_value` phrases rewritten as plain dollar figures that Dojo parses. They are applied to `data/labels/gold/contract.jsonl`. |
 
 ## Verdicts
 
@@ -87,6 +89,19 @@ the `decision` (`keep`, `use_suggestion`, `correct` or `unsure`), the resulting
     `Category: first span`.
   - The three `renewal_terms` labels describe renewal by mutual agreement only.
     CUAD marks none of them, so they wait for a policy decision.
+
+## Applying the review to the interim labels
+
+`interim_reviews.jsonl` carries two decisions into `data/labels/interim/`:
+
+- **Hub `intent` corrections.** For 52 correspondence messages, the review found the Hub `intent` wrong. Each line is a `correction` (basis `review_read_message`) with the reviewed value, the `hub_value` it replaces and the review's note. Production then scores those documents against the reviewed value, not the Hub value.
+- **Header fields.** For 1,795 correspondence fields, the value comes from the original message's header in the CMU Enron maildir. This covers the 1,666 `filled_from_original_header` verdicts and the 129 `corrected` verdicts whose value the review took from the header (replies typed above quoted mail). For those 129, the header value replaces the reply-rule value that `decisions.jsonl` gives the gold catalog, because the header belongs to the reply itself. Each line quotes the header lines it reads and names the maildir file, and `scripts/interim_labels.py` checks that each name and date is in those lines. These are interim `gap_fill` labels, so they win over the text-only near-gold labels of the same fields.
+
+Apply it with `python scripts/interim_labels.py review`; `check` fails if the file changes without being applied again.
+
+## Contract amounts Dojo can parse
+
+Seven contract `contract_value` near-gold labels were phrases that Dojo's money parser cannot read in full ("$5 million", "$10 million", "US$400,000.00", "$55,000USD", "$40 per month", "$0.05 per Unit"). A correct numeric prediction scored 0.11 to 0.48 against the scale-word and currency-code forms. The rate forms scored 1.0 only through the scorer's text fallback, and the guide leaves the rate out of the amount. `contract_value_review.jsonl` rewrites each as the same amount in plain dollars ("$5,000,000", "$10,000,000", "$400,000.00", "$55,000", "$40", "$0.05") and keeps its quote. `scripts/gold_labels.py review --corpus <dir> --review data/labels/review/contract_value_review.jsonl` applied them in place. The gate checks the corpus text, the catalog `MANIFEST.json` lists the file under `sources.review`, and `gold_labels.py overlay` re-exported the overlay. A later full `build` must include `--review data/labels/review/contract_value_review.jsonl`.
 
 ## Applying the review to the gold catalogs
 

@@ -81,16 +81,16 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
     "openai/gpt-6-luna": (0.10, 0.50),
     "qwen/qwen3.7-flash": (0.03, 0.13),
-    "deepseek/deepseek-v4-flash": (0.091, 0.182),
+    "deepseek/deepseek-v4-flash": (0.09, 0.18),  # list price checked 2026-11-18
 }
 
 # Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
-# GET https://openrouter.ai/api/v1/models, checked 2026-11-01. A tier applies to a whole call
+# GET https://openrouter.ai/api/v1/models, checked 2026-11-18. A tier applies to a whole call
 # whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
 # tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
 # long document. The live copy is config/api_prices.yaml (refresh it with
 # scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
-API_PRICES_CHECKED = "2026-11-01"
+API_PRICES_CHECKED = "2026-11-18"
 API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     "qwen/qwen3.7-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
@@ -106,7 +106,7 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
         {"min_prompt_tokens": 272_000, "prompt": 0.20, "completion": 0.75, "cache_read": 0.02, "cache_write": 0.25},
     ],
     "deepseek/deepseek-v4-flash": [
-        {"min_prompt_tokens": 0, "prompt": 0.091, "completion": 0.182, "cache_read": 0.0182},
+        {"min_prompt_tokens": 0, "prompt": 0.09, "completion": 0.18, "cache_read": 0.018},
     ],
 }
 

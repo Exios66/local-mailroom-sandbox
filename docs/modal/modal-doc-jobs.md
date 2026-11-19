@@ -114,7 +114,7 @@ these as `DMR-*` (family MESSAGE_BOARD); they are sandbox-isolated gates.
 | --- | --- | --- | --- |
 | 1 | Stage A extraction depth | `pypdf/pdfplumber + pytesseract` (CPU OCR) for text pages + image frames over the vendored transcriber surface | Marker-style GPU vision stage (`gpu="l40s"`, mirroring the tutorial's `parse_document`) from day one |
 | 2 | `process_document` graph scope | FULL 13-node graph (intake → pdf/image → sorter → specialists → judge → compile) through `DEFAULT_PROVIDER=vllm` | Reduced `sorter + specialists + compile` path (HUB-015 reduced agent profile) |
-| 3 | CLI surface (Phase C) | Own `sandbox doc-jobs submit | status` command family | Fold into `sandbox run` via `job.mode: doc-jobs` |
+| 3 | CLI surface (Phase C) | Own `sandbox doc-jobs submit \| status` command family | Fold into `sandbox run` via `job.mode: doc-jobs` |
 
 Rationale for the defaults (revisit if any answer reverses them):
 

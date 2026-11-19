@@ -4,7 +4,7 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-# Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
+## Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
 
 **id:** `grid-1l4` · **family:** `grid` · **serving:** `grid-awq-1l4`
 
@@ -12,7 +12,7 @@ SAND-037 aligned grid, 1×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-1l4`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -27,7 +27,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand037/grid-20-correspondence-specialist-awq-1l4.yaml`
 - `config/runs/sand037/grid-20-insurance-claims-specialist-awq-1l4.yaml`
@@ -40,7 +40,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 - `config/runs/sand037/grid-50-contracts-specialist-awq-1l4.yaml`
 - `config/runs/sand037/grid-50-merger-specialist-awq-1l4.yaml`
 
-## Per-cell posture (live)
+### Per-cell posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -57,9 +57,9 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Notes
+### Notes
 
-- Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/1L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
+- Reports: each run brackets start with vLLM /metrics scrapes and writes `reports/SAND-37/1L4/<specialist>/<run_id>.card.md` + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
 - Spend: likely ≈ $0.80 GPU at $0.80/hr (≈ 1 h warm: S3 per-L4 throughput on the same engine, scaled by the 0.7× S2a measured at C8 on one L4); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-1l4.yaml)"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift.
 - Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens).
@@ -67,14 +67,14 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell.
 - Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
@@ -150,7 +150,7 @@ sandbox metrics compare --runs grid-50-correspondence-specialist-awq-1l4,grid-50
 
 ---
 
-# Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
+## Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
 
 **id:** `grid-2l4` · **family:** `grid` · **serving:** `grid-awq-2l4`
 
@@ -158,7 +158,7 @@ SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -173,7 +173,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml`
 - `config/runs/sand037/grid-20-insurance-claims-specialist-awq-2l4.yaml`
@@ -186,7 +186,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 - `config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml`
 - `config/runs/sand037/grid-50-merger-specialist-awq-2l4.yaml`
 
-## Per-cell posture (live)
+### Per-cell posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -203,9 +203,9 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Notes
+### Notes
 
-- Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
+- Reports: each run brackets start with vLLM /metrics scrapes and writes `reports/SAND-37/2L4/<specialist>/<run_id>.card.md` + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree.
 - Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand037/grid-20-correspondence-specialist-awq-2l4.yaml)"; set +a. The export block below is identical.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.
@@ -213,14 +213,14 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell.
 - Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
@@ -296,7 +296,7 @@ sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50
 
 ---
 
-# SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
+## SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
 
 **id:** `sand39-1l4-n50` · **family:** `grid` · **serving:** `grid-awq-1l4`
 
@@ -304,7 +304,7 @@ Matched-sample counterpart to SAND-37's 2×L4 · C32 · n=50 half: the same five
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand39-1l4-n50`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -319,7 +319,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand037/grid-50-correspondence-specialist-awq-1l4.yaml`
 - `config/runs/sand037/grid-50-insurance-claims-specialist-awq-1l4.yaml`
@@ -327,7 +327,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 - `config/runs/sand037/grid-50-contracts-specialist-awq-1l4.yaml`
 - `config/runs/sand037/grid-50-merger-specialist-awq-1l4.yaml`
 
-## Per-cell posture (live)
+### Per-cell posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -339,23 +339,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Notes
+### Notes
 
 - Matched sample: each config's dataset + prompt blocks are identical to its SAND-37 2×L4 n=50 counterpart, and a local preflight on 2026-09-30 drew the same 50 document ids in the same order for all five classes (contracts against the aligned -2l4-rerun cell).
-- Reports: cards land in reports/SAND-37/1L4/<specialist>/grid-50-*-1l4.card.md + .card.json next to the SAND-37 n=20 cells. The after step refreshes 1L4/L4x1-SCORE-COST-CARD.md (n = 50 column) and regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md, whose SAND-39 column switches from pending to measured. Commit the SAND-37 tree.
+- Reports: cards land in `reports/SAND-37/1L4/<specialist>/grid-50-*-1l4.card.md` + .card.json next to the SAND-37 n=20 cells. The after step refreshes 1L4/L4x1-SCORE-COST-CARD.md (n = 50 column) and regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md, whose SAND-39 column switches from pending to measured. Commit the SAND-37 tree.
 - Spend: likely ≈ $0.50 GPU at $0.80/hr (≈ 29 min busy, extrapolated from SAND-37 1×L4 C8 n=20 measured 687 s per 100 documents, plus one cold boot); the five cost caps sum to $3.20 and are the abort guard. Needs spend approval before deploy.
-- Record the teardown spend check (Metered Cost / Billed Cost lines) with sandbox run card --record-metered SAND-39 <metered> <billed> --master so the master card's cost accounting carries it.
+- Record the teardown spend check (Metered Cost / Billed Cost lines) with `sandbox run card --record-metered SAND-39 <metered> <billed> --master` so the master card's cost accounting carries it.
 - Credentials: SAND-038 makes the LangChain specialists (contracts, merger) send the active provider's key; an OPENROUTER_API_KEY in .env no longer reaches the vLLM endpoint.
 - Decode is max_tokens 8192 at temperature 0.7 for contracts and merger from the posture row; do not raise max_tokens. A LengthFinishReasonError at 8192 is a recorded finding, not a reason to rerun.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
@@ -428,7 +428,7 @@ sandbox metrics compare --runs grid-50-merger-specialist-awq-1l4,grid-50-merger-
 
 ---
 
-# SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
+## SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
 
 **id:** `sand40-probe` · **family:** `grid` · **serving:** `grid-awq-2l4-64k`
 
@@ -436,7 +436,7 @@ Spend-gated probe before the SAND-40 scale run. Two nested n=20 draws (the seede
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-probe`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -451,12 +451,12 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml`
 - `config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml`
 
-## Per-cell posture (live)
+### Per-cell posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -465,21 +465,21 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Notes
+### Notes
 
 - Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine.
 - Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents.
 - Serving is the 64K YaRN deploy (MODAL_VLLM_HF_OVERRIDES). Sampling is native chat-completion fields on the OpenAI client (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0). The LangChain pipeline is not part of this deploy.
-- Cards land under reports/SAND-37/probes/<specialist>/. The master card reports them in a matched-document appendix and never pools them into a column.
+- Cards land under `reports/SAND-37/probes/<specialist>/`. The master card reports them in a matched-document appendix and never pools them into a column.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
@@ -547,7 +547,7 @@ sandbox run card --config config/runs/sand040/sand40-probe-20-merger-specialist-
 
 ---
 
-# SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
+## SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
 
 **id:** `sand40` · **family:** `grid` · **serving:** `grid-awq-2l4`
 
@@ -555,7 +555,7 @@ Fills the SAND-40 column of the master score & cost card on one deploy of the SA
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -570,7 +570,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - Gate, runs first: `config/runs/sand040/sand40-check-5-merger-specialist-awq-2l4.yaml` (`sandbox run card --gate` must pass)
 - `config/runs/sand040/sand40-100-correspondence-specialist-awq-2l4.yaml`
@@ -579,7 +579,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 - `config/runs/sand040/sand40-100-contracts-specialist-awq-2l4.yaml`
 - `config/runs/sand040/sand40-50-merger-specialist-awq-2l4.yaml`
 
-## Per-cell posture (live)
+### Per-cell posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -592,24 +592,24 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Notes
+### Notes
 
 - Spend (estimate): four n=100 cells ≈ 12 min / ≈ $0.30 (SAND-37 2×L4 n=50 walls, doubled); gate ≈ 10–15 min / ≈ $0.20 (one chained agreement sets the wall); † merger n=50 ≈ 40–60 min / ≈ $1.10–1.60 (≈ 115k prompt tokens per agreement through ~8 chunk calls, 32 agreements in flight). Total ≈ $1.60–2.10 plus one cold boot per replica. Cost caps sum to $7.50 including the gate ($0.40). Needs spend approval before deploy.
 - The gate runs first: 5 agreements with the † settings, then sandbox run card --gate checks every document is ok and that vLLM accepted every chunk the documents need (extract_chunked skips a rejected chunk silently). On failure the script tears the fleet down and stops; nothing scored has run.
 - 32K chunk sizing: max_input_chars 54,000 → 47,000-char windows + 6,500-char overlap, within the posture context-fit guard (2.4 chars/token + 4,000 system tokens + 6,144 output ≤ 32,768). SAND-37 merger text measured ≥ 3.3 chars/token, so real requests stay well under the window.
 - Merger stays n=50 (the SAND-37 2×L4 agreements), so the † cell compares like-for-like; the other four classes are n=100. Probe settings that are not used: the 64K YaRN window and the 128,000-char input.
-- Cards land in reports/SAND-37/2L4/<specialist>/ (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree.
-- Record the teardown spend check (Metered Cost / Billed Cost) with sandbox run card --record-metered SAND-40 <metered> <billed> --master.
+- Cards land in `reports/SAND-37/2L4/<specialist>/` (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree.
+- Record the teardown spend check (Metered Cost / Billed Cost) with `sandbox run card --record-metered SAND-40 <metered> <billed> --master`.
 - Teardown follows the last cell. Do not leave the two-replica fleet warm: min_containers=2 bills both GPUs until teardown.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy

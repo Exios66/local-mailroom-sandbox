@@ -250,15 +250,17 @@ onto this app:
 | HF + vLLM compile caches on Volumes; Xet transfers | `sandbox-hf-cache` / `sandbox-vllm-cache` + `HF_XET_HIGH_PERFORMANCE=1` (already on) |
 | batched/parallel inputs fill continuous batching | runner `concurrency` (`job:` block in the run spec; 4-16 vs a vLLM endpoint — `docs/jobs.md`) |
 
-Example throughput deploy::
+Example throughput deploy:
 
-    export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8
-    export MODAL_VLLM_GPU=H100
-    export MODAL_VLLM_MAX_MODEL_LEN=32768
-    export MODAL_VLLM_ATTENTION_BACKEND=flashinfer
-    export MODAL_VLLM_ASYNC_SCHEDULING=1
-    export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
-    modal deploy deploy/modal_vllm.py
+```bash
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-FP8
+export MODAL_VLLM_GPU=H100
+export MODAL_VLLM_MAX_MODEL_LEN=32768
+export MODAL_VLLM_ATTENTION_BACKEND=flashinfer
+export MODAL_VLLM_ASYNC_SCHEDULING=1
+export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
+modal deploy deploy/modal_vllm.py
+```
 
 Caveat: the exemplar's offline `vllm.LLM` interface (no HTTP server, results
 only when the whole batch finishes) is not what the sandbox serves — evals

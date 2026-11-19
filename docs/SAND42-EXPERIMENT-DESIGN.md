@@ -114,7 +114,7 @@ The 2×L4 cells are **not** a per-replica-load twin of the 1×L4 cells. Two matc
 exist, and both isolate *replica count*:
 
 > **1×L4 C8 (8/replica) vs 2×L4 C16 (8/replica)** — same per-replica load, double the GPUs.
-
+>
 > **1×L4 C16 (16/replica) vs 2×L4 C32 (16/replica)** — the same contrast *at saturation*, added by
 > the SAND-047 amendment (§3.1). This is the sharper of the two: at the admission ceiling the
 > client side offers exactly the same load as C16, so any throughput or latency difference is the
@@ -286,11 +286,11 @@ floor came from a different draw.**
 
 ### 4.3 Contracts and merger contracts
 
-* Contracts and merger run at **T = 0.7** (Qwen3's documented non-thinking setting; T = 0.1 loops
+- Contracts and merger run at **T = 0.7** (Qwen3's documented non-thinking setting; T = 0.1 loops
   to every cap). At T = 0.7 contracts is as noisy run-to-run as between documents, so:
   **report contracts as an interval, or average k ≥ 3 samples per document.** n = 50 paired is
   marginal for Δ = 0.05 and unpowered for Δ = 0.03.
-* Merger is the class with the smallest corpus (152 rows, 17 test) and the largest per-agreement
+- Merger is the class with the smallest corpus (152 rows, 17 test) and the largest per-agreement
   cost. Its deltas are reported with intervals and never pooled into a fleet-level number.
 
 ---
@@ -325,7 +325,7 @@ score (exact_match, n) · aggregate bucket`.
 | Quality | per-class score mean, bootstrap 95% CI, SD, scoring method, CUAD presence F1 / MAUD accuracy + coverage | run store → `grid_cards.collect_card`; CI from `sand42_cards.bootstrap_mean_ci` |
 | Reliability | ok rate + **Wilson** interval, schema-valid rate, parse errors, length-capped share, error kinds | `sand42_cards._reliability` |
 | Throughput | documents/min, **documents/min/GPU**, tokens/s/GPU, **goodput at the class SLO** | `sand42_cards._goodput` (SLO: 60 s short classes, 300 s contracts, 1800 s merger) |
-| Cost | busy-window GPU $, $/doc, $/ok doc, **$/1k ok**, **$/1k schema-valid**, $/1M tokens, cold-boot $, idle $ | `grid_cards` + `sand42_cards._cost_per_usable` |
+| Cost | busy-window GPU \$, \$/doc, \$/ok doc, **\$/1k ok**, **\$/1k schema-valid**, \$/1M tokens, cold-boot \$, idle \$ | `grid_cards` + `sand42_cards._cost_per_usable` |
 | Engine | TTFT p50/mean, prefix-cache hit rate, preemptions, length finishes, KV-cache use % — per replica, as before/after deltas | `vllm_metrics.scrape` → `grid_cards._engine_block`; the **full** exporter output (all ~120 families: queue depth, e2e/inter-token latency, prefill/decode time) is preserved verbatim as `vllm_metrics_<label>.txt` beside the summarized JSON |
 | **GPU hardware (new)** | utilization % mean/**p95**/min/max/**peak**, **sampling coverage %**, power draw W, temperature C, memory used/total MiB — per replica, as a **time series** | **SAND-042 in-container nvidia-smi sampler → Modal Volume → `container_telemetry` → `grid_cards._container_telemetry`** |
 | Conditions | engine, admission, fleet, dataset pin + draw, prompt stem, caps, temperature, retries | `grid_cards.collect_card` |
@@ -361,13 +361,13 @@ never fails the scored run.
 
 ### 5.4 What is deliberately *not* claimed
 
-* **TTFT is never inferred.** It comes from the vLLM `/metrics` histogram only
+- **TTFT is never inferred.** It comes from the vLLM `/metrics` histogram only
   (`vllm_metrics` docstring); the proxy-measured time-to-first-byte is reported separately and
   labelled as not-TTFT, exactly as the A100 cards did.
-* **No composite score.** The decision rule is: a change ships if quality is non-inferior (the
+- **No composite score.** The decision rule is: a change ships if quality is non-inferior (the
   lower bound of the Δ interval is above −0.02) and it improves cost or goodput, or if it improves
   quality at a stated cost (`docs/BENCHMARK-PROGRAM.md` §5.2).
-* **No pooled column without a per-class table.** Merger is excluded from any fleet-level
+- **No pooled column without a per-class table.** Merger is excluded from any fleet-level
   throughput claim: on the frozen settings it is ~112k prompt tokens per agreement and dominates
   busy time.
 
@@ -450,25 +450,25 @@ specialist — two warm replicas bill two GPUs.
 
 Every SAND-042 number ships with:
 
-* **Definition + denominator + population** — §2 and the card's `conditions` block.
-* **n** — documents attempted, documents ok, documents schema-valid, paired documents.
-* **SD_diff** — for each paired delta, and the noise-floor leg's own SD_diff.
-* **Interval** — bootstrap Δ-CI (paired deltas), bootstrap CI (quality), Wilson (ok rate).
-* **Manifest** — dataset repo + revision `ed7576b676343e0b402ec5412cded301e629bdee`, config
+- **Definition + denominator + population** — §2 and the card's `conditions` block.
+- **n** — documents attempted, documents ok, documents schema-valid, paired documents.
+- **SD_diff** — for each paired delta, and the noise-floor leg's own SD_diff.
+- **Interval** — bootstrap Δ-CI (paired deltas), bootstrap CI (quality), Wilson (ok rate).
+- **Manifest** — dataset repo + revision `ed7576b676343e0b402ec5412cded301e629bdee`, config
   `ground_truth`, `split: all`, `sample_seed: 42`, the per-class strata block, the run YAML path
   and the `spec_hash` recorded on the card.
-* **Run card** — `reports/SAND42/<condition>/<specialist>/<run_id>.card.md` + `.card.json`
+- **Run card** — `reports/SAND42/<condition>/<specialist>/<run_id>.card.md` + `.card.json`
   (condition ∈ `1L4-c8`, `1L4-c16`, `2L4-c8`, `2L4-c16`, `2L4-c32`).
-* **Condition card** — `reports/SAND42/<condition>/SAND42-<SHAPE>-C<CONC>-SCORE-COST-CARD.md` + `.json`.
-* **Comparison** — `reports/SAND42/SAND42-CELL-COMPARISON.md` + `.json`.
-* **Noise floor** — `reports/SAND42/SAND42-NOISE-FLOOR.md`.
-* **Master cost card** — `reports/SAND42/SAND42-MASTER-SCORE-COST-CARD.md` + `.json`.
-* **Master full report** — `reports/SAND42/SAND42-MASTER-REPORT.md`.
-* **Spend** — `reports/SAND42/metered-costs.json` (the teardown spend check, per study).
+- **Condition card** — `reports/SAND42/<condition>/SAND42-<SHAPE>-C<CONC>-SCORE-COST-CARD.md` + `.json`.
+- **Comparison** — `reports/SAND42/SAND42-CELL-COMPARISON.md` + `.json`.
+- **Noise floor** — `reports/SAND42/SAND42-NOISE-FLOOR.md`.
+- **Master cost card** — `reports/SAND42/SAND42-MASTER-SCORE-COST-CARD.md` + `.json`.
+- **Master full report** — `reports/SAND42/SAND42-MASTER-REPORT.md`.
+- **Spend** — `reports/SAND42/metered-costs.json` (the teardown spend check, per study).
 
 Report tree:
 
-```
+```text
 reports/SAND42/
 ├── README.md
 ├── SAND42-MASTER-SCORE-COST-CARD.md + .json   sandbox run card --runbook sand42
@@ -544,14 +544,14 @@ Specialist folders, in grid order: `correspondence`, `insurance_claims`, `corpor
 
 ## References
 
-* `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md`, `SAND-37-MASTER-APPENDIX.md`,
+- `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md`, `SAND-37-MASTER-APPENDIX.md`,
   `SAND37_L4_cost_cards.md`, `SAND37_L4_cost_record.md`
-* `docs/SPECIALIST-GRID-PLAN.md` — the SAND-037 aligned spec and cell status
-* `docs/BENCHMARK-PROGRAM.md` (SAND-043) — metric rules, corpus table, measured noise floor,
+- `docs/SPECIALIST-GRID-PLAN.md` — the SAND-037 aligned spec and cell status
+- `docs/BENCHMARK-PROGRAM.md` (SAND-043) — metric rules, corpus table, measured noise floor,
   scorecard schema, external references
-* `config/runbooks/catalog.yaml` — `sand42-1l4-c8`, `sand42-1l4-c16`, `sand42-2l4-c8`,
+- `config/runbooks/catalog.yaml` — `sand42-1l4-c8`, `sand42-1l4-c16`, `sand42-2l4-c8`,
   `sand42-2l4-c16`, `sand42-2l4-c32`, `sand42-noise-floor`
-* `config/runs/sand42-*.yaml` — the 25 cell configs + the two `check-5` probes + the noise-floor leg
-* `deploy/modal_vllm.py` — the in-container telemetry sampler
-* `src/mailroom_sandbox/job/container_telemetry.py`, `.../sand42_cards.py`,
+- `config/runs/sand42-*.yaml` — the 25 cell configs + the two `check-5` probes + the noise-floor leg
+- `deploy/modal_vllm.py` — the in-container telemetry sampler
+- `src/mailroom_sandbox/job/container_telemetry.py`, `.../sand42_cards.py`,
   `.../specialist_posture.py`

@@ -687,6 +687,26 @@ def _allow_foreign_checkout() -> bool:
     return os.environ.get("SANDBOX_ALLOW_FOREIGN_CHECKOUT", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _hotfix_identity() -> dict[str, Any]:
+    from mailroom_sandbox import vendor_hotfixes
+
+    return vendor_hotfixes.describe()
+
+
+def _hotfix_check() -> dict[str, Any]:
+    """Every sandbox hotfix still matches the vendored code it wraps (mailroom_sandbox.vendor_hotfixes)."""
+    from mailroom_sandbox import vendor_hotfixes
+
+    status = vendor_hotfixes.apply_hotfixes()
+    stale = sorted(i for i, s in status.items() if s == "stale")
+    detail = ", ".join(f"{i} {s}" for i, s in sorted(status.items())) or "none"
+    if stale:
+        return {"name": "vendor_hotfixes", "ok": False,
+                "detail": f"{detail}: the vendored target changed; re-validate or retire {', '.join(stale)} "
+                          "(docs/vendor-hotfixes.md)"}
+    return {"name": "vendor_hotfixes", "ok": True, "detail": detail}
+
+
 def _checkout_check(package: Mapping[str, Any]) -> dict[str, Any]:
     """Fail when the launch checkout and the imported code's checkout differ."""
     cwd = _cwd_checkout()
@@ -892,11 +912,22 @@ def _preflight(
 
     from mailroom_sandbox.dependency_sources import describe, verify_locked
 
+    report["checks"].append(_hotfix_check())
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
+        return report
+
     if existing and not force:
         try:
             verify_locked(existing)
         except ValueError as exc:
             return {"status": "drift_refused", "run_id": run_id, "detail": str(exc)}
+        from mailroom_sandbox import vendor_hotfixes
+
+        # Locks from before the hotfix layer carry no key and resume; a recorded set must match.
+        if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != vendor_hotfixes.describe():
+            return {"status": "drift_refused", "run_id": run_id,
+                    "detail": "vendor hotfix set changed since this run was locked; restore it or use --force to re-lock"}
         selection = (existing.get("dataset") or {}).get("selection") or {}
         locked_filter = selection.get("require_task_gt")
         if type(locked_filter) is not bool:
@@ -1147,6 +1178,7 @@ def _preflight(
         "otel": {"sink": spec.trace.sink, "environment": spec.trace.environment},
         "versions": _versions(),
         "dependency_sources": describe(),
+        "vendor_hotfixes": _hotfix_identity(),
         "git": git_snapshot(),
         "package": dict(package),
         "spec_core": frozen_core,

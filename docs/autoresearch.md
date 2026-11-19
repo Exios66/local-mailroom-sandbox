@@ -31,7 +31,9 @@ The first call runs the champion (`base.yaml`) as round 0, then **the identical 
 (run id `ar-<study>-replicate`, tag `lever:replicate`, same draw). The paired difference between the two baseline runs is the
 measured run-to-run noise (sampling runs at production temperatures, so it is real). The study's **effective noise floor** is
 
-    max(noise_floor in the study file, |mean paired delta|, CI half-width)
+```text
+max(noise_floor in the study file, |mean paired delta|, CI half-width)
+```
 
 of those two runs. It is recorded in the replicate's ledger row (`noise`), shown in `status`, `plan` and `report.md`, and it
 is the threshold of the keep rule's first test (CI low above the floor). **No lever runs or is kept before the replicate

@@ -57,6 +57,7 @@ estimate (E1 0.60, E2 0.40, E3 1.75).
 
 **Settings common to every E2/E3 arm (not treatments).** These follow the pre-E2 review
 (`docs/audits/2026-11-16-pre-e2-architecture-review.md`):
+
 - `job.blind_routing: true`: no labels in the graph's state;
 - `dataset.interim_labels: true`: gap-fill labels, with corporate `record_type` re-derived to the
   enum;
@@ -201,6 +202,7 @@ specialist prompts. Its differences from r2 mix all three changes, and each run 
 its own labels, so they are not effect sizes. Most of the corporate rise (0.44 → 0.65) comes from
 the interim labels. With n = 5 per class, only insurance (+0.10, CI +0.02 to +0.19) excludes zero.
 Watch two things in E3, which has 10 correspondence documents:
+
 - correspondence fell (0.24 → 0.13);
 - contracts escalated more under blind routing: 0 → 2 sent to review, 4 → 9 judge calls, and one
   `judge_error`.

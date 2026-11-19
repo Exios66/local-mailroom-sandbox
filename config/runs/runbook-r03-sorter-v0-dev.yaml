@@ -1,0 +1,58 @@
+# Evaluation runbook R03 (SAND-108, decision 2): the v0 sorter pass on the frozen dev set,
+# so the gold audit has v0-vs-gold disagreements before G0. Sorter only (task: isolated) on the
+# pipeline's sorter configuration: qwen/qwen3.7-flash, production prompt (code-default), the
+# whole document in one call (max_input_chars 600,000), on config/splits/runbook-v1 dev
+# (900 docs, corpus revision bc9eab28). Truth is the repaired overlay (interim + near-gold).
+#
+# Cost: priced per document on the saved pass's token counts with the long-prompt tiers of
+# config/api_prices.yaml (>=32k prompt tokens: $0.10/$0.40 per 1M): about $0.92 list, of which
+# merger agreements (58 of 59 over 32k) are $0.48. The caps leave ~60% headroom. Launch only
+# with the owner's initials at the spend gate:
+#   sandbox run preflight --config config/runs/runbook-r03-sorter-v0-dev.yaml
+#   sandbox run start --config config/runs/runbook-r03-sorter-v0-dev.yaml --initials <XX>
+# A saved pass of the same prompt and model already covers these 900 ids at revision
+# ed7576b6 (data/handoff/sorter-qwen3.7-flash/train.jsonl); this run re-measures them on the
+# split's own revision and the current vendor pin.
+schema: sandbox.run/v1
+run_id: runbook-r03-sorter-v0-dev
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  limit: 900
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 1.50
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 1.50
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R03, sorter-v0, dev]

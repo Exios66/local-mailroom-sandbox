@@ -3,7 +3,7 @@
 # Pinned ids only: moving aliases (~org/model-latest) are excluded, and chat models never appear here.
 # prompt is USD per 1M input tokens; the Decisions API bills input only (completion is 0).
 source: https://openrouter.ai/api/v1/models?output_modalities=decisions
-checked: '2026-11-17'
+checked: '2026-11-18'
 unit: USD per 1M input tokens
 models:
   baseten/elephant-1:
@@ -100,6 +100,12 @@ models:
     prompt: 0.042
   microsoft/microsoft-decision-1:
     canonical_slug: microsoft/microsoft-decision-1-20261009
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32768
+    prompt: 0.042
+  microsoft/microsoft-decision-1.1:
+    canonical_slug: microsoft/microsoft-decision-1.1-20261117
     endpoints:
     - /api/alpha/decisions
     context_length: 32768

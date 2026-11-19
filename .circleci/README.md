@@ -1,20 +1,24 @@
 # CI checks and runtime verification
 
 [`config.yml`](config.yml) runs one workflow on `cimg/python:3.11-node`: `lint`
-(`small`), `test` (`medium`, 4 parallel containers), `coverage` (`small`,
-runs after `test`) and `no-session-links` (`small`; fails on claude.ai links,
-Claude-Session trailers or Claude Code footers in commits or the PR description). This repository's CI configuration is CircleCI. GitHub
-branch protection must require `ci/circleci: lint`, `ci/circleci: test`,
-`ci/circleci: coverage` and `ci/circleci: no-session-links` to enforce every gate on `main`; configuration
-comments alone do not enable branch protection.
+(`small`), `checks` (`small`), `test` (`medium`, 4 parallel containers),
+`coverage` (`small`, runs after `test`) and `no-session-links` (`small`; fails
+on claude.ai links, Claude-Session trailers or Claude Code footers in commits or
+the PR description). `lint`, `checks`, `test` and `no-session-links` start
+together. This repository's CI configuration is CircleCI. GitHub branch
+protection must require `ci/circleci: lint`, `ci/circleci: checks`,
+`ci/circleci: test`, `ci/circleci: coverage` and `ci/circleci: no-session-links`
+to enforce every gate on `main`; configuration comments alone do not enable
+branch protection.
 
 ## Gates and artifacts
 
 | Job | Checks |
 | --- | --- |
-| `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint. Repository config files define rule exclusions. |
-| `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. |
-| `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total, writes coverage XML, then checks the committed reports-hub snapshot and generated requirements mirrors. |
+| `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint CLI2 0.18.1. Tool versions are pinned in [`lint-requirements.txt`](lint-requirements.txt); rule exclusions live in the repository config files (`pyproject.toml`, `.yamllint.yaml`, `.shellcheckrc`, `.markdownlint-cli2.yaml`). |
+| `checks` | Committed generated files match their generators: the reports-hub snapshot (`build_hub.py --check`), the requirements mirrors (`sync_requirements.py --check`), the CLI reference (`check_cli_surface.py --check`) and the runbook catalog pins plus generated `docs/runbooks/` (`sandbox runbook check`). Network-free; it needs the dev virtualenv but waits for no other job. |
+| `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. JUnit results are stored even when a shard fails, so the timing split keeps its data. |
+| `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total and stores coverage XML. |
 
 These are the configured jobs. There is no dedicated full-corpus campaign or
 serial/parallel runtime-benchmark job; passing `lint` and `test` does not establish
@@ -69,8 +73,8 @@ finish. Changing worker count does not change test selection or waive gates.
 
 | Cache key | Contents and invalidation |
 | --- | --- |
-| `pip-lint-v2` | Lint lane's `~/.cache/pip`, restored and saved. Bump manually when changing the lint tool set. Ruff/YAMLlint/Bandit/`shellcheck-py` installs are unpinned. |
-| `venv-v1-{{ arch }}-{{ checksum ".ci-python-version" }}-{{ checksum "pyproject.toml" }}` | The installed dev virtualenv at `~/venv`, shared by `test` and `coverage`, keyed on the exact interpreter version (the image tag floats) and `pyproject.toml`. A hit skips `pip install` entirely (a venv that cannot import the package is rebuilt); a dependency change in `pyproject.toml` builds a new one. The editable install is a plain `.pth` to this checkout's `src/`, so new modules need no reinstall. |
+| `pip-lint-v3-{{ checksum ".circleci/lint-requirements.txt" }}` | Lint lane's `~/.cache/pip`. Ruff, Bandit, YAMLlint and `shellcheck-py` are pinned in `lint-requirements.txt`; changing a pin changes the key. Before a bump, run the new versions on the whole tree and fix new findings in the same change. |
+| `venv-v1-{{ arch }}-{{ checksum ".ci-python-version" }}-{{ checksum "pyproject.toml" }}` | The installed dev virtualenv at `~/venv`, shared by `checks`, `test` and `coverage`, keyed on the exact interpreter version (the image tag floats) and `pyproject.toml`. A hit skips `pip install` entirely (a venv that cannot import the package is rebuilt); a dependency change in `pyproject.toml` builds a new one. The editable install is a plain `.pth` to this checkout's `src/`, so new modules need no reinstall. |
 | `npm-v1` | `~/.npm` for Markdownlint CLI2 0.18.1; bump for a deliberate tool/cache refresh. |
 
 The lint lane caches downloads and still installs its tools; ShellCheck comes
@@ -117,9 +121,11 @@ benchmarks on hosted CI. Locally, inspect diffs and use lint, configuration
 validation, generated-file checks and narrow fixture regressions. For example:
 
 ```bash
-pytest -q tests/test_dataset_registry.py  # one worker, no coverage
+pytest -q tests/test_dataset_registry.py -n 0 --no-cov  # one worker, no coverage
 python scripts/sync_requirements.py --check
 python scripts/check_cli_surface.py --check
+sandbox runbook check
+npx --yes markdownlint-cli2@0.18.1
 git diff --check
 ```
 

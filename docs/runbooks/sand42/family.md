@@ -4,7 +4,7 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-# SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
+## SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
 
 **id:** `sand42-1l4-c8` · **family:** `sand42` · **serving:** `grid-awq-1l4`
 
@@ -12,7 +12,7 @@ One warm L4 serving the SAND-037 frozen L5 engine (awq_marlin, fp8 KV, CUDA grap
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-1l4-c8`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -27,7 +27,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml`
 - `config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c8.yaml`
@@ -35,23 +35,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - `config/runs/sand42-50-contracts-specialist-awq-1l4-c8.yaml`
 - `config/runs/sand42-50-merger-specialist-awq-1l4-c8.yaml`
 
-## Notes
+### Notes
 
-- Reports: each run writes reports/SAND42/1L4-c8/<specialist>/<run_id>.card.md + .card.json; the after step writes reports/SAND42/1L4-c8/SAND42-1L4-C8-SCORE-COST-CARD.md + .json from those cards. Commit the SAND42 tree.
+- Reports: each run writes `reports/SAND42/1L4-c8/<specialist>/<run_id>.card.md` + .card.json; the after step writes reports/SAND42/1L4-c8/SAND42-1L4-C8-SCORE-COST-CARD.md + .json from those cards. Commit the SAND42 tree.
 - Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml)"; set +a. MODAL_VLLM_TELEMETRY_LABEL is part of that block (one label per cell).
 - Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 - MIN=MAX=1 pins the single replica warm from deploy to teardown, so the whole cell pays one cold boot.
 - Pairing: the five draws are identical to the other three cells (same strata block, same seed 42, same revision). Do not edit the dataset block of one cell without the others.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
@@ -144,7 +144,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c8,sa
 
 ---
 
-# SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
+## SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
 
 **id:** `sand42-1l4-c16` · **family:** `sand42` · **serving:** `grid-awq-1l4`
 
@@ -152,7 +152,7 @@ The concurrency-16 twin of sand42-1l4-c8: identical engine, prompts, decode, doc
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-1l4-c16`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -167,7 +167,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-50-correspondence-specialist-awq-1l4-c16.yaml`
 - `config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c16.yaml`
@@ -175,22 +175,22 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - `config/runs/sand42-50-contracts-specialist-awq-1l4-c16.yaml`
 - `config/runs/sand42-50-merger-specialist-awq-1l4-c16.yaml`
 
-## Notes
+### Notes
 
-- Reports: reports/SAND42/1L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/1L4-c16/SAND42-1L4-C16-SCORE-COST-CARD.md + .json.
+- Reports: `reports/SAND42/1L4-c16/<specialist>/<run_id>.card.*` then the after step writes reports/SAND42/1L4-c16/SAND42-1L4-C16-SCORE-COST-CARD.md + .json.
 - Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy.
 - C16 on one L4 is the only posture here that exceeds the SAND-037 grid's C8; per-replica admission stays max_num_seqs 16, so C16 is exactly the admission cap. Watch vLLM preemptions and the KV-cache usage scrape on the long classes.
 - Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 - Pairing: identical draws to the other three cells. Compare against sand42-1l4-c8 (same GPU count, different concurrency) — that pair isolates concurrency alone.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
@@ -283,7 +283,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c16,s
 
 ---
 
-# SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
+## SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
 
 **id:** `sand42-2l4-c8` · **family:** `sand42` · **serving:** `grid-awq-2l4`
 
@@ -291,7 +291,7 @@ Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client co
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-2l4-c8`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -306,7 +306,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-50-correspondence-specialist-awq-2l4-c8.yaml`
 - `config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c8.yaml`
@@ -314,22 +314,22 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - `config/runs/sand42-50-contracts-specialist-awq-2l4-c8.yaml`
 - `config/runs/sand42-50-merger-specialist-awq-2l4-c8.yaml`
 
-## Notes
+### Notes
 
-- Reports: reports/SAND42/2L4-c8/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c8/SAND42-2L4-C8-SCORE-COST-CARD.md + .json.
+- Reports: `reports/SAND42/2L4-c8/<specialist>/<run_id>.card.*` then the after step writes reports/SAND42/2L4-c8/SAND42-2L4-C8-SCORE-COST-CARD.md + .json.
 - Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy.
 - Client concurrency is split equally across replicas: 8 → 4 per replica. Modal round-robins, so per-replica load is 4; measure the split with the per-replica /metrics scrape (SAND-040 saw bursty affinity at C32).
 - MIN=MAX=2 keeps both replicas warm across all five classes. Teardown only after the fifth: two warm replicas bill two GPUs.
 - Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
@@ -422,7 +422,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c8,sa
 
 ---
 
-# SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
+## SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
 
 **id:** `sand42-2l4-c16` · **family:** `sand42` · **serving:** `grid-awq-2l4`
 
@@ -430,7 +430,7 @@ Two replicas at client concurrency 16 split equally — 8 in flight per replica,
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-2l4-c16`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -445,7 +445,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-50-correspondence-specialist-awq-2l4-c16.yaml`
 - `config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c16.yaml`
@@ -453,22 +453,22 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - `config/runs/sand42-50-contracts-specialist-awq-2l4-c16.yaml`
 - `config/runs/sand42-50-merger-specialist-awq-2l4-c16.yaml`
 
-## Notes
+### Notes
 
-- Reports: reports/SAND42/2L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json.
+- Reports: `reports/SAND42/2L4-c16/<specialist>/<run_id>.card.*` then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json.
 - Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy.
 - Client concurrency is split equally across replicas: 16 → 8 per replica. This is the matched-load twin of sand42-1l4-c8 (8 per replica on one GPU).
 - MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth.
 - Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
@@ -561,7 +561,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c16,s
 
 ---
 
-# SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+## SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
 
 **id:** `sand42-2l4-c32` · **family:** `sand42` · **serving:** `grid-awq-2l4`
 
@@ -569,7 +569,7 @@ Two replicas at client concurrency 32 split equally — 16 in flight per replica
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-2l4-c32`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -584,7 +584,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml`
 - `config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c32.yaml`
@@ -592,23 +592,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - `config/runs/sand42-50-contracts-specialist-awq-2l4-c32.yaml`
 - `config/runs/sand42-50-merger-specialist-awq-2l4-c32.yaml`
 
-## Notes
+### Notes
 
-- Reports: reports/SAND42/2L4-c32/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c32/SAND42-2L4-C32-SCORE-COST-CARD.md + .json. This cell supplies the FIFTH section of reports/SAND42/SAND42-MASTER-REPORT.md and a fifth column in the comparison tables.
+- Reports: `reports/SAND42/2L4-c32/<specialist>/<run_id>.card.*` then the after step writes reports/SAND42/2L4-c32/SAND42-2L4-C32-SCORE-COST-CARD.md + .json. This cell supplies the FIFTH section of reports/SAND42/SAND42-MASTER-REPORT.md and a fifth column in the comparison tables.
 - Added last (SAND-047): the original grid pins client concurrency to {8,16}. C32 joins the 2×L4 arm only, because it is the 2×L4 saturation point (16/replica = max_num_seqs) and precisely the per-replica load sand42-1l4-c16 already ran. It is the grid's only concurrency above 16.
 - Spend (estimate): the five cost caps are the 2-replica row of the same table (sum $6.20) and are the abort guard — caps are keyed by replicas, not concurrency, and saturation should raise per-request latency while total throughput plateaus, not raise the cost of scoring the same 250 documents. Needs spend approval before deploy.
 - Client concurrency is split equally across replicas: 32 → 16 per replica. At the ceiling per-replica queueing is expected, so read num_requests_waiting and preemptions on BOTH replicas: SAND-037 saw one replica hold 16 running + 7 queued while the other ran 6, so an even split is not guaranteed.
 - MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth.
 - Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
@@ -701,7 +701,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c32,s
 
 ---
 
-# SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
+## SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
 
 **id:** `sand42-smoke` · **family:** `sand42` · **serving:** `grid-awq-1l4`
 
@@ -709,7 +709,7 @@ Five corporate records, a strict subset of the 1L4-c8 condition's 50-document dr
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-smoke`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -724,25 +724,25 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-check-5-corporate-records-awq-1l4-c8.yaml`
 
-## Notes
+### Notes
 
 - Profile: set SANDBOX_MODAL_PROFILE_TRACK_A to the wallet you want (the catalog default is hermes-agent-jjb; exios66 is also configured locally).
 - Spend (estimate): one cold boot (~2-4 min) + a few minutes warm for 5 documents ≈ $0.05-0.15 at $0.80/GPU-hr; cost_cap_usd 0.20 is the abort guard.
 - GPU telemetry check: the after-scrape must print `gpu telemetry (sand42-1l4-c8): N samples, util mean ... max ...`. If it warns `gpu telemetry not captured`, the sampler or the volume read is broken — fix that before spending on the conditions.
-- Report: reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series.
+- Report: `reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md` + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
@@ -826,7 +826,7 @@ sandbox run card --config config/runs/sand42-check-5-corporate-records-awq-1l4-c
 
 ---
 
-# SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
+## SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
 
 **id:** `sand42-noise-floor` · **family:** `sand42` · **serving:** `grid-awq-1l4`
 
@@ -834,7 +834,7 @@ One extra correspondence cell on the identical 50 documents and identical settin
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-noise-floor`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -849,24 +849,24 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml`
 
-## Notes
+### Notes
 
 - Spend approved 2026-10-12 (operator): the flag was blocking the generated script only, never the config. Still preferred INSIDE the sand42-1l4-c8 re-run's boot rather than as its own cold boot — that leg's script appends this config last, and the mid-run sampler folds its samples into the sand42-1l4-c8 cell.
 - Prefer running it inside the sand42-1l4-c8 deploy rather than as its own cold boot: append this config to that runbook's configs list and drop the blocked flag.
 - Reports: the card lands beside the C8 cell at reports/SAND42/1L4-c8/correspondence/. The after step writes reports/SAND42/SAND42-NOISE-FLOOR.md with the paired SD_diff and the n it implies.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)

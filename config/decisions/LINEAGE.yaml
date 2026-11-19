@@ -1,10 +1,20 @@
 # Lineage of the decision reviewer question sets (family: reviewer_decisions).
 # Model for every version: openai/gpt-6-luna-decisions (OpenRouter Decisions API).
+# candidate_models are other Decisions-API ids (config/decision_models.yaml) a run may test a
+# version on; none has a calibration yet, so none replaces `model` without one.
 # Versions are semantic: MAJOR changes the request shape or the routing contract, MINOR adds
 # or rewrites rules without changing the shape, PATCH fixes wording. A run locks the file's
 # content and sha256, so a published version's file is never edited; a change is a new version.
 family: reviewer_decisions
 model: openai/gpt-6-luna-decisions
+candidate_models:
+  - id: typesafe/jev-1.14
+    canonical_slug: typesafe/jev-1.14-20261014
+    context_length: 262144
+    note: >-
+      Evaluation runbook R01 candidate (SAND-108). 262k context is below 4.0.0's
+      max_input_chars (about 250k tokens for the largest document), so the largest documents
+      need truncation_notice or a smaller window on this model. Uncalibrated.
 frontrunner: 3.1.0
 versions:
   - version: 1.0.0
@@ -70,3 +80,21 @@ versions:
     adoption: >-
       Not the default until a calibration run supports it; 3.1.0's runs do not carry over.
       3.1.0 stays frontrunner and the 3.1.0 run configs stay pinned to 3.1.0.
+  - version: 4.0.0
+    file: reviewer_decisions_v4.0.0.yaml
+    parent: 3.1.0
+    status: candidate
+    summary: >-
+      MAJOR: no verdict question and no sorter handoff in the model's state (continue, correct
+      subclass and reclassify are derived in code); a document_form question parks fragments,
+      bundles, unreadable and non-English input; every subclass question can abstain and a
+      per-class subclass_gate decides what a low subclass does (park for merger_agreement and
+      corporate_record, keep the sorter's otherwise); abstain rules read the probability
+      vector; max_input_chars covers the whole largest document.
+    adoption: >-
+      Registered 2026-11-18 (the file landed in 1728c856 without a lineage entry). Not the
+      default until a calibration run supports it; abstain and subclass_gate thresholds are
+      provisional. The evaluation runbook's decision question sets start from this version.
+    open_for_4.1.0: >-
+      Calibrate the abstain thresholds and a per-class subclass cutoff on calibration-set
+      runs, as calibrate_reviewer already does for the class cutoffs.
