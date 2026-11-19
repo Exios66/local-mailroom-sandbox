@@ -17,7 +17,8 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   `scoring_hotfixes` names the fixes that were on; `scoring_hotfixes_changed` names the
   headline keys whose value differs.
 - **Recorded in every run lock** (`scoring_hotfixes`: the module sha256 and each fix's id and
-  target fingerprints). A resume refuses a lock whose set differs.
+  target fingerprints). A resume refuses a lock whose set differs, and the executing process
+  (local or the Modal job worker) refuses to start when its set differs or a fix is not current.
 - **Tracked upstream.** Each fix names where it belongs: a drafted llm-dojo-scoring issue
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 

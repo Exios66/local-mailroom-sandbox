@@ -1038,6 +1038,7 @@ def run_job(
         verify_locked(lock)
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
+            verify_locked_hotfixes(lock)
             from mailroom_sandbox.provider_pins import set_run_context
 
             set_run_context(store.run_id, lock.get("spec_hash"))  # R01 ledger rows name their run
@@ -1051,6 +1052,30 @@ def run_job(
         raise
     finish(summary if isinstance(summary, dict) else None)
     return summary
+
+
+def verify_locked_hotfixes(lock: dict[str, Any]) -> None:
+    """Refuse to execute a locked run on hotfix code other than the code preflight locked.
+
+    Preflight gates the hotfixes where it runs; execution may happen elsewhere (the Modal job
+    worker runs this function from its deployed image). Activation only logs a pipeline hotfix it
+    could not apply, and a scoring fix that is not current silently drops out of the headline, so
+    the executing process re-runs both checks and compares each hotfix set with the lock's.
+    Locks from before the hotfix layer record no set and run as before.
+    """
+    from mailroom_sandbox import scoring_hotfixes, vendor_hotfixes
+    from mailroom_sandbox.job.preflight import _hotfix_check, _scoring_hotfix_check
+
+    for key, describe, check in (("vendor_hotfixes", vendor_hotfixes.describe, _hotfix_check),
+                                 ("scoring_hotfixes", scoring_hotfixes.describe, _scoring_hotfix_check)):
+        if key not in lock:
+            continue
+        if lock[key] != describe():
+            raise RuntimeError(f"{key}: this process carries hotfix code other than the locked set "
+                               "(redeploy the job worker from the locking checkout, or re-lock with --force)")
+        result = check()
+        if not result["ok"]:
+            raise RuntimeError(f"{key}: a locked hotfix is not in effect here: {result['detail']}")
 
 
 def _run_job(

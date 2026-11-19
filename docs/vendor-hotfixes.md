@@ -14,7 +14,10 @@ gets it. Scoring is never patched here; the scorer is the Dojo pin.
   the new code or retired.
 - **Recorded in every run lock.** `vendor_hotfixes` in `run.lock.json` holds the module sha256
   and each fix's id and target fingerprint. A resume refuses a lock whose hotfix set differs;
-  locks from before the layer carry no key and resume as before.
+  locks from before the layer carry no key and resume as before. The process that executes the
+  run (locally, or the Modal job worker from its deployed image) re-checks at run start
+  (`runner.verify_locked_hotfixes`): it refuses a hotfix set other than the lock's, or a hotfix
+  that is not in effect there, so a worker deployed from older code never runs a locked job.
 - **Tracked upstream.** Each hotfix names the llm-mailroom issue or PR that will make it
   unnecessary. When the fix is vendored, the fingerprint no longer matches: delete the hotfix,
   its tests and this table row in the same change as the vendor refresh.
