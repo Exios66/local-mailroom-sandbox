@@ -121,8 +121,9 @@ set from it. Instead a floor is fitted on the calibration split
 3. `rb1_form_floor.py fit` tabulates, per candidate floor, the defects that would reach
    extraction and the intact documents parked. The floor is the highest one that lets no
    defect through; an intact document parked with high mass is read before any floor ships,
-   since it may be a real defect. The floor then ships as question set 4.0.2 and dev-look1
-   measures it out of sample. Scale up by raising the bucket counts under a new run id.
+   since it may be a real defect. The floor then ships as question set 4.0.2. dev-look1 is a
+   dev check of that calibration-fitted floor, not an out-of-sample measurement: 4.0.1's
+   wording was shaped on dev-look1, so its dev-look1 figures stay in-sample. Scale up by raising the bucket counts under a new run id.
 
 ## Confidence thresholds: what the smoke showed and how they will be calibrated
 

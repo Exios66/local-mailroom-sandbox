@@ -112,7 +112,29 @@ def build(rows: list[dict], seed: int = SEED) -> list[dict]:
 
 
 def _jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    # split on physical newlines only: str.splitlines() also breaks on U+2028/U+2029 inside text
+    return [json.loads(line) for line in path.read_bytes().decode("utf-8").split("\n") if line.strip()]
+
+
+def _identity(run_dir: Path) -> dict:
+    """What a fit must hold constant across the two runs: models and the exact question set."""
+    lock = json.loads((run_dir / "spec.lock.json").read_text(encoding="utf-8"))
+    reviewer = lock.get("reviewer") or {}
+    qset = json.dumps(reviewer.get("question_set"), sort_keys=True).encode()
+    return {"engine_model": (lock.get("engine") or {}).get("model"), "reviewer_model": reviewer.get("model"),
+            "question_set_sha256": hashlib.sha256(qset).hexdigest()}
+
+
+def _check_provenance(intact_run: Path, defects_run: Path, defects: Path) -> None:
+    a, b = _identity(intact_run), _identity(defects_run)
+    if a != b:
+        raise SystemExit(f"cannot fit: the runs differ in model or question set: {a} vs {b}")
+    lock = json.loads((defects_run / "spec.lock.json").read_text(encoding="utf-8"))
+    locked = ((lock.get("dataset") or {}).get("metadata") or {}).get("sha256")
+    actual = hashlib.sha256(defects.read_bytes()).hexdigest()
+    if locked != actual:
+        raise SystemExit(f"cannot fit: {defects} (sha256 {actual[:12]}) is not the file the defects run "
+                         f"locked (sha256 {str(locked)[:12]})")
 
 
 def _masses(run_dir: Path) -> dict[str, tuple[float | None, bool]]:
@@ -139,6 +161,7 @@ def _masses(run_dir: Path) -> dict[str, tuple[float | None, bool]]:
 
 
 def fit(intact_run: Path, defects_run: Path, defects: Path) -> dict:
+    _check_provenance(intact_run, defects_run, defects)
     intact = _masses(intact_run)
     expected = {r["id"]: r["expected_document_form"] for r in _jsonl(defects)}
     got = _masses(defects_run)
@@ -151,6 +174,8 @@ def fit(intact_run: Path, defects_run: Path, defects: Path) -> dict:
                          f"{missing[:5]}, {len(unrecorded)} results have no human mass {unrecorded[:5]}")
     pos = sorted(m for kind, _, m in rows if kind != "intact")
     neg = sorted(m for kind, _, m in rows if kind == "intact")
+    if not pos or not neg:  # an empty side makes every floor look free
+        raise SystemExit(f"cannot fit: {len(pos)} defects and {len(neg)} intact results; both must be non-empty")
     table = []
     for floor in FLOORS:
         table.append({"floor": floor,
