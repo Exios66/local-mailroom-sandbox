@@ -320,6 +320,17 @@ def test_activation_installs_one_langchain_subclass_and_restore_removes_it(vendo
     assert lc_base.ChatOpenAI is _FakeChatOpenAI and not pp.langchain_pins_active()
 
 
+def test_a_non_class_chat_openai_is_left_alone(vendored):
+    lc_base = sys.modules["langchain_agents.base_agent"]
+
+    def factory(**kwargs):  # a test double installed in place of the class
+        return None
+
+    lc_base.ChatOpenAI = factory
+    assert pp.apply_provider_pins(PINS) == 1  # the retry path is still wrapped
+    assert lc_base.ChatOpenAI is factory and not pp.langchain_pins_active()
+
+
 def test_activation_without_langchain_agents_still_wraps_the_retry_path(vendored, monkeypatch):
     monkeypatch.setitem(sys.modules, "langchain_agents", None)  # import raises ImportError
     monkeypatch.delitem(sys.modules, "langchain_agents.base_agent")

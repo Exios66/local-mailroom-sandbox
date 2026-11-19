@@ -325,8 +325,8 @@ def apply_langchain_pins() -> bool:
         _log.debug("langchain_agents.base_agent unavailable — LangChain pins skipped: %s", exc)
         return False
     current = getattr(base_agent, "ChatOpenAI", None)
-    if current is None:
-        return False
+    if not isinstance(current, type):
+        return False  # missing, or a test double that is not a class: nothing to subclass
     if getattr(current, "_sandbox_provider_pins", False):
         return True  # already pinned, possibly under a later llm_timeout subclass
     _LC_ORIGINAL = current
