@@ -638,8 +638,9 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str]) -
     The same type rules as the gate (dates in one quote, money by value, token coverage for
     names, ids and free text, label vocabulary and quote length) applied to a stored label and
     its stored evidence. The gate's quote-location and quote-length caps are not applied: the
-    evidence is already the text, and a long header line is still evidence. An empty value is
-    supported (absence is not checked here).
+    evidence is already the text, and a long header line is still evidence. The gate's
+    per-field rules (``party_roles`` roles stated in the evidence, at most 3 ``action_items``)
+    are applied. An empty value is supported (absence is not checked here).
     """
     types, vocab, _empty, empty_value, model = _schema_bits(doc_class)
     if name not in types:
@@ -655,11 +656,15 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str]) -
     if not spans:
         return False, "no evidence quote"
     res = FieldResult(field=name, ok=False)
-    supported = _value_supported(res, norm, value, ftype, spans, " ".join(s["text"] for s in spans),
+    ev_text = " ".join(s["text"] for s in spans)
+    supported = _value_supported(res, norm, value, ftype, spans, ev_text,
                                  empty_value(name), _text_field(model, name))
     if supported is None:
         return False, res.reason or "type rule failed"
-    return bool(supported), "" if supported else "value not supported by its evidence"
+    if not supported:
+        return False, "value not supported by its evidence"
+    rule = _field_rule(name, norm, ev_text)
+    return (False, rule) if rule else (True, "")
 
 
 def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str) -> SubmissionResult:

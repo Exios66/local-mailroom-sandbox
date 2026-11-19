@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from mailroom_sandbox.notebook import (
@@ -185,21 +187,45 @@ def test_agent_rows_without_source_text_yield_no_findings():
     assert ids.isdisjoint({"arbiter", "boss", "image_extractor", "pdf_transcriber"})
 
 
+def test_agent_row_with_missing_catalog_file_is_ungrounded(tmp_path, monkeypatch):
+    import mailroom_sandbox.datasets as datasets
+    import mailroom_sandbox.paths as paths
+    import mailroom_sandbox.prep as prep
+
+    (tmp_path / "agents").mkdir()
+    row = {
+        "id": "r1",
+        "subdir": "contract",
+        "filename": "gone.txt",
+        "expected_fields": {"parties": ["ACME Corporation"]},
+    }
+    (tmp_path / "agents" / "judge.jsonl").write_text(json.dumps(row) + "\n")
+    for module in (datasets, paths, prep):
+        monkeypatch.setattr(module, "fixtures_dir", lambda: tmp_path)
+    [finding] = agent_fixture_grounding(["judge"])
+    assert (finding.row_id, finding.status) == ("judge/r1", UNGROUNDED)
+
+
 # --------------------------------------------------------------------------- label overlays
 
-#: Labels whose evidence does not support them and that are kept on purpose. Each needs the
-#: reason and the owner who decides it; a new unsupported label fails the test below.
+#: Labels whose evidence does not support them and that are kept on purpose, keyed with the
+#: value (JSON text for lists) so a changed value is not excused. Each needs the reason and
+#: the owner who decides it; a new unsupported label fails the test below.
 KNOWN_UNSUPPORTED = {
     # Reviewed original_header fill: the Exchange display name glues the org suffix to the
     # surname ("Michael GrimesCORPENRON"), so "grimes" is not a token of the quoted header.
     # The value is right; changing it is a review-file decision (data/labels/interim/README.md).
-    ("interim", "DOC-2ccf94f14bd5f040", "recipient"),
+    ("interim", "DOC-2ccf94f14bd5f040", "recipient", "Michael Grimes"),
 }
 
 
 def test_scoring_overlays_are_supported_by_their_evidence():
     findings = label_overlay_grounding()
-    unsupported = {(f.overlay, f.doc_id, f.field) for f in findings if f.status == UNGROUNDED}
+    unsupported = {
+        (f.overlay, f.doc_id, f.field, f.value if isinstance(f.value, str) else json.dumps(f.value))
+        for f in findings
+        if f.status == UNGROUNDED
+    }
     assert unsupported == KNOWN_UNSUPPORTED
     checked = [f for f in findings if f.status == GROUNDED]
     assert {f.overlay for f in checked} == {"gold-overlay", "interim"}
@@ -207,9 +233,7 @@ def test_scoring_overlays_are_supported_by_their_evidence():
 
 
 def _overlay(tmp_path, labels, doc_class="contract"):
-    import json
-
-    (tmp_path / "gold-overlay").mkdir()
+    (tmp_path / "gold-overlay").mkdir(parents=True)
     record = {"doc_class": doc_class, "doc_id": "DOC-1", "labels": labels}
     (tmp_path / "gold-overlay" / f"{doc_class}.jsonl").write_text(json.dumps(record) + "\n")
     found = label_overlay_grounding(["gold-overlay"], root=tmp_path)
@@ -249,3 +273,17 @@ def test_overlay_header_evidence_and_vocabulary(tmp_path):
     assert status["sender"] == (GROUNDED, "")
     assert status["recipient"][0] == UNGROUNDED
     assert status["intent"][0] == UNGROUNDED and status["intent"][1].startswith("out_of_vocabulary")
+
+
+def test_overlay_applies_the_gates_per_field_rules(tmp_path):
+    def roles(quote):
+        return _overlay(
+            tmp_path / str(len(quote)),
+            {
+                "party_roles": {"value": ["Alpha Inc.: supplier"], "evidence": [quote]},
+            },
+        )["party_roles"]
+
+    assert roles("Alpha Inc. (the Supplier)") == (GROUNDED, "")
+    status, reason = roles("Alpha Inc.")
+    assert status == UNGROUNDED and "not stated in the evidence" in reason

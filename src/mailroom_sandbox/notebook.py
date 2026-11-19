@@ -277,7 +277,9 @@ def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[Groundi
     inline ``text``. Its ``expected_fields`` and its expected snippets (``expected_snippet``,
     ``expected``) must be written in that text. Rows that carry only model output to
     judge (``extracted_data`` with no source document) or a binary ``file`` (image, PDF) have
-    no text to ground against and yield no findings. Row ids are ``<agent>/<id>``.
+    no text to ground against and yield no findings. A row whose catalog document is missing
+    is checked against empty text, so its gold is reported ungrounded rather than skipped.
+    Row ids are ``<agent>/<id>``.
     """
     from mailroom_sandbox.paths import fixtures_dir
     from mailroom_sandbox.prep import clean_agent_rows
@@ -290,7 +292,9 @@ def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[Groundi
         for row in prepared:
             text = row.get("text")
             if not isinstance(text, str) or not text:
-                continue
+                if not (row.get("subdir") and row.get("filename")):
+                    continue
+                text = ""  # named catalog document is missing: all its gold is ungrounded
             gold = dict(row.get("expected_fields") or {})
             gold.update({k: row[k] for k in AGENT_SNIPPET_KEYS if isinstance(row.get(k), str)})
             if gold:
