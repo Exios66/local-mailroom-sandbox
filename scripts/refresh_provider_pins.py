@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -29,8 +30,11 @@ URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"
 def fetch(model: str, from_dir: Path | None) -> dict:
     if from_dir:
         return json.loads((from_dir / (model.replace("/", "__") + ".json")).read_text())
-    req = urllib.request.Request(URL.format(model=model), headers={"User-Agent": "mailroom-sandbox"})
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 — fixed https URL
+    url = URL.format(model=urllib.parse.quote(model, safe="/"))
+    if not url.startswith("https://"):
+        raise SystemExit(f"refusing non-https URL: {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": "mailroom-sandbox"})
+    with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - https only, checked above
         return json.load(resp)
 
 
