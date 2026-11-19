@@ -3,7 +3,7 @@ title: "Mailroom sorter and extraction evaluation runbook — research plan"
 type: plan
 created: 2026-11-18
 updated: 2026-11-18
-status: draft  # becomes pre-registered once hypotheses H1-H4 and their falsification criteria are signed off
+status: draft  # becomes pre-registered once hypotheses H1-H5 and their falsification criteria are signed off
 author: mixed
 design: "Mailroom Sorter & Extraction Evaluation Design (Claude doc, tabs: design, Statistical review, EXPERIMENT CHECKLIST, Prompt iteration experiments, Decision model cycles)"
 runbook: "experiment_runbook.csv (R00-R90, G0-G8)"
@@ -38,6 +38,7 @@ pass on held-out.
 | H2 | Final specialists beat v0 on field F1 without more hallucination | per-doc field F1 (permutation test) | Gain < target (+3 or +4 pts by lineage) or hallucination not −30% relative, Holm-adjusted |
 | H3 | Class-specific auto-route gates hold at 2% wrong routes | 95% one-sided Clopper-Pearson upper bound, per class on its own calibration documents (decision 6) | A class's bound ≥ 2% on calibration, or its realized held-out error rate's bound ≥ 2%. A class whose calibration n cannot reach 2% (contract 105, corporate_record 137, merger_agreement 34 docs; 149 error-free accepts needed) reports its own certified bound and is not claimed at 2% |
 | H4 | The pipeline reduces human review versus production v0 | review-rate difference, 95% CI | CI includes 0 or the reduction is under 2 pts |
+| H5 | A Decisions-API model acting as the sorter is non-inferior to the production LLM sorter (v0) on class macro-F1 (margin 2 pts) and subclass-unit accuracy (margin 4 pts), at lower cost per 1,000 documents | class macro-F1 difference (B − A), paired bootstrap one-sided 95% lower bound | On the full 1,000 held-out (R70b), any of the three tests fails after Holm across H5's own family (2 NI tests + lower cost, per finalist): macro-F1 lower bound ≤ −2 pts, unit-accuracy lower bound ≤ −4 pts, or the bootstrap p for "B costs less per document" ≥ 0.05. Details: [H5](#h5-decision-model-as-sorter-sand-108) |
 
 Stop criteria: per lineage — target met, maximum versions, or 5 rounds with nothing
 kept. Held-out is unsealed once (R70-R72); nothing is re-run after unsealing.
@@ -67,6 +68,8 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 | 15 | R12, R40-R42 | The Dojo extraction registry freezes field statuses from the Hub v9 lineage: 23 class-level fields that now carry repaired truth (interim and near-gold overlays) still read `pending_annotation`; merger `intent` / `subject_matter` / `keywords` and indenture `filing_number` are labeled but marked `not_applicable`. Some output fields have no truth anywhere: all 30 corporate entity-extension fields, 11 merger fields, contract `merger_consideration` / `maud_clauses`, insurance `claim_checklist`. Others are constant (correspondence `demand_amount` always null, insurance `claim_type`, contract `party_roles` 90% `other`). | Iteration rounds and prompt tokens spent on fields nothing can score, or on a constant, measure nothing. | `sandbox schemas build` grades every (class, subclass) field from the truth a run scores, with a verdict: `iterate` (≥ 20 labeled dev docs), `thin`, `constant`, `fixed`, `no_truth`, `not_applicable`. It fails on truth the model cannot emit, a label outside its closed vocabulary, or a `record_type` that contradicts the subclass (0 today). Iterate only on `iterate` fields; state `constant` rules in the prompt. Runs scored on repaired labels set `interim_labels: true` and `near_gold_labels: true` (`sandbox splits show` prints them). |
 | 16 | R40-R42 | The specialist output-schema descriptions the model reads are looser than the labeling guide for the repaired fields (`party_roles` has no role vocabulary, `recipient` / `urgency` / `demand_amount` have no convention), and the contracts prompt names 2 of the 9 repaired contract fields. | Scores against repaired labels partly measure the description gap, not the prompt. | `job.schema_guide: true` sets the guide's conventions as the descriptions of 20 fields (contract 9, corporate 4, correspondence 7). Corporate condensed v2 (Certificate of Designation, rights instruments, effective-date fallback, indenture governing law, execution-block signatories) and correspondence condensed v4 (recipient, demand, urgency rules) are lineage candidates. A/B each against its frontrunner on dev with the overlays and `schema_guide` on before adoption. |
 | 17 | R03 | `data/labels/gold/decisions.jsonl` is not built into the gold catalogs (the label pass files are not in this checkout), and two owner decisions in `data/labels/VALIDATION.md` are open: interim-over-reviewed-gold precedence and 52 Hub correspondence intents judged wrong. | The registry's counts reflect the overlays as committed; gold changes after adjudication will move them. | Owner step before R03 closes. Rebuild with `sandbox schemas build` after any label change; `--check` fails on a stale registry. |
+| 18 | R13, R70 (H5) | The decision lineage is not unseen on held-out: `reviewer-validation-luna-decisions-v2-test` and `-v3.0.0-test` scored all 323 HF `test` docs, which are the 305 never-tuned held-out docs plus 18 dev docs (`LINEAGE.yaml`; per-doc answers in `data/handoff/sorter-qwen3.7-flash/test.targets.jsonl` `reviewer_evidence`), and the 3.0.0 test findings shaped 3.1.0, the parent of 4.0.0. | A never-tuned-only H5 test would favour arm B; the 695 train docs favour arm A (sorter tuned on `train`). | H5's confirmatory set is the full 1,000 with both exposure strata reported ([H5](#h5-decision-model-as-sorter-sand-108)). |
+| 19 | R13, R60-R62 | `decision_backends.decide` reads only `doc_type`, `subclass` (choice or markers), `verdict`, `handoff` and `max_input_chars`. 4.0.0's `document_form`, `abstain`, `subclass_gate` and `truncation_notice` are loaded but never asked or applied. | Runs with 4.0.0 measure forced-choice class and subclass answers only; no abstention or parking is measured. | Recorded for H5, where forced choice is the like-for-like comparison with the sorter. Implementing the 4.0.0 keys is an open decision-lineage task (owner), and it needs a new run of any figure that depends on them. |
 
 ## What this change adds (Phase 0 pathways)
 
@@ -129,13 +132,106 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 - [ ] `HF_HUB_OFFLINE=1 python scripts/check_g0.py` exits 0. It runs every gate below and reports missing evidence (no ledger, no sheet) as a failure
 - [ ] QC → REVIEW → STOP: the split audit passes, the R01 smoke gate passes for every smoke model (Task 2), scorers match, the v0 passes and the gold audit are done, `sandbox schemas build --check` passes, and findings 1-17 are resolved or logged as deviations
 
+## H5: decision model as sorter (SAND-108)
+
+Experiment keys `rb1-r13b` (dev screen) and `rb1-r70b` (sealed confirmatory). Outputs go under
+`reports/campaigns/rb1/<key>-sorter-vs-decision/{analysis,figures}/`, each file named from its key.
+
+**Arms.** A is the LLM sorter at its production prompt (`task: isolated`): `rb1-r03-sorter-v0-dev`
+(formerly `runbook-r03-sorter-v0-dev`) on dev, and R70's v0 arm on held-out. B is a Decisions-API
+model as the sorter: `task: sorter_reviewer`, `reviewer.backend: decisions`, question set
+`reviewer_decisions_v4.0.0` (no `handoff:`, so `decide()` classifies from the document alone, one
+request per document). No new task was needed. That task already has preflight, lock hashing of the
+question set, `uses_openrouter` / `api_budget` coverage (usage goes through `pipeline.limits.record_usage`),
+a mock path, and `call_path: decisions` ledger rows. The R01 gate counts one `decisions` row per
+document (`check_r01_smoke.expected_calls`, tested for each H5 config). Both arms are scored by
+`mailroom_sandbox.sorter_arms` against the same locked truth: class, exact subclass, and subclass
+at its split unit (`experiment_splits.unit_correct`). A failed call counts as wrong. Both are priced
+the same way: item tokens × `job.metrics.call_cost` (`api_prices.yaml` tiers; Decisions models at
+their `decision_models.yaml` input-only price). The provider-reported Decisions cost is shown as a
+check.
+
+**Readout.** `scripts/compare_sorter_arms.py --a <A> --b <B> [--b ...] --set <set>
+[--volume-docs-per-month N] [--json] [--experiment-key rb1-r13b --write]`. It pairs documents by id
+and refuses: unpaired runs, different dataset revisions, differing truth, mock runs, a handoff
+question set, and held-out documents outside `--confirmatory`. `--confirmatory` needs a held-out
+`--set` and sealed run ids `rb1-r70*`..`rb1-r72*`. Per arm, it reports class accuracy, macro-F1,
+per-class F1, subclass and unit accuracy, ECE beside its null floor, Brier, AUROC, latency p50/p95,
+total cost, cost per 1k documents, and cost per correct document. Per B arm, it reports: the paired
+macro-F1 swap permutation, exact McNemar on class and on unit, paired-bootstrap 95% CIs (accuracy,
+macro-F1, unit, cost per document and per 1k), one-sided non-inferiority tests, monthly cost with
+CI, and point differences per exposure stratum. With more than two runs it adds a cost-quality
+frontier with dominance. Seeds are 20261118 (2,000 bootstrap draws, 5,000 permutations).
+
+**Confirmatory set: the full 1,000 held-out (decision 10, proposed).** Finding 18 means the 305
+never-tuned docs are not unseen for B, so they favour B. The 695 `train_untuned` docs favour A,
+since the sorter lineage was tuned on `train`. The full set mixes both. Power also points to the
+full set: at 305 docs the macro-F1 test has about 27% power. Both strata are reported beside the
+primary result. The claim is called robust to exposure only if the `train_untuned` point estimate
+also lies above −2 pts, the stratum biased against B. This differs from H1, whose primary result
+is the 305 subset, because H1 measures the sorter lineage's own generalization.
+
+**Multiplicity.** H5 has its own Holm family, separate from R70's H1 family. It is a different
+claim, and joining the families would cut H1's pre-registered power. The family holds 3 tests per
+finalist: NI macro-F1, NI unit, and lower cost. With at most 2 finalists, that is at most 6 tests.
+The permutation test and both McNemar tests form a separate, secondary Holm family. The R13b dev
+screen is exploratory and has no multiplicity claim (as finding 14).
+
+**Power (`sorter_arms.noninferiority_n` / `noninferiority_power` / `simulate_macro_f1_se`).** The
+inputs come from dev on the saved Qwen pass: class accuracy 0.949 and unit accuracy 0.68 (Hub
+labels). Planning discordance is 0.06 for class and 0.20-0.30 for unit.
+
+| Set | n | macro-F1 SE | NI macro-F1 power (δ = 0 / B +2 pts) | NI unit power, margin 4 pts (d = 0.20 / 0.30) |
+| --- | --- | --- | --- | --- |
+| held-out | 1,000 | 0.0093 | 0.69 / 0.99 | 0.88 / 0.75 |
+| never-tuned | 305 | 0.0195 | 0.27 / 0.64 | 0.47 / 0.36 |
+| dev-look1 | 300 | 0.0175 | 0.31 / 0.74 | 0.46 / 0.35 |
+
+Powers are one-sided at α 0.05, before Holm. A 2-pt margin on unit accuracy would need about
+3,900 docs, which is why the unit margin is 4 pts. If B is truly equal to A, the 2-pt macro-F1
+margin gives only about 0.69 power on 1,000 docs. A 3-pt margin would give about 0.94 (owner
+decision 11). Both margins are fixed before R70b. dev-look1 is a screen, not a test.
+
+**Screen (R13b, inside R13/R60).** The 2 named decision models run on dev-look1: lineage model
+`openai/gpt-6-luna-decisions` and candidate `typesafe/jev-1.14` (262k context; its largest
+dev-look1 doc is about 126k tokens, so nothing is truncated). Other supported models in
+`decision_models.yaml` are optional additions, but their configs are not written until the owner
+names them (finding 12): `perplexity/pplx-decider-v1.2` ($0.02/M, about $0.10 per 300 docs),
+`google/gemini-decision-1` ($0.10/M, about $0.50), `upstage/solar-decide` ($0.05/M, about $0.25),
+and `liquid/d1.2` ($0.02/M, but its 65k context truncates long docs). G6 keeps at most 2 finalists,
+by the dev frontier and the NI lower bounds, before held-out is unsealed.
+
+**R65 (load test).** The kept finalist joins the 10x burst. Both arms report p95 latency and the
+429 rate. Latency comes from `items.jsonl` `latency_ms`, and 429s from the run's events. A
+finalist that breaks G6b limits is dropped, never re-scored. **R80 (readout).** R80 reports the
+cost-quality frontier table and the H5 verdict per finalist from the `rb1-r70b` comparison JSON,
+with strata and both cost figures.
+
+| Row | Run | Set (n) | Models | Calls | Est. cost (list) | Gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| R13b | `rb1-r13b-decision-sorter-{luna,jev-1.14}-dev-look1` (caps $0.80 / $0.35) | dev-look1 300 | Luna, Jev 1.14 | 600 | ≈ $0.71 (Luna $0.50, Jev $0.21; $0.63 by chars/4). Arm A reuses R03 (no new calls; about $0.29 of R03's 900-doc $0.92 covers these 300) | Decisions calls validate, 300 `decisions` ledger rows per model, comparison report written; ≤ 2 finalists recorded |
+| R70b | `rb1-r70b-decision-sorter-luna-heldout` (SEALED template; cap $2.50), one copy per finalist | held-out 1,000 | ≤ 2 finalists | ≤ 2,000 | Luna ≈ $1.64, Jev ≈ $0.69 per finalist (≤ $3.28). Arm A reuses R70's v0 run (no new calls) | Pre-registered H5 test, own Holm family; nothing re-run after unsealing |
+
+Costs use the saved Qwen pass's prompt tokens per document, minus about 2.3k sorter-prompt tokens,
+plus about 4k question tokens. The Decisions API bills input only.
+
+**Held-out seal (`mailroom_sandbox.heldout_seal`).** Preflight (and `run start`, which re-runs it)
+refuses any draw through `heldout.exclude.ids` unless two conditions hold: the run id matches
+`rb1-r70*`..`rb1-r72*`, and the shell sets `SANDBOX_UNSEAL_HELDOUT` to exactly that run id. It also
+refuses, and deletes the prepared file, when another split-exclusion draw prepares held-out rows.
+
+**Open owner decisions.** (10) Full-1,000 primary with strata, as above. (11) The macro-F1 margin,
+2 pts or 3 pts. (12) The unit margin, 4 pts. (13) Which extra decision models R13b screens.
+(14) Whether arm A at R70b is v0 only, or v0 and the final sorter (the final would be a secondary
+comparison in the same H5 family).
+
 ## Verification
 
 - `sandbox splits audit` exits 0 on the committed split
 - `sandbox schemas build --check` exits 0 (registry current, 0 mismatches)
-- Focused tests pass: `tests/test_experiment_splits.py`, `tests/test_experiment_stats.py`, `tests/test_provider_pins.py`, `tests/test_refresh_provider_pins.py`, `tests/test_corpus.py`, `tests/test_schema_guide.py`, `tests/test_subclass_schemas.py`, `tests/test_specialist_condensed_prompt.py`, `tests/test_cli_surface.py`, `tests/test_vendor_drift.py`
+- Focused tests pass: `tests/test_experiment_splits.py`, `tests/test_experiment_stats.py`, `tests/test_provider_pins.py`, `tests/test_refresh_provider_pins.py`, `tests/test_corpus.py`, `tests/test_schema_guide.py`, `tests/test_subclass_schemas.py`, `tests/test_specialist_condensed_prompt.py`, `tests/test_cli_surface.py`, `tests/test_vendor_drift.py`, `tests/test_sorter_arms.py`
 - Hosted CI (lint, full pytest, 84% coverage, reports and requirements checks) is green on the PR head
-- H1-H4 are explicitly confirmed, refuted, or marked "inconclusive — exploratory" in R80
+- H1-H5 are explicitly confirmed, refuted, or marked "inconclusive — exploratory" in R80
 
 ## Deviations log
 
