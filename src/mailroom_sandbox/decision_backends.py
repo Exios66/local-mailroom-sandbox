@@ -623,6 +623,7 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
             "questions": (questions := gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass")))}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
+    _record_served(model, data)
     usage = data.get("usage") or {}
     _record_usage(model, usage, agent=EXTRACTION_GATE)
     answers = data.get("answers") or {}
@@ -759,6 +760,19 @@ def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_
                  model=model, agent=agent)
 
 
+def _record_served(model: str, data: Mapping[str, Any]) -> None:
+    """Append the served model to the R01 ledger (``provider_pins``, ``call_path: decisions``)."""
+    try:
+        from mailroom_sandbox.provider_pins import record_decision
+
+        row = decision_model(model) or decision_model(str(model).split(":", 1)[0]) or {}
+        record_decision(model, data, row.get("canonical_slug"))
+    except Exception as exc:  # noqa: BLE001 — recording never fails a call
+        import logging
+
+        logging.getLogger(__name__).warning("served-model record failed: %s", exc)
+
+
 def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: float = 120.0,
            attempts: int = 3, max_input_chars: int = DECISIONS_MAX_INPUT_CHARS,
            qset: Mapping[str, Any] | None = None, handoff: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -783,6 +797,7 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
                  "sorter_handoff": dict(handoff) if handoff else {"available": False, "note": "no sorter answer was passed"}}
     body = {"model": model, "state": state, "questions": dict(questions)}
     data = _post_decision(body, timeout=timeout, attempts=attempts)
+    _record_served(model, data)
     usage = data.get("usage") or {}
     _record_usage(model, usage)
     answers = data.get("answers") or {}
