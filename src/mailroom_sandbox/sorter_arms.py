@@ -261,6 +261,11 @@ class Outcome:
     cost_usd: float | None
     reported_cost_usd: float | None
     tokens: tuple[int, int] = (0, 0)
+    # A 4.0.0+ Decisions answer the routing contract parked (abstained / route_to_human). Its
+    # forced-choice doc_type still scores above; ``routing`` reports the parked share and the
+    # accuracy of the documents it would auto-route.
+    abstained: bool = False
+    abstain_reasons: tuple[str, ...] = ()
 
 
 def _num(value: Any) -> float | None:
@@ -312,8 +317,31 @@ def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str])
             confidence=None if failed else _confidence(pred), latency_ms=_num(item.get("latency_ms")),
             cost_usd=item_cost(arm.model, item), reported_cost_usd=_num(usage.get("cost")),
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
+            abstained=bool(not failed and (pred.get("abstained") or pred.get("route_to_human"))),
+            abstain_reasons=tuple(str(r) for r in (pred.get("abstain_reasons") or ()) if not failed),
         ))
     return out
+
+
+def _routing(rows: Sequence[Outcome]) -> dict[str, Any]:
+    """Parked (abstained) share and the accuracy of the auto-routed rest; failures are neither."""
+    answered = [r for r in rows if not r.failed]
+    parked = [r for r in answered if r.abstained]
+    auto = [r for r in answered if not r.abstained]
+    auto_unit = [r for r in auto if r.unit_scored]
+    reasons: dict[str, int] = {}
+    for r in parked:
+        for reason in r.abstain_reasons or ("unspecified",):
+            key = reason.split(":", 1)[0]
+            reasons[key] = reasons.get(key, 0) + 1
+    return {
+        "answered": len(answered), "abstained": len(parked), "auto_routed": len(auto),
+        "abstain_rate": _rate(len(parked), len(answered)),
+        "auto_class_accuracy": _rate(sum(r.class_ok for r in auto), len(auto)),
+        "auto_unit_accuracy": _rate(sum(r.unit_ok for r in auto_unit), len(auto_unit)),
+        "abstained_class_accuracy": _rate(sum(r.class_ok for r in parked), len(parked)),
+        "abstain_reasons": dict(sorted(reasons.items())),
+    }
 
 
 # --------------------------------------------------------------------------- metrics
@@ -389,6 +417,7 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
         "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.sub_ok for r in sub), len(sub)),
         "unit_scored": len(unit), "unit_accuracy": _rate(unit_correct_n, len(unit)),
         "calibration": calibration,
+        "routing": _routing(rows),
         "latency_ms": {"n": len(latencies), "p50": _quantile(latencies, 0.50), "p95": _quantile(latencies, 0.95)},
         "tokens": {"prompt": sum(r.tokens[0] for r in rows), "completion": sum(r.tokens[1] for r in rows)},
         "cost": {
@@ -687,6 +716,12 @@ def render(report: Mapping[str, Any]) -> str:
             f"{_fmt(cal.get('ece'), '.3f'):>6} {_fmt(cal.get('ece_null_floor'), '.3f'):>6} {_fmt(cal.get('auroc'), '.3f'):>6} "
             f"{_fmt(lat['p50'], '.0f'):>7} {_fmt(lat['p95'], '.0f'):>7} "
             f"{_usd(s['cost']['per_1k_docs_usd']):>8} {_usd(s['cost']['per_class_correct_usd']):>8}")
+    for s in report["arms"]:
+        r = s.get("routing") or {}
+        if r.get("abstained"):
+            lines.append(f"  {s['run_id'][:44]}: parked {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
+                         f"auto-routed acc {_pct(r['auto_class_accuracy'])}, unit {_pct(r['auto_unit_accuracy'])}; "
+                         f"reasons {r['abstain_reasons']}")
     for b, p in report["pairs"].items():
         d, t = p["differences"], p["tests"]
         lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
