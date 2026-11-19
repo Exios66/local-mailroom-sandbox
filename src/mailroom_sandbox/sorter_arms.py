@@ -466,6 +466,8 @@ def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
     return {
         "concurrency": arm.concurrency,
         "run_wall_seconds": arm.run_wall_seconds,
+        # the run's whole size: its wall time covers these, not only the compared rows
+        "run_items": len(arm.items) if getattr(arm, "items", None) is not None else None,
         "active_seconds": active,
         "latency_sum_seconds": latency_sum,
         "answered": answered,
@@ -1054,15 +1056,27 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
 COST_CLAIM_MIN_DOCS = 1000
 
 
+def billed_per_1k(arm: Mapping[str, Any]) -> float | None:
+    """The provider-billed cost per 1,000 documents, when every compared document has a billed cost.
+
+    ``per_1k_docs_usd`` is list price × tokens for every arm; only this is a charge.
+    """
+    cost = arm.get("cost") or {}
+    n, docs, usd = arm.get("n") or 0, cost.get("provider_reported_docs") or 0, cost.get("provider_reported_usd")
+    return usd / n * 1000.0 if n and docs >= n and isinstance(usd, (int, float)) else None
+
+
 def cost_not_comparable(report: Mapping[str, Any], run_ids: Sequence[str]) -> list[str]:
-    """Why the arms' costs are not yet a cost comparison (empty when they are)."""
+    """Why the arms' costs are not yet a cost comparison (empty when they are).
+
+    The per-1k figures in the report are list price × tokens; a cost direction needs billed totals
+    on every arm over at least ``COST_CLAIM_MIN_DOCS`` paired documents."""
     n = int(report.get("n") or 0)
     why = [f"n = {n}, under {COST_CLAIM_MIN_DOCS:,} paired documents"] if n < COST_CLAIM_MIN_DOCS else []
     arms = {a["run_id"]: a for a in report.get("arms") or []}
-    unbilled = [r for r in run_ids if r in arms
-                and ((arms[r].get("cost") or {}).get("provider_reported_docs") or 0) < (arms[r].get("n") or 0)]
+    unbilled = [r for r in run_ids if r in arms and billed_per_1k(arms[r]) is None]
     if unbilled:
-        why.append("priced from list prices, not billed: " + ", ".join(unbilled))
+        why.append("no billed cost for: " + ", ".join(unbilled))
     return why
 
 

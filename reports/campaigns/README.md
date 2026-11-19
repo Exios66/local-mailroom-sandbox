@@ -63,8 +63,12 @@ reports/campaigns/<campaign>/
       outputs/                predictions.csv, item-scores.csv
       report/                 report.md, report.json
       analysis/               metrics.json (run scorer + serving renderer), stats.json,
-                              confusion.csv when items carry their own truth
-      figures/                latency.svg, per-class-f1.svg
+                              confusion.csv when items carry their own truth,
+                              <stem>.figure-data.csv (one row per item behind the figures)
+      figures/                <stem>.<name>.svg, each only when its data exists: routing,
+                              confidence, risk-coverage (any class error), form-mass
+                              (decision runs), park-reasons, subclass (accuracy among
+                              archived documents, not class F1), latency
       docs/                   config copy, spec core, prompt lock, caveats.md, and gate
                               results such as <stem>.r01-gate.json
 ```

@@ -546,7 +546,7 @@ def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsy
     lat = (figs / "rb1-r13b-sorter-arms.latency.svg").read_text()
     assert fs.DECISION in lat and fs.LLM in lat  # colour follows the system, both present
     cost = (figs / "rb1-r13b-sorter-arms.cost-quality.svg").read_text()
-    assert "priced from list prices: LLM sorter" in cost  # the LLM arm has no billed cost
+    assert "no billed cost: LLM sorter" in cost  # the LLM arm has no billed cost
     assert "Cost is not yet comparable" in cost and "more per 1,000" not in cost  # no direction from a small sample
     pricing = (figs / "rb1-r13b-sorter-arms.pricing.svg").read_text()
     assert "LLM sorter documents" in pricing  # each document's prompt size, from the run items
@@ -726,9 +726,15 @@ def test_class_support_alone_vetoes_macro_noninferiority():
 def test_cost_is_not_called_a_comparison_below_a_clean_billed_sample():
     def report(n, billed):
         return {"n": n, "arms": [{"run_id": "A", "n": n, "cost": {"provider_reported_docs": 0}},
-                                 {"run_id": "B", "n": n, "cost": {"provider_reported_docs": n if billed else 0}}]}
+                                 {"run_id": "B", "n": n, "cost": {"provider_reported_docs": n if billed else 0,
+                                                                  "provider_reported_usd": 2.0 if billed else None}}]}
 
     why = sa.cost_not_comparable(report(20, False), ["A", "B"])
-    assert why == ["n = 20, under 1,000 paired documents", "priced from list prices, not billed: A, B"]
+    assert why == ["n = 20, under 1,000 paired documents", "no billed cost for: A, B"]
     assert sa.cost_not_comparable(report(1000, True), ["B"]) == []
-    assert sa.cost_not_comparable(report(1000, True), ["A", "B"]) == ["priced from list prices, not billed: A"]
+    assert sa.cost_not_comparable(report(1000, True), ["A", "B"]) == ["no billed cost for: A"]
+    # billing on some documents is not a billed total: the per-1k figure stays list price × tokens
+    partial = report(1000, True)
+    partial["arms"][1]["cost"]["provider_reported_docs"] = 999
+    assert sa.billed_per_1k(partial["arms"][1]) is None
+    assert sa.billed_per_1k(report(1000, True)["arms"][1]) == 2.0

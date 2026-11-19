@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-The cost figure or notes.md says the LLM sorter's cost is estimated from list prices while the decision model's is billed, and no title or note claims either arm is cheaper or more expensive on these 20 documents
+The cost figure itself (its subtitle or axis label) states each arm's cost basis, list price × tokens or billed, and no figure title or note claims either arm is cheaper or more expensive on these 20 documents

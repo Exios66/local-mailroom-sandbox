@@ -18,6 +18,7 @@ Style, colour roles and the text lint live in ``figure_style``. Every figure has
 from __future__ import annotations
 
 import hashlib
+import statistics
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -55,13 +56,32 @@ def reason_label(reason: str) -> str:
     return f"{head}: {value.replace('_', ' ')}" if value else head
 
 
+def _fold(label: Any) -> str:
+    """Class labels compare case-, hyphen- and whitespace-folded, as the scorer does (SHF-007,
+    ``eval.agents._fold``), so a figure never shows an error the scorer does not count."""
+    return " ".join(str(label or "").strip().lower().replace("-", "_").split()).replace(" ", "_")
+
+
+def _flat_item(item: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(pred, score)`` of an item: nested (isolated and decision runs) or the whole-run sorter
+    format, which writes top-level ``expected`` and ``predicted`` strings."""
+    pred = item.get("pred") if isinstance(item.get("pred"), dict) else {}
+    score = item.get("score") if isinstance(item.get("score"), dict) else {}
+    if not pred and not score and isinstance(item.get("expected"), str):
+        predicted = item.get("predicted") if isinstance(item.get("predicted"), str) else ""
+        pred = {"doc_type": predicted} if predicted else {}
+        expected = item["expected"]
+        outcome = "" if not (expected and predicted) else "correct" if _fold(expected) == _fold(predicted) else "wrong"
+        score = {"expected": expected, "outcome": outcome}
+    return pred, score
+
+
 def figure_rows(items: list[dict[str, Any]], rows_by_id: Mapping[str, Mapping[str, Any]] | None = None
                 ) -> list[dict[str, Any]]:
     """One flat row per item: the table view behind every figure."""
     out = []
     for item in items:
-        pred = item.get("pred") or {}
-        score = item.get("score") or {}
+        pred, score = _flat_item(item)
         row = (rows_by_id or {}).get(str(item.get("item_id") or item.get("id"))) or {}
         control = row.get("control")
         form = row.get("expected_document_form")
@@ -74,7 +94,11 @@ def figure_rows(items: list[dict[str, Any]], rows_by_id: Mapping[str, Mapping[st
             group = str(score.get("expected") or "") or "no truth class"
         parked = bool(pred.get("abstained") or pred.get("route_to_human") or score.get("abstain"))
         outcome = str(score.get("outcome") or "")
-        if parked:
+        # a failed request has no answer: never shown as archived (CP-08 keeps failure and missing truth apart)
+        failed = item.get("ok") is False or (bool(item.get("error")) and not pred)
+        if failed and not parked:
+            state = "failed"
+        elif parked:
             state = "parked"
         elif defect or outcome == "wrong":
             state = "misarchived"
@@ -90,7 +114,7 @@ def figure_rows(items: list[dict[str, Any]], rows_by_id: Mapping[str, Mapping[st
             "id": str(item.get("item_id") or item.get("id")), "group": group, "state": state,
             "parked": parked, "defect": defect, "expected_class": expected or "",
             "forced_class": forced or "",
-            "forced_correct": (None if not expected else str(forced or "").lower() == str(expected).lower()),
+            "forced_correct": (None if not expected or failed else _fold(forced) == _fold(expected)),
             "class_probability": _num(pred.get("doc_type_probability")) if "doc_type_probability" in pred
             else _num(pred.get("confidence")),
             "form": pred.get("document_form") or "", "form_human_mass": _num(pred.get("document_form_human_mass")),
@@ -192,8 +216,9 @@ def _routing(f: fs.Fig, rows: list[dict[str, Any]], source: str) -> str:
         title = f"{mis} of {n} documents {'was' if mis == 1 else 'were'} misarchived and {park} parked"
     else:
         title = f"No document was misarchived; {park} of {n} {'was' if park == 1 else 'were'} parked"
-    fs.heading(fig, ax, title, f"Routing outcome per group · parked {_pct(park, n)}, misarchived {_pct(mis, n)}",
-               source)
+    failed = sum(r["state"] == "failed" for r in rows)
+    sub = f"Routing outcome per group · parked {_pct(park, n)}, misarchived {_pct(mis, n)}"
+    fs.heading(fig, ax, title, sub + (f", failed {_pct(failed, n)}" if failed else ""), source)
     fs.legend_below(fig, ax, len(states))
     return f.svg(fig)
 
@@ -319,8 +344,9 @@ def _latency(f: fs.Fig, rows: list[dict[str, Any]], colour: str, source: str, wa
                 textcoords="offset points", xytext=(-9, 0), ha="right", va="center",
                 fontsize=fs.SIZE["annotation"], color=fs.INK_2)
     fs.axis_labels(ax, "Input tokens per document (log scale)", "Latency (s, log scale)")
-    lat = sorted(ys)
-    p50, p95 = lat[len(lat) // 2], lat[min(len(lat) - 1, int(0.95 * (len(lat) - 1) + 0.5))]
+    from mailroom_sandbox.job.metrics import p95 as nearest_rank_p95
+
+    p50, p95 = statistics.median(ys), nearest_rank_p95(ys)
     cost = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
     bits = [f"{len(pts)} documents", f"p95 {p95:.2f} s"]
     if wall_s:
@@ -354,8 +380,12 @@ def build(stem: str, items: list[dict[str, Any]], rows_by_id: Mapping[str, Mappi
                          else f"All {len(scored)} forced answers were wrong")
             elif len(wrong) < FEW_ERRORS:
                 title = f"Only {plural(len(wrong), 'class error')}: too few to judge the ranking"
-            else:
+            elif a > 0.5:
                 title = f"Class probability ranks right above wrong answers (AUROC {a:.2f})"
+            elif a < 0.5:
+                title = f"Class probability ranks wrong above right answers (AUROC {a:.2f})"
+            else:
+                title = "Class probability does not separate right from wrong answers (AUROC 0.50)"
             sub = (f"AUROC {a:.3f} · " if a is not None else "") + f"{len(wrong)} wrong of {len(scored)} forced answers"
             out["confidence"] = _strip(
                 f, scored, "class_probability", ["Right class", "Wrong class"],
@@ -376,7 +406,7 @@ def build(stem: str, items: list[dict[str, Any]], rows_by_id: Mapping[str, Mappi
             else:
                 k = sum(r["form_human_mass"] >= 0.5 for r in massed)
                 title = f"{k} of {len(massed)} documents {'was' if k == 1 else 'were'} at or above the park line"
-            sub = "Probability mass on a human form, per group" + (f" · AUROC defects vs intact {a:.3f}" if a else "")
+            sub = "Probability mass on a human form, per group" + (f" · AUROC defects vs intact {a:.3f}" if a is not None else "")
             out["form-mass"] = _strip(
                 f, massed, "form_human_mass", groups, lambda r: r["group"], title, sub,
                 "Probability of fragment, bundle, unreadable or non-English", source, (0.5, "Park line 0.5"))

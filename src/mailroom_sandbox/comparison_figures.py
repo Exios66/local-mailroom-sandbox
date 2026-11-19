@@ -22,6 +22,7 @@ Colour follows the system (``figure_style.SYSTEM_COLOURS``), never the arm's pos
 """
 from __future__ import annotations
 
+import statistics
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -88,15 +89,33 @@ def _ref(report: Mapping[str, Any], arms: Sequence[Mapping[str, Any]]) -> Mappin
     return next((a for a in arms if a["run_id"] == report["reference"]), arms[0])
 
 
-def _seconds(arm: Mapping[str, Any]) -> float | None:
+def _wall_covers(arm: Mapping[str, Any]) -> bool:
+    """Whether the run's wall time covers only the compared documents (no ``--set`` subset)."""
     rt = arm.get("runtime") or {}
-    return rt.get("run_wall_seconds") or rt.get("active_seconds")
+    compared = (rt.get("answered") or 0) + (rt.get("failed") or 0)
+    return bool(rt.get("run_wall_seconds")) and rt.get("run_items") is not None and rt["run_items"] == compared
+
+
+def _seconds(arm: Mapping[str, Any]) -> float | None:
+    """Run time of the compared documents: wall clock when the run was just these, else active time."""
+    rt = arm.get("runtime") or {}
+    return rt["run_wall_seconds"] if _wall_covers(arm) else rt.get("active_seconds")
 
 
 def _source(report: Mapping[str, Any]) -> str:
     key = report.get("experiment_key") or "sorter arms"
     scope = f"set {report['set']}" if report.get("set") else "all paired documents"
-    return f"Source: {key} sorter-arm comparison · {scope} · reference {report['reference']}"
+    sim = "SIMULATED: mock runs, not evidence · " if report.get("simulated") else ""
+    return f"{sim}Source: {key} sorter-arm comparison · {scope} · reference {report['reference']}"
+
+
+def _heading(fig: Any, ax: Any, report: Mapping[str, Any], title: str, sub: str) -> None:
+    """``fs.heading`` with the source line; mock comparisons say so in the subtitle and the source."""
+    if report.get("simulated"):
+        sub = f"Simulated, not evidence · {sub}"
+        if len(sub) > fs.SUBTITLE_MAX:
+            sub = "Simulated mock runs, not evidence"
+    fs.heading(fig, ax, title, sub, _source(report))
 
 
 def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) -> str | None:
@@ -110,7 +129,8 @@ def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     ax.barh(y, secs, color=[fs.SYSTEM_COLOURS[_system(a)] for a in arms], height=0.56)
     for yi, a, s in zip(y, arms, secs):
         # rates from the same seconds the bar shows, so bar, rate and speed-up agree
-        answered = (a.get("runtime") or {}).get("answered") or a.get("n") or report.get("n") or 0
+        rt = a.get("runtime") or {}
+        answered = rt["answered"] if rt.get("answered") is not None else (a.get("n") or report.get("n") or 0)
         per_min = answered / s * 60 if s else 0
         bits = [fs.fmt_seconds(s)]
         if per_min:
@@ -133,9 +153,12 @@ def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     if len(title) > fs.TITLE_MAX:
         title = "Total run time per arm on the same documents"
     conc = sorted({(a.get("runtime") or {}).get("concurrency") for a in arms} - {None})
-    sub = f"Wall-clock run time on the same {n} documents"
+    walls = {_wall_covers(a) for a in arms}
+    basis = ("Wall-clock run time" if walls == {True} else "Active time, first request to last answer,"
+             if walls == {False} else "Wall-clock or active time (subset runs)")
+    sub = f"{basis} on the same {n} documents"
     sub += f" at concurrency {conc[0]}" if len(conc) == 1 else " · concurrency differs, compare per-worker rates"
-    fs.heading(fig, ax, title, sub, _source(report))
+    _heading(fig, ax, report, title, sub)
     return f.svg(fig)
 
 
@@ -145,7 +168,9 @@ def _latency(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
 
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
-    arms = [a for a in report["arms"] if latencies.get(a["run_id"])]
+    series = {a["run_id"]: sorted(float(v) for v in latencies.get(a["run_id"]) or []
+                                  if isinstance(v, (int, float)) and v > 0) for a in report["arms"]}
+    arms = [a for a in report["arms"] if series[a["run_id"]]]  # a log axis needs positive values
     if not arms:
         return None
     fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 0.55 * len(arms) + 1.4))
@@ -153,13 +178,13 @@ def _latency(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
     allv = []
     medians = {}
     for yi, a in zip(y, arms):
-        vals = sorted(float(v) for v in latencies[a["run_id"]] if v and v > 0)
+        vals = series[a["run_id"]]
         allv += vals
         jit = [(int(hashlib.sha256(f"{a['run_id']}{i}".encode()).hexdigest()[:8], 16) / 0xFFFFFFFF - 0.5) * 0.36
                for i in range(len(vals))]
         ax.scatter(vals, [yi + j for j in jit], s=24, color=fs.SYSTEM_COLOURS[_system(a)], alpha=0.85,
                    edgecolors=fs.SURFACE, linewidths=0.8, zorder=3)
-        med = vals[len(vals) // 2]
+        med = statistics.median(vals)
         medians[a["run_id"]] = med
         ax.plot([med, med], [yi - 0.3, yi + 0.3], color=fs.INK, linewidth=2, zorder=4)
         ax.text(med, yi + 0.34, f"median {med:.2f} s", ha="center", va="bottom", fontsize=fs.SIZE["annotation"],
@@ -183,7 +208,7 @@ def _latency(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
         title = f"Median latency per document ranged {_span(list(medians.values()), '.2f')} s"
     if len(title) > fs.TITLE_MAX:
         title = f"Median latency per document ranged {_span(list(medians.values()), '.2f')} s"
-    fs.heading(fig, ax, title, "Each dot is one document; bar marks the median", _source(report))
+    _heading(fig, ax, report, title, "Each dot is one document; bar marks the median")
     return f.svg(fig)
 
 
@@ -240,7 +265,7 @@ def _quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
            "black tick: test bound · red: margin")
     if len(sub) > fs.SUBTITLE_MAX:
         sub = "Candidate minus reference · colour: 95% bootstrap · black tick: test bound · red: margin"
-    fs.heading(fig, ax, title, sub, _source(report))
+    _heading(fig, ax, report, title, sub)
     return f.svg(fig)
 
 
@@ -287,7 +312,7 @@ def _routing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
         title = "Share of documents parked for a person, per arm"
     wrong = sum(d["wrong"] for d in data)
     sub = f"Routing on the same {report.get('n')} documents · {wrong} auto-routed with the wrong class across arms"
-    fs.heading(fig, ax, title, sub, _source(report))
+    _heading(fig, ax, report, title, sub)
     fs.legend_below(fig, ax, len(used))
     return f.svg(fig)
 
@@ -299,8 +324,14 @@ def _cost_quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str
             and a.get("unit_accuracy") is not None]
     if len(arms) < 2:
         return None
+    # per_1k_docs_usd is list price × tokens for every arm; a billed total is a charge. Plot billed
+    # values only when every arm has them, so the axis never mixes the two.
+    billed = {a["run_id"]: sorter_arms.billed_per_1k(a) for a in arms}
+    all_billed = all(v is not None for v in billed.values())
+    cost = {a["run_id"]: (billed[a["run_id"]] if all_billed else a["cost"]["per_1k_docs_usd"]) for a in arms}
+    unbilled = [labels[a["run_id"]] for a in arms if billed[a["run_id"]] is None]
     fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 3.4))
-    xs = [a["cost"]["per_1k_docs_usd"] for a in arms]
+    xs = [cost[a["run_id"]] for a in arms]
     ys = [a["unit_accuracy"] for a in arms]
     for a, x, yv in zip(arms, xs, ys):
         ax.scatter([x], [yv], s=70, color=fs.SYSTEM_COLOURS[_system(a)], edgecolors=fs.SURFACE, linewidths=1.5, zorder=3)
@@ -321,16 +352,13 @@ def _cost_quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str
     ax.xaxis.set_major_formatter(lambda v, _: f"${v:.2f}")
     ax.grid(True)
     ax.set_axisbelow(True)
-    fs.axis_labels(ax, "Cost per 1,000 documents at this mix (USD)", "Subclass-unit accuracy")
+    fs.axis_labels(ax, "Billed cost per 1,000 documents (USD)" if all_billed
+                   else "List-price cost per 1,000 documents at this mix (USD)", "Subclass-unit accuracy")
     ref = _ref(report, arms)
     n = int(report.get("n") or 0)
-    # where each cost comes from: billed by the provider, or priced from the list prices
-    est = [labels[a["run_id"]] for a in arms
-           if (a["cost"].get("provider_reported_docs") or 0) < (a.get("n") or 0)]
-    cost = {a["run_id"]: a["cost"]["per_1k_docs_usd"] for a in arms}
     grp = _group(arms, ref)
     title = None
-    if grp and not est and n >= COST_CLAIM_MIN_DOCS:
+    if grp and all_billed and n >= COST_CLAIM_MIN_DOCS:
         diffs = [cost[o["run_id"]] - cost[ref["run_id"]] for o in grp[1]]
         word = "more" if all(d > 0 for d in diffs) else "less" if all(d < 0 for d in diffs) else None
         if word:
@@ -338,21 +366,21 @@ def _cost_quality(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str
                      f"than the {_lower(labels[ref['run_id']])}")
     if title is None:
         why = ([f"n = {n}"] if n < COST_CLAIM_MIN_DOCS else []) + (
-            [f"{_lower(est[0])} cost estimated"] if len(est) == 1 else ["costs estimated"] if est else [])
+            [f"{_lower(unbilled[0])} cost estimated"] if len(unbilled) == 1 else ["costs estimated"] if unbilled else [])
         title = "Cost is not yet comparable: " + " and ".join(why) if why else \
             "Cost per 1,000 documents against subclass-unit accuracy"
     if len(title) > fs.TITLE_MAX:
-        title = "Cost is not yet comparable" if est or n < COST_CLAIM_MIN_DOCS else \
+        title = "Cost is not yet comparable" if unbilled or n < COST_CLAIM_MIN_DOCS else \
             "Cost per 1,000 documents against subclass-unit accuracy"
-    basis = ("all costs as billed" if not est else
-             "priced from list prices: " + ", ".join(_lower(e) for e in est)
-             if len(est) < len(arms) else "all costs priced from list prices")
+    basis = ("all costs as billed" if all_billed else
+             "list price × tokens; no billed cost: " + ", ".join(_lower(e) for e in unbilled)
+             if len(unbilled) < len(arms) else "list price × tokens; no arm billed")
     sub = f"Same {n} documents, this sample's length mix · up and left is better · {basis}"
     if len(sub) > fs.SUBTITLE_MAX:
         sub = f"Same {n} documents, this sample's length mix · {basis}"
     if len(sub) > fs.SUBTITLE_MAX:
-        sub = f"Same {n} documents, this sample's length mix · some costs priced from list prices"
-    fs.heading(fig, ax, title, sub, _source(report))
+        sub = f"Same {n} documents, this sample's length mix · list price × tokens, not all billed"
+    _heading(fig, ax, report, title, sub)
     return f.svg(fig)
 
 
@@ -427,7 +455,7 @@ def _pricing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
     checked = _price_checked()
     sub = (f"OpenRouter list prices{', checked ' + checked if checked else ''} · output billed separately · "
            "ticks: each document's prompt size")
-    fs.heading(fig, ax, "List input price per million tokens, by prompt size", sub, _source(report))
+    _heading(fig, ax, report, "List input price per million tokens, by prompt size", sub)
     return f.svg(fig)
 
 

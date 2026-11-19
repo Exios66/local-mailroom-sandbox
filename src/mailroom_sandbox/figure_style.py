@@ -52,6 +52,7 @@ STATES = (  # (key, legend label, colour); also the stacking order
     ("parked", "Parked for review", WARNING),
     ("misarchived", "Misarchived", CRITICAL),
     ("unscored", "Archived, no truth class", NEUTRAL),
+    ("failed", "Failed, no answer", INK_2),
 )
 
 # ---------------------------------------------------------------- typography
@@ -121,9 +122,16 @@ class Fig:
         fig.savefig(buf, format="svg", metadata={"Date": None, "Creator": None}, bbox_inches="tight",
                     pad_inches=0.18)
         self.plt.close(fig)
-        text = buf.getvalue()
-        # measured with DejaVu Sans; displayed with the system sans (narrower, so nothing overflows)
-        return re.sub(r"font-family: [^;\"]+", "font-family: " + FONT_STACK.replace('"', "'"), text)
+        return system_fonts(buf.getvalue())
+
+
+def system_fonts(svg: str) -> str:
+    """Declare the system font stack in an SVG measured with DejaVu Sans (the system sans is
+    narrower, so nothing overflows). Handles matplotlib's longhand ``font-family`` and 3.8's
+    shorthand ``font: [style weight] <size>px <family>``."""
+    stack = FONT_STACK.replace('"', "'")
+    svg = re.sub(r"font-family: [^;\"]+", "font-family: " + stack, svg)
+    return re.sub(r"(font: (?:[^;\"]*? )?[0-9.]+px) [^;\"]+", r"\1 " + stack, svg)
 
 
 def heading(fig: Any, ax: Any, title: str, subtitle: str | None = None, source: str | None = None) -> None:
@@ -215,7 +223,7 @@ def fmt_seconds(s: float) -> str:
 _GID_TEXT = re.compile(r'<g id="(title|subtitle|xlabel|ylabel|legend-\d+|source)"[^>]*>(.*?)</g>', re.S)
 _TEXT = re.compile(r"<text[^>]*>(.*?)</text>", re.S)
 _SNAKE = re.compile(r"\b[a-z0-9]+_[a-z0-9_]+\b")
-_FONT_SIZE = re.compile(r"font-size: ([0-9.]+)px")
+_FONT_SIZE = re.compile(r"(?:font-size: |font: (?:[^;\"]*? )?)([0-9.]+)px")  # longhand, or 3.8's shorthand
 
 
 def lint_text(kind: str, text: str) -> list[str]:

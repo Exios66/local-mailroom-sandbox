@@ -31,7 +31,9 @@ adds what experiments need on top of it.
 Commands:
 
 ```bash
-# per-run figures: written with every run report
+# per-run figures: written with each run's report tree
+sandbox report build --run <run id>
+# then refresh the campaign indexes (README + index.jsonl; builds no figures)
 sandbox report build --campaign rb1
 # H5 comparison figures (total run time, latency, quality, routing, cost, list pricing)
 python scripts/compare_sorter_arms.py --a <llm run> --b <decision run> [--b <another>] --figures <dir>
@@ -74,8 +76,9 @@ one-off matplotlib script. A figure outside them drifts: its own colours, fonts 
 - **Every claim in a title must survive the data.** Compute titles from the numbers; recheck
   them whenever inputs change.
 - **No cost direction without a clean comparison.** Never say one arm costs more or less, or is
-  cheaper, unless every arm's cost is billed and at least 1,000 paired documents were compared
-  (`COST_CLAIM_MIN_DOCS`). Per-document cost depends on the document-length mix, and the LLM
+  cheaper, unless every arm has a provider-billed total and at least 1,000 paired documents were
+  compared (`COST_CLAIM_MIN_DOCS`). The report's `per_1k_docs_usd` is list price × tokens for
+  every arm, never a charge; a directional claim uses billed totals (`sorter_arms.billed_per_1k`). Per-document cost depends on the document-length mix, and the LLM
   sorter's cost is priced from the sheet, not billed. Below that, the title says why cost is not
   yet comparable ("Cost is not yet comparable: n = 20 and LLM sorter cost estimated"), and the
   ground truth shown is the list pricing itself (`pricing` figure from `config/api_prices.yaml`,

@@ -5,7 +5,8 @@ marked *to build*. File names follow `<stem>.<figure>.svg`.
 
 ## Per-run figures (any sorter or decision-model run)
 
-Built by `decision_figures.build` and written with the run report (`sandbox report build`).
+Built by `decision_figures.build` and written with each run's report tree
+(`sandbox report build --run <run id>`).
 
 | Figure | Question | Form | Notes |
 | --- | --- | --- | --- |
@@ -24,11 +25,11 @@ Built by `comparison_figures.build` from `sorter_arms.compare`; written by
 
 | Figure | Question | Form |
 | --- | --- | --- |
-| `runtime` | How long does each arm take for the same documents? | Bars of total wall-clock run time, labelled with documents/min and hours per 100k; title gives the speed-up range |
+| `runtime` | How long does each arm take for the same documents? | Bars of total wall-clock run time (active time, first request to last answer, when the comparison is a subset of a run), labelled with documents/min and hours per 100k; title gives the speed-up range |
 | `latency` | How long does one document take? | Dot strip per arm on a log axis, median bar and label |
 | `quality` | Is the decision model non-inferior? | Forest plot: candidate minus reference, 95% paired bootstrap, dashed red margins |
 | `routing` | How many documents does each arm send to a person, and how many does it auto-route wrongly? | Stacked bars, status colours |
-| `cost-quality` | What does each arm cost for its accuracy, at this sample's length mix? | Scatter of cost per 1,000 documents against subclass-unit accuracy, direct labels, cost basis in the subtitle; a cost direction in the title only when all arms are billed and n ≥ 1,000 |
+| `cost-quality` | What does each arm cost for its accuracy, at this sample's length mix? | Scatter of cost per 1,000 documents against subclass-unit accuracy, direct labels, cost basis in the subtitle; billed totals when every arm has them, else list price × tokens for all; a cost direction in the title only on billed totals with n ≥ 1,000 |
 | `pricing` | What does each model charge, by prompt size? | Step line of list input price per 1M tokens against prompt tokens (log), from `config/api_prices.yaml` with its checked date; the compared documents' prompt sizes as tick rows |
 
 Run time is only comparable at the same concurrency on the same documents; the figure says when

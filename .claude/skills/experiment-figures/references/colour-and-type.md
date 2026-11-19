@@ -14,6 +14,7 @@ Values live in `src/mailroom_sandbox/figure_style.py`; this file says why.
 | Parked for review | warning `#fab219` | routing states and parked dots |
 | Misarchived | critical `#d03b3b` | routing states; non-inferiority margins |
 | No truth class | neutral | routing states |
+| Failed, no answer | slate `#52514e` | routing states; never shown as archived |
 | Passed (not parked) dots | slate `#52514e` | strip plots |
 
 Why these:
