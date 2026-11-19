@@ -604,7 +604,13 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             last = exc
         else:
             if resp.status_code == 200:
-                return resp.json()
+                data = resp.json()
+                # Decisions calls bypass the chat wrappers that price returned
+                # calls (HF-004). Count this returned call in the document scope
+                # too, even when the payload reports no usage keys, so repeated
+                # calls cannot slide past the per-document ceiling.
+                call_guard.after_call((data or {}).get("usage") or {})
+                return data
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
                 raise last
