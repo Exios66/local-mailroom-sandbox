@@ -560,11 +560,87 @@ def test_a_clean_billed_sample_still_needs_list_and_billed_costs_to_agree():
     report = {"n": 1000, "arms": [arm("A", 2.0, 2.5), arm("B", 2.3, 2.6)]}
     assert sa.cost_not_comparable(report, ["A", "B"]) == []  # both say B costs more
     report["arms"][1] = arm("B", 2.3, 2.2)  # list price says more, the bill says less
-    assert sa.cost_not_comparable(report, ["A", "B"]) == ["list-price and billed costs disagree on direction for B"]
+    assert sa.cost_not_comparable(report, ["A", "B"]) == ["list-price and billed costs disagree on direction for A and B"]
+
+
+def test_a_reversed_ranking_between_any_two_arms_blocks_a_cost_comparison():
+    def arm(rid, listed, billed):
+        return {"run_id": rid, "n": 1000, "cost": {"per_1k_docs_usd": listed, "provider_reported_docs": 1000,
+                                                    "provider_reported_usd": billed}}
+    # B and C each agree with A, but list price ranks B above C and the bill ranks C above B
+    report = {"n": 1000, "arms": [arm("A", 1.0, 1.0), arm("B", 2.2, 2.0), arm("C", 2.1, 2.3)]}
+    assert sa.cost_not_comparable(report, ["A", "B", "C"]) == [
+        "list-price and billed costs disagree on direction for B and C"]
+
+
+def test_h5_lower_cost_leg_is_undecided_until_costs_are_a_comparison():
+    def report(n, billed):
+        arms = [{"run_id": r, "n": n, "cost": {"per_1k_docs_usd": c, "provider_reported_docs": n if billed else 0,
+                                                "provider_reported_usd": c * n / 1000 if billed else None}}
+                for r, c in (("A", 3.0), ("B", 2.0))]
+        return {"reference": "A", "n": n, "arms": arms,
+                "h5": {"alpha": 0.05, "holm": {}, "raw": {}, "verdicts": {"B": {"supported": True, "failed": []}}}}
+    small = report(20, billed=False)
+    sa.gate_h5_cost(small)
+    v = small["h5"]["verdicts"]["B"]
+    assert v["supported"] is False and v["undecided"] is True and v["cost_not_comparable"]
+    text = "\n".join(sa._render_h5(small))
+    assert "B: undecided" in text and "SUPPORTED" not in text
+    clean = report(1000, billed=True)
+    sa.gate_h5_cost(clean)
+    assert clean["h5"]["verdicts"]["B"] == {"supported": True, "failed": [], "cost_not_comparable": [],
+                                            "undecided": False}
+    assert "B: SUPPORTED" in "\n".join(sa._render_h5(clean))
+
+
+def test_every_arm_gates_the_h5_cost_leg_and_saved_reports_are_regated():
+    def arm(rid, listed, billed):
+        return {"run_id": rid, "n": 1000, "cost": {"per_1k_docs_usd": listed, "provider_reported_docs": 1000 if billed else 0,
+                                                    "provider_reported_usd": listed if billed else None}}
+    report = {"reference": "A", "n": 1000, "arms": [arm("A", 3.0, True), arm("B", 2.0, True), arm("C", 2.5, False)],
+              "h5": {"alpha": 0.05, "holm": {}, "raw": {}, "verdicts": {"B": {"supported": True, "failed": []}}}}
+    saved = json.loads(json.dumps(report))  # a report saved before the gate: no undecided field
+    text = "\n".join(sa._render_h5(saved))
+    assert "B: undecided" in text and "no billed cost for: C" in text
+    sa.gate_h5_cost(report)  # C is unbilled, so B's cost leg is not a comparison either
+    assert report["h5"]["verdicts"]["B"]["undecided"] is True
+    report["arms"][2]["cost"]["per_1k_docs_usd"] = None
+    assert "no list-price cost for: C" in sa.cost_not_comparable(report, ["A", "B", "C"])
+
+
+def test_digest_needs_explicit_complete_timing_for_a_speed_up():
+    report = {"reference": "A", "arms": [{"run_id": "A", "runtime": {"active_seconds": 10.0, "interleaved_docs": 0,
+                                                                      "timing_complete": True}},
+                                         {"run_id": "B", "runtime": {"active_seconds": 5.0, "interleaved_docs": 0}}]}
+    text = "\n".join(sa._render_runtime(report))  # B saved without timing_complete
+    assert "2.0x" not in text and "isolation unknown for B" in text
+
+
+def test_runtime_isolation_is_unknown_when_timing_is_incomplete():
+    from types import SimpleNamespace as NS
+
+    items = {f"D{k}": {"started_at_ns": int((100 + k) * 1e9), "finished_at_ns": int((100.5 + k) * 1e9)} for k in range(4)}
+    arm = NS(items=items, concurrency=1, run_wall_seconds=4.0)
+
+    def row(k, end=True):
+        return NS(doc_id=f"D{k}", started_ts=100.0 + k, finished_ts=100.5 + k if end else None,
+                  latency_ms=500.0, failed=False)
+
+    cut = sa._runtime(arm, [row(0), row(1, end=False)])  # a compared request with no end time
+    assert cut["timing_complete"] is False and cut["interleaved_docs"] is None
+    items["D3"] = {"latency_ms": 500.0}  # another item that cannot be placed
+    other = sa._runtime(arm, [row(0), row(1)])
+    assert other["timing_complete"] is True and other["interleaved_docs"] is None
+    report = {"reference": "A", "arms": [{"run_id": "A", "runtime": {"active_seconds": 4.0, "interleaved_docs": 0,
+                                                                      "timing_complete": True}},
+                                         {"run_id": "B", "runtime": {"active_seconds": 2.0, **other}}]}
+    report["arms"][1]["runtime"]["active_seconds"] = 2.0
+    text = "\n".join(sa._render_runtime(report))
+    assert "2.0x" not in text and "no speed-up: timing is incomplete or its isolation unknown for B" in text
 
 
 def test_digest_gives_no_speed_up_when_other_documents_share_the_window():
-    rt = {"active_seconds": 10.0, "run_wall_seconds": 30.0, "interleaved_docs": 0}
+    rt = {"active_seconds": 10.0, "run_wall_seconds": 30.0, "interleaved_docs": 0, "timing_complete": True}
     report = {"reference": "A", "arms": [{"run_id": "A", "runtime": dict(rt)},
                                          {"run_id": "B", "runtime": dict(rt, active_seconds=5.0)}]}
     assert "2.0x" in "\n".join(sa._render_runtime(report))
@@ -781,8 +857,9 @@ def test_class_support_alone_vetoes_macro_noninferiority():
 
 def test_cost_is_not_called_a_comparison_below_a_clean_billed_sample():
     def report(n, billed):
-        return {"n": n, "arms": [{"run_id": "A", "n": n, "cost": {"provider_reported_docs": 0}},
-                                 {"run_id": "B", "n": n, "cost": {"provider_reported_docs": n if billed else 0,
+        return {"n": n, "arms": [{"run_id": "A", "n": n, "cost": {"per_1k_docs_usd": 2.0, "provider_reported_docs": 0}},
+                                 {"run_id": "B", "n": n, "cost": {"per_1k_docs_usd": 2.0,
+                                                                  "provider_reported_docs": n if billed else 0,
                                                                   "provider_reported_usd": 2.0 if billed else None}}]}
 
     why = sa.cost_not_comparable(report(20, False), ["A", "B"])

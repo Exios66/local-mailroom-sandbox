@@ -77,7 +77,7 @@ sorter); each `--b` is compared with it.
 
 | Figure | Question it answers | How to read it |
 | --- | --- | --- |
-| `runtime` | How long does each arm take for the same documents? | Bars of total time, labelled with documents/min and hours per 100k documents. Every arm uses one basis, stated in the subtitle: wall-clock run time when each run held exactly the compared documents, otherwise active time from first request to last answer. When another document of a run ran inside that window, the subset has no run time of its own: the figure is left out and the digest prints no speed-up. Run time is only comparable at the same concurrency, and the figure says when it differs |
+| `runtime` | How long does each arm take for the same documents? | Bars of total time, labelled with documents/min and hours per 100k documents. Every arm uses one basis, stated in the subtitle: wall-clock run time when each run held exactly the compared documents, otherwise active time from first request to last answer. When another document of a run ran inside that window, or the timing is incomplete (a request or another item has no end time), the subset has no run time of its own: the figure is left out and the digest prints no speed-up. Run time is only comparable at the same concurrency, and the figure says when it differs |
 | `latency` | How long does one document take? | One dot per document on a log axis, with the median marked. The median is the digest's p50 (nearest rank over every latency), so figure and digest agree |
 | `quality` | Is the decision model non-inferior? | Forest plot of candidate minus reference with the 95% paired bootstrap interval. Dashed red lines are the margins (2 pts macro-F1, 4 pts subclass unit); the black tick is the exact one-sided test bound |
 | `routing` | How many documents does each arm send to a person, and how many does it archive wrongly? | Stacked bars in status colours |
@@ -103,7 +103,11 @@ Cost is the easiest number to misread, so the figures and digest follow one rule
   cost estimated".
 - The digest's cost lines are list price × tokens ("list-price cost per 1k docs"). Even on a
   clean billed sample, they stand for the billed direction only when both agree; otherwise the
-  digest says "list-price and billed costs disagree on direction".
+  digest says `list-price and billed costs disagree on direction for <arm> and <arm>`. Every pair
+  of arms is checked, so a reversed ranking between two candidates also blocks the claim.
+- H5's lower-cost leg is a cost claim too. An arm whose three tests pass on list-price cost is
+  reported as `undecided`, not `SUPPORTED`, until every arm in the comparison is billed, priced
+  and in agreement. The digest re-checks this for reports saved before the gate existed.
 - Per-document cost depends on the length mix: qwen3.7-flash is tiered by prompt size and
   charges for output, while the decision model charges a flat input-only rate. The `pricing`
   figure shows both schedules. Check the sheet with `python scripts/refresh_api_prices.py --check`
