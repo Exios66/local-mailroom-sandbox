@@ -62,7 +62,7 @@ pipeline = [
     "langchain-openai>=0.2",
     "langgraph>=0.2",
     # Terminal review uses the API and durable interrupt checkpoints.
-    "fastapi==0.162.6",
+    "fastapi==0.163.1",
     "python-multipart==0.0.33",
     "langgraph-checkpoint-sqlite==3.1.3",
     "requests>=2.31",
@@ -108,7 +108,7 @@ deploy = [
     # source-diffed 2026-11-06: exception/FunctionCall paths unchanged; the app
     # file records the same version). Bump deliberately after reading the
     # release notes — 1.5.5 removed `Secret.from_local`.
-    "modal==1.6.3",
+    "modal==1.6.4",
 ]
 decision = [
     # Decision-model reviewer backend (src/mailroom_sandbox/decision_backends.py).
