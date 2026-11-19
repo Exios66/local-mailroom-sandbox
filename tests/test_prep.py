@@ -57,6 +57,21 @@ def test_environment_checklist_and_dockerfile():
     assert any(name.endswith("03_offline_sandbox_smoke.ipynb") for name in check["notebooks"])
 
 
+def test_environment_checklist_with_base_dir_outside_checkout(tmp_path, monkeypatch):
+    from mailroom_sandbox import overlay, paths
+
+    # Exercise the production directory resolver. The autouse xdist fixture pins
+    # overlay.runtime_dir before this test sets MAILROOM_BASE_DIR. tmp_path is
+    # already unique per test and worker, so restoring the real resolver is safe.
+    monkeypatch.setattr(overlay, "runtime_dir", paths.runtime_dir)
+    # Compose or a relocated install can put MAILROOM_BASE_DIR outside the repo.
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    check = environment_checklist("ollama")
+    assert check["activation_ok"], check["activation_error"]
+    assert check["runtime_taxonomy"] == str((tmp_path / "runtime" / "taxonomy.yaml").resolve())
+    assert check["prepared_dir"] == str((tmp_path / "runtime" / "prepared").resolve())
+
+
 def test_cli_datasets_prepare(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     assert main(["datasets", "prepare", "--profile", "ollama"]) == 0

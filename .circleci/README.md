@@ -147,3 +147,10 @@ steps, and `--project gh/owner/repo` for another GitHub project. The default is 
 The command uses CircleCI's v2 pipeline/workflow endpoints and v1.1 job step output; signed
 output URLs are fetched without the API token. Logs can contain sensitive data: review them
 before sharing. See [CircleCI's incident guide](https://circleci.com/docs/guides/orchestrate/analyze-pipelines-during-an-incident/).
+
+## Notebook execution
+
+The `notebook-regressions` job installs nbclient, nbformat, ipykernel, pandas and matplotlib
+into its dev environment, then executes the four offline notebooks and their bootstrap/prep
+regressions with one worker. This prevents the base dev suite from silently skipping notebook
+runtime checks. The existing parallel full suite and combined 84% coverage gate remain required.

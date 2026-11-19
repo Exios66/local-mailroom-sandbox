@@ -217,7 +217,7 @@ def missing_modal_endpoint(profile: dict) -> bool:
     return str(profile.get("name") or "") == "modal-vllm" and _effective_base_url(profile) is None
 
 
-def health_check(profile_name: str) -> dict:
+def health_check(profile_name: str, *, cloud_diagnostics: bool = True) -> dict:
     """Probe a profile's models and chat endpoints and report ``ok`` only when both succeed.
 
     A ``modal-vllm`` profile with no endpoint (neither ``VLLM_BASE_URL`` nor ``MODAL_WORKSPACE``) fails without probing, so localhost is never reported as the Modal endpoint.
@@ -241,7 +241,8 @@ def health_check(profile_name: str) -> dict:
     if str(profile.get("provider")) == "openrouter":
         return _openrouter_health(profile, profile_name, override)
     models = probe_models(profile)
-    explain_modal_timeout(profile, models)
+    if cloud_diagnostics:
+        explain_modal_timeout(profile, models)
     chat = probe_chat(profile) if models.ok else ProbeResult(
         False, profile_name, endpoints_for(profile, base_url_override=override).chat_url, "skipped (models probe failed)"
     )
