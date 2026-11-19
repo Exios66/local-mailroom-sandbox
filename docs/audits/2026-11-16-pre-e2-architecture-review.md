@@ -18,8 +18,8 @@ vendored files are byte-identical to them. No `fetch-deps` refresh is needed.
 | 5 | Extraction | Chunk merge: lists are unioned with no precision filter, and scalars take the first non-null window | Noted in the E1 write-up; not filed upstream | E1's +20 false clauses; E3 inherits it | Upstream issue |
 | 6 | Routing | The coverage floor uses the global `low` (0.70), not the class or run threshold | No | Small: the floor ignores the run's `confidence` block | Fold into #207 |
 
-Checked and not a sandbox problem: llm-mailroom #191 (grounded scoring gets empty `doc_text`) and
-#192 (Dojo wiring) affect only the in-graph trace scorer. The sandbox scores outside the graph,
+Checked and not a sandbox problem: llm-mailroom #191 (grounded scoring gets empty `doc_text`)
+and #192 (Dojo wiring) affect only the in-graph trace scorer. The sandbox scores outside the graph,
 passes `doc_text` and uses the Dojo suite's `field_types` directly. The Boss path was not
 exercised (0 escalations in r2 and E1), so it is not reviewed in depth here.
 
@@ -47,6 +47,7 @@ documents: record_type 13, filing_number 13, jurisdiction 11, entity_name 10, si
 effective_date 8. None of the six ladder configs set it.
 
 **Recommendation for E2:**
+
 - Enable `interim_labels` in every arm. It is recorded in the lock, so all arms stay paired.
 - Report quality twice: on all fields, and without `keywords` / `subject_matter`.
 - Judge the judge only on the documents and fields with real labels.
@@ -70,6 +71,7 @@ in the control arm and 10 in the chunk arm, against 24 and 28 arbiter retries. T
 not record which gate fired, so the coverage oracle's share is unknown.
 
 Both arms of a pair get the oracle, so paired differences are still valid comparisons. However:
+
 - The oracle already retries incomplete extractions, which hides part of the judge's value.
 - Absolute quality, review rates and any calibrated threshold describe an oracle-assisted
   pipeline.

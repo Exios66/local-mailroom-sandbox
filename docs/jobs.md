@@ -8,7 +8,7 @@ per item with crash-safe checkpoints, resumes after pause/failure, and can be
 polled. Serving metrics from local, Modal, and API runs are captured and
 compared.
 
-```
+```text
 data/runtime/runs/<run_id>/
 ├── spec.lock.json       # immutable preflight manifest (the commit point)
 ├── prompt.lock.json     # per-agent resolved prompt + sha256 / Langfuse version
@@ -594,7 +594,7 @@ test map: choose a focused file for local investigation, with one worker and
 no coverage. Full-suite and coverage verification belong to hosted CI; see
 [CI gates and resource policy](../.circleci/README.md).
 
-```
+```bash
 uv run pytest tests/test_job_spec.py
 uv run pytest tests/test_job_checkpoint.py
 uv run pytest tests/test_job_preflight.py
@@ -607,6 +607,7 @@ uv run pytest tests/test_corpus.py
 uv run pytest tests/test_prompt_registry.py
 uv run pytest tests/test_api_budget.py
 ```
+
 ### Generation integrity
 
 New locked generations carry a unique ID alongside the existing spec hash.

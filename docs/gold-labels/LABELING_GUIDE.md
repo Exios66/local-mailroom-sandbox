@@ -66,8 +66,14 @@ Write one JSON object per document, one per line (JSONL):
   amount, pay, payment, sum, fee, price, owe, balance or total in the same quote. `$218,440.00`,
   `USD 218,440` and `$2.5 million` support 218440 or 2500000, never a part of the digits;
   "Dated May 14, 2020" supports neither 2020 nor 14. `0` needs a written 0.
-  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) must
-  repeat the phrase as written in the quote ("$250,000").
+  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) is a
+  plain dollar figure the Dojo money scorer parses: `$` and the digits, with commas and cents as
+  written ("$250,000", "$400,000.00"). Repeat the phrase as written when it already has that form.
+  Otherwise write the same amount in that form: write a scale word out ("$5 million" becomes
+  "$5,000,000"), drop a currency code ("US$400,000.00" and "$55,000USD" become "$400,000.00" and
+  "$55,000"), and drop a rate ("$40 per month" becomes "$40"). Never compute a total. The quote
+  stays the passage as written, and the gate checks that it shows the same amount as money.
+  `scripts/gold_labels.py check` rejects a `near_gold` phrase that Dojo cannot parse.
 - **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
   ("Supplier", "Licensee", plural or defined-term forms are fine); `other` is the only role
   without a word to quote.
@@ -136,11 +142,11 @@ header, so the message the document *is* often has no header. Take `sender`, `re
   first header): its author (the signature) is the sender and its salutation is the recipient.
   `additional_recipients` is `[]` and `communication_date` is null unless the reply itself
   states them. The quoted message's people and date go in `supplementary.alternatives`.
-- **An unsigned top note directly above a "Forwarded by X on <date>" stamp**: X is the sender
+- **An unsigned top note directly above a "Forwarded by X on `<date>`" stamp**: X is the sender
   and the stamp's date is the send date.
 - **A bare forward** (no note, or only "FYI" / "see below"): fall through to the first message
   that has its own header (a `From:` / `To:` / `Sent:` or `Date:` block, or a sender name and
-  date line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on <date>" line
+  date line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on `<date>`" line
   alone is not that header; record the forwarder in `supplementary.alternatives`.
 
 A signature alone ("Thanks, Jim") is not a header, but
@@ -180,7 +186,7 @@ pipeline's `ContractExtraction` v2 fields.
 | `signatories` | list of names | Persons who sign the contract, as printed. |
 | `party_roles` | list | One `"<party>: <role>"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`. |
 | `termination_notice_period` | free text | Notice needed to terminate the contract or to stop a renewal, as stated. |
-| `contract_value` | money (text) | Monetary consideration as a plain currency phrase ("$2,000,000"). $0 is a stated amount. Never computed. |
+| `contract_value` | money (text) | Monetary consideration as a plain dollar figure Dojo parses ("$2,000,000"): a scale word written out, no currency code, no rate ("per month"). $0 is a stated amount. Never computed. |
 | `dispute_forum` | name | Courts or arbitral seat for disputes, kept separate from governing law. |
 | `payment_terms` | free text | How and when the consideration is paid, as stated. |
 | `territory` | free text | The stated territory of the grant, distribution or service. |

@@ -46,6 +46,7 @@ _ACTIVE_REVIEWER: dict[str, Any] | None = None
 _ACTIVE_SLOTS: dict[str, Any] | None = None
 _ACTIVE_BLIND_ROUTING = False
 _ACTIVE_PIPELINE_HANDOFF = False
+_ACTIVE_SPECIALIST_SUBCLASS: tuple[str, str | None] = ("none", None)
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -87,6 +88,11 @@ def blind_routing_active() -> bool:
     Such a run keeps the dataset labels out of the graph's ``ground_truth`` state.
     """
     return _ACTIVE_BLIND_ROUTING
+
+
+def specialist_subclass_source() -> tuple[str, str | None]:
+    """``(job.specialist_subclass, job.specialist_subclass_file)`` of the last activation."""
+    return _ACTIVE_SPECIALIST_SUBCLASS
 
 
 def pipeline_handoff_active() -> bool:
@@ -541,6 +547,25 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("source-window override failed — vendored 16k excerpts stand: %s", exc)
 
+    # Sandbox hotfixes over the vendored pipeline (vendor_hotfixes.py): each wraps one vendored
+    # function whose source still matches the fingerprint it was written against.
+    try:
+        from mailroom_sandbox.vendor_hotfixes import apply_hotfixes
+
+        apply_hotfixes()
+    except Exception as exc:  # noqa: BLE001 — never block activation; preflight gates staleness
+        _log.warning("vendor hotfixes not applied: %s", exc)
+
+    # R01: pin OpenRouter providers per model (config/provider_pins.yaml) and record the
+    # served model + provider of each wrapped retry_chat_completion call (not the LangChain
+    # contract / merger agents), without editing vendor/.
+    try:
+        from mailroom_sandbox.provider_pins import apply_provider_pins
+
+        apply_provider_pins()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("provider pins not applied — OpenRouter may route freely: %s", exc)
+
     # SAND-038: the vendored LangChain agents default api_key to
     # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
     # which 401s every contracts/merger row against Modal vLLM when .env holds
@@ -590,11 +615,21 @@ def activate(
         agent_models=dict(agent_models or {}),
         agent_knobs=dict(agent_knobs or {}),
     )
-    global _ACTIVE_BLIND_ROUTING, _ACTIVE_PIPELINE_HANDOFF
+    global _ACTIVE_BLIND_ROUTING, _ACTIVE_PIPELINE_HANDOFF, _ACTIVE_SPECIALIST_SUBCLASS
     # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
     locked_job = ((policy or {}).get("lock") or {}).get("job", {})
     _ACTIVE_BLIND_ROUTING = bool(locked_job.get("blind_routing"))
     _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
+    _ACTIVE_SPECIALIST_SUBCLASS = (str(locked_job.get("specialist_subclass") or "none"),
+                                   locked_job.get("specialist_subclass_file"))
+    try:  # every activation sets or restores the descriptions, so one run's choice never leaks
+        from mailroom_sandbox.schema_guide import apply_schema_guide
+
+        apply_schema_guide(bool(locked_job.get("schema_guide")))
+    except Exception as exc:  # noqa: BLE001
+        if locked_job.get("schema_guide"):
+            raise
+        _log.warning("schema guide not restored: %s", exc)
     _ACTIVE = activation
     runtime_dir()  # ensure exists
     return activation

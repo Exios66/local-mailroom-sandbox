@@ -3,17 +3,18 @@
 # Read by mailroom_sandbox.job.metrics (call_price / call_cost); refresh with
 # scripts/refresh_api_prices.py (run it with --check to see drift; no workflow runs it).
 source: https://openrouter.ai/api/v1/models
-checked: '2026-11-01'
+checked: '2026-11-18'
 unit: USD per 1M tokens
 models:
   qwen/qwen3.5-9b:
     use: openrouter profile default_model (same weights as the Modal default)
     context_length: 262144
-    max_completion_tokens: 235929
+    max_completion_tokens: 40960
     tiers:
     - min_prompt_tokens: 0
       prompt: 0.17
       completion: 0.25
+      cache_read: 0.153
   qwen/qwen3.7-flash:
     use: 'specialist extraction + condensed sorter (1M context: whole documents in
       one call)'
@@ -53,12 +54,128 @@ models:
   deepseek/deepseek-v4-flash:
     use: openrouter profile judge
     context_length: 1048576
-    max_completion_tokens: 943717
+    max_completion_tokens: 393216
     tiers:
     - min_prompt_tokens: 0
-      prompt: 0.091
-      completion: 0.182
-      cache_read: 0.0182
+      prompt: 0.09
+      completion: 0.18
+      cache_read: 0.018
+  deepseek/deepseek-v4.1-flash-1017:
+    use: autoresearch cheap worker/supervisor candidate (1M context)
+    context_length: 1048576
+    max_completion_tokens: 393216
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.3
+      completion: 1.2
+      cache_read: 0.006
+    time_windows: 6
+  qwen/qwen3.7-plus:
+    use: autoresearch supervisor tier 1 (judge/arbiter/boss)
+    context_length: 1000000
+    max_completion_tokens: 131072
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.32
+      completion: 1.28
+      cache_read: 0.064
+      cache_write: 0.4
+    - min_prompt_tokens: 256000
+      prompt: 0.96
+      completion: 3.84
+      cache_read: 0.192
+      cache_write: 1.2
+  minimax/minimax-m3:
+    use: autoresearch supervisor tier 1
+    context_length: 1048576
+    max_completion_tokens: 512000
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.3
+      completion: 1.2
+      cache_read: 0.06
+  z-ai/glm-5.3-flashx-legal:
+    use: autoresearch supervisor tier 1
+    context_length: 1048576
+    max_completion_tokens: 131072
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.37
+      completion: 1.25
+      cache_read: 0.075
+  deepseek/deepseek-v4-pro:
+    use: autoresearch supervisor tier 2
+    context_length: 1048576
+    max_completion_tokens: 393216
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.9
+      completion: 1.5
+      cache_read: 0.25
+  mistralai/mistral-large-4-0:
+    use: autoresearch supervisor tier 2
+    context_length: 1048576
+    max_completion_tokens: 262144
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.7
+      completion: 2.1
+      cache_read: 0.07
+  google/gemini-3.8-flash:
+    use: autoresearch supervisor tier 2
+    context_length: 1048576
+    max_completion_tokens: 65536
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 0.825
+      completion: 4.125
+      cache_read: 0.0825
+      cache_write: 0.041667
+  qwen/qwen4-max:
+    use: autoresearch supervisor tier 2
+    context_length: 1000000
+    max_completion_tokens: 131072
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 1.425
+      completion: 4.275
+      cache_read: 0.07125
+      cache_write: 1.78125
+  anthropic/claude-sonnet-5.5:
+    use: autoresearch supervisor tier 3 (frontier)
+    context_length: 1000000
+    max_completion_tokens: 128000
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 2.0
+      completion: 10.0
+      cache_read: 0.1
+      cache_write: 2.5
+  openai/gpt-6.1-sol:
+    use: autoresearch supervisor tier 3 (frontier)
+    context_length: 1050000
+    max_completion_tokens: 128000
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 2.0
+      completion: 10.0
+      cache_read: 0.1
+      cache_write: 2.5
+    - min_prompt_tokens: 272000
+      prompt: 4.0
+      completion: 15.0
+      cache_read: 0.2
+      cache_write: 5.0
+  google/gemini-4-carbon:
+    use: autoresearch supervisor tier 3 (frontier)
+    context_length: 1048576
+    max_completion_tokens: 943718
+    tiers:
+    - min_prompt_tokens: 0
+      prompt: 2.0
+      completion: 10.0
+      cache_read: 0.1
+      cache_write: 0.1875
   openai/gpt-6-luna-decisions:
     use: Decisions reviewer / extraction gate
     endpoint: /api/alpha/decisions

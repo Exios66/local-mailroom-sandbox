@@ -1066,7 +1066,7 @@ def run_pipeline_eval(
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
 
-    def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], float, tuple[int, int]]:
+    def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], float, tuple[int, int]]:
         """Run one document: (result, token usage, latency ms, (start, end) epoch ns). Safe on a worker thread.
 
         The epoch window is taken around the document's own execution, so a span built from it
@@ -1105,7 +1105,11 @@ def run_pipeline_eval(
                         pass
                 raise
         latency_ms = (time.monotonic() - before) * 1000
-        return result, usage_capture.usage_from_pipeline(), latency_ms, (started_ns, time.time_ns())
+        usage = usage_capture.usage_from_pipeline()
+        by_agent = usage_capture.usage_by_agent_from_pipeline()
+        if by_agent:
+            usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
+        return result, usage, latency_ms, (started_ns, time.time_ns())
 
     def _count_failed(exc: BaseException) -> None:
         """Count a failed document's billed calls against the API budget (main thread)."""
@@ -1116,7 +1120,7 @@ def run_pipeline_eval(
     by_index: dict[int, dict[str, Any]] = {}
     scored_by_index: dict[int, dict[str, Any] | None] = {}
 
-    def _record(index: int, result: dict[str, Any], doc_usage: dict[str, int], latency_ms: float,
+    def _record(index: int, result: dict[str, Any], doc_usage: dict[str, Any], latency_ms: float,
                 window: tuple[int, int] | None = None) -> None:
         """Account, score and report one finished document (main thread only)."""
         row = rows[index]

@@ -63,7 +63,14 @@ commit message or handoff record. Do not use a `User description` section or
 label a requirement as a quotation. `User description` is not a problem
 statement: explain the problem in your own words.
 
-Use the PR template: `Summary`, `Changes`, `Validation`, `Risks / follow-ups`.
+Use the PR template: `Summary`, `Changes`, `Validation`, `Critical regressions`,
+`Risks / follow-ups`. Check every diff against
+[`docs/critical-regressions.md`](docs/critical-regressions.md): silent empty ground
+truth, selection drift, tuning/evaluation leakage, model or provider substitution,
+spend-guard bypass, wrong code or vendor revision, credential misrouting, simulated
+output cited as evidence, resume corruption, offline paths reaching the network, and
+loosened gates. Name the guard covering each touched row, or why it does not apply;
+a new failure class gets a row in the same PR as its fix.
 The same rule applies when editing an existing PR description or opening an
 issue from a conversation. If an integration adds a `User description` wrapper
 after creation, edit the body to remove it before requesting review.
@@ -203,6 +210,7 @@ sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active
 sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
 sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
 sandbox experiment designs|create|review|preflight|launch|watch|report  # guided designs + initials-gated spend; docs/experiments.md
+sandbox autoresearch plan|step|run|status|holdout --study PATH [--initials XX] [--max-rounds N]  # config-only greedy lever search over the locked-run lifecycle; `--study config/autoresearch/mock-smoke/study.yaml` is offline; a paid study needs your initials; docs/autoresearch.md
 python scripts/smoke_campaign.py      # offline pre-flight: specialist, sand42 and pipeline mock campaigns must reach a 1.0 extraction headline (needs `sandbox datasets pull` once)
 sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip; --live adds the active Modal account's app listing (read-only, deploys nothing)
 sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)
@@ -218,7 +226,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/datasets.yaml` (named datasets) + `config/runbooks/catalog.yaml`.
-- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.3`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: `--profile`, `--model`, `--prompt` and `--agent-model` work before OR after the subcommand on every command (a flag after the subcommand wins; `SANDBOX_PROFILE` is the default).
+- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.3`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: `--profile`, `--model`, `--prompt` and `--agent-model` work before OR after the subcommand on every command (a flag after the subcommand wins; `SANDBOX_PROFILE` is the default). Exception: `sandbox autoresearch` refuses all four (a non-default `--profile` included), because the study's frozen base run spec sets them.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
@@ -277,7 +285,7 @@ for source links and registered communication types.
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone commit/release refs as the fallback; refresh with `python scripts/sync_vendor.py` from the sandbox package root (the monorepo supplies source packages), or `sandbox fetch-deps`, and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone commit/release refs as the fallback; refresh with `python scripts/sync_vendor.py` from the sandbox package root (the monorepo supplies source packages), or `sandbox fetch-deps`, and commit the diff. Fixes needed before upstream ships them are wrappers in `src/mailroom_sandbox/vendor_hotfixes.py`, fingerprint-bound to the vendored source, recorded in run locks and gated by preflight ([docs/vendor-hotfixes.md](docs/vendor-hotfixes.md)). `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
 - Sandbox-isolated work uses the local **`SAND-*`** board in
@@ -299,11 +307,21 @@ and serial/parallel benchmarks belong in CI; do not repeat them locally just
 to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
 first, then run a bounded local reproduction only when needed.
 
-CircleCI currently runs lint, the full pytest suite (4 parallel containers) and a
-combined coverage gate, plus reports-hub snapshot and requirements checks. There are no dedicated full-corpus campaign
+CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
+markdownlint), a `checks` job for committed generated files (reports hub,
+requirements mirrors, CLI reference, runbook docs), the full pytest suite (4 parallel
+containers) and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending
 or unverified until evidence exists. Passing ordinary CI does not certify it.
+
+Markdown follows `.markdownlint-cli2.yaml` (all rules on except line length and
+first-line heading; its header gives the reasons). Run
+`npx --yes markdownlint-cli2@0.18.1` before pushing doc changes. Edit
+`docs/runbooks/` through `config/runbooks/catalog.yaml` and `sandbox runbook write`,
+never by hand. GFM traps the linter catches: a wrapped line starting `#123` becomes
+a heading, a `|` inside a table code span needs `\|`, and a bare `<placeholder>`
+outside backticks is dropped as HTML.
 
 The complete CI suite and coverage gate remain required before merging. Verify
 checks against the current PR head SHA, inspect failures, and wait for pending

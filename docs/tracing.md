@@ -4,7 +4,7 @@ Canonical sink: **Langfuse 3** (Python SDK v4 data model) on
 `http://localhost:3000` (compose profile `langfuse`). This is the same
 contract llm-mailroom writes and The-Mailroom reads.
 
-```
+```bash
 OBSERVABILITY_PROVIDER=langfuse   # or auto | phoenix | braintrust | none
 OBSERVABILITY_ENVIRONMENT=pilot   # mock for --mock, pilot for --local
 LANGFUSE_HOST=http://localhost:3000

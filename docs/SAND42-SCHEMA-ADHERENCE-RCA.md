@@ -34,6 +34,7 @@ strips nulls before validation. Five fields were declared `str = ""`:
 `insurer`, `insured_party`, `claim_type`, `damages_description` and
 `coverage_determination`. Three sources all define these fields as
 `string|null` and say "unstated → null":
+
 - the frozen prompt
 - the JSON-schema grammar (`specialist_agents.py`)
 - `llm-dojo-scoring/docs/EXTRACTION_SCHEMAS.md`
@@ -44,6 +45,7 @@ exactly this reason (see the comment in `documents.py`), but the other five
 were missed.
 
 **Evidence.**
+
 - Validity is deterministic by subclass. Over four committed SAND-032 runs:
   auto 0/81, carrier 0/30, outpatient 0/26, pde 1/23, inpatient 26/29,
   property 16/36.
@@ -56,12 +58,14 @@ were missed.
 variants carry the same null contract, and a prompt rewrite cannot make
 pydantic accept `None`. The suspicion that the prompt was too narrow is
 partly right, but on quality rather than validity:
+
 - the prompt contradicts the GT on `claim_type` for CMS rows
 - it has no layout cues for three of the five corpus sources (GNOTHEIA,
   BDR, INSURBIAS)
 - it claims a sorter handoff that the isolated harness never sends
 
 **Fixes.**
+
 - **Schema.** Contract-nullable scalars, and a currency-tolerant
   `claimed_amount` / `demand_amount`.
 - **Dojo.** `schema_contract.contract_violations` plus a sandbox CI test
@@ -128,6 +132,7 @@ partly right, but on quality rather than validity:
 ## What changed
 
 **llm-dojo-scoring** (branch `claude/schema-adherence-rca`):
+
 - `cuad_schema`: the 41 categories and 25 families, with questions.
 - `maud_schema`: the 22 questions with answer catalogs, both grammar shapes
   and the prompt block.
@@ -136,6 +141,7 @@ partly right, but on quality rather than validity:
 - The CMS `claim_type` equivalence.
 
 **local-mailroom-sandbox** (this branch):
+
 - Vendored dojo refreshed to that branch.
 - Vendored mailroom schemas made contract-nullable and currency-tolerant.
 - In-vocab `intent` hints.

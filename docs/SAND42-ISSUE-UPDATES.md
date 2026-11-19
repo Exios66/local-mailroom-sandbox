@@ -9,7 +9,7 @@ generated from the repository by `sand42_cards.metric_completeness()` and reprod
 
 ## §1 → paste as a comment on issue **#129** (SAND-042 remaining runbook legs)
 
-**Metric-coverage ledger — update 2026-10-12**
+### Metric-coverage ledger — update 2026-10-12
 
 The 2L4-C32 saturation cell has **landed and is published** (`81d1b1c`): 5/5 specialists, 0 errors,
 both replicas scraped, completion-watch `[21 ok / 1 note / 0 gaps]`, **0 tasks billing**, **$1.78

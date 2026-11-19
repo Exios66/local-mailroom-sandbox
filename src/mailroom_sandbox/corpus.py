@@ -202,7 +202,17 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
     repo = spec.repo
     revision = spec.revision or FAMILY_HF_REVISION
     resolved = _resolve_revision(repo, revision)
-    files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
+    # A pinned full sha whose shards are already cached reads offline: listing the tree
+    # needs the network, so when it fails (HF_HUB_OFFLINE=1, no connection) each shard is
+    # read with local_files_only and a shard missing from the cache counts as absent.
+    files: set[str] | None
+    try:
+        files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
+    except Exception as exc:
+        if not _SHA_RE.fullmatch(resolved):
+            raise
+        _log.warning("could not list %s@%s (%s); reading cached shards only", repo, resolved[:12], exc)
+        files = None
     splits = expand_hf_splits(spec.split)
 
     def shard(config: str, split: str) -> str:
@@ -210,9 +220,17 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
 
     def read_config(config: str, split: str) -> list[dict[str, Any]] | None:
         f = shard(config, split)
-        if f not in files:
+        if files is not None:
+            if f not in files:
+                return None
+            path = huggingface_hub.hf_hub_download(repo, f, revision=resolved, repo_type="dataset")
+            return _read_parquet(path)
+        try:
+            path = huggingface_hub.hf_hub_download(
+                repo, f, revision=resolved, repo_type="dataset", local_files_only=True
+            )
+        except Exception:
             return None
-        path = huggingface_hub.hf_hub_download(repo, f, revision=resolved, repo_type="dataset")
         return _read_parquet(path)
 
     out: list[dict[str, Any]] = []
@@ -222,6 +240,14 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
         ground_truth = read_config("ground_truth", split)
         if ground_truth is not None:
             merged = merge_default_and_gt(default or [], ground_truth)
+        elif default is not None and files is None:
+            # Offline, an uncached ground_truth shard is indistinguishable from an absent
+            # one; returning the blind rows would score them unlabeled or drift from an
+            # online read of the same pin. Refuse whatever config was asked for.
+            raise CorpusRefusal(
+                f"{repo}@{resolved[:12]} {shard('ground_truth', split)} is not in the local cache "
+                f"(offline, so its absence cannot be confirmed); run `sandbox datasets pull` once (network) first"
+            )
         elif default is not None:
             if spec.config in ("", "ground_truth"):
                 # The blind rows would be scored as unlabeled (expected_doc_class

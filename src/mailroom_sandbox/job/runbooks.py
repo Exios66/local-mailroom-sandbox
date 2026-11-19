@@ -818,6 +818,23 @@ def render_index(*, output_path: Path | None = None) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _demote_headings(text: str) -> str:
+    """One level deeper for every ATX heading outside fenced code, so a rollup keeps one H1."""
+    out, fence = [], None
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        marker = stripped[:3]
+        if marker in ("```", "~~~"):
+            if fence is None:
+                fence = marker
+            elif marker == fence:
+                fence = None
+        elif fence is None and stripped.startswith("#") and stripped.lstrip("#").startswith(" "):
+            line = "#" + line
+        out.append(line)
+    return "\n".join(out)
+
+
 def render_family(family: str, *, output_path: Path | None = None) -> str:
     """Render a family rollup with catalog links relative to the family file."""
     docs = _generated_doc_paths()
@@ -835,9 +852,9 @@ def render_family(family: str, *, output_path: Path | None = None) -> str:
         # Resolve relative catalog links from the family file, not the nested card.
         body = render_markdown(rid, output_path=output_path)
         # Drop the generated header from nested cards.
-        nested = "\n".join(
+        nested = _demote_headings("\n".join(
             line for line in body.splitlines() if line != GENERATED_HEADER
-        ).strip()
+        ).strip())
         chunks += [nested, "", "---", ""]
     return "\n".join(chunks).rstrip() + "\n"
 

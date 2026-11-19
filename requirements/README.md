@@ -1,11 +1,10 @@
 # requirements/
 
 > pip-installable mirrors of pyproject.toml extras.
-#
->Source of truth is ALWAYS pyproject.toml. These files exist so operators,
->Docker/CI contexts, and lock export tooling that expect a requirements.txt
-
-> Get a complete, pinned-enough list without inventing a second dependency graph. Keep them in sync via tests/test_requirements.py.
+>
+> Source of truth is ALWAYS pyproject.toml. These files exist so operators,
+> Docker/CI contexts, and lock export tooling that expect a requirements.txt
+> get a complete, pinned-enough list without inventing a second dependency graph. Keep them in sync via tests/test_requirements.py.
 
  **Install (from package root):**
 
@@ -19,6 +18,7 @@ pip install -r requirements/base.txt
 # Or (preferred editable):
 #   pip install -e ".[dev,pipeline,deploy]"
 ```
+
 **Exception: `dojo-release.txt`.** This file is not generated from `pyproject.toml`. It pins the
 installed Dojo (the same commit as the vendored snapshot: a release, or a reviewed `main`
 commit between releases), the primary scoring source (`mailroom_sandbox.dojo_source`), and is kept out

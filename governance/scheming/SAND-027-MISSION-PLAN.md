@@ -48,8 +48,8 @@ no changes to eval-environment's prompt lineage (frozen v1) outside the sanction
 `promote_sandbox_specialist.py` flow; no 2×L4 unless the N=20 probe shows >32k context is needed.
 
 **Venue decision (2026-09-25):** the OpenRouter comparison runs execute in **eval-environment**
-(issues **#18–#21** there carry the work: #18 program, #19 prompt alignment, #20 same-subset,
-#21 Braintrust/log). The sandbox's role is **the Modal vLLM leg + request plumbing only**:
+(issues **#18–#21** there carry the work: #18 program, #19 prompt alignment, #20 same-subset, #21
+Braintrust/log). The sandbox's role is **the Modal vLLM leg + request plumbing only**:
 `api-evals/` (OpenRouter-request harness + spec.py `openrouter` engine kind) is preserved as
 plumbing parity + the QWEN-flash cost-report tooling and does **NOT** host the Granite-OpenRouter
 live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-implement them here.
@@ -59,6 +59,7 @@ live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-im
 ## 2 · Verified facts (all checked 2026-09-25, sources cited)
 
 ### 2.1 Model twin (the decisive fact)
+
 - OpenRouter serves **`ibm-granite/granite-4.2-8b`** — live `/api/v1/models` payload:
   prompt $0.00000006/tok ($0.06/1M), completion $0.00000025/tok ($0.25/1M), ctx 131072.
 - HF hosts the **identical id** `ibm-granite/granite-4.2-8b` (public, Apache-2.0, 110k downloads) —
@@ -67,6 +68,7 @@ live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-im
 - No other 8B Granite is on OpenRouter (4.0-h-micro is a 3.2B MoE hybrid — rejected).
 
 ### 2.2 HF hub facts (verified by `lucius`)
+
 - License **Apache-2.0**, **not gated**, no `trust_remote_code` needed (no `auto_map`).
 - 8B dense `GraniteForCausalLM`: 40 layers, GQA 32/8 KV heads, RoPE θ=1e7, ctx **131072** native.
 - Chat template: custom ChatML (`chat_template.jinja`), Qwen-style thinking
@@ -80,6 +82,7 @@ live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-im
   - **No AWQ/GPTQ exists** for granite-4.2 (AWQ slot from the Qwen setup is void; FP8 replaces it).
 
 ### 2.3 vLLM + Modal viability (verified by `docker-deployment-specialist` — current docs)
+
 - vLLM supports `GraniteForCausalLM`; native `--reasoning-parser granite_thinking_parser` on vLLM
   `main`/0.30.0. **On the sandbox's pinned v0.29.0-era image: MUST-VERIFY in deploy smoke**; IBM's
   fallback is `--reasoning-parser-plugin <hf>/granite_thinking_parser.py` (vLLM ≥ 0.20).
@@ -96,6 +99,7 @@ live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-im
   `MAX_CONTAINERS=1`, `SCALEDOWN=120-600`, flags as §4.3.
 
 ### 2.4 Selection & design verdict (verified by `ml-systems-oracle`)
+
 - **Winner: `ibm-granite/granite-4.2-8b`** — only candidate satisfying the cross-host twin constraint
   at 8B quality; 4.1-8b superseded, 3.3-8b-instruct / 4.0-h-micro fail twin/quality/L4 criteria.
 - **Posture: 1× L4 FP8 TP1 — NOT 2×L4.** Inputs cap ~36k chars ≈ 9-10k tokens + ≤8k output ≪ 32k ctx;
@@ -142,6 +146,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
   (a 1:18 ratio) — see `docs/RUN-COST-DERIVATION.md`.
 
 ### 2.6 Repo state (working tree, as of 2026-09-25)
+
 - **local-mailroom-sandbox** @ HEAD `97c0f94` (dirty): `M src/mailroom_sandbox/job/spec.py`
   (adds `"openrouter"` to `EngineSpec.kind` — keep, mission depends on it); `?? api-evals/`
   (untracked Qwen-OpenRouter harness: 6 tasks, real-cost accounting, report writer — becomes the
@@ -152,6 +157,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
   machinery** — that leg lives in the sandbox by design.
 
 ### 2.7 Earlier QWEN flash runs (the cost-report subject; data verified)
+
 3 records in `reports/experiment_log.jsonl` (all `qwen/qwen3.7-flash`, profile openrouter, backend none):
 
 | record | n | prompt_tokens | completion_tokens | **real API $ (tokens × live price $0.03/$0.13)** | logged L4-proxy $ |
@@ -160,6 +166,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
 | contracts-20 #1 (22:04Z) | 20 | 123,829 | 16,629 | **$0.005877** | 0.008428 |
 | contracts-20 #2 (22:08Z) | 20 | 123,829 | 15,310 | **$0.005705** | 0.008276 |
 | **Totals** | 41 | | | **≈ $0.0121** | ≈ $0.0186 |
+
 Caveats that MUST appear in the report: all three logged `prompt_version: mailroom-default` (pinned
 simplified stems NOT recorded → not prompt-fixed quality claims); score 0.0 with 0 errors on
 contracts-20 = measurement-status UNPROVEN (diagnostic open, see §8.3); fingerprint `9c87afb3c10c` =
@@ -169,7 +176,7 @@ the same contracts-20 draw as Modal `run-20-contracts-*` (draw parity confirmed)
 
 ## 3 · Architecture (two legs, one comparison)
 
-```
+```text
                         ┌─────────────────────────── Leg A (Modal vLLM) ───────────────────────────┐
 corpus (pinned          │ sandbox: deploy/modal_vllm.py  →  ibm-granite/granite-4.2-8b-fp8 (1×L4)    │
  rev 46a4d3c2, seed 42) │ sandbox run <spec> (config/runs/granite-*.yaml)  · Braintrust via vendored  │

@@ -920,3 +920,133 @@ def test_build_refuses_text_that_does_not_match_its_content_hash(cli, monkeypatc
     lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
     with pytest.raises(SystemExit, match="does not match its content_sha256"):
         build("--label", lab)
+
+
+# --------------------------------------------------------------------------- Dojo-parseable contract values
+
+
+def test_a_plain_dollar_figure_may_restate_a_scaled_figure_exactly():
+    assert gl._money_text_supported("$5,000,000", "a fee of $5 million to Merrill")
+    assert gl._money_text_supported("$2,500,000", "up to $2.5 million")
+    assert not gl._money_text_supported("$5", "a fee of $5 million")             # only the scaled amount
+    assert not gl._money_text_supported("$50,000,000", "a fee of $5 million")
+    assert not gl._money_text_supported("$5,000,000", "issued 5 million shares")  # not money in the quote
+    assert gl._money_text_supported("$5 million", "a fee of $5 million")          # as written, as before
+
+
+def test_money_text_parses_follows_the_dojo_scorer():
+    pytest.importorskip("llm_dojo_scoring.scoring.field_scoring")
+    for ok in ("$5,000,000", "$400,000.00", "$0.05", "$40", "$5M", None, ""):
+        assert gl.money_text_parses(ok), ok
+    for bad in ("$5 million", "US$55,000", "$40 per hour"):
+        assert not gl.money_text_parses(bad), bad
+
+
+def test_verify_catalog_flags_a_near_gold_contract_value_the_dojo_cannot_parse(tmp_path):
+    pytest.importorskip("llm_dojo_scoring.scoring.field_scoring")
+    reviewed = {"review": {"verdict": "accept", "reviewer": OPUS}}
+    base = _near_gold(doc_class="contract", field="contract_value", **reviewed)
+    assert _problems(tmp_path, {**base, "value": "$5,000,000"}) == []
+    found = _problems(tmp_path, {**base, "value": "$5 million"})
+    assert any("not a figure the Dojo parses" in p for p in found), found
+    # Only near_gold is checked: a disputed phrase waits for its review.
+    assert _problems(tmp_path, {**base, "value": "$5 million", "status": "disputed", "review": None}) == []
+
+
+def test_review_command_settles_a_disputed_record_in_place(cli, capsys):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    gold = tmp / "gold"
+    assert [r["status"] for r in gl.read_jsonl(gold / "correspondence.jsonl")
+            if r["field"] == "recipient"] == ["disputed"]
+    review = write("fix.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS,
+                                  "note": "the To line", "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 0
+    rec = next(r for r in gl.read_jsonl(gold / "correspondence.jsonl") if r["field"] == "recipient")
+    assert rec["status"] == "near_gold" and rec["value"] == "John Doe" and rec["review"]["verdict"] == "correct"
+    man = json.loads((gold / "MANIFEST.json").read_text())
+    assert "fix.jsonl" in man["sources"]["review"] and man["reviewed_at"]
+    assert gl.verify_catalog(gold) == []
+    before = (gold / "correspondence.jsonl").read_text()
+    capsys.readouterr()
+    # a second review of the same record, a reject, and a correction the gate refuses all leave the catalog alone
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 1
+    assert "already reviewed" in capsys.readouterr().err
+    reject = write("rej.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "reject", "reviewer": OPUS}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", reject]) == 1
+    assert "accept or correct" in capsys.readouterr().err
+    assert (gold / "correspondence.jsonl").read_text() == before
+
+
+def test_review_command_refuses_text_that_changed_since_labelling(cli, capsys, monkeypatch):
+    mod, write, _, _ = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    rows, _ = mod._load_corpus("x")
+    monkeypatch.setattr(mod, "_load_corpus", lambda _c: (rows, {"f1.txt": EMAIL + "edited", "f2.txt": EMAIL}))
+    review = write("fix.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS,
+                                  "note": "n", "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 1
+    assert "differs from the label's" in capsys.readouterr().err
+
+
+def test_review_command_accept_must_name_the_current_value(cli, capsys):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    bare = write("acc.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", bare]) == 1
+    assert "does not name the current value" in capsys.readouterr().err
+    named = write("acc2.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS,
+                                  "value": "John Doe"}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", named]) == 0
+
+
+def test_review_command_writes_nothing_when_the_reviewed_catalog_fails(cli, capsys, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    gold = tmp / "gold"
+    before = {p.name: p.read_bytes() for p in gold.iterdir()}
+    real = gl.verify_catalog
+    # The committed catalog verifies; the staged, reviewed one does not.
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: real(d) if Path(d) == gold else ["c.jsonl: staged failure"])
+    review = write("fix.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS,
+                                  "note": "n", "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}])
+    capsys.readouterr()
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {p.name: p.read_bytes() for p in gold.iterdir()} == before
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".gold-review-")]
+    # Once the catalog passes, the same review applies (it was never recorded as done).
+    monkeypatch.setattr(gl, "verify_catalog", real)
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 0
+
+
+def test_build_writes_nothing_when_the_built_catalog_fails(cli, capsys, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    stores = (tmp / "gold", tmp / "supp")
+    before = {p: p.read_bytes() for d in stores for p in d.iterdir()}
+    # A build whose catalog fails verify_catalog (e.g. a near_gold contract_value the Dojo cannot
+    # parse, kept by a `correct` review) is refused before either store is replaced.
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: ["contract.jsonl: unparseable near_gold value"])
+    capsys.readouterr()
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".")]
+
+
+def test_build_restores_the_catalog_when_the_supplementary_swap_fails(cli, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    stores = (tmp / "gold", tmp / "supp")
+    before = {p: p.read_bytes() for d in stores for p in d.iterdir()}
+    real = mod._swap_in
+
+    def fail_on_supp(stage, directory):
+        if directory.name == "supp":
+            raise OSError("disk full")
+        real(stage, directory)
+    monkeypatch.setattr(mod, "_swap_in", fail_on_supp)
+    with pytest.raises(OSError):
+        _built(cli, RECIPIENT, DISPUTE_CHECK)
+    assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before

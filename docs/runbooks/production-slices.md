@@ -1,6 +1,7 @@
 # Production slices: launch, gate, fix, step up
 
 This runbook covers how a production run is approved. Each run is a CLI-launched pipeline run over a fixed, held-out slice of the Hugging Face mailroom dataset (pin `bc9eab28`, 3,302 rows), and it passes the **slice gate** before the next, larger slice runs.
+
 - Design: [`docs/superpowers/specs/2026-11-16-production-slice-gate-design.md`](../superpowers/specs/2026-11-16-production-slice-gate-design.md)
 - Tracker: Exios66/local-mailroom-sandbox#305
 - Fix backlog: Exios66/local-mailroom-sandbox#306
@@ -11,6 +12,7 @@ This page is hand-written. It is not generated from `config/runbooks/catalog.yam
 ## Slices
 
 All slices share r3's settings:
+
 - blind routing and interim labels;
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
@@ -54,22 +56,30 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 ## The loop, for slice N
 
 0. **From a git worktree, set the environment first.** A worktree's `.venv` links to the main checkout, so without this every command below would run the main checkout's code and vendored trees. Preflight's `checkout` check now fails in that case (#312):
+
    ```bash
    export PYTHONPATH="$PWD/src"
    ```
+
 1. **Preflight** (no spend). Every check must be `ok` except `engine_spec` when no key is loaded. It makes network probes (the engine and a Hub dataset); add `--offline` to skip them, at the cost of leaving those checks unverified:
+
    ```bash
    sandbox run preflight --config config/runs/production/slice-0100.yaml
    ```
+
 2. **Start.** This is the spend gate. Only a human launches it, with their own initials:
+
    ```bash
    sandbox run start --config config/runs/production/slice-0100.yaml --initials <XX>
    ```
+
    After launch, check that `dependency_sources` in the run's `spec.lock.json` matches the checkout you launched from.
 3. **Gate.** This step is offline and writes only `gate.json` and `gate.md` into the run directory. It exits `0` on pass and `2` on fail. It exits `1`, with a JSON `failed` status, when the run is missing or never started (no `items.jsonl`), or when the gate itself errors (a bad bars file or a scorer failure):
+
    ```bash
    sandbox run gate --run-id production-slice-0100 --thresholds
    ```
+
 4. **Read the buckets.** Each review and each wrong archive has exactly one primary cause, taken in this precedence order:
 
    | Order | Cause family | Causes |
@@ -95,16 +105,20 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    A missing or unreadable link fails the gate. `gate.md` lists every document in its **Documents** table, with class, outcome, score, labelled units, cause, archive link and span id.
 5. **Fix the largest fixable bucket.** See "Where a fix lands" below. Record each fix on #306.
 6. **Re-run the same slice and compare.** Give the re-run a new `run_id`, then gate it with the earlier run as its pair:
+
    ```bash
    sandbox run gate --run-id <rerun> --prev-run-id <earlier>
    ```
-   When both runs drew the same documents, the gate runs a paired **re-run** check: both runs are gated on those documents. The fix is kept only if the re-run's pooled wrong-archive rate, review rate, crash count and `judge_error` count are all no higher than the earlier run's. Its reasons are prefixed `re-run: `. The re-run's own gate verdict still applies.
-7. **Step up when the slice passes.** Launch the next slice, then gate it against the slice it contains. The command gates the whole new run first, as in step 3. It then adds the step-up check, which judges only the new documents, and prefixes its reasons `step-up: `. Either check can fail the verdict, so a step-up whose new documents pass can still FAIL on the whole run:
+
+   When both runs drew the same documents, the gate runs a paired **re-run** check: both runs are gated on those documents. The fix is kept only if the re-run's pooled wrong-archive rate, review rate, crash count and `judge_error` count are all no higher than the earlier run's. Its reasons are prefixed `re-run:`. The re-run's own gate verdict still applies.
+7. **Step up when the slice passes.** Launch the next slice, then gate it against the slice it contains. The command gates the whole new run first, as in step 3. It then adds the step-up check, which judges only the new documents, and prefixes its reasons `step-up:`. Either check can fail the verdict, so a step-up whose new documents pass can still FAIL on the whole run:
+
    ```bash
    sandbox run gate --run-id production-slice-0250 --prev-run-id production-slice-0100
    ```
 
 **Thresholds.** `--thresholds` replays higher judge thresholds. For each candidate threshold, per class and pooled, it shows:
+
 - the documents a higher threshold would send to the judge;
 - the wrong archives it could catch and the correct archives it would disturb;
 - the projected wrong-archive and review rates, next to the current ones. These assume every caught wrong archive goes to review. A worst-case review rate also assumes the judge rejects every other judged document.
@@ -121,6 +135,7 @@ It is an upper bound. A threshold change is adopted only on new documents, and o
 | Corpus content (stripped attachments, near-empty rows) | **Upstream** in Mailroom-Corpus-EDA. |
 
 A document used by a separate tuning run must never be gated. The fix loop is the one exception: a re-run (step 6) confirms a fix on slice N's own documents, so those documents are tuned on, and because slices nest they stay in every later slice. That is why a step-up's held-out evidence is its new-document check (step 7); the whole-run numbers of slice N+1 are partly in-sample. When you add a tuning run:
+
 1. Add it to the regenerate command in `scripts/build_excluded_ids.py`, then regenerate `config/production/excluded-ids.txt`.
 2. Do this **before** the next slice launches. With the ranked draw, the slices that have not run yet keep every document except the newly excluded ones.
 3. Never exclude documents from a slice that has already been gated. That would break its nesting with the next slice.
@@ -153,11 +168,13 @@ A tuning run that itself excludes the production list would exclude its own docu
 ## Modal job-host parity
 
 0. **Deploy the job worker once per code or vendor change** (a human step; it creates the `sandbox-runs` volume on first deploy). Select the Modal profile first, and load the key into the same shell. The key travels in the deploy Secret, never the image:
+
    ```bash
    export MODAL_PROFILE=<profile> PYTHONPATH="$PWD/src"
    set -a; . <path-to-openrouter.env>; set +a
    (cd deploy && modal deploy modal_job.py)
    ```
+
    The subshell leaves you at the repository root for step 1. Keep the key loaded there too: preflight and `sandbox run start` check it in the launching shell. A twin whose worker lacks the key fails before its first document with "this run calls OpenRouter but the worker has no OPENROUTER_API_KEY".
 1. Run the `*-modal-host.yaml` twin of a slice that already passed locally.
 2. Require the same `dependency_sources` in both run locks. Bundle the same selected snapshots when deploying the job worker, and reject results whose provenance differs.

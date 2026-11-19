@@ -285,7 +285,7 @@ def test_the_resolver_bills_openrouter_and_is_in_the_api_budget():
     from mailroom_sandbox.job import api_budget, deploy_env
     from mailroom_sandbox.job.spend import uses_openrouter
 
-    other = "openai/gpt-6-nova-decisions"
+    other = "google/gemini-decision-1"  # a second catalogued Decisions model
     lock = {"task": "pipeline", "engine": {"kind": "vllm", "model": "Qwen/Qwen3-8B"}, "job": {"mock": False},
             "decision_slots": {"slots": {}, "resolver": {"model": other}}}
     assert uses_openrouter(lock)

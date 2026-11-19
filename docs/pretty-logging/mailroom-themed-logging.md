@@ -90,7 +90,7 @@ what a real run shows. Each page carries a build fingerprint. A tab left open ac
 watcher restart on newer code reloads itself once, so no browser keeps an old page
 (no hard refresh needed).
 
-Default URL: **http://127.0.0.1:8765/** — live updates via **SSE** (`/api/stream`).
+Default URL: **<http://127.0.0.1:8765/>** — live updates via **SSE** (`/api/stream`).
 Leave the server running in one terminal; **Ctrl+C** there stops the web UI only.
 
 Headless / CI / SSH without browser:

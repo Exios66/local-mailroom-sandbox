@@ -49,7 +49,7 @@ scoring **table** (every T0/T1 metric, missing as `None`), a **scorecard**
 (identity + cost calculations), and markdown for the experiment log.
 Sorter headlines stay `accuracy` + `f1_macro`.
 
-### Serving provenance and comparable groups (dojo v0.22)
+## Serving provenance and comparable groups (dojo v0.22)
 
 The dojo refuses to emit a serving scorecard without a provenance stamp
 (`dataset_revision`, `prompt_id`, `serving_kind`, `model_id`; USD metrics also
@@ -57,7 +57,7 @@ The dojo refuses to emit a serving scorecard without a provenance stamp
 serving kind / model / prompt / task / dataset fingerprint / revision / split /
 draw seed as `identity_mixed`.
 
-* **Records carry the stamp.** Job-run records (`record_from_run`) take
+- **Records carry the stamp.** Job-run records (`record_from_run`) take
   `dataset_revision` (the lock's resolved Hub sha), `split` and `draw_seed`
   (`sample_seed`) from the run lock via `job.metrics.lock_dataset_provenance`;
   a local `file` dataset has no Hub revision and gets none. Token-price USD is
@@ -77,7 +77,7 @@ draw seed as `identity_mixed`.
   `provenance={"local": {...}, "api": {...}}`); it fills a gap but never
   contradicts a revision a record already carries, and a branch name or short sha
   is rejected. An incomparable (`identity_mixed`) group raises too.
-* **`--from-log` / `sandbox matrix` group before comparing.** Rows are grouped
+- **`--from-log` / `sandbox matrix` group before comparing.** Rows are grouped
   by full identity and a local-side leg is paired with an API-side leg only when
   they measured the same thing (`mailroom_sandbox.serving_groups`, as dojo
   `pair_comparable_runs`). Each comparable pair is one entry in `groups`; each
@@ -85,7 +85,7 @@ draw seed as `identity_mixed`.
   empty until `--group <n|label>` selects one; legs with no counterpart are
   listed under `unpaired`. The run's own `local_vs_api` comparison records in the
   log are skipped.
-* **`sandbox metrics compare`** pairs per group too (`pairwise` keys
+- **`sandbox metrics compare`** pairs per group too (`pairwise` keys
   `local_vs_api`, or `local_vs_api[n]` when several); a bucket that pools unlike
   runs is flagged `identity_mixed` and incomparable legs are listed.
 
@@ -282,25 +282,25 @@ prompt:
     correspondence_specialist: correspondence_specialist_v3
 ```
 
-* Texts come from the dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`)
+- Texts come from the dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`)
   through ONE function, `prompt_versions.lookup_prompt_version`. They never come
   from the vendored mailroom registry (`PROMPT_VERSIONS` also has `sorter_v0..v14`:
   same names, other texts) or from `config/prompts/*.txt` (the stem `sorter_v1` is
   the mailroom text, not eval-environment `sorter_v1`).
-* An unknown key, a key whose role differs from the one named, a role the pipeline
+- An unknown key, a key whose role differs from the one named, a role the pipeline
   lacks (`pipeline_quality_v1`), a text whose sha256 differs from the dojo's, two
   versions for one role, `--prompt` + `--prompt-version` for one role, or a selection
   the task would not use is an error (exit 1, one `error: prompt version: ...` line;
   a job fails preflight with the reason). Nothing falls back to a default.
-* The selected key + sha256 are stamped in the run lock (`prompt.agents.<role>` with
+- The selected key + sha256 are stamped in the run lock (`prompt.agents.<role>` with
   `source: eval-environment`, and `prompt_versions`), are part of `spec_hash` (another
   mutation drifts the lock), and ride on every record: `prompt_version` = the key,
   `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions` (`{role: {key,
   sha256}}`). A pipeline-level task logs the whole selection (`keyA+keyB` + a digest).
-* `prompt_version` and `prompt_sha256` are grouping identity (`serving_groups`):
+- `prompt_version` and `prompt_sha256` are grouping identity (`serving_groups`):
   different mutations form different legs and never pair, and one name with
   different bytes (eval-env `sorter_v1` vs the mailroom stem) never pools.
-* No flag = today's default (the `*_simplified` stems; correspondence / corporate
+- No flag = today's default (the `*_simplified` stems; correspondence / corporate
   records are bytes-equal to eval-environment `_v7` / `_v6`).
 
 ## Component gates

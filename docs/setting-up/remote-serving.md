@@ -144,7 +144,7 @@ machines** (allowed on researcher-owned machines), so:
   itself, runs the sandbox evals in-process, transfers `results/` back
   (`condor_tail` for monitoring).
 - **Owned machines → server path** (`vllm_serve.sub`): long-lived vLLM job
-  + `condor_ssh_to_job` forwarding → the `vllm-remote` profile above.
+  - `condor_ssh_to_job` forwarding → the `vllm-remote` profile above.
 
 ## Conda
 

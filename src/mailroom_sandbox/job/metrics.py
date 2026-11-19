@@ -81,16 +81,16 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
     "openai/gpt-6-luna": (0.10, 0.50),
     "qwen/qwen3.7-flash": (0.03, 0.13),
-    "deepseek/deepseek-v4-flash": (0.091, 0.182),
+    "deepseek/deepseek-v4-flash": (0.09, 0.18),  # list price checked 2026-11-18
 }
 
 # Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
-# GET https://openrouter.ai/api/v1/models, checked 2026-11-01. A tier applies to a whole call
+# GET https://openrouter.ai/api/v1/models, checked 2026-11-18. A tier applies to a whole call
 # whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
 # tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
 # long document. The live copy is config/api_prices.yaml (refresh it with
 # scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
-API_PRICES_CHECKED = "2026-11-01"
+API_PRICES_CHECKED = "2026-11-18"
 API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     "qwen/qwen3.7-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
@@ -106,7 +106,7 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
         {"min_prompt_tokens": 272_000, "prompt": 0.20, "completion": 0.75, "cache_read": 0.02, "cache_write": 0.25},
     ],
     "deepseek/deepseek-v4-flash": [
-        {"min_prompt_tokens": 0, "prompt": 0.091, "completion": 0.182, "cache_read": 0.0182},
+        {"min_prompt_tokens": 0, "prompt": 0.09, "completion": 0.18, "cache_read": 0.018},
     ],
 }
 
@@ -139,14 +139,50 @@ def api_price_sheets() -> dict[str, list[dict[str, float]]]:
     return {**API_PRICE_SHEETS, **_FILE_SHEETS}
 
 
+def _decision_sheet(model: str) -> list[dict[str, float]] | None:
+    """A one-tier sheet for a pinned Decisions-API model (``config/decision_models.yaml``).
+
+    Exact id or canonical slug only, so a new model never inherits a longer-named sibling's price
+    through the prefix match below. The Decisions API bills input tokens only.
+    """
+    try:
+        from mailroom_sandbox.decision_backends import decision_model
+
+        row = decision_model(model)
+    except Exception:  # noqa: BLE001 - pricing falls back to the other tables
+        return None
+    if not row or row.get("prompt") is None:
+        return None
+    return [{"min_prompt_tokens": 0, "prompt": float(row["prompt"]), "completion": 0.0}]
+
+
+def _is_decision_variant(model: str, base: str) -> bool:
+    """A ``:variant`` id of a pinned Decisions-API model (``typesafe/jev-1.14:nitro``)."""
+    if ":" not in model:
+        return False
+    try:
+        from mailroom_sandbox.decision_backends import decision_model
+
+        return decision_model(base) is not None
+    except Exception:  # noqa: BLE001 - pricing falls back to the other tables
+        return False
+
+
 def price_sheet(model: str | None) -> list[dict[str, float]] | None:
-    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix)."""
+    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix).
+
+    A ``:variant`` of a pinned Decisions-API model is priced only from an explicit sheet of its base id (an
+    ``api_prices.yaml`` row), never by the prefix match below: a chat model that shares the prefix would bill it at
+    chat rates. With no such row it has no price, so the paid-run budget check refuses it.
+    """
     if not model:
         return None
     base = str(model).split(":", 1)[0]
     sheets = api_price_sheets()
     sheet = sheets.get(base)
     if sheet is None:
+        sheet = _decision_sheet(str(model))
+    if sheet is None and not _is_decision_variant(str(model), base):
         # Longest matching prefix, so "openai/gpt-6-luna-decisions-2026…" is not priced as gpt-6-luna.
         sheet = next((sheets[k] for k in sorted(sheets, key=len, reverse=True) if base.startswith(k)), None)
     return sheet
@@ -406,7 +442,8 @@ def token_price(model: str) -> tuple[float, float] | None:
     """USD per 1M (input, output) tokens for ``model``, in ``_estimate_cost``'s order.
 
     The global override wins, then the checked price sheet (its base tier, ``min_prompt_tokens``
-    0), then the dojo table, then the sandbox table (exact id, then prefix). None when no price
+    0), then the dojo table, then the sandbox table (exact id, then prefix). A ``:variant`` of a pinned
+    Decisions-API model skips the dojo table and the prefix match (``price_sheet`` refused it). None when no price
     is known. For an upper bound over every prompt size use ``token_price_ceiling``.
     """
     override = _token_price_override()
@@ -418,6 +455,10 @@ def token_price(model: str) -> tuple[float, float] | None:
     if sheet is not None:
         # The checked sheet wins over the dojo table (whose deepseek-v4-flash price is stale).
         return float(sheet[0]["prompt"]), float(sheet[0]["completion"])
+    if _is_decision_variant(str(model), str(model).split(":", 1)[0]):
+        # price_sheet refused it: no other table's prefix match may price it at a chat model's rate either.
+        # Only an exact row for the variant itself stands.
+        return SANDBOX_MODEL_PRICES.get(model)
     try:
         dojo = price_for(model)
     except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost

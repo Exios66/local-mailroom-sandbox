@@ -37,6 +37,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 \* contracts score is a GT-schema gap, not a model verdict (AWQ-C8 report §Accuracy).
 
 **Where the money actually went (measured):**
+
 1. **Decode wall-time dominates.** Contracts-20 held the GPU 1528s (p50 619s, max 818s) for 20
    docs; correspondence-20 held it 90s for the same 20. The 17× wall difference is decode length +
    the 8192 max_tokens budget, not prefill. **Long generation IS the cost.**
@@ -54,6 +55,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 ## 3 · Critical findings (ranked by $ impact on the Granite matrix)
 
 ### F1 — Decode length is the cost. Guided JSON decode + tighter contract is the top lever. (~$2-3 of the ~$6.4 matrix)
+
 - Evidence: raising contracts `max_tokens` 4096→8192 "moved the cap rather than cleared it" and
   "costs ~2x decode" (AWQ-C8 report). 3/20 failures = `LengthFinishReasonError` — the model burned
   the full 8192 budget without a parseable object. Failed-and-long decodes are the worst $/token.
@@ -68,6 +70,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   N=20 probe and decide with data.
 
 ### F2 — Cold-boot and redeploy tax. One warm app, enforced. (~$0.5 on the matrix; already doctrine, not yet enforced)
+
 - Evidence: 24% of measured spend; boots 160-260s each. The doctrine says "one warm app, teardown
   after the last run" (DMR-076, `suite.py warm_once`) — but it is **operator discipline, not
   code-enforced** across separate `sandbox run` invocations.
@@ -78,6 +81,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   volume) so the first serve is a cache hit; (d) never `--strategy recreate` mid-matrix.
 
 ### F3 — Concurrency is the cheapest throughput. Raise the per-type floor. (large wall reduction, no quality cost)
+
 - Evidence: correspondence tok/s **167 (c5) → 472 (c8) = 2.8×** on the *same* L4. Contracts c8 hit
   6.96× sum/wall. Current posture floors at c3 (merger) / c4 (contracts, corporate). FP8 Granite
   (SAND-027) frees KV headroom the bf16/AWQ rows did not have.
@@ -89,6 +93,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   (longest docs, KV-heavy) — re-measure, don't blanket-raise.
 
 ### F4 — Straggler handling: cap the tail, not the average. (direct $ on long-doc classes)
+
 - Evidence: contracts-20 p50 619s but 3 docs at 800s+; the container bills for the tail at ~1/8
   occupancy.
 - Fixes: (a) fail-fast on LengthFinish (F1b) so a runaway terminates; (b) consider a per-doc wall
@@ -96,6 +101,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   report p95/max latency so regressions in the tail are visible.
 
 ### F5 — Cost-cap math must reflect real occupancy. (prevents both overspend and self-aborts)
+
 - Evidence: `metrics.py` bills `gpu_seconds = wall + cold_boot` (or explicit `MODAL_BILLED_GPU_SECONDS`).
   Caps (`cost_cap_usd` 0.35-1.00) were set against `sec_per_doc` heuristics, and the c8 contracts run
   used 8192 tokens against a 4096-derived cap assumption. A cap that aborts a *correct* run wastes
@@ -106,13 +112,15 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   as the hard backstop.
 
 ### F6 — Instrumentation gaps that hide waste. (meta — makes the rest verifiable)
+
 - TTFT is never inferred (correct), but nothing measures **container-occupancy vs productive-token
   time** — the idle-vs-busy split that F1-F4 target. The serving JSONs carry wall, gpu-s, p50, max,
   tok/s but no "busy seconds." Add a `busy_gpu_seconds` (sum of per-item in-flight time / conc) vs
   `billed_gpu_seconds` so each run reports its own idle fraction. This turns the next optimization
   round from guesswork into arithmetic.
 
-### F7 — Hardware class: stay on L4 for the matrix; H100 only if measured to pay.
+### F7 — Hardware class: stay on L4 for the matrix; H100 only if measured to pay
+
 - L4 = $0.80/hr; H100 = $3.95/hr (~4.9×). A hardware swap only wins if it cuts *billed seconds*
   >4.9×. FP8-native H100 (per SAND-027 §2.3) may decode faster, but at these batch sizes (n≤100,
   concurrency ≤8) the L4 is not GPU-bound in a way 5× hardware can repay — the win would come from
@@ -124,6 +132,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 ## 4 · Optimization backlog (apply BEFORE the Granite matrix)
 
 **Shipped 2026-09-25 (free ops wins, zero spend, 438-test suite green):**
+
 - `docs/modal/modal-serving-ops.md` — the ops runbook (warm-once, teardown-once, L4, pre-warm is
   CPU-free, caps-from-measurement, anti-pattern table, **slice-don't-redraw** rule).
 - `config/models.yaml` — Granite `modal_models` rows: `ibm-granite/granite-4.2-8b-fp8`
@@ -136,8 +145,8 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 sub-seed from `(sample_seed, class)` — NOT from the count. Measured: sample(k=20) ⊂ sample(k=100)
 holds ~82% of seeds and sample(k=50) ⊂ sample(k=100) only ~26%. **Therefore the matrix MUST draw one
 bucket per class (n=100) and score 20/50 as prefix slices of the locked set; re-drawing per size
-breaks the same-subset guarantee** (this is why `docs/modal/modal-serving-ops.md` §5 and eval-env issue
-#20 exist).
+breaks the same-subset guarantee** (this is why `docs/modal/modal-serving-ops.md` §5 and eval-env
+issue #20 exist).
 
 | # | Optimization | Lever | Est. $ saved on ~$6.4 matrix | Risk | Owner |
 | --- | --- | --- | --- | --- | --- |

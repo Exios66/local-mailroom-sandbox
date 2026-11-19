@@ -115,20 +115,24 @@
       }
     },
     "correspondence": {
+      "additional_recipients": {
+        "gap_fill": 350
+      },
       "communication_date": {
-        "gap_fill": 235
+        "gap_fill": 731
       },
       "communication_type": {
         "derived": 300
       },
       "intent": {
-        "disputed": 72
+        "correction": 52,
+        "disputed": 20
       },
       "recipient": {
-        "gap_fill": 230
+        "gap_fill": 584
       },
       "sender": {
-        "gap_fill": 237
+        "gap_fill": 503
       }
     },
     "insurance_claim": {
@@ -157,9 +161,24 @@
   "files": {
     "contract.jsonl": "17802d8b410cf32efffe6bd758365ef13ce2e6353c40079bcde088538c0aff44",
     "corporate_record.jsonl": "6ebb631993b1b1bd7f73010f6bec82aa24da3e0a1c736e3a3ab3e86207744d45",
-    "correspondence.jsonl": "26786f65739b3cc8fb54a5fd425889eea971ca2a9f14e0467f93bfc65c403b48",
+    "correspondence.jsonl": "7e0297ff2e4d95ff91d4e11adf05a1e3795160f0dd925af69f1b01752979269d",
     "insurance_claim.jsonl": "5396ceb39cd72f110184212adbecf28167d0e868a9d1b189741a164377230c97",
     "merger_agreement.jsonl": "033732dc412f2fc4594283e909d42c3e9a55e27dd623ba7d1ea5862c41be1753"
   },
-  "rederived_at": "2026-11-16T06:15:32Z"
+  "rederived_at": "2026-11-16T06:15:32Z",
+  "reviews": [
+    {
+      "path": "data/labels/review/interim_reviews.jsonl",
+      "sha256": "6d57dffda3d78633b26de5ec1a53d7ef62afe446f68d7747f0d7b39257fbff70",
+      "lines": 1847,
+      "labels": {
+        "correspondence.additional_recipients:gap_fill/original_header": 350,
+        "correspondence.communication_date:gap_fill/original_header": 654,
+        "correspondence.intent:correction/review_read_message": 52,
+        "correspondence.recipient:gap_fill/original_header": 455,
+        "correspondence.sender:gap_fill/original_header": 336
+      }
+    }
+  ],
+  "reviewed_at": "2026-11-18T23:00:15Z"
 }

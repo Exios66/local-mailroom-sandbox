@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -108,8 +109,12 @@ def _activation_knobs(spec):
         os.environ["SANDBOX_AGENT_KNOBS"] = json.dumps(knobs)
     return knobs
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, injected: Sequence[str] = ()) -> int:
     """Dispatch a command and translate expected operator failures to exit codes.
+
+    ``injected`` is argv a host prepends on the operator's behalf (the TUI shell's session defaults). It is parsed
+    before ``argv`` but kept out of ``args.raw_argv``, so a handler can tell a flag the operator typed from one the
+    shell supplied.
 
     Offline agent inspection suppresses dotenv discovery through parser setup;
     other commands load normal environment defaults before their final parse.
@@ -124,10 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     # importing credentials from .env. Keep existing dotenv-first defaults for
     # all other commands; only preparse the subagent command family.
     raw = list(sys.argv[1:] if argv is None else argv)
+    full = [*injected, *raw]
     from mailroom_sandbox.paths import without_dotenv
 
     with without_dotenv():
-        candidate = build_parser().parse_args(raw) if "subagents" in raw else None
+        candidate = build_parser().parse_args(full) if "subagents" in full else None
     if candidate is not None and getattr(candidate, "offline_inspection", False):
         with without_dotenv():
             parser = build_parser()
@@ -135,7 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         load_env_file()
         parser = build_parser()
-        args = parser.parse_args(argv)
+        args = parser.parse_args(full if injected else argv)
+    args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
@@ -256,7 +263,12 @@ def build_parser() -> argparse.ArgumentParser:
         a flag placed after the subcommand still wins."""
         none = None if root else argparse.SUPPRESS
         flags = argparse.ArgumentParser(add_help=False)
-        flags.add_argument("--profile", type=nonempty, default=default_profile() if root else argparse.SUPPRESS)
+        flags.add_argument(
+            "--profile",
+            type=nonempty,
+            default=default_profile() if root else argparse.SUPPRESS,
+            help="Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default)",
+        )
         flags.add_argument("--model", type=nonempty, default=none, help="Override every agent's model tag")
         flags.add_argument("--prompt", type=nonempty, default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
         flags.add_argument(
@@ -1132,6 +1144,15 @@ def build_parser() -> argparse.ArgumentParser:
     vllm_cli.register(sub, leaf)
     hf_cli.register(sub, leaf)
     experiments.register(sub, leaf)
+    from mailroom_sandbox import splits_cli
+
+    splits_cli.register(sub, leaf)
+    from mailroom_sandbox import schemas_cli
+
+    schemas_cli.register(sub, leaf)
+    from mailroom_sandbox.autoresearch import cli as autoresearch_cli
+
+    autoresearch_cli.register(sub, leaf)
 
     return parser
 

@@ -94,3 +94,69 @@ def test_refresh_sheet_from_catalog_and_drift():
     entry["pricing"]["prompt"] = "0.00000005"
     _, changed = refresh_api_prices.refresh(doc, {"x/m": entry}, today="2026-11-02")
     assert changed == ["x/m"]
+
+
+def test_time_of_day_windows_are_not_prompt_tiers():
+    """OpenRouter time windows (utc_days / utc_start) fold into the base tier at their highest price."""
+    entry = {"id": "x/w", "context_length": 1000, "top_provider": {},
+             "pricing": {"prompt": "0.0000003", "completion": "0.0000012", "input_cache_read": "0.000000006",
+                         "overrides": [
+                             {"utc_days": ["saturday"], "prompt": "0.00000015", "completion": "0.0000006"},
+                             {"utc_days": ["monday"], "utc_start": 100, "utc_end": 400, "prompt": "0.0000004"},
+                             {"min_prompt_tokens": 64000, "prompt": "0.0000006", "completion": "0.0000024"}]}}
+    row = refresh_api_prices.sheet_from_catalog(entry)
+    assert row["tiers"] == [{"min_prompt_tokens": 0, "prompt": 0.4, "completion": 1.2, "cache_read": 0.006},
+                            {"min_prompt_tokens": 64000, "prompt": 0.6, "completion": 2.4}]
+    assert row["time_windows"] == 2
+    entry["pricing"]["overrides"] = entry["pricing"]["overrides"][2:]
+    out, _ = refresh_api_prices.refresh({"models": {"x/w": row}}, {"x/w": entry}, today="2026-11-18")
+    assert "time_windows" not in out["models"]["x/w"]
+
+
+@pytest.mark.parametrize("model,prompt", [("typesafe/jev-1.14", 0.042), ("liquid/d1.2", 0.02), ("upstage/solar-decide", 0.05),
+                                          ("google/gemini-decision-1", 0.1), ("perplexity/pplx-decider-v1.2", 0.02)])
+def test_decision_models_price_from_the_catalog_input_only(model, prompt):
+    assert metrics.call_price(model, 100_000) == pytest.approx((prompt, 0.0))
+    assert metrics.call_cost(model, 1_000_000, 0) == pytest.approx(prompt)
+    assert metrics.token_price_ceiling(model) == pytest.approx((prompt, 0.0))
+
+
+def test_unknown_decision_sibling_is_not_priced_by_prefix():
+    # liquid/d1 and liquid/d1.2 are catalog ids; a future liquid/d1.9 must stay unpriced.
+    assert metrics.price_sheet("liquid/d1.9") is None
+
+
+def test_a_variant_of_a_decisions_model_never_falls_to_a_chat_models_prefix_price(monkeypatch):
+    from mailroom_sandbox import decision_backends as db
+
+    chat = [{"min_prompt_tokens": 0, "prompt": 9.0, "completion": 9.0}]
+    monkeypatch.setattr(metrics, "api_price_sheets", lambda: {"vendor/chat": chat})
+    monkeypatch.setattr(db, "decision_catalog", lambda: {"vendor/chat-decider": {"prompt": 0.3}})
+    assert metrics.price_sheet("vendor/chat-decider") == [{"min_prompt_tokens": 0, "prompt": 0.3, "completion": 0.0}]
+    assert metrics.price_sheet("vendor/chat-decider:nitro") is None      # not the chat model's 9.0 USD, and not guessed
+    assert metrics.price_sheet("vendor/chat-other:nitro") == chat        # an ordinary chat id keeps its prefix rule
+
+
+def test_a_decisions_variant_is_refused_by_every_public_price_function_not_just_price_sheet(monkeypatch):
+    """price_sheet refused the variant, but call_price / token_price_ceiling then reached token_price's
+    prefix fallback and priced it at a chat model's rate."""
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setattr(metrics, "api_price_sheets", lambda: {})
+    monkeypatch.setattr(metrics, "SANDBOX_MODEL_PRICES", {"vendor/chat": (9.0, 9.0)})
+    monkeypatch.setattr(db, "decision_catalog", lambda: {"vendor/chat-decider": {"prompt": 0.3}})
+    variant = "vendor/chat-decider:nitro"
+    assert metrics.token_price(variant) is None
+    assert metrics.token_price_ceiling(variant) is None
+    assert metrics.call_price(variant, 1000) is None
+    assert metrics.call_cost(variant, 1000, 10) is None
+    assert metrics.token_price("vendor/chat-other:nitro") == (9.0, 9.0)       # chat variants keep their prefix price
+    assert metrics.token_price_ceiling("vendor/chat-decider") == pytest.approx((0.3, 0.0))   # the pinned base is priced
+    monkeypatch.setattr(metrics, "SANDBOX_MODEL_PRICES", {"vendor/chat": (9.0, 9.0), variant: (0.5, 0.0)})
+    assert metrics.token_price_ceiling(variant) == (0.5, 0.0)                 # an explicit row for the variant stands
+
+
+@pytest.mark.parametrize("model", ["typesafe/jev-1.14:nitro", "perplexity/pplx-decider-v1.2:floor"])
+def test_a_shipped_decisions_variant_has_no_price_so_a_paid_run_refuses_it(model):
+    assert metrics.price_sheet(model) is None
+    assert metrics.price_sheet(model.split(":")[0])                      # while its pinned base is priced

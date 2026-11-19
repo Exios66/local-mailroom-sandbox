@@ -7,6 +7,8 @@ The 13-node graph is not duplicated here.
 
 from __future__ import annotations
 
+import functools
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -220,13 +222,49 @@ def chunk_window(max_input_chars: int, chunk_chars: int, overlap_chars: int) -> 
     return min(int(chunk_chars), max(1_000, budget - overlap)), overlap
 
 
-def pipeline_specialist_state(agent: str) -> dict[str, Any]:
+def pipeline_specialist_state(agent: str, row: dict[str, Any] | None = None) -> dict[str, Any]:
     """The graph state the extract node builds its handoff from, for an isolated specialist.
 
-    Only the agent's document class: the specialist harness claims no sorter subclass, no
-    confidence and no document id (so no relations block), as the condensed lineage requires.
+    The agent's document class, and the subclass ``job.specialist_subclass`` names: none by
+    default (no sorter subclass, no confidence and no document id, so no relations block, as
+    the condensed lineage requires), the row's expected subclass (``gold``) or a saved sorter
+    pass's (``sorter``). A contract subclass is the CUAD family (``contract_subtype``).
     """
-    return {"doc_type": SPECIALIST_CLASS[agent]}
+    from mailroom_sandbox.runtime import specialist_subclass_source
+
+    doc_type = SPECIALIST_CLASS[agent]
+    state: dict[str, Any] = {"doc_type": doc_type}
+    mode, path = specialist_subclass_source()
+    if mode == "none" or row is None:
+        return state
+    if mode == "gold":
+        if doc_type == "merger_agreement":  # the subclass is the scored merger_consideration token
+            return state
+        subclass = row.get("expected_subclass")
+    else:
+        saved = _saved_sorter_pass(str(path)).get(str(row.get("id")))
+        if saved is None:
+            raise KeyError(f"job.specialist_subclass_file {path} has no sorter row for {row.get('id')}")
+        subclass = saved.get("sorter_contract_subtype") if doc_type == "contract" else None
+        subclass = subclass or saved.get("sorter_doc_subclass")
+    if subclass:
+        state["contract_subtype" if doc_type == "contract" else "doc_subclass"] = str(subclass)
+    return state
+
+
+@functools.lru_cache(maxsize=4)
+def _saved_sorter_pass(path: str) -> dict[str, dict[str, Any]]:
+    """id -> saved sorter row (``data/handoff/sorter-*/*.jsonl`` shape)."""
+    from mailroom_sandbox.paths import repo_root
+
+    file = Path(path) if Path(path).is_absolute() else repo_root() / path
+    rows: dict[str, dict[str, Any]] = {}
+    with file.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                row = json.loads(line)
+                rows[str(row["id"])] = row
+    return rows
 
 
 def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -239,7 +277,7 @@ def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
     # pipeline's specialist sees, not just the system prompt.
     from graph.build_graph import _build_handoff_context, _enrich_contract_result  # type: ignore
 
-    state = pipeline_specialist_state(agent)
+    state = pipeline_specialist_state(agent, row)
     return _enrich_contract_result(_extract_live(agent, row, _build_handoff_context(state)), state)
 
 

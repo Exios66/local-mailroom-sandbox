@@ -229,7 +229,7 @@ spend. See [Providers](docs/setting-up/providers.md) and
 
 ## ⌨️ CLI
 
-```
+```bash
 sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
 sandbox up | down | health | doctor | pull-models | fetch-deps | cutover | profiles | agents
 sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough (status lists scoped sandbox-* apps too)
@@ -295,6 +295,7 @@ reference — every command, subcommand and argument — is
 | Guide | Description |
 | :--- | :--- |
 | [Experiment workflow](docs/experiments.md) | Paired designs, pipeline/hybrid agent models, initials-gated spend, smoke, observer, and reports |
+| [Autoresearch](docs/autoresearch.md) | Config-only greedy lever search over locked runs: weakness table, paired bootstrap, ledger, held-out confirmation |
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
@@ -343,7 +344,7 @@ human review) and a yes/no "is this field supported" probability per key field.
 <details>
 <summary>Directory map</summary>
 
-```
+```text
 config/profiles/     provider profiles (local-first defaults)
 config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
 config/prompts/      frozen prompt stems (referenced by name from run specs)

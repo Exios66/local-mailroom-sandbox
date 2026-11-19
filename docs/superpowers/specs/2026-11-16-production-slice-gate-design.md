@@ -14,6 +14,7 @@ behave as designed.
 Production here means CLI-launched runs (`sandbox run start`) over fixed slices of the Hugging
 Face mailroom dataset, growing towards the whole dataset. Documents land in the hash archive
 (`data/archive/SANDBOX-<run>-DOC-<hash>/<class>/`). A run executes in one of three places:
+
 1. locally, with every model call going to OpenRouter;
 2. on Modal, with the `sandbox-job` worker running the job and vLLM on Modal serving the models;
 3. on a VM, from the Docker image.
@@ -84,6 +85,7 @@ A wrong archive is worse than a review, because nobody looks at it. "Fewer revie
   - The report lists it with its count.
 
 **Pass rule:** a slice passes when, over the gated classes pooled together:
+
 - the wrong-archive rate is at or under 2%;
 - the review rate is at or under 5%;
 - there are no crashes.
@@ -106,6 +108,7 @@ would be dominated by noise.)*
 ## Anti-goals
 
 These would make the work a failure even if every gate passed:
+
 - **Any label in routing.** Every production slice runs with `job.blind_routing: true`; a slice
   that routes on labels is invalid.
 - **Lowering review by archiving wrong extractions:** a review rate that falls while the
@@ -242,6 +245,7 @@ the slice configs only through the same confirm step (step 4).
 
 **Stage 1 — job-host parity.** After a local slice passes, its Modal job-host twin runs, still
 calling OpenRouter. The two are accepted as equivalent only if:
+
 - the `dependency_sources` provenance matches (same vendored commits and tree hashes);
 - the per-class gate rates fall within the paired CI.
 
@@ -252,6 +256,7 @@ image with the same CLI and the same checks.
 Modal server (`deploy/modal_vllm.py`) serves Qwen3.5-9B with a 16k–32k context window on an L4.
 A merger needs about 410k tokens and long contracts need about 90k, so context fit chunks them
 heavily and the pipeline behaves differently. Stage 2 therefore:
+
 - runs its own slice ladder, starting at slice 100, with the same gate, bars and cause
   buckets;
 - keeps the decision reviewer on its API model, unless the reviewer is moved explicitly;

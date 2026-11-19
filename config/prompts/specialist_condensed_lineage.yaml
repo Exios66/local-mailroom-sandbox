@@ -18,6 +18,7 @@ lineage: specialist-condensed
 budget_chars: 3000
 budget_chars_by_agent:
   insurance_claims_specialist: 4500   # six source templates, each with its own field map (v3)
+  contracts_specialist: 5000          # 26 CUAD families and 41 exact Atticus category names
 max_mean_drop: 0.02
 agents:
   insurance_claims_specialist:
@@ -56,7 +57,15 @@ agents:
         # enrichment agree with the prompt. Same 40 documents as the v4 A/B.
         reference_run: specialist-condensed-v5-insurance-claim-qwen-v4arm
         validation_run: specialist-condensed-v5-insurance-claim-qwen-v5arm
-        status: candidate   # waits for llm-mailroom #280 to merge and be vendored
+        status: candidate   # runnable: #280 is in the vendored pin (8cebcd86, vendor/README.md)
+      - version: insurance_claims_specialist_condensed_v6
+        parent: "insurance_claims_specialist_condensed_v3, the deployed frontrunner (one change: cms_source_table, a scored field with truth on 536 documents that v3 never names, is the printed CMS table on the two Medicare templates and null on the others; SAND-108 decision 3)"
+        reference_run: runbook-pi-i-v3arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-i-v6arm
+        status: rejected   # withdrawn before any run (2026-11-18): the specialist's structured-output schema
+        # has no cms_source_table property and forbids extra keys (llm-mailroom
+        # test_cms_source_table_is_never_asked_of_the_model), so the model cannot write it. The pipeline
+        # derives it from the sorter subclass; an isolated run gets it with job.specialist_subclass.
   correspondence_specialist:
     frontrunner: correspondence_specialist_condensed_v3
     versions:
@@ -77,6 +86,13 @@ agents:
         reference_run: specialist-condensed-v3-correspondence-qwen-v2arm-r2
         validation_run: specialist-condensed-v3-correspondence-qwen-v3arm
         status: adopted   # paired A/B, 40 held-out documents: mean +0.015 (0.332 -> 0.346), 8 wins / 29 ties / 3 losses, communication_type 2 -> 3 of 10 exact, intent 23 -> 24 of 40, 0 parse errors, +4% input tokens
+      - version: correspondence_specialist_condensed_v4
+        parent: "correspondence_specialist_condensed_v3 (one change: the contact, demand, action and urgency rules follow docs/gold-labels/LABELING_GUIDE.md, the convention the repaired near-gold/interim labels use: recipient = first To: entry or a named-group salutation, generic salutation null; demand_amount only when demanded of the recipient; action_items need no deadline; urgency definitions)"
+        # Score it with dataset.interim_labels + near_gold_labels on (every earlier A/B scored only
+        # intent / subject_matter / keywords / communication_type) and job.schema_guide on in both arms.
+        reference_run: runbook-pi-e-v3arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-e-v4arm
+        status: candidate   # written 2026-11-18 from the label audit; not yet run
   corporate_records_specialist:
     frontrunner: corporate_records_specialist_condensed_v1
     versions:
@@ -85,3 +101,17 @@ agents:
         reference_run: extraction-gate-specialist-corporate-record-qwen
         validation_run: specialist-condensed-v1-corporate-record-qwen-ab
         status: adopted   # mean +0.075 (0.352 -> 0.427), intent 19 -> 27 exact, 0 parse errors, fewer tokens
+      - version: corporate_records_specialist_condensed_v2
+        parent: "corporate_records_specialist_condensed_v1 (one change: the map and core-field rules follow the Dojo subclass schema and LABELING_GUIDE.md: Certificate of Designation -> other/governance_rules, registration/investor/subscription agreements -> rights_instrument, effective_date falls back to the adoption/filing date, indenture jurisdiction = governing-law state, signatories only from the execution block)"
+        reference_run: runbook-pi-r-v1arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-r-v2arm
+        status: candidate   # written 2026-11-18 from the label audit; not yet run
+  contracts_specialist:
+    frontrunner: contracts_specialist_v33_simplified   # deployed; outside this lineage (not a condensed file)
+    frontrunner_outside_lineage: true
+    versions:
+      - version: contracts_specialist_condensed_v1
+        parent: "contracts_specialist_v33_simplified, the deployed frontrunner (half its length; names the 8 repaired fields v33_simplified never lists: party_roles with its role vocabulary, signatories, agreement_date, expiration_date, termination_notice_period, dispute_forum, payment_terms, territory; contract_value as the plain dollar figure Dojo parses; the per-family brief becomes the title rule; SAND-108 decision 3)"
+        reference_run: runbook-pi-c-v33arm (to be run on config/splits/runbook-v1 dev-look1)
+        validation_run: runbook-pi-c-v1arm
+        status: candidate   # written 2026-11-18 from the repaired schema registry; not yet run

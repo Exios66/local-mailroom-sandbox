@@ -36,7 +36,7 @@ SSH?**
   **Port forwards must be established on the initial (master) connection** —
   they cannot be added later on a reused connection. (Mosh is suggested by
   CHTC for flaky links but does **not** support port forwarding.)
-- Help: chtc@cs.wisc.edu, community forum (community.chtc.wisc.edu),
+- Help: <chtc@cs.wisc.edu>, community forum (community.chtc.wisc.edu),
   office hours Tue/Thu.
 
 ## 2. Operating system + software strategy (their OS/containers guides)

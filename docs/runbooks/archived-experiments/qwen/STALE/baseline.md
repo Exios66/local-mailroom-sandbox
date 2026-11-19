@@ -4,7 +4,7 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-# Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
+## Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
 
 **id:** `l4-qwen3-8b` · **family:** `baseline` · **serving:** `baseline`
 
@@ -12,7 +12,7 @@ Full 5×30 specialist suite on the default serving shape. One sandbox-vllm repli
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -27,7 +27,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Suite `run-30-specialists-full` (track=full)
+### Suite `run-30-specialists-full` (track=full)
 
 Single operator — all five run-30 specialists (alternative to A∥B)
 
@@ -43,7 +43,7 @@ Ordered configs:
 4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
-## Per-doc-type posture (live)
+### Per-doc-type posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -55,7 +55,7 @@ Ordered configs:
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Specialist prompts (eval-environment frozen v1)
+### Specialist prompts (eval-environment frozen v1)
 
 | Run | Agent | Local stem | eval-environment key |
 | --- | --- | --- | --- |
@@ -65,21 +65,21 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
-## Notes
+### Notes
 
 - Prefer two-operator tracks (l4-qwen3-8b-track-a ∥ track-b) when two Modal wallets exist — same spend, ~½ wall.
 - Attended scaledown is 120s. Unattended/overnight: set scaledown_seconds 600 in the catalog variant or export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
 - Merger uses merger_agreement_specialist (not contracts) and the train split.
 - Prompts are eval-environment frozen v1 simplified stems (sandbox runbook show prints the live posture table).
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
@@ -145,7 +145,7 @@ sandbox metrics compare --runs run-30-contracts-specialist,run-30-merger-special
 
 ---
 
-# Operator A — 1×L4 Qwen3-8B (contracts → corporate → correspondence)
+## Operator A — 1×L4 Qwen3-8B (contracts → corporate → correspondence)
 
 **id:** `l4-qwen3-8b-track-a` · **family:** `baseline` · **serving:** `baseline`
 
@@ -153,7 +153,7 @@ Track A on the Hermes wallet (hermes-agent-jjb). Same singular L4 / 1-container 
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-a`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -168,7 +168,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Suite `run-30-specialists-track-a` (track=a)
+### Suite `run-30-specialists-track-a` (track=a)
 
 Operator A — contracts + corporate_records + correspondence
 
@@ -182,7 +182,7 @@ Ordered configs:
 2. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
 3. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 
-## Per-doc-type posture (live)
+### Per-doc-type posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -194,7 +194,7 @@ Ordered configs:
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Specialist prompts (eval-environment frozen v1)
+### Specialist prompts (eval-environment frozen v1)
 
 | Run | Agent | Local stem | eval-environment key |
 | --- | --- | --- | --- |
@@ -204,14 +204,14 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Operator A — 1×L4 Qwen3-8B (contracts → corporate → correspondence)
@@ -272,7 +272,7 @@ done
 
 ---
 
-# Operator B — 1×L4 Qwen3-8B (merger → insurance)
+## Operator B — 1×L4 Qwen3-8B (merger → insurance)
 
 **id:** `l4-qwen3-8b-track-b` · **family:** `baseline` · **serving:** `baseline`
 
@@ -280,7 +280,7 @@ Track B on a second Modal account. SANDBOX_MODAL_PROFILE_TRACK_B is required. Ne
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-b`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -295,7 +295,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Suite `run-30-specialists-track-b` (track=b)
+### Suite `run-30-specialists-track-b` (track=b)
 
 Operator B — merger + insurance_claims
 
@@ -307,7 +307,7 @@ Ordered configs:
 1. `config/runs/legacy/run-30-merger-specialist.yaml`
 2. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
-## Per-doc-type posture (live)
+### Per-doc-type posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -319,7 +319,7 @@ Ordered configs:
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Specialist prompts (eval-environment frozen v1)
+### Specialist prompts (eval-environment frozen v1)
 
 | Run | Agent | Local stem | eval-environment key |
 | --- | --- | --- | --- |
@@ -329,14 +329,14 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Operator B — 1×L4 Qwen3-8B (merger → insurance)
@@ -400,7 +400,7 @@ done
 
 ---
 
-# Singular 1×L4 Qwen3-8B — 20-contract probe
+## Singular 1×L4 Qwen3-8B — 20-contract probe
 
 **id:** `l4-qwen3-8b-n20` · **family:** `baseline` · **serving:** `baseline`
 
@@ -408,7 +408,7 @@ SAND-018 single-class sibling of the 5×30 suite. Same L4 / 1-container Qwen3-8B
 
 Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-n20`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -423,11 +423,11 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-contracts-specialist.yaml`
 
-## Per-doc-type posture (live)
+### Per-doc-type posture (live)
 
 | Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -435,7 +435,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
-## Specialist prompts (eval-environment frozen v1)
+### Specialist prompts (eval-environment frozen v1)
 
 | Run | Agent | Local stem | eval-environment key |
 | --- | --- | --- | --- |
@@ -445,14 +445,14 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v1` |
 | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_v1` |
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Singular 1×L4 Qwen3-8B — 20-contract probe
