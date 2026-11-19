@@ -15,6 +15,11 @@ that fails the literal match is then compared in canonical form:
   against every amount the text writes (``$2,500,000``, ``2.5 million``).
 - ``numeral``: spelled-out numbers read as digits on both sides, so
   ``3 years`` matches ``three (3) years`` and ``thirty days`` matches ``30 days``.
+- ``alias``: a canonical abbreviation in ``ALIASES`` (``SEC``) against its written
+  forms (``Securities Exchange Act``).
+
+Matches never split a word or number at an alphanumeric edge: ``3 years`` is not
+grounded by ``13 years`` and ``SEC`` is not grounded by ``SECTION``.
 
 Those matches are ``grounded_normalized`` with the ``form`` that matched, so
 they stay distinguishable from literal ones.
@@ -26,6 +31,7 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from mailroom_sandbox.gold_labels import parse_dates
@@ -42,6 +48,15 @@ NON_TEXT = "non_text"
 DATE_FORM = "date"
 NUMBER_FORM = "number"
 NUMERAL_FORM = "numeral"
+ALIAS_FORM = "alias"
+
+# Canonical abbreviations the extraction prompts ask for, and the written forms that
+# ground them. Keep this short and explicit: every entry widens what counts as grounded.
+# "SEC": the compliance prompt names it as the regulatory_body; a 10-K states its
+# regulator through the Act it is filed under ("Securities Exchange Act of 1934").
+ALIASES: dict[str, tuple[str, ...]] = {
+    "sec": ("securities and exchange commission", "securities exchange act"),
+}
 
 _WS = re.compile(r"\s+")
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -51,21 +66,21 @@ _DATE_TOKENS = re.compile(
     re.I,
 )
 _SCALE = {
-    "k": 1e3,
-    "thousand": 1e3,
-    "m": 1e6,
-    "mm": 1e6,
-    "million": 1e6,
-    "b": 1e9,
-    "bn": 1e9,
-    "billion": 1e9,
+    "k": Decimal(10**3),
+    "thousand": Decimal(10**3),
+    "m": Decimal(10**6),
+    "mm": Decimal(10**6),
+    "million": Decimal(10**6),
+    "b": Decimal(10**9),
+    "bn": Decimal(10**9),
+    "billion": Decimal(10**9),
 }
 _AMOUNT = re.compile(
-    r"(?<![\w.])\$?\s?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(k|thousand|mm|m|million|bn|b|billion)?(?![\w])",
+    r"(?<![\w.\-\u2212])([-\u2212]?)\$?\s?([-\u2212]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(k|thousand|mm|m|million|bn|b|billion)?(?![\w])",
     re.I,
 )
 _AMOUNT_ONLY = re.compile(
-    r"\s*(?:usd|us\$|\$)?\s*(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(k|thousand|mm|m|million|bn|b|billion)?\s*(?:usd|dollars)?\s*",
+    r"\s*([-\u2212]?)\s*(?:usd|us\$|\$)?\s*([-\u2212]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*(k|thousand|mm|m|million|bn|b|billion)?\s*(?:usd|dollars)?\s*",
     re.I,
 )
 _UNITS = (
@@ -107,6 +122,17 @@ def _norm(text: str) -> str:
     return _WS.sub(" ", text).casefold().strip()
 
 
+def _contains(haystack: str, needle: str) -> bool:
+    """``needle`` in ``haystack`` without splitting a word or number at an alphanumeric edge.
+
+    ``3 years`` is not in ``13 years`` and ``Delaware`` is not in ``Delawarean``;
+    an edge that is punctuation (``Inc.``) matches as a plain substring.
+    """
+    head = r"(?<!\w)" if needle[:1].isalnum() else ""
+    tail = r"(?!\w)" if needle[-1:].isalnum() else ""
+    return re.search(head + re.escape(needle) + tail, haystack) is not None
+
+
 def _values(value: Any) -> list[Any]:
     return list(value) if isinstance(value, (list, tuple)) else [value]
 
@@ -134,20 +160,28 @@ def _gold_date(value: str) -> str | None:
     return next(iter(dates)) if len(dates) == 1 else None
 
 
-def _amount(whole: str, frac: str | None, scale: str | None) -> float:
-    return float(whole.replace(",", "") + (frac or "")) * _SCALE.get((scale or "").casefold(), 1.0)
+def _amount(sign: str, sign2: str, whole: str, frac: str | None, scale: str | None) -> Decimal:
+    value = Decimal(whole.replace(",", "") + (frac or "")) * _SCALE.get(
+        (scale or "").casefold(), Decimal(1)
+    )
+    return -value if (sign or sign2) else value
 
 
-def _amounts(text: str) -> set[float]:
+def _amounts(text: str) -> set[Decimal]:
     """Every number or amount ``text`` writes, scaled (``2.5 million`` is 2500000.0)."""
     return {_amount(*m.groups()) for m in _AMOUNT.finditer(text)}
 
 
-def _gold_amount(value: Any) -> float | None:
+def _gold_amount(value: Any) -> Decimal | None:
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
-        return float(value)
+    if isinstance(value, int):
+        return Decimal(value)
+    if isinstance(value, float):
+        try:
+            return Decimal(repr(value))  # the shortest repr, not the binary expansion
+        except InvalidOperation:  # nan / inf
+            return None
     m = _AMOUNT_ONLY.fullmatch(value) if isinstance(value, str) else None
     return _amount(*m.groups()) if m else None
 
@@ -174,8 +208,10 @@ def _normalized_form(item: Any, raw_text: str, text: str) -> str | None:
     if amount is not None and amount in _amounts(raw_text):
         return NUMBER_FORM
     if isinstance(item, str):
+        if any(_contains(text, alias) for alias in ALIASES.get(_norm(item), ())):
+            return ALIAS_FORM
         needle = _numerals(item)
-        if needle and needle in _numerals(text):
+        if needle and _contains(_numerals(text), needle):
             return NUMERAL_FORM
     return None
 
@@ -210,7 +246,7 @@ def gold_field_grounding(
                 form = ""
                 if name in skip:
                     status = CATEGORICAL
-                elif isinstance(item, str) and _norm(item) and _norm(item) in text:
+                elif isinstance(item, str) and _norm(item) and _contains(text, _norm(item)):
                     status = GROUNDED
                 elif not isinstance(item, (str, int, float)) or isinstance(item, bool):
                     status = NON_TEXT
