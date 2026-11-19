@@ -590,23 +590,40 @@ def revert_truth_overrides(expected: Mapping[str, Any], overrides: Mapping[str, 
 # --- SHF-013: reviewed subclass corrections ----------------------------------------------------
 
 SUBCLASS_CORRECTIONS = "data/labels/review/subclass_corrections.jsonl"
-_CORRECTIONS_CACHE: dict[tuple[str, int, int], dict[str, dict[str, Any]]] = {}
+_CORRECTIONS_CACHE: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def _pinned_corrections_sha() -> str | None:
+    """The sha256 SHF-013's fingerprint pins for the corrections file, or None."""
+    target = f"file:{SUBCLASS_CORRECTIONS}"
+    for fix in HOTFIXES:
+        for name, sha in fix.targets:
+            if name == target:
+                return sha
+    return None
 
 
 def subclass_corrections() -> dict[str, dict[str, Any]]:
     """``{doc_id: entry}`` of the reviewed subclass corrections whose ``verdict`` is ``correct``.
 
-    A ``held`` entry is recorded but not applied. Empty when the file is missing (SHF-013 is then
-    ``unavailable`` and not applied either).
+    ``held`` and ``rejected`` entries are recorded but not applied. Empty when the file is missing
+    (SHF-013 is then ``unavailable`` and not applied either). The bytes parsed are the bytes checked:
+    the file is read once, its sha256 must equal SHF-013's pinned fingerprint, and the parsed table
+    is cached by that hash. A file edited after SHF-013 was validated raises instead of feeding new
+    truth to a run that reports the old fingerprint.
     """
     path = data_path(SUBCLASS_CORRECTIONS)
     if path is None:
         return {}
-    stat = path.stat()
-    key = (str(path), stat.st_mtime_ns, stat.st_size)
-    if key not in _CORRECTIONS_CACHE:
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    pinned = _pinned_corrections_sha()
+    if pinned is not None and digest != pinned:
+        raise RuntimeError(f"{SUBCLASS_CORRECTIONS} changed since SHF-013 was validated "
+                           f"(sha256 {digest[:12]}, pinned {pinned[:12]}); re-review it and update the fingerprint")
+    if digest not in _CORRECTIONS_CACHE:
         entries: dict[str, dict[str, Any]] = {}
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in raw.decode("utf-8").splitlines():
             if not line.strip():
                 continue
             entry = json.loads(line)
@@ -616,8 +633,8 @@ def subclass_corrections() -> dict[str, dict[str, Any]]:
                 raise ValueError(f"{SUBCLASS_CORRECTIONS}: {entry['doc_id']} is corrected twice")
             entries[str(entry["doc_id"])] = entry
         _CORRECTIONS_CACHE.clear()
-        _CORRECTIONS_CACHE[key] = entries
-    return _CORRECTIONS_CACHE[key]
+        _CORRECTIONS_CACHE[digest] = entries
+    return _CORRECTIONS_CACHE[digest]
 
 
 def corrected_subclass(doc_id: Any, doc_class: Any, hub_subclass: Any) -> str | None:

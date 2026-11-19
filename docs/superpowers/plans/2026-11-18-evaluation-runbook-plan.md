@@ -220,6 +220,13 @@ refuses any draw through `heldout.exclude.ids` unless two conditions hold: the r
 `rb1-r70*`..`rb1-r72*`, and the shell sets `SANDBOX_UNSEAL_HELDOUT` to exactly that run id. It also
 refuses, and deletes the prepared file, when another split-exclusion draw prepares held-out rows.
 
+**Per-class support (added 2026-11-19).** A macro-F1 non-inferiority claim also needs every class
+to carry at least ln(0.05)/ln(1 - K x margin) compared documents: 29 at K = 5 and a 2-point margin
+(`sorter_arms.macro_class_support`). Below that, the claim reads "not shown" whatever the
+bootstrap says. Held-out meets it (merger_agreement 59, the smallest class). dev-look1 does not
+(merger_agreement 20), so R13b reports its macro-F1 non-inferiority as "not shown" by design and
+screens on the unit test and the point estimates.
+
 **Open owner decisions.** (10) Full-1,000 primary with strata, as above. (11) The macro-F1 margin,
 2 pts or 3 pts. (12) The unit margin, 4 pts. (13) Which extra decision models R13b screens.
 (14) Whether arm A at R70b is v0 only, or v0 and the final sorter (the final would be a secondary

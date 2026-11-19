@@ -477,3 +477,12 @@ def test_ledger_rows_carry_provider_reported_usage_and_cost():
     assert s["qwen/qwen3.7-flash"]["cost_reported_calls"] == 1 and s["qwen/qwen3.7-flash"]["calls"] == 2
     assert pp.served_usage(SimpleNamespace(usage=None)) == {}
     pp.reset_ledger()
+
+
+def test_served_usage_keeps_object_zeros_and_drops_non_finite_values():
+    from types import SimpleNamespace
+
+    zero = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=120, completion_tokens=0, cost=0.0))
+    assert pp.served_usage(zero) == {"prompt_tokens": 120, "completion_tokens": 0, "reported_cost_usd": 0.0}
+    bad = {"usage": {"prompt_tokens": 50, "completion_tokens": float("inf"), "cost": float("nan")}}
+    assert pp.served_usage(bad) == {"prompt_tokens": 50}

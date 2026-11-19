@@ -185,3 +185,16 @@ def test_campaign_report_renders_the_subclass_metric():
     md = rc._render_report_md(report, types.SimpleNamespace(stem="r"))
     assert "| subclass_match | 0.5000 |" in md and "Subclass by truth class (SHF-013" in md
     assert "| merger_agreement | 2 | 0 |" in md
+
+
+def test_a_corrections_file_edited_after_validation_stops_scoring(monkeypatch, tmp_path):
+    # The bytes parsed are the bytes checked: an edit after SHF-013 was validated must not feed new truth
+    # to a run that reports the old fingerprint.
+    path = tmp_path / "corrections.jsonl"
+    path.write_bytes((repo_root() / sh.SUBCLASS_CORRECTIONS).read_bytes())
+    monkeypatch.setattr(sh, "data_path", lambda _rel: path)
+    monkeypatch.setattr(sh, "_CORRECTIONS_CACHE", {})
+    assert "DOC-59d072355f2c3b14" in sh.subclass_corrections()
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="changed since SHF-013 was validated"):
+        sh.subclass_corrections()

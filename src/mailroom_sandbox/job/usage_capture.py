@@ -62,6 +62,26 @@ def usage_from_pipeline() -> dict[str, int]:
     return out
 
 
+def call_usage_from_pipeline() -> list[list[int]]:
+    """The current thread's calls as ``[[prompt_tokens, completion_tokens], ...]``, in call order.
+
+    The item totals hide how a document's prompt tokens split across calls, and a tiered price
+    sheet (cheaper below a prompt-size threshold) needs each call's own size. Empty when the
+    vendored accumulator is unavailable.
+    """
+    try:
+        from pipeline import limits
+    except Exception as exc:  # noqa: BLE001 — mock / no vendor
+        _log.debug("pipeline.limits unavailable for per-call usage capture: %s", exc)
+        return []
+    try:
+        calls = limits._run_usage.get()  # noqa: SLF001 — the accumulator usage_summary() reads
+        return [[int(c["prompt_tokens"]), int(c["completion_tokens"])] for c in calls]
+    except Exception as exc:  # noqa: BLE001 — soft: the totals are still recorded
+        _log.warning("per-call usage capture failed (%s): item will be priced from totals", exc)
+        return []
+
+
 def usage_from_openai_response(resp: Any) -> dict[str, int]:
     """Extract prompt/completion tokens from an OpenAI SDK response object."""
     usage = getattr(resp, "usage", None)

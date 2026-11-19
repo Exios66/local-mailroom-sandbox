@@ -109,6 +109,10 @@ def check_run(run_dir: Path, controls: Path) -> int:
         want = expected.get(item.get("item_id"))
         if want is None:
             continue
+        if item["item_id"] in seen:  # two results for one control: the run is not a clean check
+            misses += 1
+            print(f"MISS {item['item_id']:36} duplicate result in the run")
+            continue
         seen.add(item["item_id"])
         pred = item.get("pred") or {}
         got, parked = pred.get("document_form"), bool(pred.get("abstained") or pred.get("route_to_human"))
@@ -118,7 +122,8 @@ def check_run(run_dir: Path, controls: Path) -> int:
     for cid in sorted(set(expected) - seen):  # a truncated run must not pass on the controls it skipped
         misses += 1
         print(f"MISS {cid:36} want {expected[cid]:20} no item in the run")
-    print(f"{len(expected) - misses}/{len(expected)} controls correct")
+    correct = max(0, len(expected) - misses)
+    print(f"{correct}/{len(expected)} controls correct")
     return 1 if misses else 0
 
 

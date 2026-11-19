@@ -23,9 +23,12 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 
 Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
-the Dojo pin's behaviour unchanged. Two fixes act outside a scoring call and are on whenever they
-are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`) and SHF-009 in the
-Decisions routing contract (`decision_backends`). SHF-009's `forced_choice` is the forced-choice
+the Dojo pin's behaviour unchanged. Three fixes act outside a `hotfixed()` block and are on whenever
+they are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`), SHF-009 in the
+Decisions routing contract (`decision_backends`), and SHF-013 in the isolated sorter and
+`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`. SHF-013 always
+keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
+still match the pinned fingerprint when it is read, or scoring stops. SHF-009's `forced_choice` is the forced-choice
 answer from the same question-set response, not a second request.
 
 ## Fixes

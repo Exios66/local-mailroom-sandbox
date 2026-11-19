@@ -1,0 +1,4 @@
+{
+  "applicable": false,
+  "note": "items.jsonl rows carry no per-item truth; use the run scorer's scores in metrics.json"
+}

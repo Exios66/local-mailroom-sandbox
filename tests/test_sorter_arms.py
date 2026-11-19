@@ -375,13 +375,57 @@ def test_exact_bound_counts_the_sampling_error_in_gains():
 def test_runtime_throughput_counts_only_answered_documents():
     from types import SimpleNamespace as NS
     arm = NS(concurrency=1, run_wall_seconds=12.0)
-    ok = [NS(finished_ts=float(k + 1), latency_ms=1000.0, failed=False) for k in range(10)]
-    failed = [NS(finished_ts=None, latency_ms=None, failed=True) for _ in range(10)]
+    ok = [NS(started_ts=float(k), finished_ts=float(k + 1), latency_ms=1000.0, failed=False) for k in range(10)]
+    failed = [NS(started_ts=None, finished_ts=None, latency_ms=None, failed=True) for _ in range(10)]
     rt = sa._runtime(arm, ok + failed)
     # 10 answered documents over 10 active seconds and 10 latency seconds; the failures add neither.
     assert rt["active_seconds"] == pytest.approx(10.0)
     assert rt["docs_per_minute"] == pytest.approx(60.0) and rt["docs_per_minute_per_worker"] == pytest.approx(60.0)
     assert rt["hours_per_100k_docs"] == pytest.approx(100_000 / 60 / 60)
+
+
+def test_runtime_charges_failed_attempt_time_and_prefers_the_execution_window():
+    from types import SimpleNamespace as NS
+    arm = NS(concurrency=1, run_wall_seconds=None)
+    # one 1-second answer, then a 60-second attempt that failed: 1 document delivered in 61 seconds.
+    ok = NS(started_ts=0.0, finished_ts=1.0, latency_ms=1000.0, failed=False)
+    timeout = NS(started_ts=1.0, finished_ts=61.0, latency_ms=60_000.0, failed=True)
+    rt = sa._runtime(arm, [ok, timeout])
+    assert rt["active_seconds"] == pytest.approx(61.0) and rt["latency_sum_seconds"] == pytest.approx(61.0)
+    assert (rt["answered"], rt["failed"]) == (1, 1)
+    assert rt["docs_per_minute"] == pytest.approx(60 / 61) and rt["timing_basis"] == "execution"
+    # Persisted at 30 s, long after a 1-second answer: the window, not ts - latency, places the request.
+    late = NS(started_ts=0.0, finished_ts=1.0, latency_ms=1000.0, failed=False)
+    assert sa._runtime(arm, [late])["active_seconds"] == pytest.approx(1.0)
+    legacy = NS(started_ts=None, finished_ts=30.0, latency_ms=1000.0, failed=False)
+    assert sa._runtime(arm, [legacy])["timing_basis"] == "estimate"
+
+
+def test_macro_noninferiority_needs_per_class_support():
+    # 5 classes and a 2-point margin: each class needs ln(0.05)/ln(0.9) -> 29 documents.
+    support = sa.macro_class_support(["a"] * 40 + ["b"] * 40 + ["c"] * 40 + ["d"] * 40 + ["e"] * 1, 0.02)
+    assert support["min_docs_per_class"] == 29 and support["underpowered"] == {"e": 1}
+
+
+def test_a_minority_class_both_arms_get_right_cannot_carry_macro_noninferiority(tmp_path, split):
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    report = sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs", set_name=None, n_boot=50, n_perm=50)
+    ni = report["pairs"]["B"]["tests"]["noninferiority_macro_f1"]
+    assert ni["class_support"]["underpowered"] and ni["non_inferior"] is False and ni["p_value"] == 1.0
+    assert "classes under" in sa.render(report)
+
+
+def test_no_scored_units_leaves_unit_noninferiority_unavailable():
+    outs = [sa.Outcome(doc_id=f"D{i}", truth_class="contract", pred_class="contract", class_ok=True,
+                       sub_scored=False, sub_ok=False, unit_scored=False, unit_ok=False, failed=False,
+                       confidence=0.9, latency_ms=1.0, cost_usd=0.0, reported_cost_usd=None, tokens=(1, 1))
+            for i in range(30)]
+    result = sa.compare_pair(outs, outs, labels=["contract"], n_boot=20, n_perm=20)
+    unit = result["tests"]["noninferiority_unit"]
+    assert result["unit_n"] == 0 and unit["non_inferior"] is False and unit["unavailable"]
+    assert result["tests"]["noninferiority_macro_f1"]["lower95_one_sided"] is not None
 
 
 def test_compare_is_deterministic(tmp_path, split):

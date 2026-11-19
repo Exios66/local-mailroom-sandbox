@@ -209,6 +209,32 @@ def call_cost(model: str | None, prompt_tokens: float, completion_tokens: float,
         return None
     return (float(prompt_tokens or 0) * price[0] + float(completion_tokens or 0) * price[1]) / 1_000_000
 
+def item_calls_cost(model: str | None, item: Mapping[str, Any]) -> tuple[float | None, bool]:
+    """USD for one item's calls and whether the figure is approximate.
+
+    With ``call_usage`` (``[[prompt, completion], ...]``, one pair per call) each call is priced at
+    its own tier. Otherwise the item's totals are priced at its average call's tier; on a tiered
+    sheet that is approximate when the item has several calls and its prompt total reaches a tier
+    threshold, since the calls may straddle it.
+    """
+    calls_usage = item.get("call_usage")
+    if isinstance(calls_usage, list) and calls_usage:
+        total = 0.0
+        for pair in calls_usage:
+            cost = call_cost(model, float(pair[0] or 0), float(pair[1] or 0))
+            if cost is None:
+                return None, False
+            total += cost
+        return total, False
+    prompt, completion = float(item.get("prompt_tokens") or 0), float(item.get("completion_tokens") or 0)
+    calls = max(1, int(item.get("llm_calls") or 1))
+    cost = call_cost(model, prompt, completion, calls=calls)
+    sheet = price_sheet(model) if _token_price_override() is None else None
+    thresholds = [float(t.get("min_prompt_tokens", 0)) for t in sheet or [] if float(t.get("min_prompt_tokens", 0)) > 0]
+    approximate = calls > 1 and bool(thresholds) and prompt >= min(thresholds)
+    return cost, approximate
+
+
 # Modal GPU $/hr (modal.com/pricing, verified 2026-09-09 — see deploy/README.md).
 # Override a single rate with MODAL_GPU_USD_PER_HOUR (applies to whatever GPU
 # class the run locked) or MODAL_GPU_USD_PER_SEC for a precise per-second rate.
@@ -386,17 +412,16 @@ def _tiered_items_cost(items: Sequence[Mapping[str, Any]], model: str | None) ->
     for an untiered or unpriced model, a price override, or an item with no recorded usage (callers
     then fall back to the flat estimate).
 
-    Returns ``(cost, approximate_items)``. Items record only their call totals, so an item with
-    several calls is priced at its average call's tier; when its total prompt reaches a tier
-    threshold its calls may straddle it, and that item is counted in ``approximate_items``.
+    Returns ``(cost, approximate_items)``. Items with ``call_usage`` are priced call by call; an
+    older item with only totals and several calls is priced at its average call's tier, and when its
+    prompt total reaches a tier threshold (its calls may straddle it) it counts in
+    ``approximate_items`` (see ``item_calls_cost``).
     """
     if _token_price_override() is not None:
         return None
     sheet = price_sheet(model)
     if not sheet or len(sheet) < 2:
         return None
-    thresholds = [float(t.get("min_prompt_tokens", 0)) for t in sheet if float(t.get("min_prompt_tokens", 0)) > 0]
-    first_threshold = min(thresholds) if thresholds else float("inf")
     total, approximate = 0.0, 0
     for item in items:
         prompt, completion = item.get("prompt_tokens"), item.get("completion_tokens")
@@ -404,12 +429,11 @@ def _tiered_items_cost(items: Sequence[Mapping[str, Any]], model: str | None) ->
             if item.get("ok", True) is not False:
                 return None
             continue
-        calls = int(item.get("llm_calls") or 1)
-        cost = call_cost(model, float(prompt or 0), float(completion or 0), calls=calls)
+        cost, approx = item_calls_cost(model, item)
         if cost is None:
             return None
         total += cost
-        approximate += calls > 1 and float(prompt or 0) >= first_threshold
+        approximate += approx
     return round(total, 6), approximate
 
 

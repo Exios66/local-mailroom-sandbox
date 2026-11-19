@@ -283,6 +283,7 @@ def run_isolated_eval(
     import time
 
     from mailroom_sandbox.job.usage_capture import (
+        call_usage_from_pipeline,
         merge_item_metrics,
         reset_usage,
         usage_from_pipeline,
@@ -359,6 +360,7 @@ def run_isolated_eval(
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
             # SAND-089: a call made before the failure was still billed; keep its tokens.
             usage = usage_from_pipeline()
+        calls = call_usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -368,6 +370,8 @@ def run_isolated_eval(
             "started_at_ns": started_ns,
             "finished_at_ns": time.time_ns(),
         }
+        if calls:
+            entry["call_usage"] = calls
         entry.update(
             merge_item_metrics(
                 latency_ms=round((time.perf_counter() - started) * 1000.0, 3),

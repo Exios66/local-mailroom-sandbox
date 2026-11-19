@@ -54,6 +54,7 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -120,7 +121,7 @@ def _field(response: Any, name: str) -> Any:
     if isinstance(response, dict):
         return response.get(name)
     value = getattr(response, name, None)
-    if not value:
+    if value is None:  # a reported 0 or 0.0 is a value, not a reason to look further
         extra = getattr(response, "model_extra", None) or {}
         value = extra.get(name) if isinstance(extra, dict) else None
     return value
@@ -159,6 +160,8 @@ def served_usage(response: Any) -> dict[str, Any]:
         for name in names:
             value = _field(usage, name)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if not math.isfinite(value):  # NaN or inf: not a measurement; never written to the ledger
+                    continue
                 out[key] = value
                 break
     return out

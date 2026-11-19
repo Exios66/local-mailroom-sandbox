@@ -163,6 +163,11 @@ def load_arm(ref: str | Path, *, runs_root: Path | None = None) -> Arm:
                run_wall_seconds=(done - start) if start is not None and done is not None and done >= start else None)
 
 
+def _ns_epoch(value: Any) -> float | None:
+    """Epoch seconds from an integer nanosecond timestamp, or None."""
+    return value / 1e9 if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 def _epoch(ts: Any) -> float | None:
     """Seconds since the epoch for an ISO-8601 timestamp (``Z`` or offset); None when absent or unparsable."""
     if not ts:
@@ -292,7 +297,11 @@ class Outcome:
     hub_sub_ok: bool = False
     hub_unit_scored: bool = False
     hub_unit_ok: bool = False
-    finished_ts: float | None = None  # epoch seconds of the answer (items.jsonl ``ts``), for wall time
+    # Epoch seconds of the evaluator's execution window (``started_at_ns`` / ``finished_at_ns``). Older
+    # items have only the persistence time ``ts``: finished_ts falls back to it, started_ts stays None,
+    # and the runtime block labels its figures as estimates.
+    finished_ts: float | None = None
+    started_ts: float | None = None
 
 
 def _num(value: Any) -> float | None:
@@ -303,13 +312,13 @@ def _num(value: Any) -> float | None:
 
 def item_cost(model: str, item: Mapping[str, Any]) -> float | None:
     """USD for one item's billed tokens; None when an answered item carries no usage or the model has no price."""
-    from mailroom_sandbox.job.metrics import call_cost
+    from mailroom_sandbox.job.metrics import item_calls_cost
 
     prompt, completion = item.get("prompt_tokens"), item.get("completion_tokens")
     if prompt is None and completion is None:
         failed = not item.get("ok") or item.get("error")
         return 0.0 if failed else None
-    return call_cost(model, float(prompt or 0), float(completion or 0), calls=int(item.get("llm_calls") or 1))
+    return item_calls_cost(model, item)[0]
 
 
 def _confidence(pred: Mapping[str, Any]) -> float | None:
@@ -363,7 +372,8 @@ def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str])
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
             abstained=routed,
             abstain_reasons=reasons,
-            finished_ts=_epoch(item.get("ts")),
+            finished_ts=_ns_epoch(item.get("finished_at_ns")) or _epoch(item.get("ts")),
+            started_ts=_ns_epoch(item.get("started_at_ns")),
             sub_corrected=corrected is not None, hub_sub_ok=hub_sub_ok, hub_unit_scored=hub_unit_scored,
             hub_unit_ok=hub_unit_ok,
         ))
@@ -398,25 +408,38 @@ def _human_route(task: str, pred: Mapping[str, Any], failed: bool) -> tuple[bool
 def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
     """Wall time and throughput of an arm over the compared documents.
 
-    ``active_seconds`` runs from the first compared document's request (its finish time less its
-    latency) to the last one's answer, so start-up and scoring are excluded and a ``--set`` subset
-    is timed on its own documents. Throughput depends on concurrency, which is reported with it;
-    ``docs_per_minute_per_worker`` (documents over summed latency) is the concurrency-free rate.
+    ``active_seconds`` runs from the first compared request to the last answer, failed attempts
+    included (they hold a worker), so start-up and scoring are excluded and a ``--set`` subset is
+    timed on its own documents. Each request is timed by the evaluator's execution window
+    (``started_at_ns`` / ``finished_at_ns``); an item without one is placed by its persistence time
+    ``ts`` less its latency, and ``timing_basis`` then says ``estimate``. Throughput counts answered
+    documents per unit of that time (failed attempts cost time but deliver nothing).
+    ``docs_per_minute_per_worker`` (answered documents over summed request latency) is the
+    concurrency-free rate. Concurrency is reported with it.
     """
-    spans = [(r.finished_ts - (r.latency_ms or 0.0) / 1000.0, r.finished_ts) for r in rows
-             if r.finished_ts is not None and not r.failed]
-    latency_sum = sum((r.latency_ms or 0.0) for r in rows if not r.failed) / 1000.0
-    active = (max(e for _, e in spans) - min(s for s, _ in spans)) if spans else None
-    n = sum(1 for r in rows if not r.failed)  # the answered documents the spans and latencies cover
-    per_min = n / active * 60.0 if active else None
+    spans, estimated = [], False
+    for r in rows:
+        if r.finished_ts is None:
+            continue
+        start = r.started_ts
+        if start is None:
+            start, estimated = r.finished_ts - (r.latency_ms or 0.0) / 1000.0, True
+        spans.append((start, r.finished_ts))
+    latency_sum = sum((r.latency_ms or 0.0) for r in rows) / 1000.0
+    active = (max(e for _, e in spans) - min(st for st, _ in spans)) if spans else None
+    answered = sum(1 for r in rows if not r.failed)
+    per_min = answered / active * 60.0 if active else None
     return {
         "concurrency": arm.concurrency,
         "run_wall_seconds": arm.run_wall_seconds,
         "active_seconds": active,
         "latency_sum_seconds": latency_sum,
+        "answered": answered,
+        "failed": len(rows) - answered,
         "docs_per_minute": per_min,
-        "docs_per_minute_per_worker": n / latency_sum * 60.0 if latency_sum else None,
+        "docs_per_minute_per_worker": answered / latency_sum * 60.0 if latency_sum else None,
         "hours_per_100k_docs": 100_000 / per_min / 60.0 if per_min else None,
+        "timing_basis": None if not spans else ("estimate" if estimated else "execution"),
     }
 
 
@@ -627,6 +650,26 @@ def exact_noninferiority(ok_a: Sequence[bool], ok_b: Sequence[bool], margin: flo
     return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower, "p_value": p_value}
 
 
+def macro_class_support(truth: Sequence[str], margin: float, alpha: float = ALPHA) -> dict[str, Any]:
+    """Per-class document support a macro-F1 non-inferiority claim needs.
+
+    Macro-F1 weighs every class equally, so a class with few documents can hide a drop that moves
+    the macro score by more than the margin: K classes give each 1/K of the average. With no
+    discordance in a class of n_c documents, its error rate is only bounded by 1 - alpha^(1/n_c)
+    (rule of three). Moving the macro score by that much over K classes stays inside the margin
+    only when n_c >= ln(alpha) / ln(1 - K * margin). A class under that count leaves the claim
+    unsupported, whatever the bootstrap says.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for t in truth:
+        counts[str(t)] += 1
+    k = len(counts)
+    need = 1 if k == 0 or k * margin >= 1 else math.ceil(math.log(alpha) / math.log(1 - k * margin))
+    short = {c: n for c, n in sorted(counts.items()) if n < need}
+    return {"classes": k, "min_docs_per_class": need, "per_class": dict(sorted(counts.items())),
+            "underpowered": short}
+
+
 def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence[str],
                  margin_macro_f1: float = MARGIN_MACRO_F1, margin_unit: float = MARGIN_UNIT,
                  n_boot: int = N_BOOT, n_perm: int = N_PERM, seed: int = SEED,
@@ -669,16 +712,26 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
         lo, hi = _ci(boots[key])
         return {"estimate": observed[key] * scale, "ci95": [lo * scale, hi * scale]}
 
-    def ni(key: str, margin: float, ok_a: Sequence[bool], ok_b: Sequence[bool]) -> dict[str, Any]:
+    def ni(key: str, margin: float, ok_a: Sequence[bool], ok_b: Sequence[bool],
+           support: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        if not ok_a:  # nothing scored (e.g. no subclass units): unavailable, never non-inferior
+            return {"margin": margin, "estimate": None, "lower95_one_sided": None, "p_value": 1.0,
+                    "non_inferior": False, "unavailable": "no scored documents",
+                    "bootstrap": None, "exact": exact_noninferiority([], [], margin)}
         boot_lower = _quantile(boots[key], ALPHA) or 0.0  # one-sided 95% lower bound
         below = sum(1 for v in boots[key] if v <= -margin)
         boot_p = (below + 1) / (n_boot + 1)
         exact = exact_noninferiority(ok_a, ok_b, margin)
         lower = min(boot_lower, exact["lower95_one_sided"])
         p_value = max(boot_p, exact["p_value"])
-        return {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower, "p_value": p_value,
-                "non_inferior": lower > -margin and p_value < ALPHA,
-                "bootstrap": {"lower95_one_sided": boot_lower, "p_value": boot_p}, "exact": exact}
+        out = {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower, "p_value": p_value,
+               "non_inferior": lower > -margin and p_value < ALPHA,
+               "bootstrap": {"lower95_one_sided": boot_lower, "p_value": boot_p}, "exact": exact}
+        if support is not None:
+            out["class_support"] = dict(support)
+            if support["underpowered"]:  # too few documents in a class to bound its share of macro-F1
+                out.update(non_inferior=False, p_value=1.0)
+        return out
 
     diff_mf1, p_perm = paired_macro_f1(truth, pa, pb, n_perm=n_perm, seed=seed)
     mc_class = mcnemar([r.class_ok for r in a], [r.class_ok for r in b])
@@ -695,9 +748,11 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
             "mcnemar_class": {"b": mc_class.b, "c": mc_class.c, "p_value": mc_class.p_value, "gain": mc_class.gain},
             "mcnemar_unit": {"b": mc_unit.b, "c": mc_unit.c, "p_value": mc_unit.p_value, "gain": mc_unit.gain},
             # The exact floor for macro-F1 uses the class-level discordant pairs (a proxy: macro-F1 has no
-            # per-document decomposition); for unit accuracy it uses the unit-level pairs themselves.
+            # per-document decomposition), so the claim also needs every class to carry enough documents
+            # (macro_class_support); for unit accuracy the floor uses the unit-level pairs themselves.
             "noninferiority_macro_f1": ni("class_macro_f1", margin_macro_f1,
-                                          [r.class_ok for r in a], [r.class_ok for r in b]),
+                                          [r.class_ok for r in a], [r.class_ok for r in b],
+                                          support=macro_class_support(truth, margin_macro_f1)),
             "noninferiority_unit": ni("unit_accuracy", margin_unit,
                                       [a[i].unit_ok for i in unit_idx], [b[i].unit_ok for i in unit_idx]),
         },
@@ -940,6 +995,10 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
                      f"{_fmt(rt.get('latency_sum_seconds'), '.1f'):>10} {_fmt(rt.get('docs_per_minute'), '.0f'):>9} "
                      f"{_fmt(rt.get('docs_per_minute_per_worker'), '.1f'):>8} {_fmt(rt.get('hours_per_100k_docs'), '.1f'):>7} "
                      f"{(_fmt(speed, '.1f') + 'x') if speed else '-':>9}")
+    estimated = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("timing_basis") == "estimate"]
+    if estimated:
+        lines.append(f"  timing is an estimate for {', '.join(estimated)}: items carry no execution window "
+                     "(persistence time less latency)")
     concs = {(s.get("runtime") or {}).get("concurrency") for s in report["arms"]}
     if len(concs) > 1:
         lines.append("  arms ran at different concurrency: compare docs/min/worker, not docs/min or active seconds")
@@ -961,7 +1020,10 @@ def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> lis
         ni = t[key]
         lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
                      f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'} "
-                     f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)")
+                     f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)"
+                     + (f"; {ni['unavailable']}" if ni.get("unavailable") else "")
+                     + (f"; classes under {ni['class_support']['min_docs_per_class']} docs: "
+                        f"{ni['class_support']['underpowered']}" if (ni.get("class_support") or {}).get("underpowered") else ""))
     cost = p.get("cost")
     if cost:
         lo, hi = cost["per_1k_docs"]["ci95"]
@@ -1010,6 +1072,6 @@ def render(report: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 __all__ = ["Arm", "ArmError", "Outcome", "arm_model", "arm_summary", "compare", "compare_pair", "exposure_of",
-           "exact_noninferiority", "fast_macro_f1", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
+           "exact_noninferiority", "fast_macro_f1", "macro_class_support", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
            "noninferiority_power", "outcomes", "pair", "render", "set_ids", "simulate_macro_f1_se",
            "strata_differences", "SEED", "MARGIN_MACRO_F1", "MARGIN_UNIT"]

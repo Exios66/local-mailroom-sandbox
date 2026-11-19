@@ -79,3 +79,21 @@ def test_check_run_counts_a_missing_control_as_a_miss(tmp_path, capsys):
     (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
     assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
     assert "no item in the run" in capsys.readouterr().out
+
+
+def test_check_run_fails_an_empty_run_and_a_duplicate_result(tmp_path, capsys):
+    src = _source(tmp_path)
+    controls = tmp_path / "controls.jsonl"
+    fc.main(["--source", str(src), "--out", str(controls)])
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "items.jsonl").write_text("", encoding="utf-8")
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
+    assert f"0/{len(fc.CONTROLS)} controls correct" in capsys.readouterr().out
+    rows = [json.loads(line) for line in controls.read_text().splitlines()]
+    items = [{"item_id": r["id"], "pred": {"document_form": r["expected_document_form"],
+                                            "abstained": r["expected_document_form"] != "complete_instrument"}}
+             for r in rows]
+    (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items + items[:1]), encoding="utf-8")
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
+    assert "duplicate result" in capsys.readouterr().out

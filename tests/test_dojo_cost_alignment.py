@@ -110,3 +110,12 @@ def test_multi_call_items_that_may_straddle_a_tier_are_flagged():
     assert rec["cost_tier_approximate_items"] == 1
     assert "cost_tier_approximate_items" not in _record(
         [{"ok": True, "prompt_tokens": 80_000, "completion_tokens": 100, "llm_calls": 1}], model="qwen/qwen3.7-flash")
+
+
+def test_per_call_usage_prices_each_call_at_its_own_tier():
+    # Two calls of 10k and 50k prompt tokens: the 50k call is in the upper tier even though the average is not.
+    rec = _record([{"ok": True, "prompt_tokens": 60_000, "completion_tokens": 20, "llm_calls": 2,
+                    "call_usage": [[10_000, 10], [50_000, 10]]}], model="qwen/qwen3.7-flash")
+    expected = (10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6
+    assert rec["estimated_cost_usd"] == pytest.approx(expected, abs=1e-6)
+    assert "cost_tier_approximate_items" not in rec
