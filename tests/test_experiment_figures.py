@@ -299,6 +299,8 @@ def test_runtime_needs_one_basis_isolated_from_other_documents():
     assert "runtime" not in cf.build(r)
     r["arms"][1]["runtime"].update(run_items=20, interleaved_docs=0)  # one full run, two subsets
     assert "Active time" in cf.build(r)["runtime"]  # one basis: every arm on active time
+    r["arms"][1]["runtime"].update(run_items=100, timing_complete=False)  # a window cut short
+    assert "runtime" not in cf.build(r)
 
 
 def test_a_failed_defect_did_not_reach_extraction():

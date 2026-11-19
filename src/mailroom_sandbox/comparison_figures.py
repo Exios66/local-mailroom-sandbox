@@ -98,7 +98,7 @@ def _wall_covers(arm: Mapping[str, Any]) -> bool:
 def _isolated(arm: Mapping[str, Any]) -> bool:
     """Whether the active window timed only the compared documents (no other document ran inside it)."""
     rt = arm.get("runtime") or {}
-    return bool(rt.get("active_seconds")) and rt.get("interleaved_docs") == 0
+    return bool(rt.get("active_seconds")) and rt.get("interleaved_docs") == 0 and rt.get("timing_complete") is not False
 
 
 def _basis(arms: Sequence[Mapping[str, Any]]) -> str | None:

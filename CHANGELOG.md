@@ -9,6 +9,7 @@
   - `scripts/compare_sorter_arms.py --figures DIR` is new, and `--write` also writes the figures. `--allow-mock` labels every figure simulated. Without `--split-dir` the arms pair on the split their locks drew from.
   - The pricing figure places one tick per model call at that call's prompt size (`call_usage`, else the item total split over `llm_calls`), the size a price tier applies to.
   - Cost: `per_1k_docs_usd` is list price × tokens for every arm. Figures plot billed totals only when every arm is billed, and neither figures nor the digest call an arm cheaper or dearer until every arm is billed and at least 1,000 paired documents are compared (`sorter_arms.COST_CLAIM_MIN_DOCS`); the digest prints `not a cost comparison yet (...)` until then.
+  - Follow-up: H5's verdict reads `undecided` instead of `SUPPORTED` while the lower-cost leg rests on list-price cost that is not yet a cost comparison, every pair of arms is checked for a list-price/billed reversal, and a speed-up needs complete timing (`timing_complete`, `interleaved_docs` known).
   - `python -m mailroom_sandbox.figure_style lint PATH...` checks figure text and type; exit 0 clean, 1 problems, 2 on a usage error, a missing path or no SVG found.
   - New skill `.claude/skills/experiment-figures/`. No paid run, deployment or model call.
 
