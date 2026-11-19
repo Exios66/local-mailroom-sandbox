@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
 from urllib.parse import quote, urlsplit
 
 import httpx
@@ -62,7 +63,11 @@ def failed_jobs(pipeline: str, project: str = DEFAULT_PROJECT):
     pipeline = _uuid(pipeline)
     expected = _project(project)
     metadata = _get(f"{API}/v2/pipeline/{pipeline}")
-    if metadata.get("project_slug") != expected:
+    try:
+        actual = _project(metadata.get("project_slug", ""))
+    except (ServiceError, TypeError):
+        actual = None
+    if actual != expected:
         raise ServiceError("pipeline does not belong to the requested project")
     jobs = []
     for workflow in _pages(f"/v2/pipeline/{_uuid(pipeline)}/workflow"):
@@ -84,8 +89,12 @@ def print_job_logs(project: str, number: int, *, all_steps: bool = False) -> Non
             url = action.get("output_url")
             if not url:
                 continue
-            parsed = urlsplit(url)
-            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
+            try:
+                parsed = urlsplit(url)
+                valid = parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password and parsed.port in (None, 443)
+            except ValueError:
+                valid = False
+            if not valid:
                 raise ServiceError("CircleCI returned an invalid output URL")
             chunks = _get(url, authenticated=False)
             if not isinstance(chunks, list):
@@ -102,14 +111,22 @@ def print_job_logs(project: str, number: int, *, all_steps: bool = False) -> Non
 def _cmd(args: argparse.Namespace) -> int:
     if args.pipeline:
         jobs = failed_jobs(args.pipeline, args.project)
+        errors = 0
         if not jobs:
             print("No failed jobs found in this pipeline.")
         for job in jobs:
             number = job.get("job_number")
-            if not isinstance(number, int) or number <= 0:
-                print(f"{job.get('name', 'job')}: no job number available")
+            if not isinstance(number, int) or isinstance(number, bool) or number <= 0:
+                print(f"{job.get('name', 'job')}: no job number available", file=sys.stderr)
+                errors += 1
                 continue
-            print_job_logs(args.project, number, all_steps=args.all_steps)
+            try:
+                print_job_logs(args.project, number, all_steps=args.all_steps)
+            except ServiceError as exc:
+                print(f"job {number}: {exc}", file=sys.stderr)
+                errors += 1
+        if errors:
+            return 1
     else:
         if args.job <= 0:
             raise ServiceError("job number must be positive")

@@ -233,7 +233,7 @@ def _circleci(*, live: bool) -> ServiceStatus:
     try:
         _get(API + "/v2/me")
     except ServiceError:
-        return ServiceStatus("circleci", "warn", "CircleCI authentication check failed", "check CIRCLE_TOKEN", readiness="configured")
+        return ServiceStatus("circleci", "warn", "CircleCI API check failed", "check CircleCI access and availability", readiness="configured")
     return ServiceStatus("circleci", "ok", "CircleCI API authenticated", readiness="authenticated")
 
 

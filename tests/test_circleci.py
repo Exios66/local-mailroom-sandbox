@@ -67,3 +67,55 @@ def test_doctor_does_not_probe_without_live(monkeypatch):
                                           ('bitbucket/owner/repo', 'bb/owner/repo')])
 def test_project_aliases_are_canonical(value, expected):
     assert circleci._project(value) == expected
+
+
+@pytest.mark.parametrize("requested,actual", [
+    ("github/owner/repo", "gh/owner/repo"),
+    ("gh/owner/repo", "github/owner/repo"),
+    ("bitbucket/owner/repo", "bb/owner/repo"),
+])
+def test_pipeline_project_aliases(monkeypatch, requested, actual):
+    monkeypatch.setattr(circleci, "_get", lambda *a: {"project_slug": actual})
+    monkeypatch.setattr(circleci, "_pages", lambda *a: [])
+    assert circleci.failed_jobs("11111111-1111-1111-1111-111111111111", requested) == []
+
+
+def test_pipeline_rejects_other_project(monkeypatch):
+    monkeypatch.setattr(circleci, "_get", lambda *a: {"project_slug": "gh/other/repo"})
+    with pytest.raises(ServiceError, match="does not belong"):
+        circleci.failed_jobs("11111111-1111-1111-1111-111111111111", "github/owner/repo")
+
+
+@pytest.mark.parametrize("url", ["https://logs.example:bad/", "https://[invalid/"])
+def test_malformed_output_url_is_service_error(monkeypatch, url):
+    monkeypatch.setattr(circleci, "_get", lambda *a, **k: {"steps": [{"actions": [{"status": "failed", "output_url": url}]}]})
+    with pytest.raises(ServiceError, match="invalid output URL"):
+        circleci.print_job_logs("gh/owner/repo", 1)
+
+
+def test_pipeline_continues_after_failed_job(monkeypatch, capsys):
+    monkeypatch.setattr(circleci, "failed_jobs", lambda *a: [{"job_number": 1}, {"job_number": 2}])
+    seen = []
+    def logs(project, number, **kwargs):
+        seen.append(number)
+        if number == 1:
+            raise ServiceError("unavailable")
+    monkeypatch.setattr(circleci, "print_job_logs", logs)
+    assert cli.main(["circleci", "logs", "--pipeline", "11111111-1111-1111-1111-111111111111"]) == 1
+    assert seen == [1, 2]
+    assert "job 1: unavailable" in capsys.readouterr().err
+
+
+def test_doctor_does_not_assume_api_failure_is_authentication(monkeypatch):
+    monkeypatch.setenv("CIRCLE_TOKEN", "private")
+    def fail(*args, **kwargs):
+        raise ServiceError("unavailable")
+    monkeypatch.setattr(circleci, "_get", fail)
+    row = doctor._circleci(live=True)
+    assert row.readiness == "configured" and "API check failed" in row.detail
+
+
+def test_pipeline_missing_job_number_fails(monkeypatch, capsys):
+    monkeypatch.setattr(circleci, "failed_jobs", lambda *a: [{"name": "test"}])
+    assert cli.main(["circleci", "logs", "--pipeline", "11111111-1111-1111-1111-111111111111"]) == 1
+    assert "no job number available" in capsys.readouterr().err
