@@ -41,7 +41,7 @@ docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
 
 # Or via compose (mounts the repo at /workspace)
 sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
-# → http://127.0.0.1:8888/lab  (notebooks/01…03)
+# → http://127.0.0.1:8888/lab  (notebooks/01…04)
 sandbox datasets prepare         # same cleaners the notebooks call
 ```
 
@@ -50,6 +50,9 @@ Dedicated notebooks:
 1. `notebooks/01_offline_environment_setup.ipynb` — `.env`, profile activate, checklist  
 2. `notebooks/02_load_clean_prepare_data.ipynb` — load/clean/write `data/runtime/prepared/`  
 3. `notebooks/03_offline_sandbox_smoke.ipynb` — mock sorter/pipeline smoke
+4. `notebooks/04_experiment_log_explorer.ipynb` — read-only view of experiment-log records
+
+See [`notebooks/README.md`](../notebooks/README.md) for run order, outputs and environment switches.
 
 ## Modal vLLM (remote GPU)
 
