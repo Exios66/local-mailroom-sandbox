@@ -57,12 +57,15 @@ agents:
         # enrichment agree with the prompt. Same 40 documents as the v4 A/B.
         reference_run: specialist-condensed-v5-insurance-claim-qwen-v4arm
         validation_run: specialist-condensed-v5-insurance-claim-qwen-v5arm
-        status: candidate   # waits for llm-mailroom #280 to merge and be vendored
+        status: candidate   # runnable: #280 is in the vendored pin (8cebcd86, vendor/README.md)
       - version: insurance_claims_specialist_condensed_v6
         parent: "insurance_claims_specialist_condensed_v3, the deployed frontrunner (one change: cms_source_table, a scored field with truth on 536 documents that v3 never names, is the printed CMS table on the two Medicare templates and null on the others; SAND-108 decision 3)"
         reference_run: runbook-pi-i-v3arm (to be run on config/splits/runbook-v1 dev-look1)
         validation_run: runbook-pi-i-v6arm
-        status: candidate   # written 2026-11-18 from the repaired schema registry; not yet run
+        status: rejected   # withdrawn before any run (2026-11-18): the specialist's structured-output schema
+        # has no cms_source_table property and forbids extra keys (llm-mailroom
+        # test_cms_source_table_is_never_asked_of_the_model), so the model cannot write it. The pipeline
+        # derives it from the sorter subclass; an isolated run gets it with job.specialist_subclass.
   correspondence_specialist:
     frontrunner: correspondence_specialist_condensed_v3
     versions:

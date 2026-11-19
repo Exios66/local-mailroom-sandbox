@@ -83,6 +83,8 @@ sandbox doctor                                              # offline status of 
   (byte-identity). Change the owning repo first (`llm-mailroom` for pipeline,
   `llm-dojo-scoring` for scoring), then refresh with `python scripts/sync_vendor.py`
   or `sandbox fetch-deps`. Pins live in `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`.
+  A pipeline fix experiments need before upstream ships it goes in
+  `src/mailroom_sandbox/vendor_hotfixes.py` ([guide](docs/vendor-hotfixes.md)), never in `vendor/`.
 - `requirements/*.txt` — generated: edit `pyproject.toml`, then
   `python scripts/sync_requirements.py`. The one exception is
   `requirements/dojo-release.txt` (DMR-057, kept out of `pyproject.toml`): it is moved

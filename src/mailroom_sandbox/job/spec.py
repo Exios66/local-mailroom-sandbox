@@ -600,6 +600,14 @@ def known_tasks() -> tuple[str, ...]:
     return base + agents
 
 
+def _file_sha256(path: str) -> str:
+    """sha256 of a repo-relative (or absolute) input file the spec hash pins by content."""
+    from mailroom_sandbox.paths import repo_root
+
+    resolved = Path(path) if Path(path).is_absolute() else repo_root() / path
+    return hashlib.sha256(resolved.read_bytes()).hexdigest()
+
+
 #: Tasks that run one isolated specialist (``job.pipeline_handoff`` applies only to these):
 #: the level-1/2 ``specialist`` task and each agent's own task (eval.agents.SPECIALIST_CLASS).
 SPECIALIST_TASKS = frozenset({"specialist", "contracts_specialist", "merger_agreement_specialist",
@@ -647,6 +655,15 @@ class JobSpec(BaseModel):
     # the vendored doc_inventories note, no subclass) and apply the node's post-extraction
     # inventory normalization, so an isolated A/B sees what the pipeline's specialist sees.
     pipeline_handoff: bool = False
+    # Specialist runs with pipeline_handoff: the subclass the handoff names (graph state
+    # doc_subclass / contract_subtype), which also drives the vendored post-extraction
+    # derivations (insurance cms_source_table, corporate record_type). ``none`` (default): no
+    # subclass, as an isolated specialist sees. ``gold``: the row's expected subclass, the
+    # pipeline behind a correct sorter (derived fields then copy the truth). ``sorter``: a saved
+    # sorter pass (``specialist_subclass_file``: JSONL with id, sorter_doc_subclass,
+    # sorter_contract_subtype), the pipeline behind that sorter. Hashed only when set.
+    specialist_subclass: Literal["none", "gold", "sorter"] = "none"
+    specialist_subclass_file: str | None = None
     # Specialist output-schema field descriptions follow the gold labeling guide for the fields
     # the repaired (interim / near-gold) labels score (mailroom_sandbox.schema_guide). Off by
     # default, so a baseline keeps the vendored descriptions; hashed only when set.
@@ -925,6 +942,20 @@ class RunSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _specialist_subclass_source(self) -> "RunSpec":
+        mode, path = self.job.specialist_subclass, self.job.specialist_subclass_file
+        if mode != "none" and not self.job.pipeline_handoff:
+            raise ValueError("job.specialist_subclass names the subclass in the extract node's handoff; "
+                             "it needs job.pipeline_handoff: true")
+        if (mode == "sorter") != bool(path):
+            raise ValueError("job.specialist_subclass: sorter needs job.specialist_subclass_file "
+                             "(a saved sorter pass), and the file is used only in that mode")
+        if mode == "gold" and self.task == "merger_agreement_specialist":
+            raise ValueError("job.specialist_subclass: gold hands the merger specialist its scored "
+                             "merger_consideration token; use sorter or none")
+        return self
+
+    @model_validator(mode="after")
     def _reviewer_classes(self) -> "RunSpec":
         if self.reviewer is not None and not self.reviewer.classes and self.task not in ("sorter_reviewer", "extraction_gate"):
             raise ValueError("reviewer classes must map at least one class to a cutoff "
@@ -1048,9 +1079,13 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff and schema_guide are hashed only when
         # set, so older YAMLs keep their hash.
-        "job": {key: value for key, value in spec.job.model_dump().items()
-                if not (key == "api_cost_cap_usd" and value is None)
-                and not (key in ("blind_routing", "pipeline_handoff", "schema_guide") and value is False)},
+        "job": {**{key: value for key, value in spec.job.model_dump().items()
+                   if not (key == "api_cost_cap_usd" and value is None)
+                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide") and value is False)
+                   and not (key == "specialist_subclass" and value == "none")
+                   and not (key == "specialist_subclass_file" and value is None)},
+                **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
+                   if spec.job.specialist_subclass_file else {})},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,
