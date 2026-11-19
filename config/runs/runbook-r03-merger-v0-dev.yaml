@@ -1,0 +1,73 @@
+# Evaluation runbook R03 (SAND-108, decisions 2-3): the v0 merger specialist pass on the frozen
+# dev set, so the gold audit has v0-vs-gold disagreements before G0. merger_agreement_specialist
+# (isolated) at its decided v0 stem merger_agreement_specialist_maud_v2 on qwen/qwen3.7-flash (the
+# iteration model), the whole document in one call (longest dev merger 739,511 chars; all 59 are
+# over the 36,008-char overlay cap), on the 59 merger_agreement documents of
+# config/splits/runbook-v1 dev (corpus revision bc9eab28). Truth is the repaired overlay (interim
+# + near-gold).
+# job.pipeline_handoff is on but job.specialist_subclass stays none: the spec refuses gold for the
+# merger specialist (it would hand over the scored merger_consideration token), and a sorter-pass
+# file for `sorter` exists only after the R03 sorter run.
+# job.schema_guide stays off: the plan turns it on for the candidate A/Bs (finding 16), and the v0
+# stem is the frontrunner baseline.
+#
+# Cost: priced per document on the saved sorter pass's prompt tokens
+# (data/handoff/sorter-qwen3.7-flash) with the tiers of config/api_prices.yaml (<32k: $0.03/$0.13,
+# >=32k: $0.10/$0.40, >=256k: $0.20/$0.80 per 1M; a document the saved pass cut at 600,000 chars
+# scaled to its full length) and ~2k output tokens per call: about $0.52 list for 59 documents, 58
+# of them over 32k prompt tokens. The sorter prompt is longer than the specialist's, so this errs
+# high. The caps are ~1.5x. Launch only with the owner's initials at the spend gate:
+#   sandbox run preflight --config config/runs/runbook-r03-merger-v0-dev.yaml
+#   sandbox run start --config config/runs/runbook-r03-merger-v0-dev.yaml --initials <XX>
+# Then build the audit sheet (data/labels/review/README.md, R03 gold audit):
+#   python scripts/build_gold_audit_sheet.py --run runbook-r03-merger-v0-dev --lineage merger \
+#       --n 100 --seed 20261118
+schema: sandbox.run/v1
+run_id: runbook-r03-merger-v0-dev
+task: merger_agreement_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist: {source: local, file: merger_agreement_specialist_maud_v2}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: merger_agreement, count: 59}
+  limit: 59
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  merger_agreement_specialist: {max_input_chars: 1000000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 0.78
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.78
+  pipeline_handoff: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R03, merger-v0, dev]
