@@ -486,6 +486,9 @@ class RunStore:
         with open(self.events_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({"ts": utc_now(), "event": event, "level": level, "detail": detail or None}) + "\n")
             fh.flush()
+        from mailroom_sandbox import console_log
+
+        console_log.run_event(self.run_id, event, level, detail)
 
     def events(self) -> list[dict[str, Any]]:
         """Parsed events; a torn tail (killed mid-write) is truncated once.

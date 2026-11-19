@@ -14,6 +14,7 @@ import logging
 import time
 from typing import Any
 
+from mailroom_sandbox import console_log
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
@@ -297,9 +298,25 @@ def _run_whole_run(
     # persisted is billed again. Its second bill has no item row; it is kept as an event (once per attempt).
     rebilled: set[Any] = set(persisted)
 
+    spend_marks = console_log.SpendCheckpoints(store.run_id, api_budget) if api_budget is not None else None
+
     def _row_sink(entry: dict[str, Any]) -> None:
         if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled):
             spans.item(entry)
+            console_log.doc_done(
+                store.run_id,
+                entry.get("id"),
+                ok=not entry.get("error") and not (entry.get("score") or {}).get("parse_error"),
+                done=len(persisted),
+                total=startup_total,
+                error=entry.get("error") or (entry.get("score") or {}).get("parse_error"),
+                latency_ms=entry.get("latency_ms"),
+                prompt_tokens=entry.get("prompt_tokens"),
+                completion_tokens=entry.get("completion_tokens"),
+                spent_usd=api_budget.spent_usd if api_budget is not None else None,
+            )
+            if spend_marks is not None:
+                spend_marks.check()
 
     def _node_sink(record: dict[str, Any]) -> None:
         store.append_node(record)
@@ -1178,6 +1195,7 @@ def _run_job(
     cost_cap = _cost_cap_usd(store)
     max_wall = _max_wall_seconds(store)
     api_budget = None if mock else _api_budget(store)
+    spend_marks = console_log.SpendCheckpoints(store.run_id, api_budget) if api_budget is not None else None
     cap_abort_reason: str | None = None
     cap_abort_type: str | None = None
 
@@ -1303,6 +1321,20 @@ def _run_job(
                 )
         if api_budget is not None:
             api_budget.add_usage(item)
+            if spend_marks is not None:
+                spend_marks.check()
+        console_log.doc_done(
+            store.run_id,
+            item_id,
+            ok=ok,
+            done=done_count,
+            total=total,
+            error=error,
+            latency_ms=latency_ms,
+            prompt_tokens=item.get("prompt_tokens"),
+            completion_tokens=item.get("completion_tokens"),
+            spent_usd=api_budget.spent_usd if api_budget is not None else None,
+        )
         # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
         if not mock and cap_abort_reason is None:
             wall_s = time.perf_counter() - run_started

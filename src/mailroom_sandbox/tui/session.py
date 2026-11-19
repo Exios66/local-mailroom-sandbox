@@ -47,6 +47,13 @@ class MailroomConsole:
         self.stream = stream or sys.stderr
         self.on = mailroom_style_enabled(stream=self.stream) if enabled is None else bool(enabled)
         self._last_progress_key: tuple[int, int] | None = None
+        self._last_progress_mark: tuple[int, int, int | None] | None = None
+
+    @staticmethod
+    def _quiet() -> bool:
+        from mailroom_sandbox import console_log
+
+        return console_log.verbosity() < 0
 
     def emit(self, line: str) -> None:
         print(line, file=self.stream, flush=True)
@@ -61,6 +68,8 @@ class MailroomConsole:
         width: int = 72,
     ) -> None:
         """Run start: compact double-line frame or plain one-liner."""
+        if self._quiet():
+            return
         tag = run_id
         sub = subtitle or (f"task · {task}" if task else "")
         route_line = route or pl.mailroom_route_banner()
@@ -86,6 +95,8 @@ class MailroomConsole:
 
     def phase(self, phase: str, detail: str = "") -> None:
         """Structured phase change (preflight → deploy → eval …)."""
+        if self._quiet():
+            return
         phase = phase.strip().upper()
         detail = detail.strip()
         if not self.on:
@@ -109,11 +120,23 @@ class MailroomConsole:
         label: str = "items",
         state: str = "",
     ) -> None:
-        """In-tray progress; skips duplicate (done, total) in plain throttle mode."""
+        """In-tray progress, throttled to each quarter (plus new errors and the last item).
+
+        Per-document lines already report each completion, so the bar is a
+        checkpoint rather than a per-item echo.
+        """
+        if self._quiet():
+            return
         key = (done, total)
-        if not self.on and key == self._last_progress_key:
+        if key == self._last_progress_key:
             return
         self._last_progress_key = key
+        quarter = int(4 * done / total) if total > 0 else 0
+        mark = (quarter, total, errors)
+        last = self._last_progress_mark
+        if last is not None and mark == last and done < total:
+            return
+        self._last_progress_mark = mark
         bar = item_progress_bar(done, total)
         pct = (100.0 * done / total) if total else 0.0
         if not self.on:
@@ -143,7 +166,7 @@ class MailroomConsole:
         self.emit(line)
 
     def cost_line(self, spent_usd: float | None, *, cap_usd: float | None = None, label: str = "POSTAGE") -> None:
-        if spent_usd is None and cap_usd is None:
+        if (spent_usd is None and cap_usd is None) or self._quiet():
             return
         spent = "—" if spent_usd is None else f"${spent_usd:.4f}"
         cap = "" if cap_usd is None else f" / cap ${cap_usd:.2f}"

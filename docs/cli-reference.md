@@ -27,6 +27,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tui`
 
@@ -39,6 +41,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox up`
 
@@ -51,6 +55,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
 | `-d, --detach` | No |  |
 
@@ -65,6 +71,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
 
 ### `sandbox health`
@@ -78,6 +86,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox pull-models`
 
@@ -90,6 +100,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `models` | No |  |
 
 ### `sandbox fetch-deps`
@@ -103,6 +115,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--visualizer` | No | Also clone The-Mailroom (Langfuse observer) |
 
 ### `sandbox cutover`
@@ -116,6 +130,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox agents`
 
@@ -130,6 +146,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox agents list`
 
@@ -142,6 +160,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox agents show`
 
@@ -154,6 +174,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `name` | Yes |  |
 
 ### `sandbox subagents`
@@ -169,6 +191,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox subagents preflight`
 
@@ -181,6 +205,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--root` | No | intended Git checkout root (default: package checkout) |
 | `--expected-sha` | No | require this exact full HEAD SHA; older intentional branches are allowed |
 | `--json` | No |  |
@@ -196,6 +222,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--contract` | Yes |  |
 | `--capabilities` | Yes | mailroom.capabilities/v1 snapshot, at most five minutes old |
 
@@ -210,6 +238,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--contract` | Yes |  |
 | `--task-id` | Yes |  |
 | `--state` | Yes | Choices: blocked, cancelled, done, failed, running. |
@@ -231,6 +261,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 | `--package` | No | Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE) |
 
@@ -245,6 +277,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox subagents show`
@@ -258,6 +292,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `id` | Yes |  |
 | `--json` | No |  |
 | `--package` | No |  |
@@ -273,6 +309,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--harness` | No | Default project writes OpenCode + Cursor only; all explicitly includes global profiles Choices: cursor, opencode, opencode-global, project, all. |
 | `--package` | No | Family package filter for roster entries |
 | `--root` | No | Checkout root to write into (default: this repo) |
@@ -290,6 +328,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--root` | No | Family checkout root (default: this repo) |
 | `--json` | No |  |
 | `--no-global` | No | Skip ~/.config/opencode checks |
@@ -311,6 +351,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--package` | Yes | Target package id (llm-mailroom, digital-mailroom, …) |
 | `--root` | Yes | Destination checkout root (e.g. monorepo packages/llm-mailroom) |
 | `--source-root` | No | Prompt source checkout (default: this sandbox repo) |
@@ -327,6 +369,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--monorepo-root` | No | Digital-Mailroom root (DIGITAL_MAILROOM_ROOT / MONOREPO_ROOT) |
 | `--package` | No |  |
 | `--dry-run` | No |  |
@@ -346,6 +390,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox pipeline watcher`
 
@@ -358,6 +404,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox pipeline api`
 
@@ -370,6 +418,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox pilot`
 
@@ -382,6 +432,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--mock` | No |  |
 | `--local` | No |  |
 | `--sample` | No |  |
@@ -398,6 +450,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--check` | No |  |
 | `--mock` | No |  |
 | `--local` | No |  |
@@ -420,6 +474,8 @@ Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) a
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--all-tasks` | No | list every eval task, including the non-primary ones |
 
 ### `sandbox eval specialist`
@@ -435,6 +491,8 @@ Score the live-class specialists in isolation. TARGET: contract, merger_agreemen
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--mock` | No |  |
 | `--local` | No |  |
 | `--sample` | No |  |
@@ -456,6 +514,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--mock` | No |  |
 | `--local` | No |  |
 | `--sample` | No |  |
@@ -476,6 +536,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--task` | No | Choices: intake, pdf_transcriber, image_extractor, sorter, sorter_reviewer, contracts_specialist, merger_agreement_specialist, corporate_records_specialist, correspondence_specialist, insurance_claims_specialist, extraction_gate, judge, arbiter, boss, compile_report, human_review, catalog, archive, extract, chained, pipeline, local_vs_api. |
 | `--providers` | No |  |
 | `--models` | No |  |
@@ -499,6 +561,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox datasets pull`
 
@@ -511,6 +575,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--dataset` | No |  |
 | `--max-rows` | No | Cap rows after the draw (0 = full corpus; default). Legacy tiny slices used 50. |
 | `--revision` | No | Hub revision (default: the pinned FAMILY_HF_REVISION snapshot) |
@@ -530,6 +596,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--per-class` | Yes | rows per live doc type (20/40/100…) |
 | `--seed` | No |  |
 | `--classes` | No | comma-separated live classes (default: all five) |
@@ -547,6 +615,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox traces`
 
@@ -561,6 +631,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox traces export`
 
@@ -573,6 +645,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox traces pack`
 
@@ -585,6 +659,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `run_id` | Yes |  |
 | `--experiment` | No | experiment label for the zip name (default: run_id prefix) |
 | `--runner` | No | who ran it: claude \| axios (default: claude inside Claude Code, else axios) |
@@ -603,6 +679,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tunnel`
 
@@ -617,6 +695,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tunnel plan`
 
@@ -629,6 +709,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tunnel up`
 
@@ -641,6 +723,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tunnel status`
 
@@ -653,6 +737,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox tunnel down`
 
@@ -665,6 +751,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox review`
 
@@ -679,6 +767,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox review list`
 
@@ -691,6 +781,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox review show`
 
@@ -703,6 +795,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `doc_id` | Yes |  |
 
 ### `sandbox review resolve`
@@ -716,6 +810,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `doc_id` | Yes |  |
 | `--decision` | Yes | Choices: approved, rejected. |
 | `--doc-type` | No | Class to route an approved document to (required to approve a reviewer_disagreement; the API validates the class) |
@@ -734,6 +830,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox api status`
 
@@ -746,6 +844,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--offline` | No | skip the API probe; report the family sources only |
 
 ### `sandbox api eval`
@@ -759,6 +859,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--sample` | No | first N rows (after --class) |
 | `--dataset-config` | No | score corpus documents instead of the bundled fixtures: a YAML file holding a `dataset:` block (a run spec works as is) or the dataset mapping itself; the draw, content-hash check and interim / near-gold overlays are the same as a run's |
 | `--class` | No | only rows whose expected class is this |
@@ -784,6 +886,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox run preflight`
 
@@ -796,6 +900,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -828,6 +934,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -860,6 +968,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -891,6 +1001,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -923,6 +1035,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -957,6 +1071,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -988,6 +1104,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1019,6 +1137,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1050,6 +1170,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1081,6 +1203,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1112,6 +1236,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1144,6 +1270,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1179,6 +1307,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1210,6 +1340,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1242,6 +1374,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | No |  |
 | `--run-id` | No |  |
 | `--offline` | No | skip network during preflight only; start/resume still execute the locked job |
@@ -1278,6 +1412,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts) |
 | `--config` | No | run YAML to watch (same as passing it as TARGET) |
 | `--follow` | No | file holding the CURRENT run YAML path or run ID; re-read every frame |
@@ -1305,6 +1441,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts) |
 | `--port` | No | port (default 8765; 0 = ephemeral) |
 | `--host` | No | bind host (default 127.0.0.1) |
@@ -1328,6 +1466,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--host` | No | bind host (default 127.0.0.1) |
 | `--port` | No | port (default 8765; 0 = ephemeral) |
 | `--interval` | No | seconds per demo tick |
@@ -1345,6 +1485,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--root` | No | beacon dir (default $MAILROOM_BEACON_DIR or ~/.mailroom/jobs) |
 | `--tui` | No | terminal TUI instead of the browser page |
 | `--once` | No | with --tui: render one frame and exit |
@@ -1368,6 +1510,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `target` | No | run ID to preselect in the viewer (same as --run) |
 | `--run` | No | run ID to preselect (opens floor.template.html?run=ID) |
 | `--base` | No | run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data) |
@@ -1390,6 +1534,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox beacon update`
 
@@ -1402,6 +1548,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--job` | Yes |  |
 | `--package` | Yes |  |
 | `--title` | No |  |
@@ -1426,6 +1574,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--run` | Yes | run id (e.g. sand032-l0-baseline) |
 | `--serving-dir` | No | default: reports/serving (nested SAND trees and legacy flat exports) |
 
@@ -1442,6 +1592,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox report build`
 
@@ -1454,6 +1606,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--run` | No | run id in the campaign grammar (rb1-r03-...); one of --run / --campaign |
 | `--campaign` | No | campaign id (rb1): rebuild README + index.jsonl only |
 | `--iteration` | No | only this iteration (1 or i01); default: every one |
@@ -1477,6 +1631,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox runbook list`
 
@@ -1489,6 +1645,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--family` | No | Choices: baseline, improved. |
 | `--json` | No |  |
 
@@ -1503,6 +1661,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `name` | Yes | runbook id or alias (l4-qwen3-8b, awq-c8, granite…) |
 | `--shell` | No | print the bash script only |
 | `--json` | No |  |
@@ -1518,6 +1678,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox runbook write`
@@ -1531,6 +1693,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox prompts`
 
@@ -1545,6 +1709,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox prompts list`
 
@@ -1557,6 +1723,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox prompts show`
 
@@ -1569,6 +1737,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `name` | Yes | agent name, or an eval-environment prompt version key (sorter_v3) |
 | `--variant` | No | agent: local variant stem |
 | `--json` | No |  |
@@ -1586,6 +1756,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--role` | No | only this role (e.g. sorter) |
 | `--lineage` | No | Choices: archived, frozen, mutation. |
 | `--json` | No |  |
@@ -1603,6 +1775,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox metrics compare`
 
@@ -1615,6 +1789,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--runs` | No | comma-separated run-ids |
 | `--log` | No | read experiments from the log instead |
 | `--fixture` | No | offline Grant-style local/Modal/API cost-compare fixture (no GPU) |
@@ -1632,6 +1808,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--run` | Yes | run-id with a lock + items |
 | `--corpus-size` | No | target N (default: FAMILY_CORPUS_SIZE=3302) |
 | `--docs-per-day` | No |  |
@@ -1652,6 +1830,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--run` | Yes | run-id with lock + items |
 | `--wall-seconds` | No | override wall clock when item timestamps are absent |
 | `--out` | No | output path (default: canonical nested reports/serving path for this run) |
@@ -1668,6 +1848,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--configs` | No | comma-separated run YAML paths (default: five run-30-*-specialist.yaml) |
 | `--suite` | No | suite id/alias (track-a\|track-b\|full) — overrides default five; see config/runs/suites/ |
 | `config_paths` | No | optional run YAML paths (positional); overrides default suite when set |
@@ -1694,6 +1876,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox modernbert status`
 
@@ -1706,6 +1890,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox modernbert eval`
 
@@ -1718,6 +1904,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--sample` | No |  |
 | `--seed` | No |  |
 | `--subset` | No | eval pool (test=323 held-out; all=finetune corpus for large samples; heldout-plus=1323 extended set, mailroom-ml training/build_heldout_plus.py) Choices: test, train, all, heldout-plus. |
@@ -1738,6 +1926,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox modal-matrix list`
 
@@ -1750,6 +1940,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox modal-matrix show`
@@ -1763,6 +1955,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `model` | Yes | HF id (e.g. Qwen/Qwen3-8B or Qwen/Qwen3-8B-AWQ) |
 | `--gpu` | No | override matrix GPU (e.g. A100-40GB:2) |
 | `--json` | No |  |
@@ -1778,6 +1972,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `model` | No | HF id (default: Qwen/Qwen3.5-9B) |
 | `--gpu` | No | override matrix GPU |
 
@@ -1794,6 +1990,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox deps fetch`
 
@@ -1806,6 +2004,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--component` | No | Choices: dojo, pipeline, all. |
 | `--stable` | No | resolve latest stable on first fetch |
 | `--version` | No | exact published release tag |
@@ -1824,6 +2024,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--service` | No | limit to one service (repeatable): modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose Choices: modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose. |
 | `--live` | No | also probe endpoints over the network (can wake a billed Modal GPU) |
 | `--publish` | No | write the result for `sandbox board` (mailroom.services/v1) |
@@ -1842,6 +2044,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox modal deploy`
 
@@ -1854,6 +2058,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--gpu` | No | override the matrix GPU (e.g. A100-40GB:2) |
 | `--named-image` | No | use the published sandbox-vllm:TAG, never rebuild |
 | `--dry-run` | No | print the argv, deploy nothing |
@@ -1869,6 +2075,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--tag` | No | vLLM image tag (default: MODAL_VLLM_IMAGE_TAG or the deploy default) |
 | `--dry-run` | No |  |
 
@@ -1883,6 +2091,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--dry-run` | No |  |
 
 ### `sandbox modal status`
@@ -1896,6 +2106,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox modal stop`
@@ -1909,6 +2121,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--app` | No | app name (default: MODAL_VLLM_APP_NAME or sandbox-vllm) |
 | `--no-verify` | No | skip the post-stop `modal app list` check |
 | `--dry-run` | No |  |
@@ -1924,6 +2138,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--app` | No |  |
 | `--follow` | No | stream live (modal app logs -f) |
 | `--dry-run` | No |  |
@@ -1939,6 +2155,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox modal raw`
@@ -1952,6 +2170,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `rest` | No |  |
 
 ### `sandbox vllm`
@@ -1967,6 +2187,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox vllm probe`
 
@@ -1979,6 +2201,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--json` | No |  |
 
 ### `sandbox vllm command`
@@ -1992,6 +2216,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--gpu` | No | override the matrix GPU (e.g. A100-40GB:2) |
 | `--json` | No |  |
 
@@ -2006,6 +2232,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--gpu` | No |  |
 | `--dry-run` | No |  |
 | `rest` | No | -- <extra vllm arguments> |
@@ -2021,6 +2249,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--attempts` | No |  |
 | `--json` | No |  |
 | `--raw` | No | print the raw exporter text |
@@ -2038,6 +2268,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox hf whoami`
 
@@ -2050,6 +2282,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox hf download`
 
@@ -2062,6 +2296,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `repo` | No | repo id (default: the sandbox dataset) |
 | `--repo-type` | No | Choices: model, dataset, space. |
 | `--revision` | No | default: FAMILY_HF_REVISION for the sandbox dataset only |
@@ -2082,6 +2318,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--revisions` | No |  |
 | `--sandbox-cache` | No |  |
 
@@ -2096,6 +2334,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `rest` | No |  |
 
 ### `sandbox experiment`
@@ -2111,6 +2351,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox experiment designs`
 
@@ -2131,6 +2373,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `study` | Yes |  |
 | `--task` | No | Choices: specialists, pipeline, sorter. |
 | `--agent-route` | No | per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings |
@@ -2176,6 +2420,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | Yes | experiment.yaml created by experiment create |
 
 ### `sandbox experiment preflight`
@@ -2189,6 +2435,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | Yes | experiment.yaml created by experiment create |
 
 ### `sandbox experiment launch`
@@ -2202,6 +2450,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | Yes | experiment.yaml created by experiment create |
 | `--initials` | No | sign the displayed full configuration and spend review |
 
@@ -2216,6 +2466,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | Yes | experiment.yaml created by experiment create |
 | `--no-browser` | No |  |
 
@@ -2230,6 +2482,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--config` | Yes | experiment.yaml created by experiment create |
 
 ### `sandbox splits`
@@ -2245,6 +2499,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox splits build`
 
@@ -2257,6 +2513,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--name` | No | split directory under config/splits (default runbook-v1) |
 | `--families` | No | subclass family vocabulary (YAML) |
 | `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
@@ -2276,6 +2534,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--name` | No | split directory under config/splits (default runbook-v1) |
 | `--families` | No | subclass family vocabulary (YAML) |
 | `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
@@ -2293,6 +2553,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--name` | No | split directory under config/splits (default runbook-v1) |
 | `--families` | No | subclass family vocabulary (YAML) |
 | `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
@@ -2312,6 +2574,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox schemas build`
 
@@ -2324,6 +2588,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--out` | No | registry file (default config/extraction/subclass_schemas.json) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
 | `--split` | No | split whose sets the counts use ('' for none) |
@@ -2340,6 +2606,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--out` | No | registry file (default config/extraction/subclass_schemas.json) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
 | `--split` | No | split whose sets the counts use ('' for none) |
@@ -2361,6 +2629,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 
 ### `sandbox autoresearch plan`
 
@@ -2373,6 +2643,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
 | `--json` | No | print the plan as JSON (without the weakness table text) instead of text |
 
@@ -2387,6 +2659,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
 | `--initials` | No | your 2-6 capital-letter initials; required for a paid (non-mock) study, never defaulted |
 
@@ -2401,6 +2675,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
 | `--initials` | No | your 2-6 capital-letter initials; required for a paid (non-mock) study, never defaulted |
 | `--max-rounds` | No | candidate rounds to run in this call (default 3) |
@@ -2416,6 +2692,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
 
 ### `sandbox autoresearch holdout`
@@ -2429,6 +2707,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
+| `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
+| `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
 | `--initials` | No | your 2-6 capital-letter initials; required for a paid (non-mock) study, never defaulted |
 

@@ -276,6 +276,30 @@ For endpoint runs against Modal vLLM, still run **`sandbox watch --web`** in ano
 
 Plain output (no colour / banners): set `NO_COLOR=1` or `SANDBOX_PLAIN_LOGS=1`, or redirect stderr to a file.
 
+### Console log lines and verbosity
+
+Every `sandbox` command logs to **stderr** in one format (`mailroom_sandbox.console_log`);
+stdout keeps only the command's result (JSON summaries stay parseable):
+
+```text
+01:44:11 INFO  run       run=rb1-r13 doc=cba5ebbc  doc done  n=3/12 latency=3.2s tokens=900/40 spent=$0.0412
+01:44:12 WARN  pipeline  run=rb1-r13  classification_guardrail_triggered  issues=[doc_subclass_missing]
+01:44:30 INFO  run       run=rb1-r13  spend at 50% of cap  spent=$0.5012 cap=$1.00
+```
+
+| Flag | Shows |
+|---|---|
+| `-q` / `--quiet` | warnings, errors and the final result (no banner or progress bar) |
+| default | key events: run start/finish, each document done/failed, spend checkpoints (25/50/75/90% of `job.api_cost_cap_usd`), cap aborts, cancel/pause, plus warnings and errors |
+| `-v` | also routine INFO: per-call pipeline events (`llm_structured_call`, `audit_entry_written`, …), sandbox setup notes |
+| `-vv` | also DEBUG, and third-party loggers (httpx, huggingface_hub, langchain, …) at INFO; SQL echo stays off |
+
+The flags work before or after the subcommand. Colours (TTY only): run lifecycle bold cyan,
+document done green, document failed bold red, spend/cap bold magenta, cancel/pause bold yellow,
+warnings yellow, errors bold red, DEBUG dim. `LOG_FORMAT=json` prints uncolored JSON lines.
+The progress bar prints at each quarter of the run. `events.jsonl`, `items.jsonl` and run locks
+are unchanged; the console only echoes them.
+
 ---
 
 ## Scorecard (finished run)
