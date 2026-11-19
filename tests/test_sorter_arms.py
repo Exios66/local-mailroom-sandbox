@@ -492,3 +492,33 @@ def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, c
     capsys.readouterr()
     assert cli.main([*common, "--experiment-key", "h5", "--write"]) == 2
     assert cli.main([*common, "--write", "--allow-mock"]) == 2
+
+
+def test_reviewed_subclass_corrections_score_subclass_and_unit_on_the_corrected_truth(tmp_path, split, monkeypatch):
+    """SHF-013: a reviewed correction replaces the Hub subclass; the Hub-truth figures stay beside it."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    with (split / "assignments.jsonl").open("a", encoding="utf-8") as fh:  # give the corrected value a unit
+        fh.write(json.dumps({"id": "DOC-900", "doc_class": "correspondence", "subclass": "other", "set": "pool",
+                             "hf_split": "train", "tuned": False, "unit": "correspondence/other",
+                             "unit_kind": "subclass"}) + "\n")
+    monkeypatch.setattr(sh, "subclass_corrections", lambda: {"DOC-004": {
+        "doc_id": "DOC-004", "doc_class": "correspondence", "hub_subclass": "email", "subclass": "other",
+        "verdict": "correct"}})
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, sub_wrong={"DOC-004"})  # answers "other" on DOC-004
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    report = _cmp(tmp_path, split)
+    a, b = report["arms"]
+    assert a["subclass_corrections_applied"] == b["subclass_corrections_applied"] == 1
+    assert a["subclass_accuracy"] == a["unit_accuracy"] == 1.0
+    assert a["hub_truth"]["subclass_accuracy"] == a["hub_truth"]["unit_accuracy"] == pytest.approx(29 / 30)
+    assert b["subclass_accuracy"] == b["unit_accuracy"] == pytest.approx(29 / 30)
+    assert b["hub_truth"]["subclass_accuracy"] == b["hub_truth"]["unit_accuracy"] == 1.0
+    assert "1 reviewed subclass correction(s) applied (SHF-013)" in sa.render(report)
+
+    monkeypatch.setattr(sh, "enabled", lambda fix_id: fix_id != "SHF-013")  # fix off: the Hub truth only
+    report = _cmp(tmp_path, split)
+    a, b = report["arms"]
+    assert a["subclass_corrections_applied"] == 0 and a["subclass_accuracy"] == pytest.approx(29 / 30)
+    assert b["unit_accuracy"] == 1.0 and "SHF-013" not in sa.render(report)

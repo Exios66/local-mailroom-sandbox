@@ -5,7 +5,8 @@ code that calls it. A scoring defect the experiments cannot wait for is correcte
 id (``SHF-001`` ...), and never silently:
 
 - **Bound to the code it corrects.** Each fix lists its targets (``module:qualname``) with the
-  sha256 of the target's source (``inspect.getsource``) it was validated against. When a vendor
+  sha256 of the target's source (``inspect.getsource``) it was validated against, or
+  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads. When a vendor
   refresh or an edit changes a target, the fix is ``stale``: it is not applied, and
   ``sandbox run preflight`` fails on the ``scoring_hotfixes`` check until the fix is re-validated
   or retired.
@@ -188,6 +189,24 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "class on the canonical subclass token (normalize_corpus_subclass), not the Dojo's "
                 "class-blind raw-string match",
     ),
+    ScoringHotfix(
+        id="SHF-013",
+        layer="sandbox",
+        targets=(("mailroom_sandbox.eval.scoring:sorter_subclass_row",
+                  "37caf94d1d496885350500ac13164b5c94125ceb3eb7df6b626a974c52649ad0"),
+                 ("mailroom_sandbox.eval.scoring:sorter_subclass_scores",
+                  "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f"),
+                 # the reviewed truth corrections are part of what the fix scores against
+                 ("file:data/labels/review/subclass_corrections.jsonl",
+                  "f070cd33ec1aba9aefc3bdfb6fababa2379c1c9eefb4902aefba8a505298148f")),
+        upstream="sandbox (isolated sorter / sorter_reviewer runs scored doc_type only; reviewed "
+                 "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
+        summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "
+                "canonical subclass token (subclass_scored, subclass_match, subclass_by_class); a reviewed "
+                "subclass correction replaces the Hub truth for subclass and unit scoring, the Hub-truth "
+                "figures stay under raw_dojo and the corrected documents are counted "
+                "(subclass_corrections_applied)",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
@@ -249,7 +268,30 @@ def _file_source(target: str) -> str | None:
     return "".join(text.splitlines(keepends=True)[start - 1:node.end_lineno])
 
 
+FILE_TARGET = "file:"
+
+
+def data_path(rel: str) -> Path | None:
+    """A repository data file a fix reads (``file:`` targets): the source checkout, else ``SANDBOX_ROOT``.
+
+    The checkout copy is found next to this package (``src/mailroom_sandbox``); the Modal job worker
+    bundles the file under its ``SANDBOX_ROOT`` (``deploy/modal_job.py``).
+    """
+    from mailroom_sandbox.paths import repo_root
+
+    for root in (Path(__file__).resolve().parents[2], repo_root()):
+        path = root / rel
+        if path.is_file():
+            return path
+    return None
+
+
 def target_sha(target: str) -> str:
+    if target.startswith(FILE_TARGET):
+        path = data_path(target[len(FILE_TARGET):])
+        if path is None:
+            raise FileNotFoundError(target)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
     source = _file_source(target)
     if source is not None:
         return hashlib.sha256(source.encode("utf-8")).hexdigest()
@@ -545,6 +587,56 @@ def revert_truth_overrides(expected: Mapping[str, Any], overrides: Mapping[str, 
     return out
 
 
+# --- SHF-013: reviewed subclass corrections ----------------------------------------------------
+
+SUBCLASS_CORRECTIONS = "data/labels/review/subclass_corrections.jsonl"
+_CORRECTIONS_CACHE: dict[tuple[str, int, int], dict[str, dict[str, Any]]] = {}
+
+
+def subclass_corrections() -> dict[str, dict[str, Any]]:
+    """``{doc_id: entry}`` of the reviewed subclass corrections whose ``verdict`` is ``correct``.
+
+    A ``held`` entry is recorded but not applied. Empty when the file is missing (SHF-013 is then
+    ``unavailable`` and not applied either).
+    """
+    path = data_path(SUBCLASS_CORRECTIONS)
+    if path is None:
+        return {}
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    if key not in _CORRECTIONS_CACHE:
+        entries: dict[str, dict[str, Any]] = {}
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("verdict") != "correct":
+                continue
+            if str(entry["doc_id"]) in entries:
+                raise ValueError(f"{SUBCLASS_CORRECTIONS}: {entry['doc_id']} is corrected twice")
+            entries[str(entry["doc_id"])] = entry
+        _CORRECTIONS_CACHE.clear()
+        _CORRECTIONS_CACHE[key] = entries
+    return _CORRECTIONS_CACHE[key]
+
+
+def corrected_subclass(doc_id: Any, doc_class: Any, hub_subclass: Any) -> str | None:
+    """SHF-013: the reviewed subclass that replaces the Hub truth of one document, or None.
+
+    Applied only when the correction names the row's class and the Hub value it was reviewed
+    against (canonical tokens), so a Hub relabel or a different class never takes a stale fix.
+    """
+    from mailroom_sandbox.experiment_splits import _subclass_token
+
+    entry = subclass_corrections().get(str(doc_id or ""))
+    if not entry or str(entry.get("doc_class")) != str(doc_class or ""):
+        return None
+    cls = str(doc_class)
+    if _subclass_token(cls, entry.get("hub_subclass")) != _subclass_token(cls, hub_subclass):
+        return None
+    return str(entry["subclass"])
+
+
 # --- run-level aggregation helpers ------------------------------------------------------------
 
 def aggregate_extraction(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, Any]:
@@ -597,8 +689,9 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
 
 
 __all__ = [
-    "HOTFIXES", "HEADLINE_KEYS", "ScoringHotfix", "aggregate_extraction", "current_ids", "currencies",
-    "describe", "documented_absent_fields", "dual", "enabled", "hallucination_counts", "headline_basis",
+    "HOTFIXES", "HEADLINE_KEYS", "SUBCLASS_CORRECTIONS", "ScoringHotfix", "aggregate_extraction",
+    "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
+    "dual", "enabled", "hallucination_counts", "headline_basis", "subclass_corrections",
     "hotfixed", "install", "is_active", "merge_dual", "module_sha256", "raw", "raw_rows",
     "restore_documented_absences", "revert_truth_overrides", "source_sha", "stale", "status",
 ]

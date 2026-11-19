@@ -6,7 +6,8 @@ that runs use as truth are audited separately in `INTERIM_AUDIT.md`. Each label 
 verdict. The labels that needed a policy decision were decided on 2026-11-18 by consensus
 vote under the owner's delegation (see "Consensus decisions"); one label is still open.
 
-Nothing reads these files by default. They are a record of the review and the
+Nothing reads these files by default, except `subclass_corrections.jsonl`, which scoring
+hotfix SHF-013 applies at scoring time. They are a record of the review and the
 input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 `decisions.jsonl` is that input for the gold catalogs.
 
@@ -26,6 +27,7 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
 | `interim_reviews.jsonl` | Reviewed interim labels that `scripts/interim_labels.py review` writes into `data/labels/interim/`: 55 correspondence `intent` corrections of wrong Hub values, 1,795 correspondence header fields read from the original email and 44 corporate `entity_name` corrections. See below. |
 | `contract_value_review.jsonl` | 7 `correct` lines for `scripts/gold_labels.py review`: contract `contract_value` phrases rewritten as plain dollar figures that Dojo parses. They are applied to `data/labels/gold/contract.jsonl`. |
+| `subclass_corrections.jsonl` | Reviewed corrections of wrong Hub subclasses, applied at scoring time by scoring hotfix SHF-013 (not written into any overlay). See "Subclass corrections" below. |
 | `r03-<lineage>-audit.csv` | Evaluation runbook R03 gold-audit sheets, one per lineage, with a `.meta.json` digest of how each was drawn. Not written until the v0 passes run. See "R03 gold audit" below. |
 
 ## Verdicts
@@ -155,6 +157,29 @@ earlier decisions as precedent. The majority value is applied; on a three-way sp
 stays `needs_human` (or held) with all three readings in its note. The votes are in
 `consensus_votes.jsonl`, the rule each group settled in `policy_questions.json`, and the guide
 states the rules that changed its meaning (`docs/gold-labels/LABELING_GUIDE.md`).
+
+## Subclass corrections
+
+`subclass_corrections.jsonl` holds subclass truths a reviewer found wrong, one line per document:
+`doc_id`, `doc_class`, `hub_subclass` (the Hub value reviewed), `subclass` (the reviewed value),
+`verdict`, `review` (`reviewer`, `note`, `reviewed_at`, `source`) and `evidence` (a verbatim quote
+from the document text).
+
+- `verdict: correct` lines are applied at scoring time by scoring hotfix SHF-013
+  (`docs/scoring-hotfixes.md`): the reviewed value replaces the Hub subclass for subclass scoring
+  in isolated sorter and `sorter_reviewer` runs and for subclass and unit scoring in
+  `sorter_arms` (H5). The Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`),
+  and `subclass_corrections_applied` counts the documents. A line is applied only when the row's
+  class and Hub subclass still equal `doc_class` and `hub_subclass`.
+- `verdict: held` lines are recorded and not applied; the note says what decision they wait for.
+- Run artifacts, splits and `data/labels/interim/` are not rewritten. The file's sha256 is a
+  SHF-013 target, so editing it makes the fix stale until the fingerprint is updated, and every
+  run lock records which file a run was scored against.
+
+Held: `DOC-f4ce492b979c34e3` (correspondence, Hub `demand`). Read as content, the message is an
+internal email (`email`); but question set 4.0.0 and the Hub follow a marker convention for
+correspondence (a message that mentions a demand is `demand`), and the H5 arms split on it. It
+waits for the owner's decision on that convention.
 
 ## R03 gold audit
 

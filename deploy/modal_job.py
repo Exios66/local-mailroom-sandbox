@@ -81,6 +81,12 @@ image = (
         _PKG_ROOT / "data" / "fixtures",
         remote_path=f"{SANDBOX_ROOT}/data/fixtures",
     )
+    # SHF-013 fingerprints and applies the reviewed subclass corrections; without the file the
+    # worker's scoring-hotfix set would differ from the lock and the run would refuse to start.
+    .add_local_file(
+        _PKG_ROOT / "data" / "labels" / "review" / "subclass_corrections.jsonl",
+        remote_path=f"{SANDBOX_ROOT}/data/labels/review/subclass_corrections.jsonl",
+    )
     # DMR-057: the tracked family snapshots are bundled instead of pip-pinned
     # git installs — the sandbox __init__ puts them on sys.path at import.
     .add_local_dir(

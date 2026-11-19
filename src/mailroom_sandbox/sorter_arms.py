@@ -266,6 +266,12 @@ class Outcome:
     # accuracy of the documents it would auto-route.
     abstained: bool = False
     abstain_reasons: tuple[str, ...] = ()
+    # SHF-013: a reviewed correction replaced the Hub subclass (sub_ok / unit_ok score the corrected
+    # truth); the hub_* fields keep the outcome on the Hub truth.
+    sub_corrected: bool = False
+    hub_sub_ok: bool = False
+    hub_unit_scored: bool = False
+    hub_unit_ok: bool = False
 
 
 def _num(value: Any) -> float | None:
@@ -294,22 +300,38 @@ def _confidence(pred: Mapping[str, Any]) -> float | None:
 
 
 def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str]) -> list[Outcome]:
+    """Per-document outcomes. The subclass and the unit score the reviewed subclass corrections
+    (SHF-013, ``data/labels/review/subclass_corrections.jsonl``) when the fix is current; the outcome
+    on the Hub truth is kept beside them (``hub_sub_ok``, ``hub_unit_scored``, ``hub_unit_ok``)."""
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.experiment_splits import _subclass_token, unit_correct, unit_of
 
+    correct = sh.enabled("SHF-013")
     out = []
     for doc_id in ids:
         item = arm.items[doc_id]
         pred = item.get("pred") or {}
-        truth_class, truth_sub = arm.truth[doc_id]
+        truth_class, hub_sub = arm.truth[doc_id]
+        corrected = sh.corrected_subclass(doc_id, truth_class, hub_sub) if correct and hub_sub else None
+        truth_sub = corrected or hub_sub
         failed = bool(item.get("error")) or not item.get("ok") or not pred.get("doc_type")
         pred_class = FAILED if failed else str(pred.get("doc_type"))
         pred_sub = None if failed else (pred.get("doc_subclass") or pred.get("contract_subtype"))
-        unit_scored = unit_of(truth_class, truth_sub, units) is not None
         sub_scored = bool(truth_sub)
         class_ok = pred_class == truth_class
-        sub_ok = bool(sub_scored and class_ok and pred_sub
-                      and _subclass_token(truth_class, truth_sub) == _subclass_token(truth_class, pred_sub))
-        unit_ok = bool(unit_scored and not failed and unit_correct(truth_class, truth_sub, pred_class, pred_sub, units))
+
+        def scored(sub: str | None, pred_class: str = pred_class, pred_sub: Any = pred_sub,
+                   failed: bool = failed, class_ok: bool = class_ok, truth_class: str = truth_class
+                   ) -> tuple[bool, bool, bool]:
+            """(subclass right, unit scored, unit right) against one truth subclass."""
+            unit_in = unit_of(truth_class, sub, units) is not None
+            sub_right = bool(sub and class_ok and pred_sub
+                             and _subclass_token(truth_class, sub) == _subclass_token(truth_class, pred_sub))
+            return sub_right, unit_in, bool(unit_in and not failed
+                                            and unit_correct(truth_class, sub, pred_class, pred_sub, units))
+
+        sub_ok, unit_scored, unit_ok = scored(truth_sub)
+        hub_sub_ok, hub_unit_scored, hub_unit_ok = scored(hub_sub) if corrected else (sub_ok, unit_scored, unit_ok)
         usage = pred.get("usage") if isinstance(pred.get("usage"), Mapping) else {}
         out.append(Outcome(
             doc_id=doc_id, truth_class=truth_class, pred_class=pred_class, class_ok=class_ok,
@@ -319,6 +341,8 @@ def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str])
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
             abstained=bool(not failed and (pred.get("abstained") or pred.get("route_to_human"))),
             abstain_reasons=tuple(str(r) for r in (pred.get("abstain_reasons") or ()) if not failed),
+            sub_corrected=corrected is not None, hub_sub_ok=hub_sub_ok, hub_unit_scored=hub_unit_scored,
+            hub_unit_ok=hub_unit_ok,
         ))
     return out
 
@@ -416,6 +440,14 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
         "class_f1": per_class,
         "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.sub_ok for r in sub), len(sub)),
         "unit_scored": len(unit), "unit_accuracy": _rate(unit_correct_n, len(unit)),
+        # SHF-013: the two figures above score the reviewed subclass corrections; hub_truth keeps the Hub's.
+        "subclass_corrections_applied": sum(r.sub_corrected for r in rows),
+        "hub_truth": {
+            "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.hub_sub_ok for r in sub), len(sub)),
+            "unit_scored": sum(r.hub_unit_scored for r in rows),
+            "unit_accuracy": _rate(sum(r.hub_unit_ok for r in rows if r.hub_unit_scored),
+                                   sum(r.hub_unit_scored for r in rows)),
+        },
         "calibration": calibration,
         "routing": _routing(rows),
         "latency_ms": {"n": len(latencies), "p50": _quantile(latencies, 0.50), "p95": _quantile(latencies, 0.95)},
@@ -716,6 +748,12 @@ def render(report: Mapping[str, Any]) -> str:
             f"{_fmt(cal.get('ece'), '.3f'):>6} {_fmt(cal.get('ece_null_floor'), '.3f'):>6} {_fmt(cal.get('auroc'), '.3f'):>6} "
             f"{_fmt(lat['p50'], '.0f'):>7} {_fmt(lat['p95'], '.0f'):>7} "
             f"{_usd(s['cost']['per_1k_docs_usd']):>8} {_usd(s['cost']['per_class_correct_usd']):>8}")
+    for s in report["arms"]:
+        if s.get("subclass_corrections_applied"):
+            hub = s["hub_truth"]
+            lines.append(f"  {s['run_id'][:44]}: {s['subclass_corrections_applied']} reviewed subclass correction(s) "
+                         f"applied (SHF-013); on the Hub truth sub {_pct(hub['subclass_accuracy'])} "
+                         f"unit {_pct(hub['unit_accuracy'])}")
     for s in report["arms"]:
         r = s.get("routing") or {}
         # Decision arms always show their routing line, so a measured 0% is not mistaken for missing data.
