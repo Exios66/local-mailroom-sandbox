@@ -128,6 +128,8 @@ def _cmd(args: argparse.Namespace) -> int:
         if errors:
             return 1
     else:
+        if args.job is None:
+            raise ServiceError("specify --job NUMBER or --pipeline UUID")
         if args.job <= 0:
             raise ServiceError("job number must be positive")
         print_job_logs(args.project, args.job, all_steps=args.all_steps)
@@ -138,7 +140,10 @@ def register(sub, leaf) -> None:
     circle = sub.add_parser("circleci", parents=[leaf], help="read CircleCI failed-job logs")
     commands = circle.add_subparsers(dest="circleci_command", required=True)
     logs = commands.add_parser("logs", parents=[leaf], help="fetch failed steps from a job or pipeline")
-    source = logs.add_mutually_exclusive_group(required=True)
+    # No required=True: the CLI-surface dispatch harness builds parser-valid
+    # argv for required actions only, and a required mutex group hides both
+    # members from it. _cmd validates the choice instead (house style).
+    source = logs.add_mutually_exclusive_group()
     source.add_argument("--job", type=int, help="CircleCI job number")
     source.add_argument("--pipeline", help="CircleCI pipeline UUID")
     logs.add_argument("--project", default=DEFAULT_PROJECT, help="VCS/owner/repository (default: this repository)")

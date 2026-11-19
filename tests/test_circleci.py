@@ -119,3 +119,11 @@ def test_pipeline_missing_job_number_fails(monkeypatch, capsys):
     monkeypatch.setattr(circleci, "failed_jobs", lambda *a: [{"name": "test"}])
     assert cli.main(["circleci", "logs", "--pipeline", "11111111-1111-1111-1111-111111111111"]) == 1
     assert "no job number available" in capsys.readouterr().err
+
+
+def test_logs_without_source_choice_errors(monkeypatch, capsys):
+    # The required --job/--pipeline choice is validated by the handler, not the
+    # parser, so the CLI-surface dispatch harness can build parser-valid argv.
+    monkeypatch.setattr(circleci, "_get", lambda *a, **k: (_ for _ in ()).throw(ServiceError("unreachable")))
+    assert cli.main(["circleci", "logs"]) == 1
+    assert "specify --job NUMBER or --pipeline UUID" in capsys.readouterr().err
