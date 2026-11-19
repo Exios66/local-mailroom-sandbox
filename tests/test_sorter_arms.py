@@ -54,7 +54,7 @@ def split(tmp_path):
 
 def _write_run(root: Path, run_id: str, *, task="isolated", model=QWEN, ids, wrong=(), sub_wrong=(), failed=(),
                mock=False, revision=REV, truth_override=None, tokens=(10_000, 100), conf=0.9, qset=None,
-               no_usage=()):
+               no_usage=(), abstain=None):
     run = root / run_id
     run.mkdir(parents=True)
     lock = {"run_id": run_id, "task": task, "spec_hash": "h-" + run_id, "job": {"mock": mock},
@@ -79,6 +79,8 @@ def _write_run(root: Path, run_id: str, *, task="isolated", model=QWEN, ids, wro
             "contract" if doc_id in wrong else cls)
         pred = {"doc_type": pred_cls, "doc_subclass": "other" if doc_id in sub_wrong else sub,
                 ("doc_type_probability" if task == "sorter_reviewer" else "confidence"): conf}
+        if abstain and doc_id in abstain:
+            pred.update(abstained=True, route_to_human=True, abstain_reasons=[abstain[doc_id]])
         if task == "sorter_reviewer":
             pred["usage"] = {"input_tokens": tokens[0], "output_tokens": 0, "cost": tokens[0] * 0.1 / 1e6}
         item = {"item_id": doc_id, "ok": doc_id not in failed, "error": "boom" if doc_id in failed else None,
@@ -240,6 +242,32 @@ def test_scores_failures_subclass_and_units(tmp_path, split):
     mc = report["pairs"]["B"]["tests"]["mcnemar_class"]
     assert (mc["b"], mc["c"]) == (1, 2)
     assert report["pairs"]["B"]["differences"]["class_accuracy"]["estimate"] == pytest.approx(1 / 30)
+
+
+def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids)
+    parked = {"DOC-000": "document_form: unknown", "DOC-001": "subclass_gate: contract",
+              "DOC-005": "document_form: unknown"}
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids,
+               wrong={"DOC-000", "DOC-003"}, failed={"DOC-005"}, abstain=parked)
+    report = _cmp(tmp_path, split)
+    a, b = report["arms"]
+    assert a["routing"]["abstained"] == 0 and a["routing"]["abstain_rate"] == 0.0
+    r = b["routing"]
+    # DOC-005 failed, so it is neither parked nor auto-routed.
+    assert (r["answered"], r["abstained"], r["auto_routed"]) == (29, 2, 27)
+    assert r["auto_class_accuracy"] == pytest.approx(26 / 27)
+    assert r["abstained_class_accuracy"] == pytest.approx(1 / 2)
+    assert r["abstain_reasons"] == {"document_form": 1, "subclass_gate": 1}
+    # Forced-choice accuracy still counts the parked documents.
+    assert b["class_accuracy"] == pytest.approx(27 / 30)
+    assert "parked 2/29" in sa.render(report)
+    # A decision arm with no abstentions still reports its 0% routing rate; the LLM arm does not.
+    _write_run(tmp_path / "runs2", "A", ids=ids)
+    _write_run(tmp_path / "runs2", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    quiet = sa.render(sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs2", n_boot=50, n_perm=50))
+    assert "B: parked 0/30" in quiet and "A: parked" not in quiet
 
 
 def test_fast_macro_f1_matches_experiment_stats():
@@ -431,6 +459,21 @@ def test_h5_configs_are_handoff_free_capped_and_counted_by_the_r01_gate():
 def test_h5_run_ids_start_with_their_experiment_key():
     keys = {path.stem: ("rb1-r70b" if "-r70b-" in path.stem else "rb1-r13b") for path in H5_CONFIGS}
     assert all(stem.startswith(key + "-") for stem, key in keys.items())
+
+
+def test_h5_smoke20_arms_draw_the_same_documents_and_are_capped():
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    llm = load_run_spec(RUNS / "rb1-r13b-smoke20-llm-sorter-qwen3.7-flash.yaml")
+    dec = load_run_spec(RUNS / "rb1-r13b-smoke20-decision-sorter-luna.yaml")
+    assert llm.task == "isolated" and dec.task == "sorter_reviewer"
+    assert dec.reviewer.backend == "decisions" and dec.reviewer.questions == "reviewer_decisions_v4.0.0"
+    assert llm.dataset == dec.dataset and llm.dataset.limit == 20
+    assert llm.dataset.exclude_ids_file == "config/splits/runbook-v1/dev-look1.exclude.ids"
+    for spec in (llm, dec):
+        assert spec.run_id.startswith("rb1-r13b-smoke20-") and not spec.job.mock
+        assert spec.job.api_cost_cap_usd <= 0.15 and spec.job.max_wall_seconds
+        assert "--initials <XX>" in (RUNS / f"{spec.run_id}.yaml").read_text()
 
 
 def test_cli_write_names_every_output_from_the_experiment_key(tmp_path, split, capsys):

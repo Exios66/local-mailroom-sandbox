@@ -68,3 +68,4 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-17T16:48:47Z | JJB | start | ar-mailroom-v2-r05-ins-prompt-v5 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r05-ins-prompt-v5.yaml | 529e8bd70549 | 75 | 3.0 | ✓ |
 | 2026-11-17T16:52:26Z | JJB | start | ar-mailroom-v2-r06-ins-prompt-v4 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r06-ins-prompt-v4.yaml | eae22df4913b | 75 | 3.0 | ✓ |
 | 2026-11-17T16:54:03Z | JJB | start | ar-mailroom-v2-r07-extraction-gate-v1.3.0 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r07-extraction-gate-v1.3.0.yaml | 3626a56387a3 | 75 | 3.0 | ✗ |
+| 2026-11-19T04:59:13Z | JJB | start | rb1-r01-smoke-qwen3.7-flash | config/runs/rb1-r01-smoke-qwen3.7-flash.yaml | 8ba05f572500 | 10 | 0.09 | ✗ |
