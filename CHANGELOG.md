@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **Decisions calls are charged once against the live API cap.** A returned Decisions response was priced by the transport and again by HF-004's `record_usage` wrapper, so a decision-model run reached `job.api_cost_cap_usd` at about half the real spend and could be cut off mid-document. The accumulator now records tokens without a second live charge. Isolated `sorter_reviewer` and `extraction_gate` rows take the same per-document call ceiling as a pipeline document; chunked specialists stay unscoped. No paid run.
+
 - **Experiment figures in one house style, and H5 comparison figures (#373).** New `figure_style` (colour roles, type scale, deterministic SVG, text linter), `decision_figures` (per-run: routing, confidence, risk-coverage, form-mass, park-reasons, subclass, latency) and `comparison_figures` (H5: runtime, latency, quality against the margins, routing, cost-quality, list pricing by prompt size). Human guide: [`docs/experiment-figures.md`](docs/experiment-figures.md).
   - `sandbox report build --run <id>` now writes the full per-run figure set with alt text. Trees built earlier carry only `latency.svg`; rebuild them, then run `--campaign rb1` (which refreshes indexes only).
   - `scripts/compare_sorter_arms.py --figures DIR` is new, and `--write` also writes the figures. `--allow-mock` labels every figure simulated. Without `--split-dir` the arms pair on the split their locks drew from.
