@@ -320,6 +320,8 @@ def _header_problem(field: str, value: Any, evidence: Any) -> str | None:
         if not isinstance(ev, dict) or ev.get("source") != HEADER_SOURCE or not ev.get("file") \
                 or not isinstance(ev.get("header"), str):
             return f"evidence must be {{source: {HEADER_SOURCE!r}, file, header}}: {ev!r}"
+        if ":" not in ev["header"]:
+            return f"a header line reads 'Name: value', not {ev['header']!r}"
         name = ev["header"].split(":", 1)[0]
         if name not in HEADER_LINES[field]:
             return f"{field} is read from {'/'.join(HEADER_LINES[field])}, not {name}"
@@ -713,7 +715,10 @@ def apply_overlay_parquet(source: Any, out: Path | str | None = None, *,
         problems = verify()
         if problems:
             raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
-        overlay, overlay_sha = load_overlay(), overlay_fingerprint()
+        overlay_sha = overlay_fingerprint()
+        overlay = load_overlay()
+        if overlay_fingerprint() != overlay_sha:  # rewritten while it was read: labels and sha would disagree
+            raise ValueError("the interim label overlay changed while it was read; apply it again")
     sha = overlay_sha or ""
     rows = [apply_overlay(r, overlay, overlay_sha=sha) for r in table.to_pylist()]
     marks = [json.dumps(r["interim_labels"], sort_keys=True) if r.get("interim_labels") else None for r in rows]

@@ -146,7 +146,8 @@ that field is empty.
    "$5 million", and "$5,000,000" scores 0.33. The guide says to copy the currency phrase and
    never compute it. The choice is between normalising these six labels and teaching the
    scorer word multipliers and currency prefixes. A per-month fee may also be payment terms
-   rather than a contract value. **Owner decision.**
+   rather than a contract value. **Decided:** the labels were normalised to plain dollar figures,
+   with the rate left out of the amount (see "Resolved since this validation").
 4. **[Medium] Ten review labels are held** (see above). Seventy-one other labels wait in
    `needs_human`, grouped by question in `policy_questions.json`.
 5. **[Medium] 44 Hub corporate `entity_name` values are not in the text.** They reach

@@ -1033,3 +1033,20 @@ def test_build_writes_nothing_when_the_built_catalog_fails(cli, capsys, monkeypa
     assert "nothing was written" in capsys.readouterr().err
     assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before
     assert not [p for p in tmp.iterdir() if p.name.startswith(".")]
+
+
+def test_build_restores_the_catalog_when_the_supplementary_swap_fails(cli, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    stores = (tmp / "gold", tmp / "supp")
+    before = {p: p.read_bytes() for d in stores for p in d.iterdir()}
+    real = mod._swap_in
+
+    def fail_on_supp(stage, directory):
+        if directory.name == "supp":
+            raise OSError("disk full")
+        real(stage, directory)
+    monkeypatch.setattr(mod, "_swap_in", fail_on_supp)
+    with pytest.raises(OSError):
+        _built(cli, RECIPIENT, DISPUTE_CHECK)
+    assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before

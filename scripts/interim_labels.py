@@ -439,7 +439,19 @@ def _prune(root: Path, man: dict[str, Any], gone: list[tuple[str, str]]) -> None
     drop = collections.defaultdict(set)
     for doc, field in gone:
         drop[doc].add(field)
-    for name in list(man.get("files") or {}):
+    names = list(man.get("files") or {})
+    # As in review: keep the previous generation so a failed write restores every file.
+    previous = {name: (root / name).read_bytes() for name in [*names, "MANIFEST.json"] if (root / name).exists()}
+    try:
+        _prune_files(root, man, names, drop)
+    except BaseException:
+        for name, data in previous.items():
+            (root / name).write_bytes(data)
+        raise
+
+
+def _prune_files(root: Path, man: dict[str, Any], names: list[str], drop: dict[str, set[str]]) -> None:
+    for name in names:
         recs = []
         for rec in il._jsonl(root / name):
             fields = drop.get(rec["doc_id"], set())

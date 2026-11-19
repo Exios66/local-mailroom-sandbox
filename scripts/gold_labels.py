@@ -401,21 +401,33 @@ def _staging(directory: Path):
         yield Path(tmp)
 
 
+def _snapshot(directory: Path) -> dict[str, bytes]:
+    """The bytes of ``directory``'s jsonl files and MANIFEST, for ``_restore``."""
+    owned = [*directory.glob("*.jsonl"), directory / "MANIFEST.json"] if directory.exists() else []
+    return {p.name: p.read_bytes() for p in owned if p.exists()}
+
+
+def _restore(directory: Path, snapshot: dict[str, bytes]) -> None:
+    """Put ``directory``'s jsonl files and MANIFEST back as ``snapshot`` had them."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for path in [*directory.glob("*.jsonl"), directory / "MANIFEST.json"]:
+        if path.name not in snapshot and path.exists():
+            path.unlink()
+    for name, blob in snapshot.items():
+        (directory / name).write_bytes(blob)
+
+
 def _swap_in(stage: Path, directory: Path) -> None:
     """Replace ``directory``'s jsonl files and MANIFEST with the staged ones; restore them on failure."""
+    previous = _snapshot(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    owned = [*directory.glob("*.jsonl"), directory / "MANIFEST.json"]
-    previous = {p.name: p.read_bytes() for p in owned if p.exists()}
     try:
         for stale in directory.glob("*.jsonl"):
             stale.unlink()
         for staged in sorted(stage.iterdir()):
             os.replace(staged, directory / staged.name)
     except BaseException:
-        for stale in directory.glob("*.jsonl"):
-            stale.unlink()
-        for name, blob in previous.items():
-            (directory / name).write_bytes(blob)
+        _restore(directory, previous)
         raise
 
 
@@ -482,8 +494,13 @@ def cmd_build(args: argparse.Namespace) -> int:
                   + "\n  ".join(left), file=sys.stderr)
             return 1
         _write_catalog_dir(supp_stage, supplementary, gl.SUPPLEMENTARY_SCHEMA, now, binding, args)
+        before = _snapshot(gold)
         _swap_in(gold_stage, gold)
-        _swap_in(supp_stage, supp)
+        try:
+            _swap_in(supp_stage, supp)
+        except BaseException:  # the stores change together or not at all
+            _restore(gold, before)
+            raise
     print(f"catalog: {sum(len(v) for v in catalog.values())} labels; "
           f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")

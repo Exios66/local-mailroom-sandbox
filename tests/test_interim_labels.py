@@ -657,3 +657,36 @@ def test_retire_reviews_notes_the_label_a_retired_review_had_replaced():
     notes = il.retire_reviews(records, [])
     assert notes == ["E1.sender: retired (no review line makes it); it had replaced a gap_fill label, which build restores"]
     assert records["E1"]["labels"] == {}  # a gate record stays, even when empty
+
+
+def test_a_header_line_without_a_colon_is_refused_not_raised():
+    ev = [{"source": il.HEADER_SOURCE, "file": "f/1.", "header": "X-From"}]
+    assert "Name: value" in il.review_line_problem(_header_line(evidence=ev))
+
+
+def test_prune_restores_every_file_when_a_later_write_fails(tmp_path, monkeypatch):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    real = mod._replace
+
+    def fail_on_manifest(path, text):
+        if path.name == "MANIFEST.json":
+            raise OSError("disk full")
+        real(path, text)
+    monkeypatch.setattr(mod, "_replace", fail_on_manifest)
+    with pytest.raises(OSError):
+        mod._prune(root, il.load_manifest(root), [("E1", "sender")])
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    assert il.verify(root) == []
+
+
+def test_apply_overlay_parquet_refuses_an_overlay_rewritten_while_read(monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    shas = iter(["a" * 64, "b" * 64])
+    monkeypatch.setattr(il, "verify", lambda *a, **k: [])
+    monkeypatch.setattr(il, "overlay_fingerprint", lambda *a, **k: next(shas))
+    monkeypatch.setattr(il, "load_overlay", lambda *a, **k: {})
+    table = pa.table({"document_id": ["D1"], "gt_fields": ["{}"]})
+    with pytest.raises(ValueError, match="changed while it was read"):
+        il.apply_overlay_parquet(table)
