@@ -398,6 +398,167 @@ class SplitResult:
     quotas: dict[str, int]
 
 
+def _away_from_heldout(tier: tuple[int, int]) -> tuple[int, int]:
+    """Sort key that leaves never-tuned documents for held-out (dev, fill and rare passes)."""
+    return (-tier[0], -tier[1])
+
+
+class _Placer:
+    """Mutable placement state for :func:`build_split`: a leak component moves as one."""
+
+    def __init__(self, docs: list[Doc], comps: dict[str, list[Doc]], sizes: dict[str, int], seed: int):
+        self.docs, self.comps, self.sizes, self.seed = docs, comps, sizes, seed
+        self.comp_of = {d.id: d.component for d in docs}
+        # rank a component by its most-exposed member: held-out takes a document linked to a
+        # tuned one only after every clean component is placed. Among equally exposed
+        # components, those holding a never-tuned document come first.
+        self.tier = {d.id: (max(m.exposure_tier for m in comps[d.component]),
+                            min(m.exposure_tier for m in comps[d.component])) for d in docs}
+        self.assignment: dict[str, str] = {}
+        self.filled: Counter[str] = Counter()
+        self.unit_count: dict[str, Counter[str]] = {s: Counter() for s in SETS}
+        self.sub_count: dict[str, Counter[tuple[str, str]]] = {s: Counter() for s in SETS}
+
+    def key(self, d: Doc, target: str) -> tuple[int, int]:
+        return self.tier[d.id] if target == "heldout" else _away_from_heldout(self.tier[d.id])
+
+    def place(self, doc_id: str, target: str) -> bool:
+        members = self.comps[self.comp_of[doc_id]]
+        if any(m.id in self.assignment for m in members):
+            return False
+        if self.filled[target] + len(members) > self.sizes[target]:
+            return False
+        for m in members:
+            self.assignment[m.id] = target
+            self.unit_count[target][m.unit] += 1
+            self.sub_count[target][(m.doc_class, m.subclass)] += 1
+        self.filled[target] += len(members)
+        return True
+
+    def quotas(self, quotas: dict[str, int]) -> None:
+        """1. held-out quotas, never-tuned documents first; 2. dev quotas."""
+        by_unit: dict[str, list[Doc]] = defaultdict(list)
+        for d in self.docs:
+            by_unit[d.unit].append(d)
+        for target in ("heldout", "dev"):
+            for unit in sorted(by_unit):
+                order = _band_interleaved(by_unit[unit], self.seed, f"{target}:{unit}")
+                # stable sort keeps the band order
+                order.sort(key=lambda d, t=target: self.key(d, t))
+                for d in order:
+                    if self.unit_count[target][unit] >= quotas[unit]:
+                        break
+                    self.place(d.id, target)
+
+    def rare_subclasses(self) -> None:
+        """3. every rare subclass (3+ docs) at least once in dev and held-out."""
+        sub_n = Counter((d.doc_class, d.subclass) for d in self.docs)
+        for target in ("heldout", "dev"):
+            for key in sorted(k for k, n in sub_n.items() if n >= 3):
+                if self.sub_count[target][key]:
+                    continue
+                cands = [d for d in self.docs
+                         if (d.doc_class, d.subclass) == key and d.id not in self.assignment]
+                cands.sort(key=lambda d, t=target: (self.key(d, t), _h(self.seed, "rare", t, d.id)))
+                any(self.place(d.id, target) for d in cands)
+
+    def _fill_queues(self, target: str) -> dict[tuple[str, str], list[Doc]]:
+        per_stratum: dict[tuple[str, str], list[Doc]] = defaultdict(list)
+        for d in self.docs:
+            if d.id not in self.assignment:
+                per_stratum[(d.doc_class, d.source_corpus)].append(d)
+        queues = {}
+        for key, ds in per_stratum.items():
+            order = _band_interleaved(ds, self.seed, f"fill:{target}:{key}")
+            order.sort(key=lambda d: self.key(d, target))
+            queues[key] = order
+        return queues
+
+    def fill(self, target: str) -> None:
+        """4. greedy fill toward the corpus (class, source) mix, band-balanced within strata;
+        held-out takes never-tuned documents first."""
+        strat_n = Counter((d.doc_class, d.source_corpus) for d in self.docs)
+        cls_n = Counter(d.doc_class for d in self.docs)
+        total = len(self.docs)
+        queues = self._fill_queues(target)
+        have = Counter((d.doc_class, d.source_corpus) for d in self.docs if self.assignment.get(d.id) == target)
+        while self.filled[target] < self.sizes[target]:
+            live = [k for k, q in queues.items() if q]
+            if not live:
+                break
+            if target == "heldout":
+                best = min(self.tier[queues[k][0].id] for k in live)
+                live = [k for k in live if self.tier[queues[k][0].id] == best]
+            n_next = self.filled[target] + 1
+            cls_have: Counter[str] = Counter()
+            for (c, _src), v in have.items():
+                cls_have[c] += v
+            cls = max(sorted({k[0] for k in live}), key=lambda c: (cls_n[c] / total * n_next - cls_have[c], c))
+            key = max((k for k in live if k[0] == cls),
+                      key=lambda k: (strat_n[k] / cls_n[cls] * (cls_have[cls] + 1) - have[k], k))
+            d = queues[key].pop(0)
+            if d.id not in self.assignment and self.place(d.id, target):
+                for m in self.comps[self.comp_of[d.id]]:
+                    have[(m.doc_class, m.source_corpus)] += 1
+
+    def _remainder_order(self, remaining: list[Doc]) -> list[Doc]:
+        strata: dict[tuple[str, str, str], list[Doc]] = defaultdict(list)
+        for d in remaining:
+            strata[(d.doc_class, d.source_corpus, d.band)].append(d)
+        ordered = [d for key in sorted(strata) for d in sorted(strata[key], key=lambda d: _h(self.seed, "rem", d.id))]
+        # linked components first, largest first, so singletons always fill what is left
+        size = {d.id: len(self.comps[self.comp_of[d.id]]) for d in ordered}
+        multi = sorted((d for d in ordered if size[d.id] > 1), key=lambda d: -size[d.id])
+        return [*multi, *(d for d in ordered if size[d.id] == 1)]
+
+    def _place_either(self, doc_id: str, first: str) -> str:
+        if self.place(doc_id, first):
+            return first
+        other = "calibration" if first == "pool" else "pool"
+        if self.place(doc_id, other):
+            return other
+        raise SplitError(f"could not place {doc_id}: calibration and pool are full")
+
+    def remainder(self, families: dict[str, Any]) -> None:
+        """5. calibration and pool split the remainder in the same class x length-band mix,
+        so the pilot pool also holds long documents (R15 input-cap sweep) and calibration
+        keeps as close to the corpus class mix as dev/held-out allow. Class-specific gates:
+        a class whose remainder cannot reach the error-free accepts its own gate needs
+        (zero_failure_n) gives its whole remainder to calibration, and the other classes
+        fill the pool in its place."""
+        remaining = [d for d in self.docs if d.id not in self.assignment]
+        short_classes = calibration_short_classes(remaining, families)
+        others = sum(1 for d in remaining if d.doc_class not in short_classes)
+        pool_share = self.sizes["pool"] / max(1, others)
+        if pool_share > 1:
+            raise SplitError(f"pool holds {self.sizes['pool']} documents but only {others} remain outside the "
+                             f"classes calibration keeps whole ({', '.join(sorted(short_classes))})")
+        debt = 0.0  # error diffusion across strata keeps the pool total on target
+        for d in self._remainder_order(remaining):
+            if d.id in self.assignment:
+                continue
+            size = len(self.comps[self.comp_of[d.id]])
+            if d.doc_class in short_classes:
+                if not self.place(d.id, "calibration"):
+                    raise SplitError(f"could not place {d.id} in calibration: it is full")
+                continue
+            debt += pool_share * size
+            if self._place_either(d.id, "pool" if debt >= 0.5 * size else "calibration") == "pool":
+                debt -= size
+
+    def check(self, quotas: dict[str, int]) -> None:
+        for s in SETS:
+            if self.filled[s] != self.sizes[s]:
+                raise SplitError(f"{s} has {self.filled[s]} documents, expected {self.sizes[s]}")
+        short = [f"{t}:{u} {self.unit_count[t][u]}/{q}" for t in ("dev", "heldout")
+                 for u, q in sorted(quotas.items()) if self.unit_count[t][u] < q]
+        if short:
+            raise SplitError(
+                "per-unit quotas not met (leak components forced documents elsewhere): "
+                + "; ".join(short[:6]) + " — try another --seed or adjust the families"
+            )
+
+
 def build_split(
     docs: list[Doc],
     families: dict[str, Any],
@@ -412,34 +573,7 @@ def build_split(
         )
     units = assign_units(docs, families)
     comps = build_components(docs)
-    comp_of = {d.id: d.component for d in docs}
-    # a leak component moves as one, so rank it by its most-exposed member: held-out takes a
-    # document linked to a tuned one only after every clean component is placed. Among equally
-    # exposed components, those holding a never-tuned document come first.
-    tier = {d.id: (max(m.exposure_tier for m in comps[d.component]),
-                   min(m.exposure_tier for m in comps[d.component])) for d in docs}
     min_pooled = int(families["min_pooled_per_set"])
-    assignment: dict[str, str] = {}
-    filled: Counter[str] = Counter()
-    unit_count: dict[str, Counter[str]] = {s: Counter() for s in SETS}
-    sub_count: dict[str, Counter[tuple[str, str]]] = {s: Counter() for s in SETS}
-
-    def place(comp_id: str, target: str) -> bool:
-        members = comps[comp_id]
-        if any(m.id in assignment for m in members):
-            return False
-        if filled[target] + len(members) > sizes[target]:
-            return False
-        for m in members:
-            assignment[m.id] = target
-            unit_count[target][m.unit] += 1
-            sub_count[target][(m.doc_class, m.subclass)] += 1
-        filled[target] += len(members)
-        return True
-
-    by_unit: dict[str, list[Doc]] = defaultdict(list)
-    for d in docs:
-        by_unit[d.unit].append(d)
     quotas = {u: unit_quota(info["kind"], info["n"], min_pooled) for u, info in units.items()}
     need = sum(quotas.values())
     for target in ("dev", "heldout"):
@@ -448,127 +582,14 @@ def build_split(
                 f"{target} holds {sizes[target]} documents but the per-unit quotas need {need}; "
                 "raise the set size or the family pooling"
             )
-
-    # 1. held-out quotas, never-tuned documents first; 2. dev quotas.
-    for target in ("heldout", "dev"):
-        for unit in sorted(by_unit):
-            pool = by_unit[unit]
-            order = _band_interleaved(pool, seed, f"{target}:{unit}")
-            # stable sorts keep the band order: held-out takes never-tuned docs first,
-            # dev leaves them for held-out
-            if target == "heldout":
-                order.sort(key=lambda d: tier[d.id])
-            else:
-                order.sort(key=lambda d: (-tier[d.id][0], -tier[d.id][1]))
-            for d in order:
-                if unit_count[target][unit] >= quotas[unit]:
-                    break
-                place(comp_of[d.id], target)
-
-    # 3. every rare subclass (3+ docs) at least once in dev and held-out
-    sub_n = Counter((d.doc_class, d.subclass) for d in docs)
-    for target in ("heldout", "dev"):
-        for key in sorted(k for k, n in sub_n.items() if n >= 3):
-            if sub_count[target][key]:
-                continue
-            cands = [d for d in docs if (d.doc_class, d.subclass) == key and d.id not in assignment]
-            cands.sort(key=lambda d: (tier[d.id] if target == "heldout" else (-tier[d.id][0], -tier[d.id][1]),
-                                      _h(seed, "rare", target, d.id)))
-            for d in cands:
-                if place(comp_of[d.id], target):
-                    break
-
-    # 4. fill held-out (never-tuned first) and dev to size, spreading across units
-    strat_n = Counter((d.doc_class, d.source_corpus) for d in docs)
-    cls_n = Counter(d.doc_class for d in docs)
-
-    def fill(target: str, prefer_never_tuned: bool) -> None:
-        """Greedy fill toward the corpus (class, source) mix, band-balanced within strata."""
-        queues: dict[tuple[str, str], list[Doc]] = {}
-        per_stratum: dict[tuple[str, str], list[Doc]] = defaultdict(list)
-        for d in docs:
-            if d.id not in assignment:
-                per_stratum[(d.doc_class, d.source_corpus)].append(d)
-        for key, ds in per_stratum.items():
-            order = _band_interleaved(ds, seed, f"fill:{target}:{key}")
-            order.sort(key=lambda d: tier[d.id] if prefer_never_tuned else (-tier[d.id][0], -tier[d.id][1]))
-            queues[key] = order
-        have = Counter((d.doc_class, d.source_corpus) for d in docs if assignment.get(d.id) == target)
-        while filled[target] < sizes[target]:
-            live = [k for k, q in queues.items() if q]
-            if not live:
-                break
-            if prefer_never_tuned:
-                best = min(tier[queues[k][0].id] for k in live)
-                live = [k for k in live if tier[queues[k][0].id] == best]
-            n_next = filled[target] + 1
-            cls_have = Counter()
-            for (c, _src), v in have.items():
-                cls_have[c] += v
-            classes = sorted({k[0] for k in live})
-            cls = max(classes, key=lambda c: (cls_n[c] / total * n_next - cls_have[c], c))
-            within = [k for k in live if k[0] == cls]
-            key = max(within, key=lambda k: (strat_n[k] / cls_n[cls] * (cls_have[cls] + 1) - have[k], k))
-            d = queues[key].pop(0)
-            if d.id in assignment:
-                continue
-            if place(comp_of[d.id], target):
-                for m in comps[comp_of[d.id]]:
-                    have[(m.doc_class, m.source_corpus)] += 1
-
-    total = len(docs)
-    fill("heldout", prefer_never_tuned=True)
-    fill("dev", prefer_never_tuned=False)
-
-    # 5. calibration and pool split the remainder in the same class x length-band mix,
-    #    so the pilot pool also holds long documents (R15 input-cap sweep) and
-    #    calibration keeps as close to the corpus class mix as dev/held-out allow.
-    #    Class-specific gates: a class whose remainder cannot reach the error-free accepts
-    #    its own gate needs (zero_failure_n) gives its whole remainder to calibration, and
-    #    the other classes fill the pool in its place.
-    remaining = [d for d in docs if d.id not in assignment]
-    short_classes = calibration_short_classes(remaining, families)
-    others = sum(1 for d in remaining if d.doc_class not in short_classes)
-    pool_share = sizes["pool"] / max(1, others)
-    if pool_share > 1:
-        raise SplitError(f"pool holds {sizes['pool']} documents but only {others} remain outside the "
-                         f"classes calibration keeps whole ({', '.join(sorted(short_classes))})")
-    strata: dict[tuple[str, str, str], list[Doc]] = defaultdict(list)
-    for d in remaining:
-        strata[(d.doc_class, d.source_corpus, d.band)].append(d)
-    debt = 0.0  # error diffusion across strata keeps the pool total on target
-    ordered = [d for key in sorted(strata) for d in sorted(strata[key], key=lambda d: _h(seed, "rem", d.id))]
-    # linked components first, largest first, so singletons always fill what is left
-    multi = sorted((d for d in ordered if len(comps[comp_of[d.id]]) > 1),
-                   key=lambda d: -len(comps[comp_of[d.id]]))
-    for d in [*multi, *(d for d in ordered if len(comps[comp_of[d.id]]) == 1)]:
-        if d.id in assignment:
-            continue
-        size = len(comps[comp_of[d.id]])
-        share = 0.0 if d.doc_class in short_classes else pool_share
-        debt += share * size
-        if share == 0.0:
-            if place(comp_of[d.id], "calibration"):
-                continue
-            raise SplitError(f"could not place {d.id} in calibration: it is full")
-        target = "pool" if debt >= 0.5 * size else "calibration"
-        if not place(comp_of[d.id], target):
-            target = "calibration" if target == "pool" else "pool"
-            if not place(comp_of[d.id], target):
-                raise SplitError(f"could not place {d.id}: calibration and pool are full")
-        if target == "pool":
-            debt -= size
-    for s in SETS:
-        if filled[s] != sizes[s]:
-            raise SplitError(f"{s} has {filled[s]} documents, expected {sizes[s]}")
-
-    short = [f"{t}:{u} {unit_count[t][u]}/{q}" for t in ("dev", "heldout")
-             for u, q in sorted(quotas.items()) if unit_count[t][u] < q]
-    if short:
-        raise SplitError(
-            "per-unit quotas not met (leak components forced documents elsewhere): "
-            + "; ".join(short[:6]) + " — try another --seed or adjust the families"
-        )
+    placer = _Placer(docs, comps, sizes, seed)
+    placer.quotas(quotas)
+    placer.rare_subclasses()
+    placer.fill("heldout")
+    placer.fill("dev")
+    placer.remainder(families)
+    placer.check(quotas)
+    assignment = placer.assignment
     looks = nested_looks([d for d in docs if assignment[d.id] == "dev"], seed)
     return SplitResult(assignment, docs, units, comps, looks, quotas)
 
@@ -714,11 +735,9 @@ def _ledger_check(out_dir: Path, rebuilt: SplitResult) -> Check:
                  f"{len(rows)} rows; {len(bad)} differ, {dup} duplicated" + (f"; e.g. {bad[:3]}" if bad else ""))
 
 
-def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Check]:
-    """Re-derive every split rule from the written files; ``docs`` = fresh corpus load."""
+def _file_checks(out_dir: Path, manifest: dict[str, Any]) -> list[Check]:
+    """Written files, the families file and the exposure list match the manifest."""
     checks: list[Check] = []
-    manifest = json.loads((out_dir / "manifest.json").read_text())
-
     # file hashes
     bad = [n for n, sha in manifest["files"].items()
            if not (out_dir / n).is_file() or _sha((out_dir / n).read_bytes()) != sha]
@@ -733,6 +752,12 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     checks.append(Check("tuning exposure list unchanged since build", exp_sha == exp.get("sha256"),
                         f"sha256 {str(exp_sha)[:12]} ({exp.get('path') or 'none'})"))
 
+    return checks
+
+
+def _set_checks(out_dir: Path, docs: list[Doc], manifest: dict[str, Any]) -> tuple[list[Check], dict[str, str]]:
+    """Sets are disjoint, cover the corpus, have their sizes and exact complements."""
+    checks: list[Check] = []
     assignment: dict[str, str] = {}
     dup: list[str] = []
     for s in SETS:
@@ -759,6 +784,13 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
         checks.append(Check(f"{look}.exclude.ids is the exact complement", comp == corpus_ids - ids,
                             f"{len(comp)} ids"))
 
+    return checks, assignment
+
+
+def _rebuild_checks(out_dir: Path, docs: list[Doc], families: dict[str, Any], manifest: dict[str, Any],
+                    assignment: dict[str, str]) -> list[Check]:
+    """The written split is exactly what the seed produces (catches a consistent swap)."""
+    checks: list[Check] = []
     # the written split must be exactly what the seed produces (catches a consistent swap)
     try:
         rebuilt = build_split(docs, families, seed=int(manifest["seed"]), sizes=dict(manifest["sizes"]))
@@ -772,6 +804,13 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     except SplitError as exc:
         checks.append(Check("split reproduces from its seed and inputs", False, f"rebuild refused: {exc}"))
 
+    return checks
+
+
+def _leak_and_look_checks(out_dir: Path, docs: list[Doc], families: dict[str, Any],
+                          assignment: dict[str, str]) -> list[Check]:
+    """No leak component spans two sets, and the dev looks nest."""
+    checks: list[Check] = []
     # leak components
     assign_units(docs, families)
     comps = build_components(docs)
@@ -787,10 +826,13 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     checks.append(Check("dev looks nested (look1 ⊂ look2 ⊂ dev)", l1 <= l2 <= dev_ids,
                         f"look1={len(l1)} look2={len(l2)} dev={len(dev_ids)}"))
 
-    by_set: dict[str, list[Doc]] = defaultdict(list)
-    for d in docs:
-        by_set[assignment.get(d.id, "?")].append(d)
+    return checks
 
+
+def _coverage_checks(docs: list[Doc], families: dict[str, Any], manifest: dict[str, Any],
+                     by_set: dict[str, list[Doc]]) -> list[Check]:
+    """Per-unit quotas and rare subclasses in dev and held-out."""
+    checks: list[Check] = []
     # unit quotas and rare subclasses
     min_pooled = int(families["min_pooled_per_set"])
     units = manifest["units"]
@@ -810,6 +852,12 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
         absent += [f"{s}:{c}/{sc}" for (c, sc), n in sub_n.items() if n >= 3 and (c, sc) not in have]
     checks.append(Check("every subclass with 3+ docs in dev and held-out", not absent, "; ".join(absent[:6]) or "all present"))
 
+    return checks
+
+
+def _mix_checks(docs: list[Doc], by_set: dict[str, list[Doc]]) -> list[Check]:
+    """Within-class mixes (gate) and raw mixes (informational: oversampling shifts them by design)."""
+    checks: list[Check] = []
     # mixes: within-class (gate) and raw (informational: oversampling shifts it by design)
     corpus_by_class: dict[str, list[Doc]] = defaultdict(list)
     for d in docs:
@@ -851,6 +899,12 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
                         f"max gap {cal_gap[0]:.1f} pts ({cal_gap[1]}); within ±{MIX_TOLERANCE_PTS:g}: "
                         f"{'yes' if cal_gap[0] <= MIX_TOLERANCE_PTS else 'no'}", gate=False))
 
+    return checks
+
+
+def _gate_checks(families: dict[str, Any], by_set: dict[str, list[Doc]]) -> list[Check]:
+    """Class-specific accept gates (decision 6)."""
+    checks: list[Check] = []
     # class-specific accept gates (decision 6): a class that cannot reach its gate's
     # error-free accepts keeps every remaining document in calibration, none in the pool
     from mailroom_sandbox.experiment_stats import class_gate_plan, zero_failure_n
@@ -867,6 +921,13 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
                         "; ".join(f"{c} n={g.calibration_docs} best bound {g.best_bound:.2%}"
                                   + ("" if g.certifiable else " (short)") for c, g in plan.items()), gate=False))
 
+    return checks
+
+
+def _band_check(docs: list[Doc], manifest: dict[str, Any], by_set: dict[str, list[Doc]]) -> list[Check]:
+    """Length-band balance inside dev/held-out units (informational)."""
+    checks: list[Check] = []
+    units = manifest["units"]
     # length-band balance inside dev/held-out units (informational)
     worst_band = (0.0, "")
     for s in ("dev", "heldout"):
@@ -880,6 +941,13 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     checks.append(Check("length-band balance within units (informational)", True,
                         f"max gap {worst_band[0]:.1f} pts at {worst_band[1] or '-'}", gate=False))
 
+    return checks
+
+
+def _exposure_checks(docs: list[Doc], manifest: dict[str, Any], assignment: dict[str, str],
+                     by_set: dict[str, list[Doc]]) -> list[Check]:
+    """Held-out takes the never-tuned documents and no tuning-exposed component."""
+    checks: list[Check] = []
     # held-out exposure
     ho = by_set["heldout"]
     comp_tier: dict[str, int] = {}
@@ -898,6 +966,27 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
                         not exposed or spare_clean == 0,
                         f"{len(exposed)} held-out docs in a component with a tuning-list doc; "
                         f"{spare_clean} clean docs outside held-out" + (f"; e.g. {exposed[:3]}" if exposed else "")))
+    return checks
+
+
+def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Check]:
+    """Re-derive every split rule from the written files; ``docs`` = fresh corpus load."""
+    checks: list[Check] = []
+    manifest = json.loads((out_dir / "manifest.json").read_text())
+
+    checks.extend(_file_checks(out_dir, manifest))
+    set_checks, assignment = _set_checks(out_dir, docs, manifest)
+    checks.extend(set_checks)
+    checks.extend(_rebuild_checks(out_dir, docs, families, manifest, assignment))
+    checks.extend(_leak_and_look_checks(out_dir, docs, families, assignment))
+    by_set: dict[str, list[Doc]] = defaultdict(list)
+    for d in docs:
+        by_set[assignment.get(d.id, "?")].append(d)
+    checks.extend(_coverage_checks(docs, families, manifest, by_set))
+    checks.extend(_mix_checks(docs, by_set))
+    checks.extend(_gate_checks(families, by_set))
+    checks.extend(_band_check(docs, manifest, by_set))
+    checks.extend(_exposure_checks(docs, manifest, assignment, by_set))
     return checks
 
 

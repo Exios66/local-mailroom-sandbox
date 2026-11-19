@@ -35,6 +35,7 @@ import hashlib
 import json
 import re
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -148,6 +149,147 @@ def _dominant(values: list[Any]) -> dict[str, Any] | None:
     return {"kind": "value", "value": json.loads(val), "share": round(n / len(values), 3)}
 
 
+def _effective_status(dojo_status: str, applicable: bool, labeled: int) -> str:
+    if dojo_status == "not_applicable" or not applicable:
+        return "not_applicable"
+    if dojo_status in ("documented_absent", "label_task"):
+        return dojo_status
+    if dojo_status == "derived" and labeled == 0:
+        return "derived"
+    return "scored" if labeled else "no_truth"
+
+
+def _verdict(eff: str, dominant: Mapping[str, Any] | None, dev_n: int | None, *, has_truth: bool = True) -> str:
+    if eff in ("no_truth", "not_applicable"):
+        return eff
+    if eff in ("documented_absent", "label_task"):
+        return "fixed"
+    if dominant and dominant["share"] >= CONSTANT_SHARE:
+        return "constant"
+    if dev_n is not None and dev_n < MIN_DEV:
+        return "thin"
+    return "iterate" if has_truth else "no_truth"
+
+
+def _dev_rows(docs: Iterable[Mapping[str, Any]], sets: Mapping[str, str]) -> int:
+    return sum(1 for r in docs if sets.get(str(r.get("id"))) == "dev")
+
+
+@dataclass
+class _Subclass:
+    """One (class, subclass) cell being graded, with the problems list it reports into."""
+
+    cls: str
+    sub: str
+    docs: list[Mapping[str, Any]]
+    dojo: Any
+    corp: Any
+    output_fields: list[str]
+    sets: Mapping[str, str]
+    vocab: Mapping[tuple[str, str], frozenset[str]]
+    problems: list[dict[str, Any]]
+    labeled: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
+    by_set: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
+    values: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
+
+    @property
+    def entities(self) -> dict[str, Any]:
+        return {e.key: e for e in self.corp.entities} if self.corp else {}
+
+    @property
+    def names(self) -> list[str]:
+        return list(dict.fromkeys([*self.output_fields, *self.dojo.fields]))
+
+    def _problem(self, kind: str, name: str, doc_id: Any, values: list[Any], source: str) -> None:
+        self.problems.append({"kind": kind, "class": self.cls, "subclass": self.sub, "field": name,
+                              "doc_id": doc_id, "values": values, "source": source})
+
+    def _check_vocabulary(self, name: str, val: Any, doc_id: Any, src: str) -> None:
+        allowed = self.vocab.get((self.cls, name))
+        bad = [v for v in (val if isinstance(val, list) else [val]) if v not in (None, "")]
+        if name == "party_roles":
+            bad = [v.rsplit(": ", 1)[-1].strip().lower() for v in bad]
+        bad = [v for v in bad if allowed is not None and v not in allowed]
+        if bad:
+            self._problem("label_outside_vocabulary", name, doc_id, bad[:3], src)
+
+    def tally(self, gl: Any, il: Any) -> None:
+        """Count every labeled field by truth source and set; report vocabulary and record-type problems."""
+        names = self.names
+        for r in self.docs:
+            exp = il._expected(r)
+            interim = set((r.get("interim_labels") or {}).get("fields") or [])
+            near = set((r.get("near_gold_labels") or {}).get("fields") or [])
+            for name in names:
+                if not gl.hub_labels(name, exp):
+                    continue
+                src = "interim" if name in interim else "near_gold" if name in near else "hub"
+                self.labeled[name][src] += 1
+                self.by_set[name][self.sets.get(str(r.get("id")), "unassigned")] += 1
+                val = _value(exp.get(name))
+                self.values[name].append(val)
+                self._check_vocabulary(name, val, r.get("id"), src)
+            corp = self.corp
+            if corp and exp.get("record_type") and str(_value(exp["record_type"])) != corp.record_type:
+                self._problem("record_type_contradicts_subclass", "record_type", r.get("id"),
+                              [_value(exp["record_type"]), corp.record_type],
+                              "interim" if "record_type" in interim else "hub")
+
+    def field_entry(self, name: str, guide: Mapping[str, str], crs: Any) -> dict[str, Any]:
+        entities, sets, docs = self.entities, self.sets, self.docs
+        fs = self.dojo.fields.get(name)
+        dstatus = fs.status if fs else "absent_from_dojo"
+        n = sum(self.labeled[name].values())
+        in_output = name in self.output_fields
+        applicable = True
+        if self.corp and name not in entities:
+            applicable = name in self.corp.core_applicable or name not in crs.CORE_FIELDS
+        eff = _effective_status(dstatus, applicable, n)
+        if eff == "derived":
+            truth_n, dev_n = len(docs), (_dev_rows(docs, sets) if sets else None)
+        else:
+            truth_n, dev_n = n, (self.by_set[name].get("dev", 0) if sets else None)
+        dominant = _dominant(self.values[name]) if eff == "scored" else None
+        verdict = _verdict(eff, dominant, dev_n, has_truth=bool(truth_n))
+        if n and not in_output and name not in entities and eff == "scored":
+            self._problem("truth_not_in_output_schema", name, None, [n], "any")
+        entry: dict[str, Any] = {
+            "type": fs.field_type if fs else None,
+            "dojo_status": dstatus,
+            "effective_status": eff,
+            "verdict": verdict,
+            "in_output_schema": in_output,
+            "truth": dict(sorted(self.labeled[name].items())),
+            "labeled": n,
+        }
+        if sets:
+            entry["labeled_by_set"] = {s: self.by_set[name].get(s, 0) for s in SETS}
+        if dominant:
+            entry["dominant"] = dominant
+        if name in entities:
+            e = entities[name]
+            entry["entity"] = {"description": e.description, "where": e.where, "required": e.required}
+        if name in guide:
+            entry["guide"] = guide[name]
+        return entry
+
+    def entry(self, guide: Mapping[str, str], crs: Any) -> dict[str, Any]:
+        fields = {name: self.field_entry(name, guide, crs) for name in self.names}
+        sub_entry: dict[str, Any] = {
+            "rows": len(self.docs),
+            "fields": fields,
+            "verdicts": dict(sorted(Counter(f["verdict"] for f in fields.values()).items())),
+        }
+        if self.sets:
+            sub_entry["rows_by_set"] = {s: sum(1 for r in self.docs if self.sets.get(str(r.get("id"))) == s)
+                                        for s in SETS}
+        if self.dojo.salient:
+            sub_entry["salient"] = list(self.dojo.salient)
+        if self.corp:
+            sub_entry.update(record_type=self.corp.record_type, intent=self.corp.intent, notes=self.corp.notes)
+        return sub_entry
+
+
 def build_registry(rows: list[Mapping[str, Any]], *, revision: str, split_dir: Path | None = DEFAULT_SPLIT,
                    guide_path: Path = GUIDE) -> dict[str, Any]:
     """The graded per-subclass schemas for ``rows`` (already overlay-merged by :func:`truth_rows`)."""
@@ -177,122 +319,33 @@ def build_registry(rows: list[Mapping[str, Any]], *, revision: str, split_dir: P
         subs: dict[str, Any] = {}
         class_values: dict[str, list[Any]] = defaultdict(list)
         for sub in subtypes:
-            docs = by_sub.get((cls, sub), [])
-            dojo = extraction_schema(cls, sub)
-            corp = crs.subclass_schema(sub) if cls == "corporate_record" else None
-            entities = {e.key: e for e in corp.entities} if corp else {}
-            names = list(dict.fromkeys([*output_fields, *dojo.fields]))
-            labeled: dict[str, Counter] = defaultdict(Counter)
-            by_set: dict[str, Counter] = defaultdict(Counter)
-            values: dict[str, list[Any]] = defaultdict(list)
-            for r in docs:
-                exp = il._expected(r)
-                interim = set((r.get("interim_labels") or {}).get("fields") or [])
-                near = set((r.get("near_gold_labels") or {}).get("fields") or [])
-                for name in names:
-                    if not gl.hub_labels(name, exp):
-                        continue
-                    src = "interim" if name in interim else "near_gold" if name in near else "hub"
-                    labeled[name][src] += 1
-                    by_set[name][sets.get(str(r.get("id")), "unassigned")] += 1
-                    val = _value(exp.get(name))
-                    values[name].append(val)
-                    allowed = vocab.get((cls, name))
-                    bad = [v for v in (val if isinstance(val, list) else [val]) if v not in (None, "")]
-                    if name == "party_roles":
-                        bad = [v.rsplit(": ", 1)[-1].strip().lower() for v in bad]
-                    bad = [v for v in bad if allowed is not None and v not in allowed]
-                    if bad:
-                        problems.append({"kind": "label_outside_vocabulary", "class": cls, "subclass": sub,
-                                         "field": name, "doc_id": r.get("id"), "values": bad[:3], "source": src})
-                if corp and exp.get("record_type") and str(_value(exp["record_type"])) != corp.record_type:
-                    problems.append({"kind": "record_type_contradicts_subclass", "class": cls, "subclass": sub,
-                                     "field": "record_type", "doc_id": r.get("id"),
-                                     "values": [_value(exp["record_type"]), corp.record_type],
-                                     "source": "interim" if "record_type" in interim else "hub"})
-            fields: dict[str, Any] = {}
-            for name in names:
-                class_values[name].extend(values[name])
-                fs = dojo.fields.get(name)
-                dstatus = fs.status if fs else "absent_from_dojo"
-                n = sum(labeled[name].values())
-                in_output = name in output_fields
-                applicable = True
-                if corp and name not in entities:
-                    applicable = name in corp.core_applicable or name not in crs.CORE_FIELDS
-                if dstatus == "not_applicable" or not applicable:
-                    eff = "not_applicable"
-                elif dstatus in ("documented_absent", "label_task"):
-                    eff = dstatus
-                elif dstatus == "derived" and n == 0:
-                    eff = "derived"
-                elif n:
-                    eff = "scored"
-                else:
-                    eff = "no_truth"
-                dev = by_set[name].get("dev", 0) if sets else None
-                truth_n = len(docs) if eff == "derived" else n
-                dev_n = (sum(1 for r in docs if sets.get(str(r.get("id"))) == "dev") if eff == "derived" and sets
-                         else dev)
-                dominant = _dominant(values[name]) if eff == "scored" else None
-                if eff in ("no_truth", "not_applicable", "documented_absent", "label_task"):
-                    verdict = eff if eff in ("no_truth", "not_applicable") else "fixed"
-                elif dominant and dominant["share"] >= CONSTANT_SHARE:
-                    verdict = "constant"
-                elif dev_n is not None and dev_n < MIN_DEV:
-                    verdict = "thin"
-                else:
-                    verdict = "iterate" if truth_n else "no_truth"
-                if n and not in_output and name not in entities and eff == "scored":
-                    problems.append({"kind": "truth_not_in_output_schema", "class": cls, "subclass": sub,
-                                     "field": name, "doc_id": None, "values": [n], "source": "any"})
-                entry: dict[str, Any] = {
-                    "type": fs.field_type if fs else None,
-                    "dojo_status": dstatus,
-                    "effective_status": eff,
-                    "verdict": verdict,
-                    "in_output_schema": in_output,
-                    "truth": dict(sorted(labeled[name].items())),
-                    "labeled": n,
-                }
-                if sets:
-                    entry["labeled_by_set"] = {s: by_set[name].get(s, 0) for s in SETS}
-                if dominant:
-                    entry["dominant"] = dominant
-                if name in entities:
-                    e = entities[name]
-                    entry["entity"] = {"description": e.description, "where": e.where, "required": e.required}
-                if name in guide.get(cls, {}):
-                    entry["guide"] = guide[cls][name]
-                fields[name] = entry
-            sub_entry: dict[str, Any] = {
-                "rows": len(docs),
-                "fields": fields,
-                "verdicts": dict(sorted(Counter(f["verdict"] for f in fields.values()).items())),
-            }
-            if sets:
-                sub_entry["rows_by_set"] = {s: sum(1 for r in docs if sets.get(str(r.get("id"))) == s) for s in SETS}
-            if dojo.salient:
-                sub_entry["salient"] = list(dojo.salient)
-            if corp:
-                sub_entry.update(record_type=corp.record_type, intent=corp.intent, notes=corp.notes)
-            subs[sub] = sub_entry
+            cell = _Subclass(cls, sub, by_sub.get((cls, sub), []), extraction_schema(cls, sub),
+                             crs.subclass_schema(sub) if cls == "corporate_record" else None,
+                             output_fields, sets, vocab, problems)
+            cell.tally(gl, il)
+            subs[sub] = cell.entry(guide.get(cls, {}), crs)
+            for name in cell.names:
+                class_values[name].extend(cell.values[name])
         classes[cls] = {"output_schema_fields": output_fields, "subclasses": subs,
                         "fields": _class_rollup(cls, subs, sets, by_sub, class_values)}
+    problems.sort(key=lambda p: (p["kind"], p["class"], p["subclass"], p["field"], str(p["doc_id"])))
+    return _registry_document(classes, problems, revision=revision, guide_path=guide_path, split_sha=split_sha)
 
-    from mailroom_sandbox import gold_labels as gl2
-    from mailroom_sandbox import interim_labels as il2
+
+def _registry_document(classes: dict[str, Any], problems: list[dict[str, Any]], *, revision: str,
+                       guide_path: Path, split_sha: str | None) -> dict[str, Any]:
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
 
     repairs = sorted(
         {(c, f, e["dojo_status"]) for c, ce in classes.items() for f, e in ce["fields"].items()
          if e["dojo_status"] == "pending_annotation" and e["effective_status"] == "scored"})
-    problems.sort(key=lambda p: (p["kind"], p["class"], p["subclass"], p["field"], str(p["doc_id"])))
     return {
         "schema": SCHEMA,
         "inputs": {
             "dataset_revision": revision,
-            "interim_overlay_sha256": il2.overlay_fingerprint(),
-            "near_gold_overlay_sha256": gl2.near_gold_fingerprint(),
+            "interim_overlay_sha256": il.overlay_fingerprint(),
+            "near_gold_overlay_sha256": gl.near_gold_fingerprint(),
             "labeling_guide_sha256": _sha(guide_path.read_bytes()),
             "split_assignments_sha256": split_sha,
             "min_dev": MIN_DEV,
@@ -311,53 +364,44 @@ def build_registry(rows: list[Mapping[str, Any]], *, revision: str, split_dir: P
     }
 
 
+def _rollup_entry(name: str, entries: list[Mapping[str, Any]], dev: int | None,
+                  values: list[Any], sets: Mapping[str, str]) -> dict[str, Any]:
+    live = [e for e in entries if e["effective_status"] != "not_applicable"]
+    statuses = Counter(e["effective_status"] for e in live) or Counter({"not_applicable": 1})
+    truth: Counter = Counter()
+    by_set: Counter = Counter()
+    for e in live:
+        truth.update(e["truth"])
+        by_set.update(e.get("labeled_by_set") or {})
+    eff = "scored" if any(e["effective_status"] == "scored" for e in live) else statuses.most_common(1)[0][0]
+    if eff != "derived" or not sets:
+        dev = by_set.get("dev", 0) if sets else None
+    dominant = _dominant(values) if eff == "scored" else None
+    entry = {"effective_status": eff, "verdict": _verdict(eff, dominant, dev),
+             "dojo_status": entries[0]["dojo_status"], "in_output_schema": entries[0]["in_output_schema"],
+             "truth": dict(sorted(truth.items())), "labeled": sum(truth.values()),
+             "subclasses_with_truth": sum(1 for e in live if e["labeled"])}
+    if dominant:
+        entry["dominant"] = dominant
+    ignored = sum(sum(e["truth"].values()) for e in entries if e["effective_status"] == "not_applicable")
+    if ignored:
+        entry["truth_ignored_not_applicable"] = ignored
+    if sets:
+        entry["labeled_by_set"] = {s: by_set.get(s, 0) for s in SETS}
+    guide = next((e["guide"] for e in entries if "guide" in e), None)
+    if guide:
+        entry["guide"] = guide
+    return entry
+
+
 def _class_rollup(cls: str, subs: Mapping[str, Any], sets: Mapping[str, str],
                   by_sub: Mapping[tuple[str, str], list], values: Mapping[str, list[Any]]) -> dict[str, Any]:
     """Class-level view of each field: truth summed over subclasses, verdict on the class's dev n."""
-    out: dict[str, Any] = {}
+    class_dev = sum(_dev_rows(docs, sets) for (c, _s), docs in by_sub.items() if c == cls) if sets else None
     names = list(dict.fromkeys(f for se in subs.values() for f in se["fields"]))
-    for name in names:
-        entries = [se["fields"][name] for se in subs.values() if name in se["fields"]]
-        live = [e for e in entries if e["effective_status"] not in ("not_applicable",)]
-        statuses = Counter(e["effective_status"] for e in live) or Counter({"not_applicable": 1})
-        truth: Counter = Counter()
-        by_set: Counter = Counter()
-        for e in live:
-            truth.update(e["truth"])
-            by_set.update(e.get("labeled_by_set") or {})
-        n = sum(truth.values())
-        eff = "scored" if any(e["effective_status"] == "scored" for e in live) else statuses.most_common(1)[0][0]
-        ignored = sum(sum(e["truth"].values()) for e in entries if e["effective_status"] == "not_applicable")
-        if eff == "derived" and sets:
-            dev = sum(1 for (c, _s), docs in by_sub.items() if c == cls for r in docs
-                      if sets.get(str(r.get("id"))) == "dev")
-        else:
-            dev = by_set.get("dev", 0) if sets else None
-        dominant = _dominant(values.get(name) or []) if eff == "scored" else None
-        if eff in ("no_truth", "not_applicable"):
-            verdict = eff
-        elif eff in ("documented_absent", "label_task"):
-            verdict = "fixed"
-        elif dominant and dominant["share"] >= CONSTANT_SHARE:
-            verdict = "constant"
-        elif dev is not None and dev < MIN_DEV:
-            verdict = "thin"
-        else:
-            verdict = "iterate"
-        entry = {"effective_status": eff, "verdict": verdict, "dojo_status": entries[0]["dojo_status"],
-                 "in_output_schema": entries[0]["in_output_schema"], "truth": dict(sorted(truth.items())),
-                 "labeled": n, "subclasses_with_truth": sum(1 for e in live if e["labeled"])}
-        if dominant:
-            entry["dominant"] = dominant
-        if ignored:
-            entry["truth_ignored_not_applicable"] = ignored
-        if sets:
-            entry["labeled_by_set"] = {s: by_set.get(s, 0) for s in SETS}
-        guide = next((e["guide"] for e in entries if "guide" in e), None)
-        if guide:
-            entry["guide"] = guide
-        out[name] = entry
-    return out
+    return {name: _rollup_entry(name, [se["fields"][name] for se in subs.values() if name in se["fields"]],
+                                class_dev, values.get(name) or [], sets)
+            for name in names}
 
 
 def load_corpus_rows(revision: str | None = None) -> tuple[list[dict[str, Any]], str]:

@@ -186,12 +186,13 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         model = str(kwargs.get("model") or "")
         openrouter = _is_openrouter(client)
         fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
+        pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
         if openrouter:
-            kwargs = pinned_kwargs(model, kwargs, _ACTIVE)
+            kwargs = pinned_kwargs(model, kwargs, pins)
         response = original(client, **kwargs)
         if openrouter:
             try:
-                _record(model, response, _ACTIVE, fallback_models=fallback)
+                _record(model, response, pins, fallback_models=fallback)
             except Exception as exc:  # noqa: BLE001 — recording never fails a call
                 _log.warning("served-provider record failed: %s", exc)
         return response

@@ -55,3 +55,13 @@ def test_a_failed_lookup_exits_1_and_writes_nothing(script, monkeypatch, capsys)
     assert pins.read_text() == before
     assert "nothing written" in capsys.readouterr().err
     assert _run(mod, monkeypatch, "--from-json", str(saved)) == 1  # report mode fails too
+
+
+def test_an_endpoint_without_a_tag_slug_is_refused_and_nothing_is_written(script, monkeypatch, capsys):
+    mod, pins, saved = script
+    before = pins.read_text()
+    (saved / "a__one.json").write_text(json.dumps(_endpoints(("Alibaba", None, "0.1"))))
+    (saved / "b__two.json").write_text(json.dumps(_endpoints(("Alibaba", "alibaba", "0.2"))))
+    assert _run(mod, monkeypatch, "--from-json", str(saved), "--write-order") == 1
+    assert pins.read_text() == before
+    assert "no tag slug" in capsys.readouterr().err

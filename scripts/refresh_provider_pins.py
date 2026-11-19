@@ -79,7 +79,13 @@ def main() -> int:
             print(f"  {str(r['provider']):24} in ${r['prompt_per_m']:.3f}/M  out ${r['completion_per_m']:.3f}/M  "
                   f"ctx {r['context']}  quant {r['quantization']}  status {r['status']}")
         if args.write_order and rows:
-            pin["order"] = [rows[0]["tag"] or rows[0]["provider"]]
+            if not rows[0]["tag"]:
+                # OpenRouter's provider.order takes endpoint slugs; a display name or null would
+                # not pin anything, so the whole write is refused.
+                print(f"{model}: cheapest endpoint {rows[0]['provider']!r} has no tag slug", file=sys.stderr)
+                failed.append(model)
+                continue
+            pin["order"] = [rows[0]["tag"]]
     if failed:
         print(f"\n{len(failed)} lookup(s) failed: {', '.join(failed)}"
               + ("; nothing written" if args.write_order else ""), file=sys.stderr)

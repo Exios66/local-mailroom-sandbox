@@ -4,9 +4,10 @@
 # whole document in one call (max_input_chars 600,000), on config/splits/runbook-v1 dev
 # (900 docs, corpus revision bc9eab28). Truth is the repaired overlay (interim + near-gold).
 #
-# Cost: the saved test pass averaged ~12.8k prompt tokens per document, so ~11.5M input tokens
-# at $0.03 and ~0.13M output at $0.13 per 1M: about $0.36 list. Launch only with the owner's
-# initials at the spend gate:
+# Cost: priced per document on the saved pass's token counts with the long-prompt tiers of
+# config/api_prices.yaml (>=32k prompt tokens: $0.10/$0.40 per 1M): about $0.92 list, of which
+# merger agreements (58 of 59 over 32k) are $0.48. The caps leave ~60% headroom. Launch only
+# with the owner's initials at the spend gate:
 #   sandbox run preflight --config config/runs/runbook-r03-sorter-v0-dev.yaml
 #   sandbox run start --config config/runs/runbook-r03-sorter-v0-dev.yaml --initials <XX>
 # A saved pass of the same prompt and model already covers these 900 ids at revision
@@ -47,9 +48,9 @@ job:
   max_retries: 1
   fail_fast: false
   concurrency: 24
-  cost_cap_usd: 1.00
+  cost_cap_usd: 1.50
   max_wall_seconds: 3600
-  api_cost_cap_usd: 1.00
+  api_cost_cap_usd: 1.50
 
 trace:
   sink: none
