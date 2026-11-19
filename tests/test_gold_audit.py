@@ -280,18 +280,21 @@ def test_cli_builds_refuses_overwrite_and_summarizes(env, capsys):
 
 # --- registry revision --------------------------------------------------------------------------
 
-def test_a_registry_graded_on_another_revision_is_refused(env):
+@pytest.mark.parametrize("level", ["class", "subclass"])
+def test_a_registry_graded_on_another_revision_is_refused(env, level):
+    """Both verdict levels read the registry, so the opt-in subclass level is guarded too."""
     from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, LEGACY_FAMILY_HF_REVISIONS
 
     v91_tag, v91_data = LEGACY_FAMILY_HF_REVISIONS["v9.1"]
     rows = [{**_letter("DOC-d1"), "source_revision": v91_data}]   # the parquet parent maps to its tag
-    run = _write_run(env["tmp"], "rev", rows, {"DOC-d1": {"sender": "Andrew Fastow", "recipient": "Ken Lay"}})
+    # recipient is iterate at both levels (email sender is thin at subclass level)
+    run = _write_run(env["tmp"], "rev", rows, {"DOC-d1": {"sender": "Jeff Skilling", "recipient": "Andrew Fastow"}})
     env["schemas"].write_text(json.dumps({**SCHEMAS, "inputs": {"dataset_revision": v91_tag}}), encoding="utf-8")
-    assert _build(env, run, "correspondence").digest["sampled"] == 1
+    assert _build(env, run, "correspondence", verdict_level=level).digest["sampled"] == 1
     env["schemas"].write_text(json.dumps({**SCHEMAS, "inputs": {"dataset_revision": FAMILY_HF_REVISION}}),
                               encoding="utf-8")
     with pytest.raises(ga.AuditError, match="grades dataset revision"):
-        _build(env, run, "correspondence")
+        _build(env, run, "correspondence", verdict_level=level)
 
 
 def test_the_frozen_runbook_v1_registry_matches_its_split():
