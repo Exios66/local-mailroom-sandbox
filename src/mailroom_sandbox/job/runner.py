@@ -1050,6 +1050,18 @@ def run_job(
         from mailroom_sandbox.runtime import activate, locked_runtime
 
         lock = store.read_lock() or {}
+        # Direct execution and remote workers may bypass preflight. Do not resume
+        # a checkpoint whose execution or scoring basis predates the hotfix locks.
+        checkpoint = store.read_checkpoint()
+        started = (bool(store.load_items()) or bool(checkpoint and
+                   (checkpoint.get("state") != "prepared" or checkpoint.get("cursor") != 0)))
+        if started:
+            missing = [key for key in ("vendor_hotfixes", "scoring_hotfixes") if key not in lock]
+            if missing:
+                raise RuntimeError(
+                    f"cannot resume a checkpoint without locked {', '.join(missing)}: "
+                    "execution or scoring bases could mix; archive and re-lock the run"
+                )
         from mailroom_sandbox.dependency_sources import verify_locked
 
         verify_locked(lock)
