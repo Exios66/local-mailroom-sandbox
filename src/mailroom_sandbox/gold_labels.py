@@ -54,6 +54,7 @@ Files: ``data/labels/gold/`` (``<class>.jsonl`` + ``MANIFEST.json``, schema
 from __future__ import annotations
 
 import difflib
+import functools
 import hashlib
 import json
 import math
@@ -329,16 +330,35 @@ def _money_supported(value: float, evidence: str) -> bool:
     return Decimal(repr(float(value))) in _figures(evidence, as_money=True)
 
 
+#: A plain dollar figure ("$5,000,000", "$400,000.00"): the currency-phrase form the Dojo's money
+#: scorer parses. Scale words, currency codes and rates ("$5 million", "US$", "USD", "per month")
+#: are not parsed, so a correct prediction would score below 1 against them.
+_PLAIN_DOLLARS = re.compile(r"\$(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+
+
 def _money_text_supported(value: str, evidence: str) -> bool:
     """A currency phrase kept as text: it appears in the evidence as written (whitespace
-    normalised, not inside a longer figure) and holds a finite figure the quote shows as money."""
+    normalised, not inside a longer figure) and holds a finite figure the quote shows as money.
+    A plain dollar figure may also restate, exactly, a figure the quote writes with a scale word
+    ("$5,000,000" for "$5 million")."""
     phrase = _WS.sub(" ", value).strip()
     if not phrase or _NOT_PLAIN_NUMBER.search(phrase):
         return False
     ev = _WS.sub(" ", evidence)
+    shown = _figures(ev, as_money=True)
+    if _PLAIN_DOLLARS.fullmatch(phrase):
+        return bool(_figures(phrase) & shown)
     if not re.search(rf"(?<![\d,.]){re.escape(phrase.casefold())}(?![\d]|[,.]\d)", ev.casefold()):
         return False
-    return bool(_figures(phrase) & _figures(ev, as_money=True))
+    return bool(_figures(phrase) & shown)
+
+
+def money_text_parses(value: Any) -> bool:
+    """Whether the Dojo's money scorer reads a currency-phrase label as a number."""
+    _ensure_vendor_path()
+    from llm_dojo_scoring.scoring.field_scoring import parse_money
+
+    return _is_empty(value) or parse_money(value) is not None
 
 
 def _token_coverage(value: str, evidence: str) -> float:
@@ -981,7 +1001,20 @@ def _verify_gold_row(rec: Mapping[str, Any], where: str, seen_ids: dict[str, str
         why = _near_gold_problem(rec)
         if why:
             problems.append(f"{where}: near_gold {why}")
+        if _money_text_field(str(rec.get("doc_class")), str(rec.get("field"))) and not money_text_parses(rec.get("value")):
+            problems.append(f"{where}: near_gold currency phrase {rec.get('value')!r} is not a figure the Dojo "
+                            "parses; write it as a plain dollar figure (\"$5,000,000\") with a correct review")
     return problems
+
+
+@functools.lru_cache(maxsize=None)
+def _money_text_field(doc_class: str, field: str) -> bool:
+    """Whether ``field`` is money kept as a currency phrase (contract ``contract_value``)."""
+    try:
+        types, _, _, _, model = _schema_bits(doc_class)
+    except KeyError:
+        return False
+    return str(types.get(field)) == "money" and _text_field(model, field)
 
 
 def _verify_manifest_file(directory: Path, name: str, sha: str, supplementary: bool,

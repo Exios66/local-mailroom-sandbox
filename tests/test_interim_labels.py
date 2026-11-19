@@ -20,9 +20,15 @@ def test_committed_overlay_is_consistent():
     assert man["schema"] == il.SCHEMA and man["sources"] and man["files"]
     for rec in il.load_overlay().values():
         cls = rec["doc_class"]
-        assert rec["doc_sha256"] and rec["source"]["gate_run"] and rec["source"]["question_set"]
+        src = rec["source"]
+        assert rec["doc_sha256"] and ((src.get("gate_run") and src.get("question_set")) or src.get("review"))
         for field, lab in rec["labels"].items():
             assert lab["use_as_truth"] == (lab["status"] in il.TRUTH_STATUSES)
+            if "review" in lab:  # a reviewed label: a header read or a read of the message, with evidence
+                assert lab["basis"] in il.REVIEW_BASES and lab["review"]["file"] and lab["review"]["reviewer"]
+                assert (field in il.HEADER_FIELDS) == (lab["basis"] == "original_header"), (rec["doc_id"], field)
+                assert lab["evidence"] or lab["basis"] == "review_read_message", (rec["doc_id"], field)
+                continue
             if lab["status"] == "gap_fill":
                 assert field in il.GAP_FIELDS[cls], (rec["doc_id"], field)
                 assert lab["support"] >= (il.NULL_SUPPORT_MIN if lab["value"] is None else il.SUPPORT_MIN)
@@ -286,3 +292,406 @@ def test_rederive_rolls_back_when_the_manifest_write_fails(tmp_path, monkeypatch
     assert mod.rederive(root) == 0
     assert json.loads(path.read_text())["labels"]["record_type"]["value"] == "bylaws"
     assert il.verify(root) == []
+
+
+# ── reviewed labels ────────────────────────────────────────────────────────
+
+_EMAIL_SHA = "0123456789abcdef"
+
+
+def _header_line(field="sender", value="Ann M Schmidt", header="X-From: Ann M Schmidt", **over):
+    line = {"doc_id": "E1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": _EMAIL_SHA,
+            "field": field, "status": "gap_fill", "basis": "original_header", "value": value,
+            "evidence": [{"source": il.HEADER_SOURCE, "file": "schmidt-a/1.", "header": header}],
+            "reviewer": {"model": "m", "role": "review"}, "note": "the header states it"}
+    return {**line, **over}
+
+
+def _intent_line(value="request", **over):
+    line = {"doc_id": "E1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": _EMAIL_SHA,
+            "field": "intent", "status": "correction", "basis": "review_read_message", "value": value,
+            "hub_value": "notice", "evidence": [], "reviewer": {"model": "m", "role": "review"},
+            "note": "it asks for the report"}
+    return {**line, **over}
+
+
+def test_review_line_rules():
+    assert il.review_line_problem(_header_line()) is None
+    assert il.review_line_problem(_intent_line()) is None
+    assert il.review_line_problem(_header_line("communication_date", "2001-05-14",
+                                               "Date: Mon, 14 May 2001 09:02:00 -0700 (PDT)")) is None
+    assert il.review_line_problem(_header_line("additional_recipients", ["Jeff Dasovich", "Sue Mara"],
+                                               "X-cc: Jeff Dasovich, Sue Mara")) is None
+    # A name fused with its mail domain by the export still shows each token of the name.
+    assert il.review_line_problem(_header_line("recipient", "Michael Grimes", "X-To: Michael GrimesCORPENRON")) is None
+    bad = {
+        "unknown basis": _header_line(basis="guess"),
+        "takes status gap_fill": _header_line(status="correction"),
+        "does not cover": _header_line(field="subject"),
+        "16-hex": _header_line(doc_sha256="xyz"),
+        "reviewer": _header_line(reviewer={"model": "m"}),
+        "needs a note": _header_line(note=" "),
+        "not in the quoted header": _header_line(value="Jeff Skilling"),
+        "not X-cc": _header_line(header="X-cc: Ann M Schmidt"),
+        "header lines as evidence": _header_line(evidence=[]),
+        "evidence must be": _header_line(evidence=[{"source": "memory", "file": "f", "header": "X-From: Ann M Schmidt"}]),
+        "not the date": _header_line("communication_date", "2001-05-15", "Date: Mon, 14 May 2001 09:02:00 -0700"),
+        "YYYY-MM-DD": _header_line("communication_date", "May 14, 2001", "Date: Mon, 14 May 2001 09:02:00 -0700"),
+        "list of names": _header_line("additional_recipients", "Sue Mara", "X-cc: Sue Mara"),
+        "not in the vocabulary": _intent_line("gossip"),
+        "missing": {k: v for k, v in _intent_line().items() if k != "note"},
+    }
+    for want, line in bad.items():
+        why = il.review_line_problem(line)
+        assert why and want in why, (want, why)
+
+
+def test_read_reviews_refuses_a_second_review_of_one_label(tmp_path):
+    path = tmp_path / "r.jsonl"
+    path.write_text("".join(json.dumps(x) + "\n" for x in (_header_line(), _header_line(), _intent_line())))
+    lines, problems = il.read_reviews(path)
+    assert len(lines) == 2 and len(problems) == 1 and "second review" in problems[0]
+
+
+def test_apply_reviews_replaces_adds_and_is_idempotent():
+    gate = {"value": "Ann Schmidt", "status": "gap_fill", "basis": "gate_accepted_grounded", "support": 0.95,
+            "use_as_truth": True}
+    disputed = {"value": "request", "status": "disputed", "basis": "gate_vs_hub", "hub_value": "notice",
+                "use_as_truth": False}
+    records = {"E1": {"doc_id": "E1", "doc_class": "correspondence", "doc_subclass": "notice",
+                      "doc_sha256": _EMAIL_SHA, "labels": {"sender": gate, "intent": disputed}, "source": {"gate_run": "g"}}}
+    lines = [_header_line(), _intent_line(), _header_line(doc_id="E2")]
+    n, problems = il.apply_reviews(records, lines, "rev.jsonl")
+    assert (n, problems) == (3, [])
+    sender = records["E1"]["labels"]["sender"]
+    assert sender["value"] == "Ann M Schmidt" and sender["use_as_truth"] and sender["review"]["file"] == "rev.jsonl"
+    assert sender["replaced"] == {"status": "gap_fill", "basis": "gate_accepted_grounded", "value": "Ann Schmidt"}
+    intent = records["E1"]["labels"]["intent"]
+    assert intent["status"] == "correction" and intent["hub_value"] == "notice" and intent["use_as_truth"]
+    assert intent["replaced"]["status"] == "disputed"
+    assert records["E2"]["source"] == {"review": "rev.jsonl"} and records["E2"]["labels"].keys() == {"sender"}
+    # Applying again changes nothing and keeps what the first application replaced.
+    assert il.apply_reviews(records, lines, "rev.jsonl") == (0, [])
+    assert records["E1"]["labels"]["sender"]["replaced"]["value"] == "Ann Schmidt"
+    assert il.reviews_reflected(records, lines) == []
+    # A review of other text (or another class) is refused, and the record is left alone.
+    n, problems = il.apply_reviews(records, [_header_line(doc_sha256="f" * 16, value=None)], "rev.jsonl")
+    assert n == 0 and "other text" in problems[0] and records["E1"]["labels"]["sender"]["value"] == "Ann M Schmidt"
+
+
+def _review_overlay(tmp_path, monkeypatch):
+    """An overlay with one correspondence record, a review file, and the script module."""
+    root = tmp_path / "interim"
+    mod, _ = _overlay_two_labels(root)
+    rec = {"doc_id": "E1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": _EMAIL_SHA,
+           "labels": {}, "source": {"gate_run": "g", "question_set": "q"}}
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    (root / "correspondence.jsonl").write_text(text, encoding="utf-8")
+    man = json.loads((root / "MANIFEST.json").read_text())
+    man["files"]["correspondence.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    review = tmp_path / "reviews.jsonl"
+    review.write_text("".join(json.dumps(x) + "\n" for x in (_header_line(), _intent_line())), encoding="utf-8")
+    monkeypatch.setattr(il, "repo_root", lambda: tmp_path)
+    return root, mod, review
+
+
+def test_review_command_applies_in_place_and_check_tracks_the_file(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    man = il.load_manifest(root)
+    assert man["reviews"][0]["lines"] == 2 and man["reviews"][0]["sha256"] == il._sha(review.read_text())
+    assert man["counts"]["correspondence"] == {"intent": {"correction": 1}, "sender": {"gap_fill": 1}}
+    assert il.verify(root) == []
+    files = {p.name: p.read_bytes() for p in root.iterdir()}
+    assert mod.review(root, [review]) == 0  # nothing to change: same files
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == files
+    # A review file edited after it was applied fails check until it is applied again.
+    review.write_text(review.read_text().replace('"request"', '"update"'), encoding="utf-8")
+    assert any("changed since it was applied" in p for p in il.verify(root))
+    assert mod.review(root, [review]) == 0 and il.verify(root) == []
+    assert il.load_overlay(root)["E1"]["labels"]["intent"]["value"] == "update"
+    # A label edited by hand away from its review fails too (after the manifest hash is redone).
+    path = root / "correspondence.jsonl"
+    rec = json.loads(path.read_text())
+    rec["labels"]["sender"]["value"] = "Someone Else"
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    path.write_text(text, encoding="utf-8")
+    man = il.load_manifest(root)
+    man["files"]["correspondence.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    assert any("E1.sender: the review is not applied" in p for p in il.verify(root))
+
+
+def test_review_command_refuses_bad_lines_and_new_class_files(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text(json.dumps(_header_line(value="Jeff Skilling")) + "\n", encoding="utf-8")
+    assert mod.review(root, [bad]) == 1
+    assert "not in the quoted header" in capsys.readouterr().out
+    other = tmp_path / "other.jsonl"
+    other.write_text(json.dumps(_header_line(doc_id="E9", doc_class="contract")) + "\n", encoding="utf-8")
+    assert mod.review(root, [other]) == 1
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+
+
+def test_review_command_rolls_back_when_the_manifest_write_fails(tmp_path, monkeypatch):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    real = mod._replace
+
+    def failing(path, text):
+        if path.name == "MANIFEST.json":
+            raise OSError("disk full")
+        real(path, text)
+
+    monkeypatch.setattr(mod, "_replace", failing)
+    with pytest.raises(OSError, match="disk full"):
+        mod.review(root, [review])
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+
+
+def test_reviewed_labels_reach_production_rows_over_the_hub_intent():
+    text = "Please send the report."
+    row = _row("correspondence", "notice", text, intent="notice", intent_source="heuristic")
+    rec = {"doc_id": "D1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": il.doc_sha(text),
+           "labels": {}, "source": {"review": "r.jsonl"}}
+    lines = [_intent_line(doc_id="D1", doc_sha256=il.doc_sha(text)),
+             _header_line(doc_id="D1", doc_sha256=il.doc_sha(text))]
+    assert il.apply_reviews({"D1": rec}, lines, "r.jsonl") == (2, [])
+    exp = json.loads(il.apply_overlay(row, {"D1": rec}, overlay_sha="abc")["expected_fields"])
+    assert exp["intent"] == "request"            # the reviewed correction replaces the Hub value
+    assert exp["sender"] == "Ann M Schmidt"      # the header fill labels a field the Hub leaves empty
+
+
+# ── Hub parquet rows ───────────────────────────────────────────────────────
+
+
+def _hub_gt_row(doc="D1", text="Please send the report.", **fields):
+    """A Hub ``ground_truth`` row: document_id, gt_fields as a JSON string, no document text."""
+    import hashlib
+
+    gt = {"intent": "notice", "intent_source": "heuristic", "sender": "",
+          "gt_presence": json.dumps({"intent": "populated"}), **fields}
+    return {"filename": f"{doc}.txt", "document_id": doc, "expected": "correspondence", "expected_subclass": "notice",
+            "gt_fields": json.dumps(gt), "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
+def _reviewed_overlay(text="Please send the report."):
+    rec = {"doc_id": "D1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": il.doc_sha(text),
+           "labels": {}, "source": {"review": "r.jsonl"}}
+    lines = [_intent_line(doc_id="D1", doc_sha256=il.doc_sha(text)),
+             _header_line(doc_id="D1", doc_sha256=il.doc_sha(text))]
+    assert il.apply_reviews({"D1": rec}, lines, "r.jsonl") == (2, [])
+    return {"D1": rec}
+
+
+def test_apply_overlay_takes_a_hub_ground_truth_row_without_text():
+    overlay = _reviewed_overlay()
+    row = _hub_gt_row()
+    out = il.apply_overlay(row, overlay, overlay_sha="abc")
+    gt = json.loads(out["gt_fields"])  # written back where the Hub keeps it, still a JSON string
+    assert "expected_fields" not in out
+    assert gt["intent"] == "request" and gt["sender"] == "Ann M Schmidt"
+    assert json.loads(gt["gt_presence"])["sender"] == "populated"
+    assert out["interim_labels"] == {"fields": ["intent", "sender"], "overlay_sha256": "abc"}
+    # The text, when the row has it, decides; a content hash of other text never matches.
+    assert il.apply_overlay({**row, "doc_text": "Other text."}, overlay, overlay_sha="abc") == {**row, "doc_text": "Other text."}
+    assert il.apply_overlay(_hub_gt_row(text="Other text."), overlay, overlay_sha="abc").get("interim_labels") is None
+    assert il.apply_overlay({**row, "content_sha256": "not-a-hash"}, overlay, overlay_sha="abc").get("interim_labels") is None
+    assert il.row_id(row) == "D1" and il.row_doc_sha(row) == overlay["D1"]["doc_sha256"]
+    # superseded() reads the same shape: a Hub sender label now supersedes nothing reviewed,
+    # but a gap fill the Hub labels is reported.
+    gate = {"D1": {**overlay["D1"], "labels": {"recipient": {"value": "Bo", "status": "gap_fill", "use_as_truth": True}}}}
+    assert il.superseded([_hub_gt_row(recipient="Bo", gt_presence=json.dumps({"recipient": "populated"}))], gate) == [
+        ("D1", "recipient")]
+
+
+def test_apply_overlay_parquet_keeps_the_shard_schema(tmp_path):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    src = tmp_path / "ground_truth.parquet"
+    pq.write_table(pa.Table.from_pylist([_hub_gt_row(), _hub_gt_row("D2")]), src)
+    out = tmp_path / "out" / "overlaid.parquet"
+    table = il.apply_overlay_parquet(src, out, overlay=_reviewed_overlay(), overlay_sha="abc")
+    assert table.column_names == [*pq.read_schema(src).names, "interim_labels"]
+    assert pq.read_table(out).equals(table)
+    rows = table.to_pylist()
+    assert json.loads(rows[0]["gt_fields"])["intent"] == "request"
+    assert json.loads(rows[0]["interim_labels"]) == {"fields": ["intent", "sender"], "overlay_sha256": "abc"}
+    assert rows[1]["interim_labels"] is None and json.loads(rows[1]["gt_fields"])["intent"] == "notice"
+    with pytest.raises(ValueError, match="applied before"):
+        il.apply_overlay_parquet(out, overlay={}, overlay_sha="")
+    with pytest.raises(ValueError, match="overwrite the source"):
+        il.apply_overlay_parquet(src, src, overlay={}, overlay_sha="")
+    with pytest.raises(ValueError, match="not a ground_truth shard"):
+        il.apply_overlay_parquet(pa.table({"filename": ["a"], "doc_text": ["x"]}), overlay={}, overlay_sha="")
+
+
+def test_apply_overlay_parquet_refuses_an_inconsistent_committed_overlay(monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    monkeypatch.setattr(il, "verify", lambda root=None, **_: ["x.jsonl: sha256 differs"])
+    with pytest.raises(ValueError, match="inconsistent"):
+        il.apply_overlay_parquet(pa.Table.from_pylist([_hub_gt_row()]))
+
+
+def test_apply_and_check_commands_read_parquet(tmp_path, monkeypatch, capsys):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    src = tmp_path / "gt.parquet"
+    pq.write_table(pa.Table.from_pylist([_hub_gt_row("E1", sender="Ann M Schmidt",
+                                                     gt_presence=json.dumps({"sender": "populated"}))]), src)
+    monkeypatch.setattr(il, "row_doc_sha", lambda row: _EMAIL_SHA)  # the fixture record's text hash
+    capsys.readouterr()
+    assert mod.main(["--root", str(root), "apply", "--parquet", str(src), "--out", str(tmp_path / "o.parquet")]) == 0
+    # The Hub labels sender here, so only the intent correction applies: a gap fill never overrides it.
+    assert "applied: 1 labels on 1 of 1 rows" in capsys.readouterr().out
+    gt = json.loads(pq.read_table(tmp_path / "o.parquet").to_pylist()[0]["gt_fields"])
+    assert gt["intent"] == "request" and gt["sender"] == "Ann M Schmidt"
+    assert mod.main(["--root", str(root), "apply", "--parquet", str(src), "--out", str(src)]) == 1
+    assert "overwrite the source" in capsys.readouterr().out
+    monkeypatch.setattr(mod, "_local_gate_runs", lambda: {})
+    # The Hub now labels sender: the reviewed fill is reported, kept by --prune, and fails nothing.
+    assert mod.main(["--root", str(root), "check", "--rows", str(src), "--prune"]) == 0
+    assert "note: E1.sender: a reviewed label the Hub rows supersede is kept" in capsys.readouterr().out
+    assert "sender" in il.load_overlay(root)["E1"]["labels"] and il.verify(root) == []
+    # A text change keeps the reviewed labels and prunes only the gate labels of the record.
+    rec = json.loads((root / "correspondence.jsonl").read_text())
+    rec["labels"]["recipient"] = {"value": "Bo", "status": "gap_fill", "use_as_truth": True}
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    (root / "correspondence.jsonl").write_text(text, encoding="utf-8")
+    man = il.load_manifest(root)
+    man["files"]["correspondence.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    monkeypatch.setattr(il, "row_doc_sha", lambda row: "f" * 16)
+    assert mod.main(["--root", str(root), "check", "--rows", str(src), "--prune"]) == 0
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "sender"} and il.verify(root) == []
+
+
+def test_empty_header_values_must_match_empty_headers():
+    def why(field, value, *headers, **over):
+        ev = [{"source": il.HEADER_SOURCE, "file": "f/1.", "header": h} for h in headers]
+        return il.review_line_problem(_header_line(field, value, headers[0], evidence=ev, **over))
+    assert why("sender", None, "X-From: ") is None
+    assert "header states it" in why("sender", None, "X-From: Ann M Schmidt")
+    assert why("recipient", None, "X-To: ") is None
+    assert "header states it" in why("recipient", None, "X-To: ", "To: bo@enron.com")
+    assert why("communication_date", None, "Date: ") is None
+    assert "states a date" in why("communication_date", None, "Date: Mon, 14 May 2001 09:02:00 -0700")
+    # additional_recipients may be empty when the To line names only the recipient and no one is cc'd.
+    assert why("additional_recipients", [], "X-To: Jacobson, Michael </O=ENRON/CN=Mjacobso>", "X-cc: ",
+               "To: michael.jacobson@enron.com") is None
+    assert "names more people" in why("additional_recipients", [], "X-To: ", "X-cc: Sue Mara")
+    assert "names more people" in why("additional_recipients", [], "X-To: Jeff Dasovich, Sue Mara")
+    assert "names more people" in why("additional_recipients", [], "To: a@enron.com, b@enron.com")
+    # mixed forms: a bracketed address and a bare one are two people
+    assert "names more people" in why("additional_recipients", [], "To: Alice <alice@enron.com>, bob@enron.com")
+    assert il._addressees("Jacobson, Michael </O=ENRON/CN=Mjacobso>") == 1
+    assert il._addressees("Alice <alice@enron.com>, Bob <bob@enron.com>, carl@enron.com") == 3
+    # a bare name after a bracketed address is one more person
+    assert il._addressees("Jacobson, Michael </O=ENRON/CN=Mjacobso>, Sue Mara") == 2
+    assert il._addressees("Alice <alice@enron.com>, Bob Smith, carl@enron.com") == 3
+    assert "names more people" in why("additional_recipients", [],
+                                      "X-To: Jacobson, Michael </O=ENRON/CN=Mjacobso>, Sue Mara")
+
+
+def test_a_correction_needs_the_hub_value_it_replaces():
+    for missing in ({}, {"hub_value": None}, {"hub_value": ""}):
+        line = {k: v for k, v in _intent_line().items() if k != "hub_value"}
+        assert "hub_value" in il.review_line_problem({**line, **missing})
+    assert il.review_line_problem(_header_line()) is None  # a header gap fill has no Hub value
+
+
+def test_review_keeps_earlier_files_and_refuses_a_label_reviewed_twice(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    second = tmp_path / "more.jsonl"
+    second.write_text(json.dumps(_header_line("recipient", "Jeff Dasovich", "X-To: Jeff Dasovich")) + "\n",
+                      encoding="utf-8")
+    assert mod.review(root, [second]) == 0  # a disjoint file joins the first one
+    man = il.load_manifest(root)
+    assert sorted(e["path"].rsplit("/", 1)[-1] for e in man["reviews"]) == ["more.jsonl", "reviews.jsonl"]
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "recipient", "sender"}
+    assert il.verify(root) == []
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    clash = tmp_path / "clash.jsonl"
+    clash.write_text(json.dumps(_header_line(value=None, header="X-From: ")) + "\n", encoding="utf-8")
+    capsys.readouterr()
+    assert mod.review(root, [clash]) == 1
+    assert "E1.sender is also reviewed in reviews.jsonl" in capsys.readouterr().out
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    # build refuses the same overlap.
+    by_class = {"correspondence": [json.loads(line) for line in (root / "correspondence.jsonl").read_text().splitlines()]}
+    with pytest.raises(SystemExit, match="also reviewed in"):
+        mod._apply_review_files(by_class, [review, clash])
+
+
+def test_review_retires_a_label_whose_line_was_removed(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    gate_record = il.load_overlay(root)["E1"]  # the record as the gate build left it
+    assert mod.review(root, [review]) == 0
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "sender"}
+    # Drop the intent line: the next review takes its label out, so the Hub intent applies again.
+    review.write_text(json.dumps(_header_line()) + "\n", encoding="utf-8")
+    capsys.readouterr()
+    assert mod.review(root, [review]) == 0
+    assert "E1.intent: retired" in capsys.readouterr().out
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"sender"}
+    assert il.load_manifest(root)["counts"]["correspondence"] == {"sender": {"gap_fill": 1}}
+    assert il.verify(root) == []
+    # A later prune or check finds nothing left to keep, and a rebuild does not bring it back.
+    by_class = {"correspondence": [json.loads(json.dumps(gate_record))]}
+    mod._apply_review_files(by_class, [review])
+    assert by_class["correspondence"][0]["labels"].keys() == {"sender"}
+    # A record the review created goes when its last reviewed label is retired.
+    other = _header_line(doc_id="E9")
+    review.write_text(json.dumps(_header_line()) + "\n" + json.dumps(other) + "\n", encoding="utf-8")
+    assert mod.review(root, [review]) == 0 and "E9" in il.load_overlay(root)
+    review.write_text(json.dumps(_header_line()) + "\n", encoding="utf-8")
+    assert mod.review(root, [review]) == 0 and "E9" not in il.load_overlay(root)
+    assert il.verify(root) == []
+
+
+def test_retire_reviews_notes_the_label_a_retired_review_had_replaced():
+    gate = {"value": "Ann", "status": "gap_fill", "basis": "gate_accepted_grounded", "support": 0.97}
+    records = {"E1": {"doc_id": "E1", "labels": {"sender": il.review_label(_header_line(), "r.jsonl", gate)},
+                      "source": {"gate_run": "g"}}}
+    notes = il.retire_reviews(records, [])
+    assert notes == ["E1.sender: retired (no review line makes it); it had replaced a gap_fill label, which build restores"]
+    assert records["E1"]["labels"] == {}  # a gate record stays, even when empty
+
+
+def test_a_header_line_without_a_colon_is_refused_not_raised():
+    ev = [{"source": il.HEADER_SOURCE, "file": "f/1.", "header": "X-From"}]
+    assert "Name: value" in il.review_line_problem(_header_line(evidence=ev))
+
+
+def test_prune_restores_every_file_when_a_later_write_fails(tmp_path, monkeypatch):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    real = mod._replace
+
+    def fail_on_manifest(path, text):
+        if path.name == "MANIFEST.json":
+            raise OSError("disk full")
+        real(path, text)
+    monkeypatch.setattr(mod, "_replace", fail_on_manifest)
+    with pytest.raises(OSError):
+        mod._prune(root, il.load_manifest(root), [("E1", "sender")])
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    assert il.verify(root) == []
+
+
+def test_apply_overlay_parquet_refuses_an_overlay_rewritten_while_read(monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    shas = iter(["a" * 64, "b" * 64])
+    monkeypatch.setattr(il, "verify", lambda *a, **k: [])
+    monkeypatch.setattr(il, "overlay_fingerprint", lambda *a, **k: next(shas))
+    monkeypatch.setattr(il, "load_overlay", lambda *a, **k: {})
+    table = pa.table({"document_id": ["D1"], "gt_fields": ["{}"]})
+    with pytest.raises(ValueError, match="changed while it was read"):
+        il.apply_overlay_parquet(table)

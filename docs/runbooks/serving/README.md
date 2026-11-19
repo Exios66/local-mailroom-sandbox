@@ -4,7 +4,7 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-# Modal vLLM — deploy, point, verify, teardown (default path)
+## Modal vLLM — deploy, point, verify, teardown (default path)
 
 **id:** `modal-vllm-serving` · **family:** `serving` · **serving:** `qwen35-9b`
 
@@ -12,7 +12,7 @@ The sandbox default. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an 
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show modal-vllm-serving`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -27,17 +27,17 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 | quantization | `fp8` |
 | prefix caching / eager | `1 / 1` |
 
-## Notes
+### Notes
 
 - VLLM_BASE_URL is the FULL base URL: the URL `modal deploy` prints plus /v1. Without /v1 every chat call 404s.
-- Export MODAL_WORKSPACE=<workspace slug> instead and the profile derives the same URL; health follows it too.
+- Export `MODAL_WORKSPACE=<workspace slug>` instead and the profile derives the same URL; health follows it too.
 - VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN; the script exports it for you. A right URL with no bearer still returns 401, so export it in any other shell you run evals from.
 - One deploy serves every specialist class — do not redeploy between classes. For the 5×30 suite on this endpoint use `sandbox runbook show full`.
 - Attended scaledown is 120s. Unattended/overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
 - Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard. The script leaves it commented: run it by hand after your last eval, so pasting the lifecycle never stops the endpoint before an eval has run.
 - Offline or CPU-only work is the explicit opt-out: --profile ollama (or SANDBOX_PROFILE=ollama).
 
-## The default contract
+### The default contract
 
 | Piece | Value |
 | --- | --- |
@@ -53,7 +53,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 profile's static `localhost:8000` value is only a parity fallback, never
 the Modal endpoint.
 
-## When to leave this runbook
+### When to leave this runbook
 
 - More concurrency / longer context: pick the matching `serving` variant
   and the catalog runbook that cites it (`improved-awq-c8`, `grid-2l4`, …).
@@ -61,14 +61,14 @@ the Modal endpoint.
 - Local post-processing only: `--profile ollama` (mock/offline paths do
   not need any endpoint).
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Modal vLLM — deploy, point, verify, teardown (default path)

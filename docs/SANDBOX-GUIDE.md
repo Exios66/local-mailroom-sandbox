@@ -411,7 +411,7 @@ trace:
 
 ### Run artifacts
 
-```
+```text
 data/runtime/runs/<run_id>/
 ├── spec.lock.json       # immutable preflight manifest
 ├── prompt.lock.json     # resolved prompts + sha256

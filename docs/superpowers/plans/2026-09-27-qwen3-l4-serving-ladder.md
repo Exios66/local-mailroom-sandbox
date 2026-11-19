@@ -5,6 +5,7 @@
 **Goal:** Make every serving knob measurable and spec-driven, then run a gated 1×L4 knob ladder, a 1-vs-2-replica scale-out on correspondence n=100, a 5-specialist n=50 sweep, and a bf16 quality arm. Total Modal spend stays ≤ $5, and the outputs back a defensible funding proposal.
 
 **Architecture:** Part A (Tasks 1–9) is code only: $0, TDD, network-free.
+
 - **Deploy knobs:** new ones are added to `deploy/modal_vllm.py` (env-driven, as today) and mirrored as validated `VLLMSpec` fields.
 - **Env from YAML:** `sandbox run deploy-env` renders the exact env from a run YAML, and `benchmark-check` fails when the shell env drifts from it.
 - **Metrics:** cost caps become replica-aware; `items.jsonl`, p95, the billed span and a replica-resolved `/metrics` scrape land in the serving record.
@@ -75,10 +76,12 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 ### Task 1: New vLLM deploy knobs
 
 **Files:**
+
 - Modify: `deploy/modal_vllm.py:98-160` (knob block + `CONFIG_ENV_KEYS`), `:236-266` (`build_vllm_command`), `:321-330` (`serve` decorators)
 - Test: `tests/test_modal_vllm.py` (add to `KNOB_ENV` tuple and `TestCommandBuilder`)
 
 **Interfaces:**
+
 - Produces:
   - env keys `MODAL_VLLM_KV_CACHE_DTYPE`, `MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS` (JSON string), `MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES` (comma list, e.g. `1,2,4,8,16`), `MODAL_VLLM_MAX_NUM_BATCHED_TOKENS`, `MODAL_VLLM_CHAT_TEMPLATE` (path inside image), `MODAL_VLLM_MAX_INPUTS` (int; enables `@modal.concurrent`)
   - module constants of the same stem (`KV_CACHE_DTYPE`, …)
@@ -235,12 +238,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Spec fields + YAML→env rendering + drift check
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/spec.py:230-281` (`VLLMSpec`)
 - Create: `src/mailroom_sandbox/job/deploy_env.py`
 - Modify: `src/mailroom_sandbox/cli.py` (register `run deploy-env`, next to `benchmark-check` at ~L632)
 - Test: `tests/test_job_spec.py`, `tests/test_deploy_env.py` (create)
 
 **Interfaces:**
+
 - Consumes: env key names from Task 1.
 - Produces:
   - `VLLMSpec.kv_cache_dtype: str = ""`
@@ -488,12 +493,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 3: Replica-aware cost caps and cost estimates
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/metrics.py:120-130` (`estimate_gpu_cost_usd`), `:429-521` (`enrich_serving_report`)
 - Modify: `src/mailroom_sandbox/job/runner.py:373-378, 457-466, 233-288`
 - Modify: `src/mailroom_sandbox/eval/runners.py:125-144, 262-275, 368-378`
 - Test: `tests/test_job_metrics.py`, `tests/test_job_runner.py`
 
 **Interfaces:**
+
 - Produces:
   - `estimate_gpu_cost_usd(gpu_seconds, *, gpu=None, replicas: int = 1)`
   - `runner._lock_replicas(store) -> int`
@@ -613,11 +620,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: items.jsonl, p95 and billed span for isolated specialist runs
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/runner.py` (`_run_whole_run`, after `result` is obtained ~L302)
 - Modify: `src/mailroom_sandbox/eval/runners.py:350-354`, `src/mailroom_sandbox/job/metrics.py:455-466`
 - Test: `tests/test_job_runner.py`, `tests/test_job_metrics.py`
 
 **Interfaces:**
+
 - Consumes: `result["rows"]` from `run_isolated_eval` (each has `id, pred, score, error, latency_ms, prompt_tokens, completion_tokens`).
 - Produces:
   - `runner._persist_isolated_items(store, rows) -> int` (count written)
@@ -763,11 +772,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 5: vLLM /metrics scrape resolved per replica
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/vllm_metrics.py`
 - Modify: `src/mailroom_sandbox/cli.py` (register `run scrape-metrics --config <yaml> --label before|after`)
 - Test: `tests/test_vllm_metrics.py` (create)
 
 **Interfaces:**
+
 - Produces:
   - `parse_prometheus(text: str) -> dict[str, float]` (summed by metric name, labels dropped)
   - `group_replicas(samples: list[dict[str, float]]) -> dict[str, dict[str, float]]`, keyed by `process_start_time_seconds`
@@ -935,6 +946,7 @@ def scrape(base_url: str, api_key: str, *, attempts: int = 12, expected: int = 1
 ```
 
 CLI handler `_cmd_run_scrape_metrics`:
+
 - Load the spec.
 - Resolve `base = engine_base_url(spec)` from `mailroom_sandbox.job.preflight`, and `api_key = os.environ.get("VLLM_API_KEY", "")`.
 - Call `scrape(base, api_key, expected=spec.engine.modal.max_containers)`.
@@ -964,9 +976,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 The single-bucket path (`strata: {buckets: [{doc_class: X, count: N}]}`) already draws a seeded shuffle-prefix (`corpus._seeded_prefix`), so n=20 ⊂ 50 ⊂ 100 holds by construction. Issue #38 describes the older `random.sample` code. This task pins the property in a test and forbids `sub_buckets` in SAND-032 configs (sub-bucket quotas are not nested across totals).
 
 **Files:**
+
 - Test: `tests/test_corpus.py` (append)
 
 **Interfaces:**
+
 - Consumes: `mailroom_sandbox.corpus.select_rows`.
 
 - [ ] **Step 1: Write the test**
@@ -1014,11 +1028,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 7: Offline Braintrust-Experiment-shaped rows + dispose
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/bt_offline.py`
 - Modify: `src/mailroom_sandbox/cli.py` (register `run export-bt --config`, `run dispose --config --report <path>`)
 - Test: `tests/test_bt_offline.py` (create)
 
 **Interfaces:**
+
 - Consumes: `RunStore` items (Task 4), lock, serving record.
 - Produces:
   - `write_experiment(store, *, out_root: Path, git_commit: str) -> Path`: writes `experiment.json` + `rows.jsonl`
@@ -1155,6 +1171,7 @@ def dispose(run_id: str, *, out_root: Path, report: Path,
 ```
 
 CLI:
+
 - `run export-bt --config X` → `write_experiment(RunStore(runtime_dir()/"runs"/run_id), out_root=runtime_dir()/"bt_experiments", git_commit=<git rev-parse HEAD>)`.
 - `run dispose --config X --report reports/...md` → `dispose(...)`.
 
@@ -1180,10 +1197,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 8: Funding projection math
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/funding.py`
 - Test: `tests/test_funding.py` (create)
 
 **Interfaces:**
+
 - Produces:
   - `UnitCost(doc_class: str, usd_per_doc: float, rel_spread: float)`
   - `full_corpus_usd(units: dict[str, UnitCost], rows: dict[str, int], *, overhead_usd: float, seeds: int) -> tuple[float, float, float]`, returning (low, mid, high)
@@ -1312,6 +1331,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 9: SAND-032 run configs, posture rows, benchmark gate, governance card
 
 **Files:**
+
 - Create: `config/runs/sand032/sand032-*.yaml` (15 files, table below), `config/suites/sand032-sweep.yaml`
 - Modify: `src/mailroom_sandbox/job/specialist_posture.py` (SAND-032 rows; concurrency band)
 - Modify: `src/mailroom_sandbox/job/benchmark_check.py` (allowlists; fp8 + drift assertions; `--modal-profile`)
@@ -1320,6 +1340,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/test_sand032_configs.py` (create), `tests/test_specialist_posture.py`
 
 **Interfaces:**
+
 - Consumes: `VLLMSpec` fields (Task 2), `deploy_env.env_drift` (Task 2).
 - Produces:
   - `SAND032_RUNS: frozenset[str]` in `specialist_posture.py`
@@ -1564,11 +1585,11 @@ CLI: add `common.add_argument("--modal-profile", default=None, help="benchmark-c
 
 - [ ] **Step 6: Governance.** In `governance/TASKS.md`, add a row after SAND-031 in the same table format:
 
-```
+```markdown
 | SAND-032 | Qwen3-8B-AWQ L4 serving ladder → 2-replica scale-out → 5-specialist n=50 sweep + bf16 arm; funding evidence ($5 cap, Modal profile exios66, public HF data only) | claude | in progress | Spec docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md; plan docs/superpowers/plans/2026-09-27-qwen3-l4-serving-ladder.md. Related: SAND-028, SAND-030, SAND-031, issue #38. |
 ```
 
-Change `**Next ID: \`SAND-032\`**` to `**Next ID: \`SAND-033\`**`. Run `pytest tests/test_governance_sand.py -v`.
+Change ``**Next ID: `SAND-032`**`` to ``**Next ID: `SAND-033`**``. Run `pytest tests/test_governance_sand.py -v`.
 
 - [ ] **Step 7: Run the whole suite**
 
@@ -1605,6 +1626,7 @@ sandbox run benchmark-check --config config/runs/<RUN>.yaml --modal-profile exio
 ```
 
 **Rules:**
+
 - Keep a running spend ledger in `reports/serving/SAND-32/SAND032-SPEND-LEDGER.md`: one row per run with `run_span_usd_lower_bound` (the serving record; a LOWER bound — renamed from `billed_span_usd` in the Part A review), the wall-clock deploy→`modal app stop` timestamps for each fleet (times replicas × $0.80/hr = the operator's upper estimate), and a Modal usage-page reading after each stage, supplied by the user (ground truth).
 - Stop and report if the ledger ever exceeds the stage's stop rule, or $4.50 in total.
 

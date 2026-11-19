@@ -13,7 +13,8 @@ BUDGET = LINEAGE["budget_chars"]
 BUDGET_BY_AGENT = LINEAGE.get("budget_chars_by_agent") or {}
 FROZEN = {"insurance_claims_specialist": "insurance_claims_specialist_simplified",
           "correspondence_specialist": "correspondence_specialist_simplified",
-          "corporate_records_specialist": "corporate_records_specialist_subclass_v2"}
+          "corporate_records_specialist": "corporate_records_specialist_subclass_v2",
+          "contracts_specialist": "contracts_specialist_v33"}
 # Tokens and rules every version must keep (the schema vocabulary the dojo scores against).
 REQUIRED = {
     "insurance_claims_specialist": ("claim_data_record", "Notice ID", "Fill Reference", "Total drug cost",
@@ -22,6 +23,8 @@ REQUIRED = {
                                   "attorney_demand", "never null"),
     "corporate_records_specialist": ("governance_rules", "corporate_action_approval", "entity_formation",
                                      "authority_delegation", "investor_rights", "never an SEC form", "owning company"),
+    "contracts_specialist": ("cuad_family", "cuad_clauses", "Notice Period To Terminate Renewal", "party_roles",
+                             "merger_consideration null", "plain dollar figure", "dispute_forum"),
 }
 VERSIONS = [(agent, v["version"]) for agent, row in LINEAGE["agents"].items() for v in row["versions"]]
 
@@ -59,7 +62,10 @@ def test_every_condensed_file_is_in_the_lineage():
     on_disk = {p.stem for p in prompts_dir().glob("*_specialist_condensed_v*.txt")}
     assert on_disk == listed
     for agent, row in LINEAGE["agents"].items():
-        assert row["frontrunner"] in listed
+        if row.get("frontrunner_outside_lineage"):  # a deployed prompt that predates the lineage
+            assert (prompts_dir() / f"{row['frontrunner']}.txt").is_file(), agent
+        else:
+            assert row["frontrunner"] in listed
 
 
 def test_compare_verdict_rule():

@@ -208,7 +208,7 @@ Live runs use the signed, capped run path.
 
   <!-- coderabbit-ai-generated-section:v1:478bf37d72a99d552d93622f5bc4b8de24d205c78ea395aa626fb5f281eec39e -->
 
-  https://github.com/Exios66/llm-mailroom (public, vendored at
+  <https://github.com/Exios66/llm-mailroom> (public, vendored at
   `1530f496a6c745186bb86d12b5f0472c667a404a`). A source checkout is needed
   for upstream changes. Commits there follow the external naming rule in section 1.
 

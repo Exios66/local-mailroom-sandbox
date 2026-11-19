@@ -8,8 +8,13 @@ from gate-accepted real extractions (see ``mailroom_sandbox.interim_labels`` for
     python scripts/interim_labels.py build
     # add a new gate run (a later question set wins per document)
     python scripts/interim_labels.py build --add-run extraction-gate-luna-v1.4.0
-    # integrity, staleness (a newer local gate run not yet folded in), Hub supersession
-    python scripts/interim_labels.py check [--rows hub-rows.jsonl] [--prune]
+    # integrity, staleness (a newer local gate run not yet folded in), Hub supersession, and
+    # every listed review file applied as written
+    python scripts/interim_labels.py check [--rows hub-rows.jsonl|ground_truth.parquet] [--prune]
+    # apply reviewed labels (data/labels/review/interim_reviews.jsonl) in place; build re-applies them
+    python scripts/interim_labels.py review [--apply FILE ...]
+    # a Hub ground_truth parquet shard with the overlay merged into gt_fields
+    python scripts/interim_labels.py apply --parquet ground_truth_train.parquet --out overlaid.parquet
 
 ``build`` reads finished gate runs from ``data/runtime/runs`` (their locked dataset rows, the
 specialist extractions they reviewed and the gate answers). ``check`` needs only the committed
@@ -104,7 +109,7 @@ def _counts(root: Path, names: Iterable[str]) -> dict[str, dict[str, dict[str, i
             for cls, fs in sorted(counts.items())}
 
 
-def build(run_ids: list[str], root: Path) -> dict[str, Any]:
+def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> dict[str, Any]:
     runs = [_gate_run(r) for r in run_ids]
     # Per document, the latest question set wins (then the later run in the list).
     best: dict[str, tuple[tuple[int, ...], int, dict[str, Any], dict[str, Any]]] = {}
@@ -115,7 +120,6 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
             if doc not in best or (key, order) >= best[doc][:2]:
                 best[doc] = (key, order, run, d)
     by_class: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
-    counts: dict[str, dict[str, collections.Counter]] = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     # Precision proxy of the admission rule: on fields the Hub DOES label, how often a value the
     # gate accepts at >= SUPPORT_MIN is right by the dojo (the same rule admits the gap fills).
     proxy: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
@@ -129,8 +133,6 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
                 proxy[cls]["n"] += 1
                 proxy[cls]["right"] += int(bool(ok))
         labels = il.labels_for(row, d["fields"], gate, d["truth"])
-        for field, lab in labels.items():
-            counts[cls][field][lab["status"]] += 1
         if not labels:
             continue
         by_class[cls].append({
@@ -140,6 +142,9 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
             "source": {**d["source"], "gate_run": run["run_id"], "question_set": run["question_set"],
                        "verdict": gate.get("verdict"), "accept_probability": gate.get("accept_probability")},
         })
+    # Reviewed labels (a committed review file) outrank the gate's: re-apply them on every build.
+    review_entries = _apply_review_files(by_class, reviews or [])
+    counts = _label_counts(by_class)
     root.mkdir(parents=True, exist_ok=True)
     files = {}
     for cls, recs in sorted(by_class.items()):
@@ -165,11 +170,157 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
         "documents": len(best),
         "admission_precision_proxy": {cls: {"n": c["n"], "right_rate": round(c["right"] / c["n"], 4) if c["n"] else None}
                                       for cls, c in sorted(proxy.items())},
-        "counts": {cls: {f: dict(sorted(c.items())) for f, c in sorted(fs.items())} for cls, fs in sorted(counts.items())},
+        "counts": counts,
         "files": files,
     }
+    if review_entries:
+        manifest["reviews"] = review_entries
     _replace(root / "MANIFEST.json", json.dumps(manifest, indent=2, sort_keys=False) + "\n")
     return manifest
+
+
+def _apply_review_files(by_class: dict[str, list[dict[str, Any]]], paths: list[Path]) -> list[dict[str, Any]]:
+    """Apply review files to freshly built records (``by_class`` changed in place); the manifest entries."""
+    entries = []
+    read, problems = _read_review_set(paths)
+    if problems:
+        raise SystemExit("build refused: the review files do not apply:\n  " + "\n  ".join(problems))
+    for path, lines in read:
+        records = {r["doc_id"]: r for recs in by_class.values() for r in recs}
+        new = [doc for doc in {line["doc_id"] for line in lines} if doc not in records]
+        _, bad = il.apply_reviews(records, lines, _rel(path))
+        if bad:
+            raise SystemExit("build refused: the review file does not apply:\n  " + "\n  ".join(bad))
+        for doc in sorted(new):
+            by_class[records[doc]["doc_class"]].append(records[doc])
+        for recs in by_class.values():
+            recs.sort(key=lambda r: r["doc_id"])
+        entries.append(_review_entry(path, lines))
+    return entries
+
+
+def _read_review_set(paths: list[Path]) -> tuple[list[tuple[Path, list[dict[str, Any]]]], list[str]]:
+    """Read review files as one set: each label may be reviewed in one file only.
+
+    Two files reviewing the same label would leave one of them unapplied (the last wins), which
+    ``check`` then fails on, so the overlap is refused before anything is written.
+    """
+    read, problems, owner = [], [], {}
+    for path in paths:
+        if not path.is_file():
+            problems.append(f"{path}: not found")
+            continue
+        lines, bad = il.read_reviews(path)
+        problems += bad
+        for line in lines:
+            key = (line["doc_id"], line["field"])
+            if key in owner:
+                problems.append(f"{path.name}: {key[0]}.{key[1]} is also reviewed in {owner[key].name}")
+            owner.setdefault(key, path)
+        read.append((path, lines))
+    return read, problems
+
+
+def _rel(path: Path) -> str:
+    """``path`` relative to the repository (how the manifest names a review file)."""
+    from mailroom_sandbox.paths import repo_root
+
+    try:
+        return str(path.resolve().relative_to(repo_root().resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _repo_path(rel: str) -> Path:
+    from mailroom_sandbox.paths import repo_root
+
+    return repo_root() / rel
+
+
+def _review_entry(path: Path, lines: list[dict[str, Any]]) -> dict[str, Any]:
+    by = collections.Counter(f"{line['doc_class']}.{line['field']}:{line['status']}/{line['basis']}" for line in lines)
+    return {"path": _rel(path), "sha256": il._sha(path.read_text(encoding="utf-8")), "lines": len(lines),
+            "labels": dict(sorted(by.items()))}
+
+
+def _label_counts(by_class: dict[str, list[dict[str, Any]]]) -> dict[str, dict[str, dict[str, int]]]:
+    counts: dict[str, dict[str, collections.Counter]] = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    for cls, recs in by_class.items():
+        for rec in recs:
+            for field, lab in rec["labels"].items():
+                counts[cls][field][lab["status"]] += 1
+    return {cls: {f: dict(sorted(c.items())) for f, c in sorted(fs.items())} for cls, fs in sorted(counts.items())}
+
+
+def review(root: Path, paths: list[Path]) -> int:
+    """Apply review files to the committed overlay in place; no gate run needed.
+
+    Each line replaces the label of its field (or adds one, and a record if the document has
+    none). The files the manifest already lists are applied with ``paths`` as one set, so a new
+    file never drops an earlier one, and a label reviewed in two files is refused. The manifest
+    lists each file with its sha256, so ``check`` fails once a file changes without being
+    re-applied, and ``build`` re-applies them after a rebuild.
+    """
+    integrity = il.verify(root, reviews=False)
+    if integrity:
+        print("review refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
+        for p in integrity:
+            print(f"  {p}")
+        return 1
+    man = il.load_manifest(root)
+    names = list(man.get("files") or {})
+    by_name = {name: il._jsonl(root / name) for name in names}
+    records = {r["doc_id"]: r for recs in by_name.values() for r in recs}
+    # The files the manifest already lists stay applied and tracked: a new file joins them.
+    listed = [_repo_path(e["path"]) for e in man.get("reviews") or []]
+    seen = {p.resolve() for p in paths}
+    paths = [p for p in listed if p.resolve() not in seen] + list(paths)
+    read, problems = _read_review_set(paths)
+    # A label whose review line was removed leaves the overlay (a rebuild would not make it either).
+    retired = il.retire_reviews(records, [line for _, lines in read for line in lines]) if not problems else []
+    entries, changed = [], len(retired)
+    for path, lines in read:
+        n, bad = il.apply_reviews(records, lines, _rel(path))
+        problems += bad
+        changed += n
+        entries.append(_review_entry(path, lines))
+    if problems:
+        print("review refused:")
+        for p in problems:
+            print(f"  {p}")
+        return 1
+    by_class: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
+    for rec in records.values():
+        by_class[rec["doc_class"]].append(rec)
+    texts = {f"{cls}.jsonl": "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+                                     for r in sorted(recs, key=lambda r: r["doc_id"]))
+             for cls, recs in sorted(by_class.items())}
+    unknown = sorted(set(texts) - set(names))
+    if unknown:  # a review never creates a class file: the build owns which classes exist
+        print(f"review refused: no overlay file for {', '.join(unknown)}")
+        return 1
+    for name in sorted(set(names) - set(texts)):  # a class whose every record was retired keeps its file
+        texts[name] = ""
+    for note in retired:
+        print(f"  {note}")
+    for name, text in texts.items():
+        man["files"][name] = il._sha(text)
+    man["counts"] = _label_counts(by_class)
+    man["reviews"] = entries
+    if changed:
+        man["reviewed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # As in rederive: keep the previous generation so a failed write restores every file.
+    previous = {name: (root / name).read_bytes() for name in [*texts, "MANIFEST.json"]}
+    try:
+        for name, text in texts.items():
+            _replace(root / name, text)
+        _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+    except BaseException:
+        for name, data in previous.items():
+            (root / name).write_bytes(data)
+        raise
+    print(f"reviewed: {changed} labels added or changed from {len(paths)} file(s)")
+    return 0
 
 
 def _local_gate_runs() -> dict[str, str]:
@@ -233,6 +384,90 @@ def rederive(root: Path) -> int:
     return 0
 
 
+def _read_rows(path: Path) -> list[dict[str, Any]]:
+    """Hub rows from JSONL, or from a parquet shard (``ground_truth`` rows need no text)."""
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        return pq.read_table(path).to_pylist()
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
+
+
+def apply_parquet(root: Path, source: Path, out: Path) -> int:
+    """Write ``source`` (a Hub ground_truth shard) with the overlay merged into ``out``."""
+    problems = il.verify(root)
+    if problems:
+        print("apply refused: the overlay fails its check")
+        for p in problems:
+            print(f"  {p}")
+        return 1
+    try:
+        table = il.apply_overlay_parquet(source, out, overlay=il.load_overlay(root),
+                                         overlay_sha=il.overlay_fingerprint(root))
+    except (OSError, ValueError) as exc:
+        print(f"apply refused: {exc}")
+        return 1
+    marks = [m for m in table.column("interim_labels").to_pylist() if m]
+    fields = sum(len(json.loads(m)["fields"]) for m in marks)
+    print(f"applied: {fields} labels on {len(marks)} of {table.num_rows} rows -> {out}")
+    return 0
+
+
+def _superseded_split(rows: list[dict[str, Any]], overlay: dict[str, dict[str, Any]]
+                      ) -> tuple[list[tuple[str, str]], list[str]]:
+    """The superseded (doc, field) labels prune may drop, and the reviewed ones it keeps.
+
+    A reviewed label belongs to its review file: prune never drops it (check would then fail on
+    the unapplied review line). The Hub wins over it anyway, and a record whose text changed is
+    skipped by its hash, so it is reported and kept.
+    """
+    gone, reviewed = [], []
+    for doc, field in il.superseded(rows, overlay):
+        labels = overlay[doc]["labels"]
+        if field != "*" and "review" in labels[field]:
+            reviewed.append(f"{doc}.{field}")
+        elif field == "*" and any("review" in lab for lab in labels.values()):
+            reviewed.append(f"{doc} (text changed)")
+            gone += [(doc, f) for f, lab in labels.items() if "review" not in lab]
+        else:
+            gone.append((doc, field))
+    return gone, reviewed
+
+
+def _prune(root: Path, man: dict[str, Any], gone: list[tuple[str, str]]) -> None:
+    """Drop the ``gone`` labels (``*``: the whole record) and rewrite the files and the manifest."""
+    drop = collections.defaultdict(set)
+    for doc, field in gone:
+        drop[doc].add(field)
+    names = list(man.get("files") or {})
+    # As in review: keep the previous generation so a failed write restores every file.
+    previous = {name: (root / name).read_bytes() for name in [*names, "MANIFEST.json"] if (root / name).exists()}
+    try:
+        _prune_files(root, man, names, drop)
+    except BaseException:
+        for name, data in previous.items():
+            (root / name).write_bytes(data)
+        raise
+
+
+def _prune_files(root: Path, man: dict[str, Any], names: list[str], drop: dict[str, set[str]]) -> None:
+    for name in names:
+        recs = []
+        for rec in il._jsonl(root / name):
+            fields = drop.get(rec["doc_id"], set())
+            if "*" in fields:
+                continue
+            rec["labels"] = {f: v for f, v in rec["labels"].items() if f not in fields}
+            if rec["labels"]:
+                recs.append(rec)
+        text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
+        _replace(root / name, text)
+        man["files"][name] = il._sha(text)
+    man["counts"] = _counts(root, man["files"])
+    man["pruned_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+
+
 def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     integrity = il.verify(root)
     problems = list(integrity)
@@ -243,32 +478,17 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
              for run, v in _local_gate_runs().items() if run not in listed and _version(v) >= top]
     problems += stale
     if rows_path:
-        rows = [json.loads(line) for line in rows_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        gone = il.superseded(rows, il.load_overlay(root))
+        rows = _read_rows(rows_path)
+        gone, reviewed = _superseded_split(rows, il.load_overlay(root))
+        for note in reviewed:
+            print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line and run review to retire it")
         for doc, field in gone:
             problems.append(f"{doc}.{field}: superseded by the Hub rows ({'text changed' if field == '*' else 'now labelled'})")
         if prune and gone and integrity:
             # Rewriting would re-hash files that already fail verification and hide the mismatch.
             print("prune refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
         elif prune and gone:
-            drop = collections.defaultdict(set)
-            for doc, field in gone:
-                drop[doc].add(field)
-            for name in list(man.get("files") or {}):
-                recs = []
-                for rec in il._jsonl(root / name):
-                    fields = drop.get(rec["doc_id"], set())
-                    if "*" in fields:
-                        continue
-                    rec["labels"] = {f: v for f, v in rec["labels"].items() if f not in fields}
-                    if rec["labels"]:
-                        recs.append(rec)
-                text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
-                _replace(root / name, text)
-                man["files"][name] = il._sha(text)
-            man["counts"] = _counts(root, man["files"])
-            man["pruned_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+            _prune(root, man, gone)
             print(f"pruned {len(gone)} superseded labels")
             # The superseded labels are gone; integrity and staleness problems still fail the check.
             problems = [p for p in problems if "superseded by the Hub rows" not in p]
@@ -286,19 +506,30 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--run", action="append", default=[], help="gate run (replaces the manifest's list; repeat)")
     b.add_argument("--add-run", action="append", default=[], help="gate run added to the manifest's list")
     c = sub.add_parser("check", help="integrity, staleness and Hub supersession")
-    c.add_argument("--rows", type=Path, help="Hub rows (JSONL) to test for superseded labels")
+    c.add_argument("--rows", type=Path, help="Hub rows (JSONL, or a ground_truth .parquet shard) to test for superseded labels")
     c.add_argument("--prune", action="store_true", help="drop superseded labels and rewrite the manifest")
     sub.add_parser("rederive", help="recompute the derived subclass labels with the current mapping")
+    r = sub.add_parser("review", help="apply review files (reviewed corrections and header fills) in place")
+    r.add_argument("--apply", action="append", type=Path, default=[],
+                   help="review file (repeat); default: the manifest's list, else data/labels/review/interim_reviews.jsonl")
+    a = sub.add_parser("apply", help="write a Hub ground_truth parquet shard with the overlay merged into gt_fields")
+    a.add_argument("--parquet", type=Path, required=True, help="Hub ground_truth shard")
+    a.add_argument("--out", type=Path, required=True, help="output parquet (not the source)")
     args = ap.parse_args(argv)
     root = args.root or il.overlay_dir()
+    if args.cmd == "apply":
+        return apply_parquet(root, args.parquet, args.out)
     if args.cmd == "rederive":
         return rederive(root)
+    listed = [_repo_path(e["path"]) for e in il.load_manifest(root).get("reviews") or []]
+    if args.cmd == "review":
+        return review(root, args.apply or listed or [il.review_path()])
     if args.cmd == "build":
         runs = args.run or [s["gate_run"] for s in il.load_manifest(root).get("sources") or []]
         runs += [r for r in args.add_run if r not in runs]
         if not runs:
             raise SystemExit("no gate runs: pass --run")
-        man = build(runs, root)
+        man = build(runs, root, listed)
         print(json.dumps({k: man[k] for k in ("documents", "admission_precision_proxy", "counts", "files")}, indent=1))
         return 0
     return check(root, args.rows, args.prune)

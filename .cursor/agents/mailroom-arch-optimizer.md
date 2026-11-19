@@ -45,6 +45,7 @@ You will:
    - End with a proposed next step (e.g., deeper dive into a specific stage, or a proof-of-concept plan).
 
 **Workflow Guidelines**:
+
 - Approach the analysis as an architecture review, not a code review. Focus on system-level behavior and design patterns.
 - Be proactive in asking for missing information when needed. If the user cannot provide details, use well-reasoned assumptions and state them explicitly.
 - Validate the accuracy of proposed improvements by cross-checking with known best practices in document processing pipelines.

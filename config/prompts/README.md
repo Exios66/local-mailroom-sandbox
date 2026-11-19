@@ -32,8 +32,25 @@ when, on the same documents as its reference run, its mean dojo score is not low
 | Agent | Frontrunner | Chars (frozen) | Validation vs frozen prompt |
 | --- | --- | --- | --- |
 | `insurance_claims_specialist` | `insurance_claims_specialist_condensed_v3` | 3,928 (6,277) | mean 0.770 → 0.899, 60/60 docs better; briefs all six corpus templates |
-| `correspondence_specialist` | `correspondence_specialist_condensed_v2` | 2,467 (6,113) | mean 0.327 → 0.328; −28% input tokens |
+| `correspondence_specialist` | `correspondence_specialist_condensed_v3` | 2,830 (6,113) | v2 vs frozen: mean 0.327 → 0.328, −28% input tokens; v3 vs v2: mean 0.332 → 0.346 on 40 docs, 8 wins / 3 losses |
 | `corporate_records_specialist` | `corporate_records_specialist_condensed_v1` | 2,289 (5,865) | mean 0.352 → 0.427; intent 19 → 27 of 40 |
+
+Candidates written from the 2026-11-18 label audit, not yet run: `correspondence_specialist_condensed_v4`
+and `corporate_records_specialist_condensed_v2` align the contact, demand, urgency, record-type map
+and core-field rules with `docs/gold-labels/LABELING_GUIDE.md`, the convention the repaired interim and
+near-gold labels follow. Earlier A/Bs scored only intent, subject matter, keywords and type, so A/B a
+candidate with `dataset.interim_labels: true`, `dataset.near_gold_labels: true` and
+`job.schema_guide: true` in both arms, on `config/splits/runbook-v1` dev (`sandbox splits show`).
+`sandbox schemas show --class <class> --verdict iterate` lists the fields worth scoring.
+
+Also from the repaired schema registry (SAND-108 decision 3, each parented on the deployed frontrunner):
+`contracts_specialist_condensed_v1` (from `contracts_specialist_v33_simplified`; names the 8 repaired
+contract fields that prompt never lists, the `party_roles` vocabulary, and `contract_value` as the plain
+dollar figure Dojo parses). `insurance_claims_specialist_condensed_v6` (from v3, asking for `cms_source_table`)
+was withdrawn before any run: the output schema cannot carry that field, which the pipeline derives
+from the subclass (`job.specialist_subclass` gives an isolated run one).
+The contracts frontrunner stays `v33_simplified`, outside the condensed lineage, until a candidate validates.
+Merger stays on `merger_agreement_specialist_maud_v2`: its only scored fields are the generated MAUD answers.
 
 Contracts and merger agreements are outside this lineage and keep their frozen production prompts.
 

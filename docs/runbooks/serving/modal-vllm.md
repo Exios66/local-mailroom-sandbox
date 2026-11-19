@@ -26,7 +26,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 ## Notes
 
 - VLLM_BASE_URL is the FULL base URL: the URL `modal deploy` prints plus /v1. Without /v1 every chat call 404s.
-- Export MODAL_WORKSPACE=<workspace slug> instead and the profile derives the same URL; health follows it too.
+- Export `MODAL_WORKSPACE=<workspace slug>` instead and the profile derives the same URL; health follows it too.
 - VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN; the script exports it for you. A right URL with no bearer still returns 401, so export it in any other shell you run evals from.
 - One deploy serves every specialist class — do not redeploy between classes. For the 5×30 suite on this endpoint use `sandbox runbook show full`.
 - Attended scaledown is 120s. Unattended/overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.

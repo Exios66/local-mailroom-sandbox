@@ -41,7 +41,7 @@ Any per-doc projection from token records alone therefore *understates* cost. Fi
 
 API billing is token-based, so the projection is **exact** once token counts exist:
 
-```
+```text
 cost_api(N) = Σ_docs ( prompt_tokens × price_in + completion_tokens × price_out ) / 1e6
 ```
 
@@ -62,7 +62,7 @@ before each document, and a paid run that sends any agent to an unpriced model i
 `sandbox experiment create` fills each unset ceiling with a recommendation
 (`job/budget_advice.py`). For a run that bills tokens, the API figure is:
 
-```
+```text
 cap_api = max($0.05, ceil($0.05, docs × calls_per_doc × (prompt × price_in + completion × price_out) / 1e6 × 1.5))
 ```
 
@@ -81,7 +81,7 @@ a smoke run's numbers when you have them.
 
 Modal bills the container, so cost tracks **occupied container-seconds**, not tokens:
 
-```
+```text
 container_seconds_per_doc = (latency_s / concurrency) + (cold_boot_s / N)
 cost_modal(N) = [ Σ_docs (latency_s / concurrency) + cold_boot_s ] × rate_L4
 rate_L4       = MODAL_GPU_USD_PER_HOUR / 3600      # $0.80/h for L4
@@ -115,7 +115,7 @@ At n=50 the same defect is ~1/waves (8–15 %).
 
 So a run's cost is computed as:
 
-```
+```text
 billed_seconds = container_telemetry_after.json [end - start]     # else wall + cold_boot
 billed_gpu_usd = billed_seconds × replicas × gpu_usd_per_hour / 3600
 ```
@@ -130,7 +130,7 @@ tiers) keep every route app warm for the same window, so the serving report pric
 locked fleet instead — the base engine (only when it is `modal-vllm`) plus each distinct
 `modal-vllm` route app in the lock's `agent_routes`, each billed as `gpu` count × `max_containers` (SAND-083):
 
-```
+```text
 billed_gpu_usd = billed_seconds × Σ_apps (gpus_app × gpu_usd_per_hour_app) / 3600
 ```
 
@@ -145,7 +145,7 @@ Unrouted runs keep the base-GPU formula above.
 **Cell cost.** `min_containers=1` pins the fleet warm from deploy to teardown, so the cold
 boot and the idle between specialists bill too. A cell therefore reports:
 
-```
+```text
 fleet_gpu_usd = (teardown_ts - deploy_ts) × replicas × gpu_usd_per_hour / 3600
 ```
 

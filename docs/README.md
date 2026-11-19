@@ -11,6 +11,7 @@
 ## Purpose
 
 Documentation for the local-mailroom-sandbox package, covering:
+
 - Local development setup
 - Configuration guide
 - Testing procedures

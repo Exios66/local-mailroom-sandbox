@@ -4,11 +4,11 @@ Draft for a GitHub Discussion in LLM-Mailroom-Services/Digital-Mailroom
 Full report: docs/roadmaps/PROMPT-ENHANCEMENT-PLAN-v2.md (SAND-034).
 -->
 
-# Title
+## Title
 
 Prompt enhancement plan for the mailroom pipeline: sorter, specialists and exception-lane nodes (SAND-034)
 
-# Body
+## Body
 
 This proposes how to make every LLM prompt in the LangGraph pipeline shorter and
 structurally simpler without losing the lexical cues the classification and

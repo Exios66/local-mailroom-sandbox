@@ -92,11 +92,13 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 > **Updated 2026-10-31:** `decide_review` gained a `sorter_unsure` argument. When the sorter is below its low band, only the reviewer's label must be eligible, and the reviewer may correct the sorter at the cutoff. The override-never-accepts test below covers a sorter at or above its low band, where disagreement still parks.
 
 **Files:**
+
 - Create: `src/pipeline/decision_review.py`
 - Modify: `src/pipeline/reconsideration.py`
 - Test: `src/tests/test_decision_review.py`
 
 **Interfaces:**
+
 - Produces:
   - `DecisionAnswer` frozen dataclass: `doc_type: str | None`, `doc_subclass: str | None`, `confidence: float | None`, `model: str`
   - `ReviewRoute` frozen dataclass: `destination: Literal["extract", "human_review"]`, `causes: tuple[str, ...]`, `verdict: Literal["decision_accepts", "decision_escalates"]`
@@ -178,11 +180,13 @@ git commit -m "feat: add pure decision review routing"
 ### Task 2: Decision branch in `review_classify` (`llm-mailroom`)
 
 **Files:**
+
 - Create: `src/agents/decision_backend.py`
 - Modify: `src/pipeline/config.py`, `src/config/taxonomy.yaml`, `src/graph/state.py`, `src/graph/build_graph.py:1049` (`review_classify_node`), `src/graph/routing.py:403` (`after_review_classify`), `src/pipeline/reconsideration.py:243` (`collect_review_causes`)
 - Test: `src/tests/test_decision_review_node.py`
 
 **Interfaces:**
+
 - Consumes: `decide_review`, `DecisionAnswer`, `ReviewRoute` from Task 1
 - Produces:
   - `DecisionBackend = Callable[[str, list[str], dict[str, list[str]]], DecisionAnswer]`, called as `backend(doc_text, doc_types, subclass_catalogs)`
@@ -221,6 +225,7 @@ The defaults in `taxonomy.yaml` keep every class on `llm`. A `by_class` entry wi
 - [ ] **Step 4: Implement the node branch**
 
 Branch at the top of `review_classify_node` on `get_review_mode(sorter_type)`. In `decision_only` mode:
+
 - Treat `doc_text.strip() == ""` as no text and skip the call.
 - On a transient error, reuse the existing `transient_retries_review_classify` return and also set `reviewer_causes=[REVIEWER_UNAVAILABLE]`.
 - On any other exception, route with `answer=None`.
@@ -253,10 +258,12 @@ git commit -m "feat: route decision-only classes through review_classify"
 ### Task 3: Durable review evidence and override (`llm-mailroom`)
 
 **Files:**
+
 - Modify: `src/schemas/manifest.py`, `src/graph/build_graph.py:1800` (`human_review_node`), `src/graph/build_graph.py:3329` (`resume_from_review`), `src/pipeline/review_resolve.py:48` (`serialize_document`)
 - Test: `src/tests/test_review_evidence.py`
 
 **Interfaces:**
+
 - Consumes: state keys from Task 2
 - Produces: manifest fields `review_causes: list[str] | None`, `review_verdict: str | None`, `reviewer_doc_type: str | None`, `reviewer_doc_subclass: str | None`, `reviewer_confidence: float | None`, `reviewer_model: str | None`. The catalog carries them under `extracted_data["_review"]`. `serialize_document` returns them.
 
@@ -301,9 +308,11 @@ git commit -m "feat: persist review evidence and carry human overrides"
 ### Task 4: Merge upstream and refresh the vendor snapshot
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/cli.py:1287` (`_VENDOR_PINS`), `vendor/llm-mailroom/**` (generated), `governance/TASKS.md`
 
 **Interfaces:**
+
 - Consumes: merged `llm-mailroom` commit SHA
 - Produces: vendored `pipeline.decision_review` and `agents.decision_backend`
 
@@ -337,11 +346,13 @@ git commit -m "chore: vendor llm-mailroom decision reviewer"
 > **Updated 2026-10-31:** `build_backend` now accepts `jev`, `local`, `api` and `mock`. `api` requires an exact provider id such as `openai/gpt-6-luna` (no `-latest` or `~` aliases), and the Decisions API adapter described below was not built. The `local` and `api` backends run the `sorter_reviewer` agent.
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/decision_backends.py`
 - Modify: `pyproject.toml`
 - Test: `tests/test_decision_backends.py`
 
 **Interfaces:**
+
 - Consumes: `DecisionBackend`, `DecisionAnswer`
 - Produces:
   - `jev_backend(model: str = "jev-1.13.0", *, max_input_chars: int = 12000) -> DecisionBackend`
@@ -390,10 +401,12 @@ git commit -m "feat: add Jev and mock decision backends"
 > **Updated 2026-10-31:** `ReviewerSpec.backend` is `Literal["jev", "local", "api", "mock"]`. The correspondence rejection described below was removed, so `test_rejects_correspondence_for_live_backend` no longer applies. Preflight checks each route: `local` needs a `modal-vllm` or `vllm` route, and `api` needs an `openrouter` route.
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/spec.py:382,521,638`, `src/mailroom_sandbox/job/preflight.py`, `src/mailroom_sandbox/runtime.py:222` (`activate`), `src/mailroom_sandbox/experiments.py`, `src/mailroom_sandbox/cli.py`
 - Test: `tests/test_reviewer_spec.py`
 
 **Interfaces:**
+
 - Consumes: `build_backend`, `register_decision_backend`
 - Produces:
   - `ReviewerSpec(BaseModel)`: `backend: Literal["jev", "mock"]`, `model: str`, `classes: dict[str, float]` mapping class to cutoff
@@ -447,11 +460,13 @@ git commit -m "feat: freeze decision reviewer in run specs"
 ### Task 7: `sandbox review`
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/review_cli.py`
 - Modify: `src/mailroom_sandbox/cli.py`, `docs/cli-reference.md`
 - Test: `tests/test_review_cli.py`
 
 **Interfaces:**
+
 - Consumes: `GET /review/queue`, `POST /review/{doc_id}/resolve`
 - Produces:
   - `sandbox review list`
@@ -494,9 +509,11 @@ git commit -m "feat: add terminal human review"
 ### Task 8: Offline Pilot 1 through the full graph
 
 **Files:**
+
 - Create: `data/fixtures/pilot/decision_review.jsonl`, `tests/test_decision_pilot.py`, `config/experiments/decision-pilot/README.md`
 
 **Interfaces:**
+
 - Consumes: `mock_backend`, `run_pipeline`, `ReviewerSpec`, `sandbox review` resolve payload
 - Produces: `run_pilot_row(row: dict, spec: ReviewerSpec) -> dict` in `tests/test_decision_pilot.py`, with final `stage`, `review_causes`, visited nodes and LLM reviewer call count
 
@@ -541,9 +558,11 @@ git commit -m "test: add offline decision reviewer pilot"
 ### Task 9: Bounded live pilot
 
 **Files:**
+
 - Create: `config/experiments/decision-pilot/experiment.yaml`, `reports/decision-pilot/README.md`
 
 **Interfaces:**
+
 - Consumes: all earlier tasks
 - Produces: redacted run evidence and a pilot report
 

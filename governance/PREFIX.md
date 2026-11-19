@@ -1,6 +1,6 @@
 # SAND prefix cheat-sheet
 
-```
+```text
 SAND-NNN     → sandbox-isolated card on governance/TASKS.md
 DMR-NNN      → family card on the Digital-Mailroom hub board (governance/TASKS.md)
 ```

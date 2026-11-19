@@ -28,6 +28,10 @@ agent sessions that read the batch files and write submission JSONL.
     #                 overlay basis is near_gold:opus_reviewed_accept_check.
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…] [--override O.jsonl…]
+    # apply accept/correct review lines to the committed catalog in place (no label or check
+    # passes needed); the correction is gated on the corpus text as in build, and the file joins
+    # the manifest's sources.review so the next full build is given it too
+    python scripts/gold_labels.py review --corpus … --review R.jsonl…
     # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
     # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
     python scripts/gold_labels.py check
@@ -41,7 +45,10 @@ import argparse
 import collections
 import hashlib
 import json
+import os
 import sys
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -386,6 +393,44 @@ def _class_counts(data: dict[str, list[dict]]) -> dict[str, Any]:
     return counts
 
 
+@contextmanager
+def _staging(directory: Path):
+    """A temporary directory beside ``directory`` (same filesystem, so files move atomically)."""
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=directory.parent, prefix=f".{directory.name}-stage-") as tmp:
+        yield Path(tmp)
+
+
+def _snapshot(directory: Path) -> dict[str, bytes]:
+    """The bytes of ``directory``'s jsonl files and MANIFEST, for ``_restore``."""
+    owned = [*directory.glob("*.jsonl"), directory / "MANIFEST.json"] if directory.exists() else []
+    return {p.name: p.read_bytes() for p in owned if p.exists()}
+
+
+def _restore(directory: Path, snapshot: dict[str, bytes]) -> None:
+    """Put ``directory``'s jsonl files and MANIFEST back as ``snapshot`` had them."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for path in [*directory.glob("*.jsonl"), directory / "MANIFEST.json"]:
+        if path.name not in snapshot and path.exists():
+            path.unlink()
+    for name, blob in snapshot.items():
+        (directory / name).write_bytes(blob)
+
+
+def _swap_in(stage: Path, directory: Path) -> None:
+    """Replace ``directory``'s jsonl files and MANIFEST with the staged ones; restore them on failure."""
+    previous = _snapshot(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        for stale in directory.glob("*.jsonl"):
+            stale.unlink()
+        for staged in sorted(stage.iterdir()):
+            os.replace(staged, directory / staged.name)
+    except BaseException:
+        _restore(directory, previous)
+        raise
+
+
 def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str, now: str,
                        binding: dict[str, Any], args: argparse.Namespace) -> None:
     """Replace one catalog directory's jsonl files and MANIFEST."""
@@ -439,11 +484,92 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     gold, supp = gl.gold_dir(), gl.supplementary_dir()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    for directory, data, schema in ((gold, catalog, gl.SCHEMA), (supp, supplementary, gl.SUPPLEMENTARY_SCHEMA)):
-        _write_catalog_dir(directory, data, schema, now, binding, args)
+    # Build both stores beside their directories and verify the catalog there; nothing is
+    # replaced unless it passes (a near_gold value the Dojo cannot parse is refused before writing).
+    with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
+        _write_catalog_dir(gold_stage, catalog, gl.SCHEMA, now, binding, args)
+        left = gl.verify_catalog(gold_stage)
+        if left:
+            print("build refused: the built catalog fails its check; nothing was written:\n  "
+                  + "\n  ".join(left), file=sys.stderr)
+            return 1
+        _write_catalog_dir(supp_stage, supplementary, gl.SUPPLEMENTARY_SCHEMA, now, binding, args)
+        before = _snapshot(gold)
+        _swap_in(gold_stage, gold)
+        try:
+            _swap_in(supp_stage, supp)
+        except BaseException:  # the stores change together or not at all
+            _restore(gold, before)
+            raise
     print(f"catalog: {sum(len(v) for v in catalog.values())} labels; "
           f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Apply review files to the committed catalog in place, without the label and check passes.
+
+    Only ``accept`` and ``correct`` lines, each for a record no review has settled yet; a
+    correction passes the same gate as in ``build`` (on the corpus text). The file names join
+    ``sources.review`` in the manifest, so the next full ``build`` must be given them too.
+    """
+    gold = gl.gold_dir()
+    problems: list[str] = []
+    reviews = _load_reviews(args.review, problems)
+    # A problem of a record this run reviews is what the review fixes; the result is verified below.
+    problems += [p for p in gl.verify_catalog(gold) if not any(p.startswith(f"{d}.{f}:") for d, f in reviews)]
+    problems += [f"{d}.{f}: in-place review takes accept or correct, not {r['verdict']!r} (use build)"
+                 for (d, f), r in reviews.items() if r.get("verdict") not in ("accept", "correct")]
+    if problems:
+        print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    manifest = json.loads((gold / "MANIFEST.json").read_text(encoding="utf-8"))
+    data = {Path(name).stem: gl.read_jsonl(gold / name) for name in sorted(manifest["files"])}
+    index = {(r["doc_id"], r["field"]): (cls, i) for cls, recs in data.items() for i, r in enumerate(recs)}
+    _, texts = _load_corpus(Path(args.corpus))
+    for key, decision in sorted(reviews.items()):
+        if key not in index:
+            problems.append(f"{key[0]}.{key[1]}: no catalog record")
+            continue
+        cls, i = index[key]
+        rec = data[cls][i]
+        if rec.get("review"):
+            problems.append(f"{key[0]}.{key[1]}: already reviewed; change that review in its own file and rebuild")
+            continue
+        text = texts.get(rec.get("filename"))
+        if text is None or gl.doc_sha(text) != rec.get("doc_sha"):
+            problems.append(f"{key[0]}.{key[1]}: the corpus text is missing or differs from the label's")
+            continue
+        try:
+            # relabel=True: the catalog does not mark a field an --override pass relabelled, so an
+            # in-place accept always names the value it reviewed (the build replays it either way).
+            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text,
+                                         relabel=True)
+        except _BuildError as exc:
+            problems.append(str(exc))
+            continue
+        data[cls][i] = gl.apply_review(rec, resolved)
+    if problems:
+        print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    # Stage the new catalog beside the old one and verify it there; the committed files are
+    # replaced only when it passes (a failing review leaves the catalog and its reviews as they were).
+    with _staging(gold) as stage:
+        files = {f"{cls}.jsonl": gl.write_jsonl(stage / f"{cls}.jsonl", recs) for cls, recs in data.items()}
+        manifest["files"] = files
+        manifest["counts"] = _class_counts(data)
+        manifest["sources"]["review"] = sorted({*manifest["sources"].get("review", []),
+                                                *(Path(p).name for p in args.review)})
+        manifest["reviewed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        left = gl.verify_catalog(stage)
+        if left:
+            print("review refused: the reviewed catalog fails its check; nothing was written:\n  "
+                  + "\n  ".join(left), file=sys.stderr)
+            return 1
+        _swap_in(stage, gold)
+    print(f"reviewed {len(reviews)} labels in place; MANIFEST sha256 {gl.manifest_sha(gold)}")
     return 0
 
 
@@ -588,6 +714,11 @@ def main(argv: list[str] | None = None) -> int:
     bd.add_argument("--review", nargs="*")
     bd.add_argument("--override", nargs="*", help="relabel passes whose fields replace earlier label passes")
     bd.set_defaults(fn=cmd_build)
+
+    rv = sub.add_parser("review", help="apply accept/correct review files to the committed catalog in place")
+    rv.add_argument("--corpus", required=True)
+    rv.add_argument("--review", nargs="+", required=True)
+    rv.set_defaults(fn=cmd_review)
 
     ds = sub.add_parser("disputes")
     ds.add_argument("--corpus", required=True)

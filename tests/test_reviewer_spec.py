@@ -477,6 +477,25 @@ def test_frontrunner_question_set_matches_the_lineage():
         v for v in lineage["versions"] if v["version"] == lineage["frontrunner"]]
 
 
+def test_every_question_set_file_is_in_the_lineage():
+    """A question set committed without a lineage entry (4.0.0 was) is invisible to the runbook."""
+    import yaml
+
+    from mailroom_sandbox.decision_backends import decisions_dir, load_question_set
+
+    lineage = yaml.safe_load((decisions_dir() / "LINEAGE.yaml").read_text())
+    listed = {v["file"]: v for v in lineage["versions"]}
+    files = {p.name for p in decisions_dir().glob(f"{lineage['family']}_v*.yaml")}
+    assert files == set(listed)
+    for name, entry in listed.items():
+        declared = load_question_set(name.removesuffix(".yaml")).get("version")
+        assert declared in (None, entry["version"]), name  # v1 and v2 predate the version key
+        assert entry["parent"] is None or entry["parent"] in {v["version"] for v in lineage["versions"]}
+    catalog = yaml.safe_load((decisions_dir().parents[0] / "decision_models.yaml").read_text())["models"]
+    for cand in lineage.get("candidate_models") or []:
+        assert cand["id"] in catalog and catalog[cand["id"]]["canonical_slug"] == cand["canonical_slug"]
+
+
 def test_a_paid_reviewer_route_on_a_local_engine_needs_a_reviewer_block():
     """The sorter_reviewer's own openrouter route bills tokens even when the engine is local."""
     local = _spec(task="sorter_reviewer")

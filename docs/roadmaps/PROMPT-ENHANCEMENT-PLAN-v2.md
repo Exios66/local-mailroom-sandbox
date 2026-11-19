@@ -409,7 +409,7 @@ judge).
 
 ### 5.2 Fixed skeleton (all six prompts)
 
-```
+```text
 ROLE        one line: what this agent is and the single decision it makes
 SCOPE       is / is not (the look-alike classes only, one line each)
 CUES        table: subclass | title / header cues | fields to read first
@@ -592,9 +592,9 @@ hypotheses from sections 3–4 against the model's own reasoning and raw output:
 | --- | --- | --- | --- |
 | 0 — contract fixes | send the JSON schema (or coerce list nulls); drop MAUD fields from the contract schema; sorter parse error → unknown; CUAD folder alias map in eval-environment scoring; one sorter input policy; blend schema validity and guard issues into routed confidence (F7); inject the class field list into judge and arbiter calls | eval-environment, llm-mailroom (vendored), sandbox scorer | none (offline tests) |
 | 0b — re-score | re-score all logged predictions with the fixed schema handling and alias map to set the new baselines | both repos | none |
-| 1 — skeleton + cues | cue inventories and coverage test; rewrite sorter to the table form; move all six prompts to the skeleton, keeping v1-lineage subclass briefs |
+| 1 — skeleton + cues | cue inventories and coverage test; rewrite sorter to the table form; move all six prompts to the skeleton, keeping v1-lineage subclass briefs | eval-environment prompts, sandbox `config/prompts` | none until validation |
 | 1b — other nodes | fix stale "court opinion" V0 text; deduplicate V0 + doctrine per node; split boss in-graph and ops prompts; trim or class-scope the intake section map; Langfuse drift check in `sandbox health` | llm-mailroom (via monorepo), sandbox | none |
-| 1n — node evals | first scored runs for judge, arbiter and reviewer: n = 40 labelled judge/arbiter cases built from existing specialist predictions and their scores | eval-environment | small; needs approval | eval-environment prompts, sandbox `config/prompts` | none until validation |
+| 1n — node evals | first scored runs for judge, arbiter and reviewer: n = 40 labelled judge/arbiter cases built from existing specialist predictions and their scores | eval-environment | small; needs approval |
 | 1v — validate | paired n = 75 per class on Qwen3-8B-AWQ 1×L4 (Stage 10 cost ≈ $0.14 for three classes); sorter on a stratified 500-doc draw | sandbox | about $0.5–1 (estimate from SAND-032 ledgers); needs approval |
 | 2 — GEPA under new gates | compression operator, cue gate, subclass frontier, size objective | eval-environment | per GEPA budget |
 | 0c — trace review | read-only Braintrust pull of canonical specialist + sorter experiments; settle the six hypotheses in 7a | eval-environment tooling | none (needs `api.braintrust.dev` network access) |
