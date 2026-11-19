@@ -333,12 +333,14 @@ def test_noninferiority_decides_on_constructed_examples(tmp_path, split):
 
 
 def test_exact_noninferiority_floor_scales_with_n():
-    # No losses: rule of three. 20 docs cannot show a 4-point margin; 900 can show 2 points.
+    # No discordant documents: each rate is bounded at alpha/2, so 20 docs give -(1 - 0.025^(1/20)),
+    # about -17 points, and cannot show a 4-point margin; 900 docs can show 2 points.
     small = sa.exact_noninferiority([True] * 20, [True] * 20, 0.04)
-    assert small["lower95_one_sided"] == pytest.approx(-(1 - 0.05 ** (1 / 20)), abs=1e-6)
-    assert small["p_value"] == pytest.approx(0.96 ** 20) and small["p_value"] > 0.05
+    assert small["lower95_one_sided"] == pytest.approx(-(1 - 0.025 ** (1 / 20)), abs=1e-6)
+    # p inverts the bound: the smallest alpha with 1 - (alpha/2)^(1/20) < 0.04.
+    assert small["p_value"] == pytest.approx(2 * 0.96 ** 20, abs=1e-6) and small["p_value"] > 0.05
     big = sa.exact_noninferiority([True] * 900, [True] * 900, 0.02)
-    assert big["p_value"] < 1e-6 and big["lower95_one_sided"] > -0.004
+    assert big["p_value"] < 1e-6 and big["lower95_one_sided"] > -0.005
     # Losses outweighing gains are never non-inferior at a 2-point margin.
     a = [True] * 900
     b = [False] * 40 + [True] * 860
@@ -348,7 +350,38 @@ def test_exact_noninferiority_floor_scales_with_n():
     a2 = [True] * 10 + [False] * 10 + [True] * 880
     b2 = [False] * 10 + [True] * 10 + [True] * 880
     even = sa.exact_noninferiority(a2, b2, 0.02)
-    assert (even["gains"], even["losses"]) == (10, 10) and even["p_value"] < 0.001
+    assert (even["gains"], even["losses"]) == (10, 10) and even["p_value"] < 0.01
+    assert even["lower95_one_sided"] > -0.02
+
+
+def test_exact_bound_counts_the_sampling_error_in_gains():
+    # 3 gains and no losses in 50: taking 3/50 as fixed would put the bound above 0; bounding the
+    # gain rate too keeps it well below, so a few lucky gains cannot carry non-inferiority.
+    a = [False] * 3 + [True] * 47
+    b = [True] * 50
+    r = sa.exact_noninferiority(a, b, 0.02)
+    assert (r["gains"], r["losses"]) == (3, 0)
+    assert 3 / 50 - sa._cp_upper(0, 50) > 0 > r["lower95_one_sided"]
+    assert r["lower95_one_sided"] == pytest.approx(sa._cp_lower(3, 50, 0.025) - sa._cp_upper(0, 50, 0.025))
+    assert r["p_value"] > 0.05
+    # The p-value and the bound agree: non-inferior at the 5% level exactly when the bound clears -margin.
+    for gains, losses, n, margin in ((5, 2, 400, 0.02), (0, 0, 300, 0.02), (12, 9, 900, 0.02), (1, 4, 120, 0.04)):
+        a = [False] * gains + [True] * losses + [True] * (n - gains - losses)
+        b = [True] * gains + [False] * losses + [True] * (n - gains - losses)
+        r = sa.exact_noninferiority(a, b, margin)
+        assert (r["p_value"] < 0.05) == (r["lower95_one_sided"] > -margin)
+
+
+def test_runtime_throughput_counts_only_answered_documents():
+    from types import SimpleNamespace as NS
+    arm = NS(concurrency=1, run_wall_seconds=12.0)
+    ok = [NS(finished_ts=float(k + 1), latency_ms=1000.0, failed=False) for k in range(10)]
+    failed = [NS(finished_ts=None, latency_ms=None, failed=True) for _ in range(10)]
+    rt = sa._runtime(arm, ok + failed)
+    # 10 answered documents over 10 active seconds and 10 latency seconds; the failures add neither.
+    assert rt["active_seconds"] == pytest.approx(10.0)
+    assert rt["docs_per_minute"] == pytest.approx(60.0) and rt["docs_per_minute_per_worker"] == pytest.approx(60.0)
+    assert rt["hours_per_100k_docs"] == pytest.approx(100_000 / 60 / 60)
 
 
 def test_compare_is_deterministic(tmp_path, split):

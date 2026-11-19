@@ -407,7 +407,7 @@ def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
              if r.finished_ts is not None and not r.failed]
     latency_sum = sum((r.latency_ms or 0.0) for r in rows if not r.failed) / 1000.0
     active = (max(e for _, e in spans) - min(s for s, _ in spans)) if spans else None
-    n = len(rows)
+    n = sum(1 for r in rows if not r.failed)  # the answered documents the spans and latencies cover
     per_min = n / active * 60.0 if active else None
     return {
         "concurrency": arm.concurrency,
@@ -576,26 +576,55 @@ def _cp_upper(k: int, n: int, alpha: float = ALPHA) -> float:
     return hi
 
 
+def _cp_lower(k: int, n: int, alpha: float = ALPHA) -> float:
+    """One-sided Clopper-Pearson lower bound on a binomial rate after ``k`` of ``n`` (bisection)."""
+    if n <= 0 or k <= 0:
+        return 0.0
+    lo, hi = 0.0, k / n
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if 1.0 - _binom_cdf(k - 1, n, mid) < alpha:  # P(X >= k) at rate mid
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def _exact_lower(gains: int, losses: int, n: int, alpha: float) -> float:
+    """Simultaneous (Bonferroni) lower bound on gain rate minus loss rate at level 1 - alpha."""
+    return _cp_lower(gains, n, alpha / 2) - _cp_upper(losses, n, alpha / 2)
+
+
 def exact_noninferiority(ok_a: Sequence[bool], ok_b: Sequence[bool], margin: float) -> dict[str, Any]:
     """Exact floor for paired non-inferiority of B against A from the discordant pairs.
 
     A bootstrap over documents cannot see a loss it never observed: with no document where A is right
     and B wrong, every resample's difference is >= 0 and it reports p ~ 1/(B+1) whatever n is, so 20
-    agreeing documents "prove" non-inferiority as strongly as 900. Here B's per-document loss rate gets
-    a one-sided Clopper-Pearson upper bound, the lower bound on the difference is the observed gain rate
-    minus that bound, and the p-value is the chance of seeing at most the observed losses if the loss
-    rate were the gain rate plus the margin. With no losses this is the rule of three: n=20 gives a
-    lower bound near -14 points, n=900 near -0.3.
+    agreeing documents "prove" non-inferiority as strongly as 900. Here both discordant rates get a
+    one-sided Clopper-Pearson bound at alpha/2 (Bonferroni, so the two hold jointly at 95%): the lower
+    bound on the difference is the gain rate's lower bound minus the loss rate's upper bound, so the
+    sampling error in the gains counts as well as in the losses. The p-value inverts that bound: the
+    smallest alpha at which it clears -margin, so p < 0.05 exactly when the 95% bound does. With no
+    discordant documents, n=20 gives a lower bound near -17 points and n=900 near -0.4.
     """
     n = len(ok_a)
     gains = sum(1 for x, y in zip(ok_a, ok_b) if y and not x)
     losses = sum(1 for x, y in zip(ok_a, ok_b) if x and not y)
     if n == 0:
         return {"n": 0, "gains": 0, "losses": 0, "lower95_one_sided": None, "p_value": 1.0}
-    lower = gains / n - _cp_upper(losses, n)
-    null_loss_rate = min(1.0, gains / n + margin)
-    return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower,
-            "p_value": _binom_cdf(losses, n, null_loss_rate)}
+    lower = _exact_lower(gains, losses, n, ALPHA)
+    if _exact_lower(gains, losses, n, 1.0) <= -margin:
+        p_value = 1.0
+    else:
+        lo, hi = 0.0, 1.0  # the bound rises with alpha: find where it first clears -margin
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if _exact_lower(gains, losses, n, mid) > -margin:
+                hi = mid
+            else:
+                lo = mid
+        p_value = hi
+    return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower, "p_value": p_value}
 
 
 def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence[str],
