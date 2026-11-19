@@ -47,7 +47,9 @@ def _pages(path: str):
 def _project(value: str) -> str:
     if not re.fullmatch(r"(?:gh|github|bb|bitbucket)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
         raise ServiceError("project must be a VCS slug such as gh/owner/repository")
-    return value
+    vcs, owner, repo = value.split("/")
+    vcs = {"github": "gh", "bitbucket": "bb"}.get(vcs, vcs)
+    return f"{vcs}/{owner}/{repo}"
 
 
 def _uuid(value: str) -> str:

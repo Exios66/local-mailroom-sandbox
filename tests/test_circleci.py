@@ -7,7 +7,8 @@ from mailroom_sandbox.services import circleci, doctor
 from mailroom_sandbox.services._exec import ServiceError
 
 
-def test_pipeline_pagination_and_failure_filter(monkeypatch):
+@pytest.mark.parametrize("project", [circleci.DEFAULT_PROJECT, "github/Exios66/local-mailroom-sandbox"])
+def test_pipeline_pagination_and_failure_filter(monkeypatch, project):
     pipeline = "11111111-1111-1111-1111-111111111111"
     workflow = "22222222-2222-2222-2222-222222222222"
     def get(url, **kwargs):
@@ -19,7 +20,7 @@ def test_pipeline_pagination_and_failure_filter(monkeypatch):
             return {"items": [{"status": "success"}], "next_page_token": "next"}
         return {"items": [{"status": "failed", "job_number": 12}]}
     monkeypatch.setattr(circleci, "_get", get)
-    assert circleci.failed_jobs(pipeline)[0]["job_number"] == 12
+    assert circleci.failed_jobs(pipeline, project)[0]["job_number"] == 12
 
 
 def test_failed_logs_only_without_token_on_output(monkeypatch, capsys):
@@ -60,3 +61,9 @@ def test_doctor_does_not_probe_without_live(monkeypatch):
     monkeypatch.setattr(circleci, "_get", lambda *a: pytest.fail("unexpected network"))
     row = doctor._circleci(live=False)
     assert row.readiness == "configured" and "private" not in row.detail
+
+
+@pytest.mark.parametrize('value,expected', [('github/owner/repo', 'gh/owner/repo'),
+                                          ('bitbucket/owner/repo', 'bb/owner/repo')])
+def test_project_aliases_are_canonical(value, expected):
+    assert circleci._project(value) == expected
