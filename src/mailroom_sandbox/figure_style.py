@@ -283,14 +283,29 @@ def lint_paths(paths: Iterable[Path]) -> dict[str, list[str]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if not args or args[0] != "lint" or len(args) < 2:
-        print("usage: python -m mailroom_sandbox.figure_style lint <file.svg|dir> ...", file=sys.stderr)
-        return 2
+    """``lint PATH...``: check figure SVGs (files, or folders searched for ``*.svg``) against the house text rules.
+
+    Exit 0 when every figure is clean, 1 when any has a problem, 2 on a usage error, a missing
+    path or no SVG found (an empty check never passes).
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m mailroom_sandbox.figure_style",
+                                     description="Check experiment figures against the house style.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    lint = sub.add_parser("lint", help="check figure SVGs; exit 1 if any has a problem",
+                          description=" ".join(main.__doc__.replace("``", "").split()))
+    lint.add_argument("paths", nargs="+", type=Path, metavar="PATH", help="an SVG file or a folder holding SVGs")
+    args = parser.parse_args(list(sys.argv[1:] if argv is None else argv))
     paths: list[Path] = []
-    for a in args[1:]:
-        p = Path(a)
+    for p in args.paths:
+        if not p.exists():
+            print(f"figure_style lint: {p}: no such file or folder", file=sys.stderr)
+            return 2
         paths += sorted(p.rglob("*.svg")) if p.is_dir() else [p]
+    if not paths:
+        print("figure_style lint: no SVG found under " + ", ".join(map(str, args.paths)), file=sys.stderr)
+        return 2
     bad = lint_paths(paths)
     for path, probs in bad.items():
         for prob in probs:

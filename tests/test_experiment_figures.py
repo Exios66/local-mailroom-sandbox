@@ -154,6 +154,18 @@ def test_comparison_titles_state_the_finding_and_the_cost_basis():
                                         "rb1-r13b-c-dec": [0.6]})
 
 
+def test_lint_cli_refuses_an_empty_or_missing_target(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        fs.main(["lint", "--help"])
+    assert exc.value.code == 0 and "SVG file or a folder" in capsys.readouterr().out
+    assert fs.main(["lint", str(tmp_path)]) == 2  # no SVG: an empty check never passes
+    assert fs.main(["lint", str(tmp_path / "missing")]) == 2
+    assert "no SVG found" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as exc:
+        fs.main([])
+    assert exc.value.code == 2
+
+
 def test_lint_cli_reports_and_exits_nonzero(tmp_path, capsys):
     bad = tmp_path / "bad.svg"
     bad.write_text('<svg><g id="title"><text>lower case title.</text></g></svg>', encoding="utf-8")
@@ -187,7 +199,7 @@ def test_cost_direction_is_claimed_only_on_billed_costs_over_a_clean_sample():
 def test_pricing_figure_marks_each_documents_prompt_size():
     svg = cf.build(_report(), prompt_tokens={"rb1-r13b-x-llm": [5_000.0, 40_000.0],
                                              "rb1-r13b-b-dec": [6_000.0, 41_000.0]})["pricing"]
-    assert "LLM sorter documents" in svg and "Decision model documents" in svg
+    assert "LLM sorter calls" in svg and "Decision model calls" in svg
     assert fs.LLM in svg and fs.DECISION in svg
     assert fs.lint_svg(svg) == []
 

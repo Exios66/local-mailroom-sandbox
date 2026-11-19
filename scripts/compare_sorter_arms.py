@@ -20,7 +20,8 @@ from the experiment key:
     reports/campaigns/rb1/<key>-sorter-vs-decision/figures/<key>-sorter-arms.<figure>.svg
 
 The figures (``comparison_figures``: total run time, latency, quality differences against the
-margins, routing, cost against accuracy) are written with ``--write`` or to ``--figures DIR``.
+margins, routing, cost against accuracy, list pricing by prompt size) are written with ``--write``
+or to ``--figures DIR``. With ``--allow-mock`` every figure is labelled simulated.
 
 Exit 0 with a report, 2 when the runs cannot be compared.
 """
@@ -70,9 +71,26 @@ def figures(report: dict, refs: list[str], *, set_name: str | None, split_dir: P
                            confirmatory=confirmatory, allow_mock=allow_mock)
     latencies = {a.run_id: [float(a.items[i]["latency_ms"]) / 1000.0 for i in ids
                             if isinstance((a.items.get(i) or {}).get("latency_ms"), (int, float))] for a in arms}
-    prompt_tokens = {a.run_id: [float(a.items[i]["prompt_tokens"]) for i in ids
-                                if isinstance((a.items.get(i) or {}).get("prompt_tokens"), (int, float))] for a in arms}
+    prompt_tokens = {a.run_id: [size for i in ids for size in call_prompt_sizes(a.items.get(i) or {})] for a in arms}
     return comparison_figures.build(report, latencies, prompt_tokens)
+
+
+def call_prompt_sizes(item: dict) -> list[float]:
+    """Prompt tokens per model call: the size a price tier applies to.
+
+    ``call_usage`` gives each call's size; otherwise the item's total is split evenly over
+    ``llm_calls``, the average call ``job.metrics.item_calls_cost`` prices it at.
+    """
+    usage = item.get("call_usage")
+    if isinstance(usage, list) and usage:
+        return [float(pair[0]) for pair in usage
+                if isinstance(pair, (list, tuple)) and pair and isinstance(pair[0], (int, float))]
+    total = item.get("prompt_tokens")
+    if isinstance(total, bool) or not isinstance(total, (int, float)):
+        return []
+    calls = item.get("llm_calls")
+    calls = calls if isinstance(calls, int) and not isinstance(calls, bool) and calls > 1 else 1
+    return [float(total) / calls] * calls
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -549,7 +549,28 @@ def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsy
     assert "no billed cost: LLM sorter" in cost  # the LLM arm has no billed cost
     assert "Cost is not yet comparable" in cost and "more per 1,000" not in cost  # no direction from a small sample
     pricing = (figs / "rb1-r13b-sorter-arms.pricing.svg").read_text()
-    assert "LLM sorter documents" in pricing  # each document's prompt size, from the run items
+    assert "LLM sorter calls" in pricing  # each call's prompt size, from the run items
+
+
+
+def test_pricing_ticks_are_per_call_prompt_sizes():
+    assert cli.call_prompt_sizes({"prompt_tokens": 90_000, "llm_calls": 3}) == [30_000.0] * 3
+    assert cli.call_prompt_sizes({"prompt_tokens": 40_000, "llm_calls": 1}) == [40_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": 40_000}) == [40_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": 9, "call_usage": [[300_000, 5], [2_000, 1]]}) == [300_000.0, 2_000.0]
+    assert cli.call_prompt_sizes({"prompt_tokens": None}) == [] and cli.call_prompt_sizes({}) == []
+
+
+def test_cli_figures_from_mock_runs_are_labelled_simulated(tmp_path, split, capsys):
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, mock=True)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, mock=True)
+    common = ["--runs-root", str(tmp_path / "runs"), "--split-dir", str(split), "--n-boot", "50", "--n-perm", "50"]
+    figs = tmp_path / "figs"
+    assert cli.main(["--a", "A", "--b", "B", *common, "--allow-mock", "--figures", str(figs)]) == 0
+    capsys.readouterr()
+    svgs = list(figs.glob("*.svg"))
+    assert svgs and all("SIMULATED" in p.read_text() for p in svgs)
 
 
 # ---------------------------------------------------------------- held-out seal and configs

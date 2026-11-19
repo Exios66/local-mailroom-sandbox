@@ -30,7 +30,7 @@ Built by `comparison_figures.build` from `sorter_arms.compare`; written by
 | `quality` | Is the decision model non-inferior? | Forest plot: candidate minus reference, 95% paired bootstrap, dashed red margins |
 | `routing` | How many documents does each arm send to a person, and how many does it auto-route wrongly? | Stacked bars, status colours |
 | `cost-quality` | What does each arm cost for its accuracy, at this sample's length mix? | Scatter of cost per 1,000 documents against subclass-unit accuracy, direct labels, cost basis in the subtitle; billed totals when every arm has them, else list price × tokens for all; a cost direction in the title only on billed totals with n ≥ 1,000 |
-| `pricing` | What does each model charge, by prompt size? | Step line of list input price per 1M tokens against prompt tokens (log), from `config/api_prices.yaml` with its checked date; the compared documents' prompt sizes as tick rows |
+| `pricing` | What does each model charge, by prompt size? | Step line of list input price per 1M tokens against prompt tokens (log), from `config/api_prices.yaml` with its checked date; each compared call's prompt size as tick rows |
 
 Run time is only comparable at the same concurrency on the same documents; the figure says when
 concurrency differs. Cost is only comparable on the same basis and at scale: the subtitle names any arm priced from

@@ -15,7 +15,7 @@ latencies), so every number in a figure is a number in ``comparison.json``:
   comparable. A per-document cost depends on the document-length mix, so a small sample is not a
   price comparison.
 - ``pricing``: each arm's list input price per million tokens against prompt size, from
-  ``config/api_prices.yaml`` (OpenRouter's sheet), with the compared documents' prompt sizes
+  ``config/api_prices.yaml`` (OpenRouter's sheet), with each compared call's prompt size
   marked. This is the ground truth any cost figure rests on.
 
 Colour follows the system (``figure_style.SYSTEM_COLOURS``), never the arm's position.
@@ -432,7 +432,7 @@ def _pricing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
         at, ha, dx = ((xs[0], ys[0]), "left", 4) if len(set(ys)) == 1 else ((xs[-1], ys[-1]), "right", -4)
         ax.annotate(f"{name} ({fs.short_model(m)})", at, textcoords="offset points",
                     xytext=(dx, 6), ha=ha, va="bottom", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
-    # the compared documents' prompt sizes, one tick row per system
+    # each compared call's prompt size (the size a price tier applies to), one tick row per system
     systems = []
     for a in report["arms"]:
         toks = [t for t in prompt_tokens.get(a["run_id"], []) if t]
@@ -441,7 +441,7 @@ def _pricing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
             yrow = -top * (0.06 + 0.07 * (len(systems) - 1))
             ax.scatter([min(max(t, lo_x), hi_x) for t in toks], [yrow] * len(toks), marker="|", s=60,
                        linewidths=1.2, color=fs.SYSTEM_COLOURS[_system(a)], zorder=3, clip_on=False)
-            ax.annotate(f"{fs.SYSTEM_NAMES[_system(a)]} documents", (hi_x, yrow), textcoords="offset points",
+            ax.annotate(f"{fs.SYSTEM_NAMES[_system(a)]} calls", (hi_x, yrow), textcoords="offset points",
                         xytext=(-4, 0), ha="right", va="center", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
     ax.set_xscale("log")
     ax.set_xlim(lo_x, hi_x)
@@ -454,7 +454,7 @@ def _pricing(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
     fs.axis_labels(ax, "Prompt size of one call (tokens, log scale)", "Input price per 1M tokens (USD)")
     checked = _price_checked()
     sub = (f"OpenRouter list prices{', checked ' + checked if checked else ''} · output billed separately · "
-           "ticks: each document's prompt size")
+           "ticks: each call's prompt size")
     _heading(fig, ax, report, "List input price per million tokens, by prompt size", sub)
     return f.svg(fig)
 
