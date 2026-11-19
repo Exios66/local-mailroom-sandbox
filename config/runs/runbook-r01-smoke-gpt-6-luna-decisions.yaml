@@ -1,0 +1,71 @@
+# Evaluation runbook R01 (SAND-108): 10-document served-model smoke for the Decisions-API
+# model openai/gpt-6-luna-decisions (LINEAGE.yaml `model` (every reviewer_decisions version)).
+# The decision reviewer alone (task: sorter_reviewer, a calibration-shaped run that routes
+# nothing) with question set reviewer_decisions_v4.0.0, the set the runbook's decision lineage
+# starts from (decision 3), on 2 dev-look1 documents per class. OpenRouter takes no provider
+# order on the Decisions API: the pin is the dated canonical_slug in config/decision_models.yaml,
+# and each call's ledger row (call_path: decisions) is `verified` when the served model is the
+# id or that slug. Gate: at least 10 rows, all verified (scripts/check_r01_smoke.py).
+#
+# Cost: the Decisions API bills input only (0.1 USD per 1M input tokens); about
+# 292,483 input tokens (the 10 drawn documents whole, under the set's 1M-char
+# max_input_chars, at ~4 chars/token plus ~4k question tokens each) = about $0.029. Caps: api_cost_cap_usd 0.06,
+# max_wall_seconds 1800. Launch only with the owner's initials at the spend gate, from the
+# repository root:
+#   SANDBOX_SERVED_LOG=data/runtime/r01/served-gpt-6-luna-decisions.jsonl sandbox run preflight --config config/runs/runbook-r01-smoke-gpt-6-luna-decisions.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/r01/served-gpt-6-luna-decisions.jsonl sandbox run start --config config/runs/runbook-r01-smoke-gpt-6-luna-decisions.yaml --initials <XX>
+# Gate (offline, after the run):
+#   python scripts/check_r01_smoke.py --ledger data/runtime/r01/served-gpt-6-luna-decisions.jsonl --config config/runs/runbook-r01-smoke-gpt-6-luna-decisions.yaml
+schema: sandbox.run/v1
+run_id: runbook-r01-smoke-gpt-6-luna-decisions
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 2}
+      - {doc_class: corporate_record, count: 2}
+      - {doc_class: correspondence, count: 2}
+      - {doc_class: insurance_claim, count: 2}
+      - {doc_class: merger_agreement, count: 2}
+  limit: 10
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.0
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 2
+  cost_cap_usd: 0.06
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.06
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R01, decisions-api, served-model-smoke]
