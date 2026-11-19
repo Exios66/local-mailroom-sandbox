@@ -50,8 +50,50 @@ def test_find_repo_root_ignores_invalid_env_and_falls_back(tmp_path, monkeypatch
     root = repo_root()
     monkeypatch.setenv("SANDBOX_ROOT", str(tmp_path))  # not a checkout
     assert notebook.find_repo_root(root / "notebooks") == root
-    # Outside any checkout: fall back to the installed package's root.
-    assert notebook.find_repo_root(tmp_path) == notebook.paths.repo_root()
+    # Outside any checkout: the installed package's checkout, never the invalid SANDBOX_ROOT.
+    assert notebook.find_repo_root(tmp_path) == root != tmp_path
+
+
+def test_find_repo_root_without_any_checkout_uses_cwd(tmp_path, monkeypatch):
+    monkeypatch.setenv("SANDBOX_ROOT", str(tmp_path / "nowhere"))
+    monkeypatch.setattr(notebook, "_is_checkout", lambda path: False)
+    monkeypatch.chdir(tmp_path)
+    assert notebook.find_repo_root(tmp_path) == Path.cwd()
+
+
+def test_base_dir_set_only_in_dotenv_is_honoured(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"MAILROOM_BASE_DIR={tmp_path / 'elsewhere'}\n", encoding="utf-8")
+    monkeypatch.delenv("MAILROOM_BASE_DIR", raising=False)
+    monkeypatch.setattr(notebook.paths, "dotenv_files", lambda: [env_file])
+    assert notebook._absolute_base_dir(repo_root()) == (tmp_path / "elsewhere").resolve()
+    env_file.write_text("MAILROOM_BASE_DIR=./rel\n", encoding="utf-8")
+    assert notebook._absolute_base_dir(repo_root()) == (repo_root() / "rel").resolve()
+    # The kernel's own value wins over .env.
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path / "kernel"))
+    assert notebook._absolute_base_dir(repo_root()) == (tmp_path / "kernel").resolve()
+
+
+@pytest.mark.parametrize(
+    ("spec", "override", "refused"),
+    [
+        ({"name": "ollama", "base_url": "http://localhost:11434/v1"}, None, None),
+        ({"name": "ollama", "base_url": "http://ollama:11434/v1"}, None, None),
+        ({"name": "openrouter", "base_url": "https://openrouter.ai/api/v1"}, None, "openrouter.ai"),
+        ({"name": "modal-vllm"}, "https://someone--vllm.modal.run/v1", "modal.run"),
+        ({"name": "modal-vllm"}, None, "no endpoint"),
+    ],
+)
+def test_probe_refusal_allows_only_local_endpoints(monkeypatch, spec, override, refused):
+    from mailroom_sandbox import health, overlay
+
+    monkeypatch.setattr(overlay, "load_profile", lambda name: dict(spec))
+    monkeypatch.setattr(health, "_effective_base_url", lambda profile: override)
+    reason = notebook.probe_refusal(spec["name"])
+    if refused is None:
+        assert reason is None
+    else:
+        assert reason and refused in reason
 
 
 def test_bootstrap_pins_absolute_base_dir_and_offline_defaults(isolated_env, monkeypatch):
@@ -216,6 +258,18 @@ def test_check_prepared_artifacts_flags_missing_paths_and_class_drift(prepared):
     problems = notebook.check_prepared_artifacts(broken, root)
     assert "hf: no artifact path in manifest" in problems
     assert "sorter_pilot_balanced: classes differ from the fixture classes" in problems
+
+
+def test_check_prepared_artifacts_reports_malformed_rows_instead_of_crashing(prepared):
+    root = repo_root()
+    fixtures = _artifact(prepared, "fixtures")
+    lines = fixtures.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    no_id = {k: v for k, v in first.items() if k not in ("id", "filename")}
+    fixtures.write_text("\n".join([*lines, "[1, 2]", json.dumps(no_id)]) + "\n", encoding="utf-8")
+    problems = "\n".join(notebook.check_prepared_artifacts(prepared, root))
+    assert "fixtures: 1 line(s) are not JSON objects" in problems
+    assert "fixtures: row ? lacks id or filename" in problems
 
 
 def test_manifest_extractive_gold_is_grounded_in_fixture_text():

@@ -60,8 +60,10 @@ The first code cell calls `mailroom_sandbox.notebook.bootstrap()`, which:
   (Compose's `jupyter` service sets it). `.env`'s `modal-vllm` default is ignored.
 - sets mock mode, `OBSERVABILITY_PROVIDER=none` and `LOG_LEVEL=WARNING`.
 
-Eval records from notebook 03 go to `data/runtime/notebooks/experiment_log.jsonl`, not
-`reports/experiment_log.jsonl`, so mock rows never mix with real runs.
+Notebook 03 wraps its runs in `experiment_log_redirect(ctx.experiment_log)`, so their eval
+records go to `runtime/notebooks/experiment_log.jsonl` under `MAILROOM_BASE_DIR` (normally
+`data/`), not `reports/experiment_log.jsonl`, and mock rows never mix with real runs.
+`SANDBOX_NOTEBOOK_LOG` overrides the path.
 
 ## Environment switches
 
@@ -79,8 +81,8 @@ Set these before starting Jupyter (or in the Compose environment):
 ## Reading the results
 
 - **Mock scores are 1.0 by construction.** The mock sorter echoes each row's gold class,
-  and the mock pipeline uses a fake LLM with oracle routing. They check plumbing, not
-  model quality.
+  and the mock pipeline's fake LLM answers from gold. Routing stays blind (no ground truth
+  reaches the graph). They check plumbing, not model quality.
 - Compliance fixtures stop at `review` (`compliance_filing` is not in the taxonomy,
   because the compliance specialist is retired). They lower the pipeline's
   `extraction_overall` and `schema_valid_rate`.

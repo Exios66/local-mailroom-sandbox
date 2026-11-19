@@ -59,21 +59,40 @@ def _is_checkout(path: Path) -> bool:
 def find_repo_root(start: Path | None = None) -> Path:
     """Return the sandbox checkout that contains ``start`` (default: the working directory).
 
-    A valid ``SANDBOX_ROOT`` wins. Otherwise walk up from ``start``; if no ancestor is a
-    checkout, fall back to :func:`mailroom_sandbox.paths.repo_root` (the installed package).
+    A valid ``SANDBOX_ROOT`` wins. Otherwise walk up from ``start``, then from the installed
+    package; an invalid ``SANDBOX_ROOT`` is never returned. With no checkout anywhere, the
+    working directory.
     """
     env = os.environ.get("SANDBOX_ROOT")
     if env and _is_checkout(Path(env).expanduser()):
         return Path(env).expanduser().resolve()
     here = (start or Path.cwd()).expanduser().resolve()
-    for candidate in (here, *here.parents):
+    package = Path(paths.__file__).resolve()
+    for candidate in (here, *here.parents, *package.parents):
         if _is_checkout(candidate):
             return candidate
-    return paths.repo_root()
+    return Path.cwd()
+
+
+def _dotenv_value(name: str) -> str | None:
+    """``name`` from the first ``.env`` file that sets it, in the order ``activate()`` loads them."""
+    try:
+        from dotenv import dotenv_values
+
+        files = paths.dotenv_files()
+    except Exception:  # noqa: BLE001 — no python-dotenv or no checkout: nothing to read
+        return None
+    for candidate in files:
+        value = dotenv_values(candidate).get(name)
+        if value:
+            return value
+    return None
 
 
 def _absolute_base_dir(root: Path) -> Path:
-    raw = os.environ.get("MAILROOM_BASE_DIR")
+    # The kernel's environment wins, then .env, as activate() would load it: pinning the variable
+    # before activate() runs must not hide a base dir that only .env sets.
+    raw = os.environ.get("MAILROOM_BASE_DIR") or _dotenv_value("MAILROOM_BASE_DIR")
     base = Path(raw).expanduser() if raw else root / "data"
     if not base.is_absolute():
         base = root / base
@@ -276,12 +295,41 @@ def ungrounded(findings: Iterable[GroundingFinding]) -> list[GroundingFinding]:
     return [f for f in findings if f.status == UNGROUNDED]
 
 
+#: Hosts a notebook probe may call: this machine and the Compose services of the offline stack.
+LOCAL_PROBE_HOSTS: frozenset[str] = frozenset(
+    {"localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "ollama", "vllm", "llamacpp"}
+)
+
+
+def probe_refusal(profile: str) -> str | None:
+    """Why notebook 01 must not probe ``profile`` (None when its endpoint is local).
+
+    ``health_check`` sends a real chat completion, so a profile that resolves to a remote endpoint
+    (OpenRouter, a deployed Modal app) would spend from a notebook. Only a local or Compose
+    endpoint is probed; run ``sandbox health --profile <name>`` for anything else.
+    """
+    from urllib.parse import urlsplit
+
+    from mailroom_sandbox.health import _effective_base_url, missing_modal_endpoint
+    from mailroom_sandbox.overlay import load_profile
+    from mailroom_sandbox.providers import endpoints_for
+
+    spec = load_profile(profile)
+    if missing_modal_endpoint(spec):
+        return f"profile {profile!r} has no endpoint configured"
+    url = endpoints_for(spec, base_url_override=_effective_base_url(spec)).base_url
+    host = (urlsplit(str(url)).hostname or "").lower()
+    if host not in LOCAL_PROBE_HOSTS:
+        return f"profile {profile!r} resolves to {host or url!r}, not a local endpoint"
+    return None
+
+
 def _resolve(root: Path, rel: str) -> Path:
     path = Path(rel)
     return path if path.is_absolute() else root / path
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def _read_jsonl(path: Path) -> list[Any]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
@@ -317,6 +365,10 @@ def check_prepared_artifacts(manifest: dict[str, Any], root: Path | None = None)
         except json.JSONDecodeError as exc:
             problems.append(f"{key}: invalid JSONL ({exc.msg} at line {exc.lineno})")
             continue
+        objects = [row for row in rows if isinstance(row, dict)]
+        if len(objects) != len(rows):
+            problems.append(f"{key}: {len(rows) - len(objects)} line(s) are not JSON objects")
+        rows = objects
         loaded[key] = rows
         if key.startswith("agents/"):
             expected = (counts.get("agents") or {}).get(key.split("/", 1)[1])
@@ -332,11 +384,13 @@ def check_prepared_artifacts(manifest: dict[str, Any], root: Path | None = None)
     fixtures = loaded.get("fixtures")
     if fixtures is not None:
         for row in fixtures:
+            if not row.get("id") or not row.get("filename"):
+                problems.append(f"fixtures: row {row.get('id', '?')} lacks id or filename")
             if not row.get("text") or not row.get("expected_doc_class"):
                 problems.append(f"fixtures: row {row.get('id', '?')} lacks text or expected_doc_class")
         fingerprint = dataset_fingerprint(
             [
-                {"id": r["id"], "filename": r["filename"], "expected_doc_class": r["expected_doc_class"]}
+                {"id": r.get("id"), "filename": r.get("filename"), "expected_doc_class": r.get("expected_doc_class")}
                 for r in fixtures
             ]
         )

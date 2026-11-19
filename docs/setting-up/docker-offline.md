@@ -67,8 +67,10 @@ fi
 Run order, outputs and environment switches: [`notebooks/README.md`](../../notebooks/README.md).
 Prep helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environment_checklist`).
 The shared notebook bootstrap (`mailroom_sandbox.notebook.bootstrap`) pins an absolute
-`MAILROOM_BASE_DIR`, uses the `ollama` profile unless `SANDBOX_PROFILE` is set, and sends
-notebook eval records to `data/runtime/notebooks/experiment_log.jsonl`.
+`MAILROOM_BASE_DIR`, uses the `ollama` profile unless `SANDBOX_PROFILE` is set, and picks
+a notebook log, `runtime/notebooks/experiment_log.jsonl` under `MAILROOM_BASE_DIR`
+(`SANDBOX_NOTEBOOK_LOG` overrides it). Eval records go there only inside
+`experiment_log_redirect(ctx.experiment_log)`, as notebook 03 does.
 
 ## Compose profiles
 

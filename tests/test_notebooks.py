@@ -79,6 +79,7 @@ def test_notebooks_execute(tmp_path, monkeypatch):
     monkeypatch.setenv("SANDBOX_NOTEBOOK_LOG", str(tmp_path / "log" / "experiment_log.jsonl"))
     monkeypatch.setenv("SANDBOX_NOTEBOOK_LOG_VIEW", str(tmp_path / "log" / "experiment_log.jsonl"))
     monkeypatch.setenv("MPLBACKEND", "Agg")
+    monkeypatch.setenv("SANDBOX_NOTEBOOK_OBSERVABILITY", "none")  # no trace sink from the host env
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
     monkeypatch.delenv("SANDBOX_NOTEBOOK_PROBE", raising=False)
 
