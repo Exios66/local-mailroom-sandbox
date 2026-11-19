@@ -71,6 +71,12 @@ spend-guard bypass, wrong code or vendor revision, credential misrouting, simula
 output cited as evidence, resume corruption, offline paths reaching the network, and
 loosened gates. Name the guard covering each touched row, or why it does not apply;
 a new failure class gets a row in the same PR as its fix.
+For rb1 campaign changes, reviewing agents and collaborators must also read
+[`docs/campaign-preparation-regressions.md`](docs/campaign-preparation-regressions.md)
+and the linked current campaign contract. Cite applicable `CP-*` IDs, patch state,
+tested commit, expected behavior, evidence and remaining acceptance in the review.
+Prepared patches and offline checks do not close live or human gates.
+
 The same rule applies when editing an existing PR description or opening an
 issue from a conversation. If an integration adds a `User description` wrapper
 after creation, edit the body to remove it before requesting review.

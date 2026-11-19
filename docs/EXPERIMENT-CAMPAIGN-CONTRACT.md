@@ -6,6 +6,9 @@ sequential looks, calibration and the sealed confirmation. Historical SAND-032/0
 grids retain their original pins and measurements. A patch passing offline tests is not
 evidence of improved live quality.
 
+Reviewers must consult the [campaign preparation regression checklist](campaign-preparation-regressions.md)
+and cite the applicable `CP-*` IDs with their evidence and remaining acceptance.
+
 ## Dataset and truth
 
 - New campaign templates use `Lucius-Morningstar/mailroom-dataset` v9.3, tag commit

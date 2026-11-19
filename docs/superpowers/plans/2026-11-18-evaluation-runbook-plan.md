@@ -34,6 +34,9 @@ versions to DeepSeek V4.1 Flash and GLM 5.3 FlashX Legal, certify gates with one
 Clopper-Pearson bounds on calibration, then run one sealed, Holm-adjusted confirmatory
 pass on held-out.
 
+Review and handoff checklist: [campaign preparation regressions](../../campaign-preparation-regressions.md).
+Cite applicable `CP-*` IDs, tested source and remaining acceptance; preparation is not G0 sign-off.
+
 ## Hypotheses (pre-registered on sign-off)
 
 | ID | Hypothesis | Primary metric | Falsified when |
