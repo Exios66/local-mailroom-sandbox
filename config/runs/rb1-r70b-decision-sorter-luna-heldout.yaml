@@ -1,0 +1,65 @@
+# SEALED. Evaluation runbook R70b (SAND-108, hypothesis H5, confirmatory): the Decisions-API model
+# openai/gpt-6-luna-decisions as the SORTER on the sealed held-out set (1,000 docs, corpus revision bc9eab28).
+# DO NOT RUN BEFORE R70. Preflight refuses this file (heldout_seal: an exclusion file named
+# heldout.exclude.ids) unless the run id is on the sealed convention (rb1-r70*..rb1-r72*) AND the
+# shell sets SANDBOX_UNSEAL_HELDOUT=rb1-r70b-decision-sorter-luna-heldout; the owner sets it once, at R70, after G6.
+# Template for the lineage model: when R13b keeps a different finalist, copy this file with that
+# model's id, stem and price (rb1-r70b-decision-sorter-<stem>-heldout), before unsealing; the finalists (at most 2) are fixed at G6 and
+# recorded in the plan, never chosen after a held-out look.
+# Same question set as R13b (reviewer_decisions_v4.0.0, no handoff), scored by
+# scripts/compare_sorter_arms.py against R70's sorter arms, which run the same 1,000 ids:
+#   python scripts/compare_sorter_arms.py --a <R70 v0 sorter run> --b rb1-r70b-decision-sorter-luna-heldout --set heldout \
+#       --confirmatory --volume-docs-per-month 100000 --experiment-key rb1-r70b --write
+# (strata never_tuned 305 / train_untuned 695 are printed beside the primary result).
+#
+# Cost: input only (0.1 USD per 1M input tokens). About 16.4M input tokens (saved Qwen pass
+# prompt tokens for the held-out ids less ~2.3k sorter-prompt tokens each, plus ~4k question tokens
+# each) = about $1.64. Caps: api_cost_cap_usd 2.50, max_wall_seconds 7200. Launch only with the
+# owner's initials at the spend gate, from the repository root:
+#   SANDBOX_UNSEAL_HELDOUT=rb1-r70b-decision-sorter-luna-heldout SANDBOX_SERVED_LOG=data/runtime/r70b/served-luna.jsonl sandbox run preflight --config config/runs/rb1-r70b-decision-sorter-luna-heldout.yaml
+#   SANDBOX_UNSEAL_HELDOUT=rb1-r70b-decision-sorter-luna-heldout SANDBOX_SERVED_LOG=data/runtime/r70b/served-luna.jsonl sandbox run start --config config/runs/rb1-r70b-decision-sorter-luna-heldout.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: rb1-r70b-decision-sorter-luna-heldout
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  exclude_ids_file: config/splits/runbook-v1/heldout.exclude.ids
+  limit: 1000
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.0
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 2.50
+  max_wall_seconds: 7200
+  api_cost_cap_usd: 2.50
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R70b, decisions-api, decision-sorter, H5, heldout]
