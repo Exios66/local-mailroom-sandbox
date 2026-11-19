@@ -20,12 +20,30 @@ from mailroom_sandbox.services._exec import ServiceError
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
-# Canonical Hub tag ``v9.1`` (2026-09-27). This commit only records the tag;
-# the parquet row set is ``FAMILY_HF_DATA_REVISION`` (mailroom-issues#196
-# Phase B). SAND-032 run YAMLs keep the data SHA they were measured against.
-FAMILY_HF_TAG = "v9.1"
-FAMILY_HF_REVISION = "bc9eab280044befb51e19dda3071d290a8677f42"
-FAMILY_HF_DATA_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"
+# Canonical Hub tag ``v9.3`` (2026-11-06; re-pointed that day to include the merger
+# routing fix). The tag commit records the release; the ``ground_truth`` parquet was
+# last written at ``FAMILY_HF_DATA_REVISION`` (the v9.3 merger-routing amendment).
+# Rows, document_ids and text are unchanged since v9.1: the blind ``default`` parquet
+# is still the v9.1 row set (ed7576b6). v9.3 changes labels only: the v9.2.1 corporate
+# repair (entity_name, record_type, subject_matter, keywords; 12 corporate subclasses
+# reassigned), per-subclass corporate ``gt_presence`` keys, merger agreements routed to
+# ``merger_agreement_specialist``, six-regime ``annotation_method``, and the
+# build-internal ``_published`` column removed.
+FAMILY_HF_TAG = "v9.3"
+FAMILY_HF_REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
+FAMILY_HF_DATA_REVISION = "7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5"
+# Superseded pins, tag -> (tag commit, parquet parent). Run YAMLs, locks, reports and
+# label campaigns measured on them keep naming them; never rewrite those to the current
+# pin (scores are only comparable on the same label revision).
+LEGACY_FAMILY_HF_REVISIONS: dict[str, tuple[str, str]] = {
+    "v9.1": ("bc9eab280044befb51e19dda3071d290a8677f42", "ed7576b676343e0b402ec5412cded301e629bdee"),
+}
+# Every revision a family artifact may legitimately name: the current pair plus the
+# superseded ones. Use it to check recorded provenance, never to pick a revision.
+KNOWN_FAMILY_HF_REVISIONS: frozenset[str] = frozenset(
+    (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION,
+     *(sha for pair in LEGACY_FAMILY_HF_REVISIONS.values() for sha in pair))
+)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302

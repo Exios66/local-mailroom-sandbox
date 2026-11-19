@@ -41,7 +41,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: all
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
   sample_seed: 3302          # one seed for every slice, so the draws nest
   require_task_gt: true     # every document can be scored
   interim_labels: true      # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)

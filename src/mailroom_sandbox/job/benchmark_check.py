@@ -23,6 +23,7 @@ from mailroom_sandbox.job.spec import (
     FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
     HF_DEFAULT_REPO,
+    LEGACY_FAMILY_HF_REVISIONS,
     RunSpec,
 )
 from mailroom_sandbox.modernbert import feeder_status
@@ -50,10 +51,14 @@ BENCHMARK_EXPECTED = {
     "concurrency": 4,
     "profile": "modal-vllm",
     "app": "sandbox-vllm",
-    # Canonical Hub tag v9.1, plus the parquet parent the measured SAND-032
-    # YAMLs still name. The docs commit does not change the row set.
+    # Current Hub tag and its parquet parent, plus the superseded v9.1 pair that the
+    # measured SAND-032 YAMLs still name (same rows and text; serving measurements only).
     "revision": FAMILY_HF_REVISION,
-    "accepted_revisions": (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION),
+    "accepted_revisions": (
+        FAMILY_HF_REVISION,
+        FAMILY_HF_DATA_REVISION,
+        *(sha for pair in LEGACY_FAMILY_HF_REVISIONS.values() for sha in pair),
+    ),  # == KNOWN_FAMILY_HF_REVISIONS, current pin first
     "repo": HF_DEFAULT_REPO,
     "limit": 30,
 }

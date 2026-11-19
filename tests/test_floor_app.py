@@ -153,7 +153,7 @@ REPLAY_RUN = floor_app.replay_base() / "runtime" / "runs" / floor_app.REPLAY_RUN
 
 def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
     """The sample covers all five classes, stays text-free, and its trace names every row."""
-    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+    from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS
 
     dataset_text = (REPLAY_RUN / "dataset.jsonl").read_text(encoding="utf-8")
     dataset = [json.loads(line) for line in dataset_text.splitlines()]
@@ -167,7 +167,8 @@ def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
     assert "/home/" not in dataset_text and "C:\\Users\\" not in dataset_text
 
     lock = json.loads((REPLAY_RUN / "spec.lock.json").read_text(encoding="utf-8"))
-    assert lock["dataset"]["revision"] == FAMILY_HF_REVISION
+    # A recorded replay keeps the revision it ran on (v9.1); never restamp it to the current pin.
+    assert lock["dataset"]["revision"] == LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
     assert lock["dataset"]["sha256"] == hashlib.sha256((REPLAY_RUN / "dataset.jsonl").read_bytes()).hexdigest()
     assert lock["engine"]["kind"] == "replay"
 

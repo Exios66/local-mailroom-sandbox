@@ -1,4 +1,4 @@
-"""Chunked ground-truth labeling for mailroom-dataset Hub tag v9.1.
+"""Chunked ground-truth labeling for the family-pinned mailroom-dataset Hub tag.
 
 The labeler fills unfinished fields only. Golden CUAD clause maps and golden
 MAUD clause maps are never requested. One invocation submits one chunk: at
