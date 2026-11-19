@@ -87,6 +87,7 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 .venv/bin/sandbox run gate --run-id production-slice-0100-r3 --prev-run-id production-slice-0100-r2
 ```
 
+- **Label revision:** r3 runs on Hub tag v9.3 and r2 ran on v9.1. The slice draws the same 100 documents in the same order on both, but the 14 corporate records carry repaired labels (`keywords`, `subject_matter`, `entity_name`, `gt_presence`, `record_type`). `run gate --prev-run-id` therefore reports `re-run labels differ on 14 document(s)` and fails the paired check. Read the other 86 documents as the paired comparison, or re-score r2 on v9.3 first (Q3 step 3).
 - **What to expect:** even with every fix layered on, the r2 counterfactual stays near 0.40 wrong archives. That is far above the 0.02 bar. What remains is contract clause recall and insurance free-text fields just under 0.90, so r3 measures progress; it will not pass.
 
 ## Blocked on other work
