@@ -1050,3 +1050,38 @@ def test_build_restores_the_catalog_when_the_supplementary_swap_fails(cli, monke
     with pytest.raises(OSError):
         _built(cli, RECIPIENT, DISPUTE_CHECK)
     assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before
+
+
+def test_review_command_replaces_a_review_only_when_the_line_names_it(cli, capsys):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    gold = tmp / "gold"
+    first = {"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS, "note": "the To line",
+             "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}
+    unreviewed = write("unrev.jsonl", [{**first, "supersedes": {"verdict": "accept", "value": "John Doe"}}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", unreviewed]) == 1
+    assert "does not have" in capsys.readouterr().err
+    assert mod.main(["review", "--corpus", "ignored", "--review", write("first.jsonl", [first])]) == 0
+    before = (gold / "correspondence.jsonl").read_text()
+    second = {**first, "note": "a later reading", "entry": {"value": None, "absent": "no addressee in the top note"}}
+    stale = write("stale.jsonl", [{**second, "supersedes": {"verdict": "accept", "value": "John Doe"}}])
+    capsys.readouterr()
+    for path, message in ((write("bare.jsonl", [second]), "already reviewed"), (stale, "re-review it")):
+        assert mod.main(["review", "--corpus", "ignored", "--review", path]) == 1
+        assert message in capsys.readouterr().err
+    assert (gold / "correspondence.jsonl").read_text() == before
+    named = write("named.jsonl", [{**second, "supersedes": {"verdict": "correct", "value": "John Doe"}}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", named]) == 0
+    rec = next(r for r in gl.read_jsonl(gold / "correspondence.jsonl") if r["field"] == "recipient")
+    assert rec["value"] is None and rec["review"]["note"] == "a later reading"
+    assert rec["review"]["supersedes"]["value"] == "John Doe" and rec["review"]["supersedes"]["note"] == "the To line"
+    assert gl.verify_catalog(gold) == []
+
+
+def test_build_lets_a_superseding_review_win_over_the_one_it_names(cli):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    one = {"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}
+    later = {**one, "verdict": "reject", "supersedes": {"verdict": "accept", "value": "John Doe"}}
+    assert build("--label", lab, "--review", write("rv.jsonl", [one]), write("rv2.jsonl", [later])) == 0
+    assert not [r for r in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl") if r["field"] == "recipient"]

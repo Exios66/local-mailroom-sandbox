@@ -31,6 +31,7 @@ agent sessions that read the batch files and write submission JSONL.
     # apply accept/correct review lines to the committed catalog in place (no label or check
     # passes needed); the correction is gated on the corpus text as in build, and the file joins
     # the manifest's sources.review so the next full build is given it too
+    # a line for an already reviewed record must name that review: "supersedes": {"verdict", "value"}
     python scripts/gold_labels.py review --corpus … --review R.jsonl…
     # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
     # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
@@ -297,7 +298,14 @@ def _load_reviews(paths: list[str], problems: list[str]) -> dict[tuple[str, str]
             problems += _review_line_problems(where, r)
             key = (r["doc_id"], r["field"])
             if key in reviews:
-                problems.append(f"{where}: duplicate review for {r['doc_id']}.{r['field']} (in {path})")
+                # A line that names the review it replaces ("supersedes") wins over that review.
+                if "supersedes" in r and "supersedes" not in reviews[key]:
+                    reviews[key] = r
+                elif "supersedes" in reviews[key] and "supersedes" not in r:
+                    pass
+                else:
+                    problems.append(f"{where}: duplicate review for {r['doc_id']}.{r['field']} (in {path})")
+                continue
             reviews[key] = r
     return reviews
 
@@ -507,11 +515,32 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _supersedes_problem(rec: dict, decision: dict) -> str | None:
+    """Why an in-place review line cannot settle ``rec`` (None: it can).
+
+    A record no review has settled takes a plain line. A reviewed record is changed only by a
+    line whose ``supersedes`` names the earlier review's verdict and the value it settled, so a
+    second decision never lands on a label by accident and a stale replacement is refused.
+    """
+    earlier = rec.get("review")
+    named = decision.get("supersedes")
+    if not earlier:
+        return "supersedes a review the record does not have" if named is not None else None
+    if named is None:
+        return ("already reviewed; replace that review with a line whose \"supersedes\" names its "
+                "verdict and value")
+    if not isinstance(named, dict) or named.get("verdict") != earlier.get("verdict") or named.get("value") != rec.get("value"):
+        return (f"supersedes names {named!r}, but the record's review is {earlier.get('verdict')!r} "
+                f"with value {rec.get('value')!r}; re-review it")
+    return None
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     """Apply review files to the committed catalog in place, without the label and check passes.
 
-    Only ``accept`` and ``correct`` lines, each for a record no review has settled yet; a
-    correction passes the same gate as in ``build`` (on the corpus text). The file names join
+    Only ``accept`` and ``correct`` lines, each for a record no review has settled yet, or with
+    ``"supersedes": {"verdict", "value"}`` naming the review it replaces (kept under
+    ``review.supersedes``); a correction passes the same gate as in ``build`` (on the corpus text). The file names join
     ``sources.review`` in the manifest, so the next full ``build`` must be given them too.
     """
     gold = gl.gold_dir()
@@ -534,8 +563,10 @@ def cmd_review(args: argparse.Namespace) -> int:
             continue
         cls, i = index[key]
         rec = data[cls][i]
-        if rec.get("review"):
-            problems.append(f"{key[0]}.{key[1]}: already reviewed; change that review in its own file and rebuild")
+        earlier = rec.get("review")
+        why = _supersedes_problem(rec, decision)
+        if why:
+            problems.append(f"{key[0]}.{key[1]}: {why}")
             continue
         text = texts.get(rec.get("filename"))
         if text is None or gl.doc_sha(text) != rec.get("doc_sha"):
@@ -550,6 +581,8 @@ def cmd_review(args: argparse.Namespace) -> int:
             problems.append(str(exc))
             continue
         data[cls][i] = gl.apply_review(rec, resolved)
+        if earlier:  # keep the review this one replaced, with the value it had settled
+            data[cls][i]["review"]["supersedes"] = {**earlier, "value": rec.get("value")}
     if problems:
         print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
