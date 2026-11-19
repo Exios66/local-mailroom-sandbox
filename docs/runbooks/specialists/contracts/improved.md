@@ -4,7 +4,7 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-# AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
+## AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
 
 **id:** `improved-awq` · **family:** `improved` · **serving:** `awq-16k`
 
@@ -12,7 +12,7 @@ Optional cost-saver. Official Qwen3-8B AWQ is a drop-in Hub id. The DMR-068 accu
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -27,23 +27,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `awq` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-contracts-awq.yaml`
 
-## Notes
+### Notes
 
 - Keep run-30-*-specialist.yaml on bf16 Qwen3-8B. Copy a YAML if an alternate scorecard needs matching engine.model.
 - benchmark-check accepts AWQ as a warning, not an error.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
@@ -96,7 +96,7 @@ sandbox run start --config config/runs/legacy/run-20-contracts-awq.yaml --job-mo
 
 ---
 
-# 1×A100-40GB Qwen3-14B-AWQ isolated sorter n=400 (C=32)
+## 1×A100-40GB Qwen3-14B-AWQ isolated sorter n=400 (C=32)
 
 **id:** `a100-qwen3-14b-awq-sorter400` · **family:** `improved` · **serving:** `awq-14b-a100`
 
@@ -104,7 +104,7 @@ Isolated SorterAgent eval (not a specialist extract). Official Qwen/Qwen3-14B-AW
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show a100-qwen3-14b-awq-sorter400`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -119,23 +119,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml`
 
-## Notes
+### Notes
 
 - CLI: shared flags such as --profile work before or after subcommands; the later occurrence wins. Never paste unicode ellipsis into commands.
-- Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (http://127.0.0.1:8765/) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
+- Pretty logs: open sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml in a second pane (<http://127.0.0.1:8765/>) BEFORE sandbox run start. start --watch is the CLI session layer only and does not tail Modal dispatch logs.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml)"; set +a. Then download_model and modal deploy --strategy recreate once.
 - benchmark-check is skipped (L4 specialist gate). Engine pins are still catalog-asserted against the run YAML.
 - Trace sink is none so preflight is not blocked without Langfuse keys. Family default remains Langfuse when LANGFUSE_* are set; flip spec.trace.sink to langfuse then re-preflight. Keep PHOENIX_TRACING=disabled unless the Phoenix extra is installed.
 
-## Purpose
+### Purpose
 
 Run a **400-document isolated sorter** eval on a **higher-parameter Qwen 3** than the L4 8B-AWQ baseline, with AWQ weights, A100 serving, C=32 continuous batching, KV + CUDA-graph optimizations, and one warm replica.
 
-## Model choice
+### Model choice
 
 | Option | Hub id | GPU SKU | Verdict |
 | --- | --- | --- | --- |
@@ -145,7 +145,7 @@ Run a **400-document isolated sorter** eval on a **higher-parameter Qwen 3** tha
 
 14B-AWQ is the matrix row default GPU **L4** (it fits). This runbook **overrides to A100-40GB** so C=32 has KV headroom. Do not flip the L4 8B specialist suite.
 
-## Serving knobs
+### Serving knobs
 
 | Knob | Value | Why |
 | --- | --- | --- |
@@ -167,7 +167,7 @@ Run a **400-document isolated sorter** eval on a **higher-parameter Qwen 3** tha
 | `max_tokens` / `max_input_chars` | `2048` / `12000` | Overlay sorter caps; hard retry cap `job.max_retries: 2` |
 | `job.concurrency` | `32` | Default JobSpec C=4 starves dispatch; size C to A100 decode, not L4 c=8 |
 
-## Dataset and prompt
+### Dataset and prompt
 
 | Item | Pin |
 | --- | --- |
@@ -176,7 +176,7 @@ Run a **400-document isolated sorter** eval on a **higher-parameter Qwen 3** tha
 | Corpus | `Lucius-Morningstar/mailroom-dataset` @ `ed7576b676343e0b402ec5412cded301e629bdee`, `split: train`, seed 42 |
 | n | 400 proportional to train mix (132/123/73/54/18) |
 
-## Cost estimate (do not treat as a live invoice)
+### Cost estimate (do not treat as a live invoice)
 
 Rates from `deploy/README.md` (modal.com/pricing, verified 2026-09-09) and `src/mailroom_sandbox/job/metrics.py`: **A100-40GB = $2.10/hr** ($0.000583/s). Formula from `docs/RUN-COST-DERIVATION.md`: Modal bills container-seconds, not tokens. `download_model` is CPU-only.
 
@@ -196,7 +196,7 @@ Token-proxy (same OpenRouter Qwen-flash map as `Qwen/Qwen3-14B-AWQ`, $0.03/$0.13
 
 Extrapolation: linear in N at fixed C if KV stays below cliff. Doubling N ≈ doubles warm GPU-hours; do **not** add a second A100 unless queueing is measured (`max_containers=1`).
 
-## Pretty logging
+### Pretty logging
 
 ```bash
 sandbox watch --web --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.yaml
@@ -206,7 +206,7 @@ sandbox run start --config config/runs/legacy/run-400-sorter-qwen3-14b-awq-a100.
 
 See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
 
-## Failure modes
+### Failure modes
 
 | Symptom | Likely cause | Mitigation |
 | --- | --- | --- |
@@ -220,18 +220,18 @@ See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_l
 | Starved GPU | JobSpec default C=4 | This YAML pins C=32 |
 | Second cold boot | `modal deploy --strategy recreate` mid-run or scaledown 120 with min=0 | Deploy once; min_containers=1; teardown only at end |
 
-## Stretch 32B (not the start config)
+### Stretch 32B (not the start config)
 
 Copy the YAML, set `engine.model: Qwen/Qwen3-32B-AWQ`, `modal.gpu: A100-80GB`, raise `cost_cap_usd` to 5.0. Expect ~1.2× $/hr ($2.50 vs $2.10) plus slower decode. Verify KV after `/health`.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # 1×A100-40GB Qwen3-14B-AWQ isolated sorter n=400 (C=32)
@@ -292,7 +292,7 @@ modal billing summary
 
 ---
 
-# AWQ + 32768 + concurrency 8 (contracts N=20)
+## AWQ + 32768 + concurrency 8 (contracts N=20)
 
 **id:** `improved-awq-c8` · **family:** `improved` · **serving:** `awq-32k`
 
@@ -300,7 +300,7 @@ SAND-019 corrected contracts path. Window 32768 clears the 16k 400; run-scoped m
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq-c8`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -315,18 +315,18 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `awq` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-contracts-awq-c8.yaml`
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # AWQ + 32768 + concurrency 8 (contracts N=20)
@@ -381,7 +381,7 @@ sandbox run start --config config/runs/legacy/run-20-contracts-awq-c8.yaml --job
 
 ---
 
-# AWQ 32768 correspondence N=20 (concurrency 5)
+## AWQ 32768 correspondence N=20 (concurrency 5)
 
 **id:** `improved-correspondence-awq` · **family:** `improved` · **serving:** `awq-32k`
 
@@ -389,7 +389,7 @@ SAND-019 short-doc AWQ path. Same 1×L4 / 1-container topology.
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -404,18 +404,18 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `awq` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-correspondence-awq.yaml`
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # AWQ 32768 correspondence N=20 (concurrency 5)
@@ -466,7 +466,7 @@ sandbox run start --config config/runs/legacy/run-20-correspondence-awq.yaml --j
 
 ---
 
-# AWQ 32768 correspondence N=20 (concurrency 8)
+## AWQ 32768 correspondence N=20 (concurrency 8)
 
 **id:** `improved-correspondence-awq-c8` · **family:** `improved` · **serving:** `awq-32k`
 
@@ -474,7 +474,7 @@ Same seed-42 correspondence draw as improved-correspondence-awq (fingerprint 285
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq-c8`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -489,18 +489,18 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `awq` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-correspondence-awq-c8.yaml`
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # AWQ 32768 correspondence N=20 (concurrency 8)
@@ -551,7 +551,7 @@ sandbox run start --config config/runs/legacy/run-20-correspondence-awq-c8.yaml 
 
 ---
 
-# FP16 isolation twin of correspondence AWQ-c8
+## FP16 isolation twin of correspondence AWQ-c8
 
 **id:** `improved-correspondence-fp16-c8` · **family:** `improved` · **serving:** `baseline`
 
@@ -561,7 +561,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 > **BLOCKED:** spend/auth not approved (issue
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -576,23 +576,23 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/legacy/run-20-correspondence-fp16-c8.yaml`
 
-## Notes
+### Notes
 
 - Confirm lock fingerprint 285f423d3708 before scoring.
 - Prompt pin is correspondence_specialist_production (isolation twin), not the simplified catalog stem.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # FP16 isolation twin of correspondence AWQ-c8
@@ -643,7 +643,7 @@ sandbox run start --config config/runs/legacy/run-20-correspondence-fp16-c8.yaml
 
 ---
 
-# Granite 4.2-8B FP8 on 1×L4 (SAND-027 Leg A swap-in)
+## Granite 4.2-8B FP8 on 1×L4 (SAND-027 Leg A swap-in)
 
 **id:** `improved-granite-fp8` · **family:** `improved` · **serving:** `granite-fp8`
 
@@ -651,7 +651,7 @@ Same singular L4 / 1-container topology as the Qwen baseline, swapped to ibm-gra
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -666,7 +666,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `compressed-tensors` |
 | prefix caching / eager | `1 / 1` |
 
-## Suite `run-30-specialists-full` (track=full)
+### Suite `run-30-specialists-full` (track=full)
 
 Single operator — all five run-30 specialists (alternative to A∥B)
 
@@ -682,14 +682,14 @@ Ordered configs:
 4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
-## Deploy smoke
+### Deploy smoke
 
 - Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
 - Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
 - One structured-output json_object completion succeeds
 - Thinking spans are separable (native `granite` parser on v0.29.0; `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
 
-## Notes
+### Notes
 
 - sandbox run benchmark-check accepts the five run-20-*-granite 1×L4 pinned configs (GRANITE_ONE_GPU_RUNS); Qwen defaults unchanged.
 - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.
@@ -697,14 +697,14 @@ Ordered configs:
 - OpenRouter twin id is ibm-granite/granite-4.2-8b (same string as the HF bf16 repo). Reports must say the Modal leg served -fp8.
 - Live deploy + H5 tag decision remain SAND-027-6; this runbook is the operator path, not an authorization to spend.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Granite 4.2-8B FP8 on 1×L4 (SAND-027 Leg A swap-in)
@@ -758,7 +758,7 @@ sandbox health --profile modal-vllm
 
 ---
 
-# Second L4 — data parallel (still 1 GPU / container)
+## Second L4 — data parallel (still 1 GPU / container)
 
 **id:** `improved-second-l4` · **family:** `improved` · **serving:** `second-l4-dp`
 
@@ -766,7 +766,7 @@ Raise MAX_CONTAINERS to 2. Each replica is a full vLLM on its own L4 with the ba
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-second-l4`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -781,7 +781,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Suite `run-30-specialists-full` (track=full)
+### Suite `run-30-specialists-full` (track=full)
 
 Single operator — all five run-30 specialists (alternative to A∥B)
 
@@ -797,19 +797,19 @@ Ordered configs:
 4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
-## Notes
+### Notes
 
 - Per-replica max_num_seqs stays 6 (total admission ≈ 8–12).
 - Doubles $/hr while warm. Only raise after measured queueing.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # Second L4 — data parallel (still 1 GPU / container)
@@ -870,7 +870,7 @@ done
 
 ---
 
-# L4 scale-matrix cells (not the singular 1-container path)
+## L4 scale-matrix cells (not the singular 1-container path)
 
 **id:** `improved-scale-matrix` · **family:** `improved` · **serving:** `scale-short-doc`
 
@@ -878,7 +878,7 @@ DMR-068 / SAND-022 throughput protocol. These cells pin replica fleets (often 4�
 
 Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-scale-matrix`.
 
-## Pins (from catalog serving variant)
+### Pins (from catalog serving variant)
 
 | Knob | Value |
 | --- | --- |
@@ -893,7 +893,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 | quantization | `(none)` |
 | prefix caching / eager | `1 / 1` |
 
-## Configs
+### Configs
 
 - `config/runs/scale/scale-c1-4xl4-c16.yaml`
 - `config/runs/scale/scale-d1-awq-4xl4-c16.yaml`
@@ -901,21 +901,21 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 - `config/runs/scale/scale-f1-qwen35-9b-fp8-4xl4-c16.yaml`
 - `config/runs/scale/scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml`
 
-## Notes
+### Notes
 
 - See docs/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
 - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
 - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
 - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.
 
-## Do not
+### Do not
 
 - Share one Modal token / ~/.modal.toml profile across operators
 - Tear down or modal deploy --strategy recreate between classes on one track
 - Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
 - Edit run-30-*-specialist.yaml for a one-off model swap
 
-## Operator script
+### Operator script
 
 ```bash
 # L4 scale-matrix cells (not the singular 1-container path)

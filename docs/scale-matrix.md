@@ -62,7 +62,7 @@ out-tokens/call, 5 calls/doc): `T = D×5×2048 / (R×g)` with g = 12 tok/s bf16
 | C1 | 4 | 16 | 6 | 12 bf16 | 0.4 h | $1.94 |
 | C2 | 4 | 32 | 12 | 13.8 bf16 | 0.6 h | $2.78 |
 | **D1 AWQ** | 4 | 16 | 6 | 24 awq | 0.2 h | $1.37 |
-| Σ (baseline) | | | | | | | **$13.08** (≤ $15; ~$3.3 if avg out ≈ 512 tok) |
+| Σ (baseline) | | | | | | **$13.08** (≤ $15; ~$3.3 if avg out ≈ 512 tok) |
 
 ### SAND-022 incremental cells (execution pending spend)
 
@@ -75,7 +75,7 @@ $0.80/GPU-hr (+ region multiplier unless pinned).
 | **E1 FP8-L4** | 4×1×L4 | 16 | 6 | 22 fp8 (native Ada) | 0.2 h | $1.37 |
 | **F1 Qwen3.5-9B FP8** | 4×1×L4 | 16 | 6 | TBD (hybrid arch) | 0.2 h | $1.37 |
 | **G1 Qwen3.5-35B TP2** | 1×L4:2 (`tp_size=2`) | 16 | 6 | TBD (PCIe TP) | 0.4 h | $0.69 |
-| Σ (incremental) | | | | | | | **~$3.43** (deferred) |
+| Σ (incremental) | | | | | | **~$3.43** (deferred) |
 
 Exemplar specs shipped (baseline): `scale-c1-4xl4-c16.yaml` (bf16 baseline
 cell) and `scale-d1-awq-4xl4-c16.yaml` (the A/B delta — quant is the ONLY

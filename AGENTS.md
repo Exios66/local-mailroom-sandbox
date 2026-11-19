@@ -307,11 +307,21 @@ and serial/parallel benchmarks belong in CI; do not repeat them locally just
 to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
 first, then run a bounded local reproduction only when needed.
 
-CircleCI currently runs lint, the full pytest suite (4 parallel containers) and a
-combined coverage gate, plus reports-hub snapshot and requirements checks. There are no dedicated full-corpus campaign
+CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
+markdownlint), a `checks` job for committed generated files (reports hub,
+requirements mirrors, CLI reference, runbook docs), the full pytest suite (4 parallel
+containers) and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending
 or unverified until evidence exists. Passing ordinary CI does not certify it.
+
+Markdown follows `.markdownlint-cli2.yaml` (all rules on except line length and
+first-line heading; its header gives the reasons). Run
+`npx --yes markdownlint-cli2@0.18.1` before pushing doc changes. Edit
+`docs/runbooks/` through `config/runbooks/catalog.yaml` and `sandbox runbook write`,
+never by hand. GFM traps the linter catches: a wrapped line starting `#123` becomes
+a heading, a `|` inside a table code span needs `\|`, and a bare `<placeholder>`
+outside backticks is dropped as HTML.
 
 The complete CI suite and coverage gate remain required before merging. Verify
 checks against the current PR head SHA, inspect failures, and wait for pending

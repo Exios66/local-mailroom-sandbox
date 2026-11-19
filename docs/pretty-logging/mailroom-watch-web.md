@@ -32,7 +32,7 @@ sandbox tui
 sandbox experiment watch --config config/experiments/my-study/experiment.yaml
 ```
 
-Default URL: **http://127.0.0.1:8765/** — live JSON via **SSE** at `/api/stream`; snapshot at `/api/state`.
+Default URL: **<http://127.0.0.1:8765/>** — live JSON via **SSE** at `/api/stream`; snapshot at `/api/state`.
 
 The browser is the **Tray TUI**: per-job subtitle/route from `spec.lock.json` and a `Tray TUI watcher · <profile> · <job.mode>` status line. A replay strip shows the lifecycle lanes and a document timeline (it pulses only while the run is active). The route and run manifest lines sit in the collapsed **Run route and campaign details** section. The Dispatch log tails the Modal serve stream only when the lock has an `engine.modal` block, plus the `sandbox-job` worker when `job.mode=modal`, merged with `job:` event lines; API-only runs show local job events only. `sandbox pipeline watcher` is a different surface (mailroom inbox drain), not this viewer.
 

@@ -37,7 +37,7 @@ and `vendor/llm-dojo-scoring`, at the commits recorded in each `VENDOR.md`) — 
 
 ## 1. The command surface at a glance
 
-```
+```text
 sandbox up | down | health | pull-models | fetch-deps | cutover
        | agents list|show | pipeline watcher|api
        | pilot | hf-pilot
@@ -51,7 +51,7 @@ sandbox up | down | health | pull-models | fetch-deps | cutover
 
 Shared flags (accepted before or after subcommands — see §2):
 
-```
+```text
 --profile NAME         # SANDBOX_PROFILE env works too
 --model TAG            # override EVERY agent's model
 --agent-model NAME=TAG # surgical per-agent override (repeatable, wins last)
@@ -240,6 +240,7 @@ modal app logs -f sandbox-vllm
 ## 11. Canonical workflows
 
 **Offline smoke (CI / no LLM / no network):**
+
 ```bash
 pip install -e ".[dev]" && sandbox datasets prepare \
   && sandbox pilot --mock && sandbox eval sorter --mock \
@@ -247,6 +248,7 @@ pip install -e ".[dev]" && sandbox datasets prepare \
 ```
 
 **Modal remote GPU (default profile):**
+
 ```bash
 pip install -e ".[deploy]" && modal token new
 sandbox runbook show serve        # the full lifecycle script (prewarm → deploy → point → verify → teardown)
@@ -258,6 +260,7 @@ sandbox health && sandbox run start --config … --job-mode modal
 ```
 
 **Local Ollama (offline opt-out):**
+
 ```bash
 SANDBOX_PROFILE=ollama sandbox up -d --compose-profile ollama
 sandbox pull-models --profile ollama && sandbox health --profile ollama \

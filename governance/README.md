@@ -20,7 +20,7 @@ Legacy `SANDBOX-050-*` mission cards are archived under
 
 ## Card ID format
 
-```
+```text
 SAND-<NNN>           # primary card (zero-padded, sequential)
 SAND-<NNN>-<k>       # optional sub-card of a mission epic
 ```

@@ -83,6 +83,7 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 ## Tasks — Phase 0
 
 ### Task 1: Freeze the split (R00)
+
 **Files:** `config/splits/families.yaml`, `config/splits/runbook-v1/*`
 
 - [ ] Review the family groupings (`licensing_ip` is a pooled group of 29 docs; `stock_or_mixed` is scored at 38)
@@ -91,6 +92,7 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 - [ ] Commit `config/splits/runbook-v1` (gate: split hashes committed)
 
 ### Task 2: Pin models and providers (R01)
+
 **Files:** `config/provider_pins.yaml`, `config/decision_models.yaml`, `config/api_prices.yaml`
 
 - [ ] `python scripts/refresh_provider_pins.py` → choose `order` per chat model (public GET, no spend)
@@ -101,12 +103,14 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 - [ ] The LangChain contract and merger agents are not wrapped (finding 13): pin them through their route's `model_kwargs` and record their served provider, or leave those agents out of the smoke and log the gap as a deviation. The gate stays blocked for a model whose calls go only through an uncovered path
 
 ### Task 3: Scoring harness check (R02)
+
 **Files:** `src/mailroom_sandbox/experiment_stats.py`, a 20-doc hand-check sheet under `reports/`
 
 - [ ] Hand-score 20 docs (class, subclass family, fields) and compare with the Dojo scorer output
 - [ ] Gate: scorers reproduce the hand-checked results on all 20
 
 ### Task 4: Gold-label audit (R03)
+
 **Files:** `data/labels/review/` (new labels version if gold is wrong on >15%)
 
 - [ ] v0 passes on dev, one per audited lineage (needs initials; see finding 2): the sorter at its production prompt, and each specialist lineage at the starting stem named for it under finding 4. A lineage without a named stem is not audited until it has one
@@ -114,6 +118,7 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 - [ ] Owner: build `decisions.jsonl` into the gold catalogs and settle the open `VALIDATION.md` decisions (finding 17); then `sandbox schemas build` and commit the registry
 
 ### Task 5: G0 checkpoint
+
 - [ ] QC → REVIEW → STOP: the split audit passes, the R01 smoke gate passes for every smoke model (Task 2), scorers match, the v0 passes and the gold audit are done, `sandbox schemas build --check` passes, and findings 1-17 are resolved or logged as deviations
 
 ## Verification

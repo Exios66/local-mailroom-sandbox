@@ -96,6 +96,32 @@ def test_ci_parallel_test_shards_feed_a_combined_coverage_gate():
     assert "fail_under = 84" in pyproject
 
 
+def test_ci_checks_job_gates_every_committed_generated_file():
+    """Stale generated files (critical-regressions: CLI reference, runbooks, hub,
+    requirements) fail in their own job, which waits for nothing."""
+    config = yaml.safe_load(CI_CONFIG.read_text(encoding="utf-8"))
+    cmds = "\n".join(
+        step["run"]["command"] for step in config["jobs"]["checks"]["steps"]
+        if isinstance(step, dict) and isinstance(step.get("run"), dict)
+    )
+    for check in (
+        "reports/dashboard/build_hub.py --check",
+        "scripts/sync_requirements.py --check",
+        "scripts/check_cli_surface.py --check",
+        "sandbox runbook check",
+    ):
+        assert check in cmds, check
+    assert "checks" in config["workflows"]["ci"]["jobs"]  # a bare entry: no `requires`
+    lint = "\n".join(
+        str(step) for step in config["jobs"]["lint"]["steps"] if isinstance(step, dict)
+    )
+    assert "-r .circleci/lint-requirements.txt" in lint
+    assert 'checksum ".circleci/lint-requirements.txt"' in lint
+    pins = (ROOT / ".circleci" / "lint-requirements.txt").read_text(encoding="utf-8")
+    tools = [ln for ln in pins.splitlines() if ln.strip() and not ln.startswith("#")]
+    assert tools and all("==" in ln for ln in tools), tools
+
+
 def test_cli_parser_builds_without_importing_floor_app(monkeypatch):
     """`sandbox <cmd>` on native Windows must not trip the floor app's unix-only imports.
 

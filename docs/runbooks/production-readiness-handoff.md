@@ -56,6 +56,7 @@ The wrong archives fall into three buckets: `out_of_enum` 18, `wrong_value` 18 a
 The CUAD-date layer makes the result worse. The fold penalises a correct date wherever the gold has no date category, as noted on Exios66/llm-dojo-scoring#167. Dropping heuristic `intent` labels makes no difference under the corrected count, so no label allowance was added to the bars.
 
 None of these layers comes near the 0.02 bar. What remains:
+
 - 11 contracts on CUAD recall (0.67 to 0.83)
 - 6 insurance claims just under the bar (0.82 to 0.90) on `supporting_documents`, `damages_description` and `subject_matter`
 - 3 or 4 correspondence documents
@@ -76,20 +77,24 @@ The ordered run list, with what each step needs merged first, is [`experiment-qu
 Every step from 1 on spends money or is reserved for the owner, so a human starts it.
 
 0. **Judge audit** (OpenRouter, $0.75 cap, 26 documents that pair with r2). This tests whether the judge catches the wrong archives the router never sends it. The offline preflight passes except for the key check.
+
    ```bash
    export PYTHONPATH="$PWD/src"
    sandbox run preflight --config config/runs/production/judge-audit-0026.yaml
    sandbox run start --config config/runs/production/judge-audit-0026.yaml --initials <XX>
    sandbox run gate --run-id judge-audit-0026 --prev-run-id production-slice-0100-r2
    ```
+
    If the judge rejects most of r2's wrong archives, widen the judge band for those classes. If it passes them, judge routing cannot fix the gate, and the work moves to extraction and labels.
 1. **Insurance v4 A/B** (OpenRouter, $0.10 cap per arm, 40 shared insurance documents). The arms are disjoint from slice 500 and from the tuning list. Run this and step 0 from a checkout of `787d61e`, the #318 merge on r2's pins (see the queue), with `OPENROUTER_API_KEY` set:
+
    ```bash
    export PYTHONPATH="$PWD/src"
    for a in v3arm-plain v3arm v4arm; do sandbox run preflight --config config/runs/specialist-condensed-v4-insurance-claim-qwen-$a.yaml; done
    for a in v3arm-plain v3arm v4arm; do sandbox run start --config config/runs/specialist-condensed-v4-insurance-claim-qwen-$a.yaml --initials <XX>; done
    python scripts/compare_specialist_prompt.py --reference specialist-condensed-v4-insurance-claim-qwen-v3arm --candidate specialist-condensed-v4-insurance-claim-qwen-v4arm
    ```
+
    Then:
    - Set the v4 status in `config/prompts/specialist_condensed_lineage.yaml` to `adopted` or `rejected`.
    - Add the arm ids to `config/production/excluded-ids.txt` with `scripts/build_excluded_ids.py`.

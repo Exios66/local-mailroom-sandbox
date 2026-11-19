@@ -32,7 +32,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 - Profile: set SANDBOX_MODAL_PROFILE_TRACK_A to the wallet you want (the catalog default is hermes-agent-jjb; exios66 is also configured locally).
 - Spend (estimate): one cold boot (~2-4 min) + a few minutes warm for 5 documents ≈ $0.05-0.15 at $0.80/GPU-hr; cost_cap_usd 0.20 is the abort guard.
 - GPU telemetry check: the after-scrape must print `gpu telemetry (sand42-1l4-c8): N samples, util mean ... max ...`. If it warns `gpu telemetry not captured`, the sampler or the volume read is broken — fix that before spending on the conditions.
-- Report: reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series.
+- Report: `reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md` + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series.
 
 ## Do not
 

@@ -136,11 +136,11 @@ header, so the message the document *is* often has no header. Take `sender`, `re
   first header): its author (the signature) is the sender and its salutation is the recipient.
   `additional_recipients` is `[]` and `communication_date` is null unless the reply itself
   states them. The quoted message's people and date go in `supplementary.alternatives`.
-- **An unsigned top note directly above a "Forwarded by X on <date>" stamp**: X is the sender
+- **An unsigned top note directly above a "Forwarded by X on `<date>`" stamp**: X is the sender
   and the stamp's date is the send date.
 - **A bare forward** (no note, or only "FYI" / "see below"): fall through to the first message
   that has its own header (a `From:` / `To:` / `Sent:` or `Date:` block, or a sender name and
-  date line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on <date>" line
+  date line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on `<date>`" line
   alone is not that header; record the forwarder in `supplementary.alternatives`.
 
 A signature alone ("Thanks, Jim") is not a header, but

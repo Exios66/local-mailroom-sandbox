@@ -231,6 +231,7 @@ model reasoning quotes → mechanism in one sentence → which frontier cell
 ## Phase 2 — Root-cause taxonomy (classify before you fix)
 
 **Extraction failures:**
+
 - `boundary_shift` — right content, wrong span edges (fix: grain/verbatim
   rules, additive-prefix discipline)
 - `abbreviation` — canonical vs verbatim form (fix: format rules —

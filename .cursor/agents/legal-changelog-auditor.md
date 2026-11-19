@@ -68,7 +68,7 @@ When performing a routine or event-driven review, follow these steps in order:
 
 After every run, output a structured report. Example:
 
-```
+```markdown
 ## Run Summary - 2025-03-21 08:30 UTC (Scheduled Morning Check)
 
 **Checked:**
