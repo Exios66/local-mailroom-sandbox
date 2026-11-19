@@ -28,6 +28,9 @@ historical v9.1 locks. This audit does not authorize a paid run or unseal held-o
   provider usage or failed requests without usage are not a verified zero cost. Per-document
   call ceilings depend on a document scope; the scope is currently installed for pipeline
   documents, not all isolated-agent paths. These limitations remain for future hardening.
+  *(Hardened in the follow-up below: every by-name alias is swept at activation, failed
+  requests are recorded as unverified-cost rows on all three call paths, and isolated-agent
+  rows run inside a document scope.)*
 - **Other runtime adapters:** source-window widening/restoration, timeout and provider routing
   are separate from the HF/SHF catalog. The regression tests are useful, but lock identity alone
   does not prove complete long-document reading or actual served-provider behavior. Check the
@@ -71,9 +74,9 @@ The follow-up changes were re-verified in this checkout after the interrupted re
   trees on `PYTHONPATH`): 105 passed, including the three new tests (Decisions transport guard
   before each attempt, Decisions retry recheck, pre-imported PDF-transcriber binding).
 - `scripts/check_hotfixes.py`: HF-001–004 and HF-006 applied, HF-005 unavailable in this
-  environment (no optional observability extra), SHF-001–013 current — same as the original
-  review's boundaries; the watcher-specific fix still needs `--require-watcher` in an
-  equipped environment.
+  environment at the time (no optional observability extra), SHF-001–013 current — same as
+  the original review's boundaries. *(Superseded below: the extra is now installed and the
+  watcher check passes.)*
 - The runner refusal was checked against `job/checkpoint.py`: the lock's hotfix keys and the
   checkpoint's `state`/`cursor` are the identifiers an unstarted (`prepared`, cursor 0, no
   items) generation and a started one differ on, which is what the refusal keys off.
@@ -86,8 +89,45 @@ The follow-up changes were re-verified in this checkout after the interrupted re
   `scripts/sync_hf_ground_truth.py` binds `retry_chat_completion` by name at module top but
   is a standalone offline script outside the run path. No further unguarded live call path
   was found beyond the limitations already listed above.
+- `scripts/check_hotfixes.py --require-watcher` now passes in this environment after
+  installing the observability extra's Langfuse SDK (`langfuse 4.x` into the sandbox venv):
+  HF-001–006 all applied, SHF-001–013 current, and the HF-005 dispatch-backpressure behavior
+  tests (`tests/test_backpressure.py`, `tests/test_vendor_hotfixes.py`; 61 passed) exercise
+  the held-file-stays-in-the-inbox contract offline. A live watcher execution against a real
+  inbox/engine remains a hosted validation under the campaign contract, not an offline claim.
 
-Conclusion: the three follow-up corrections stand as reviewed; no additional hotfix to vendored
-mailroom or dojo code is required by this audit's scope. The recorded limitations (missing
-usage on failed requests, unscoped isolated-agent document ceilings, other pre-imported
-aliases, live watcher verification) remain the open hardening items for the campaign contract.
+## Hardening follow-up (2026-11-19)
+
+The three recorded limitations were closed in a stacked follow-up on this branch; no vendored
+file changed:
+
+1. **Every by-name alias is swept, not just the PDF transcriber.** Activation rebinds any
+   imported module whose `retry_chat_completion` attribute still holds the vendored original
+   or a previous sandbox wrapper (`provider_pins._rebind_aliases`); restore is symmetric.
+   The sampling wrapper and unrelated replacements are left alone; `llm.retry` keeps the
+   canonical binding. This closes the whole "imported before activation" class, including
+   any future agent and the standalone vendored scripts' pattern if they ever run in-process.
+2. **A failed OpenRouter request is a ledger row, never a verified zero.** A transport
+   failure, non-200 or refusal on any of the three call paths (`retry_chat_completion`,
+   LangChain `_generate`, Decisions transport) records `status: unverified` with an `error`
+   and **no usage keys**, then re-raises unchanged — so budgets, gates and reports cannot
+   read unknown spend as free. A successful Decisions response without a usage object logs a
+   warning; its ledger row already omits usage ("not reported", per `served_usage`).
+3. **Isolated-agent rows run inside a document scope.** `run_isolated_eval`'s per-row
+   execution is wrapped in `call_guard.document()`, so the per-document call ceiling applies
+   to every agent eval (it was pipeline documents only), and a row the guard cut short — even
+   one where the agent swallows the refusal and returns a prediction — becomes an error row,
+   never a scored outcome, mirroring the pipeline document path.
+
+Verification: `tests/test_provider_pins.py` adds the sweep (rebind, re-activation, restore,
+foreign-alias refusal), failed-request rows for the retry and LangChain paths, and the
+failed-Decisions row; `tests/test_call_guard.py` adds the failed-Decisions ledger row;
+`tests/test_agents.py` proves a swallowed refusal still yields an error row while a calm row
+scores, and replaces a timing-flaky `gpu_seconds > 0` with the field-presence check the test
+meant (a sub-millisecond mock run rounds `wall_seconds` to 0.0). 227 tests across the six
+touched suites pass, plus the 61 backpressure/vendor-hotfix tests above; network-free,
+single worker.
+
+Conclusion: the follow-up corrections and this hardening stand as reviewed; the remaining
+open items are the hosted validations the campaign contract already tracks (live watcher
+execution, full-corpus evidence), not offline code work.

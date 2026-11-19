@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import re
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping, Optional
 
@@ -615,7 +616,18 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
                 raise last
         time.sleep(2 ** attempt)
-    raise last or RuntimeError("Decisions API failed")
+    failure = last or RuntimeError("Decisions API failed")
+    # The request never returned JSON: its provider-side spend is unknown, never a verified
+    # zero. Record it in the R01 ledger so budgets and gates cannot read it as free.
+    try:
+        from mailroom_sandbox.provider_pins import record_failed_request
+
+        row = decision_model(str(body.get("model") or "")) or {}
+        record_failed_request(str(body.get("model") or ""), failure, call_path="decisions",
+                              canonical_slug=row.get("canonical_slug"))
+    except Exception as exc:  # noqa: BLE001 — recording never fails the caller
+        logging.getLogger(__name__).warning("failed-decision record failed: %s", exc)
+    raise failure
 
 
 def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, qset: Mapping[str, Any],
@@ -775,6 +787,12 @@ def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: s
 
 def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_reviewer") -> None:
     """Count the call in the run's usage accumulator, so job budgets and cost see it."""
+    if not usage:
+        # A 200 without a usage object still consumed billed capacity whose size we cannot
+        # know; the ledger row already carries no usage keys, and the budget must not read
+        # the call as a verified zero cost.
+        logging.getLogger(__name__).warning(
+            "Decisions response for %s reported no usage; its token spend is unverified", model)
     try:
         from pipeline.limits import record_usage
     except ImportError:

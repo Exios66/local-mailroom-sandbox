@@ -142,3 +142,27 @@ def test_decisions_rechecks_budget_before_retry(monkeypatch):
         with pytest.raises(Exception, match="api_cost_cap_usd"):
             db._post_decision({}, timeout=1, attempts=3)
     assert len(calls) == 1
+
+
+def test_a_failed_decisions_request_is_recorded_not_a_verified_zero(monkeypatch):
+    """A request that never returned JSON has an unknown cost; the ledger says so."""
+    import httpx
+    from mailroom_sandbox import decision_backends as db
+    from mailroom_sandbox import provider_pins as pp
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    monkeypatch.setattr("httpx.post", lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectError("network down")))
+    pp.reset_ledger()
+    call_guard.arm(_budget(cap=100.0), ceiling=40)
+    try:
+        with call_guard.document():
+            with pytest.raises(httpx.ConnectError, match="network down"):
+                db._post_decision({"model": "openai/gpt-6-luna-decisions"}, timeout=1, attempts=2)
+        row = pp.ledger()[-1]
+    finally:
+        call_guard.disarm()
+        pp.reset_ledger()
+    assert row["call_path"] == "decisions" and row["status"] == "unverified"
+    assert "network down" in row["error"] and "prompt_tokens" not in row
+    assert "reported_cost_usd" not in row and "completion_tokens" not in row
