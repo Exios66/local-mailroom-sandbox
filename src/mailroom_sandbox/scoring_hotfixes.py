@@ -610,10 +610,15 @@ def subclass_corrections() -> dict[str, dict[str, Any]]:
     (SHF-013 is then ``unavailable`` and not applied either). The bytes parsed are the bytes checked:
     the file is read once, its sha256 must equal SHF-013's pinned fingerprint, and the parsed table
     is cached by that hash. A file edited after SHF-013 was validated raises instead of feeding new
-    truth to a run that reports the old fingerprint.
+    truth to a run that reports the old fingerprint, and so does a file that disappears after
+    SHF-013 was validated as current.
     """
     path = data_path(SUBCLASS_CORRECTIONS)
-    if path is None:
+    if path is None or not path.is_file():
+        if _STATUS.get("SHF-013") == "current":
+            # validated as present, now gone: Hub truth here would disagree with the scores already
+            # recorded under SHF-013, so stop rather than score silently without the corrections
+            raise RuntimeError(f"{SUBCLASS_CORRECTIONS} disappeared after SHF-013 was validated; restore it")
         return {}
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()

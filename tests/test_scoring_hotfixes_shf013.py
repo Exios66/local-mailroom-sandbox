@@ -198,3 +198,18 @@ def test_a_corrections_file_edited_after_validation_stops_scoring(monkeypatch, t
     path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="changed since SHF-013 was validated"):
         sh.subclass_corrections()
+
+
+def test_a_corrections_file_removed_after_validation_stops_scoring(monkeypatch, tmp_path):
+    path = tmp_path / "corrections.jsonl"
+    path.write_bytes((repo_root() / sh.SUBCLASS_CORRECTIONS).read_bytes())
+    monkeypatch.setattr(sh, "data_path", lambda _rel: path)
+    monkeypatch.setattr(sh, "_CORRECTIONS_CACHE", {})
+    monkeypatch.setattr(sh, "_STATUS", {"SHF-013": "current"})
+    assert sh.subclass_corrections()
+    path.unlink()
+    with pytest.raises(RuntimeError, match="disappeared after SHF-013 was validated"):
+        sh.subclass_corrections()
+    # Never validated as current (unavailable from the start): no corrections, no error.
+    monkeypatch.setattr(sh, "_STATUS", {"SHF-013": "unavailable"})
+    assert sh.subclass_corrections() == {}
