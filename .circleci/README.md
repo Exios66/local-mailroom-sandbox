@@ -136,3 +136,14 @@ make real LLM/Hub calls; live LLM tests remain opt-in via
 `SANDBOX_LOCAL_LLM=1`. Merge only after required checks pass on the current
 head, with review findings resolved and the stack's final diff inspected.
 See [agent test policy](../AGENTS.md#tests).
+
+## Diagnose failed jobs from the sandbox
+
+Set `CIRCLE_TOKEN` to a CircleCI personal API token. `sandbox doctor --service circleci`
+checks only whether it is present; add `--live` to authenticate with CircleCI. Fetch failed
+step output with `sandbox circleci logs --job 123` or all failed jobs in a pipeline with
+`sandbox circleci logs --pipeline <pipeline-uuid>`. Add `--all-steps` to include successful
+steps, and `--project gh/owner/repo` for another GitHub project. The default is this repository.
+The command uses CircleCI's v2 pipeline/workflow endpoints and v1.1 job step output; signed
+output URLs are fetched without the API token. Logs can contain sensitive data: review them
+before sharing. See [CircleCI's incident guide](https://circleci.com/docs/guides/orchestrate/analyze-pipelines-during-an-incident/).
