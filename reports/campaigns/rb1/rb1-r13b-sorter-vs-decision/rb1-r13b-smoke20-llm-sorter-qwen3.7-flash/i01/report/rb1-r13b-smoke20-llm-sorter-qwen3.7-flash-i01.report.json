@@ -2,7 +2,6 @@
   "archived": false,
   "campaign": "rb1",
   "caveats": [
-    "No experiment-log record matches this generation: headline scores are not recorded (never recomputed here).",
     "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
     "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
   ],
@@ -48,14 +47,23 @@
     }
   },
   "experiment": "rb1-r13b",
+  "figures": [
+    "confidence",
+    "latency",
+    "routing"
+  ],
   "finished": "2026-11-19T07:41:31.859+00:00",
   "generation_id": "4b6d30407c934cf6a7ea36c8e260cdcf",
   "git": {
     "commit": "f0aa39f3",
     "dirty": true
   },
-  "headline": {},
-  "headline_source": null,
+  "headline": {
+    "error_count": 0,
+    "exact_match": 1.0,
+    "n": 20
+  },
+  "headline_source": "experiment log",
   "items": {
     "failed": 0,
     "ok": 20,

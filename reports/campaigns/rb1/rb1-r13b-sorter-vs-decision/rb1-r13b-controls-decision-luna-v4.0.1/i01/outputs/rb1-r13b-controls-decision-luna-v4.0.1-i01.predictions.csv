@@ -1,0 +1,8 @@
+item_id,index,ok,expected,doc_type,subclass,stage,latency_ms,prompt_tokens,completion_tokens,error
+CTRL-charter-plus-medicare,,True,,insurance_claim,outpatient,,518.751,4092,,
+CTRL-claim-plus-email,,True,,insurance_claim,property,,548.043,6238,,
+CTRL-cut-mid-sentence,,True,,contract,affiliate,,559.501,5923,,
+CTRL-title-and-toc,,True,,merger_agreement,undetermined,,572.489,4667,,
+CTRL-signature-page,,True,,merger_agreement,undetermined,,632.85,3863,,
+CTRL-intact-claim-file,,True,,insurance_claim,property,,710.921,6509,,
+CTRL-intact-merger-with-amendment,,True,,merger_agreement,mixed_cash_stock,,1369.36,81258,,

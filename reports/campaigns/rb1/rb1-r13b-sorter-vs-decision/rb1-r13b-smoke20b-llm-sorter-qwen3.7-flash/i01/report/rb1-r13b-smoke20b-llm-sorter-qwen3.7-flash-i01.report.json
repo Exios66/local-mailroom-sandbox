@@ -1,0 +1,126 @@
+{
+  "archived": false,
+  "campaign": "rb1",
+  "caveats": [
+    "Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.",
+    "docs/ config is the committed config today; the spec lock in logs/ is authoritative."
+  ],
+  "checkpoint": {
+    "cursor": 20,
+    "last_error": null,
+    "state": "done",
+    "total": 20
+  },
+  "config": {
+    "bytes": 2466,
+    "path": "config/runs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash.yaml",
+    "sha256": "74e6577cc999dc2a94a7f055c2470c3c3c918feb61b601cd8017196d05dec047"
+  },
+  "cost": {
+    "completion_tokens": 2103,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.0020103,
+    "estimated_cost_usd": 0.040206,
+    "prompt_tokens": 474650,
+    "wall_seconds": 41.429
+  },
+  "dataset": {
+    "config": "ground_truth",
+    "limit": 20,
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9",
+    "split": "all"
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "experiment": "rb1-r13b",
+  "figures": [
+    "confidence",
+    "latency",
+    "routing",
+    "subclass"
+  ],
+  "finished": "2026-11-19T11:10:56.526+00:00",
+  "generation_id": "a896a982f9b7448fb0eb5c7c7dd063fd",
+  "git": {
+    "commit": "fdfb399b",
+    "dirty": true
+  },
+  "headline": {
+    "error_count": 0,
+    "exact_match": 1.0,
+    "n": 20,
+    "subclass_corrections_applied": 2,
+    "subclass_match": 0.95,
+    "subclass_match_hub_truth": 0.85,
+    "subclass_scored": 20
+  },
+  "headline_source": "experiment log",
+  "items": {
+    "failed": 0,
+    "ok": 20,
+    "total": 20
+  },
+  "iteration": "i01",
+  "launches": [
+    {
+      "event": "start",
+      "ts": "2026-11-19T11:10:42.411+00:00"
+    }
+  ],
+  "lock_sha256": "2db3f5c8fd8945c2adbbaf512dd60f2e4c2a691f096d77ed784893f1d90e7ba8",
+  "mock": false,
+  "model": "qwen/qwen3.7-flash",
+  "profile": "openrouter",
+  "run_id": "rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash",
+  "schema": "sandbox.campaign-run-report/v1",
+  "spec_hash": "460efe30a1f229ded04a2423eefd2c3e6250ade557238f62b3b897dbeaaa5c5d",
+  "started": "2026-11-19T11:10:42.411+00:00",
+  "status": "done",
+  "subclass_by_class": {
+    "contract": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 1.0,
+      "n": 4
+    },
+    "corporate_record": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    },
+    "correspondence": {
+      "accuracy": 0.75,
+      "correct": 3,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    },
+    "insurance_claim": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 1.0,
+      "n": 4
+    },
+    "merger_agreement": {
+      "accuracy": 1.0,
+      "correct": 4,
+      "hub_truth_accuracy": 0.75,
+      "n": 4
+    }
+  },
+  "task": "isolated"
+}

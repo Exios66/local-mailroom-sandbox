@@ -1,0 +1,68 @@
+{
+  "abstained": 4,
+  "accuracy": 0.8,
+  "applicable": true,
+  "brier_null_floor": 0.16,
+  "confusion": {
+    "(abstained)": {
+      "(abstained)": 0,
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "contract": {
+      "(abstained)": 1,
+      "contract": 3,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "corporate_record": {
+      "(abstained)": 0,
+      "contract": 0,
+      "corporate_record": 4,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "correspondence": {
+      "(abstained)": 1,
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 3,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "insurance_claim": {
+      "(abstained)": 0,
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 4,
+      "merger_agreement": 0
+    },
+    "merger_agreement": {
+      "(abstained)": 2,
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 2
+    }
+  },
+  "labels": [
+    "(abstained)",
+    "contract",
+    "corporate_record",
+    "correspondence",
+    "insurance_claim",
+    "merger_agreement"
+  ],
+  "macro_f1": 0.8761904761904763,
+  "n": 20,
+  "paired_tests": "McNemar / paired permutation need two arms; see the experiment's analysis/",
+  "source": "mailroom_sandbox.experiment_stats on items.jsonl truth vs predicted doc_type (parked = abstained)"
+}

@@ -1,6 +1,60 @@
 {
-  "scores": null,
-  "scores_source": null,
+  "scores": {
+    "abstain": 5,
+    "error_count": 0,
+    "exact_match": 0.75,
+    "n": 20,
+    "n_no_truth": 0,
+    "n_scored": 20,
+    "offline_fallback": 0,
+    "raw_dojo": {
+      "abstain": null,
+      "exact_match": 1.0,
+      "n_no_truth": null,
+      "n_scored": 20
+    },
+    "routed_to_human_review": 5,
+    "routed_to_human_review_basis": "reviewer",
+    "routed_to_human_review_by_class": {
+      "contract": {
+        "n": 4,
+        "rate": 0.25,
+        "routed": 1
+      },
+      "corporate_record": {
+        "n": 4,
+        "rate": 0.0,
+        "routed": 0
+      },
+      "correspondence": {
+        "n": 4,
+        "rate": 0.0,
+        "routed": 0
+      },
+      "insurance_claim": {
+        "n": 4,
+        "rate": 0.5,
+        "routed": 2
+      },
+      "merger_agreement": {
+        "n": 4,
+        "rate": 0.5,
+        "routed": 2
+      }
+    },
+    "routed_to_human_review_rate": 0.25,
+    "scoring_hotfixes": [
+      "SHF-005",
+      "SHF-006",
+      "SHF-007"
+    ],
+    "scoring_hotfixes_changed": [
+      "abstain",
+      "exact_match",
+      "n_no_truth"
+    ]
+  },
+  "scores_source": "experiment log record matched to this generation",
   "serving": {
     "concurrency": 8,
     "cost_basis": "token_price_estimate",

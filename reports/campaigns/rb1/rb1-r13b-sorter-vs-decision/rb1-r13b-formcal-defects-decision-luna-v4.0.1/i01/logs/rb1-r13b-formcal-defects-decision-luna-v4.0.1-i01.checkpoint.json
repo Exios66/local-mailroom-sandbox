@@ -1,0 +1,12 @@
+{
+  "cursor": 67,
+  "generation_id": "5e436aedff45498a8cd0493f52b306d9",
+  "last_error": null,
+  "remote": null,
+  "run_id": "rb1-r13b-formcal-defects-decision-luna-v4.0.1",
+  "schema_version": 1,
+  "spec_hash": "a2d2ff62d2f48c0748b7f6b3f665ebcebfcbcff8db20d640c6ee5c2275e1f6c2",
+  "state": "done",
+  "total": 67,
+  "updated_at": "2026-11-19T15:57:30.489+00:00"
+}

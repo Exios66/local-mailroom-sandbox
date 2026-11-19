@@ -1,0 +1,7 @@
+truth,(abstained),contract,corporate_record,correspondence,insurance_claim,merger_agreement
+(abstained),0,0,0,0,0,0
+contract,1,9,0,0,0,0
+corporate_record,0,0,10,0,0,0
+correspondence,2,0,0,8,0,0
+insurance_claim,1,0,0,0,9,0
+merger_agreement,3,0,0,0,0,7

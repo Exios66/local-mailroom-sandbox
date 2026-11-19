@@ -1,0 +1,50 @@
+# rb1 R13b document-form POSITIVE CONTROLS, question set 4.0.0 (H5 checkpoint, SAND-108).
+# 7 rows built by scripts/rb1_build_form_controls.py from the locked smoke20 rows: a signature
+# page alone, a title page with table of contents, a contract cut mid-sentence (fragments), two
+# unrelated documents joined (bundles), and two intact documents (negatives). Correct form known
+# by construction. Purpose: show 4.0.1's narrower document_form still parks real fragments and
+# bundles (baseline for the 4.0.0 run). Build the file first (offline):
+#   python scripts/rb1_build_form_controls.py --source data/runtime/runs/rb1-r13b-smoke20-decision-sorter-luna/dataset.jsonl --out data/runtime/rb1-r13b/form-controls.jsonl
+# Cost: ~430k input tokens (the intact merger is ~96k), about $0.05. Caps $0.10, 900 s.
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-controls.jsonl .venv/bin/sandbox run preflight --config config/runs/rb1-r13b-controls-decision-luna-v4.0.0.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r13b/served-luna-controls.jsonl .venv/bin/sandbox run start --config config/runs/rb1-r13b-controls-decision-luna-v4.0.0.yaml --initials <XX>
+# Readout (offline):
+#   python scripts/rb1_build_form_controls.py --check-run data/runtime/runs/rb1-r13b-controls-decision-luna-v4.0.0
+schema: sandbox.run/v1
+run_id: rb1-r13b-controls-decision-luna-v4.0.0
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/rb1-r13b/form-controls.jsonl
+  config: ground_truth
+  split: all
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.0.0
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.10
+  max_wall_seconds: 900
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R13b, H5, form-controls, v4.0.0, decisions-api, decision-sorter, dev-look1]

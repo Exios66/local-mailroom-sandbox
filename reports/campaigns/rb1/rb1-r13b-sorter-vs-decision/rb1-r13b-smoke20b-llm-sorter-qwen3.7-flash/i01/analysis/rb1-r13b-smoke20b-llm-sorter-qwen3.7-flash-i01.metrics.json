@@ -1,0 +1,153 @@
+{
+  "scores": {
+    "abstain": 0,
+    "error_count": 0,
+    "exact_match": 1.0,
+    "n": 20,
+    "n_no_truth": 0,
+    "n_scored": 20,
+    "offline_fallback": 0,
+    "raw_dojo": {
+      "abstain": null,
+      "exact_match": 1.0,
+      "n_no_truth": null,
+      "n_scored": 20,
+      "subclass_by_class": {
+        "contract": {
+          "accuracy": 1.0,
+          "correct": 4,
+          "n": 4
+        },
+        "corporate_record": {
+          "accuracy": 0.75,
+          "correct": 3,
+          "n": 4
+        },
+        "correspondence": {
+          "accuracy": 0.75,
+          "correct": 3,
+          "n": 4
+        },
+        "insurance_claim": {
+          "accuracy": 1.0,
+          "correct": 4,
+          "n": 4
+        },
+        "merger_agreement": {
+          "accuracy": 0.75,
+          "correct": 3,
+          "n": 4
+        }
+      },
+      "subclass_match": 0.85,
+      "subclass_scored": 20
+    },
+    "routed_to_human_review": 5,
+    "routed_to_human_review_basis": "sorter",
+    "routed_to_human_review_by_class": {
+      "contract": {
+        "n": 4,
+        "rate": 1.0,
+        "routed": 4
+      },
+      "corporate_record": {
+        "n": 4,
+        "rate": 0.25,
+        "routed": 1
+      },
+      "correspondence": {
+        "n": 4,
+        "rate": 0.0,
+        "routed": 0
+      },
+      "insurance_claim": {
+        "n": 4,
+        "rate": 0.0,
+        "routed": 0
+      },
+      "merger_agreement": {
+        "n": 4,
+        "rate": 0.0,
+        "routed": 0
+      }
+    },
+    "routed_to_human_review_rate": 0.25,
+    "scoring_hotfixes": [
+      "SHF-005",
+      "SHF-006",
+      "SHF-007",
+      "SHF-013"
+    ],
+    "scoring_hotfixes_changed": [
+      "abstain",
+      "n_no_truth",
+      "subclass_by_class",
+      "subclass_match"
+    ],
+    "subclass_by_class": {
+      "contract": {
+        "accuracy": 1.0,
+        "correct": 4,
+        "n": 4
+      },
+      "corporate_record": {
+        "accuracy": 1.0,
+        "correct": 4,
+        "n": 4
+      },
+      "correspondence": {
+        "accuracy": 0.75,
+        "correct": 3,
+        "n": 4
+      },
+      "insurance_claim": {
+        "accuracy": 1.0,
+        "correct": 4,
+        "n": 4
+      },
+      "merger_agreement": {
+        "accuracy": 1.0,
+        "correct": 4,
+        "n": 4
+      }
+    },
+    "subclass_corrections_applied": 2,
+    "subclass_match": 0.95,
+    "subclass_scored": 20
+  },
+  "scores_source": "experiment log record matched to this generation",
+  "serving": {
+    "completion_tokens": 2103,
+    "concurrency": 8,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.0020103,
+    "dataset_fingerprint": "e4cfaaf77506",
+    "dataset_revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "draw_seed": "20261118",
+    "e2e_latency_seconds": 4.2286630999999995,
+    "estimated_cost_usd": 0.040206,
+    "latency_max_seconds": 10.456912,
+    "latency_p50_seconds": 3.054484,
+    "latency_p95_seconds": 9.367843,
+    "latency_sum_over_wall": 2.04,
+    "latency_sum_seconds": 84.573,
+    "model": "qwen/qwen3.7-flash",
+    "n": 20,
+    "profile": "openrouter",
+    "prompt_tokens": 474650,
+    "prompt_version": "code-default",
+    "provider": "openrouter",
+    "replicas": 1,
+    "run_id": "rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash",
+    "serving_kind": "api",
+    "spec_hash": "460efe30a1f229ded04a2423eefd2c3e6250ade557238f62b3b897dbeaaa5c5d",
+    "split": "all",
+    "task": "isolated",
+    "tokens_per_second": 11507.71,
+    "total_tokens": 476753,
+    "ttft_note": "TTFT never inferred (hosted API; do not infer from e2e)",
+    "ttft_seconds": null,
+    "wall_seconds": 41.429
+  },
+  "serving_source": "mailroom_sandbox.job.metrics.serving_record_from_store"
+}

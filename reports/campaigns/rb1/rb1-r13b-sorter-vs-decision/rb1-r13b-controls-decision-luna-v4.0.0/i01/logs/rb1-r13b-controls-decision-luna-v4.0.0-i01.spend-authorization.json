@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "api_cost_cap_usd": 0.1,
+    "api_models": {
+      "openai/gpt-6-luna-decisions": [
+        0.1,
+        0.0
+      ]
+    },
+    "gpu_cost_cap_usd": 0.1,
+    "max_wall_seconds": 900
+  },
+  "fingerprint": "a563fd5f57e575f085bf1e32325c1cd30750ce024bcc997754fa34f9c7ad8550",
+  "generation_id": "28607ec7bea549e8a2efa76eb0d0743c",
+  "note": "digest only; the signer's initials stay in the run store",
+  "signed": true,
+  "signed_at": 1795086574.676759,
+  "source": {
+    "bytes": 3458,
+    "path": "data/runtime/runs/rb1-r13b-controls-decision-luna-v4.0.0/spend-authorization.json",
+    "sha256": "2f7839566bd9d66c3a3cbea9c328257f14d27c1e8d8de6a40ba65ff3d94f20b0"
+  }
+}

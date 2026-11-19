@@ -1,0 +1,4 @@
+{"ts": "2026-11-19T11:10:15.097+00:00", "event": "preflight_ok", "level": "info", "detail": {"spec_hash": "460efe30a1f229ded04a2423eefd2c3e6250ade557238f62b3b897dbeaaa5c5d"}}
+{"ts": "2026-11-19T11:10:42.149+00:00", "event": "spend_authorized", "level": "info", "detail": {"initials": "JJB", "fingerprint": "efff0d109fc5b44c6da7cdd8ebfe7ffed8046c74a27bf2a7a6d08d321b323a15"}}
+{"ts": "2026-11-19T11:10:42.411+00:00", "event": "start", "level": "info", "detail": {"task": "isolated"}}
+{"ts": "2026-11-19T11:10:56.526+00:00", "event": "done", "level": "info", "detail": {"cursor": 20, "ok_count": 20}}

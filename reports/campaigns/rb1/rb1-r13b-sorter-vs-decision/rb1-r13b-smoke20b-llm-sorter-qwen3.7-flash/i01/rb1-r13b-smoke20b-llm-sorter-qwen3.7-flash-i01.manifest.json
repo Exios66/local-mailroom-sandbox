@@ -1,0 +1,30 @@
+{
+  "files": {
+    "README.md": "b3b897d427e4ad137c7d047e6f54517e44531be04b74566e0ad397404320e2b7",
+    "analysis/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.confusion.csv": "f8fe282cd36b57f81dc0260fc541149338287360febfd88b02602ba2830fdca8",
+    "analysis/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.figure-data.csv": "8320895135631f0388d86f4a1885615daa6184b8e4e5f7e9acdf9eb7d61e12c4",
+    "analysis/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.metrics.json": "1beeab46edba7d4a2485be760e027f54a20eea43e49fd98ef4e3d37f9f19f692",
+    "analysis/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.stats.json": "59f5a44983da6f4156a6ff5b8b337fdda1483ee0f8029f400a5cc03cb54b2925",
+    "docs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.caveats.md": "6b453506fe04bc5ffa6181bfc5a51fbdd383ab7142c80c3c77ae0fff5c4b39f2",
+    "docs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.config.yaml": "74e6577cc999dc2a94a7f055c2470c3c3c918feb61b601cd8017196d05dec047",
+    "docs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.prompt-lock.json": "65866bc4fe9ca417fd80a2c1749b32fd45bfd5290203efa3af123aa86082417c",
+    "docs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.spec-core.json": "d0bc3a74242b93c7b8f75edaf0efbd1b5f5df7397ee550525669681076b24823",
+    "figures/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.confidence.svg": "dc8d89d093740e69eb6abf59445178c9f61b4793fc70b14a882ad38241d4b500",
+    "figures/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.latency.svg": "6d3322cbf5145ab95b4d08d77c7b8fa8c58304b2f24160f8d05c132c5b1a5edb",
+    "figures/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.routing.svg": "6bfd2eaca03e919318dcec3320aa3fe34eaf66c30dc376a763c31eed2e622777",
+    "figures/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.subclass.svg": "fb60b846d6bdc35e6d3c05f44a1a6e2c1a20742e52c539c939f125a8bfe3608f",
+    "logs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.checkpoint.json": "933d81e839b99c7aa805923590e973f442a8cf880dc9e2ddd15bad4712159ebc",
+    "logs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.events.jsonl": "03c8cd21276fecfe1806d4253a3a3ea47a1147264aa599f2e0f4a40c89397e93",
+    "logs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.served-digest.json": "5c279ce68c20add1f7c89cb2ed47bf9ce03b0330e3d99f9d2897cd8917db79ee",
+    "logs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.spec-lock.json": "f4ad0e9bacc1084a13ce779eef2b366fdc45a4bdb3e5ba3d3ec7bc38a8298c41",
+    "logs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.spend-authorization.json": "066803275aec866227a2f48835fdc80b1c391e8c5f212466fccdae538d1f08d3",
+    "outputs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.item-scores.csv": "4a06ba7daaa48d9c4b7a22fa6c32677f7d57ecd2a3078b848af9a9bf9c0e3416",
+    "outputs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.predictions.csv": "ccb61eac1931046ce9c08f88f87e8303e21e5109f5e1f4cbc06485edc0ef5a81",
+    "report/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.report.json": "8660427e6e93584964b50c077e340663326caca531121cd808bc308e990fae1d",
+    "report/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.report.md": "f68d3e4bb31990f6b74d8ed38869aed71ea39babe9508162e020617c07440a59",
+    "traces/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.items.jsonl": "92cf95981a0fdf5a9f4e3da401487434258af62b98732c2c54fd280aeb9c8923",
+    "traces/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01.traces.json": "827a46acc2f0895c18cb76dde7b89156afd60d864fb7d6d3829910f09000f84f"
+  },
+  "schema": "sandbox.campaign-manifest/v1",
+  "stem": "rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash-i01"
+}

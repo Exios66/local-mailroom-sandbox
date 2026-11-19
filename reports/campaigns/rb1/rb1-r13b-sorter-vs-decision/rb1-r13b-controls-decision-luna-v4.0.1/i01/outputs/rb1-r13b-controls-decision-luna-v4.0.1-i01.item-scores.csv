@@ -1,0 +1,8 @@
+item_id,ok,abstain,expected,expected_subclass,match,outcome,predicted,predicted_subclass,routed_to_review,subclass_match
+CTRL-charter-plus-medicare,True,True,corporate_record,board_resolution,0.0,abstain,insurance_claim,outpatient,True,0.0
+CTRL-claim-plus-email,True,True,insurance_claim,property,0.0,abstain,insurance_claim,property,True,0.0
+CTRL-cut-mid-sentence,True,True,contract,Affiliate_Agreements,0.0,abstain,contract,affiliate,True,0.0
+CTRL-title-and-toc,True,True,merger_agreement,mixed_cash_stock,0.0,abstain,merger_agreement,undetermined,True,0.0
+CTRL-signature-page,True,True,merger_agreement,mixed_cash_stock,0.0,abstain,merger_agreement,undetermined,True,0.0
+CTRL-intact-claim-file,True,False,insurance_claim,property,1.0,correct,insurance_claim,property,,1.0
+CTRL-intact-merger-with-amendment,True,False,merger_agreement,mixed_cash_stock,1.0,correct,merger_agreement,mixed_cash_stock,,1.0

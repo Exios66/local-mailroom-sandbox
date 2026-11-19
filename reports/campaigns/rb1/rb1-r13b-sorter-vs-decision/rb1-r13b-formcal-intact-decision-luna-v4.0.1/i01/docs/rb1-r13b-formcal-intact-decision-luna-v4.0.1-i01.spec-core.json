@@ -1,0 +1,97 @@
+{
+  "dataset": {
+    "config": "ground_truth",
+    "draw": "ranked",
+    "exclude_expected": null,
+    "exclude_ids_sha256": "2be004d558167cfb5b49f6e3b29cf7942467faf45be0d4be67767fd251c4d5fa",
+    "interim_labels": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
+    "limit": 50,
+    "near_gold_labels": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "sample_seed": 20261119,
+    "split": "all",
+    "strata": {
+      "buckets": [
+        {
+          "count": 10,
+          "doc_class": "contract"
+        },
+        {
+          "count": 10,
+          "doc_class": "corporate_record"
+        },
+        {
+          "count": 10,
+          "doc_class": "correspondence"
+        },
+        {
+          "count": 10,
+          "doc_class": "insurance_claim"
+        },
+        {
+          "count": 10,
+          "doc_class": "merger_agreement"
+        }
+      ]
+    }
+  },
+  "engine": {
+    "kind": "openrouter",
+    "modal": null,
+    "model": "openai/gpt-6-luna-decisions",
+    "vllm": {
+      "enable_prefix_caching": true,
+      "enforce_eager": true,
+      "gpu_memory_utilization": 0.9,
+      "max_model_len": 16384,
+      "max_num_seqs": 6,
+      "quantization": "",
+      "revision": ""
+    }
+  },
+  "job": {
+    "api_cost_cap_usd": 0.3,
+    "checkpoint_every": 1,
+    "concurrency": 8,
+    "cost_cap_usd": 0.3,
+    "fail_fast": false,
+    "max_retries": 1,
+    "max_wall_seconds": 1800,
+    "mock": false,
+    "mode": "endpoint",
+    "task": "sorter"
+  },
+  "profile": "openrouter",
+  "prompt": {
+    "default": {
+      "source": "code-default"
+    }
+  },
+  "reviewer": {
+    "backend": "decisions",
+    "classes": {},
+    "model": "openai/gpt-6-luna-decisions",
+    "questions": "reviewer_decisions_v4.0.1"
+  },
+  "task": "sorter_reviewer",
+  "trace": {
+    "endpoint": null,
+    "environment": "pilot",
+    "otlp": true,
+    "sink": "none",
+    "tags": [
+      "sandbox",
+      "job",
+      "runbook",
+      "R13b",
+      "H5",
+      "form-floor",
+      "intact",
+      "v4.0.1",
+      "decisions-api",
+      "decision-sorter",
+      "calibration"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "cursor": 7,
+  "generation_id": "28607ec7bea549e8a2efa76eb0d0743c",
+  "last_error": null,
+  "remote": null,
+  "run_id": "rb1-r13b-controls-decision-luna-v4.0.0",
+  "schema_version": 1,
+  "spec_hash": "4cecaff35132c13b499f01c008567473e951dea900466b93b3de31fef926a3f6",
+  "state": "done",
+  "total": 7,
+  "updated_at": "2026-11-19T11:09:36.161+00:00"
+}
