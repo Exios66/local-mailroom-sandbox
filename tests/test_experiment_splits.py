@@ -496,3 +496,15 @@ def test_spent_formcal_draw1_keeps_its_v91_config():
     spec = load_run_spec(es.REPO_ROOT / "config/runs/rb1-r13b-formcal-intact-decision-luna-v4.0.1.yaml")
     assert spec.dataset.revision == LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
     assert "runbook-v1/calibration.exclude.ids" in str(spec.dataset.exclude_ids_file)
+
+
+def test_formcal_draw2_uses_fresh_v93_calibration_documents():
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, load_run_spec
+
+    root = es.REPO_ROOT
+    used = es.read_id_file(root / "config/splits/rb1-r13b/formcal-draw1.ids", required=True)
+    complement = es.read_id_file(es.current_split_dir() / "calibration.exclude.ids", required=True)
+    for path in sorted((root / "config/runs").glob("rb1-r13b-formcal2-intact-*.yaml")):
+        spec = load_run_spec(path)
+        assert spec.dataset.revision == FAMILY_HF_REVISION
+        assert es.read_id_file(root / spec.dataset.exclude_ids_file, required=True) == complement | used

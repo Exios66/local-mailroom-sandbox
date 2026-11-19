@@ -1,6 +1,6 @@
 # rb1 R13b document-form calibration DRAW 2, intact calibration documents (H5).
 # 100 calibration documents (20 per class) never used before: draw 1's 50 are excluded by
-# config/splits/rb1-r13b/formcal-draw2.exclude.ids (calibration complement plus draw 1).
+# config/splits/rb1-r13b/formcal-v93-draw2.exclude.ids (calibration complement plus draw 1).
 # Question set 4.0.1. Draw 2 is paired: the same rows run under 4.0.1 and 4.0.2 (4.0.2 was written from
 # 14 draw-1 documents, so draw 1 is in-sample for it). Sibling: rb1-r13b-formcal2-intact-decision-luna-v4.0.2.
 # Order (one run at a time): intact 4.0.1, intact 4.0.2, build the defects (offline), defects 4.0.1,
@@ -27,8 +27,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/rb1-r13b/formcal-draw2.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/rb1-r13b/formcal-v93-draw2.exclude.ids
   strata:
     buckets:
       - {doc_class: contract, count: 20}
