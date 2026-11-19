@@ -8,7 +8,8 @@ from gate-accepted real extractions (see ``mailroom_sandbox.interim_labels`` for
     python scripts/interim_labels.py build
     # add a new gate run (a later question set wins per document)
     python scripts/interim_labels.py build --add-run extraction-gate-luna-v1.4.0
-    # integrity, staleness (a newer local gate run not yet folded in), Hub supersession, and
+    # integrity, staleness (a newer local gate run not yet folded in), Hub supersession, gap
+    # fills reviewed gold contradicts (build drops them; --prune drops them in place), and
     # every listed review file applied as written
     python scripts/interim_labels.py check [--rows hub-rows.jsonl|ground_truth.parquet] [--prune]
     # apply reviewed labels (data/labels/review/interim_reviews.jsonl) in place; build re-applies them
@@ -144,6 +145,12 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
         })
     # Reviewed labels (a committed review file) outrank the gate's: re-apply them on every build.
     review_entries = _apply_review_files(by_class, reviews or [])
+    # Reviewed gold outranks the gate: drop the gap fills the near-gold overlay contradicts.
+    records = {r["doc_id"]: r for recs in by_class.values() for r in recs}
+    for doc, field in il.gold_conflicts(records)[0]:
+        del records[doc]["labels"][field]
+    for cls in list(by_class):
+        by_class[cls] = [r for r in by_class[cls] if r["labels"]]
     counts = _label_counts(by_class)
     root.mkdir(parents=True, exist_ok=True)
     files = {}
@@ -477,6 +484,7 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     stale = [f"{run} (question set {v}) is not in the overlay; run: scripts/interim_labels.py build --add-run {run}"
              for run, v in _local_gate_runs().items() if run not in listed and _version(v) >= top]
     problems += stale
+    gone: list[tuple[str, str]] = []
     if rows_path:
         rows = _read_rows(rows_path)
         gone, reviewed = _superseded_split(rows, il.load_overlay(root))
@@ -484,14 +492,23 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
             print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line and run review to retire it")
         for doc, field in gone:
             problems.append(f"{doc}.{field}: superseded by the Hub rows ({'text changed' if field == '*' else 'now labelled'})")
-        if prune and gone and integrity:
+    if not integrity:
+        # Reviewed gold outranks a gate gap fill it contradicts (the near-gold overlay is committed).
+        by_gold, kept = il.gold_conflicts(il.load_overlay(root))
+        if kept:
+            print(f"note: {len(kept)} reviewed labels differ from reviewed gold and are kept (their review file decides them)")
+        for doc, field in by_gold:
+            problems.append(f"{doc}.{field}: superseded by reviewed gold (the near-gold overlay labels it otherwise)")
+        gone += [k for k in by_gold if k not in gone and (k[0], "*") not in gone]
+    if gone:
+        if prune and integrity:
             # Rewriting would re-hash files that already fail verification and hide the mismatch.
             print("prune refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
         elif prune and gone:
             _prune(root, man, gone)
             print(f"pruned {len(gone)} superseded labels")
             # The superseded labels are gone; integrity and staleness problems still fail the check.
-            problems = [p for p in problems if "superseded by the Hub rows" not in p]
+            problems = [p for p in problems if "superseded by the Hub rows" not in p and "superseded by reviewed gold" not in p]
     for p in problems:
         print(p)
     print("interim labels: OK" if not problems else f"interim labels: {len(problems)} problem(s)")
@@ -507,7 +524,8 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--add-run", action="append", default=[], help="gate run added to the manifest's list")
     c = sub.add_parser("check", help="integrity, staleness and Hub supersession")
     c.add_argument("--rows", type=Path, help="Hub rows (JSONL, or a ground_truth .parquet shard) to test for superseded labels")
-    c.add_argument("--prune", action="store_true", help="drop superseded labels and rewrite the manifest")
+    c.add_argument("--prune", action="store_true",
+                   help="drop labels the Hub rows or reviewed gold supersede and rewrite the manifest")
     sub.add_parser("rederive", help="recompute the derived subclass labels with the current mapping")
     r = sub.add_parser("review", help="apply review files (reviewed corrections and header fills) in place")
     r.add_argument("--apply", action="append", type=Path, default=[],
