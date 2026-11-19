@@ -229,6 +229,18 @@ def _isolated_headline(per_row: Sequence[Mapping[str, Any] | None]) -> dict[str,
     return sh.merge_dual(raw_part, fixed_part, used)
 
 
+def _merge_subclass_headline(scores: dict[str, Any], sub: Mapping[str, Any]) -> None:
+    """Fold SHF-013's dual subclass scores into an isolated run headline (raw side under ``raw_dojo``)."""
+    if not sub:
+        return
+    scores.update({k: v for k, v in sub.items()
+                   if k not in ("raw_dojo", "scoring_hotfixes", "scoring_hotfixes_changed")})
+    scores.setdefault("raw_dojo", {}).update(sub.get("raw_dojo") or {})
+    scores["scoring_hotfixes"] = sorted({*scores.get("scoring_hotfixes", []), *sub.get("scoring_hotfixes", [])})
+    scores["scoring_hotfixes_changed"] = sorted({*scores.get("scoring_hotfixes_changed", []),
+                                                 *sub.get("scoring_hotfixes_changed", [])})
+
+
 def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
     return resolve_logged_prompt_version(prompt_version, task=task)
 
@@ -452,6 +464,8 @@ def run_isolated_eval(
         raw_extraction = sh.aggregate_extraction(sh.raw_rows(fixed_rows))
         scores.update(extraction)
         scores["raw_dojo"].update({k: raw_extraction.get(k) for k in extraction})
+    if task in scoring.SORTER_SUBCLASS_TASKS:
+        _merge_subclass_headline(scores, scoring.sorter_subclass_scores(list(zip(rows, per_row))))
     schema_rows = [
         r.get("score") or {}
         for r in per_row

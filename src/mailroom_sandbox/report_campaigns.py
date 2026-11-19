@@ -687,7 +687,24 @@ def _headline(scores: Mapping[str, Any] | None) -> dict[str, Any]:
     for k in ("f1_macro", "doc_type_accuracy"):
         if task.get(k) is not None:
             head[k] = task[k]
+    # SHF-013: sorter subclass, on the reviewed corrections, with the Hub-truth figure beside it.
+    for k in ("subclass_match", "subclass_scored", "subclass_corrections_applied"):
+        if scores.get(k) is not None:
+            head[k] = scores[k]
+    raw = scores.get("raw_dojo") if isinstance(scores.get("raw_dojo"), Mapping) else {}
+    if "subclass_match" in head and raw.get("subclass_match") is not None:
+        head["subclass_match_hub_truth"] = raw["subclass_match"]
     return head
+
+
+def _subclass_by_class(scores: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Per-class subclass accuracy (SHF-013) on the corrected truth, with the Hub-truth accuracy."""
+    by_class = (scores or {}).get("subclass_by_class") if isinstance(scores, Mapping) else None
+    if not isinstance(by_class, Mapping) or not by_class:
+        return None
+    raw = ((scores or {}).get("raw_dojo") or {}).get("subclass_by_class") or {}
+    return {cls: {**dict(cell), "hub_truth_accuracy": (raw.get(cls) or {}).get("accuracy")}
+            for cls, cell in sorted(by_class.items())}
 
 
 def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str, str]:
@@ -868,6 +885,7 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
         "checkpoint": {k: cp.get(k) for k in ("state", "cursor", "total", "last_error")},
         "headline": _headline(scores),
         "headline_source": "experiment log" if record else None,
+        **({"subclass_by_class": sub} if (sub := _subclass_by_class(scores)) else {}),
         "cost": {k: (serving or {}).get(k) for k in ("estimated_cost_usd", "cost_per_document", "cost_basis",
                                                    "wall_seconds", "prompt_tokens", "completion_tokens")},
         "caveats": caveats,
@@ -903,6 +921,12 @@ def _render_report_md(report: Mapping[str, Any], paths: RunPaths) -> str:
         lines += ["| metric | value |", "| --- | --- |", *(f"| {k} | {_fmt(v)} |" for k, v in sorted(head.items()))]
     else:
         lines.append("Not recorded: no experiment-log record matches this generation. Nothing is recomputed here.")
+    by_class = report.get("subclass_by_class") or {}
+    if by_class:
+        lines += ["", "## Subclass by truth class (SHF-013, reviewed corrections applied)", "",
+                  "| class | n | correct | accuracy | Hub-truth accuracy |", "| --- | --- | --- | --- | --- |",
+                  *(f"| {cls} | {cell.get('n')} | {cell.get('correct')} | {_fmt(cell.get('accuracy'))} | "
+                    f"{_fmt(cell.get('hub_truth_accuracy'))} |" for cls, cell in by_class.items())]
     lines += ["", "## Cost and serving (serving renderer)", "", "| metric | value |", "| --- | --- |",
               *(f"| {k} | {_fmt(v, 6)} |" for k, v in cost.items()), "", "## Caveats", "",
               *(f"- {c}" for c in report.get("caveats") or ["None recorded."]), ""]

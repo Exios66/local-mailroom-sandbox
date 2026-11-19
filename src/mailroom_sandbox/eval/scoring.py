@@ -431,6 +431,94 @@ def score_subclass(
             "subclass_scoring_hotfixes_changed": dual["scoring_hotfixes_changed"]}
 
 
+#: Isolated tasks whose answer names a subclass (SHF-013): the sorter (``task: isolated`` runs it) and
+#: the sorter_reviewer (a Decisions model acting as the sorter, H5 arm B).
+SORTER_SUBCLASS_TASKS = frozenset({"sorter", "sorter_reviewer"})
+
+
+def sorter_subclass_row(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, Any] | None:
+    """One sorter answer's subclass outcome (SHF-013) on the corrected and the Hub truth; None without truth.
+
+    Joint with the class: a wrong or abstained class is a wrong subclass. The predicted subclass is
+    ``doc_subclass``, else ``contract_subtype``; both sides compare as canonical tokens of the truth
+    class (``experiment_splits._subclass_token``), so ``Distributor`` meets ``distributor`` and
+    ``Affiliate_Agreements`` meets ``affiliate``. A reviewed correction
+    (``scoring_hotfixes.corrected_subclass``) replaces the Hub subclass in ``subclass_match``;
+    ``hub_subclass_match`` keeps the outcome on the Hub truth.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.experiment_splits import _subclass_token as token
+
+    truth_class = str(row.get("expected_doc_class") or row.get("doc_type") or "").strip()
+    hub = str(row.get("expected_subclass") or "").strip()
+    if not truth_class or not hub:
+        return None
+    corrected = sh.corrected_subclass(row.get("id"), truth_class, hub)
+    predicted_class = str(pred.get("doc_type") or "")
+    predicted = str(pred.get("doc_subclass") or pred.get("contract_subtype") or "").strip()
+    abstained = bool(pred.get("abstained") or pred.get("route_to_human") or not predicted_class.strip())
+
+    def fold(label: str) -> str:
+        return _norm_label(label).replace("-", "_")
+
+    class_ok = not abstained and fold(truth_class) == fold(predicted_class)
+
+    def match(truth: str) -> float:
+        return float(bool(class_ok and predicted and token(truth_class, truth) == token(truth_class, predicted)))
+
+    out: dict[str, Any] = {"expected_subclass": corrected or hub, "predicted_subclass": predicted or None,
+                           "subclass_match": match(corrected or hub), "hub_subclass_match": match(hub)}
+    if corrected is not None:
+        out["subclass_corrected"] = True
+        out["hub_subclass"] = hub
+    return out
+
+
+def sorter_subclass_scores(pairs: Sequence[tuple[Mapping[str, Any], Mapping[str, Any] | None]]) -> dict[str, Any]:
+    """Run-level subclass scores of an isolated sorter / sorter_reviewer run (SHF-013), dual reported.
+
+    ``pairs`` are ``(locked dataset row, item entry)``; the entry carries ``pred`` and ``error`` /
+    ``ok``. A failed entry whose row has a truth subclass scores 0 (it named no class); a row without
+    a truth subclass, or without an entry, is left out. The headline (``subclass_scored``,
+    ``subclass_match``, ``subclass_by_class`` keyed by truth class, ``subclass_corrections_applied``)
+    is on the corrected truth; ``raw_dojo`` holds the same figures on the Hub truth, since the Dojo
+    pin scores no subclass for these tasks. Empty when SHF-013 is not current (the pre-fix record).
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if "SHF-013" not in sh.current_ids():
+        return {}
+    fixed: list[tuple[str, bool]] = []
+    raw: list[tuple[str, bool]] = []
+    corrections = 0
+    for row, entry in pairs:
+        if entry is None:
+            continue
+        failed = bool(entry.get("error")) or entry.get("ok") is False
+        out = sorter_subclass_row(row, {} if failed else (entry.get("pred") or {}))
+        if out is None:
+            continue
+        cls = str(row.get("expected_doc_class") or row.get("doc_type") or "").strip()
+        fixed.append((cls, bool(out["subclass_match"])))
+        raw.append((cls, bool(out["hub_subclass_match"])))
+        corrections += bool(out.get("subclass_corrected"))
+
+    def aggregate(results: list[tuple[str, bool]]) -> dict[str, Any]:
+        by_class: dict[str, list[bool]] = {}
+        for cls, ok in results:
+            by_class.setdefault(cls, []).append(ok)
+        return {
+            "subclass_scored": len(results),
+            "subclass_match": round(sum(ok for _, ok in results) / len(results), 6) if results else None,
+            "subclass_by_class": {c: {"n": len(v), "correct": sum(v), "accuracy": round(sum(v) / len(v), 6)}
+                                  for c, v in sorted(by_class.items())},
+        }
+
+    headline = {**aggregate(fixed), "subclass_corrections_applied": corrections}
+    return sh.merge_dual(aggregate(raw), headline, ["SHF-013"],
+                         keys=("subclass_scored", "subclass_match", "subclass_by_class"))
+
+
 def predicted_subclass(result: Mapping[str, Any]) -> str:
     """The subclass a pipeline result names for its final class (SHF-012).
 
