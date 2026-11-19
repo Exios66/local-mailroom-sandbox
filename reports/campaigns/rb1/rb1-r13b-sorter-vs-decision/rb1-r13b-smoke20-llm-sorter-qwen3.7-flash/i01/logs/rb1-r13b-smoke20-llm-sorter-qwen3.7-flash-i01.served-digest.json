@@ -1,0 +1,19 @@
+{
+  "by_requested_served_provider_status": {
+    "qwen/qwen3.7-flash | qwen/qwen3.7-flash | Alibaba | verified": 20
+  },
+  "mismatch_rows": 0,
+  "rows": 20,
+  "sources": [
+    {
+      "bytes": 11100,
+      "path": "data/runtime/rb1-r13b/served-luna.jsonl",
+      "sha256": "f84e35d1349091a0ed88aed832a68127eb9e6d631ae0509dd128205e41b73682"
+    },
+    {
+      "bytes": 9140,
+      "path": "data/runtime/rb1-r13b/served-qwen3.7-flash.jsonl",
+      "sha256": "25762001336105673821d2842b36829314739867bf08c1a4d1ca47d7ec3314ff"
+    }
+  ]
+}

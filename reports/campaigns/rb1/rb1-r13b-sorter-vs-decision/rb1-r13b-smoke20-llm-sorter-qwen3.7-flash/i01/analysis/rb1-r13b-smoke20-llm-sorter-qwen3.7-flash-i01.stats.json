@@ -1,4 +1,54 @@
 {
-  "applicable": false,
-  "note": "items.jsonl rows carry no per-item truth; use the run scorer's scores in metrics.json"
+  "abstained": 0,
+  "accuracy": 1.0,
+  "applicable": true,
+  "brier_null_floor": 0.0,
+  "confusion": {
+    "contract": {
+      "contract": 4,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "corporate_record": {
+      "contract": 0,
+      "corporate_record": 4,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "correspondence": {
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 4,
+      "insurance_claim": 0,
+      "merger_agreement": 0
+    },
+    "insurance_claim": {
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 4,
+      "merger_agreement": 0
+    },
+    "merger_agreement": {
+      "contract": 0,
+      "corporate_record": 0,
+      "correspondence": 0,
+      "insurance_claim": 0,
+      "merger_agreement": 4
+    }
+  },
+  "labels": [
+    "contract",
+    "corporate_record",
+    "correspondence",
+    "insurance_claim",
+    "merger_agreement"
+  ],
+  "macro_f1": 1.0,
+  "n": 20,
+  "paired_tests": "McNemar / paired permutation need two arms; see the experiment's analysis/",
+  "source": "mailroom_sandbox.experiment_stats on items.jsonl truth vs predicted doc_type (parked = abstained)"
 }

@@ -605,26 +605,38 @@ def _score_rows(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list
     return rows, ["item_id", "ok", *sorted(keys)]
 
 
+ABSTAINED = "(abstained)"
+
+
 def _stats(items: list[dict[str, Any]]) -> dict[str, Any]:
     """Stats layer on item rows that carry their own truth; a sanity read, not the headline."""
     from mailroom_sandbox import experiment_stats as st
 
-    pairs = []
+    pairs, correct, abstained = [], [], 0
     for item in items:
         row = _pred_row(item)
-        if isinstance(item.get("expected"), str) and row["doc_type"] and isinstance(row["doc_type"], str):
-            pairs.append((item["expected"], row["doc_type"]))
+        score = item.get("score") if isinstance(item.get("score"), dict) else {}
+        # Whole-run rows carry top-level truth; isolated-run rows carry it in the scorer's score.
+        truth = item.get("expected") if isinstance(item.get("expected"), str) else score.get("expected")
+        if not isinstance(truth, str) or not isinstance(row["doc_type"], str) or not row["doc_type"]:
+            continue
+        pred = item.get("pred") if isinstance(item.get("pred"), dict) else {}
+        parked = bool(score.get("abstain") or pred.get("abstained") or pred.get("route_to_human"))
+        # A parked document is never a correct answer, whatever its class guess was.
+        pairs.append((truth, ABSTAINED if parked else row["doc_type"]))
+        correct.append(not parked and truth == row["doc_type"])
+        abstained += parked
     if not pairs:
         return {"applicable": False,
                 "note": "items.jsonl rows carry no per-item truth; use the run scorer's scores in metrics.json"}
     truth, pred = [t for t, _ in pairs], [p for _, p in pairs]
-    correct = [t == p for t, p in pairs]
     labels = sorted(set(truth) | set(pred))
     confusion = {t: {p: sum(1 for a, b in pairs if a == t and b == p) for p in labels} for t in labels}
     return {
         "applicable": True,
-        "source": "mailroom_sandbox.experiment_stats on items.jsonl expected vs predicted doc_type",
+        "source": "mailroom_sandbox.experiment_stats on items.jsonl truth vs predicted doc_type (parked = abstained)",
         "n": len(pairs),
+        "abstained": abstained,
         "accuracy": sum(correct) / len(correct),
         "macro_f1": st.macro_f1(truth, pred),
         "brier_null_floor": st.brier_null_floor(correct),
@@ -903,6 +915,8 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
 def _render_report_md(report: Mapping[str, Any], paths: RunPaths) -> str:
     head = report.get("headline") or {}
     cost = report.get("cost") or {}
+    ds = report.get("dataset") or {}
+    report_json = f"{paths.stem}.report.json"  # sibling of this page in report/
     lines = [f"# Run report — `{paths.stem}`", ""]
     if report.get("mock"):
         lines += ["> **MOCK / replay run. Simulated output; not evidence.**", ""]
@@ -915,6 +929,8 @@ def _render_report_md(report: Mapping[str, Any], paths: RunPaths) -> str:
         f"| spec_hash | `{report.get('spec_hash')}` |",
         f"| started → finished | {_fmt(report.get('started'))} → {_fmt(report.get('finished'))} |",
         f"| documents ok / failed / total | {report['items']['ok']} / {report['items']['failed']} / {report['items']['total']} |",
+        f"| dataset | `{ds.get('repo')}` @ `{ds.get('revision')}` ({ds.get('config')}/{ds.get('split')}) |",
+        f"| source | [{report_json}]({report_json}) |",
         "", "## Headline (run scorer, from the experiment log)", "",
     ]
     if head:

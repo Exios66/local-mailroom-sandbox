@@ -1,8 +1,9 @@
 {
   "files": {
-    "README.md": "700234959de04a668e535a47b541537c59818e30dae914be4a8f583ad67ae1c8",
+    "README.md": "d7c5fe322efb57176008034c48442b37254ea1572f8032616c24b927a8c408c9",
+    "analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.confusion.csv": "036fc94aa36c2c5fb5398fe62009cfe6c0c31ec1a94b7c110b9175e78d935d8c",
     "analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.metrics.json": "ded702b8f4815116a675729f2cafdb6fb7db83a92ef82c438143363be038d97c",
-    "analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.stats.json": "2c942d4786c5329c4e777cd024f0fd967476fcf0f77afd822dccfab95c05e01f",
+    "analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.stats.json": "5b0231efaf0033dab14df604257f3e907a4f9874f2da5505dbaaca6e1523ff54",
     "docs/rb1-r13b-smoke20-decision-sorter-luna-i01.caveats.md": "834fa7b7e4ae15d2062dc17c12ebcd9fa98c2cd5a5d2a8cdeaa5ea67019fc9bc",
     "docs/rb1-r13b-smoke20-decision-sorter-luna-i01.config.yaml": "cfe9e1c952ed95d47d5c8bf6130acc4c050128ee42d645a98fd96c43e9bb0850",
     "docs/rb1-r13b-smoke20-decision-sorter-luna-i01.prompt-lock.json": "7cf65f1cfe8ea337421d505cba9a7c1fd0133e69a11bcd729de9990275ac9801",
@@ -16,7 +17,7 @@
     "outputs/rb1-r13b-smoke20-decision-sorter-luna-i01.item-scores.csv": "d8761035532c6628b553dcda8eeceb1bf37ca1aafc1ddc295aad4e6b16689892",
     "outputs/rb1-r13b-smoke20-decision-sorter-luna-i01.predictions.csv": "27c6b1b825d384be2d30bed650c2a31416a468d5c53783e87f1fd6385ee13e69",
     "report/rb1-r13b-smoke20-decision-sorter-luna-i01.report.json": "3d4e877ade3a7ce4601f88f1954fe6f4314aebec0b91f5d79024057600502cc4",
-    "report/rb1-r13b-smoke20-decision-sorter-luna-i01.report.md": "2b2f3abfbef5304e25cbd9e851b76eecd37dcf61bd5bb87221e2acaffd06438c",
+    "report/rb1-r13b-smoke20-decision-sorter-luna-i01.report.md": "d27fbced5f058265e17689342c59457b07b163907e1c9312cfe419f708f0bd11",
     "traces/rb1-r13b-smoke20-decision-sorter-luna-i01.items.jsonl": "5836d14514593add928baca190517e932657970f13ddd567fc4820e4c751c6cf",
     "traces/rb1-r13b-smoke20-decision-sorter-luna-i01.traces.json": "05be04f28f60e40c0e24cb385d45b96d8f3cde5ed953322cb88fa0eeac45b9dd"
   },

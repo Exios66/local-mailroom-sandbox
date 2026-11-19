@@ -136,10 +136,14 @@ def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monk
         return {"stage": "archived", "doc_type": "contract"}
 
     monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    # A non-mock eval appends to reports/experiment_log.jsonl; keep this synthetic record out of it.
+    logged = []
+    monkeypatch.setattr(runners.experiment_log, "append", lambda record, path=None: logged.append(record) or path)
     rows = []
     runners.run_pipeline_eval(profile="ollama", rows=[{"id": "a", "expected_doc_class": "contract", "text": "x"}],
                               mock=False, connected=False, row_cb=rows.append)
     assert rows[0]["call_usage"] == [[10_000, 10], [50_000, 10]] and rows[0]["llm_calls"] == 2
+    assert len(logged) == 1
     store = RunStore(tmp_path / "r")
     _persist_isolated_items(store, rows)
     items = store.load_items()

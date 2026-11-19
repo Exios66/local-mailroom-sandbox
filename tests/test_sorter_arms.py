@@ -660,3 +660,18 @@ def test_reviewed_subclass_corrections_score_subclass_and_unit_on_the_corrected_
     a, b = report["arms"]
     assert a["subclass_corrections_applied"] == 0 and a["subclass_accuracy"] == pytest.approx(29 / 30)
     assert b["unit_accuracy"] == 1.0 and "SHF-013" not in sa.render(report)
+
+
+def test_class_support_alone_vetoes_macro_noninferiority():
+    # 801 agreeing documents clear the exact and bootstrap floors; only the one-document class blocks.
+    classes = ["contract"] * 200 + ["corporate_record"] * 200 + ["correspondence"] * 200 + ["insurance_claim"] * 200
+    outs = [sa.Outcome(doc_id=f"D{i}", truth_class=c, pred_class=c, class_ok=True, sub_scored=False, sub_ok=False,
+                       unit_scored=False, unit_ok=False, failed=False, confidence=0.9, latency_ms=1.0, cost_usd=0.0,
+                       reported_cost_usd=None, tokens=(1, 1))
+            for i, c in enumerate(classes + ["unknown"])]
+    ni = sa.compare_pair(outs, outs, labels=sorted(set(classes) | {"unknown"}), n_boot=50, n_perm=20)[
+        "tests"]["noninferiority_macro_f1"]
+    assert ni["exact"]["p_value"] < sa.ALPHA and ni["bootstrap"]["p_value"] < sa.ALPHA
+    assert ni["exact"]["lower95_one_sided"] > -sa.MARGIN_MACRO_F1
+    assert ni["class_support"]["underpowered"] == {"unknown": 1}
+    assert ni["non_inferior"] is False and ni["p_value"] == 1.0

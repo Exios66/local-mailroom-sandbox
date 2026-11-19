@@ -93,21 +93,29 @@ def build(rows: dict[str, dict]) -> list[dict]:
 def check_run(run_dir: Path, controls: Path) -> int:
     """Score a finished run on the controls: the form answer and whether the document was parked.
 
-    Expected forms come from the controls file: run preparation keeps only the dataset row
-    fields, so the locked ``dataset.jsonl`` no longer carries ``expected_document_form``.
+    Expected forms come from ``CONTROLS``; the controls file must hold each of them exactly once with
+    that form (run preparation keeps only the dataset row fields, so the locked ``dataset.jsonl``
+    no longer carries ``expected_document_form``).
     """
-    expected = {}
+    expected = {cid: form for cid, _, _, form in CONTROLS}  # the canonical set, not whatever the file holds
+    in_file: dict[str, list[str | None]] = {}
     for line in controls.read_text(encoding="utf-8").splitlines():
         if line.strip():
             row = json.loads(line)
-            expected[row["id"]] = row.get("expected_document_form")
-    misses, seen = 0, set()
+            in_file.setdefault(row["id"], []).append(row.get("expected_document_form"))
+    misses, seen, bad = 0, set(), set()
+    for cid, form in expected.items():  # a truncated or edited controls file cannot pass the checkpoint
+        if in_file.get(cid) != [form]:
+            misses += 1
+            bad.add(cid)
+            print(f"MISS {cid:36} want {form:20} controls file has {in_file.get(cid)}")
     for line in (run_dir / "items.jsonl").read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         item = json.loads(line)
         want = expected.get(item.get("item_id"))
-        if want is None:
+        if want is None or item["item_id"] in bad:  # bad: already counted as a miss above
+            seen.add(item.get("item_id"))
             continue
         if item["item_id"] in seen:  # two results for one control: the run is not a clean check
             misses += 1
@@ -119,7 +127,7 @@ def check_run(run_dir: Path, controls: Path) -> int:
         ok = got == want and parked == (want != "complete_instrument")
         misses += not ok
         print(f"{'ok  ' if ok else 'MISS'} {item['item_id']:36} want {want:20} got {str(got):20} parked={parked}")
-    for cid in sorted(set(expected) - seen):  # a truncated run must not pass on the controls it skipped
+    for cid in sorted(set(expected) - seen - bad):  # a truncated run must not pass on the controls it skipped
         misses += 1
         print(f"MISS {cid:36} want {expected[cid]:20} no item in the run")
     correct = max(0, len(expected) - misses)

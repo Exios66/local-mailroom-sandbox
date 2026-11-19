@@ -9,6 +9,8 @@
 | spec_hash | `731dd25f080dc460b4e70374e99dca754374b2f74fe00d1cb0e38f3028fe3eaa` |
 | started → finished | 2026-11-19T07:41:07.594+00:00 → 2026-11-19T07:41:31.859+00:00 |
 | documents ok / failed / total | 20 / 0 / 20 |
+| dataset | `Lucius-Morningstar/mailroom-dataset` @ `bc9eab280044befb51e19dda3071d290a8677f42` (ground_truth/all) |
+| source | [rb1-r13b-smoke20-llm-sorter-qwen3.7-flash-i01.report.json](rb1-r13b-smoke20-llm-sorter-qwen3.7-flash-i01.report.json) |
 
 ## Headline (run scorer, from the experiment log)
 
