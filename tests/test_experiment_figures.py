@@ -266,7 +266,7 @@ def test_simulated_comparisons_say_so_on_every_figure():
 
 def test_latency_strip_skips_a_series_with_no_positive_values():
     figs = cf.build(_report(), {"rb1-r13b-x-llm": [0.0], "rb1-r13b-b-dec": [1.0, 9.0]})
-    assert "median 5.00 s" in figs["latency"]
+    assert "median 1.00 s" in figs["latency"]  # nearest-rank p50, as the digest
 
 
 def test_runtime_uses_active_time_when_the_comparison_is_a_subset_of_the_run():
@@ -274,11 +274,38 @@ def test_runtime_uses_active_time_when_the_comparison_is_a_subset_of_the_run():
     for a in r["arms"]:
         a["runtime"]["run_items"] = 100  # a --set subset of a larger run
         a["runtime"]["active_seconds"] = a["runtime"]["run_wall_seconds"] / 2
+        a["runtime"]["interleaved_docs"] = 0
     svg = cf.build(r)["runtime"]
     assert "Active time, first request to last answer, on the same 20 documents" in svg
     r["arms"][0]["runtime"]["answered"] = 0  # an explicit zero is not replaced by n
     zero = cf.build(r)["runtime"]
     assert zero.count("documents/min") == 2  # the arm that answered nothing shows no rate, not n per minute
+
+
+def test_latency_median_is_the_digest_p50_over_every_latency():
+    r = _report()
+    r["arms"][1]["latency_ms"] = {"p50": 1000.0}  # nearest rank of [1, 9] s, as sorter_arms reports it
+    svg = cf.build(r, {"rb1-r13b-x-llm": [0.0, 0.0, 3.0], "rb1-r13b-b-dec": [1.0, 9.0]})["latency"]
+    assert "median 1.00 s" in svg and "median 5.00 s" not in svg
+    assert "median 0.00 s" not in svg  # p50 of [0, 0, 3] is 0: no marker on a log axis
+
+
+def test_runtime_needs_one_basis_isolated_from_other_documents():
+    r = _report()
+    for a in r["arms"]:
+        a["runtime"].update(run_items=100, active_seconds=a["runtime"]["run_wall_seconds"] / 2, interleaved_docs=0)
+    assert "Active time" in cf.build(r)["runtime"]
+    r["arms"][1]["runtime"]["interleaved_docs"] = 3  # another document ran inside the window
+    assert "runtime" not in cf.build(r)
+    r["arms"][1]["runtime"].update(run_items=20, interleaved_docs=0)  # one full run, two subsets
+    assert "Active time" in cf.build(r)["runtime"]  # one basis: every arm on active time
+
+
+def test_a_failed_defect_did_not_reach_extraction():
+    rows_by_id = {f"D{i}": {"control": "truncated", "expected_document_form": "fragment"} for i in range(3)}
+    items = [_run_item(0), _run_item(1), _run_item(2, ok=False, error="timeout", pred={}, score={})]
+    figs, _ = dfig.build("rb1-r13b-test-dec", items, rows_by_id)
+    assert "2 of 3 constructed defects reached extraction, 1 failed" in figs["routing"]
 
 
 def test_font_shorthand_from_matplotlib_3_8_is_normalised_and_checked():

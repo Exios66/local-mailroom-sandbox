@@ -25,7 +25,7 @@ Built by `comparison_figures.build` from `sorter_arms.compare`; written by
 
 | Figure | Question | Form |
 | --- | --- | --- |
-| `runtime` | How long does each arm take for the same documents? | Bars of total wall-clock run time (active time, first request to last answer, when the comparison is a subset of a run), labelled with documents/min and hours per 100k; title gives the speed-up range |
+| `runtime` | How long does each arm take for the same documents? | Bars of total wall-clock run time (active time, first request to last answer, when the comparison is a subset of a run; one basis for every arm, and no figure when another document ran inside a subset's window), labelled with documents/min and hours per 100k; title gives the speed-up range |
 | `latency` | How long does one document take? | Dot strip per arm on a log axis, median bar and label |
 | `quality` | Is the decision model non-inferior? | Forest plot: candidate minus reference, 95% paired bootstrap, dashed red margins |
 | `routing` | How many documents does each arm send to a person, and how many does it auto-route wrongly? | Stacked bars, status colours |

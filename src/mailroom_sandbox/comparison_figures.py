@@ -22,7 +22,6 @@ Colour follows the system (``figure_style.SYSTEM_COLOURS``), never the arm's pos
 """
 from __future__ import annotations
 
-import statistics
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -96,10 +95,28 @@ def _wall_covers(arm: Mapping[str, Any]) -> bool:
     return bool(rt.get("run_wall_seconds")) and rt.get("run_items") is not None and rt["run_items"] == compared
 
 
-def _seconds(arm: Mapping[str, Any]) -> float | None:
-    """Run time of the compared documents: wall clock when the run was just these, else active time."""
+def _isolated(arm: Mapping[str, Any]) -> bool:
+    """Whether the active window timed only the compared documents (no other document ran inside it)."""
     rt = arm.get("runtime") or {}
-    return rt["run_wall_seconds"] if _wall_covers(arm) else rt.get("active_seconds")
+    return bool(rt.get("active_seconds")) and rt.get("interleaved_docs") == 0
+
+
+def _basis(arms: Sequence[Mapping[str, Any]]) -> str | None:
+    """One timing basis for every arm, so bars and speed-ups compare like with like.
+
+    ``wall`` when each run was exactly the compared documents, ``active`` when each arm's active
+    window held no other document, else None: the subset has no run time of its own.
+    """
+    if arms and all(_wall_covers(a) for a in arms):
+        return "wall"
+    if arms and all(_wall_covers(a) or _isolated(a) for a in arms):
+        return "active"
+    return None
+
+
+def _seconds(arm: Mapping[str, Any], basis: str | None = "active") -> float | None:
+    rt = arm.get("runtime") or {}
+    return rt.get("run_wall_seconds") if basis == "wall" else rt.get("active_seconds") if basis == "active" else None
 
 
 def _source(report: Mapping[str, Any]) -> str:
@@ -119,13 +136,14 @@ def _heading(fig: Any, ax: Any, report: Mapping[str, Any], title: str, sub: str)
 
 
 def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) -> str | None:
-    arms = [a for a in report["arms"] if _seconds(a)]
-    if not arms:
-        return None
+    basis = _basis(report["arms"])
+    arms = [a for a in report["arms"] if _seconds(a, basis)]
+    if basis is None or len(arms) != len(report["arms"]) or not arms:
+        return None  # no common timing basis: a bar or speed-up would compare different work
     ref = next((a for a in arms if a["run_id"] == report["reference"]), arms[0])
     fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 0.5 * len(arms) + 1.4))
     y = list(range(len(arms)))[::-1]
-    secs = [_seconds(a) for a in arms]
+    secs = [_seconds(a, basis) for a in arms]
     ax.barh(y, secs, color=[fs.SYSTEM_COLOURS[_system(a)] for a in arms], height=0.56)
     for yi, a, s in zip(y, arms, secs):
         # rates from the same seconds the bar shows, so bar, rate and speed-up agree
@@ -142,21 +160,19 @@ def _runtime(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str]) ->
     fs.axis_labels(ax, "Total run time (s)")
     n = report.get("n")
     grp = _group(arms, ref)
-    ratios = [_seconds(ref) / _seconds(o) for o in (grp[1] if grp else [])]
+    ratios = [_seconds(ref, basis) / _seconds(o, basis) for o in (grp[1] if grp else [])]
     if grp and all(r > 1 for r in ratios):
         title = f"{_cap(grp[0])} finished {_span(ratios, '.1f')}× faster than the {_lower(labels[ref['run_id']])}"
     elif grp and all(r < 1 for r in ratios):
         title = f"{_cap(grp[0])} took {_span([1 / r for r in ratios], '.1f')}× longer than the {_lower(labels[ref['run_id']])}"
     else:
-        fastest = min(arms, key=_seconds)
-        title = f"The {_lower(labels[fastest['run_id']])} finished first, in {fs.fmt_seconds(_seconds(fastest))}"
+        fastest = min(arms, key=lambda a: _seconds(a, basis))
+        title = f"The {_lower(labels[fastest['run_id']])} finished first, in {fs.fmt_seconds(_seconds(fastest, basis))}"
     if len(title) > fs.TITLE_MAX:
         title = "Total run time per arm on the same documents"
     conc = sorted({(a.get("runtime") or {}).get("concurrency") for a in arms} - {None})
-    walls = {_wall_covers(a) for a in arms}
-    basis = ("Wall-clock run time" if walls == {True} else "Active time, first request to last answer,"
-             if walls == {False} else "Wall-clock or active time (subset runs)")
-    sub = f"{basis} on the same {n} documents"
+    told = "Wall-clock run time" if basis == "wall" else "Active time, first request to last answer,"
+    sub = f"{told} on the same {n} documents"
     sub += f" at concurrency {conc[0]}" if len(conc) == 1 else " · concurrency differs, compare per-worker rates"
     _heading(fig, ax, report, title, sub)
     return f.svg(fig)
@@ -184,11 +200,15 @@ def _latency(f: fs.Fig, report: Mapping[str, Any], labels: Mapping[str, str],
                for i in range(len(vals))]
         ax.scatter(vals, [yi + j for j in jit], s=24, color=fs.SYSTEM_COLOURS[_system(a)], alpha=0.85,
                    edgecolors=fs.SURFACE, linewidths=0.8, zorder=3)
-        med = statistics.median(vals)
+        # the report's p50 (nearest rank over every latency, zeros included), so figure and digest agree
+        p50 = ((a.get("latency_ms") or {}).get("p50"))
+        all_vals = [float(v) for v in latencies.get(a["run_id"]) or [] if isinstance(v, (int, float))]
+        med = p50 / 1000.0 if isinstance(p50, (int, float)) else sorter_arms._quantile(all_vals, 0.5)
         medians[a["run_id"]] = med
-        ax.plot([med, med], [yi - 0.3, yi + 0.3], color=fs.INK, linewidth=2, zorder=4)
-        ax.text(med, yi + 0.34, f"median {med:.2f} s", ha="center", va="bottom", fontsize=fs.SIZE["annotation"],
-                color=fs.INK)
+        if med > 0:  # a log axis cannot place zero
+            ax.plot([med, med], [yi - 0.3, yi + 0.3], color=fs.INK, linewidth=2, zorder=4)
+            ax.text(med, yi + 0.34, f"median {med:.2f} s", ha="center", va="bottom", fontsize=fs.SIZE["annotation"],
+                    color=fs.INK)
     ax.set_xscale("log")
     lo, hi = min(allv), max(allv)
     ticks = [m * 10 ** e for e in range(-2, 5) for m in (1, 2, 5) if lo / 1.5 <= m * 10 ** e <= hi * 1.5]

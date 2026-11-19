@@ -210,8 +210,10 @@ def _routing(f: fs.Fig, rows: list[dict[str, Any]], source: str) -> str:
     park = sum(r["state"] == "parked" for r in rows)
     defects = sum(r["defect"] for r in rows)
     if defects and defects == n:
-        leaked = sum(r["defect"] and not r["parked"] for r in rows)
-        title = f"{leaked} of {n} constructed defects reached extraction"
+        # a failed request reached nothing: neither extraction nor a person (CP-08)
+        leaked = sum(r["defect"] and not r["parked"] and r["state"] != "failed" for r in rows)
+        lost = sum(r["state"] == "failed" for r in rows)
+        title = f"{leaked} of {n} constructed defects reached extraction" + (f", {lost} failed" if lost else "")
     elif mis:
         title = f"{mis} of {n} documents {'was' if mis == 1 else 'were'} misarchived and {park} parked"
     else:

@@ -553,6 +553,41 @@ def test_cli_writes_comparison_figures_coloured_by_system(tmp_path, split, capsy
 
 
 
+def test_a_clean_billed_sample_still_needs_list_and_billed_costs_to_agree():
+    def arm(rid, listed, billed):
+        return {"run_id": rid, "n": 1000, "cost": {"per_1k_docs_usd": listed, "provider_reported_docs": 1000,
+                                                    "provider_reported_usd": billed}}
+    report = {"n": 1000, "arms": [arm("A", 2.0, 2.5), arm("B", 2.3, 2.6)]}
+    assert sa.cost_not_comparable(report, ["A", "B"]) == []  # both say B costs more
+    report["arms"][1] = arm("B", 2.3, 2.2)  # list price says more, the bill says less
+    assert sa.cost_not_comparable(report, ["A", "B"]) == ["list-price and billed costs disagree on direction for B"]
+
+
+def test_digest_gives_no_speed_up_when_other_documents_share_the_window():
+    rt = {"active_seconds": 10.0, "run_wall_seconds": 30.0, "interleaved_docs": 0}
+    report = {"reference": "A", "arms": [{"run_id": "A", "runtime": dict(rt)},
+                                         {"run_id": "B", "runtime": dict(rt, active_seconds=5.0)}]}
+    assert "2.0x" in "\n".join(sa._render_runtime(report))
+    report["arms"][1]["runtime"]["interleaved_docs"] = 4
+    text = "\n".join(sa._render_runtime(report))
+    assert "2.0x" not in text and "no speed-up: other documents of the run ran inside the active window of B" in text
+
+
+def test_runtime_counts_other_documents_inside_the_compared_window():
+    from types import SimpleNamespace as NS
+
+    # six documents, one second apart; the comparison takes D0, D2, D4
+    items = {f"D{k}": {"started_at_ns": int((100 + k) * 1e9), "finished_at_ns": int((100.5 + k) * 1e9)} for k in range(6)}
+    arm = NS(items=items, concurrency=1, run_wall_seconds=6.0)
+
+    def rows(keys):
+        return [NS(doc_id=f"D{k}", started_ts=100.0 + k, finished_ts=100.5 + k, latency_ms=500.0, failed=False)
+                for k in keys]
+
+    assert sa._runtime(arm, rows([0, 2, 4]))["interleaved_docs"] == 2  # D1 and D3 ran inside 100..104.5
+    assert sa._runtime(arm, rows([0, 1, 2]))["interleaved_docs"] == 0  # a contiguous block is its own window
+
+
 def test_pricing_ticks_are_per_call_prompt_sizes():
     assert cli.call_prompt_sizes({"prompt_tokens": 90_000, "llm_calls": 3}) == [30_000.0] * 3
     assert cli.call_prompt_sizes({"prompt_tokens": 40_000, "llm_calls": 1}) == [40_000.0]
