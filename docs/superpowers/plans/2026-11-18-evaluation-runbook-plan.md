@@ -7,6 +7,7 @@ status: draft  # becomes pre-registered once hypotheses H1-H4 and their falsific
 author: mixed
 design: "Mailroom Sorter & Extraction Evaluation Design (Claude doc, tabs: design, Statistical review, EXPERIMENT CHECKLIST, Prompt iteration experiments, Decision model cycles)"
 runbook: "experiment_runbook.csv (R00-R90, G0-G8)"
+discussion: "https://github.com/Exios66/local-mailroom-sandbox/discussions/343"
 ---
 
 # Mailroom sorter and extraction evaluation runbook — research plan
