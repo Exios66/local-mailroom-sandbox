@@ -392,7 +392,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION, parquet rows of Hub tag v9.1)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 parquet rows, a superseded pin; new runs use FAMILY_HF_REVISION, Hub tag v9.3)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

@@ -87,7 +87,7 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 .venv/bin/sandbox run gate --run-id production-slice-0100-r3 --prev-run-id production-slice-0100-r2
 ```
 
-- **Label revision:** r3 runs on Hub tag v9.3 and r2 ran on v9.1. The slice draws the same 100 documents in the same order on both, but the 14 corporate records carry repaired labels (`keywords`, `subject_matter`, `entity_name`, `gt_presence`, `record_type`). `run gate --prev-run-id` therefore reports `re-run labels differ on 14 document(s)` and fails the paired check. Read the other 86 documents as the paired comparison, or re-score r2 on v9.3 first (Q3 step 3).
+- **Label revision:** r2 ran on Hub tag v9.1, and `slice-0100.yaml` now pins v9.3. Both draw the same 100 documents in the same order, but the 14 corporate records carry repaired labels (`keywords`, `subject_matter`, `entity_name`, `gt_presence`, `record_type`). So `run gate --prev-run-id production-slice-0100-r2` always fails its re-run check (`re-run labels differ on 14 document(s)`), and its pooled rates include those 14. Pick one before launching: (a) gate r3 as a fix re-run of r2 on a copy of `slice-0100.yaml` pinned to v9.1 (`bc9eab280044befb51e19dda3071d290a8677f42`), as `judge-audit-0026` does; or (b) run r3 on v9.3 as the first v9.3 baseline, gated on its own (`sandbox run gate --run-id production-slice-0100-r3`), with no `--prev-run-id`.
 - **What to expect:** even with every fix layered on, the r2 counterfactual stays near 0.40 wrong archives. That is far above the 0.02 bar. What remains is contract clause recall and insurance free-text fields just under 0.90, so r3 measures progress; it will not pass.
 
 ## Blocked on other work

@@ -72,6 +72,11 @@ def test_benchmark_gate_still_accepts_superseded_v9_1_pins():
 
     tag_sha, data_sha = LEGACY_FAMILY_HF_REVISIONS["v9.1"]
     assert {tag_sha, data_sha} <= set(BENCHMARK_EXPECTED["accepted_revisions"])
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as CURRENT, KNOWN_FAMILY_HF_REVISIONS
+
+    accepted = BENCHMARK_EXPECTED["accepted_revisions"]
+    assert set(accepted) == KNOWN_FAMILY_HF_REVISIONS and len(accepted) == len(set(accepted))
+    assert accepted[0] == CURRENT
     assert data_sha == "ed7576b676343e0b402ec5412cded301e629bdee"
 
 

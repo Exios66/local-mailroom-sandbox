@@ -23,6 +23,7 @@ from mailroom_sandbox.job.spec import (
     FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
     HF_DEFAULT_REPO,
+    KNOWN_FAMILY_HF_REVISIONS,
     LEGACY_FAMILY_HF_REVISIONS,
     RunSpec,
 )
@@ -57,8 +58,8 @@ BENCHMARK_EXPECTED = {
     "accepted_revisions": (
         FAMILY_HF_REVISION,
         FAMILY_HF_DATA_REVISION,
-        *(sha for pair in LEGACY_FAMILY_HF_REVISIONS.values() for sha in pair),
-    ),  # == KNOWN_FAMILY_HF_REVISIONS, current pin first
+        *sorted(KNOWN_FAMILY_HF_REVISIONS - {FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION}),
+    ),  # KNOWN_FAMILY_HF_REVISIONS, current pin first
     "repo": HF_DEFAULT_REPO,
     "limit": 30,
 }

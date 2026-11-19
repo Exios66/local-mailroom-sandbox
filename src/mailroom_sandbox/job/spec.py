@@ -28,7 +28,10 @@ _log = logging.getLogger("mailroom_sandbox.job.spec")
 # repair (entity_name, record_type, subject_matter, keywords; 12 corporate subclasses
 # reassigned), per-subclass corporate ``gt_presence`` keys, merger agreements routed to
 # ``merger_agreement_specialist``, six-regime ``annotation_method``, and the
-# build-internal ``_published`` column removed.
+# build-internal ``_published`` column removed. Measured against v9.1 on all 3,302 rows:
+# every corporate record changes labels (``gt_presence``, ``record_type``; ``entity_name``,
+# ``keywords``, ``subject_matter`` on 412; ``intent`` on 12; ``expected_subclass`` on 12), and
+# 23 correspondence documents change ``related_document_ids`` (14 also ``relationships``).
 FAMILY_HF_TAG = "v9.3"
 FAMILY_HF_REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
 FAMILY_HF_DATA_REVISION = "7fd99b406ab1b627f43602dd6a3af5fb5b7a3ac5"

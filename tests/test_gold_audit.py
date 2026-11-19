@@ -309,3 +309,15 @@ def test_the_frozen_runbook_v1_registry_matches_its_split():
     assert reg["inputs"]["dataset_revision"] == manifest["dataset"]["revision"]
     assert reg["inputs"]["split_assignments_sha256"] == ss._read_sets(split)[1]
     assert "subclass_schemas-runbook-v1.json" in Path(cli.__file__).read_text(encoding="utf-8")  # the CLI default
+
+
+def test_a_registry_built_from_a_tag_name_matches_the_run_that_drew_its_commit():
+    from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISION, FAMILY_HF_TAG
+
+    rows = [{"source_revision": FAMILY_HF_DATA_REVISION}]
+    ga.check_schemas_revision(rows, {"inputs": {"dataset_revision": FAMILY_HF_TAG}}, Path("r.json"))
+    ga.check_schemas_revision([{"source_revision": "bc9eab280044befb51e19dda3071d290a8677f42"}],
+                              {"inputs": {"dataset_revision": "v9.1"}}, Path("r.json"))
+    assert ga._tag_commit(FAMILY_HF_TAG) == FAMILY_HF_REVISION
+    with pytest.raises(ga.AuditError):
+        ga.check_schemas_revision(rows, {"inputs": {"dataset_revision": "v9.1"}}, Path("r.json"))

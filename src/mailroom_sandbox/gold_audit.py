@@ -12,7 +12,8 @@ disagreements:
 * ``sorter``: the document class, or the subclass when the class is right (contract subclasses
   compared through the Dojo's ``normalize_subtype``, as ``scripts/compare_sorter_prompt.py`` does);
 * per-field specialists: every labelled field whose verdict in
-  ``config/extraction/subclass_schemas.json`` is ``iterate`` and whose Dojo per-field score
+  field registry (``config/extraction/subclass_schemas-runbook-v1.json`` for campaign rb1, graded on
+  the run's revision; ``check_schemas_revision`` refuses another one) is ``iterate`` and whose Dojo per-field score
   (``job.gate_causes._field_scores``, the slice gate's scorer) is below ``mismatch_below``.
   Templated fields (``pair_report.TEMPLATED_FIELDS``) are left out, as the gate leaves them out;
 * contract CUAD categories (``cuad_clauses:<category>``): gold categories the run missed and
@@ -98,11 +99,17 @@ def check_sets(doc_ids: Iterable[str], assignments: Mapping[str, str]) -> None:
 
 
 def _tag_commit(sha: str) -> str:
-    """The Hub tag commit for a family SHA (a tag's parquet parent maps to its tag); others unchanged."""
-    from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISION, LEGACY_FAMILY_HF_REVISIONS
+    """The Hub tag commit for a family revision: a tag name or its parquet parent maps to the tag
+    commit; any other value is returned unchanged."""
+    from mailroom_sandbox.job.spec import (
+        FAMILY_HF_DATA_REVISION,
+        FAMILY_HF_REVISION,
+        FAMILY_HF_TAG,
+        LEGACY_FAMILY_HF_REVISIONS,
+    )
 
-    pairs = [(FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION), *LEGACY_FAMILY_HF_REVISIONS.values()]
-    return next((tag for tag, data in pairs if sha in (tag, data)), sha)
+    pairs = {FAMILY_HF_TAG: (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION), **LEGACY_FAMILY_HF_REVISIONS}
+    return next((tag for name, (tag, data) in pairs.items() if sha in (name, tag, data)), sha)
 
 
 def check_schemas_revision(rows: list[Mapping[str, Any]], schemas: Mapping[str, Any], schemas_path: Path) -> None:
@@ -125,7 +132,7 @@ def iterate_fields(schemas: Mapping[str, Any], doc_class: str, subclass: str | N
     """Fields with verdict ``iterate`` for ``doc_class`` (or its subclass entry, at ``level=subclass``)."""
     cls = (schemas.get("classes") or {}).get(doc_class)
     if cls is None:
-        raise AuditError(f"subclass_schemas.json has no class {doc_class!r}")
+        raise AuditError(f"the field registry has no class {doc_class!r}")
     fields_ = cls.get("fields") or {}
     if level == "subclass" and subclass:
         entry = (cls.get("subclasses") or {}).get(_norm_subclass(doc_class, subclass))
