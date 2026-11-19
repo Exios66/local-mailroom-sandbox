@@ -187,6 +187,15 @@ def test_scoring_outputs_match_goldens(tmp_path, default_dojo_settings):
     assert not bad, f"golden drift in {len(bad)} outputs, first: {bad[:10]}"
 
 
+def _raw_pass(args: tuple, kwargs: dict) -> dict | None:
+    """The raw (every fix off) extraction score, or None for a case that raises."""
+    try:
+        with sh.raw():
+            return _score_extraction_row_once(*args, **kwargs)
+    except Exception:  # noqa: BLE001 — the raising cases are frozen as errors above
+        return None
+
+
 def test_dual_rows_keep_the_raw_values_and_name_every_change(default_dojo_settings):
     """Every golden case: raw_dojo equals the raw pass, and each moved headline key is named."""
     moved: dict[str, list[str]] = {}
@@ -194,10 +203,8 @@ def test_dual_rows_keep_the_raw_values_and_name_every_change(default_dojo_settin
         args = (case["doc_type"], case["predicted"], case["expected"])
         kwargs = {"doc_text": case.get("doc_text"), "doc_subclass": case.get("doc_subclass"),
                   "expected_subclass": case.get("expected_subclass")}
-        try:
-            with sh.raw():
-                raw = _score_extraction_row_once(*args, **kwargs)
-        except Exception:  # noqa: BLE001 — the raising cases are frozen as errors above
+        raw = _raw_pass(args, kwargs)
+        if raw is None:  # the raising cases are frozen as errors above
             continue
         dual = score_extraction_row(*args, **kwargs)
         for key, value in dual["raw_dojo"].items():

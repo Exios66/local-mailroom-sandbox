@@ -61,13 +61,12 @@ def frontrunners() -> dict[str, str]:
 def _agents_for(task: str | None, fronts: Mapping[str, str]) -> set[str]:
     """Lineage agents a task executes: its own agent for an isolated-agent task, else all."""
     if task:
-        try:
-            from mailroom_sandbox.prompt_registry import agent_prompt_names
+        # Imported here: prompt_registry imports job.spec, which imports this module.
+        # agent_prompt_names() guards its own vendored import.
+        from mailroom_sandbox.prompt_registry import agent_prompt_names
 
-            if task in set(agent_prompt_names()):
-                return {task} & set(fronts)
-        except Exception:  # noqa: BLE001 — no pipeline extra: pin every lineage agent
-            pass
+        if task in set(agent_prompt_names()):
+            return {task} & set(fronts)
     return set(fronts)
 
 
