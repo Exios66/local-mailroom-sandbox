@@ -12,7 +12,8 @@ disagreements:
 * ``sorter``: the document class, or the subclass when the class is right (contract subclasses
   compared through the Dojo's ``normalize_subtype``, as ``scripts/compare_sorter_prompt.py`` does);
 * per-field specialists: every labelled field whose verdict in
-  ``config/extraction/subclass_schemas.json`` is ``iterate`` and whose Dojo per-field score
+  field registry (by default the one committed registry graded on the run's revision and split,
+  ``resolve_inputs``; ``check_schemas_revision`` refuses another one) is ``iterate`` and whose Dojo per-field score
   (``job.gate_causes._field_scores``, the slice gate's scorer) is below ``mismatch_below``.
   Templated fields (``pair_report.TEMPLATED_FIELDS``) are left out, as the gate leaves them out;
 * contract CUAD categories (``cuad_clauses:<category>``): gold categories the run missed and
@@ -97,12 +98,33 @@ def check_sets(doc_ids: Iterable[str], assignments: Mapping[str, str]) -> None:
                          "Point --run at a dev or pool v0 pass")
 
 
+def _tag_commit(sha: str) -> str:
+    from mailroom_sandbox.job.spec import family_tag_commit
+
+    return family_tag_commit(sha)
+
+
+def check_schemas_revision(rows: list[Mapping[str, Any]], schemas: Mapping[str, Any], schemas_path: Path) -> None:
+    """Refuse a registry graded on another dataset revision than the run drew.
+
+    Its ``iterate`` verdicts come from that revision's labels, so a mismatch samples the wrong fields.
+    A registry or run that records no revision is not checked.
+    """
+    want = str((schemas.get("inputs") or {}).get("dataset_revision") or "")
+    have = sorted({_tag_commit(str(r.get("source_revision") or "")) for r in rows} - {""})
+    if want and have and have != [_tag_commit(want)]:
+        drew = ", ".join(h[:12] for h in have)
+        raise AuditError(f"{schemas_path.name} grades dataset revision {want[:12]}, but the run drew {drew}; "
+                         "pass a registry built on the run's revision with --schemas "
+                         "(sandbox schemas build --revision <sha> --out <file>)")
+
+
 def iterate_fields(schemas: Mapping[str, Any], doc_class: str, subclass: str | None = None,
                    level: str = "class") -> frozenset[str]:
     """Fields with verdict ``iterate`` for ``doc_class`` (or its subclass entry, at ``level=subclass``)."""
     cls = (schemas.get("classes") or {}).get(doc_class)
     if cls is None:
-        raise AuditError(f"subclass_schemas.json has no class {doc_class!r}")
+        raise AuditError(f"the field registry has no class {doc_class!r}")
     fields_ = cls.get("fields") or {}
     if level == "subclass" and subclass:
         entry = (cls.get("subclasses") or {}).get(_norm_subclass(doc_class, subclass))
@@ -262,7 +284,70 @@ class SheetResult:
     digest: dict[str, Any] = field(default_factory=dict)
 
 
-def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: Path, n: int = 100,
+REGISTRY_GLOB = "config/extraction/subclass_schemas*.json"
+
+
+def _run_revision(run_dir: Path, rows: list[Mapping[str, Any]], dataset: Mapping[str, Any]) -> str:
+    """The tag commit the run drew (its rows' ``source_revision``, else its lock), or ''."""
+    have = sorted({_tag_commit(str(r.get("source_revision") or "")) for r in rows} - {""})
+    if len(have) > 1:
+        raise AuditError(f"{run_dir.name}: dataset rows carry several revisions {[h[:12] for h in have]}")
+    if have:
+        return have[0]
+    return _tag_commit(str(dataset.get("revision_resolved") or dataset.get("revision") or ""))
+
+
+def resolve_inputs(run_dir: Path, rows: list[Mapping[str, Any]], *, split_dir: Path | None = None,
+                   schemas_path: Path | None = None, root: Path | None = None) -> tuple[Path, Path]:
+    """The split and field registry a run is audited against, when not given.
+
+    The split is the one the run's lock draws from (``dataset.exclude_ids_file``), else the one
+    committed split on its revision. The registry is the one ``config/extraction/subclass_schemas*.json``
+    graded on that revision and counted on that split's sets, so a v9.1 run gets the runbook-v1
+    registry and a v9.3 run the runbook-v2 one. None or several matches are refused.
+    """
+    from mailroom_sandbox.experiment_splits import (
+        SplitError,
+        split_dir_for_revision,
+        split_dir_of_spec,
+        split_revision,
+    )
+    from mailroom_sandbox.paths import repo_root
+
+    root = Path(root) if root else repo_root()
+    run_dir = Path(run_dir)
+    lock = run_dir / "spec.lock.json"
+    dataset = (json.loads(lock.read_text(encoding="utf-8")).get("dataset") or {}) if lock.is_file() else {}
+    rev = _run_revision(run_dir, rows, dataset)
+    if split_dir is None:
+        split_dir = split_dir_of_spec(dataset, root / "config" / "splits", by_revision=False)
+    if split_dir is None:
+        if not rev:
+            raise AuditError(f"{run_dir.name}: no dataset revision in its rows or lock; pass --split and --schemas")
+        try:
+            split_dir = split_dir_for_revision(rev, root / "config" / "splits")
+        except SplitError as exc:
+            raise AuditError(f"{run_dir.name}: {exc}") from exc
+    if schemas_path is None:
+        rev = rev or _tag_commit(split_revision(Path(split_dir)))
+        split_sha = hashlib.sha256((Path(split_dir) / "assignments.jsonl").read_bytes()).hexdigest()
+        found = []
+        for path in sorted(root.glob(REGISTRY_GLOB)):
+            inputs = json.loads(path.read_text(encoding="utf-8")).get("inputs") or {}
+            if (_tag_commit(str(inputs.get("dataset_revision") or "")) == rev
+                    and inputs.get("split_assignments_sha256") == split_sha):
+                found.append(path)
+        if len(found) != 1:
+            names = ", ".join(p.name for p in found) or "none"
+            raise AuditError(f"{len(found)} committed field registries are graded on revision {rev[:12]} and "
+                             f"split {Path(split_dir).name} ({names}); build one with `sandbox schemas build "
+                             f"--revision {rev[:12]} --out <file>` or pass --schemas")
+        schemas_path = found[0]
+    return Path(split_dir), Path(schemas_path)
+
+
+def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path | None = None,
+                schemas_path: Path | None = None, n: int = 100,
                 seed: int, per_doc: int = 1, mismatch_below: float = 1.0,
                 verdict_level: str = "class") -> SheetResult:
     """Disagreement rows sampled from one finished v0 run (see the module docstring)."""
@@ -273,14 +358,20 @@ def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: P
     run_dir = Path(run_dir)
     rows = _jsonl(run_dir / "dataset.jsonl")
     items = {str(i.get("item_id")): i for i in _jsonl(run_dir / "items.jsonl")}
+    doc_class = LINEAGES[lineage]
+    if split_dir is None or (schemas_path is None and doc_class is not None):
+        split_dir, found = resolve_inputs(run_dir, rows, split_dir=split_dir,
+                                          schemas_path=schemas_path if doc_class is not None else Path(""))
+        schemas_path = schemas_path or found
     assignments = load_assignments(split_dir)
     check_sets([str(r.get("id")) for r in rows], assignments)
-    doc_class = LINEAGES[lineage]
     if doc_class is not None:
         other = sorted({str(r.get("expected_doc_class")) for r in rows} - {doc_class})
         if other:
             raise AuditError(f"lineage {lineage} audits {doc_class} documents; the run also holds {other}")
     schemas = json.loads(Path(schemas_path).read_text(encoding="utf-8")) if doc_class else {}
+    if schemas:
+        check_schemas_revision(rows, schemas, Path(schemas_path))
     counts: Counter = Counter()
     candidates: list[dict[str, Any]] = []
     scorer_errors: list[str] = []

@@ -41,7 +41,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: all
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
   strata:
     buckets:
       - {doc_class: contract, count: 91}

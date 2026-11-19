@@ -32,7 +32,7 @@ full verified command list, start with
 | Requirement | Version | Notes |
 | --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
-| Modal CLI | SDK 1.6.3 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
+| Modal CLI | SDK 1.6.4 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
 | Docker + Compose | latest | Langfuse tracing + the Jupyter image (optional providers) |
 | NVIDIA GPU (optional) | Any CUDA GPU | Only for the `vllm` compose profile / `vllm-local` |
 | Ollama (optional) | latest | Offline/CPU fallback (`--profile ollama`) |
@@ -59,7 +59,7 @@ cp config/.env.example .env          # edit as needed
 | `dev` | pytest, pytest-mock, pytest-cov, markdown-it-py, huggingface_hub, pyarrow (+ `[pipeline]`; the scoring vendored stack is in BASE deps) |
 | `notebooks` | jupyterlab, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
-| `deploy` | modal (SDK 1.6.3 pinned) |
+| `deploy` | modal (SDK 1.6.4 pinned) |
 | `pipeline` | langchain-core, langchain-openai, langgraph, fastapi, sqlalchemy/aiosqlite, pdf stack (the family code ships vendored, not as an extra) |
 | `observability` | langfuse, braintrust, opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
 | `decision` | pydantic-ai-slim[typesafe] (Decisions-API reviewer backend) |
@@ -392,7 +392,7 @@ dataset:
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION, parquet rows of Hub tag v9.1)
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (v9.1 parquet rows, a superseded pin; new runs use FAMILY_HF_REVISION, Hub tag v9.3)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42

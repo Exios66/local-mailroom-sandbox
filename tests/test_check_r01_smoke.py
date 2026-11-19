@@ -195,7 +195,7 @@ def test_every_pinned_chat_model_has_a_smoke_config_that_calls_only_that_model(g
         spec = load_run_spec(path)
         text = path.read_text()
         assert spec.run_id == path.stem and spec.dataset.limit == 10
-        assert spec.dataset.exclude_ids_file == "config/splits/runbook-v1/dev-look1.exclude.ids"
+        assert spec.dataset.exclude_ids_file == "config/splits/runbook-v2/dev-look1.exclude.ids"
         assert spec.dataset.revision == load_run_spec(RUNS / "rb1-r03-sorter-v0-dev.yaml").dataset.revision
         assert spec.job.max_wall_seconds and spec.job.api_cost_cap_usd and spec.job.cost_cap_usd
         assert f"SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-{path.stem.removeprefix('rb1-r01-smoke-')}.jsonl" in text

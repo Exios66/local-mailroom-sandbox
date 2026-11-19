@@ -1,5 +1,5 @@
 # Evaluation runbook R13b (SAND-108, hypothesis H5): dev screen of the Decisions-API model
-# openai/gpt-6-luna-decisions acting as the SORTER, on dev-look1 (300 docs, corpus revision bc9eab28).
+# openai/gpt-6-luna-decisions acting as the SORTER, on dev-look1 (300 docs, corpus revision ff4ca546).
 # task: sorter_reviewer with question set reviewer_decisions_v4.0.0, which has no `handoff:`, so
 # decision_backends.decide classifies doc_type and subclass from the document alone (one request per
 # document, no sorter answer in the state). It is scored like the LLM sorter by
@@ -34,8 +34,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/dev-look1.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev-look1.exclude.ids
   limit: 300
   interim_labels: true
   near_gold_labels: true

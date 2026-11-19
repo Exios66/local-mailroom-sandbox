@@ -54,6 +54,9 @@ DEFAULT_EXPOSURE = REPO_ROOT / "config" / "production" / "excluded-ids.txt"
 DEFAULT_OUT_ROOT = REPO_ROOT / "config" / "splits"
 MIX_TOLERANCE_PTS = 5.0
 SCHEMA = "mailroom.experiment_split/v1"
+# The split new campaign runs draw from. runbook-v1 (dataset v9.1) stays committed: runs
+# measured on it are re-checked against it, never against the current split.
+CURRENT_SPLIT = "runbook-v2"
 
 
 class SplitError(ValueError):
@@ -169,6 +172,52 @@ def load_cached_rows(revision: str | None = None, repo: str | None = None) -> li
             if key not in ("doc_text", "prompt"):
                 norm.setdefault(key, value)
     return normalized
+
+
+def current_split_dir() -> Path:
+    return DEFAULT_OUT_ROOT / CURRENT_SPLIT
+
+
+def split_dirs(root: Path | None = None) -> list[Path]:
+    """Every committed split (a directory under ``config/splits`` with a manifest), by name."""
+    base = Path(root) if root else DEFAULT_OUT_ROOT
+    return sorted(p.parent for p in base.glob("*/manifest.json"))
+
+
+def split_revision(split_dir: Path) -> str:
+    """The dataset revision a split was drawn on (its manifest)."""
+    return str(json.loads((Path(split_dir) / "manifest.json").read_text(encoding="utf-8"))["dataset"]["revision"])
+
+
+def split_dir_for_revision(revision: str, root: Path | None = None) -> Path:
+    """The one committed split drawn on ``revision``. Raises when none or several are."""
+    from mailroom_sandbox.job.spec import family_tag_commit
+
+    want = family_tag_commit(revision)
+    found = [d for d in split_dirs(root) if family_tag_commit(split_revision(d)) == want]
+    if len(found) != 1:
+        names = ", ".join(d.name for d in found) or "none"
+        raise SplitError(f"{len(found)} committed splits are drawn on revision {revision[:12]} ({names}); "
+                         "name one explicitly")
+    return found[0]
+
+
+def split_dir_of_spec(dataset: dict[str, Any] | None, root: Path | None = None, *,
+                      by_revision: bool = True) -> Path | None:
+    """The split a run drew from: the ``config/splits/<name>/`` its ``dataset.exclude_ids_file``
+    names, else (``by_revision``) the one split on its revision; None when neither identifies one."""
+    dataset = dataset or {}
+    base = Path(root) if root else DEFAULT_OUT_ROOT
+    m = re.search(r"(?:^|/)config/splits/([A-Za-z0-9][A-Za-z0-9._-]*)/", str(dataset.get("exclude_ids_file") or ""))
+    if m and (base / m.group(1) / "manifest.json").is_file():
+        return base / m.group(1)
+    revision = str(dataset.get("revision_resolved") or dataset.get("revision") or "")
+    if revision and by_revision:
+        try:
+            return split_dir_for_revision(revision, root)
+        except SplitError:
+            return None
+    return None
 
 
 def read_id_file(path: Path | None, *, required: bool = False) -> set[str]:
@@ -390,10 +439,16 @@ def _h(seed: int, *parts: str) -> str:
 
 
 def _band_interleaved(docs: Sequence[Doc], seed: int, salt: str) -> list[Doc]:
-    """Order docs so any prefix is balanced across length band x source corpus strata."""
-    by_band: dict[tuple[str, str], list[Doc]] = defaultdict(list)
+    """Order docs so any prefix is balanced across length band x source corpus x
+    annotation method strata.
+
+    The annotation method joined the strata with dataset v9.3, where it varies within a
+    class and follows the subclass. On a corpus where it is constant within each
+    (class, source) the partition, and so the order, is the same as before.
+    """
+    by_band: dict[tuple[str, str, str], list[Doc]] = defaultdict(list)
     for d in docs:
-        by_band[(d.band, d.source_corpus)].append(d)
+        by_band[(d.band, d.source_corpus, d.annotation_method)].append(d)
     for b in by_band:
         by_band[b].sort(key=lambda d: _h(seed, salt, d.id))
     # proportional interleave: each doc gets a fractional rank within its band
@@ -902,36 +957,62 @@ def _coverage_checks(docs: list[Doc], families: dict[str, Any], manifest: dict[s
     return checks
 
 
+def _unit_mix(sds: Sequence[Doc], corpus_by_unit: dict[str, list[Doc]], attr: str) -> dict[str, float]:
+    """The corpus mix of ``attr`` a set would show if it drew each unit at random:
+    each unit's corpus mix, weighted by that unit's share of the set."""
+    share = Counter(d.unit for d in sds)
+    out: dict[str, float] = defaultdict(float)
+    for unit, n in share.items():
+        for key, pct in _mix(corpus_by_unit[unit], attr).items():
+            out[key] += pct * n / len(sds)
+    return dict(out)
+
+
 def _mix_checks(docs: list[Doc], by_set: dict[str, list[Doc]]) -> list[Check]:
-    """Within-class mixes (gate) and raw mixes (informational: oversampling shifts them by design)."""
+    """Within-class mixes against the unit-adjusted corpus (gate), the plain within-class
+    and raw mixes (informational: per-unit quotas shift them by design).
+
+    The gate compares each set's within-class mix with the corpus mix its units imply, so
+    it tests the draw inside each unit. A plain within-class comparison fails by design
+    once an attribute follows the subclass, as ``annotation_method`` does from dataset
+    v9.3 on (89% of emails are LLM-labelled, most rare subclasses are not), because the
+    quotas oversample rare subclasses. Units come from :func:`assign_units` on ``docs``.
+    """
     checks: list[Check] = []
-    # mixes: within-class (gate) and raw (informational: oversampling shifts it by design)
     corpus_by_class: dict[str, list[Doc]] = defaultdict(list)
+    corpus_by_unit: dict[str, list[Doc]] = defaultdict(list)
     for d in docs:
         corpus_by_class[d.doc_class].append(d)
-    def within_class_gap(sets: Sequence[str], attr: str) -> tuple[float, str]:
+        corpus_by_unit[d.unit].append(d)
+
+    def within_class_gap(sets: Sequence[str], attr: str, *, adjusted: bool) -> tuple[float, str]:
         worst = (0.0, "")
         for s in sets:
             for cls, cds in corpus_by_class.items():
                 sds = [d for d in by_set[s] if d.doc_class == cls]
                 if len(sds) < 20:
                     continue
-                gap, key = _max_gap(_mix(sds, attr), _mix(cds, attr))
+                want = _unit_mix(sds, corpus_by_unit, attr) if adjusted else _mix(cds, attr)
+                gap, key = _max_gap(_mix(sds, attr), want)
                 if gap > worst[0]:
                     worst = (gap, f"{s}/{cls}/{key} (n={len(sds)})")
         return worst
 
     for attr in ("source_corpus", "annotation_method"):
         informative = any(len({getattr(d, attr) for d in cds}) > 1 for cds in corpus_by_class.values())
-        gap, where = within_class_gap(("dev", "heldout"), attr)
         if not informative:
             checks.append(Check(f"{attr} mix within class (not testable)", True,
                                 f"one {attr} per class in this corpus, so the within-class mix is fixed by class",
                                 gate=False))
         else:
-            checks.append(Check(f"{attr} mix within ±{MIX_TOLERANCE_PTS:g} pts of corpus (dev/held-out, within class)",
+            gap, where = within_class_gap(("dev", "heldout"), attr, adjusted=True)
+            checks.append(Check(f"{attr} mix within ±{MIX_TOLERANCE_PTS:g} pts of the unit-adjusted corpus "
+                                "(dev/held-out, within class)",
                                 gap <= MIX_TOLERANCE_PTS, f"max gap {gap:.1f} pts at {where or '-'}"))
-        gap, where = within_class_gap(("calibration",), attr)
+            gap, where = within_class_gap(("dev", "heldout"), attr, adjusted=False)
+            checks.append(Check(f"{attr} mix vs corpus (dev/held-out, within class, informational)", True,
+                                f"max gap {gap:.1f} pts at {where or '-'}", gate=False))
+        gap, where = within_class_gap(("calibration",), attr, adjusted=False)
         checks.append(Check(f"{attr} mix in calibration (within class, informational)", True,
                             f"max gap {gap:.1f} pts at {where or '-'}", gate=False))
         raw = {s: _max_gap(_mix(by_set[s], attr), _mix(docs, attr)) for s in ("dev", "calibration", "heldout")}
@@ -1030,6 +1111,7 @@ def audit(out_dir: Path, docs: list[Doc], families: dict[str, Any]) -> list[Chec
     for d in docs:
         by_set[assignment.get(d.id, "?")].append(d)
     checks.extend(_coverage_checks(docs, families, manifest, by_set))
+    assign_units(docs, families)  # _mix_checks weighs by unit; idempotent
     checks.extend(_mix_checks(docs, by_set))
     checks.extend(_gate_checks(families, by_set))
     checks.extend(_band_check(docs, manifest, by_set))

@@ -82,7 +82,8 @@ Order of launch:
 Launch one at a time. Each config's header has the exact commands. The total is about $0.20.
 
 Proceed to dev-look1 (300 documents per arm, about $0.6 + $0.7 at the smoke's per-document rates) only when all of the following
-hold:
+hold. dev-look1 is now runbook-v2's, on dataset v9.3 (plan Deviations log D1): 280 of its 300 documents are runbook-v1's,
+and the dev-look1 configs pin `ff4ca546`.
 
 1. **Mechanics:** 20/20 items, 1 call per document, every ledger row verified, and no trace
    exporter errors on the console.
@@ -185,8 +186,8 @@ agreement as filed.
 
 ### Draw 2 and the decision rule, fixed before it runs
 
-Draw 2 is 100 calibration documents never used before (20 per class; draw 1 excluded by
-[`formcal-draw2.exclude.ids`](../config/splits/rb1-r13b/formcal-draw2.exclude.ids)) and the
+Draw 2 uses v9.3 / runbook-v2; draw 1 remains a v9.1 measurement. Its exclusion file is rebuilt from the new calibration complement plus all 50 spent draw-1 IDs. Draw 2 is 100 calibration documents never used before (20 per class; draw 1 excluded by
+[`formcal-v93-draw2.exclude.ids`](../config/splits/rb1-r13b/formcal-v93-draw2.exclude.ids)) and the
 defects built from them with the fixed builder, each run under 4.0.1 and 4.0.2 (four runs,
 about $0.85 at the caps' estimates). Doubling draw 1's size is for power: a one-sided sign test needs at least 5
 discordant documents, all in one direction, to reach p < 0.05, and draw 1 had only 5 real leaks.

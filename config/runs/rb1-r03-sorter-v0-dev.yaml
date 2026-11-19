@@ -1,8 +1,8 @@
 # Evaluation runbook R03 (SAND-108, decision 2): the v0 sorter pass on the frozen dev set,
 # so the gold audit has v0-vs-gold disagreements before G0. Sorter only (task: isolated) on the
 # pipeline's sorter configuration: qwen/qwen3.7-flash, production prompt (code-default), the
-# whole document in one call (max_input_chars 600,000), on config/splits/runbook-v1 dev
-# (900 docs, corpus revision bc9eab28). Truth is the repaired overlay (interim + near-gold).
+# whole document in one call (max_input_chars 600,000), on config/splits/runbook-v2 dev
+# (900 docs, corpus revision ff4ca546). Truth is the repaired overlay (interim + near-gold).
 #
 # Cost: priced per document on the saved pass's token counts with the long-prompt tiers of
 # config/api_prices.yaml (>=32k prompt tokens: $0.10/$0.40 per 1M): about $0.92 list, of which
@@ -28,8 +28,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev.exclude.ids
   limit: 900
   interim_labels: true
   near_gold_labels: true

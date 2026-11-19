@@ -2549,9 +2549,9 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--name` | No | split directory under config/splits (default runbook-v1) |
-| `--families` | No | subclass family vocabulary (YAML) |
-| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
+| `--name` | No | split directory under config/splits (default runbook-v2) |
+| `--families` | No | subclass family vocabulary (YAML; build default config/splits/families.yaml, audit and show default the split manifest's) |
+| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none; build default config/production/excluded-ids.txt, audit and show default the split manifest's) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
 | `--seed` | No | draw seed (default 20261118) |
 | `--force` | No | overwrite an existing split (never after runs use it) |
@@ -2570,9 +2570,9 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--name` | No | split directory under config/splits (default runbook-v1) |
-| `--families` | No | subclass family vocabulary (YAML) |
-| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
+| `--name` | No | split directory under config/splits (default runbook-v2) |
+| `--families` | No | subclass family vocabulary (YAML; build default config/splits/families.yaml, audit and show default the split manifest's) |
+| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none; build default config/production/excluded-ids.txt, audit and show default the split manifest's) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
 | `--json` | No | print the checks as JSON |
 
@@ -2589,9 +2589,9 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--name` | No | split directory under config/splits (default runbook-v1) |
-| `--families` | No | subclass family vocabulary (YAML) |
-| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none) |
+| `--name` | No | split directory under config/splits (default runbook-v2) |
+| `--families` | No | subclass family vocabulary (YAML; build default config/splits/families.yaml, audit and show default the split manifest's) |
+| `--exposure` | No | ids already used for tuning; held-out avoids them ('' for none; build default config/production/excluded-ids.txt, audit and show default the split manifest's) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
 | `--set` | No | which set's dataset block to print Choices: dev, calibration, heldout, pool, dev-look1, dev-look2. |
 
@@ -2626,7 +2626,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--out` | No | registry file (default config/extraction/subclass_schemas.json) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
-| `--split` | No | split whose sets the counts use ('' for none) |
+| `--split` | No | split whose sets the counts use (default: the committed split drawn on --revision; '' for none) |
 | `--check` | No | fail if the committed file is stale or a mismatch remains |
 
 ### `sandbox schemas show`
@@ -2644,7 +2644,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
 | `--out` | No | registry file (default config/extraction/subclass_schemas.json) |
 | `--revision` | No | dataset revision (default FAMILY_HF_REVISION) |
-| `--split` | No | split whose sets the counts use ('' for none) |
+| `--split` | No | split whose sets the counts use (default: the committed split drawn on --revision; '' for none) |
 | `--class` | No | one class Choices: contract, merger_agreement, corporate_record, correspondence, insurance_claim. |
 | `--subclass` | No | one subclass (needs --class) |
 | `--verdict` | No | only fields with this verdict Choices: iterate, thin, constant, fixed, no_truth, not_applicable. |

@@ -29,7 +29,7 @@ Optional extras, only when you need them:
 | `[pipeline]` | langchain stack (vendored mailroom's live paths) | live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
-| `[deploy]` | Modal SDK 1.6.3 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
+| `[deploy]` | Modal SDK 1.6.4 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
@@ -121,7 +121,7 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
 sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@bc9eab28 (v9.1; data revision ed7576b6) ground_truth train+test
+#   Lucius-Morningstar/mailroom-dataset@ff4ca546 (v9.3; data revision 7fd99b40) ground_truth train+test
 #   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
 sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>

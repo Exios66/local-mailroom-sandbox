@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from mailroom_sandbox import subclass_schemas as ss
+from mailroom_sandbox.experiment_splits import SplitError, split_dir_for_revision
 
 VERDICTS = ("iterate", "thin", "constant", "fixed", "no_truth", "not_applicable")
 
@@ -21,7 +22,9 @@ def register(sub, leaf) -> None:
     def common(p):
         p.add_argument("--out", default=str(ss.DEFAULT_OUT), help="registry file (default config/extraction/subclass_schemas.json)")
         p.add_argument("--revision", default="", help="dataset revision (default FAMILY_HF_REVISION)")
-        p.add_argument("--split", default=str(ss.DEFAULT_SPLIT), help="split whose sets the counts use ('' for none)")
+        p.add_argument("--split", default=None,
+                       help="split whose sets the counts use (default: the committed split drawn on --revision; "
+                            "'' for none)")
 
     build = commands.add_parser("build", parents=[leaf], help="rebuild the registry from the cached corpus and label overlays")
     common(build)
@@ -37,15 +40,25 @@ def register(sub, leaf) -> None:
     show.set_defaults(handler=_show)
 
 
+def _split_for(flag: str | None, revision: str) -> Path | None:
+    """``--split`` as given; '' is none; unset is the one committed split drawn on ``revision``,
+    so a registry on v9.1 counts runbook-v1's sets and one on v9.3 runbook-v2's."""
+    if flag == "":
+        return None
+    if flag is not None:
+        return Path(flag)
+    return split_dir_for_revision(revision)
+
+
 def _build(args) -> int:
     from mailroom_sandbox import runtime
 
     runtime.activate()
     try:
         rows, rev = ss.load_corpus_rows(args.revision or None)
-        reg = ss.build_registry(ss.truth_rows(rows), revision=rev,
-                                split_dir=Path(args.split) if args.split else None)
-    except ss.SchemaError as exc:
+        split = _split_for(args.split, rev)
+        reg = ss.build_registry(ss.truth_rows(rows), revision=rev, split_dir=split)
+    except (ss.SchemaError, SplitError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     data = ss.render(reg)

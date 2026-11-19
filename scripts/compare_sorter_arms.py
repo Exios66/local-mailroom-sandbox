@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--b", required=True, action="append", help="arm B run id or directory; repeat for more arms")
     parser.add_argument("--set", dest="set_name", choices=sorter_arms.SPLIT_SETS,
                         help="restrict both runs to this split set (each must cover all of it)")
-    parser.add_argument("--split-dir", type=Path, help="split directory (default config/splits/runbook-v1)")
+    parser.add_argument("--split-dir", type=Path, help="split directory (default: the split the runs drew from)")
     parser.add_argument("--runs-root", type=Path, help="where run ids resolve (default data/runtime/runs)")
     parser.add_argument("--confirmatory", action="store_true",
                         help="the sealed held-out call (R70b): allows held-out documents, once")

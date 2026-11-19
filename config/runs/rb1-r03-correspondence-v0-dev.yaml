@@ -2,8 +2,8 @@
 # frozen dev set, so the gold audit has v0-vs-gold disagreements before G0.
 # correspondence_specialist (isolated) at its decided v0 stem
 # correspondence_specialist_condensed_v3 on qwen/qwen3.7-flash (the iteration model), the whole
-# document in one call (longest dev letter 21,462 chars; the 15,312-char overlay cap would cut 3),
-# on the 205 correspondence documents of config/splits/runbook-v1 dev (corpus revision bc9eab28).
+# document in one call (longest dev letter 21,403 chars; the 15,312-char overlay cap would cut 2),
+# on the 201 correspondence documents of config/splits/runbook-v2 dev (corpus revision ff4ca546).
 # Truth is the repaired overlay (interim + near-gold).
 # job.pipeline_handoff with job.specialist_subclass: gold hands the specialist the gold subclass
 # (the pipeline behind a correct sorter), so the fields derived from it copy the truth; the audit
@@ -14,7 +14,7 @@
 # Cost: priced per document on the saved sorter pass's prompt tokens
 # (data/handoff/sorter-qwen3.7-flash) with the tiers of config/api_prices.yaml (<32k: $0.03/$0.13,
 # >=32k: $0.10/$0.40, >=256k: $0.20/$0.80 per 1M; a document the saved pass cut at 600,000 chars
-# scaled to its full length) and ~2k output tokens per call: about $0.09 list for 205 documents.
+# scaled to its full length) and ~2k output tokens per call: about $0.09 list for 201 documents.
 # The sorter prompt is longer than the specialist's, so this errs high. The caps are ~1.5x. Launch
 # only with the owner's initials at the spend gate:
 #   sandbox run preflight --config config/runs/rb1-r03-correspondence-v0-dev.yaml
@@ -39,12 +39,12 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev.exclude.ids
   strata:
     buckets:
-      - {doc_class: correspondence, count: 205}
-  limit: 205
+      - {doc_class: correspondence, count: 201}
+  limit: 201
   interim_labels: true
   near_gold_labels: true
 

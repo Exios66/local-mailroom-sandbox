@@ -30,7 +30,7 @@ from mailroom_sandbox.services._exec import (
     stream_tool,
 )
 
-PINNED_SDK = "1.6.3"  # pyproject [deploy] extra: modal==1.6.3
+PINNED_SDK = "1.6.4"  # pyproject [deploy] extra: modal==1.6.4
 INSTALL_HINT = 'pip install -e ".[deploy]" && modal token new'
 ENTRYPOINT = "deploy/modal_vllm.py"
 PUBLISH_SCRIPT = "deploy/publish_modal_image.py"

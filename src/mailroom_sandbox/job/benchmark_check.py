@@ -23,6 +23,8 @@ from mailroom_sandbox.job.spec import (
     FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
     HF_DEFAULT_REPO,
+    KNOWN_FAMILY_HF_REVISIONS,
+    LEGACY_FAMILY_HF_REVISIONS,
     RunSpec,
 )
 from mailroom_sandbox.modernbert import feeder_status
@@ -50,12 +52,21 @@ BENCHMARK_EXPECTED = {
     "concurrency": 4,
     "profile": "modal-vllm",
     "app": "sandbox-vllm",
-    # Canonical Hub tag v9.1, plus the parquet parent the measured SAND-032
-    # YAMLs still name. The docs commit does not change the row set.
+    # Current Hub tag and its parquet parent, plus the superseded v9.1 pair that the
+    # measured SAND-032 YAMLs still name (same rows and text; serving measurements only).
     "revision": FAMILY_HF_REVISION,
-    "accepted_revisions": (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION),
+    "accepted_revisions": (
+        FAMILY_HF_REVISION,
+        FAMILY_HF_DATA_REVISION,
+        *sorted(KNOWN_FAMILY_HF_REVISIONS - {FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION}),
+    ),  # KNOWN_FAMILY_HF_REVISIONS, current pin first
     "repo": HF_DEFAULT_REPO,
     "limit": 30,
+}
+
+# Superseded revision -> its Hub tag, for the gate's "superseded pin" warning.
+_LEGACY_REVISION_TAGS: dict[str, str] = {
+    sha: tag for tag, pair in LEGACY_FAMILY_HF_REVISIONS.items() for sha in pair
 }
 
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
@@ -513,6 +524,13 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     if rev not in accepted:
         errors.append(
             f"dataset revision={rev!r} expected pin {exp['revision']!r}"
+        )
+    elif rev in _LEGACY_REVISION_TAGS:
+        # Accepted only so runs measured on a superseded tag keep re-validating; a new
+        # benchmark must pin the current tag, so say so instead of passing silently.
+        warnings.append(
+            f"dataset revision={rev[:12]} is superseded tag {_LEGACY_REVISION_TAGS[rev]} "
+            f"(current pin {exp['revision'][:12]}); valid only for re-checking a run measured on it"
         )
     if spec.dataset.repo and spec.dataset.repo != exp["repo"]:
         warnings.append(f"dataset.repo={spec.dataset.repo!r}")
