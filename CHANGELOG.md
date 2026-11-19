@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **`sandbox rescore`: re-score a finished run against other ground truth, with no model call.** It scores a run's stored answers against the run's own revision, another revision (`--revision v9.3`; the run's documents are read from that revision's full corpus, not re-drawn) or a local truth file. Label overlays are applied as the run used them, dropped or all applied (`--overlays`). It writes a derived run directory in the runtime layout and never modifies the source run: the new truth, the re-scored items with each item's first score in `score_original`, a lock marked `rescore.lock` that names the source run, and `rescore.json` with the before/after digest. It reads committed report bundles too. A document the new truth lacks stops the rescore unless `--allow-missing`. Pipeline per-document scoring moves to `eval.runners.pipeline_item_score`, and label overlays to `corpus.apply_label_overlays`, shared with `prepare_subset`; neither change alters a run's scores (`docs/rescore.md`).
+
 - **Dependency contract alignment (#345).** FastAPI 0.163.1 and Modal 1.6.4 move together with the guarded CLI pin, installed-version checks, SDK contract fixtures and operator docs. Historical serving measurements retain their recorded versions. No deployment is performed.
 
 - **v9.3 split exposure repair.** All 50 calibration documents used to develop question set 4.0.2 are excluded from the new held-out set; one previously entered it. Rebuilt runbook-v2 and its field registry. The spent draw-1 config retains its v9.1 revision and split.
