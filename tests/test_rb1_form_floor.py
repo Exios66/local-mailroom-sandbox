@@ -78,8 +78,8 @@ def test_fit_refuses_missing_results_or_unrecorded_mass(tmp_path):
     defects = tmp_path / "defects.jsonl"
     defects.write_text(json.dumps({"id": "d1", "expected_document_form": "multiple_documents"}) + "\n", encoding="utf-8")
     _write_run(tmp_path / "intact", {"i1": 0.1})
-    _write_run(tmp_path / "defects", {}, source=defects)
-    with pytest.raises(SystemExit, match="no result"):
+    _write_run(tmp_path / "defects", {}, locked=["d1"], source=defects)
+    with pytest.raises(SystemExit, match="1 locked rows without a result"):
         ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
     (tmp_path / "defects" / "items.jsonl").write_text(json.dumps({"item_id": "d1", "pred": {}}) + "\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="no human mass"):
@@ -98,6 +98,9 @@ def test_fit_refuses_a_partial_or_duplicated_run(tmp_path):
     (tmp_path / "intact" / "dataset.jsonl").write_text(json.dumps({"id": "i1"}) + "\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="1 duplicated results"):
         ff.fit(tmp_path / "intact", tmp_path / "defects", defects)
+    _write_run(tmp_path / "intact2", {"i1": 0.1, "stray": 0.9}, locked=["i1"])  # a result it never locked
+    with pytest.raises(SystemExit, match="1 results outside its locked dataset"):
+        ff.fit(tmp_path / "intact2", tmp_path / "defects", defects)
 
 
 def test_fit_refuses_mismatched_runs_an_edited_defects_file_and_an_empty_side(tmp_path):

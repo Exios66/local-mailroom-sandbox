@@ -149,9 +149,11 @@ def _masses(run_dir: Path) -> dict[str, tuple[float | None, bool]]:
     ids = [i.get("item_id") for i in items]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     missing = sorted(set(locked) - set(ids))
-    if dupes or missing:
+    extra = sorted(set(ids) - set(locked), key=str)
+    if dupes or missing or extra:
         raise SystemExit(f"cannot fit: {run_dir.name} has {len(missing)} locked rows without a result "
-                         f"{missing[:5]} and {len(dupes)} duplicated results {dupes[:5]}")
+                         f"{missing[:5]}, {len(dupes)} duplicated results {dupes[:5]} and {len(extra)} "
+                         f"results outside its locked dataset {extra[:5]}")
     for item in items:
         pred = item.get("pred") or {}
         mass = pred.get("document_form_human_mass")
