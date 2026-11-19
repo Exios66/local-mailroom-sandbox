@@ -20,6 +20,11 @@ it does not apply.
 | 9 | **Resume and retry corrupting a measurement.** An interrupted run resumes as new work, or reuses stale results after an option changed. | Autoresearch holdout and mock-round retry refusals. Toggling a dataset filter reused old results. `task: pipeline` checkpoints left `running`. | Ledger-row ownership checks, refusing resume when locked options differ, `sandbox run resume` only on the same lock. |
 | 10 | **Offline paths reaching the network, or the suite needing it.** | `corpus.load_hf_rows` listed the Hub tree even for a cached pinned sha, so offline preflight and prepare failed (fixed with a cache fallback). | The default suite is network-free (`local_llm` / service-smoke markers off). Offline commands work with `HF_HUB_OFFLINE=1` once the pinned revision's `default` and `ground_truth` shards are cached (`sandbox datasets pull`); the variable alone does not make preparation work. Tests stub `huggingface_hub`. |
 | 11 | **Quality gates loosened to land a change.** | — | Coverage `fail_under = 84` is never lowered. Ruff, reports-snapshot, requirements and CLI-reference checks stay required. Hosted CI must be green on the current head. |
+| 12 | **Confidence semantics changed silently.** An explicit zero becomes a high field-presence fallback, changing review routing. | Vendored LangChain specialists treated numeric zero as missing (#216, llm-mailroom#279). | HF-006 preserves numeric zero in single and chunked specialist results; `tests/test_vendor_hotfixes.py` covers zero, ordinary confidence, missing confidence and chunk minimum. Required hotfixes fail preflight when unavailable or stale. |
+
+Campaign reviews also use the stable `CP-*` entries in the
+[campaign preparation checklist](campaign-preparation-regressions.md), which links
+patch state, tests and open acceptance to the master tracking discussion.
 
 ## How to use this list in a PR
 

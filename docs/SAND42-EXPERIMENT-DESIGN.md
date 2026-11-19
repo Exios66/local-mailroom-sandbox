@@ -1,5 +1,9 @@
 # SAND-042 — experimental design: paired concurrency × fleet grid
 
+This historical grid retains its frozen dataset and serving pins. New rb1 generations
+follow the [current campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md), including v9.3
+truth, interim/near-gold precedence, hotfix identities and revised readiness checks.
+
 **Card:** SAND-042 · **Status:** preflight-ready, **not authorised to spend** ·
 **Supersedes the design layer of:** SAND-037 (Experiments 1–4)
 **Inputs:** `reports/SAND-37/` (SAND-37/39/40 cards + `SAND-37-MASTER-SCORE-COST-CARD.md`),

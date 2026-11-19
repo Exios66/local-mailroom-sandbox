@@ -1,5 +1,9 @@
 # Design and launch an experiment
 
+For the current rb1 data, truth, patch and readiness conditions, use the
+[experiment campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md) alongside the
+[research plan](superpowers/plans/2026-11-18-evaluation-runbook-plan.md).
+
 The `sandbox experiment` commands compose the existing locked run lifecycle and
 vendored mailroom pipeline. They select a design, prepare paired document draws,
 review every configuration, require initials for spend, smoke a small locked subset,
