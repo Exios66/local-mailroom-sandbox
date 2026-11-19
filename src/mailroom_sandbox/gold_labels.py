@@ -632,6 +632,41 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     return res
 
 
+def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str]) -> tuple[bool, str]:
+    """``(supported, reason)``: whether ``quotes`` support ``value`` under the gate's value rules.
+
+    The same type rules as the gate (dates in one quote, money by value, token coverage for
+    names, ids and free text, label vocabulary and quote length) applied to a stored label and
+    its stored evidence. The gate's quote-location and quote-length caps are not applied: the
+    evidence is already the text, and a long header line is still evidence. The gate's
+    per-field rules (``party_roles`` roles stated in the evidence, at most 3 ``action_items``)
+    are applied. An empty value is supported (absence is not checked here).
+    """
+    types, vocab, _empty, empty_value, model = _schema_bits(doc_class)
+    if name not in types:
+        return False, f"not a target field of {doc_class}"
+    ftype = str(types[name])
+    norm = _normalize(value, ftype)
+    allowed = vocab.get(name)
+    if allowed is not None and not _is_empty(norm) and norm not in allowed:
+        return False, f"out_of_vocabulary: {norm!r}"
+    if _is_empty(norm):
+        return True, ""
+    spans = [{"text": q} for q in quotes if isinstance(q, str) and q]
+    if not spans:
+        return False, "no evidence quote"
+    res = FieldResult(field=name, ok=False)
+    ev_text = " ".join(s["text"] for s in spans)
+    supported = _value_supported(res, norm, value, ftype, spans, ev_text,
+                                 empty_value(name), _text_field(model, name))
+    if supported is None:
+        return False, res.reason or "type rule failed"
+    if not supported:
+        return False, "value not supported by its evidence"
+    rule = _field_rule(name, norm, ev_text)
+    return (False, rule) if rule else (True, "")
+
+
 def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str) -> SubmissionResult:
     """Run the gate on one submission (see the module docstring for the order)."""
     result = SubmissionResult(doc_id=str(sub.get("doc_id")), doc_class=doc_class)
