@@ -48,15 +48,24 @@ answer from the same question-set response, not a second request.
 ## Truth evidence check
 
 The truth the fixes score against is checked too. `mailroom_sandbox.notebook.label_overlay_grounding`
-reads every populated label of the near-gold overlay (`data/labels/gold-overlay/`, which SHF-010
-lets supersede interim gap fills) and the interim overlay (`data/labels/interim/`) and checks the
-value against the evidence the label stores, with the label gate's value rules
-(`gold_labels.evidence_support`: a whole date in one quote, money by value, token coverage for
-names and free text, the closed-label vocabulary). The gate's quote-length caps are not applied:
-a long `To:` header line is still evidence. A label with a value and no stored quote (derived
-fields, CUAD corrections, closed-label defaults) is counted as `no_evidence`, since it was checked
-against the full document when it was built. `tests/test_notebook.py` fails on any unsupported
-label outside its short, commented `KNOWN_UNSUPPORTED` list.
+reads every populated truth label of the near-gold overlay (`data/labels/gold-overlay/`, which
+SHF-010 lets supersede interim gap fills) and the interim overlay (`data/labels/interim/`), and
+checks each one by the rule that admitted it:
+
+| Label | Rule |
+| --- | --- |
+| A stored quote | The label gate's value rules (`gold_labels.evidence_support`): a whole date in one quote, money by value, token coverage for names and free text, the closed-label vocabulary and the per-field rules. The quote-length caps are not applied: a long `To:` header line is still evidence. |
+| Reviewed (`review`) | The review file's rule (`interim_labels`): header lines for `original_header`, the record quote for `review_read_record`, the vocabulary for a reviewed intent. |
+| `derived` | Recomputed from the record's own `doc_subclass`. |
+| A closed label with no quote | The value is in the field's vocabulary (`in_vocabulary`). |
+| A gap fill or CUAD correction with no quote | The build's rule, against the document's Hub row when one is supplied (`rows`, bound by `doc_sha256`): every token in the text, or agreement with the row's CUAD spans. Otherwise `no_evidence`, or `ungrounded` if the stored support is under the admission threshold. |
+
+Interim `disputed` labels are not truth and are not checked. `tests/test_notebook.py` fails on any
+unsupported label. Pytest never reads `data/cache`, so in CI the 803 interim gap fills and CUAD
+corrections stay `no_evidence`. Notebook 02 passes `cached_doc_rows()`: after
+`sandbox datasets pull` it checks those against their documents as well, and asserts none fails.
+At the current pin every truth label passes (gold-overlay 3270 supported, 876 in vocabulary;
+interim 3651 supported, 55 in vocabulary).
 
 ## Draft Dojo issues (not filed)
 

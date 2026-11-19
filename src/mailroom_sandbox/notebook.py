@@ -309,6 +309,9 @@ def agent_fixture_grounding(agents: Iterable[str] | None = None) -> list[Groundi
 LABEL_OVERLAYS: tuple[str, ...] = ("gold-overlay", "interim")
 
 NO_EVIDENCE = "no_evidence"
+#: A closed label with no quote: its value is in the field's vocabulary, which is all a closed
+#: label states without evidence.
+IN_VOCABULARY = "in_vocabulary"
 
 
 @dataclass(frozen=True)
@@ -318,7 +321,7 @@ class LabelFinding:
     doc_class: str
     field: str
     value: Any
-    status: str  # grounded | ungrounded | no_evidence
+    status: str  # grounded | ungrounded | in_vocabulary | no_evidence
     basis: str = ""
     reason: str = ""
 
@@ -336,25 +339,131 @@ def _evidence_quotes(label: Mapping[str, Any]) -> list[str]:
     return [q for q in quotes if q.strip()]
 
 
-def label_overlay_grounding(
-    overlays: Iterable[str] = LABEL_OVERLAYS, *, root: Any = None
-) -> list[LabelFinding]:
-    """Every populated label in the scoring overlays, checked against its own evidence.
+def cached_doc_rows(path: Any = None) -> dict[str, dict[str, Any]]:
+    """``{doc_id: row}`` from the pulled Hub corpus (``sandbox datasets pull``), or ``{}``.
 
-    The source documents are Hub rows, not local files, so a label is checked against the
-    quotes it stores, with the label gate's value rules (``gold_labels.evidence_support``:
-    whole dates, money by value, token coverage, label vocabulary). A label with a value and no
-    stored quote is ``no_evidence``: it was checked against the full document when it was built
-    (interim ``support``, derived fields, CUAD corrections, closed-label defaults) and cannot be
-    re-checked offline. Empty values are not reported.
+    Reads ``datasets.full_corpus_cache_path()`` unless ``path`` is given. Never reaches the
+    network: without a pulled cache, labels that need their document stay ``no_evidence``.
     """
     import json
     from pathlib import Path
 
-    from mailroom_sandbox.gold_labels import evidence_support
+    from mailroom_sandbox.datasets import full_corpus_cache_path
+    from mailroom_sandbox.interim_labels import row_id
+
+    src = Path(path) if path is not None else full_corpus_cache_path()
+    if not src.is_file():
+        return {}
+    rows: dict[str, dict[str, Any]] = {}
+    # Split on newlines only: JSON strings may hold U+2028 and other separators splitlines() takes.
+    for line in src.read_text(encoding="utf-8").split("\n"):
+        if line.strip():
+            row = json.loads(line)
+            if row_id(row):
+                rows[row_id(row)] = row
+    return rows
+
+
+def _check_label(
+    record: Mapping[str, Any],
+    doc_class: str,
+    name: str,
+    label: Mapping[str, Any],
+    rows: Mapping[str, Mapping[str, Any]],
+) -> tuple[str, str]:
+    """``(status, reason)`` for one populated label, by the rule that admitted it.
+
+    - ``derived``: recomputed from the record's own ``doc_subclass``.
+    - a reviewed label (``review``): the review file's rule (``interim_labels``): header lines
+      for ``original_header``, the quote for ``review_read_record``, the vocabulary for intents.
+    - a stored quote: the label gate's value rules (``gold_labels.evidence_support``).
+    - no quote, a closed label: the value is in the field's vocabulary (``in_vocabulary``).
+    - no quote, the document's Hub row available (``rows``, bound by ``doc_sha256``): the
+      build's own rule. A gap fill's every token is in the text (``interim_labels.grounded``);
+      a CUAD correction agrees with the row's CUAD spans (``interim_labels.contract_correction``).
+    - otherwise ``no_evidence``; a gap fill whose stored ``support`` is under the admission
+      threshold is ``ungrounded``.
+    """
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox import interim_labels as il
+
+    value = label.get("value")
+    status = label.get("status")
+    if status == "derived":
+        sub = str(record.get("doc_subclass") or "")
+        want = sub if label.get("basis") == "cms_subclass" else il.derived_value(doc_class, sub)
+        return (
+            (GROUNDED, "")
+            if value == want
+            else (UNGROUNDED, f"{doc_class} subclass {sub!r} derives {want!r}")
+        )
+    quotes = _evidence_quotes(label)
+    if label.get("review"):
+        basis = str(label.get("basis") or "")
+        problem = il._review_value_problem(name, value)
+        if not problem and basis == "original_header":
+            problem = il._header_problem(name, value, label.get("evidence"))
+        elif not problem and basis == "review_read_record":
+            problem = il._record_quote_problem(value, label.get("evidence"))
+        if problem:
+            return UNGROUNDED, problem
+        if basis != "original_header" and quotes:
+            ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+            return (GROUNDED, "") if ok else (UNGROUNDED, reason)
+        return (GROUNDED, "") if quotes else (IN_VOCABULARY, "")
+    if quotes:
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+        return (GROUNDED, "") if ok else (UNGROUNDED, reason)
+    allowed = gl._schema_bits(doc_class)[1].get(name)
+    if allowed is not None:
+        ok = value in allowed
+        return (IN_VOCABULARY, "") if ok else (UNGROUNDED, f"out_of_vocabulary: {value!r}")
+    row = rows.get(str(record.get("doc_id") or ""))
+    if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
+        basis = str(label.get("basis") or "")
+        if status == "correction" and basis.startswith("cuad_"):
+            ok = il.contract_correction(name, value, il._expected(row)) == basis
+            return (
+                (GROUNDED, "")
+                if ok
+                else (UNGROUNDED, f"not supported by the row's CUAD spans ({basis})")
+            )
+        text = str(
+            row.get("doc_text") if row.get("doc_text") is not None else row.get("text") or ""
+        )
+        return (
+            (GROUNDED, "")
+            if il.grounded(value, text)
+            else (UNGROUNDED, "value not in the document")
+        )
+    support = label.get("support")
+    if status == "gap_fill" and isinstance(support, (int, float)) and support < il.SUPPORT_MIN:
+        return UNGROUNDED, f"support {support} is under the admission threshold {il.SUPPORT_MIN}"
+    if row is not None:
+        return NO_EVIDENCE, "document text changed since the label was read"
+    return NO_EVIDENCE, ""
+
+
+def label_overlay_grounding(
+    overlays: Iterable[str] = LABEL_OVERLAYS,
+    *,
+    root: Any = None,
+    rows: Mapping[str, Mapping[str, Any]] | None = None,
+) -> list[LabelFinding]:
+    """Every populated truth label in the scoring overlays, checked by the rule that admitted it.
+
+    See ``_check_label`` for the rule per kind of label. ``rows`` (``{doc_id: Hub row}``, e.g.
+    ``cached_doc_rows()``) lets labels with no stored quote be checked against their document;
+    without it they stay ``no_evidence``. Empty values and interim ``disputed`` labels (never
+    truth) are not reported.
+    """
+    import json
+    from pathlib import Path
+
     from mailroom_sandbox.paths import repo_root
 
     base = Path(root) if root is not None else repo_root() / "data" / "labels"
+    rows = rows or {}
     findings: list[LabelFinding] = []
     for overlay in overlays:
         for path in sorted((base / overlay).glob("*.jsonl")):
@@ -364,17 +473,12 @@ def label_overlay_grounding(
                 record = json.loads(line)
                 doc_class = str(record.get("doc_class") or path.stem)
                 for name, label in (record.get("labels") or {}).items():
-                    if not isinstance(label, Mapping):
+                    if not isinstance(label, Mapping) or label.get("status") == "disputed":
                         continue
                     value = label.get("value")
                     if value is None or value == "" or value == []:
                         continue
-                    quotes = _evidence_quotes(label)
-                    if quotes:
-                        ok, reason = evidence_support(doc_class, name, value, quotes)
-                        status = GROUNDED if ok else UNGROUNDED
-                    else:
-                        status, reason = NO_EVIDENCE, ""
+                    status, reason = _check_label(record, doc_class, name, label, rows)
                     findings.append(
                         LabelFinding(
                             overlay,
