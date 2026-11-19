@@ -76,7 +76,9 @@ document_form:
     judged as filed: redactions ("[***]"), schedules or exhibits noted as omitted, and annexes
     listed but not attached do not make it a fragment. An email is judged by its newest
     message: quoted or forwarded history below it, however it ends, is part of that one email.
-    Look at the very end of the text: a last word or sentence that is cut off is a fragment.
+    Look at the very end of the document: a last word or sentence that is cut off is a
+    fragment, except inside an email's quoted or forwarded history, where only the newest
+    message counts.
   criteria:
     complete_instrument: >-
       One document, with whatever it carries of its own, from its own beginning to its own end:
@@ -95,12 +97,13 @@ document_form:
       an index of defined terms or blank signature lines is not a fragment.
     multiple_documents: >-
       Two or more unrelated documents in one text: different matters, parties or classes (a
-      contract followed by an unrelated letter, two separate claims). Signs: a filing footer
-      ("Source: ..., 10-K") or end of an agreement followed by a newsletter, advertisement or
-      message about something else; a short record (a claim header, a note) followed by a
+      contract followed by an unrelated letter, two separate claims). Signs: a newsletter,
+      advertisement or message about something else after the end of an agreement or its
+      filing footer ("Source: ..., 10-K"); a short record (a claim header, a note) followed by a
       separate filed exhibit of another kind, often opened by <DOCUMENT> or <TYPE> tags. An
       agreement with its own amendment, exhibits or schedules, a claim with its supporting
-      papers, and an email carrying a forwarded or quoted message are each ONE document.
+      papers, and an email carrying a forwarded or quoted message are each ONE document. A
+      filing footer, page header or exhibit stamp on its own is not a sign of a second document.
     unreadable: >-
       Empty, garbled, mostly OCR noise, or too fragmentary to identify any form.
     non_english: >-
