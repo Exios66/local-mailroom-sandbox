@@ -468,13 +468,169 @@ def _span_ev(cuad: dict[str, Any], cat: str, *, matching: str | None = None) -> 
             and (matching is None or x.get("text") == matching)]
 
 
+def _generated_contract_cuad(
+    out: dict[str, tuple[str, Any, list]],
+    *,
+    cuad: dict[str, Any],
+    spans: dict[str, list[str]],
+) -> None:
+    """Map populated CUAD clause spans onto schema / pending fields."""
+    present = sorted(k for k, v in spans.items() if v)
+    out["cuad_clauses"] = ("generated_derived", present, [])
+    if spans.get("Document Name"):
+        out["document_name"] = ("generated_derived", spans["Document Name"][0].strip(), [])
+    else:
+        out["document_name"] = ("generated_derived", None, [])
+    names, seen = [], set()
+    for p in spans.get("Parties", []):
+        k = canon("parties", p)
+        if k not in seen and len(p) > 3:
+            seen.add(k)
+            names.append(p.strip())
+    out["parties"] = ("generated_derived", names or None, [])
+    for fld, cat in (("effective_date", "Effective Date"), ("agreement_date", "Agreement Date")):
+        if spans.get(cat):
+            out[fld] = ("generated_derived", _date_value(spans[cat][0]), [])
+    if spans.get("Governing Law"):
+        m = GOV_RX.search(" ".join(spans["Governing Law"]))
+        out["governing_law"] = ("generated_derived", m.group(1) if m else spans["Governing Law"][0][:200], [])
+    else:
+        out["governing_law"] = ("generated_derived", None, [])
+    for fld, cat in (("term_length", "Expiration Date"), ("renewal_terms", "Renewal Term")):
+        out[fld] = ("generated_derived", spans[cat][0].strip()[:400] if spans.get(cat) else None, [])
+    exp = _cuad_expiration(spans.get("Expiration Date", []))
+    if exp is not False:  # ambiguous multi-date spans are left to other sources
+        out["expiration_date"] = ("cuad_span", exp, _span_ev(cuad, "Expiration Date"))
+    notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
+    notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
+    if notice:
+        out["termination_notice_period"] = (
+            "cuad_span",
+            notice,
+            [e for c in notice_cats for e in _span_ev(cuad, c)],
+        )
+    for s in spans.get("Governing Law", []):
+        m = FORUM_RX.search(re.sub(r"\s+", " ", s))
+        if not m:
+            continue
+        forum = FORUM_TAIL_RX.sub("", m.group(1)).strip(" ,")
+        if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
+            continue  # no named place
+        out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law", matching=s))
+        break
+
+
+def _generated_contract_rules(out: dict[str, tuple[str, Any, list]], text: str) -> None:
+    """Fallback contract regexes when CUAD is silent."""
+    head = text[:4000]
+    m = DATED_RX.search(head)
+    if m and to_iso(m.group(1)) and "agreement_date" not in out:
+        out["agreement_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
+    m = GOV_RX.search(text)
+    if m and "governing_law" not in out:
+        out["governing_law"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
+
+
+def _generated_merger_roles(out: dict[str, tuple[str, Any, list]], text: str) -> None:
+    """Acquirer / target / merger_sub / parties from role-annotated names."""
+    acq, tgt, subs, parties = [], [], [], []
+    ev: dict[str, list] = defaultdict(list)
+    for m in ROLE_RX.finditer(text[:8000]):
+        name, role = _clean_name(m.group(1)), m.group(2).strip().lower()
+        if not name or len(name) > 90 or name.lower().startswith(("this", "the ")):
+            continue
+        bucket = (
+            "acquirer" if role in ACQ_ROLES else
+            "target" if role in TGT_ROLES else
+            "merger_sub" if role in SUB_ROLES else
+            None
+        )
+        if bucket is None:
+            continue
+        {"acquirer": acq, "target": tgt, "merger_sub": subs}[bucket].append(name)
+        parties.append(name)
+        ev[bucket].append(_ev(text, m, 1))
+        ev["parties"].append(_ev(text, m, 1))
+    if acq:
+        out["acquirer"] = ("generated_rule", acq[0], ev["acquirer"][:1])
+    if tgt:
+        out["target"] = ("generated_rule", tgt[0], ev["target"][:1])
+    if subs:
+        out["merger_sub"] = ("generated_rule", list(dict.fromkeys(subs)), ev["merger_sub"])
+    if parties:
+        out["parties"] = ("generated_rule", list(dict.fromkeys(parties)), ev["parties"])
+
+
+def _generated_merger_terms(out: dict[str, tuple[str, Any, list]], text: str, sub: str) -> None:
+    """Fees, outside date, exchange ratio, advisors, counsel, cash amount."""
+    for fld, rx in FEE_RX.items():
+        m = rx.search(text)
+        if m:
+            out[fld] = ("generated_rule", m.group(1).replace(" ", ""), [_ev(text, m, 1)])
+    for rx in OUTSIDE_RX:
+        m = rx.search(text)
+        if m and to_iso(m.group(1)):
+            out["outside_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
+            break
+    for rx in RATIO_RX:
+        m = rx.search(text)
+        if m:
+            out["exchange_ratio"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
+            break
+    advisors, aev = [], []
+    for m in BROKER_RX.finditer(text):
+        for name in re.split(r"\s+and\s+(?=[A-Z])|;\s*", m.group(1)):
+            name = _clean_name(re.sub(r"^to\s+", "", name.strip()))
+            if len(name) > 2:
+                advisors.append(name)
+                aev.append(_ev(text, m, 1))
+    if advisors:
+        out["financial_advisors"] = ("generated_rule", list(dict.fromkeys(advisors)), aev[:3])
+    counsel = list(dict.fromkeys(_clean_name(x) for x in COUNSEL_RX.findall(text)))
+    if counsel:
+        out["legal_counsel"] = (
+            "generated_rule",
+            counsel,
+            [_ev(text, x, 1) for x in list(COUNSEL_RX.finditer(text))[:3]],
+        )
+    if sub in ("all_cash", "mixed_cash_stock", "mixed_cash_stock_election"):
+        m = CASH_RX.search(text)
+        if m:
+            out["per_share_cash_amount"] = ("generated_rule", m.group(1).replace(" ", ""), [_ev(text, m, 1)])
+
+
+def _generated_merger_labels(
+    out: dict[str, tuple[str, Any, list]],
+    *,
+    gt: dict[str, Any],
+    sub: str,
+    text: str,
+) -> None:
+    mf = hub_merger_expected_fields(gt, sub)
+    for k in ("maud_clauses", "merger_consideration"):
+        if not is_empty(mf.get(k)):
+            out[k] = ("generated_derived", mf[k], [])
+    head = text[:6000]
+    m = TITLE_RX.search(head)
+    if m:
+        title = re.sub(r"\s+", " ", m.group(1)).title().replace(" And ", " and ").replace(" Of ", " of ")
+        out["document_name"] = ("generated_rule", title, [_ev(text, m, 1)])
+    m = GOV_RX.search(text)
+    if m:
+        out["governing_law"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
+    m = DATED_RX.search(head)
+    if m and to_iso(m.group(1)):
+        out["effective_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
+    _generated_merger_roles(out, text)
+    _generated_merger_terms(out, text, sub)
+
+
 def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") -> dict[str, tuple[str, Any, list]]:
     """{field: (source, value, evidence)} produced by this build for one row."""
     out: dict[str, tuple[str, Any, list]] = {}
     cls, sub, text = row["expected_doc_class"], row["expected_subclass"], row.get("doc_text") or ""
     pres = parse_jsonish(gt.get("gt_presence")) or {}
-    # corporate record_type is left to the Hub: it uses its own coarser vocabulary (charter_amendment
-    # rows are "articles_of_incorporation", indentures "other"), so a subclass vote would be a false conflict.
+    # corporate record_type stays on the Hub (coarser vocabulary); subclass votes would false-conflict.
     subtype_field = {"contract": "cuad_family", "correspondence": "communication_type"}.get(cls)
     if subtype_field:
         out[subtype_field] = ("generated_derived", sub, [])
@@ -484,133 +640,23 @@ def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") 
     if cls == "insurance_claim":
         cms = "cms" in corpus.lower() and sub in CMS_SUBCLASSES
         out["cms_source_table"] = ("generated_derived", sub if cms else None, [])
-    if cls == "contract":
+    elif cls == "contract":
         cuad = parse_jsonish(gt.get("cuad_clause_labels")) or {}
         labelled = isinstance(cuad, dict) and bool(cuad) and pres.get("cuad_clause_labels") == "populated"
         if labelled:
-            spans = {k: [s.get("text", "") for s in (v or []) if isinstance(s, dict) and s.get("text")]
-                     for k, v in cuad.items()}
-            present = sorted(k for k, v in spans.items() if v)
-            out["cuad_clauses"] = ("generated_derived", present, [])
-            if spans.get("Document Name"):
-                out["document_name"] = ("generated_derived", spans["Document Name"][0].strip(), [])
-            else:
-                out["document_name"] = ("generated_derived", None, [])
-            names, seen = [], set()
-            for p in spans.get("Parties", []):
-                k = canon("parties", p)
-                if k not in seen and len(p) > 3:
-                    seen.add(k)
-                    names.append(p.strip())
-            out["parties"] = ("generated_derived", names or None, [])
-            for fld, cat in (("effective_date", "Effective Date"), ("agreement_date", "Agreement Date")):
-                if spans.get(cat):
-                    out[fld] = ("generated_derived", _date_value(spans[cat][0]), [])
-            if spans.get("Governing Law"):
-                m = GOV_RX.search(" ".join(spans["Governing Law"]))
-                out["governing_law"] = ("generated_derived", m.group(1) if m else spans["Governing Law"][0][:200], [])
-            else:
-                out["governing_law"] = ("generated_derived", None, [])
-            for fld, cat in (("term_length", "Expiration Date"), ("renewal_terms", "Renewal Term")):
-                out[fld] = ("generated_derived", spans[cat][0].strip()[:400] if spans.get(cat) else None, [])
-            # Pending schema fields that a CUAD span answers directly (source cuad_span, evidence = the span).
-            exp = _cuad_expiration(spans.get("Expiration Date", []))
-            if exp is not False:  # an ambiguous span (several candidate end dates) is left to other sources
-                out["expiration_date"] = ("cuad_span", exp, _span_ev(cuad, "Expiration Date"))
-            notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
-            notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
-            if notice:
-                out["termination_notice_period"] = ("cuad_span", notice,
-                                                    [e for c in notice_cats for e in _span_ev(cuad, c)])
-            for s in spans.get("Governing Law", []):
-                m = FORUM_RX.search(re.sub(r"\s+", " ", s))
-                if m:
-                    forum = FORUM_TAIL_RX.sub("", m.group(1)).strip(" ,")
-                    if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
-                        continue  # no named place: "courts", "court of law arising out of ..."
-                    out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law", matching=s))
-                    break
-        head = text[:4000]
-        m = DATED_RX.search(head)
-        if m and to_iso(m.group(1)) and "agreement_date" not in out:
-            out["agreement_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
-        m = GOV_RX.search(text)
-        if m and "governing_law" not in out:
-            out["governing_law"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
+            spans = {
+                k: [s.get("text", "") for s in (v or []) if isinstance(s, dict) and s.get("text")]
+                for k, v in cuad.items()
+            }
+            _generated_contract_cuad(out, cuad=cuad, spans=spans)
+        _generated_contract_rules(out, text)
     elif cls == "merger_agreement":
-        mf = hub_merger_expected_fields(gt, sub)
-        for k in ("maud_clauses", "merger_consideration"):
-            if not is_empty(mf.get(k)):
-                out[k] = ("generated_derived", mf[k], [])
-        head = text[:6000]
-        m = TITLE_RX.search(head)
-        if m:
-            out["document_name"] = ("generated_rule", re.sub(r"\s+", " ", m.group(1)).title().replace(" And ", " and ")
-                                    .replace(" Of ", " of "), [_ev(text, m, 1)])
-        m = GOV_RX.search(text)
-        if m:
-            out["governing_law"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
-        m = DATED_RX.search(head)
-        if m and to_iso(m.group(1)):
-            out["effective_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
-        acq, tgt, subs, parties = [], [], [], []
-        ev: dict[str, list] = defaultdict(list)
-        for m in ROLE_RX.finditer(text[:8000]):
-            name, role = _clean_name(m.group(1)), m.group(2).strip().lower()
-            if not name or len(name) > 90 or name.lower().startswith(("this", "the ")):
-                continue
-            bucket = ("acquirer" if role in ACQ_ROLES else "target" if role in TGT_ROLES
-                      else "merger_sub" if role in SUB_ROLES else None)
-            if bucket is None:
-                continue
-            {"acquirer": acq, "target": tgt, "merger_sub": subs}[bucket].append(name)
-            parties.append(name)
-            ev[bucket].append(_ev(text, m, 1))
-            ev["parties"].append(_ev(text, m, 1))
-        if acq:
-            out["acquirer"] = ("generated_rule", acq[0], ev["acquirer"][:1])
-        if tgt:
-            out["target"] = ("generated_rule", tgt[0], ev["target"][:1])
-        if subs:
-            out["merger_sub"] = ("generated_rule", list(dict.fromkeys(subs)), ev["merger_sub"])
-        if parties:
-            out["parties"] = ("generated_rule", list(dict.fromkeys(parties)), ev["parties"])
-        for fld, rx in FEE_RX.items():
-            m = rx.search(text)
-            if m:
-                out[fld] = ("generated_rule", m.group(1).replace(" ", ""), [_ev(text, m, 1)])
-        for rx in OUTSIDE_RX:
-            m = rx.search(text)
-            if m and to_iso(m.group(1)):
-                out["outside_date"] = ("generated_rule", to_iso(m.group(1)), [_ev(text, m, 1)])
-                break
-        for rx in RATIO_RX:
-            m = rx.search(text)
-            if m:
-                out["exchange_ratio"] = ("generated_rule", m.group(1), [_ev(text, m, 1)])
-                break
-        advisors, aev = [], []
-        for m in BROKER_RX.finditer(text):
-            for name in re.split(r"\s+and\s+(?=[A-Z])|;\s*", m.group(1)):
-                name = _clean_name(re.sub(r"^to\s+", "", name.strip()))
-                if len(name) > 2:
-                    advisors.append(name)
-                    aev.append(_ev(text, m, 1))
-        if advisors:
-            out["financial_advisors"] = ("generated_rule", list(dict.fromkeys(advisors)), aev[:3])
-        counsel = list(dict.fromkeys(_clean_name(x) for x in COUNSEL_RX.findall(text)))
-        if counsel:
-            out["legal_counsel"] = ("generated_rule", counsel, [_ev(text, x, 1) for x in list(COUNSEL_RX.finditer(text))[:3]])
-        if sub in ("all_cash", "mixed_cash_stock", "mixed_cash_stock_election"):
-            m = CASH_RX.search(text)
-            if m:
-                out["per_share_cash_amount"] = ("generated_rule", m.group(1).replace(" ", ""), [_ev(text, m, 1)])
+        _generated_merger_labels(out, gt=gt, sub=sub, text=text)
     elif cls == "corporate_record":
         m = CORP_JUR_RX.search(text[:6000])
         if m:
             out["jurisdiction"] = ("generated_rule", re.sub(r"\s+", " ", m.group(1)), [_ev(text, m, 1)])
     return out
-
 
 # --------------------------------------------------------------------------- vote
 
@@ -763,6 +809,319 @@ def duplicate_keepers(rows: list[dict[str, Any]], meta: dict[str, dict[str, Any]
     return result
 
 
+def _load_label_overlays(jsonl) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    dict[tuple[str, str], dict[str, Any]],
+    dict[tuple[str, str], dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
+    """Load interim, near-gold overlay, gold catalog, owner reviews, subclass corrections."""
+    interim: dict[str, Any] = {}
+    for p in sorted((LABELS / "interim").glob("*.jsonl")):
+        for r in jsonl(p):
+            interim[r["doc_id"]] = r
+    overlay: dict[str, Any] = {}
+    for p in sorted((LABELS / "gold-overlay").glob("*.jsonl")):
+        for r in jsonl(p):
+            overlay[r["doc_id"]] = r
+    gold_cat: dict[tuple[str, str], dict[str, Any]] = {}
+    for p in sorted((LABELS / "gold").glob("*.jsonl")):
+        for r in jsonl(p):
+            gold_cat[(r["doc_id"], r["field"])] = r
+    owner = {
+        (r["doc_id"], r["field"]): r
+        for r in jsonl(LABELS / "review" / "human_reviews.jsonl")
+        if r.get("decision") in ("keep", "use_suggestion", "correct")
+    }
+    subfix = {
+        r["doc_id"]: r
+        for r in jsonl(LABELS / "review" / "subclass_corrections.jsonl")
+        if r.get("verdict") == "correct"
+    }
+    return interim, overlay, gold_cat, owner, subfix
+
+
+def _field_ballots(
+    *,
+    field: str,
+    did: str,
+    sha: str,
+    pres: dict[str, Any],
+    gt: dict[str, Any],
+    irec: dict[str, Any] | None,
+    orec: dict[str, Any] | None,
+    gold_cat: dict[tuple[str, str], dict[str, Any]],
+    gen: dict[str, tuple[str, Any, list]],
+    owner: dict[tuple[str, str], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collect every source ballot for one (document, field)."""
+    ballots: list[dict[str, Any]] = []
+    p = pres.get(field)
+    hv = parse_jsonish(gt.get(field))
+    if p == "populated" or (p is None and not is_empty(hv)):
+        ballots.append({"source": "hub_v9.3", "value": hv})
+    elif p == "schema_documented_absence":
+        ballots.append({"source": "hub_v9.3", "value": None})
+    if irec and field in irec["labels"]:
+        lab = irec["labels"][field]
+        src = interim_source(lab)
+        if src:
+            ballots.append({"source": src, "value": lab.get("value"), "evidence": lab.get("evidence") or []})
+    if orec and field in (orec.get("labels") or {}):
+        lab = orec["labels"][field]
+        basis = str(lab.get("basis") or "")
+        src = "near_gold_two_pass" if basis.endswith("two_pass_agree") else "near_gold_reviewed"
+        ballots.append({"source": src, "value": lab.get("value"), "evidence": lab.get("evidence") or []})
+    elif (did, field) in gold_cat:
+        g = gold_cat[(did, field)]
+        if (g.get("content_sha256") or "")[:16] == sha or g.get("doc_sha") == sha:
+            src = {
+                "candidate": "gold_candidate",
+                "disputed": "gold_disputed",
+                "near_gold": "near_gold_two_pass",
+            }.get(g.get("status"))
+            if src:
+                ballots.append({"source": src, "value": g.get("value"), "evidence": g.get("evidence") or []})
+    if field in gen:
+        s, v, ev = gen[field]
+        ballots.append({"source": s, "value": v, "evidence": ev})
+    if (did, field) in owner:
+        ballots.append({"source": "owner_review", "value": owner[(did, field)]["value"]})
+    return ballots
+
+
+def _empty_field_row(did: str, cls: str, field: str) -> dict[str, Any]:
+    return {
+        "document_id": did,
+        "doc_class": cls,
+        "field": field,
+        "value": "",
+        "presence": NOT_LABELED,
+        "chosen_source": "",
+        "agreeing_sources": "",
+        "agreement": "",
+        "rule": "",
+        "weight_share": "",
+        "n_sources": 0,
+        "n_distinct_values": 0,
+        "conflict": False,
+        "needs_human": False,
+        "evidence": "",
+        "votes": "{}",
+    }
+
+
+def _document_wide_row(
+    *,
+    row: dict[str, Any],
+    meta_row: dict[str, Any],
+    sub_res: dict[str, Any],
+    text: str,
+    keepers: dict[str, str],
+    content_groups: dict[str, list[str]],
+    norm_groups: dict[str, list[str]],
+) -> dict[str, Any]:
+    did = row["id"]
+    content_key = row.get("content_sha256") or hashlib.sha256(text.encode()).hexdigest()
+    out = {
+        "document_id": did,
+        "filename": row["filename"],
+        "split": row["split"],
+        "doc_class": row["expected_doc_class"],
+        "subclass": sub_res["value"],
+        "subclass_hub_v9_3": row["expected_subclass"],
+        "subclass_changed": sub_res["value"] != row["expected_subclass"],
+        "source_corpus": meta_row.get("source_corpus", ""),
+        "annotation_source": meta_row.get("annotation_source", ""),
+        "annotation_method": meta_row.get("annotation_method", ""),
+        "annotation_confidence": meta_row.get("annotation_confidence", ""),
+        "expected_specialist": meta_row.get("expected_specialist", ""),
+        "expected_stage": row.get("expected_stage", ""),
+        "review_expected": meta_row.get("review_expected", ""),
+        "matter_id": meta_row.get("matter_id", ""),
+        "group_id": meta_row.get("group_id", ""),
+        "thread_size": meta_row.get("thread_size", ""),
+        "related_document_ids": json.dumps(meta_row.get("related_document_ids") or []),
+        "token_estimate": row["expected_fields"].get("token_estimate", ""),
+        "context_window_band": row["expected_fields"].get("context_window_band", ""),
+        "char_count": len(text),
+        "word_count": len(text.split()),
+        "content_sha256": row["content_sha256"],
+        "exact_duplicate_count": len(content_groups[content_key]),
+        "normalized_duplicate_count": len(norm_groups.get(meta_row.get("normalized_text_sha256", ""), [did])),
+        "duplicate_of": "",
+        "doc_text_preview": re.sub(r"\s+", " ", text[:280]).strip(),
+    }
+    if keepers[did] != did:
+        out["duplicate_of"] = keepers[did]
+    return out
+
+
+def _field_completeness(long_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per class/field completeness before (Hub) and after repair."""
+    comp: list[dict[str, Any]] = []
+    by: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for lr in long_rows:
+        if lr["field"] != "subclass":
+            by[(lr["doc_class"], lr["field"])].append(lr)
+    for (cls, field), items in sorted(by.items()):
+        hub_only = sum(1 for i in items if "hub_v9.3" in json.loads(i["votes"] or "{}"))
+        labeled = sum(1 for i in items if i["presence"] in ("populated", "documented_absence"))
+        src = Counter(i["chosen_source"] for i in items if i["chosen_source"])
+        comp.append({
+            "doc_class": cls,
+            "field": field,
+            "documents": len(items),
+            "labeled_hub_v9_3": hub_only,
+            "labeled_repaired": labeled,
+            "populated": sum(1 for i in items if i["presence"] == "populated"),
+            "documented_absence": sum(1 for i in items if i["presence"] == "documented_absence"),
+            "unlabeled": sum(1 for i in items if i["presence"] == NOT_LABELED),
+            "disputed_unresolved": sum(1 for i in items if i["presence"] == "disputed_unresolved"),
+            "completeness_hub_v9_3": round(hub_only / len(items), 4),
+            "completeness_repaired": round(labeled / len(items), 4),
+            "conflicts": sum(1 for i in items if str(i["conflict"]) == "True"),
+            "needs_human": sum(1 for i in items if str(i["needs_human"]) == "True"),
+            "top_source": src.most_common(1)[0][0] if src else "",
+        })
+    return comp
+
+
+
+def _index_duplicate_groups(
+    rows: list[dict[str, Any]],
+    meta: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    content_groups: dict[str, list[str]] = defaultdict(list)
+    norm_groups: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        m = meta.get(row["id"], {})
+        content_key = row.get("content_sha256") or hashlib.sha256((row.get("doc_text") or "").encode()).hexdigest()
+        content_groups[content_key].append(row["id"])
+        if m.get("normalized_text_sha256"):
+            norm_groups[m["normalized_text_sha256"]].append(row["id"])
+    return content_groups, norm_groups
+
+
+def _annotate_subclass_derived(
+    gen: dict[str, tuple[str, Any, list]],
+    *,
+    sub_res: dict[str, Any],
+    hub_subclass: str,
+) -> None:
+    if sub_res["value"] == hub_subclass:
+        return
+    for field in ("merger_consideration", "cuad_family", "communication_type", "cms_source_table"):
+        if field not in gen:
+            continue
+        source, value, evidence = gen[field]
+        gen[field] = (
+            source,
+            value,
+            [
+                *evidence,
+                {
+                    "derived_from_subclass": sub_res["value"],
+                    "source": sub_res["chosen_source"],
+                    "review_evidence": sub_res["evidence"],
+                },
+            ],
+        )
+
+
+def _process_document(
+    row: dict[str, Any],
+    *,
+    meta: dict[str, dict[str, Any]],
+    fields_by_class: dict[str, list[str]],
+    all_fields: list[str],
+    interim: dict[str, Any],
+    overlay: dict[str, Any],
+    gold_cat: dict[tuple[str, str], dict[str, Any]],
+    owner: dict[tuple[str, str], dict[str, Any]],
+    subfix: dict[str, dict[str, Any]],
+    keepers: dict[str, str],
+    content_groups: dict[str, list[str]],
+    norm_groups: dict[str, list[str]],
+    stale: Counter,
+) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
+    """Return (wide_row, long_rows_delta, nan_cleaned_delta)."""
+    did, cls, text = row["id"], row["expected_doc_class"], row.get("doc_text") or ""
+    m = meta.get(did, {})
+    sha = doc_sha(text)
+    gt = dict(row["expected_fields"])
+    nan_cleaned = sum(1 for v in gt.values() if isinstance(v, str) and v.strip().lower() == "nan")
+    pres = parse_jsonish(gt.get("gt_presence")) or {}
+    irec = interim.get(did)
+    if irec and irec.get("doc_sha256") != sha:
+        stale["interim"] += 1
+        irec = None
+    orec = overlay.get(did)
+    if orec and orec.get("doc_sha256") != sha:
+        stale["near_gold"] += 1
+        orec = None
+
+    sub_ballots = [{"source": "hub_v9.3", "value": row["expected_subclass"]}]
+    if did in subfix:
+        sub_ballots.append({
+            "source": "subclass_review",
+            "value": subfix[did]["subclass"],
+            "evidence": [{"text": e[:300]} for e in subfix[did].get("evidence") or []],
+        })
+    sub_res = vote("subclass", sub_ballots)
+    gen = generated_labels({**row, "expected_subclass": sub_res["value"]}, gt, m["source_corpus"])
+    _annotate_subclass_derived(gen, sub_res=sub_res, hub_subclass=row["expected_subclass"])
+    out = _document_wide_row(
+        row=row,
+        meta_row=m,
+        sub_res=sub_res,
+        text=text,
+        keepers=keepers,
+        content_groups=content_groups,
+        norm_groups=norm_groups,
+    )
+    long_rows: list[dict[str, Any]] = []
+    if sub_res["value"] != row["expected_subclass"]:
+        long_rows.append({"document_id": did, "doc_class": cls, "field": "subclass", **_long(sub_res)})
+
+    targets = fields_by_class[cls]
+    n_target = n_labeled = n_conflict = n_human = 0
+    for field in all_fields:
+        if field not in targets:
+            out[field] = ""
+            continue
+        ballots = _field_ballots(
+            field=field,
+            did=did,
+            sha=sha,
+            pres=pres,
+            gt=gt,
+            irec=irec,
+            orec=orec,
+            gold_cat=gold_cat,
+            gen=gen,
+            owner=owner,
+        )
+        n_target += 1
+        if not ballots:
+            out[field] = ""
+            long_rows.append(_empty_field_row(did, cls, field))
+            continue
+        res = vote(field, ballots)
+        n_labeled += res["presence"] in ("populated", "documented_absence")
+        n_conflict += res["conflict"]
+        n_human += res["needs_human"]
+        out[field] = _cell(res["value"])
+        long_rows.append({"document_id": did, "doc_class": cls, "field": field, **_long(res)})
+    out["fields_targeted"] = n_target
+    out["fields_labeled"] = n_labeled
+    out["label_completeness"] = round(n_labeled / n_target, 4) if n_target else 1.0
+    out["fields_with_conflict"] = n_conflict
+    out["fields_needs_human"] = n_human
+    return out, long_rows, nan_cleaned
+
+
 def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     inputs = InputSnapshot()
     jsonl = inputs.jsonl
@@ -776,22 +1135,7 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     if missing_rows:
         raise ValueError(f"Parquet metadata includes {len(missing_rows)} IDs absent from the pinned JSONL")
     fields_by_class = class_fields()
-    interim = {}
-    for p in sorted((LABELS / "interim").glob("*.jsonl")):
-        for r in jsonl(p):
-            interim[r["doc_id"]] = r
-    overlay = {}
-    for p in sorted((LABELS / "gold-overlay").glob("*.jsonl")):
-        for r in jsonl(p):
-            overlay[r["doc_id"]] = r
-    gold_cat: dict[tuple[str, str], dict[str, Any]] = {}
-    for p in sorted((LABELS / "gold").glob("*.jsonl")):
-        for r in jsonl(p):
-            gold_cat[(r["doc_id"], r["field"])] = r
-    owner = {(r["doc_id"], r["field"]): r for r in jsonl(LABELS / "review" / "human_reviews.jsonl")
-             if r.get("decision") in ("keep", "use_suggestion", "correct")}
-    subfix = {r["doc_id"]: r for r in jsonl(LABELS / "review" / "subclass_corrections.jsonl")
-              if r.get("verdict") == "correct"}
+    interim, overlay, gold_cat, owner, subfix = _load_label_overlays(jsonl)
     keepers = duplicate_keepers(rows, meta, subfix)
 
     all_fields: list[str] = []
@@ -801,169 +1145,38 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     wide, long_rows = [], []
     stale = Counter()
     nan_cleaned = 0
-    content_groups: dict[str, list[str]] = defaultdict(list)
-    norm_groups: dict[str, list[str]] = defaultdict(list)
-    for row in rows:
-        m = meta.get(row["id"], {})
-        content_key = row.get("content_sha256") or hashlib.sha256((row.get("doc_text") or "").encode()).hexdigest()
-        content_groups[content_key].append(row["id"])
-        if m.get("normalized_text_sha256"):
-            norm_groups[m["normalized_text_sha256"]].append(row["id"])
-
+    content_groups, norm_groups = _index_duplicate_groups(rows, meta)
     for row in sorted(rows, key=lambda r: r["id"]):
-        did, cls, text = row["id"], row["expected_doc_class"], row.get("doc_text") or ""
-        m = meta.get(did, {})
-        sha = doc_sha(text)
-        gt = dict(row["expected_fields"])
-        nan_cleaned += sum(1 for v in gt.values() if isinstance(v, str) and v.strip().lower() == "nan")
-        pres = parse_jsonish(gt.get("gt_presence")) or {}
-        irec = interim.get(did)
-        if irec and irec.get("doc_sha256") != sha:
-            stale["interim"] += 1
-            irec = None
-        orec = overlay.get(did)
-        if orec and orec.get("doc_sha256") != sha:
-            stale["near_gold"] += 1
-            orec = None
-
-        # subclass: Hub vs reviewed correction vs interim/near-gold doc_subclass is not a label; vote Hub + review
-        sub_ballots = [{"source": "hub_v9.3", "value": row["expected_subclass"]}]
-        if did in subfix:
-            sub_ballots.append({"source": "subclass_review", "value": subfix[did]["subclass"],
-                                "evidence": [{"text": e[:300]} for e in subfix[did].get("evidence") or []]})
-        sub_res = vote("subclass", sub_ballots)
-        gen = generated_labels({**row, "expected_subclass": sub_res["value"]}, gt, m["source_corpus"])
-        if sub_res["value"] != row["expected_subclass"]:
-            for field in ("merger_consideration", "cuad_family", "communication_type", "cms_source_table"):
-                if field in gen:
-                    source, value, evidence = gen[field]
-                    gen[field] = (source, value, [*evidence, {"derived_from_subclass": sub_res["value"],
-                                                           "source": sub_res["chosen_source"],
-                                                           "review_evidence": sub_res["evidence"]}])
-        content_key = row.get("content_sha256") or hashlib.sha256(text.encode()).hexdigest()
-        out = {
-            "document_id": did,
-            "filename": row["filename"],
-            "split": row["split"],
-            "doc_class": cls,
-            "subclass": sub_res["value"],
-            "subclass_hub_v9_3": row["expected_subclass"],
-            "subclass_changed": sub_res["value"] != row["expected_subclass"],
-            "source_corpus": m.get("source_corpus", ""),
-            "annotation_source": m.get("annotation_source", ""),
-            "annotation_method": m.get("annotation_method", ""),
-            "annotation_confidence": m.get("annotation_confidence", ""),
-            "expected_specialist": m.get("expected_specialist", ""),
-            "expected_stage": row.get("expected_stage", ""),
-            "review_expected": m.get("review_expected", ""),
-            "matter_id": m.get("matter_id", ""),
-            "group_id": m.get("group_id", ""),
-            "thread_size": m.get("thread_size", ""),
-            "related_document_ids": json.dumps(m.get("related_document_ids") or []),
-            "token_estimate": gt.get("token_estimate", ""),
-            "context_window_band": gt.get("context_window_band", ""),
-            "char_count": len(text),
-            "word_count": len(text.split()),
-            "content_sha256": row["content_sha256"],
-            "exact_duplicate_count": len(content_groups[content_key]),
-            "normalized_duplicate_count": len(norm_groups.get(m.get("normalized_text_sha256", ""), [did])),
-            "duplicate_of": "",
-            "doc_text_preview": re.sub(r"\s+", " ", text[:280]).strip(),
-        }
-        if keepers[did] != did:
-            out["duplicate_of"] = keepers[did]
-        if sub_res["value"] != row["expected_subclass"]:
-            long_rows.append({"document_id": did, "doc_class": cls, "field": "subclass", **_long(sub_res)})
-
-        targets = fields_by_class[cls]
-        n_target = n_labeled = n_conflict = n_human = 0
-        for field in all_fields:
-            if field not in targets:
-                out[field] = ""
-                continue
-            ballots: list[dict[str, Any]] = []
-            p = pres.get(field)
-            hv = parse_jsonish(gt.get(field))
-            if p == "populated" or (p is None and not is_empty(hv)):
-                ballots.append({"source": "hub_v9.3", "value": hv})
-            elif p == "schema_documented_absence":
-                ballots.append({"source": "hub_v9.3", "value": None})
-            if irec and field in irec["labels"]:
-                lab = irec["labels"][field]
-                src = interim_source(lab)
-                if src:
-                    ballots.append({"source": src, "value": lab.get("value"), "evidence": lab.get("evidence") or []})
-            if orec and field in (orec.get("labels") or {}):
-                lab = orec["labels"][field]
-                basis = str(lab.get("basis") or "")
-                src = "near_gold_two_pass" if basis.endswith("two_pass_agree") else "near_gold_reviewed"
-                ballots.append({"source": src, "value": lab.get("value"), "evidence": lab.get("evidence") or []})
-            elif (did, field) in gold_cat:
-                g = gold_cat[(did, field)]
-                if (g.get("content_sha256") or "")[:16] == sha or g.get("doc_sha") == sha:
-                    src = {"candidate": "gold_candidate", "disputed": "gold_disputed",
-                           "near_gold": "near_gold_two_pass"}.get(g.get("status"))
-                    if src:
-                        ballots.append({"source": src, "value": g.get("value"), "evidence": g.get("evidence") or []})
-            if field in gen:
-                s, v, ev = gen[field]
-                ballots.append({"source": s, "value": v, "evidence": ev})
-            if (did, field) in owner:
-                ballots.append({"source": "owner_review", "value": owner[(did, field)]["value"]})
-            n_target += 1
-            if not ballots:
-                out[field] = ""
-                long_rows.append({"document_id": did, "doc_class": cls, "field": field, "value": "",
-                                  "presence": NOT_LABELED, "chosen_source": "", "agreeing_sources": "",
-                                  "agreement": "", "rule": "", "weight_share": "", "n_sources": 0,
-                                  "n_distinct_values": 0, "conflict": False, "needs_human": False,
-                                  "evidence": "", "votes": "{}"})
-                continue
-            res = vote(field, ballots)
-            n_labeled += res["presence"] in ("populated", "documented_absence")
-            n_conflict += res["conflict"]
-            n_human += res["needs_human"]
-            out[field] = _cell(res["value"])
-            long_rows.append({"document_id": did, "doc_class": cls, "field": field, **_long(res)})
-        out["fields_targeted"] = n_target
-        out["fields_labeled"] = n_labeled
-        out["label_completeness"] = round(n_labeled / n_target, 4) if n_target else 1.0
-        out["fields_with_conflict"] = n_conflict
-        out["fields_needs_human"] = n_human
+        out, delta, nans = _process_document(
+            row,
+            meta=meta,
+            fields_by_class=fields_by_class,
+            all_fields=all_fields,
+            interim=interim,
+            overlay=overlay,
+            gold_cat=gold_cat,
+            owner=owner,
+            subfix=subfix,
+            keepers=keepers,
+            content_groups=content_groups,
+            norm_groups=norm_groups,
+            stale=stale,
+        )
         wide.append(out)
+        long_rows.extend(delta)
+        nan_cleaned += nans
 
     _write(output / f"{STEM}.csv", wide)
     _write(output / f"{STEM}_label_provenance.csv", long_rows)
-
-    # per-field completeness, before (Hub only) and after
-    comp = []
-    by = defaultdict(list)
-    for lr in long_rows:
-        if lr["field"] != "subclass":
-            by[(lr["doc_class"], lr["field"])].append(lr)
-    for (cls, field), items in sorted(by.items()):
-        hub_only = sum(1 for i in items if "hub_v9.3" in json.loads(i["votes"] or "{}"))
-        labeled = sum(1 for i in items if i["presence"] in ("populated", "documented_absence"))
-        src = Counter(i["chosen_source"] for i in items if i["chosen_source"])
-        comp.append({
-            "doc_class": cls, "field": field, "documents": len(items),
-            "labeled_hub_v9_3": hub_only, "labeled_repaired": labeled,
-            "populated": sum(1 for i in items if i["presence"] == "populated"),
-            "documented_absence": sum(1 for i in items if i["presence"] == "documented_absence"),
-            "unlabeled": sum(1 for i in items if i["presence"] == NOT_LABELED),
-            "disputed_unresolved": sum(1 for i in items if i["presence"] == "disputed_unresolved"),
-            "completeness_hub_v9_3": round(hub_only / len(items), 4),
-            "completeness_repaired": round(labeled / len(items), 4),
-            "conflicts": sum(1 for i in items if str(i["conflict"]) == "True"),
-            "needs_human": sum(1 for i in items if str(i["needs_human"]) == "True"),
-            "top_source": src.most_common(1)[0][0] if src else "",
-        })
+    comp = _field_completeness(long_rows)
     _write(output / f"{STEM}_field_completeness.csv", comp)
 
     chosen = Counter(lr["chosen_source"] for lr in long_rows if lr["chosen_source"])
     inputs.verify_unchanged()
     summary = {
-        "dataset": "Lucius-Morningstar/mailroom-dataset", "revision": REVISION, "release": "v9.3",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "revision": REVISION,
+        "release": "v9.3",
         "documents": len(wide),
         "class_counts": dict(Counter(w["doc_class"] for w in wide)),
         "label_cells_targeted": sum(w["fields_targeted"] for w in wide),
@@ -984,12 +1197,16 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     if with_text:  # full document text, joined on document_id; never committed
         import gzip
 
-        with (output / f"{STEM}_text.csv.gz").open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as compressed, io.TextIOWrapper(compressed, newline="", encoding="utf-8") as f:
+        with (output / f"{STEM}_text.csv.gz").open("wb") as raw, gzip.GzipFile(
+            fileobj=raw, mode="wb", mtime=0, filename=""
+        ) as compressed, io.TextIOWrapper(compressed, newline="", encoding="utf-8") as f:
             tw = csv.writer(f)
             tw.writerow(["document_id", "doc_text"])
             for r in sorted(rows, key=lambda r: r["id"]):
                 tw.writerow([r["id"], r.get("doc_text") or ""])
-    summary["outputs_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir())}
+    summary["outputs_sha256"] = {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir())
+    }
     (output / f"{STEM}_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return summary
 
