@@ -1242,7 +1242,11 @@ def _v42_subclass_gate_reasons(
 
 
 #: Functions whose source is the 4.2.0 routing identity. The question-set SHA-256 covers YAML only.
+#: ``form_flag_probabilities`` and ``subclass_fit`` are included because the rules call them:
+#: a change there changes which flag or fit decision is applied, and resume must refuse it.
 _V42_ROUTING = (
+    "form_flag_probabilities",
+    "subclass_fit",
     "_v42_fired_form_flags",
     "_v42_form_flag_reasons",
     "_v42_marker_unusable",

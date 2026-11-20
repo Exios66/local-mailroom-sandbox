@@ -327,3 +327,9 @@ def test_v42_routing_identity_is_locked_and_a_changed_digest_refuses_resume():
     assert _routing_identity_drift({}) is None
     refused = _routing_identity_drift({"reviewer": {**locked, "routing_sha256": "0" * 64}})
     assert refused and "routing code changed" in refused
+    # The digest is lock metadata. ReviewerSpec forbids extra fields, so activation must drop it.
+    from mailroom_sandbox.runtime import _install_reviewer
+
+    taxonomy: dict = {}
+    _install_reviewer({**locked, "classes": {"contract": 0.5}}, taxonomy)
+    assert taxonomy["reviewer"]["by_class"]["contract"]["cutoff"] == 0.5
