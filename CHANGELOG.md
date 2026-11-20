@@ -19,6 +19,9 @@
     attribute those fields to `staged`.
   - `scripts/pull_staged_overlay.py` fetches only the pinned cut, sparse and shallow, for
     deploy images and job workers. Guide: [`docs/staged-label-overlay.md`](docs/staged-label-overlay.md).
+  - Pinned: `9.3.1-rc.3` (mailroom-issues `838ca211`, manifest `2c2b9f12`). Pulled from GitHub
+    and applied to the v9.3 corpus: 3,297 of 3,302 documents take 18,439 staged fields (99 Hub
+    overrides), none stale.
   - No run config changed. Tests: `tests/test_staged_overlay.py`.
 - **Staged overlay cut `v9.3.1-rc.3`: self-contained, cut-off magnitudes repaired.**
   - `stage_label_overlay.py` now verifies that the builder outputs and `build_label_repaired.py`

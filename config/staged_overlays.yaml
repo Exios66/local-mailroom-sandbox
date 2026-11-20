@@ -11,4 +11,12 @@
 #     path: vX.Y.0/pre-release/vX.Y.P-rc.N   relative to mailroom_cache/
 #     manifest_sha256: <64 hex>   sha256 of that cut's MANIFEST.json
 #     base_tag_commit: <40 hex>   Hub tag commit the overlay is a delta against
-overlays: {}
+overlays:
+  # Planned v10 label repairs on Hub v9.3: merged master, cut-off magnitudes grounded,
+  # builder outputs cached (mailroom-issues 838ca211, sandbox stager ba9d6d5e).
+  9.3.1-rc.3:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: 838ca211b1e7c9da397941f09ae6ebb34196f034
+    path: v9.3.0/pre-release/v9.3.1-rc.3
+    manifest_sha256: 2c2b9f121c0e85024c11e54cf8ea921b239d33026712201d0a8d22d1b9072b4d
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
