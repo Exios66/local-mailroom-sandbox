@@ -109,12 +109,12 @@ The Compose shape matches the OpenRouter path: one CPU process runs the graph, a
 sandbox up -d --compose-profile langfuse --compose-profile pipeline
 ```
 
-`pipeline` starts `vllm-front` (nginx `1.27.4-alpine` on `127.0.0.1:8000`) and one `pipeline` container whose `VLLM_BASE_URL` is `http://vllm-front:8000/v1`. The container sleeps. It does not start a run. Launch from the host, with the front door as `VLLM_BASE_URL`, a run config, and initials of 2–6 capital letters that belong to the person starting it:
+`pipeline` starts `vllm-front` (nginx `1.27.4-alpine` on `127.0.0.1:8000`) and one `pipeline` container whose `VLLM_BASE_URL` is `http://vllm-front:8000/v1`. The container sleeps. It does not start a run. Launch from the host, with the front door as `VLLM_BASE_URL` and a run config. The person starting a paid run replaces `YOUR_INITIALS` with their own initials: 2–6 letters and no brackets. The spend check rejects anything else.
 
 ```bash
 export VLLM_BASE_URL=http://127.0.0.1:8000/v1
 sandbox run preflight --config config/runs/examples/pipeline-modal.yaml
-sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials '<XX>'
+sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials YOUR_INITIALS
 ```
 
 `config/runs/examples/pipeline-modal.yaml` is a pipeline spec. Its `profile` is `modal-vllm`. For this front door, set the run's profile to `vllm-local` so the host uses `VLLM_BASE_URL` instead of a Modal URL. `vllm` and `pipeline` both bind port 8000, so Compose refuses to start them on the same machine, including when `COMPOSE_PROFILES` names the other one.
