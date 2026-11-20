@@ -315,7 +315,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_tui)
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
+    p.add_argument(
+        "--compose-profile",
+        action="append",
+        dest="compose_profiles",
+        choices=COMPOSE_PROFILES,
+        help=(
+            "Compose profile to start. Repeat for more than one. "
+            "When omitted, up uses the active provider profile's compose profiles"
+        ),
+    )
     # hub#56: -d opts in to detached mode; the default is foreground (the old
     # action='store_true', default=True made -d a permanent no-op and `sandbox
     # up` could NEVER run in the foreground).
@@ -323,7 +332,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_up)
 
     p = sub.add_parser("down", help="Stop compose stack", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
+    p.add_argument(
+        "--compose-profile",
+        action="append",
+        dest="compose_profiles",
+        choices=COMPOSE_PROFILES,
+        help=(
+            "Compose profile to stop. Repeat for more than one. "
+            "When omitted, down uses the active provider profile's compose profiles"
+        ),
+    )
     p.set_defaults(handler=_cmd_down)
 
     p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[leaf])
