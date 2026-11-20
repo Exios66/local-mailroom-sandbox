@@ -889,16 +889,31 @@ def test_notebook_local_probe_timeout_never_lists_modal_apps(monkeypatch):
 
 
 def test_show_figure_embeds_png(monkeypatch):
+    """Unit-test without requiring IPython (main CI test job has no notebook extra)."""
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
+    import sys
+    import types
+
     import matplotlib.pyplot as plt
-    from IPython.display import Image
+
+    captured: list[object] = []
+
+    class FakeImage:
+        def __init__(self, data=None, **_kwargs):
+            self.data = data
+
+    fake_display = types.ModuleType("IPython.display")
+    fake_display.Image = FakeImage
+    fake_display.display = captured.append
+    fake_ipython = types.ModuleType("IPython")
+    fake_ipython.display = fake_display
+    monkeypatch.setitem(sys.modules, "IPython", fake_ipython)
+    monkeypatch.setitem(sys.modules, "IPython.display", fake_display)
 
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1])
-    captured: list[object] = []
-    monkeypatch.setattr("IPython.display.display", captured.append)
     notebook.show_figure(fig)
     assert len(captured) == 1
-    assert isinstance(captured[0], Image)
+    assert isinstance(captured[0], FakeImage)
     assert captured[0].data[:8] == b"\x89PNG\r\n\x1a\n"
