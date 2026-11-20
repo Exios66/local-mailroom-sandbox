@@ -22,6 +22,8 @@ Documentation for the local-mailroom-sandbox package, covering:
 - **[Pipeline floor viewer](floor.md)** — live run history, offline replay, digest semantics and troubleshooting
 - **[Named datasets](datasets/named-datasets.md)** — registry fields, environment paths, source/subset identity and migration
 - **[Stable dependency snapshots](dependency-snapshots.md)** — verified release cache, explicit source selection, frozen run provenance and worker images
+- **[Decision model inputs](decision-model-inputs.md)** — API request reference and calibration limits
+- **[Draft 4.2.0 implementation](decision-model-input-design.md)** — input changes, refusal routing and adoption gates
 - **[Job lifecycle](jobs.md)** — preflight, immutable generations, execution and resume
 - **[CI verification](../.circleci/README.md)** — required checks, artifacts, cache/worker configuration and runtime comparison
 

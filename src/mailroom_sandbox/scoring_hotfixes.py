@@ -150,11 +150,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-009",
         layer="sandbox",
         targets=(("mailroom_sandbox.decision_backends:apply_question_set_contract",
-                  "c2c16b90d935e51d308a9206184866e4325ee86ea3b0fd751693e75634a8e8af"),),
+                  "5126802652669b3987eceb3e33ebc40c4d2c95492c3247e8c26fc0c8e2f25d61"),),
         upstream="sandbox (decision_backends.decide)",
         summary="question set 4.0.0's document_form, abstain, subclass_gate and "
                 "truncation_notice keys are applied: an abstention parks the document "
-                "(route_to_human) and the forced-choice answer is kept under forced_choice",
+                "(route_to_human), keep_sorter parks when no same-class sorter subclass is "
+                "available, and the forced-choice answer is kept under forced_choice",
     ),
     ScoringHotfix(
         id="SHF-010",

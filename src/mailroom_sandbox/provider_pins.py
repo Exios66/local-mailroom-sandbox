@@ -187,6 +187,11 @@ def set_run_context(run_id: str | None, spec_hash: str | None = None) -> None:
         _RUN_CONTEXT.update(run_id=run_id, spec_hash=spec_hash)
 
 
+def run_context() -> dict[str, Any]:
+    """A copy of the run stamped by ``set_run_context`` (empty outside a run)."""
+    return dict(_RUN_CONTEXT)
+
+
 def _append(entry: dict[str, Any]) -> None:
     entry = {**entry, **_RUN_CONTEXT, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     with _LOCK:
