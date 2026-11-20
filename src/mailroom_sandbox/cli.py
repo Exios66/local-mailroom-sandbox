@@ -1890,16 +1890,69 @@ def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | N
     return None, existing_head
 
 
+def _restore_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
+    """Put a moved checkout back. The recovery copy stays if the restore fails."""
+    import shutil
+
+    try:
+        backup.rename(dest)
+    except OSError as restore_error:
+        print(
+            "!! visualizer changed during refresh; original snapshot preserved "
+            f"at {backup} ({restore_error})",
+            file=sys.stderr,
+        )
+        return 1
+    shutil.rmtree(recovery)
+    print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+    return 1
+
+
+def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refresh_root: Path) -> int | None:
+    """Install ``work`` over a clean reviewed checkout. None means it is in place.
+
+    The live tree is moved aside and checked again. An edit that lands after the
+    fetch, including one that lands after the first clean check, is put back.
+    The aside copy is deleted only after the new checkout is installed.
+    """
+    import shutil
+    import tempfile
+
+    if not _visualizer_still_replaceable(dest, existing_head):
+        print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+        return 1
+    recovery = Path(tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root))
+    backup = recovery / "The-Mailroom"
+    dest.rename(backup)
+    if not _visualizer_still_replaceable(backup, existing_head):
+        return _restore_visualizer(backup, dest, recovery)
+    try:
+        work.rename(dest)
+    except OSError as install_error:
+        try:
+            backup.rename(dest)
+        except OSError as restore_error:
+            print(
+                f"!! visualizer install failed ({install_error}); rollback failed "
+                f"({restore_error}). Original snapshot preserved at {backup}",
+                file=sys.stderr,
+            )
+            return 1
+        shutil.rmtree(recovery)
+        raise
+    shutil.rmtree(recovery)
+    return None
+
+
 def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
     """Retrieve the reviewed visualizer without discarding local work.
 
     Dirty or divergent checkouts are preserved, including edits that land while
-    the reviewed snapshot is fetched. A clean checkout whose HEAD matches the
-    reviewed-head marker written by an earlier refresh is an older reviewed
-    snapshot and is replaced atomically; local commits and unrelated HEADs are
-    never reset.
+    the reviewed snapshot is fetched or after that check. A clean checkout whose
+    HEAD matches the reviewed-head marker written by an earlier refresh is an
+    older reviewed snapshot and is replaced atomically; local commits and
+    unrelated HEADs are never reset.
     """
-    import shutil
     import tempfile
 
     dest = vendor_dir() / "The-Mailroom"
@@ -1916,29 +1969,9 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
             if not dest.exists():
                 work.rename(dest)
             elif existing_head != sha:
-                if not _visualizer_still_replaceable(dest, existing_head):
-                    print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
-                    return 1
-                recovery = Path(
-                    tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
-                )
-                backup = recovery / "The-Mailroom"
-                dest.rename(backup)
-                try:
-                    work.rename(dest)
-                except OSError as install_error:
-                    try:
-                        backup.rename(dest)
-                    except OSError as restore_error:
-                        print(
-                            f"!! visualizer install failed ({install_error}); rollback failed "
-                            f"({restore_error}). Original snapshot preserved at {backup}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    shutil.rmtree(recovery)
-                    raise
-                shutil.rmtree(recovery)
+                replaced = _replace_clean_visualizer(dest, work, existing_head or "", refresh_root)
+                if replaced:
+                    return replaced
             marker = dest / ".git" / "mailroom-reviewed-head"
             try:
                 marker.write_text(f"{sha}\n", encoding="utf-8")
