@@ -37,3 +37,11 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.5
     manifest_sha256: 27d0bb37803efb656b05576ceaf3d39b24f09fd2ff84fa558ed9ce92e6341778
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.5 after review: describing lead-ins trimmed from party and advisor names, master summary
+  # digests relabelled (mailroom-issues c19b48d1, sandbox 9be9ab4d).
+  9.3.1-rc.6:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: c19b48d12ebccacb5f8601026e2630848db63e7c
+    path: v9.3.0/pre-release/v9.3.1-rc.6
+    manifest_sha256: 28ec2d67e81eaae96c11cec714cc917f5da6f89793ecaf0de2f64aa6f24234ae
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04

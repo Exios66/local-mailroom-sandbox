@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+- **Production slices score against staged overlay `9.3.1-rc.6` (rc.5 review fixes).**
+  - `config/staged_overlays.yaml` pins rc.6 (mailroom-issues `c19b48d1`, manifest `28ec2d67…`).
+    The seven `config/runs/production/slice-*` configs move from rc.5 to rc.6.
+  - rc.6 trims describing lead-ins from party, advisor and counsel names ("the retention of X",
+    "Subsidiary of Y, and X" become X). Only 3 overlay cells differ from rc.5, all on merger
+    `financial_advisors`, `merger_sub` and `parties`.
+  - The master summary's `outputs_sha256` now hashes the `master/` files. The builder's digests
+    are kept as `builder_outputs_sha256`.
+  - Scores differ from rc.5 only on those merger fields. Re-baseline before a paired re-run.
 - **Production slices score against staged overlay `9.3.1-rc.5` (review fixes).**
   - `config/staged_overlays.yaml` pins rc.5 (mailroom-issues `d4e92a68`, manifest `27d0bb37…`).
     The seven `config/runs/production/slice-*` configs move from rc.4 to rc.5.

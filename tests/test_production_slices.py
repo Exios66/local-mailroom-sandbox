@@ -73,7 +73,7 @@ def test_slices_validate_and_share_settings():
         assert spec.job.mock is False
         # Production scores against the pinned staged v10 overlay (docs/staged-label-overlay.md),
         # which already merges the interim and near-gold layers.
-        assert spec.dataset.staged_overlay == "9.3.1-rc.5"
+        assert spec.dataset.staged_overlay == "9.3.1-rc.6"
         assert spec.dataset.interim_labels is False and spec.dataset.near_gold_labels is False
         assert spec.dataset.require_task_gt is True
         # Slices draw from the current family pin; r3 (the tuning source) stays on the
