@@ -1839,7 +1839,7 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
         return 1
 
 
-def _visualizer_clean_head(dest: Path) -> str | None:
+def _visualizer_clean_head(dest: Path, *, announce: bool = True) -> str | None:
     """HEAD when the checkout is clean. None leaves a dirty checkout untouched."""
     status = subprocess.run(
         ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
@@ -1852,9 +1852,21 @@ def _visualizer_clean_head(dest: Path) -> str | None:
         capture_output=True, text=True, check=False,
     )
     if status.returncode or status.stdout or current.returncode:
-        print("!! visualizer has local files; left untouched", file=sys.stderr)
+        if announce:
+            print("!! visualizer has local files; left untouched", file=sys.stderr)
         return None
     return current.stdout.strip()
+
+
+def _visualizer_still_replaceable(dest: Path, existing_head: str | None) -> bool:
+    """The tree is still the clean snapshot observed before the fetch.
+
+    The fetch is slow enough for edits, a new commit, or a newly created
+    checkout to land. Those must not be moved into recovery and deleted.
+    """
+    if existing_head is None:
+        return False
+    return _visualizer_clean_head(dest, announce=False) == existing_head
 
 
 def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | None]:
@@ -1881,10 +1893,11 @@ def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | N
 def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
     """Retrieve the reviewed visualizer without discarding local work.
 
-    Dirty or divergent checkouts are preserved. A clean checkout whose HEAD
-    matches the reviewed-head marker written by an earlier refresh is an older
-    reviewed snapshot and is replaced atomically; local commits and unrelated
-    HEADs are never reset.
+    Dirty or divergent checkouts are preserved, including edits that land while
+    the reviewed snapshot is fetched. A clean checkout whose HEAD matches the
+    reviewed-head marker written by an earlier refresh is an older reviewed
+    snapshot and is replaced atomically; local commits and unrelated HEADs are
+    never reset.
     """
     import shutil
     import tempfile
@@ -1903,6 +1916,9 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
             if not dest.exists():
                 work.rename(dest)
             elif existing_head != sha:
+                if not _visualizer_still_replaceable(dest, existing_head):
+                    print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+                    return 1
                 recovery = Path(
                     tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
                 )

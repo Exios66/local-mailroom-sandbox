@@ -216,6 +216,43 @@ def test_visualizer_preserves_all_local_work(source, vendor, kind):
     assert fingerprint(dest) == before
 
 
+def test_visualizer_preserves_edits_that_land_during_fetch(monkeypatch, source, vendor):
+    """A clean tree can change while the reviewed checkout is fetched."""
+    old = commit(source, {"index.html": "old\n"})
+    new = commit(source, {"index.html": "new\n"})
+    assert cli._refresh_visualizer(old, str(source), old) == 0
+    dest = vendor / "The-Mailroom"
+    real_fetch = cli._fetch_reviewed_checkout
+
+    def fetch_then_edit(work, pin, url, sha):
+        fetched = real_fetch(work, pin, url, sha)
+        (dest / "index.html").write_text("edit during fetch\n")
+        return fetched
+
+    monkeypatch.setattr(cli, "_fetch_reviewed_checkout", fetch_then_edit)
+    assert cli._refresh_visualizer(new, str(source), new) == 1
+    assert (dest / "index.html").read_text() == "edit during fetch\n"
+    assert git(dest, "rev-parse", "HEAD") == old
+    assert not any(path.name.startswith("visualizer-recovery-") for path in (vendor / ".refresh").iterdir())
+
+
+def test_visualizer_preserves_a_tree_created_during_fetch(monkeypatch, source, vendor):
+    reviewed = commit(source, {"index.html": "reviewed\n"})
+    dest = vendor / "The-Mailroom"
+    real_fetch = cli._fetch_reviewed_checkout
+
+    def fetch_then_create(work, pin, url, sha):
+        fetched = real_fetch(work, pin, url, sha)
+        dest.mkdir()
+        (dest / "mine.txt").write_text("local\n")
+        return fetched
+
+    monkeypatch.setattr(cli, "_fetch_reviewed_checkout", fetch_then_create)
+    assert cli._refresh_visualizer(reviewed, str(source), reviewed) == 1
+    assert (dest / "mine.txt").read_text() == "local\n"
+    assert not (dest / "index.html").exists()
+
+
 def test_visualizer_updates_clean_older_reviewed_checkout(source, vendor):
     """A clean checkout at an earlier reviewed commit is refreshed, not refused."""
     old = commit(source, {"index.html": "old\n"})
