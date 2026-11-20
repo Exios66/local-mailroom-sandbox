@@ -153,9 +153,7 @@ def test_prepare_subset_applies_the_overlay_only_when_asked(tmp_path, monkeypatc
     src.write_text(json.dumps(row) + "\n", encoding="utf-8")
     rec = {"doc_id": "D1", "doc_sha256": il.doc_sha(row["doc_text"]),
            "labels": {"record_type": {"value": "bylaws", "status": "derived", "use_as_truth": True}}}
-    monkeypatch.setattr(il, "verify", lambda root=None: [])
-    monkeypatch.setattr(il, "load_overlay", lambda root=None: {"D1": rec})
-    monkeypatch.setattr(il, "overlay_fingerprint", lambda root=None: "f" * 64)
+    monkeypatch.setattr(il, "overlay_snapshot", lambda root=None: ({"D1": rec}, "f" * 64, []))
     off = prepare_subset(DatasetSpec(local_path=str(src)), tmp_path / "off.jsonl")
     assert "interim_labels" not in off["metadata"]
     assert "interim_labels" not in json.loads((tmp_path / "off.jsonl").read_text())
@@ -164,7 +162,7 @@ def test_prepare_subset_applies_the_overlay_only_when_asked(tmp_path, monkeypatc
     locked = json.loads((tmp_path / "on.jsonl").read_text())
     exp = locked["expected_fields"]
     assert (json.loads(exp) if isinstance(exp, str) else exp)["record_type"] == "bylaws"
-    monkeypatch.setattr(il, "verify", lambda root=None: ["corporate_record.jsonl: sha256 differs"])
+    monkeypatch.setattr(il, "overlay_snapshot", lambda root=None: ({}, "f" * 64, ["corporate_record.jsonl: sha256 differs"]))
     import pytest
 
     with pytest.raises(ValueError, match="inconsistent"):
@@ -204,6 +202,40 @@ def _overlay_two_labels(root):
     (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
     hub = _row(entity_name="Acme", gt_presence=json.dumps({"entity_name": "populated"}))
     return mod, hub
+
+
+def test_overlay_snapshot_hashes_the_bytes_it_applies_during_rebuild(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    root = tmp_path / "interim"
+    _overlay_two_labels(root)
+    original_read = Path.read_bytes
+    manifest_bytes = original_read(root / "MANIFEST.json")
+    reads = []
+
+    def read_and_replace(path):
+        blob = original_read(path)
+        reads.append(path.name)
+        if path.name == "corporate_record.jsonl":
+            path.write_text('{"doc_id":"replacement","labels":{}}\n')
+            (root / "MANIFEST.json").write_text('{}')
+        return blob
+
+    monkeypatch.setattr(Path, "read_bytes", read_and_replace)
+    overlay, fingerprint, problems = il.overlay_snapshot(root)
+    assert problems == []
+    assert overlay["D1"]["labels"]["entity_name"]["value"] == "Acme"
+    assert fingerprint == il._sha(manifest_bytes.decode())
+    assert reads == ["MANIFEST.json", "corporate_record.jsonl"]
+
+
+def test_overlay_snapshot_rejects_a_file_replaced_before_its_read(tmp_path):
+    root = tmp_path / "interim"
+    _overlay_two_labels(root)
+    (root / "corporate_record.jsonl").write_text('{"doc_id":"replacement","labels":{}}\n')
+    overlay, _, problems = il.overlay_snapshot(root)
+    assert not overlay
+    assert any("sha256 differs" in problem for problem in problems)
 
 
 def test_prune_rewrites_counts_and_still_fails_on_other_problems(tmp_path, monkeypatch):
@@ -532,7 +564,7 @@ def test_apply_overlay_parquet_keeps_the_shard_schema(tmp_path):
 
 def test_apply_overlay_parquet_refuses_an_inconsistent_committed_overlay(monkeypatch):
     pa = pytest.importorskip("pyarrow")
-    monkeypatch.setattr(il, "verify", lambda root=None, **_: ["x.jsonl: sha256 differs"])
+    monkeypatch.setattr(il, "overlay_snapshot", lambda: ({}, "", ["x.jsonl: sha256 differs"]))
     with pytest.raises(ValueError, match="inconsistent"):
         il.apply_overlay_parquet(pa.Table.from_pylist([_hub_gt_row()]))
 
@@ -687,14 +719,11 @@ def test_prune_restores_every_file_when_a_later_write_fails(tmp_path, monkeypatc
     assert il.verify(root) == []
 
 
-def test_apply_overlay_parquet_refuses_an_overlay_rewritten_while_read(monkeypatch):
+def test_apply_overlay_parquet_refuses_an_inconsistent_snapshot(monkeypatch):
     pa = pytest.importorskip("pyarrow")
-    shas = iter(["a" * 64, "b" * 64])
-    monkeypatch.setattr(il, "verify", lambda *a, **k: [])
-    monkeypatch.setattr(il, "overlay_fingerprint", lambda *a, **k: next(shas))
-    monkeypatch.setattr(il, "load_overlay", lambda *a, **k: {})
+    monkeypatch.setattr(il, "overlay_snapshot", lambda: ({}, "a" * 64, ["sha256 differs"]))
     table = pa.table({"document_id": ["D1"], "gt_fields": ["{}"]})
-    with pytest.raises(ValueError, match="changed while it was read"):
+    with pytest.raises(ValueError, match="inconsistent"):
         il.apply_overlay_parquet(table)
 
 

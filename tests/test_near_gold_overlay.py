@@ -27,6 +27,16 @@ def _rec(**labels):
     return {"doc_id": "D1", "doc_sha256": il.doc_sha(TEXT), "labels": labels}
 
 
+def test_interim_cache_keeps_records_and_fingerprint_from_the_same_snapshot(monkeypatch):
+    monkeypatch.setattr(gl, "_INTERIM_CACHE", {})
+    monkeypatch.setattr(gl, "_interim_key", lambda: ("stable",))
+    labels = {"recipient": {"value": "John Doe", "status": "gap_fill"}}
+    monkeypatch.setattr(il, "overlay_snapshot", lambda: ({"D1": {"labels": labels}}, "snapshot-a", []))
+    monkeypatch.setattr(il, "overlay_fingerprint", lambda: "snapshot-b")
+    assert gl._interim_labels_of("D1", "snapshot-a") == labels
+    assert gl._interim_labels_of("D1", "snapshot-b") is None
+
+
 def test_committed_overlay_is_consistent():
     assert gl.verify_overlay() == []
     overlay = gl.load_near_gold()

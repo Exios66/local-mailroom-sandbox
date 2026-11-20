@@ -15,6 +15,7 @@ import json
 import logging
 import random
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -773,6 +774,69 @@ def _apply_near_gold_overlay(chosen: list[dict[str, Any]], interim: dict[str, An
                   "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in labelled)}
 
 
+def apply_label_overlays(chosen: list[dict[str, Any]], source_meta: dict[str, Any], *, interim: bool,
+                         near_gold: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Merge the interim and near-gold label overlays into drawn rows; record each one's sha256."""
+    interim_overlay = None
+    if interim:
+        from mailroom_sandbox import interim_labels as il
+
+        interim_overlay, overlay_sha, problems = il.overlay_snapshot()
+        if problems:
+            raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
+        chosen = [il.apply_overlay(r, interim_overlay, overlay_sha=overlay_sha) for r in chosen]
+        source_meta = {**source_meta, "interim_labels": {
+            "overlay_sha256": overlay_sha,
+            "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
+            "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
+    if near_gold:
+        # SHF-010 precedence reads the interim overlay these rows were prepared with.
+        chosen, meta = _apply_near_gold_overlay(chosen, interim_overlay)
+        source_meta = {**source_meta, "near_gold_labels": meta}
+    return chosen, source_meta
+
+
+def truth_rows(spec: DatasetSpec, ids: Iterable[str], *, keep_raw: bool = False,
+               ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The ground-truth rows of the documents ``ids`` at ``spec``'s source, in ``ids`` order.
+
+    For re-scoring a finished run (``sandbox rescore``): no draw, no exclusion list and no strata,
+    only the named documents, normalized and overlaid exactly as ``prepare_subset`` would. A
+    document the source lacks is reported in ``missing`` rather than raising, so a revision that
+    drops a document still re-scores the rest. ``keep_raw`` keeps each source row's other keys
+    under the normalized ones, for agent scorers that read truth outside the corpus row shape
+    (``expected_snippet``, ``required_keys``, ...).
+    """
+    wanted = [str(i) for i in ids]
+    if spec.is_local():
+        local_file = spec.local_file()
+        if local_file is None or not local_file.is_file():
+            raise FileNotFoundError(f"dataset file not found: {local_file}")
+        blob = local_file.read_bytes()
+        rows = _read_jsonl_text(blob)
+        source_meta: dict[str, Any] = {"source": "local", "revision": "offline",
+                                       "sha256": hashlib.sha256(blob).hexdigest()}
+    else:
+        rows = load_hf_rows(spec)
+        resolved = str(rows[0].get("source_revision") or "") if rows else ""
+        source_meta = {"source": "huggingface", "repo": spec.repo, "config": spec.config, "split": spec.split,
+                       "revision": spec.revision or FAMILY_HF_REVISION, "revision_resolved": resolved or None}
+    by_id = {str(r.get("id") or ""): ({**raw, **r} if keep_raw else r)
+             for raw, r in zip(rows, normalize_rows(rows))}
+    chosen = []
+    for doc_id in wanted:
+        row = by_id.get(doc_id)
+        if row is None:
+            continue
+        row.setdefault("source_revision", source_meta.get("revision", ""))
+        row["expected_fields"] = row.get("expected_fields") or _derive_expected_fields(row)
+        chosen.append(row)
+    chosen, source_meta = apply_label_overlays(chosen, source_meta, interim=bool(spec.interim_labels),
+                                               near_gold=bool(spec.near_gold_labels))
+    found = {str(r["id"]) for r in chosen}
+    return chosen, {**source_meta, "rows": len(chosen), "missing": [i for i in wanted if i not in found]}
+
+
 def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     """Materialize the locked subset to ``dest_file``; returns provenance.
 
@@ -848,23 +912,8 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
-    interim_overlay = None
-    if getattr(spec, "interim_labels", False):
-        from mailroom_sandbox import interim_labels as il
-
-        problems = il.verify()
-        if problems:
-            raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
-        interim_overlay, overlay_sha = il.load_overlay(), il.overlay_fingerprint()
-        chosen = [il.apply_overlay(r, interim_overlay, overlay_sha=overlay_sha) for r in chosen]
-        source_meta = {**source_meta, "interim_labels": {
-            "overlay_sha256": overlay_sha,
-            "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
-            "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
-    if getattr(spec, "near_gold_labels", False):
-        # SHF-010 precedence reads the interim overlay these rows were prepared with.
-        chosen, meta = _apply_near_gold_overlay(chosen, interim_overlay)
-        source_meta = {**source_meta, "near_gold_labels": meta}
+    chosen, source_meta = apply_label_overlays(chosen, source_meta, interim=bool(getattr(spec, "interim_labels", False)),
+                                               near_gold=bool(getattr(spec, "near_gold_labels", False)))
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")
