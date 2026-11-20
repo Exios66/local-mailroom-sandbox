@@ -60,7 +60,7 @@ carry from a `noul` to a `choice` or from one model to another.
 
 | Role | Question set | `state` sent | Questions per document |
 | --- | --- | --- | --- |
-| Primary classifier (H5 sorter arm) | `reviewer_decisions_v4.0.x` | the document as a **bare string** | `doc_type`, `document_form`, 4 `subclass__<class>` choices, 7 correspondence marker `noul`s |
+| Primary classifier (H5 sorter arm) | `reviewer_decisions_v4.0.x` / `v4.1.0` | the document as a **bare string** | `doc_type`, `document_form`, 4 `subclass__<class>` choices, 7 correspondence marker `noul`s |
 | Reviewer of the sorter | `reviewer_decisions_v3.1.0` (frontrunner) | `{"document", "sorter_handoff"}` | `doc_type`, `verdict`, subclass questions |
 | Extraction gate | `extraction_gate_v1.3.0` | `{"document", "extraction_handoff"}` | verdict plus per-field support |
 | Closed-field resolver | `closed_field_resolver_v1.0.0` | `{"document", "closed_field_handoff"}` | one choice |
@@ -71,7 +71,7 @@ inside the context window), so API runs do not chunk.
 ## Request format: findings and changes
 
 Ordered by expected effect. Each change alters what the model reads, so it belongs in a new question
-set version (4.1.0, per `config/decisions/LINEAGE.yaml`), judged on calibration documents it was not
+set version (proposed 4.2.0; 4.1.0 is the classification-criteria alignment from PR #386), judged on calibration documents it was not
 tuned on, never as an edit to 4.0.x.
 
 1. **`state.document` names a field that is not sent (sorter role).** The 4.0.x `doc_type` and
@@ -108,7 +108,7 @@ tuned on, never as an edit to 4.0.x.
 7. **Gates read the right numbers, but the numbers are provisional.** The abstain rules
    (`margin` 0.10, `unknown_max` 0.34, `subclass_not_this_class_max` 0.50) read `probabilities`, as
    the vendor recommends, not `confidence`. All three are still placeholders: fit them on calibration
-   runs (LINEAGE `open_for_4.1.0`), one threshold per question, and write the cost of each mistake
+   runs (LINEAGE `open_for_4.2.0`), one threshold per question, and write the cost of each mistake
    beside it.
 8. **Refusals are not recorded as refusals.** `decide()` reads `answers["doc_type"]["choice"]`. A
    refusal leaves `doc_type` as `None` with no record of why. Confirm with a test that it parks
@@ -204,14 +204,14 @@ billed cost for every paired document.
 
 ## Recommended sequence
 
-1. Draft question set 4.1.0 with items 1 to 6 above. Add each probe variant (null option against
+1. Draft question set 4.2.0 with items 1 to 6 above. Add each probe variant (null option against
    companion `noul`, form `choice` against four `noul`s) as an extra question in the same request, so
    one run compares them on identical documents.
 2. Probe on 20 to 30 runbook-v2 **calibration** documents, chosen to cover each class, a cut-off
    document, a bundle, an empty text and a document that argues for its own class. Read the raw
    probabilities. Keep the exact payloads.
-3. Run 4.1.0 over the whole v2 calibration set (1,000 documents; input-only billing at $0.10 per
+3. Run 4.2.0 over the whole v2 calibration set (1,000 documents; input-only billing at $0.10 per
    1M tokens, sized and capped by `sandbox run preflight`; the owner launches it). Fit the abstain thresholds and per-class cutoffs on one half. Report on
    the other half, by class and length band, with the certified bound per class.
-4. Compare 4.1.0 with 4.0.2 on the same calibration half that neither was tuned on. Only then go
+4. Compare 4.2.0 with 4.0.2 on the same calibration half that neither was tuned on. Only then go
    to dev, then to the sealed held-out run.
