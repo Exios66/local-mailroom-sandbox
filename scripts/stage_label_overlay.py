@@ -8,6 +8,15 @@ Inputs, all on mailroom-dataset v9.3 (Hub ``ff4ca546``):
 - ``--assist``: an earlier repaired CSV that kept different labels (the full clause phrase for
   ``termination_notice_period``). It only adds evidence-backed terms; it never removes one.
 - ``--corpus``: the pinned Hub ``ground_truth`` rows (``sandbox datasets pull``) for grounding.
+- ``--builder-script``: the ``build_label_repaired.py`` that wrote ``--builder-dir``. All five
+  must be byte-identical to ``--builder-commit``. The four builder files (data) are cached
+  under ``builder/`` in the cut, so it restages without the builder's branch; the script is
+  code, which mailroom-issues does not hold, so the cut records its sha256 and commit only.
+
+Magnitude repair: the builder's period grammar keeps one word before the digits, so "one hundred
+eighty (180) days" is cut to "eighty (180) days". Every staged (non-Hub) value whose number words
+disagree with their bracketed digits is rewritten with the full spelling found verbatim in the
+document text; one that is not found goes to the review queue unchanged.
 
 Join rules (per cell where the two CSVs differ):
 
@@ -25,11 +34,13 @@ Outputs, under ``<out>/v9.3.0/pre-release/v<version>/`` (immutable once written)
 - ``overlay/<class>.jsonl``: per document, every label that differs from the Hub v9.3 label
   (``override: true`` when it replaces a populated Hub value): the file deployments pull and
   overlay for production scoring;
+- ``builder/``: the builder's four output files, byte for byte;
 - ``queues/needs_human.csv`` (unresolved disputes plus queued join cells) and
   ``queues/gold_override_signoff.csv`` (Hub overrides, ``decided_by`` left blank).
 
-    python scripts/stage_label_overlay.py --version 9.3.1-rc.2 \\
+    python scripts/stage_label_overlay.py --version 9.3.1-rc.3 \\
         --builder-dir reports/datasets/mailroom-dataset-v9.3-label-repaired \\
+        --builder-commit <sha> --builder-script <dir>/build_label_repaired.py \\
         --assist mailroom_dataset_v9.3_label_repaired_copy.csv \\
         --corpus data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl
 """
@@ -58,6 +69,7 @@ CacheError = emc.CacheError
 STEM = "mailroom_dataset_v9.3_label_repaired"
 BUILDER_FILES = {"labels": f"{STEM}.csv", "provenance": f"{STEM}_label_provenance.csv",
                  "completeness": f"{STEM}_field_completeness.csv", "summary": f"{STEM}_summary.json"}
+BUILDER_SCRIPT = "build_label_repaired.py"
 NOTICE = "termination_notice_period"
 #: per-document bookkeeping columns: recomputed, never joined
 META_COLUMNS = {"fields_targeted", "fields_labeled", "label_completeness", "fields_with_conflict",
@@ -95,6 +107,53 @@ def garbled(phrase: str) -> bool:
         return False
     word, digits = sum(_NUMBER_WORDS[w] for w in parts), int(m.group(2))  # "forty-five" -> 45
     return word != digits and not (f"({m.group(2)})" in phrase and digits % 100 == word)
+
+
+_UNITS = "zero one two three four five six seven eight nine".split()
+_SCALE = r"(?:(?:%s)\s+hundred(?:\s+and)?[\s-]+)" % "|".join(_UNITS)
+_CUT = re.compile(r"(?<![a-z-])([a-z]+(?:-[a-z]+)?)(\s*\()(\d+)\)", re.I)
+
+
+def _words_value(words: str) -> int | None:
+    """``"one hundred eighty"`` -> 180; None when a word is not a number word."""
+    total, parts = 0, re.split(r"[\s-]+", words.lower().strip())
+    for i, w in enumerate(parts):
+        if w == "hundred" and i and parts[i - 1] in _UNITS:
+            total += _NUMBER_WORDS[parts[i - 1]] * 99  # the unit was already added once
+        elif w == "and" and i:
+            continue
+        elif w in _NUMBER_WORDS:
+            total += _NUMBER_WORDS[w]
+        else:
+            return None
+    return total
+
+
+def repair_magnitudes(value: str, doc_text: str) -> tuple[str, list[str], list[str]]:
+    """``value`` with each cut-off number phrase replaced by its full spelling in ``doc_text``.
+
+    Returns the new value, the repairs made and the phrases the text does not ground. A phrase is
+    cut when its number words disagree with the bracketed digits ("eighty (180)") and no
+    "hundred" precedes it in the value; the fix is the document's own words, never a spelling
+    built here.
+    """
+    repaired, missing, out, last = [], [], [], 0
+    for m in _CUT.finditer(value):
+        word, digits = _words_value(m.group(1)), int(m.group(3))
+        before = re.findall(r"[a-z]+", value[max(0, m.start() - 40):m.start()].lower())
+        whole = any(_words_value(" ".join([*before[-k:], m.group(1)])) == digits for k in range(1, min(4, len(before)) + 1))
+        if word is None or word == digits or whole:  # "twenty four (24)", "one hundred eighty (180)"
+            continue
+        rx = re.compile(_SCALE + "?" + re.escape(m.group(1)) + r"\s*\(" + m.group(3) + r"\)", re.I)
+        full = next((t.group() for t in rx.finditer(doc_text)
+                     if _words_value(t.group()[:t.group().rfind("(")]) == digits), None)
+        if full is None:
+            missing.append(m.group())
+            continue
+        out.append(value[last:m.start()] + full)
+        last = m.end()
+        repaired.append(f"{m.group()} -> {full}")
+    return "".join(out) + value[last:], repaired, missing
 
 
 def notice_term(phrase: str) -> tuple[str, str, str, str]:
@@ -264,6 +323,37 @@ def join(builder: dict[str, Any], assist_rows: list[dict[str, str]], texts: dict
             "completeness": completeness_table(prov, comp), "queue": queue, "counts": dict(sorted(counts.items()))}
 
 
+def repair_cells(prov: list[dict[str, str]], rows: list[dict[str, str]], texts: dict[str, str]
+                 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
+    """Ground cut-off magnitudes in every staged (non-Hub) populated cell; Hub values stay as they are.
+
+    Returns new provenance and wide rows (the inputs are not mutated), the review-queue entries
+    for phrases the text does not ground, and counts.
+    """
+    prov = [dict(r) for r in prov]
+    by_id = {r["document_id"]: dict(r) for r in rows}
+    queue, counts = [], collections.Counter()
+    for cell in prov:
+        if cell["presence"] != "populated" or from_hub(cell) or cell["value"][:1] in "[{":
+            continue
+        new, repaired, missing = repair_magnitudes(cell["value"], texts.get(cell["document_id"], ""))
+        if missing:
+            counts["magnitude_unresolved"] += len(missing)
+            queue.append({"document_id": cell["document_id"], "doc_class": cell["doc_class"], "field": cell["field"],
+                          "reason": "cut-off magnitude not in document text: " + "; ".join(missing),
+                          "builder_value": cell["value"], "assist_value": ""})
+        if not repaired:
+            continue
+        counts["magnitude_cells_repaired"] += 1
+        counts["magnitude_phrases_repaired"] += len(repaired)
+        row = by_id[cell["document_id"]]
+        if row.get(cell["field"]) != cell["value"]:
+            raise CacheError(f"{cell['document_id']}.{cell['field']}: wide CSV and provenance disagree")
+        row[cell["field"]] = new
+        cell.update(value=new, rule=f"{cell['rule']}+magnitude_grounded")
+    return prov, [by_id[r["document_id"]] for r in rows], queue, dict(sorted(counts.items()))
+
+
 def overlay_records(prov: list[dict[str, str]], shas: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
     """Per class, the labels that differ from Hub v9.3 (the production overlay)."""
     docs: dict[str, dict[str, Any]] = {}
@@ -307,11 +397,33 @@ def signoff_rows(prov: list[dict[str, str]]) -> list[dict[str, str]]:
     return out
 
 
+BUILDER_PATH = "reports/datasets/mailroom-dataset-v9.3-label-repaired"
+
+
+def verify_builder(commit: str, builder_dir: Path, script: Path) -> str:
+    """The full builder commit, once every builder file is byte-identical to it there."""
+    import subprocess
+
+    def git(*args: str) -> bytes:
+        res = subprocess.run(["git", *args], cwd=emc.ROOT, capture_output=True)
+        if res.returncode:
+            raise CacheError(f"builder commit {commit} is not in this clone (git fetch it first): "
+                             f"{res.stderr.decode().strip()}")
+        return res.stdout
+
+    full = git("rev-parse", "--verify", f"{commit}^{{commit}}").decode().strip()
+    for name, path in [*((n, builder_dir / n) for n in BUILDER_FILES.values()), (BUILDER_SCRIPT, script)]:
+        if git("show", f"{full}:{BUILDER_PATH}/{name}") != path.read_bytes():
+            raise CacheError(f"{path} is not the {name} of builder commit {full[:12]}")
+    return full
+
+
 def _sha_bytes(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path, *, builder_commit: str) -> dict[str, Any]:
+def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path, *, builder_commit: str,
+          builder_script: Path) -> dict[str, Any]:
     major, minor, _p, _pre = emc.parse_version(version)
     version = version.removeprefix("v")
     rel = Path(f"v{major}.{minor}.0") / "pre-release" / f"v{version}"
@@ -324,6 +436,7 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
     summary = builder["summary"]
     if summary.get("revision") != emc.FAMILY_HF_REVISION:
         raise CacheError(f"builder output is on {summary.get('revision')}, not {emc.FAMILY_HF_REVISION}")
+    builder_commit = verify_builder(builder_commit, builder_dir, builder_script)
     texts, shas = {}, {}
     with corpus.open(encoding="utf-8") as fh:
         for line in fh:
@@ -343,10 +456,11 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
     joined = join(builder, assist_rows, texts)
     columns, rows = joined["labels"]
     pcols, prov = joined["provenance"]
+    prov, rows, magnitude_queue, magnitudes = repair_cells(prov, rows, texts)
     disputed = [{"document_id": r["document_id"], "doc_class": r["doc_class"], "field": r["field"],
                  "reason": "disputed_unresolved", "builder_value": r["value"], "assist_value": ""}
                 for r in prov if r["needs_human"] == "True"]
-    queue = disputed + joined["queue"]
+    queue = disputed + joined["queue"] + magnitude_queue
     signoff = signoff_rows(prov)
     overlay = overlay_records(prov, shas)
     targeted = sum(1 for r in prov)
@@ -364,6 +478,10 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
         (dest / "master").mkdir(parents=True)
         (dest / "overlay").mkdir()
         (dest / "queues").mkdir()
+        # The builder's outputs (data, never its code): the cut restages without the builder's branch.
+        (dest / "builder").mkdir()
+        for name in BUILDER_FILES.values():
+            shutil.copyfile(builder_dir / name, dest / "builder" / name)
         name = f"mailroom_dataset_v{version}"
         (dest / "master" / f"{name}_labels.csv").write_text(_csv_text(columns, rows), encoding="utf-8")
         (dest / "master" / f"{name}_label_provenance.csv").write_text(_csv_text(pcols, prov), encoding="utf-8")
@@ -372,7 +490,7 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
                                                                          encoding="utf-8")
         new_summary = dict(summary, label_cells_labeled_repaired=labeled,
                            label_cells_unlabeled=sum(r["presence"] == "unlabeled" for r in prov),
-                           assist_join=joined["counts"],
+                           assist_join=joined["counts"], magnitude_repair=magnitudes,
                            chosen_source_counts=dict(collections.Counter(
                                r["chosen_source"] for r in prov if r["presence"] in LABELED).most_common()))
         emc._dump(dest / "master" / f"{name}_summary.json", new_summary)
@@ -390,15 +508,18 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
             "status": ("staged for the planned v10 release, not published: overlay/ is applied over the Hub "
                        "v9.3 labels for production scoring; overrides await sign-off in queues/"),
             "source": {"repo": emc.SOURCE_REPO, "labels_commit": labels_commit,
-                       "builder": "reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py",
-                       "builder_commit": builder_commit, "stager": "scripts/stage_label_overlay.py"},
+                       "builder": f"{BUILDER_PATH}/{BUILDER_SCRIPT}",
+                       "builder_commit": builder_commit, "stager": "scripts/stage_label_overlay.py",
+                       "builder_outputs": "builder/"},
             "inputs_sha256": {"builder_labels": _sha_bytes(builder_dir / BUILDER_FILES["labels"]),
                               "builder_provenance": _sha_bytes(builder_dir / BUILDER_FILES["provenance"]),
+                              "builder_script": _sha_bytes(builder_script),
                               "assist": _sha_bytes(assist), "corpus": corpus_sha},
             "coverage": {"cells_targeted": targeted, "cells_labeled": labeled,
                          "completeness": round(labeled / targeted, 4),
                          "cells_labeled_hub_v9_3": summary.get("label_cells_labeled_hub_v9_3")},
             "assist_join": joined["counts"],
+            "magnitude_repair": magnitudes,
             "overlay": {cls: {"documents": len(recs), "labels": sum(len(r["labels"]) for r in recs),
                               "overrides": sum(v["override"] for r in recs for v in r["labels"].values())}
                         for cls, recs in overlay.items()},
@@ -427,16 +548,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--version", required=True)
     ap.add_argument("--builder-dir", type=Path, required=True)
     ap.add_argument("--builder-commit", required=True, help="commit of build_label_repaired.py that wrote --builder-dir")
+    ap.add_argument("--builder-script", type=Path, required=True,
+                    help="the build_label_repaired.py at --builder-commit (cached in the cut)")
     ap.add_argument("--assist", type=Path, required=True)
     ap.add_argument("--corpus", type=Path, required=True)
     args = ap.parse_args(argv)
     try:
         m = stage(Path(args.out), args.version, args.builder_dir, args.assist, args.corpus,
-                  builder_commit=args.builder_commit)
+                  builder_commit=args.builder_commit, builder_script=args.builder_script)
     except CacheError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({k: m[k] for k in ("version", "coverage", "assist_join", "overlay", "queues")}, indent=1))
+    print(json.dumps({k: m[k] for k in ("version", "coverage", "assist_join", "magnitude_repair", "overlay", "queues")},
+                     indent=1))
     return 0
 
 

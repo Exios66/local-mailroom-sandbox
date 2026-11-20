@@ -181,6 +181,12 @@ class DatasetSpec(BaseModel):
     # Opus review, still near_gold (not gold) until EDA releases them. Off by default; the lock
     # records the overlay's sha256 and each row names the fields it filled.
     near_gold_labels: bool = False
+    # Score against a staged production label overlay from the mailroom-issues mailroom_cache
+    # (mailroom_sandbox.staged_overlay): a version pinned in config/staged_overlays.yaml, e.g.
+    # "9.3.1-rc.3". It is the merged master of the Hub, interim and near-gold layers, so it
+    # replaces interim_labels / near_gold_labels (never both). The pinned MANIFEST.json sha256 is
+    # hashed into the spec and each row names the fields and Hub overrides it took.
+    staged_overlay: str | None = None
     # Repo-relative path to a text file of document ids (one per line; blank lines and `#`
     # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
     # The file's sha256 is hashed into the spec; a missing file is a preflight error.
@@ -214,6 +220,18 @@ class DatasetSpec(BaseModel):
             where = f"dataset {(data.get('name') or 'local_path')!r}"
             data = {**data, "local_path": dataset_registry.expand_env(local, where=where)}
         return data
+
+    @model_validator(mode="after")
+    def _one_label_overlay_source(self) -> "DatasetSpec":
+        """The staged overlay already merges the interim and near-gold layers: never stack them."""
+        if self.staged_overlay and (self.interim_labels or self.near_gold_labels):
+            raise ValueError("dataset.staged_overlay already contains the interim and near-gold labels; "
+                             "drop interim_labels / near_gold_labels")
+        if self.staged_overlay:
+            from mailroom_sandbox.staged_overlay import pin
+
+            pin(self.staged_overlay)  # an unpinned version fails at parse, not after the draw
+        return self
 
     @field_validator("source_sha256")
     @classmethod
@@ -350,6 +368,11 @@ class DatasetSpec(BaseModel):
             from mailroom_sandbox.gold_labels import near_gold_fingerprint
 
             core["near_gold_labels"] = near_gold_sha256 or near_gold_fingerprint()
+        if self.staged_overlay:
+            from mailroom_sandbox.staged_overlay import fingerprint
+
+            core["staged_overlay"] = {"version": self.staged_overlay.removeprefix("v"),
+                                      "manifest_sha256": fingerprint(self.staged_overlay)}
         return core
 
     def _request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:

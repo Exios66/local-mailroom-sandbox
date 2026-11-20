@@ -337,16 +337,20 @@ mailroom_cache/
       MANIFEST.json                     inputs (builder commit, sha256), coverage, overlay counts
       master/                           joined wide CSV, per-cell provenance, completeness, summary
       overlay/<class>.jsonl             every label that differs from Hub vX.Y (pulled by deployments)
+      builder/                          the builder outputs it was staged from (rc.3 on)
       queues/needs_human.csv            unresolved disputes and join cells a person must decide
       queues/gold_override_signoff.csv  Hub overrides, decided_by blank until initialled
 ```
 
 A pre-release is either `label-sets` (the raw sandbox layers, as cut) or `production-overlay`
 (those layers merged into one master by the repaired-label builder, then staged as an overlay).
-Production scoring pulls the newest `production-overlay`: Hub label first, replaced field by field
-by `overlay/<class>.jsonl`, where `override: true` marks a replaced Hub value. Check each record's
-`content_sha256` against the document before applying it. The overlay already contains the
-interim and near-gold labels it merged, so apply it instead of those layers, never on top of them.
+Production scoring applies one pinned `production-overlay`, never "the newest": the sandbox pins
+the version, this repository's commit and the MANIFEST.json sha256 in `config/staged_overlays.yaml`
+and refuses a cut that does not match (`scripts/pull_staged_overlay.py`, then `dataset.staged_overlay`
+in the run config). The Hub label comes first, replaced field by field by `overlay/<class>.jsonl`,
+where `override: true` marks a replaced Hub value. Each record's `content_sha256` is checked
+against the document before it is applied. The overlay already contains the interim and
+near-gold labels it merged, so it is applied instead of those layers, never on top of them.
 
 - **Patch** (`X.Y.P`) counts label repair rounds on release `X.Y`.
 - **Pre-release** (`-rc.N`) is one cut of that round. A cut is never rewritten: changed labels

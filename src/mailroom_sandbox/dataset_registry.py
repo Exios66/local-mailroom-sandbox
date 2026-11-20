@@ -33,7 +33,7 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 # time), ``pull`` (lock provenance) are handled here.
 _ALLOWED = frozenset({
     "provider", "repo", "config", "split", "revision", "limit", "sample_seed", "strata",
-    "exclude_expected", "require_task_gt", "interim_labels", "near_gold_labels", "columns", "expected_fields",
+    "exclude_expected", "require_task_gt", "interim_labels", "near_gold_labels", "staged_overlay", "columns", "expected_fields",
     "local_path", "sha256", "pull",
 })
 

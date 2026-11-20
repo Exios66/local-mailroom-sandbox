@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+- **Production scoring reads the staged label overlay, pinned and hash-checked.**
+  - New `dataset.staged_overlay: <version>` (`mailroom_sandbox.staged_overlay`). A run applies
+    a mailroom-issues `production-overlay` cut over the Hub labels, instead of the interim and
+    near-gold overlays. Setting it together with either of them fails at parse.
+  - Only versions pinned in `config/staged_overlays.yaml` are accepted: the mailroom-issues
+    commit plus the `MANIFEST.json` sha256, which pins every overlay file. A cache that differs
+    from the pin, a Hub source on another revision, or an unpinned version is refused before
+    the draw. A record applies only to the document with its `content_sha256`.
+  - The spec hash records the version and manifest sha256. The run lock records the overlay
+    provenance. Each row names the fields it took and keeps each replaced Hub value under
+    `staged_overlay.overrides`.
+  - `sandbox rescore` re-applies the locked cut. The gold audit and subclass schema tallies
+    attribute those fields to `staged`.
+  - `scripts/pull_staged_overlay.py` fetches only the pinned cut, sparse and shallow, for
+    deploy images and job workers. Guide: [`docs/staged-label-overlay.md`](docs/staged-label-overlay.md).
+  - No run config changed. Tests: `tests/test_staged_overlay.py`.
+- **Staged overlay cut `v9.3.1-rc.3`: self-contained, cut-off magnitudes repaired.**
+  - `stage_label_overlay.py` now verifies that the builder outputs and `build_label_repaired.py`
+    are byte-identical to the named builder commit (PR #384 head `f0951873`). It caches the
+    outputs under `builder/` in the cut, so restaging no longer needs that unmerged branch. The
+    script's sha256 and commit are recorded; mailroom-issues holds no code.
+  - The builder's period grammar keeps one number word, cutting "one hundred eighty (180)
+    days" to "eighty (180) days". Staged values are now rewritten with the document's own
+    spelling: 12 `termination_notice_period` cells. One that cannot be grounded is queued.
+    Hub values are never rewritten.
+  - rc.3 otherwise equals rc.2: 43,154 of 48,688 cells, 101 Hub overrides, 84 queued cells.
+    rc.1 and rc.2 are unchanged.
+
 - **Staged production-scoring overlay for the planned v10 labels.** `scripts/stage_label_overlay.py` merges the repaired-label builder output (`build_label_repaired.py`, PR #384 head `f0951873`) with an earlier repaired CSV that kept different `termination_notice_period` labels, and stages the result as `mailroom_cache/v9.3.0/pre-release/v9.3.1-rc.2/` in mailroom-issues. It adds an assist term only when it reads as a notice period, is not a cure or breach period, has a magnitude the builder lacks, and occurs verbatim in the Hub v9.3 text (13 terms in 13 cells, 4 of them new fills; 43,154 of 48,688 cells labeled). `overlay/<class>.jsonl` holds the 18,441 labels that differ from Hub v9.3 (101 Hub overrides, `override: true`), and `queues/` lists 84 cells for a person and the 101 overrides for sign-off (`decided_by` blank). `export_mailroom_cache.py` finds the labels commit by content, refuses a too-shallow clone, and indexes both pre-release kinds. Tests: `tests/test_stage_label_overlay.py`.
 
 - **SemVer label cache export for mailroom-issues.** `scripts/export_mailroom_cache.py` writes `mailroom_cache/` in LLM-Mailroom-Services/mailroom-issues: one folder per dataset release (`vX.Y.0`, from `FAMILY_HF_TAG` and `LEGACY_FAMILY_HF_REVISIONS`) with an `hf-revision/` pin manifest, and unpublished label work as an immutable pre-release under it (`v9.3.0/pre-release/v9.3.1-rc.1/`): the full repaired label set CSV plus `data/labels/review` under `repairs/`, and `gold`, `gold-overlay`, `gold-supplementary` and `interim` under `enhancements/`. The CSV must hold the full corpus and its subclass repairs must equal the accepted `subclass_corrections.jsonl` lines exactly; a cut pre-release is never rewritten; `--check` exits 1 when the cache is stale. Tests: `tests/test_export_mailroom_cache.py`.

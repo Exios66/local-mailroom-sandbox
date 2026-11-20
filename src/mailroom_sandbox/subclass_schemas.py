@@ -221,10 +221,12 @@ class _Subclass:
             exp = il._expected(r)
             interim = set((r.get("interim_labels") or {}).get("fields") or [])
             near = set((r.get("near_gold_labels") or {}).get("fields") or [])
+            staged = set((r.get("staged_overlay") or {}).get("fields") or [])
             for name in names:
                 if not gl.hub_labels(name, exp):
                     continue
-                src = "interim" if name in interim else "near_gold" if name in near else "hub"
+                src = ("interim" if name in interim else "near_gold" if name in near
+                       else "staged" if name in staged else "hub")
                 self.labeled[name][src] += 1
                 self.by_set[name][self.sets.get(str(r.get("id")), "unassigned")] += 1
                 val = _value(exp.get(name))

@@ -105,3 +105,57 @@ def test_join_fills_and_extends_notice_cells(mod):
     assert out["counts"]["kept_builder_duplicate_keeper"] == 1 and out["queue"] == []
     # the input tables are not mutated
     assert rows[1]["termination_notice_period"] == "" and prov[1]["presence"] == "unlabeled"
+
+
+GROUND = "renews unless notice is given One Hundred Eighty (180) days, or one hundred and twenty  (120) days, before"
+
+
+@pytest.mark.parametrize("value, expected, missing", [
+    ("eighty (180) days", "One Hundred Eighty (180) days", []),
+    ("at least six (6) months; twenty (120) days", "at least six (6) months; one hundred and twenty  (120) days", []),
+    ("one hundred eighty (180) days", "one hundred eighty (180) days", []),
+    ("twenty four (24) months", "twenty four (24) months", []),
+    ("forty-five (45) days", "forty-five (45) days", []),
+    ("eighty (280) days", "eighty (280) days", ["eighty (280)"]),
+])
+def test_repair_magnitudes_uses_the_document_spelling(mod, value, expected, missing):
+    new, _repaired, gaps = mod.repair_magnitudes(value, GROUND)
+    assert (new, gaps) == (expected, missing)
+
+
+def test_repair_cells_leaves_hub_values_and_queues_ungrounded(mod):
+    prov = [_cell(field="termination_notice_period", value="eighty (180) days", chosen_source="cuad_span",
+                  agreeing_sources="cuad_span"),
+            _cell(field="renewal_terms", value="eighty (180) days", agreeing_sources="hub_v9.3"),
+            _cell(field="term_length", value="eighty (280) days")]
+    rows = [{"document_id": "DOC-1", "termination_notice_period": "eighty (180) days",
+             "renewal_terms": "eighty (180) days", "term_length": "eighty (280) days"}]
+    new_prov, new_rows, queue, counts = mod.repair_cells(prov, rows, {"DOC-1": GROUND})
+    assert new_rows[0]["termination_notice_period"] == "One Hundred Eighty (180) days"
+    assert new_prov[0]["rule"].endswith("+magnitude_grounded")
+    assert new_rows[0]["renewal_terms"] == "eighty (180) days"  # a Hub value is never rewritten here
+    assert [q["field"] for q in queue] == ["term_length"]
+    assert counts == {"magnitude_cells_repaired": 1, "magnitude_phrases_repaired": 1, "magnitude_unresolved": 1}
+    assert prov[0]["value"] == "eighty (180) days"  # inputs untouched
+
+
+def test_verify_builder_refuses_other_bytes(mod, tmp_path, monkeypatch):
+    import subprocess
+
+    repo = tmp_path / "repo"
+    files = repo / mod.BUILDER_PATH
+    files.mkdir(parents=True)
+    for name in [*mod.BUILDER_FILES.values(), mod.BUILDER_SCRIPT]:
+        (files / name).write_text(name)
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-C", str(repo)]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", "b"], check=True)
+    monkeypatch.setattr(mod.emc, "ROOT", repo)
+    head = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    assert mod.verify_builder(head[:8], files, files / mod.BUILDER_SCRIPT) == head
+    (files / mod.BUILDER_SCRIPT).write_text("edited")
+    with pytest.raises(mod.CacheError, match="is not the"):
+        mod.verify_builder(head, files, files / mod.BUILDER_SCRIPT)
+    with pytest.raises(mod.CacheError, match="not in this clone"):
+        mod.verify_builder("0" * 40, files, files / mod.BUILDER_SCRIPT)
