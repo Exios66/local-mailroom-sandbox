@@ -44,16 +44,19 @@ function and fingerprint remain unchanged, preserving existing locks. Golden
 request-body tests cover every previously published reviewer set through 4.1.0.
 
 The question-set SHA-256 identifies YAML bytes only. It does **not** fingerprint
-`apply_v42_rules()` or prevent resume after that Python implementation changes.
-An unchanged YAML digest is therefore insufficient proof of routing identity.
-Before live adoption, add and verify an enforced routing-code identity in run
-locks and resume checks, without rewriting published SHF-009 fingerprints or
-existing experiment locks. Until that guard and the acceptance work below are
-complete, keep 4.2.0 draft and out of live campaign configurations.
+`apply_v42_rules()`. A question set that uses the 4.2.0 rules also locks
+`reviewer.routing_sha256`, the source digest of those routing helpers. Resume
+refuses that lock when the digest differs. Published sets and locks taken
+before the key existed do not carry it and resume as before. SHF-009
+fingerprints and existing experiment locks are unchanged.
+
+That guard does not adopt 4.2.0. Until the acceptance work below is complete,
+keep it draft and out of live campaign configurations.
 
 ## Acceptance before adoption
 
-1. Implement and test the routing identity guard described above.
+1. The routing identity guard above is in place and tested. It still does not
+   measure model quality.
 2. Reserve and lock fitting and reporting calibration halves before probing.
    Probe only fitting documents. Verify actual request shape, refusal records
    and session behavior in a separately authorized, capped smoke run.
