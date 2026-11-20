@@ -152,3 +152,32 @@ def test_hf003_the_vendored_intake_keeps_the_source_over_a_partial_reply(monkeyp
     monkeypatch.setattr(agent, "_call_one", lambda window, name: {"cleaned_text": _SOURCE + "\n"},
                         raising=False)
     assert "clean_refused" not in IntakeAgent.intake_run(agent, _SOURCE + "  ", "merger.txt")
+
+
+def test_hf007_confidence_at_or_above_the_band_still_reaches_the_judge(monkeypatch):
+    from graph import routing
+
+    assert vh.apply_hotfixes()["HF-007"] == "applied"
+    monkeypatch.setattr(routing, "_thresholds_for", lambda state: {"low": 0.70, "judge_band_high": 0.85})
+    assert routing.judge_gate({"extraction_confidence": 0.99}) is True
+    assert routing.judge_gate({"extraction_confidence": 0.80}) is True
+    assert routing.judge_gate({"extraction_confidence": 0.69}) is False
+    assert routing.judge_gate({"extraction_confidence": None}) is False
+    monkeypatch.setenv("MAILROOM_JUDGE_HIGH_BAND", "off")
+    assert routing.judge_gate({"extraction_confidence": 0.99}) is False
+    assert routing.judge_gate({"extraction_confidence": 0.80}) is True
+    monkeypatch.setenv("MAILROOM_JUDGE_VERIFY", "off")
+    monkeypatch.delenv("MAILROOM_JUDGE_HIGH_BAND", raising=False)
+    assert routing.judge_gate({"extraction_confidence": 0.99}) is False
+
+
+def test_hf008_records_each_window_and_keeps_the_weakest_confidence():
+    from langchain_agents.specialist_agents import merge_chunk_windows
+
+    assert vh.apply_hotfixes()["HF-008"] == "applied"
+    windows = [({"entity_name": "First", "confidence": 0.99}, "first"),
+               ({"entity_name": "Second", "confidence": 0.2}, "second")]
+    merged = merge_chunk_windows(windows, agent_name="corporate_records_specialist")
+    assert merged["confidence"] == 0.2
+    assert merged["_window_confidences"] == [0.99, 0.2]
+    assert merged["entity_name"] == "First"
