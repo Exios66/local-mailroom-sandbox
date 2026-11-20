@@ -95,7 +95,7 @@ _NUMBER_WORDS = {w: i for i, w in enumerate(
                                                     "seventy": 70, "eighty": 80, "ninety": 90}
 _WORD_DIGITS = re.compile(r"\b([a-z]+(?:-[a-z]+)?)\s+\(?(\d+)\)?\s*(?:calendar\s+|business\s+|working\s+)?(?:days?|months?|years?)\b", re.I)
 #: refusals a person should look at; a refused term length next to a builder value is not one
-REVIEW_REFUSALS = ("garbled magnitude", "cure or breach period", "not in document text")
+REVIEW_REFUSALS = ("garbled magnitude", "cure or breach period", "not in document text", "same period, other operator")
 
 
 def garbled(phrase: str) -> bool:
@@ -172,16 +172,30 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).lower()
 
 
+def _extended_agreement(agreeing: str) -> str:
+    """Who agrees with a value the assist join extended: the Hub held only the shorter value, so it no
+    longer agrees (the extended cell then enters the overlay and the override sign-off queue)."""
+    kept = [s for s in agreeing.split("|") if s and s != HUB]
+    return "|".join([*kept, ASSIST_SOURCE])
+
+
 def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[str], list[str]]:
     """Admissible extra notice phrases from ``assist`` and the reasons the rest were refused."""
-    held = {(t[1], t[2]) for t in map(notice_term, (m.group() for m in PERIOD_RX.finditer(builder)))}
+    # A term is the same when magnitude, unit and qualifier (business/calendar) agree. The same period
+    # under another operator ("not less than" vs exact) is refused for review, never dropped silently.
+    terms = [notice_term(m.group()) for m in PERIOD_RX.finditer(builder)]
+    held = {(t[1], t[2], t[3]) for t in terms}
+    ops = {(t[1], t[2], t[3]): t[0] for t in terms}
     text = _norm(doc_text)
     out, refused = [], []
     for segment in assist.split(";"):
         for m in PERIOD_RX.finditer(segment):
             phrase = m.group(1).strip(" ,")
             term = notice_term(phrase)
-            if (term[1], term[2]) in held:
+            key = term[1:]
+            if key in held:
+                if ops.get(key, term[0]) != term[0]:
+                    refused.append(f"same period, other operator: {phrase}")
                 continue
             after, before = segment[m.end():m.end() + 30], segment[max(0, m.start() - 25):m.start()]
             if garbled(phrase):
@@ -193,7 +207,8 @@ def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[
             elif _norm(phrase) not in text:
                 refused.append(f"not in document text: {phrase}")
             else:
-                held.add((term[1], term[2]))
+                held.add(key)
+                ops[key] = term[0]
                 out.append(phrase)
     return out, refused
 
@@ -304,8 +319,8 @@ def join(builder: dict[str, Any], assist_rows: list[dict[str, str]], texts: dict
             evidence = json.loads(cell["evidence"] or "[]") + [e for e in (_evidence(texts[doc_id], p) for p in extra) if e]
             cell.update(value=new, presence="populated", votes=json.dumps(votes, sort_keys=True),
                         evidence=json.dumps(evidence), rule="assist_join",
-                        chosen_source=ASSIST_SOURCE if filled else cell["chosen_source"],
-                        agreeing_sources=ASSIST_SOURCE if filled else f"{cell['agreeing_sources']}|{ASSIST_SOURCE}")
+                        chosen_source=ASSIST_SOURCE if filled or cell["chosen_source"] == HUB else cell["chosen_source"],
+                        agreeing_sources=ASSIST_SOURCE if filled else _extended_agreement(cell["agreeing_sources"]))
             row[col] = new
             counts["notice_filled" if filled else "notice_terms_added"] += 1
             filled_docs[doc_id] += filled
@@ -374,6 +389,13 @@ _ALIAS = re.compile(r"[\s,]*\((?:[^()]*?)[\"“”][^()]*\)[\s,]*$")
 _PARTY_JUNK = re.compile(r"referred\s+to|hereinafter|hereafter|collectively|individually|separately|"
                          r"\beach,?\s+(?:as\s+)?an?\b|together\s+with|^\(|^[\"“]|^the\s+[\"“]|\bpart(?:y|ies)\b[\"”]|"
                          r"^if\s+you\b|^on\s+behalf\b|^_{3,}|\bis\s+executing\b|^.{140,}$", re.I)
+#: a capture that is only a corporate suffix ("Inc.", "Holdings, Inc."): the name itself was lost.
+_SUFFIX_ONLY = re.compile(r"^(?:the\s+)?(?:(?:holdings?|group|inc|incorporated|llc|l\.l\.c|ltd|limited|plc|corp|co"
+                          r"|lp|l\.p|n\.v|b\.v|s\.a|ag|gmbh)\.?,?\s*)+$", re.I)
+#: a bare defined term standing in for a party ("the Company"), not the party's name.
+_GENERIC_PARTY = re.compile(r"^(?:the\s+)?(?:company|corporation|holding\s+company)$", re.I)
+INTERIM_AUDIT = "data/labels/review/interim_audit.jsonl"
+DISPUTED = "disputed_unresolved"
 #: words that end a jurisdiction run read from an upper-case clause ("STATE OF DELAWARE WITHOUT ...")
 _JURIS_STOP = frozenset("without shall or in applicable to excluding except as which that for regardless having "
                         "arising apply governing notwithstanding its their any with by under other than".split())
@@ -456,7 +478,7 @@ def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
     for v in items:
         if isinstance(v, str):
             v = _ALIAS.sub("", v).strip()
-            if not v or _PARTY_JUNK.search(v):
+            if not v or _PARTY_JUNK.search(v) or not_a_name(v):
                 continue
             if doc_text and v.endswith(".") and not _find(doc_text, v) and _find(doc_text, v[:-1]):
                 v = v[:-1]
@@ -465,6 +487,20 @@ def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
             seen.add(k)
             out.append(v)
     return out
+
+
+def not_a_name(value: str) -> bool:
+    """A party or company capture that names no one: a bare corporate suffix or defined term."""
+    v = value.strip()
+    return bool(_SUFFIX_ONLY.match(v) or _GENERIC_PARTY.match(v))
+
+
+def open_decisions(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    """Interim-audit rows the owner has not decided yet (``action: owner_decides``), by cell."""
+    if not path.exists():
+        return {}
+    rows = (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+    return {(r["doc_id"], r["field"]): r for r in rows if r.get("action") == "owner_decides"}
 
 
 def keyword_metadata(values: list[Any], filename: str) -> list[Any]:
@@ -518,7 +554,9 @@ def header_restoration(path: Path, rows: list[dict[str, str]]) -> list[dict[str,
 
 
 def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], texts: dict[str, str],
-                     corrections: dict[tuple[str, str], dict[str, Any]]
+                     corrections: dict[tuple[str, str], dict[str, Any]], *,
+                     shas: dict[str, str] | None = None,
+                     decisions: dict[tuple[str, str], dict[str, Any]] | None = None,
                      ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
     """The validation pass over the merged cells (inputs are not mutated).
 
@@ -527,7 +565,14 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
     - staged (non-Hub) cells: a ``date`` that is not a whole calendar date becomes unlabeled and is
       queued; ``cuad_family`` takes Dojo's canonical key; a ``governing_law`` clause becomes the
       jurisdiction it names (queued when the text does not state one); entity lists lose duplicates,
-      and ``parties`` lose defined-term clauses and trailing alias parentheticals.
+      and ``parties`` lose defined-term clauses, trailing alias parentheticals, bare defined terms
+      ("the Company") and suffix-only captures ("Inc."); a ``name`` field holding only such a
+      capture becomes unlabeled and is queued;
+    - an interim value whose audit still waits for the owner (``decisions``) is not truth yet: it
+      becomes ``disputed_unresolved`` and is queued;
+    - documents with the same text (``shas``) that hold different staged values for a field become
+      ``disputed_unresolved`` and are queued, since one text cannot have two answers.
+    Hub-backed cells are not date-, name- or clause-checked: only their ``keywords`` are cleaned.
     """
     types = _field_types()
     prov = [dict(r) for r in prov]
@@ -561,6 +606,7 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
         queue.append({"document_id": cell["document_id"], "doc_class": cell["doc_class"], "field": cell["field"],
                       "reason": reason, "builder_value": cell["value"], "assist_value": ""})
 
+    decisions = decisions or {}
     for cell in prov:
         key = (cell["document_id"], cell["field"])
         text = texts.get(cell["document_id"], "")
@@ -580,6 +626,12 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
         if cell["presence"] != "populated":
             continue
         ftype = types.get(cell["doc_class"], {}).get(cell["field"], "")
+        d = decisions.get(key)
+        if (d is not None and cell["chosen_source"].startswith("interim")
+                and _jsonish(cell["value"]) == d.get("value")):
+            enqueue(cell, f"interim audit awaits the owner ({d.get('kind', 'policy')}): {d.get('reason', '')}")
+            update(cell, cell["value"], DISPUTED, "owner_decision_pending")
+            continue
         if from_hub(cell):
             if cell["field"] == "keywords" and cell["value"][:1] == "[":
                 old = json.loads(cell["value"])
@@ -603,6 +655,9 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
             else:
                 counts["governing_law_clause_queued"] += 1
                 enqueue(cell, "governing-law clause names no jurisdiction the text states; kept as is")
+        elif ftype == "name" and not_a_name(value):
+            enqueue(cell, "capture is only a corporate suffix or defined term, not a name; left unlabeled")
+            update(cell, "", "unlabeled", "name_capture_unlabeled")
         elif ftype.startswith("entity_list") and value[:1] == "[":
             items = json.loads(value)
             if cell["field"] == "parties":
@@ -624,6 +679,21 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
     missing = set(corrections) - used
     if missing:
         raise CacheError(f"{CORRECTIONS_FILE}: no merged cell for {sorted(missing)[:3]}")
+    if shas:
+        same_text: dict[tuple[str, str], list[dict[str, str]]] = collections.defaultdict(list)
+        for cell in prov:
+            sha = shas.get(cell["document_id"])
+            if sha and cell["presence"] in LABELED:
+                same_text[(sha, cell["field"])].append(cell)
+        for cells in same_text.values():
+            if len({(c["presence"], c["value"]) for c in cells}) < 2:
+                continue
+            ids = ", ".join(sorted(c["document_id"] for c in cells))
+            for cell in cells:
+                enqueue(cell, f"documents with the same text disagree on this field ({ids})")
+                if from_hub(cell):
+                    continue
+                update(cell, cell["value"], DISPUTED, "same_text_conflict")
     return prov, [by_id[r["document_id"]] for r in rows], queue, dict(sorted(counts.items()))
 
 
@@ -741,7 +811,9 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
     pcols, prov = joined["provenance"]
     prov, rows, magnitude_queue, magnitudes = repair_cells(prov, rows, texts)
     corrections_path = emc.ROOT / CORRECTIONS_FILE
-    prov, rows, validation_queue, validation = validate_repairs(prov, rows, texts, read_corrections(corrections_path))
+    audit_path = emc.ROOT / INTERIM_AUDIT
+    prov, rows, validation_queue, validation = validate_repairs(
+        prov, rows, texts, read_corrections(corrections_path), shas=shas, decisions=open_decisions(audit_path))
     headers = header_restoration(emc.ROOT / HEADER_SOURCE, rows)
     disputed = [{"document_id": r["document_id"], "doc_class": r["doc_class"], "field": r["field"],
                  "reason": "disputed_unresolved", "builder_value": r["value"], "assist_value": ""}
@@ -774,8 +846,9 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
         comp_rows = joined["completeness"]
         (dest / "master" / f"{name}_field_completeness.csv").write_text(_csv_text(comp_rows[0].keys(), comp_rows),
                                                                          encoding="utf-8")
-        new_summary = dict(summary, label_cells_labeled_repaired=labeled,
+        new_summary = dict(summary, label_cells_targeted=targeted, label_cells_labeled_repaired=labeled,
                            label_cells_unlabeled=sum(r["presence"] == "unlabeled" for r in prov),
+                           label_cells_disputed_unresolved=sum(r["presence"] == DISPUTED for r in prov),
                            assist_join=joined["counts"], magnitude_repair=magnitudes, validation_repair=validation,
                            chosen_source_counts=dict(collections.Counter(
                                r["chosen_source"] for r in prov if r["presence"] in LABELED).most_common()))
@@ -803,7 +876,8 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
                               "builder_script": _sha_bytes(builder_script),
                               "assist": _sha_bytes(assist), "corpus": corpus_sha,
                               "validation_corrections": _sha_bytes(corrections_path) if corrections_path.exists() else "",
-                              "header_source": _sha_bytes(emc.ROOT / HEADER_SOURCE)},
+                              "header_source": _sha_bytes(emc.ROOT / HEADER_SOURCE),
+                              "interim_audit": _sha_bytes(audit_path) if audit_path.exists() else ""},
             "coverage": {"cells_targeted": targeted, "cells_labeled": labeled,
                          "completeness": round(labeled / targeted, 4),
                          "cells_labeled_hub_v9_3": summary.get("label_cells_labeled_hub_v9_3")},

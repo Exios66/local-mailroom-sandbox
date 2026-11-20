@@ -123,8 +123,9 @@ def snapshot(version: str, root: Path | None = None
     if (manifest.get("base_hf") or {}).get("tag_commit") != p["base_tag_commit"]:
         problems.append(f"{mpath}: base Hub revision is not the pinned {p['base_tag_commit'][:12]}")
     overlay: dict[str, dict[str, Any]] = {}
-    files = {rel: e for rel, e in (manifest.get("files") or {}).items() if rel.startswith("overlay/")}
-    if not files:
+    # Every file the manifest pins is checked (master, builder, queues too), not only the overlay.
+    files = dict(manifest.get("files") or {})
+    if not any(rel.startswith("overlay/") for rel in files):
         problems.append(f"{mpath}: lists no overlay/ files")
     for rel, entry in sorted(files.items()):
         path = d / rel
@@ -132,7 +133,12 @@ def snapshot(version: str, root: Path | None = None
         if data is None or _sha(data) != entry.get("sha256"):
             problems.append(f"{path}: missing or not the sha256 its manifest pins")
             continue
-        for line in data.decode("utf-8").splitlines():
+        if not rel.startswith("overlay/"):
+            continue
+        # JSON Lines records end at "\n" only; str.splitlines would also split on U+2028 in a value.
+        for line in data.decode("utf-8").split("\n"):
+            if not line.strip():
+                continue
             rec = json.loads(line)
             if rec["doc_id"] in overlay:
                 problems.append(f"{path}: {rec['doc_id']} appears twice")

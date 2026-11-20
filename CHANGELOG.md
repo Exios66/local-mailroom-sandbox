@@ -29,8 +29,8 @@
     near-gold overlays. Setting it together with either of them fails at parse.
   - Only versions pinned in `config/staged_overlays.yaml` are accepted: the mailroom-issues
     commit plus the `MANIFEST.json` sha256, which pins every overlay file. A cache that differs
-    from the pin, a Hub source on another revision, or an unpinned version is refused before
-    the draw. A record applies only to the document with its `content_sha256`.
+    from the pin, a Hub source on another revision, or an unpinned version is refused when
+    the labels are applied, right after the draw and before any document is scored. A record applies only to the document with its `content_sha256`.
   - The spec hash records the version and manifest sha256. The run lock records the overlay
     provenance. Each row names the fields it took and keeps each replaced Hub value under
     `staged_overlay.overrides`.
@@ -41,7 +41,7 @@
   - Pinned: `9.3.1-rc.3` (mailroom-issues `838ca211`, manifest `2c2b9f12`). Pulled from GitHub
     and applied to the v9.3 corpus: 3,297 of 3,302 documents take 18,439 staged fields (99 Hub
     overrides), none stale.
-  - No run config changed. Tests: `tests/test_staged_overlay.py`.
+  - Tests: `tests/test_staged_overlay.py`.
 - **Staged overlay cut `v9.3.1-rc.3`: self-contained, cut-off magnitudes repaired.**
   - `stage_label_overlay.py` now verifies that the builder outputs and `build_label_repaired.py`
     are byte-identical to the named builder commit (PR #384 head `f0951873`). It caches the

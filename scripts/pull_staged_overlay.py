@@ -5,8 +5,10 @@
 
 Reads the pin in ``config/staged_overlays.yaml`` (repository, commit, MANIFEST.json sha256),
 fetches only that cut at that commit, and refuses bytes that differ from the pin. The cache
-root is ``--root``, else ``$SANDBOX_LABEL_CACHE``, else ``data/cache/mailroom_cache``. Deploy
-images and remote job workers run this at build time so scoring never reaches the network.
+root is ``--root``, else ``$SANDBOX_LABEL_CACHE``, else ``data/cache/mailroom_cache``. Nothing
+runs this for you: ``deploy/Dockerfile`` and remote job workers do not pull the cut. Whoever
+builds an image or starts a worker must run it (or ``--check`` a copied cut) and bundle the
+verified cache into the image, or mount it and set ``$SANDBOX_LABEL_CACHE``, before preflight.
 Network: GitHub only. No spend.
 """
 from __future__ import annotations
@@ -14,6 +16,9 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+# Runs from an uninstalled checkout too: put src/ on the path before importing the package.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def main(argv: list[str] | None = None) -> int:

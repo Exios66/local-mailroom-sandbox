@@ -23,7 +23,9 @@ python scripts/pull_staged_overlay.py --version 9.3.1-rc.4
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
-  overlay file's sha256. A cache whose bytes differ from the pin is refused before the draw.
+  file's sha256, and every pinned file is checked. A cache whose bytes differ from the pin is
+  refused when the labels are applied (`prepare_subset` draws first, then applies them), so
+  nothing is scored against it.
   A new cut is a new pin entry; an existing entry is never edited.
 - **Per-document text check.** A record applies only to the document whose text has its
   `content_sha256`. A changed document keeps its Hub labels and is counted as `stale_rows`.
@@ -62,18 +64,24 @@ for dependency snapshots (`docs/dependency-snapshots.md`).
 - joins the assist CSV;
 - rewrites cut-off magnitudes ("eighty (180) days" from a builder grammar that keeps one number
   word) with the document's own spelling, and queues any it cannot ground;
-- validates the merged labels against the document text (rc.4 on; `validation_repair` in the
-  manifest):
+- validates the merged staged (non-Hub) labels against the document text (rc.4 on;
+  `validation_repair` in the manifest). Hub-backed cells are not date-, name- or clause-checked;
+  only their correspondence `keywords` are cleaned:
   - it keeps only whole ISO dates, maps `cuad_family` to the canonical key the scorer compares,
     and reduces a whole governing-law clause to the jurisdiction it names (found in the text,
     otherwise queued);
-  - it drops defined-term aliases and clause fragments from `parties` and de-duplicates entity
-    lists;
+  - it drops defined-term aliases, clause fragments, bare defined terms ("the Company") and
+    suffix-only captures ("Inc.") from `parties`, unlabels and queues a `name` field holding only
+    such a capture (rc.5 on), and de-duplicates entity lists;
+  - it holds back, as `disputed_unresolved` and queued, an interim value whose audit row still
+    waits for the owner (`action: owner_decides` in `data/labels/review/interim_audit.jsonl`) and
+    the conflicting values of documents that share the same text (rc.5 on);
   - it strips maildir user, folder and timestamp tokens from Hub correspondence `keywords`,
     which makes them Hub overrides for sign-off;
-- applies reviewed corrections from `data/labels/review/validation_corrections.jsonl`. Each one
-  quotes the document, and the stager refuses a quote that is not in the text or a correction
-  that matches no cell;
+- applies reviewed corrections from `data/labels/review/validation_corrections.jsonl`. Every
+  correction needs a note. A populated correction also needs a quote, and the stager refuses
+  one whose quote is not in the text. An unlabeled or documented-absence correction may omit the
+  quote. A correction that matches no cell is refused;
 - writes `queues/header_restoration.csv`: the correspondence documents whose labels (basis
   `original_header`) quote the Enron email header that the cleaned corpus text dropped. Those
   labels stay as truth. The next official release restores the listed header lines into

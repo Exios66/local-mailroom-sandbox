@@ -217,7 +217,7 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 sandbox api status [--offline]        # pinned vs selected mailroom + Dojo, and the mailroom API's /health (MAILROOM_API_URL, default 127.0.0.1:8000)
 sandbox api eval [--class C] [--sample N] [--submit] [--out PATH]   # upload fixtures to a running/deployed API, score results with the Dojo; plans unless --submit (the API's models spend)
 sandbox api eval --mock [--class C] [--sample N]                    # same loop against the vendored API in process: mock LLM, temp data dir, no server, no spend
-sandbox api eval --dataset-config config/runs/production/slice-0100.yaml [--mock|--submit]   # score corpus docs (pinned revision, content-hash check, Hub > interim > near-gold GT; an enabled interim `correction` label replaces the Hub value it names, while `gap_fill` and `derived` labels keep an existing Hub value) instead of the fixtures
+sandbox api eval --dataset-config config/runs/production/slice-0100.yaml [--mock|--submit]   # score corpus docs (pinned revision, content-hash check, pinned staged overlay 9.3.1-rc.5 as the label source, applied over the Hub labels; run `python scripts/pull_staged_overlay.py --version 9.3.1-rc.5` first; the interim and near-gold overlays do not apply to this slice) instead of the fixtures
 sandbox modal deploy|prewarm|status|logs|stop|url|raw|publish-image   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs/publish-image; stop is idempotent + verified)
 sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active workspace; `sandbox modal deploy --named-image` then reuses it
 sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
@@ -332,7 +332,8 @@ Markdown follows `.markdownlint-cli2.yaml` (all rules on except line length and
 first-line heading; its header gives the reasons). Run
 `npx --yes markdownlint-cli2@0.18.1` before pushing doc changes. Edit
 `docs/runbooks/` through `config/runbooks/catalog.yaml` and `sandbox runbook write`,
-never by hand. GFM traps the linter catches: a wrapped line starting `#123` becomes
+never by hand. One exception: `docs/runbooks/production-slices.md` is hand-written,
+outside the catalog, and says so at its top; `sandbox runbook check` does not cover it. GFM traps the linter catches: a wrapped line starting `#123` becomes
 a heading, a `|` inside a table code span needs `\|`, and a bare `<placeholder>`
 outside backticks is dropped as HTML.
 

@@ -36,10 +36,14 @@ def _write_cut(cache: Path, records: list[dict]) -> str:
     """Write a cut under ``cache`` and return its MANIFEST.json sha256."""
     d = cache / CUT
     (d / "overlay").mkdir(parents=True, exist_ok=True)
-    body = "".join(json.dumps(r, sort_keys=True) + "\n" for r in records).encode()
+    (d / "queues").mkdir(exist_ok=True)
+    body = "".join(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n" for r in records).encode()
     (d / "overlay" / "contract.jsonl").write_bytes(body)
+    queue = b"document_id,field\n"
+    (d / "queues" / "needs_human.csv").write_bytes(queue)
     manifest = {"kind": so.KIND, "version": VERSION, "base_hf": {"tag_commit": BASE},
-                "files": {"overlay/contract.jsonl": {"sha256": _sha(body), "bytes": len(body)}}}
+                "files": {"overlay/contract.jsonl": {"sha256": _sha(body), "bytes": len(body)},
+                          "queues/needs_human.csv": {"sha256": _sha(queue), "bytes": len(queue)}}}
     raw = (json.dumps(manifest, indent=1, sort_keys=True) + "\n").encode()
     (d / "MANIFEST.json").write_bytes(raw)
     return _sha(raw)
@@ -163,3 +167,19 @@ def test_pull_fetches_exactly_the_pinned_commit(cache, tmp_path):
     assert dest == dest_root / CUT and (dest / "overlay" / "contract.jsonl").is_file()
     assert so.snapshot(VERSION, dest_root)[2] == []
     assert so.pull(VERSION, root=dest_root, remote=f"file://{remote}") == dest  # idempotent
+
+
+def test_every_pinned_file_is_checked_not_only_the_overlay(cache):
+    _, c = cache
+    (c / CUT / "queues" / "needs_human.csv").write_text("edited\n")
+    _, _, problems = so.snapshot(VERSION)
+    assert any("needs_human.csv" in p for p in problems)
+
+
+def test_a_line_separator_inside_a_value_stays_in_its_record(cache):
+    root, c = cache
+    rec = _record(**dict(LABELS, governing_law={"value": "Dela\u2028ware", "presence": "populated",
+                                                 "override": False}))
+    _pin(root, _write_cut(c, [rec]))
+    overlay, _, problems = so.snapshot(VERSION)
+    assert problems == [] and overlay["DOC-1"]["labels"]["governing_law"]["value"] == "Dela\u2028ware"

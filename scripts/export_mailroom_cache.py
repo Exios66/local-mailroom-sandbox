@@ -353,15 +353,21 @@ where `override: true` marks a replaced Hub value. Each record's `content_sha256
 against the document before it is applied. The overlay already contains the interim and
 near-gold labels it merged, so it is applied instead of those layers, never on top of them.
 
-From rc.4 the stager also validates the merged labels before staging (`validation_repair` in
-the manifest). It keeps only whole ISO dates, maps `cuad_family` to its canonical key, reduces
-whole governing-law clauses to the named jurisdiction, removes defined-term aliases and clause
-fragments from `parties`, strips the maildir user, folder and timestamp tokens from Hub
-correspondence `keywords`, and applies reviewed corrections quoted from the document text. Some
-correspondence labels quote the original Enron email header (sender, recipients, date, subject).
-The cleaned corpus text dropped that header, so `queues/header_restoration.csv` lists each such
-document with its maildir file and the quoted header lines. The next official release restores
-those lines into `doc_text`, so a model can read what the labels expect.
+From rc.4 the stager also validates the merged staged (non-Hub) labels before staging
+(`validation_repair` in the manifest); Hub-backed cells are only keyword-cleaned. It keeps only
+whole ISO dates, maps `cuad_family` to its canonical key, reduces whole governing-law clauses to
+the named jurisdiction, and removes defined-term aliases and clause fragments from `parties`. It
+strips the maildir user, folder and timestamp tokens from Hub correspondence `keywords`, and
+applies reviewed corrections (a populated one must quote the document text). From rc.5 it also
+drops bare defined terms ("the Company") and suffix-only captures ("Inc.") from `parties` and
+unlabels a name field that holds only one. It holds back as `disputed_unresolved` an interim
+value whose audit waits for the owner, and the conflicting values of documents with the same
+text. Both go to `queues/needs_human.csv`.
+
+Some correspondence labels quote the original Enron email header (sender, recipients, date,
+subject). The cleaned corpus text dropped that header, so `queues/header_restoration.csv` lists
+each such document with its maildir file and the quoted header lines. The next official release
+restores those lines into `doc_text`, so a model can read what the labels expect.
 
 - **Patch** (`X.Y.P`) counts label repair rounds on release `X.Y`.
 - **Pre-release** (`-rc.N`) is one cut of that round. A cut is never rewritten: changed labels
@@ -374,9 +380,11 @@ those lines into `doc_text`, so a model can read what the labels expect.
 | --- | --- | --- | --- |
 {rows}
 
-The current family pin is `{registry['current_release']}`. Label precedence when a run reads
-these sets is unchanged: Hub label, then interim truth, then the near-gold overlay for fields
-nothing else labels. Supplementary output is never ground truth.
+The current family pin is `{registry['current_release']}`. Two label paths exist, and a run uses
+one of them. With the `label-sets` layers, precedence is the Hub label, then interim truth, then
+the near-gold overlay for fields nothing else labels. With a `production-overlay` cut, the
+overlay replaces the Hub value field by field (`override: true`), and the interim and near-gold
+layers are not applied again. Supplementary output is never ground truth.
 
 ## Use
 

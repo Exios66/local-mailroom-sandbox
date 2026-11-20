@@ -266,3 +266,74 @@ def test_clean_parties_drops_a_sentence_period_the_text_lacks(mod):
     text = "between DSP Group, Inc. and Synaptics Incorporated, a Delaware corporation"
     assert mod.clean_parties(["DSP Group, Inc.", "Synaptics Incorporated."], text) == [
         "DSP Group, Inc.", "Synaptics Incorporated"]
+
+
+def test_join_extension_of_a_hub_value_leaves_the_hub_agreement(mod):
+    cols = ["document_id", "doc_class", "fields_targeted", "fields_labeled", "label_completeness",
+            "termination_notice_period", "duplicate_of"]
+    rows = [{"document_id": "DOC-1", "doc_class": "contract", "fields_targeted": "4", "fields_labeled": "2",
+             "label_completeness": "0.5", "termination_notice_period": "ninety (90) days", "duplicate_of": ""}]
+    prov = [_cell(field="termination_notice_period", value="ninety (90) days", chosen_source="hub_v9.3",
+                  agreeing_sources="hub_v9.3|cuad_span", votes='{"hub_v9.3": "ninety (90) days"}')]
+    comp = [{"doc_class": "contract", "field": "termination_notice_period", "documents": "1",
+             "labeled_hub_v9_3": "1", "labeled_repaired": "1", "populated": "1", "documented_absence": "0",
+             "unlabeled": "0", "disputed_unresolved": "0", "completeness_hub_v9_3": "1.0",
+             "completeness_repaired": "1.0", "conflicts": "0", "needs_human": "0", "top_source": "hub_v9.3"}]
+    assist = [dict(rows[0], termination_notice_period="notifies the other Party not less than six (6) months before")]
+    builder = {"labels": (cols, rows), "provenance": (list(prov[0]), prov), "completeness": (list(comp[0]), comp)}
+    _, p = mod.join(builder, assist, {"DOC-1": TEXT})["provenance"]
+    assert p[0]["agreeing_sources"] == "cuad_span|assist_upload" and p[0]["chosen_source"] == "assist_upload"
+    assert not mod.from_hub(p[0]) and mod.is_override(p[0])
+    assert mod.overlay_records(p, {"DOC-1": "s"})["contract"][0]["labels"]["termination_notice_period"]["override"]
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("Inc.", True), ("Holdings, Inc.", True), ("the Company", True), ("COMPANY", True), ("Holding Company", True),
+    ("Acme Holdings, Inc.", False), ("Company Store LLC", False)])
+def test_not_a_name_spots_suffix_and_defined_term_captures(mod, value, expected):
+    assert mod.not_a_name(value) is expected
+
+
+def test_validate_repairs_withholds_suffix_names_open_decisions_and_same_text_conflicts(mod):
+    prov = [_cell(field="acquirer", doc_class="merger_agreement", value="Inc.", chosen_source="generated_rule",
+                  agreeing_sources="generated_rule"),
+            _cell(field="parties", doc_class="merger_agreement", value='["Acme Corp.", "Inc.", "the Company"]',
+                  chosen_source="generated_rule", agreeing_sources="generated_rule"),
+            _cell(field="effective_date", doc_class="merger_agreement", value="2021-06-28",
+                  chosen_source="interim_gate", agreeing_sources="interim_gate"),
+            _cell(document_id="DOC-2", field="maud_clauses", doc_class="merger_agreement", value='["a: Yes"]',
+                  chosen_source="generated_derived", agreeing_sources="generated_derived"),
+            _cell(document_id="DOC-3", field="maud_clauses", doc_class="merger_agreement", value='["a: No"]',
+                  chosen_source="generated_derived", agreeing_sources="generated_derived")]
+    rows = [_row(), _row(document_id="DOC-2"), _row(document_id="DOC-3")]
+    decisions = {("DOC-1", "effective_date"): {"value": "2021-06-28", "kind": "signing_date_as_effective_date",
+                                                "reason": "signing date", "action": "owner_decides"}}
+    new, _, queue, counts = mod.validate_repairs(prov, rows, {"DOC-1": VTEXT}, {}, decisions=decisions,
+                                                 shas={"DOC-1": "x", "DOC-2": "same", "DOC-3": "same"})
+    got = [(c["field"], c["value"], c["presence"]) for c in new]
+    assert got == [("acquirer", "", "unlabeled"), ("parties", '["Acme Corp."]', "populated"),
+                   ("effective_date", "2021-06-28", "disputed_unresolved"),
+                   ("maud_clauses", '["a: Yes"]', "disputed_unresolved"),
+                   ("maud_clauses", '["a: No"]', "disputed_unresolved")]
+    assert counts == {"name_capture_unlabeled": 1, "owner_decision_pending": 1, "parties_cleaned": 1,
+                      "same_text_conflict": 2}
+    assert [q["field"] for q in queue] == ["acquirer", "effective_date", "maud_clauses", "maud_clauses"]
+    assert "DOC-2, DOC-3" in queue[-1]["reason"]
+    assert mod.overlay_records(new, {}).get("merger_agreement", [{}])[0]["labels"].keys() == {"parties"}
+
+
+def test_open_decisions_reads_only_owner_decides_rows(mod, tmp_path):
+    p = tmp_path / "audit.jsonl"
+    p.write_text(json.dumps({"doc_id": "D", "field": "f", "action": "owner_decides", "value": "v"}) + "\n"
+                 + json.dumps({"doc_id": "D", "field": "g", "action": "keep", "value": "v"}) + "\n")
+    assert list(mod.open_decisions(p)) == [("D", "f")]
+    assert mod.open_decisions(tmp_path / "missing.jsonl") == {}
+
+
+def test_assist_terms_keep_qualifiers_and_flag_other_operators(mod):
+    text = "upon ninety (90) business days notice; terminate on not less than thirty (30) days written notice"
+    out, refused = mod.assist_notice_terms(
+        "ninety (90) business days notice; not less than thirty (30) days written notice",
+        "ninety (90) days; thirty (30) days", text)
+    assert out == ["ninety (90) business days"]
+    assert refused == ["same period, other operator: not less than thirty (30) days"]
