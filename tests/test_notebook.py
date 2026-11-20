@@ -920,3 +920,39 @@ def test_show_figure_embeds_png(monkeypatch):
     assert len(captured) == 1
     assert isinstance(captured[0], FakeImage)
     assert captured[0].data[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_show_figure_closes_when_ipython_import_fails(monkeypatch):
+    """Figure must close even if the late IPython.display import raises."""
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import builtins
+    import sys
+
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    closed: list[object] = []
+    real_close = plt.close
+
+    def track_close(target=None):
+        closed.append(target)
+        return real_close(target)
+
+    monkeypatch.setattr(plt, "close", track_close)
+    # Drop any cached IPython modules so the function's import runs.
+    for name in list(sys.modules):
+        if name == "IPython" or name.startswith("IPython."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+    real_import = builtins.__import__
+
+    def block_ipython(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "IPython" or name.startswith("IPython."):
+            raise ImportError("IPython unavailable for regression")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", block_ipython)
+    with pytest.raises(ImportError, match="IPython unavailable"):
+        notebook.show_figure(fig)
+    assert fig in closed

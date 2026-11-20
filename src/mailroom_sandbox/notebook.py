@@ -498,12 +498,12 @@ def show_figure(fig: Any) -> None:
     """
     import io
 
-    from IPython.display import Image, display
-
     import matplotlib.pyplot as plt
 
     buf = io.BytesIO()
     try:
+        from IPython.display import Image, display
+
         fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
     finally:
         plt.close(fig)
