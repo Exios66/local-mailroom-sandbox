@@ -80,6 +80,7 @@ a notebook log, `runtime/notebooks/experiment_log.jsonl` under `MAILROOM_BASE_DI
 | `ollama` | `sandbox-ollama` on `:11434` |
 | `jupyter` | builds `deploy/Dockerfile`, Lab on `:8888` |
 | `phoenix` / `vllm` / `llamacpp` | optional sidecars |
+| `pipeline` | CPU graph runner plus the localhost vLLM front door on `:8000` |
 
 `sandbox up` (default `modal-vllm` profile) starts `langfuse` only: the GPU
 endpoint lives on Modal, not in compose. For the offline Ollama stack use
@@ -92,6 +93,31 @@ sandbox down --compose-profile jupyter
 ```
 
 The Jupyter service defaults to the `ollama` profile (`SANDBOX_PROFILE` in `deploy/docker-compose.yml`); export `SANDBOX_PROFILE` in the shell that runs `sandbox up` to change it. Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
+
+## Full pipeline across machines
+
+Specialist cells in the SAND-39 through SAND-42 series ran one GPU call per in-flight document, on one or two L4 machines, admitting 8–16 sequences of those shorter prompts. A full pipeline document still occupies one sequence at a time, then makes the next stage's call. The production OpenRouter slices (`config/runs/production/slice-0100.yaml` and its larger twins) keep concurrency at 10 and send the reviewer to the Decisions API, so the GPU stages are the sorter, the specialist, and the judge.
+
+`mailroom_sandbox.fleet.pipeline_fleet` turns that into a machine count. With the long-prompt cap of 6 sequences per L4:
+
+- 2 GPU machines hold 10 documents in flight. Each document then takes about three sequential GPU calls, so the document rate is about a third of a specialist run at the same concurrency.
+- 5 GPU machines is the planning fleet that buys that specialist document rate back, if each stage lasts about as long as one specialist call. That assumption is not a measurement. A smoke run's observed GPU calls per document replaces `gpu_stages`.
+
+The Compose shape matches the OpenRouter path: one CPU process runs the graph, and every LLM call goes to one OpenAI-compatible URL. On the control machine:
+
+```bash
+sandbox up -d --compose-profile langfuse --compose-profile pipeline
+```
+
+`pipeline` starts `vllm-front` (nginx `1.27.4-alpine` on `127.0.0.1:8000`) and one `pipeline` container whose `VLLM_BASE_URL` is `http://vllm-front:8000/v1`. The container sleeps. It does not start a run. A person launches with `sandbox run preflight` and `sandbox run start --initials`. `vllm` and `pipeline` both bind port 8000, so Compose refuses to start them on the same machine.
+
+Each GPU machine runs only the vLLM profile, still bound to `127.0.0.1:8000`:
+
+```bash
+sandbox up -d --compose-profile vllm
+```
+
+The control machine reaches those servers with one SSH forward per machine, onto ports 18000–18004. That list is `deploy/pipeline-front/nginx.conf`. The front door uses least-connections and `max_conns=6` on each upstream, so one machine cannot accept more in-flight requests than its sequence cap. `FleetPlan.ssh_forwards` prints the `ssh -N -L` lines once the operator supplies the `user@host` names. `sandbox tunnel` remains the single-host forward.
 
 ## Pipeline floor assets
 

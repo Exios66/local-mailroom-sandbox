@@ -14,7 +14,9 @@ from mailroom_sandbox.paths import deploy_dir, repo_root
 _log = logging.getLogger("mailroom_sandbox.compose")
 
 COMPOSE_FILE = "docker-compose.yml"
-VALID_PROFILES = ("phoenix", "ollama", "vllm", "llamacpp", "langfuse", "jupyter")
+VALID_PROFILES = ("phoenix", "ollama", "vllm", "llamacpp", "langfuse", "jupyter", "pipeline")
+# Both publish 127.0.0.1:8000. vllm is the GPU machine; pipeline is the control machine.
+_PORT_8000 = frozenset({"vllm", "pipeline"})
 
 
 def compose_file() -> Path:
@@ -29,10 +31,16 @@ def _docker() -> str:
 
 
 def compose_argv(profiles: list[str], *args: str, docker_bin: str = "docker") -> list[str]:
+    unknown = [name for name in profiles if name not in VALID_PROFILES]
+    if unknown:
+        raise ValueError(f"Unknown compose profile {unknown[0]!r}. Valid: {VALID_PROFILES}")
+    if _PORT_8000.issubset(profiles):
+        raise ValueError(
+            "compose profiles vllm and pipeline both bind 127.0.0.1:8000; "
+            "start vllm on each GPU machine and pipeline on the control machine"
+        )
     cmd = [docker_bin, "compose", "-f", str(compose_file())]
     for name in profiles:
-        if name not in VALID_PROFILES:
-            raise ValueError(f"Unknown compose profile {name!r}. Valid: {VALID_PROFILES}")
         cmd.extend(["--profile", name])
     cmd.extend(args)
     return cmd

@@ -56,6 +56,8 @@ docker compose -f deploy/docker-compose.yml --profile vllm run --rm --service-po
 The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 `MODAL_VLLM_REVISION`); `--revision` is the reproducibility pin for runs.
 
+A full pipeline does not scale this one container. The `pipeline` compose profile runs the graph on a control machine and proxies `127.0.0.1:8000` to one vLLM per GPU machine. Machine counts and the forward list are `mailroom_sandbox.fleet`. The `vllm` and `pipeline` profiles both bind port 8000 and will not start together. See [Docker offline sandbox](docker-offline.md#full-pipeline-across-machines).
+
 ## Modal
 
 Modal SDK **1.6.4** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**

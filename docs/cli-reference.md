@@ -57,7 +57,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
+| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter, pipeline. |
 | `-d, --detach` | No |  |
 
 ### `sandbox down`
@@ -73,7 +73,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
+| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter, pipeline. |
 
 ### `sandbox health`
 
