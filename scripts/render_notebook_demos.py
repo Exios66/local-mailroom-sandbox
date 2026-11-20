@@ -66,7 +66,11 @@ def main() -> int:
                     "errors": errors,
                 }
             )
-            print(f"wrote {dest.relative_to(ROOT)} ({len(code)} code cells)", flush=True)
+            try:
+                shown = dest.resolve().relative_to(ROOT.resolve())
+            except ValueError:
+                shown = dest
+            print(f"wrote {shown} ({len(code)} code cells)", flush=True)
             if empty:
                 print(f"  WARN empty outputs: {empty}", flush=True)
             if errors:

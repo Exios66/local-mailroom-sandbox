@@ -23,8 +23,9 @@ Run (network-free once ``sandbox datasets pull`` has cached v9.3)::
     PYTHONPATH=vendor/llm-dojo-scoring/src .venv/bin/python -I \
         reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py [--with-text]
 
-Writes, next to this file: the wide CSV (one row per document), the long provenance CSV (one
-row per document and field, with every vote), the per-field completeness CSV and a JSON summary.
+Writes a new generation directory (``--out``, default ``generated/`` next to this file; an
+existing directory is refused): the wide CSV (one row per document), the long provenance CSV
+(one row per document and field, with every vote), the per-field completeness CSV and a JSON summary.
 """
 
 from __future__ import annotations
@@ -374,15 +375,22 @@ def _clean_signer(s: str) -> str:
     return " ".join(words)
 
 
-def _date_value(span: str) -> str | None:
-    """ISO date of a span; None for a blank template date ("[___], 2020") or no date at all."""
+def _date_value(span: str) -> str | None | bool:
+    """Parse a calendar date from a span.
+
+    Returns an ISO or retained date string when present, ``None`` for a blank template
+    (documented absence), and ``False`` when the span has no calendar date (no ballot).
+    """
     iso = to_iso(span)
     if iso:
         return iso
-    # A year with no month, or a blank template ("[___], 2020", "this  day of , 2012"), is no date.
+    # Blank template ("[___], 2020", "this  day of , 2012") is documented absence.
+    if re.search(r"_{2,}|\[|\]", span):
+        return None
     has_month = any(w.lower().strip(".,") in MONTHS for w in span.split())
-    blank = re.search(r"_{2,}|\[|\]", span) or not re.search(r"\d{4}", span)
-    return span.strip() if has_month and not blank else None
+    if has_month and re.search(r"\d{4}", span):
+        return span.strip()
+    return False  # event-defined / no calendar date: no ballot
 
 
 # CUAD clause spans that answer schema fields the Dojo still marks pending_annotation.
@@ -390,7 +398,7 @@ _MONTH_RX = (r"(?:January|February|March|April|May|June|July|August|September|Oc
              r"|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)")
 SPAN_DATE_RX = re.compile(rf"({_MONTH_RX}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\s*,?\s*\d{{4}}"
                           rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?{_MONTH_RX},?\s+\d{{4}}|\d{{1,2}}/\d{{1,2}}/\d{{4}}|\d{{4}}-\d{{2}}-\d{{2}})")
-END_CUE_RX = re.compile(r"(?:until|through|thru|expir\w*|end\w*|terminat\w*|to\s+and\s+including)\W+(?:\w+\W+){0,6}?$", re.I)
+END_CUE_RX = re.compile(r"\b(?:until|through|thru|expir\w*|end(?:s|ed|ing)?|terminat\w*|to\s+and\s+including)\b\W+(?:\w+\W+){0,6}?$", re.I)
 PERIOD_RX = re.compile(r"((?:(?:at\s+least|at\s+most|not\s+less\s+than|no\s+less\s+than|not\s+more\s+than|"
                        r"no\s+more\s+than|no\s+later\s+than|a\s+minimum\s+of|a\s+maximum\s+of)\s+)?"
                        r"(?:[a-z\-]+\s+)?\(?\d+\)?\s*(?:calendar\s+|business\s+|working\s+)?"
@@ -528,7 +536,9 @@ def _generated_contract_cuad(
     out["parties"] = ("generated_derived", _cuad_party_names(spans), [])
     for fld, cat in (("effective_date", "Effective Date"), ("agreement_date", "Agreement Date")):
         if spans.get(cat):
-            out[fld] = ("generated_derived", _date_value(spans[cat][0]), [])
+            value = _date_value(spans[cat][0])
+            if value is not False:
+                out[fld] = ("generated_derived", value, [])
     out["governing_law"] = ("generated_derived", _cuad_governing_law(spans), [])
     for fld, cat in (("term_length", "Expiration Date"), ("renewal_terms", "Renewal Term")):
         out[fld] = ("generated_derived", spans[cat][0].strip()[:400] if spans.get(cat) else None, [])

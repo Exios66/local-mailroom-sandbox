@@ -60,6 +60,18 @@ def test_missing_expiration_annotation_is_not_absence():
     assert blr._cuad_expiration(
         ["The term of this Agreement shall commence on January 10th, 2020."]
     ) is False
+    # "end" inside Vendor must not act as an end cue.
+    assert blr._cuad_expiration(
+        ["Vendor shall commence services on March 1, 2020."]
+    ) is False
+
+
+def test_date_value_skips_event_defined_spans():
+    assert blr._date_value("[___], 2020") is None
+    assert blr._date_value("March 1, 2020") == "2020-03-01"
+    assert blr._date_value(
+        "the date on which this Agreement is signed by both parties"
+    ) is False
 
 
 def test_expected_cache_digest_is_pinned():

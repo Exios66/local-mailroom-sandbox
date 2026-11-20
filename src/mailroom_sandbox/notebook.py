@@ -503,8 +503,10 @@ def show_figure(fig: Any) -> None:
     import matplotlib.pyplot as plt
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
-    plt.close(fig)
+    try:
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
+    finally:
+        plt.close(fig)
     display(Image(data=buf.getvalue()))
 
 
