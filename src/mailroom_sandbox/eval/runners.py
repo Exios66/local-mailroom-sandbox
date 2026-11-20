@@ -1137,6 +1137,31 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
     )
 
 
+def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
+                        scored: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The per-document ``score`` a pipeline run persists in ``items.jsonl``.
+
+    ``scored`` is ``_score_pipeline_extraction(row, result)`` (None when the row has no field
+    truth or the run was not connected). ``sandbox rescore`` calls this too, so a re-scored item
+    has exactly the keys and meaning of one scored during the run.
+    """
+    stage = str(result.get("stage") or "unknown")
+    score: dict[str, Any] = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
+                             "class_correct": float(result.get("doc_type") == row.get("expected_doc_class")),
+                             "stage_correct": float(stage == str(row.get("expected_stage") or "archived"))}
+    # The same scorer output the run-level aggregate uses, so a report can read it per document.
+    score.update({k: v for k, v in (scored or {}).items()
+                  if isinstance(v, (int, float)) and not isinstance(v, bool)})
+    # SHF-012: the document's subclass outcome, hotfixed and raw (docs/scoring-hotfixes.md).
+    sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
+                                   result.get("doc_type"), scoring.predicted_subclass(result))
+    if sub is not None:
+        score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
+    # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
+    score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
+    return score
+
+
 def _pipeline_extraction_scores(extraction_rows: Sequence[Mapping[str, Any] | None],
                                 class_ok: Sequence[bool]) -> dict[str, Any]:
     """Run-level extraction headline of a pipeline run, dual reported (``docs/scoring-hotfixes.md``).
@@ -1322,20 +1347,7 @@ def run_pipeline_eval(
         scored = _score_pipeline_extraction(row, result) if connected else None
         scored_by_index[index] = scored
         if row_cb:
-            stage = str(result.get("stage") or "unknown")
-            score = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
-                     "class_correct": float(result.get("doc_type") == row.get("expected_doc_class")),
-                     "stage_correct": float(stage == str(row.get("expected_stage") or "archived"))}
-            # The same scorer output the run-level aggregate uses, so a report can read it per document.
-            score.update({k: v for k, v in (scored or {}).items()
-                          if isinstance(v, (int, float)) and not isinstance(v, bool)})
-            # SHF-012: the document's subclass outcome, hotfixed and raw (docs/scoring-hotfixes.md).
-            sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
-                                           result.get("doc_type"), scoring.predicted_subclass(result))
-            if sub is not None:
-                score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
-            # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
-            score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
+            score = pipeline_item_score(row, result, scored)
             timing = {"started_at_ns": window[0], "finished_at_ns": window[1]} if window else {}
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
                     "latency_ms": latency_ms, **timing, **doc_usage})

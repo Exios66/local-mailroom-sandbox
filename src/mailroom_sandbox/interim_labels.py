@@ -444,8 +444,12 @@ def _record_quote_problem(value: Any, evidence: Any) -> str | None:
 
 def read_reviews(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     """The review lines of ``path`` and what is wrong with them (duplicates included)."""
+    return _review_lines(path, _jsonl(path))
+
+
+def _review_lines(path: Path, records: Iterable[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
     lines, problems, seen = [], [], set()
-    for n, line in enumerate(_jsonl(path), start=1):
+    for n, line in enumerate(records, start=1):
         where = f"{path.name}:{n} {line.get('doc_id')}.{line.get('field')}"
         why = review_line_problem(line)
         if why:
@@ -611,19 +615,37 @@ def verify(root: Path | None = None, *, reviews: bool = True) -> list[str]:
     With ``reviews`` (the default) every review file the manifest lists must be unchanged since it
     was applied (its sha256) and every one of its lines must be in the overlay as written.
     """
+    return overlay_snapshot(root, reviews=reviews)[2]
+
+
+def overlay_snapshot(root: Path | None = None, *, reviews: bool = True
+                     ) -> tuple[dict[str, dict[str, Any]], str, list[str]]:
+    """Records, manifest fingerprint and validation from the same input bytes."""
     root = root or overlay_dir()
-    man = load_manifest(root)
+    manifest_path = root / "MANIFEST.json"
+    if not manifest_path.is_file():
+        return {}, "", ["MANIFEST.json: missing"]
+    manifest_bytes = manifest_path.read_bytes()
+    fingerprint = hashlib.sha256(manifest_bytes).hexdigest()
+    man = json.loads(manifest_bytes)
+    overlay: dict[str, dict[str, Any]] = {}
     problems: list[str] = []
     if man.get("schema") != SCHEMA:
-        return [f"MANIFEST.json schema {man.get('schema')!r} is not {SCHEMA!r}"]
+        return {}, fingerprint, [f"MANIFEST.json schema {man.get('schema')!r} is not {SCHEMA!r}"]
     for name, sha in (man.get("files") or {}).items():
         path = root / name
         if not path.exists():
             problems.append(f"{name}: listed in the manifest but missing")
             continue
-        if _sha(path.read_text(encoding="utf-8")) != sha:
+        blob = path.read_bytes()
+        if hashlib.sha256(blob).hexdigest() != sha:
             problems.append(f"{name}: sha256 differs from the manifest (edited by hand? rebuild with scripts/interim_labels.py build)")
-        for rec in _jsonl(path):
+            continue
+        for line in blob.decode("utf-8").split("\n"):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            overlay[rec["doc_id"]] = rec
             for field, lab in (rec.get("labels") or {}).items():
                 if lab.get("status") not in STATUSES:
                     problems.append(f"{rec.get('doc_id')}.{field}: unknown status {lab.get('status')!r}")
@@ -635,24 +657,24 @@ def verify(root: Path | None = None, *, reviews: bool = True) -> list[str]:
     extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
     problems += [f"{name}: not in the manifest" for name in extra]
     if reviews and not problems:
-        problems += _review_file_problems(root, man.get("reviews") or [])
-    return problems
+        problems += _review_file_problems(overlay, man.get("reviews") or [])
+    return overlay, fingerprint, problems
 
 
-def _review_file_problems(root: Path, entries: Iterable[Mapping[str, Any]]) -> list[str]:
+def _review_file_problems(overlay: Mapping[str, Any], entries: Iterable[Mapping[str, Any]]) -> list[str]:
     """Each listed review file unchanged since it was applied, and every one of its lines in the overlay."""
     problems: list[str] = []
-    overlay = None
     for entry in entries:
         path = repo_root() / entry["path"]
         if not path.exists():
             problems.append(f"{entry['path']}: review file listed in the manifest but missing")
             continue
-        if _sha(path.read_text(encoding="utf-8")) != entry.get("sha256"):
+        blob = path.read_bytes()
+        if hashlib.sha256(blob).hexdigest() != entry.get("sha256"):
             problems.append(f"{entry['path']}: changed since it was applied; run scripts/interim_labels.py review")
             continue
-        lines, bad = read_reviews(path)
-        overlay = load_overlay(root) if overlay is None else overlay
+        records = [json.loads(line) for line in blob.decode("utf-8").split("\n") if line.strip()]
+        lines, bad = _review_lines(path, records)
         problems += bad + reviews_reflected(overlay, lines)
     return problems
 
@@ -771,13 +793,9 @@ def apply_overlay_parquet(source: Any, out: Path | str | None = None, *,
     if out is not None and not isinstance(source, pa.Table) and Path(out).resolve() == Path(source).resolve():
         raise ValueError("refusing to overwrite the source shard; write the overlaid table elsewhere")
     if overlay is None:
-        problems = verify()
+        overlay, overlay_sha, problems = overlay_snapshot()
         if problems:
             raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
-        overlay_sha = overlay_fingerprint()
-        overlay = load_overlay()
-        if overlay_fingerprint() != overlay_sha:  # rewritten while it was read: labels and sha would disagree
-            raise ValueError("the interim label overlay changed while it was read; apply it again")
     sha = overlay_sha or ""
     rows = [apply_overlay(r, overlay, overlay_sha=sha) for r in table.to_pylist()]
     marks = [json.dumps(r["interim_labels"], sort_keys=True) if r.get("interim_labels") else None for r in rows]
