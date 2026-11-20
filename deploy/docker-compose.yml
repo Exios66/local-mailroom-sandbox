@@ -1,7 +1,10 @@
 # Local-mailroom-sandbox compose stack.
 # Images are version-pinned (offline reproducibility; HUB-015 best-practice sweep).
 # Profiles: langfuse (default tracing), ollama, vllm, llamacpp, phoenix (optional),
-#           jupyter (offline notebook image built from deploy/Dockerfile).
+#           jupyter (offline notebook image built from deploy/Dockerfile),
+#           pipeline (CPU graph runner + localhost vLLM front door).
+# vllm and pipeline both publish 127.0.0.1:8000. Start vllm on each GPU
+# machine and pipeline on the control machine. See mailroom_sandbox.fleet.
 # GPU is NOT required for langfuse + ollama-on-CPU. vLLM needs an NVIDIA GPU.
 #
 # Langfuse 3 (web + worker) speaks the Python SDK v4 data model used by
@@ -316,6 +319,59 @@ services:
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-sandboxlocal}
     ports:
       - "127.0.0.1:3000:3000"
+
+  # Full-pipeline control plane. One CPU runner (the OpenRouter slices are also
+  # one process, concurrency 10) plus an nginx front door. GPU machines run the
+  # vllm profile alone and are reached by SSH forwards onto host ports
+  # 18000+, which deploy/pipeline-front/nginx.conf lists. Regenerate that file
+  # with mailroom_sandbox.fleet.render_nginx when the fleet size changes.
+  # The image HEALTHCHECK curls Jupyter; this service is not Jupyter.
+  vllm-front:
+    image: nginx:1.27.4-alpine
+    profiles: ["pipeline"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./pipeline-front/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  pipeline:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: mailroom-sandbox:offline
+    profiles: ["pipeline"]
+    user: "${SANDBOX_UID:-1000}:${SANDBOX_GID:-1000}"
+    command: ["sleep", "infinity"]
+    environment:
+      SANDBOX_ROOT: /workspace
+      MAILROOM_BASE_DIR: /workspace/data
+      SANDBOX_PROFILE: ${SANDBOX_PROFILE:-vllm-local}
+      VLLM_BASE_URL: http://vllm-front:8000/v1
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-sandbox}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-sandbox}
+      OBSERVABILITY_PROVIDER: ${OBSERVABILITY_PROVIDER:-langfuse}
+    volumes:
+      - ..:/workspace
+    working_dir: /workspace
+    depends_on:
+      vllm-front:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import mailroom_sandbox"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
 
 volumes:
   phoenix_data:

@@ -1,0 +1,12 @@
+figure,label,value,unit,n,measured,source
+admission-cliff,Admission 32,39.0,s,100,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md stages 7 and 9
+admission-cliff,Admission 64,149.4,s,100,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md stages 7 and 9
+class-wall-time,Merger agreement,342.4,s,50,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md section 3
+class-wall-time,Contract,234.3,s,50,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md section 3
+class-wall-time,Insurance claim,60.7,s,50,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md section 3
+class-wall-time,Corporate record,56.3,s,50,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md section 3
+class-wall-time,Correspondence,16.0,s,50,yes,reports/serving/QWEN3-L4-LADDER-SUMMARY.md section 3
+boot-context,"Qwen3.5 9B, online FP8",,tokens,,no,"SAND-032 live boots, except Qwen3.5-9B which config/models.yaml leaves unverified"
+boot-context,"Granite 4.2 8B, FP8",32768,tokens,,yes,"SAND-032 live boots, except Qwen3.5-9B which config/models.yaml leaves unverified"
+boot-context,"Qwen3 8B, AWQ",32768,tokens,,yes,"SAND-032 live boots, except Qwen3.5-9B which config/models.yaml leaves unverified"
+boot-context,"Qwen3 8B, bf16",16384,tokens,,yes,"SAND-032 live boots, except Qwen3.5-9B which config/models.yaml leaves unverified"
