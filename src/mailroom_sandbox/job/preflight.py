@@ -263,17 +263,41 @@ def _decision_slots_lock(spec: RunSpec) -> dict[str, Any]:
     return block
 
 
+def _routing_identity_drift(existing: Mapping[str, Any]) -> str | None:
+    """Refuse resume when a locked 4.2.0 routing fingerprint no longer matches this checkout.
+
+    Locks that never recorded ``routing_sha256`` (published sets, older drafts) resume.
+    """
+    locked = (existing.get("reviewer") or {}).get("routing_sha256")
+    if not locked:
+        return None
+    from mailroom_sandbox.decision_backends import v42_routing_sha256
+
+    if locked != v42_routing_sha256():
+        return ("4.2.0 routing code changed since this run was locked; "
+                "pass --force to re-lock")
+    return None
+
+
 def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
     """The reviewer block as locked; a Decisions question set is frozen by content and hash."""
     block = spec.reviewer.model_dump()
     if spec.reviewer.backend == "decisions" and spec.reviewer.questions:
         import hashlib
 
-        from mailroom_sandbox.decision_backends import decisions_dir, load_question_set
+        from mailroom_sandbox.decision_backends import (
+            decisions_dir,
+            load_question_set,
+            uses_v42_routing,
+            v42_routing_sha256,
+        )
 
         path = decisions_dir() / f"{spec.reviewer.questions}.yaml"
         block["questions_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         block["question_set"] = load_question_set(spec.reviewer.questions)
+        # YAML hash does not cover apply_v42_rules. Lock that source when the set uses it.
+        if uses_v42_routing(block["question_set"]):
+            block["routing_sha256"] = v42_routing_sha256()
     if spec.reviewer.handoff_run:
         # Freeze the handoff (by document id) so a resumed run sees the same answers: the
         # sorter's on a reviewer calibration, the specialist's extraction on a gate run.
@@ -1160,7 +1184,13 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
     if locked_filter is None:
         return {"status": "drift_refused", "run_id": run_id,
                 "detail": "Legacy lock does not prove task-GT selection; preserve it and use --force to archive/re-lock explicitly"}
-    if _spec_fields_drifted(existing, spec, prompt_text_sha, report_group, locked_filter):
+    drifted = _spec_fields_drifted(existing, spec, prompt_text_sha, report_group, locked_filter)
+    # A changed 4.2.0 routing digest refuses on its own. Spec, prompt, runbook,
+    # or report-group drift keeps the broader message.
+    routing_detail = _routing_identity_drift(existing)
+    if not drifted and routing_detail:
+        return {"status": "drift_refused", "run_id": run_id, "detail": routing_detail}
+    if drifted:
         return {
             "status": "drift_refused",
             "run_id": run_id,

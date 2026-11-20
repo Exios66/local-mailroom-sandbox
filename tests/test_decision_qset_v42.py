@@ -303,3 +303,33 @@ def test_v42_retains_the_aligned_classification_criteria(v42):
     for cls in parent["subclass"]:
         assert v42["subclass"][cls]["criteria"] == parent["subclass"][cls]["criteria"]
     assert "arbitration demand" in v42["subclass"]["correspondence"]["markers"]["demand"]
+
+
+def test_v42_routing_identity_is_locked_and_a_changed_digest_refuses_resume():
+    """The YAML hash does not cover apply_v42_rules; the lock's routing digest does."""
+    from mailroom_sandbox.job.preflight import _reviewer_lock, _routing_identity_drift
+    from mailroom_sandbox.job.spec import ReviewerSpec
+
+    class _Spec:
+        task = "sorter_reviewer"
+
+        def __init__(self, stem):
+            self.reviewer = ReviewerSpec(backend="decisions", model=DECISIONS, questions=stem,
+                                         classes={"contract": 0.5})
+
+    locked = _reviewer_lock(_Spec(V42))
+    assert locked["routing_sha256"] == db.v42_routing_sha256()
+    assert len(locked["routing_sha256"]) == 64
+    published = _reviewer_lock(_Spec("reviewer_decisions_v4.1.0"))
+    assert "routing_sha256" not in published
+    assert _routing_identity_drift({"reviewer": locked}) is None
+    assert _routing_identity_drift({"reviewer": published}) is None
+    assert _routing_identity_drift({}) is None
+    refused = _routing_identity_drift({"reviewer": {**locked, "routing_sha256": "0" * 64}})
+    assert refused and "routing code changed" in refused
+    # The digest is lock metadata. ReviewerSpec forbids extra fields, so activation must drop it.
+    from mailroom_sandbox.runtime import _install_reviewer
+
+    taxonomy: dict = {}
+    _install_reviewer({**locked, "classes": {"contract": 0.5}}, taxonomy)
+    assert taxonomy["reviewer"]["by_class"]["contract"]["cutoff"] == 0.5
