@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -79,3 +80,15 @@ def test_build_refuses_existing_output(tmp_path: Path):
     existing.mkdir()
     with pytest.raises(FileExistsError, match="output exists"):
         blr.build(existing)
+
+
+def test_jsonl_split_keeps_unicode_line_separators_inside_records():
+    raw = json.dumps({"id": "DOC-1", "doc_text": "line\u2028with\u2029separators"}, ensure_ascii=False) + "\n"
+    rows = [json.loads(line) for line in raw.split("\n") if line.strip()]
+    assert rows[0]["doc_text"] == "line\u2028with\u2029separators"
+    with pytest.raises(json.JSONDecodeError):
+        [json.loads(line) for line in raw.splitlines() if line.strip()]
+    src = Path(blr.__file__).read_text(encoding="utf-8")
+    body = src.split("def jsonl", 1)[1].split("\ndef ", 1)[0]
+    assert '.split("\\n")' in body
+    assert "decode(\"utf-8\").splitlines()" not in body

@@ -212,7 +212,8 @@ class InputSnapshot:
         return data
 
     def jsonl(self, path: Path) -> list[dict[str, Any]]:
-        return [json.loads(line) for line in self.read(path).decode("utf-8").splitlines() if line.strip()]
+        # Use "\n" only: str.splitlines() also splits on U+2028/U+2029 inside doc_text.
+        return [json.loads(line) for line in self.read(path).decode("utf-8").split("\n") if line.strip()]
 
 
 def doc_sha(text: str) -> str:
@@ -655,7 +656,10 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
         "n_distinct_values": len(groups),
         "conflict": len(groups) > 1,
         "needs_human": needs_human,
-        "evidence": [{**e, "source": b["source"]} for b in win for e in b.get("evidence") or []],
+        "evidence": [
+            {**(e if isinstance(e, dict) else {"text": str(e)}), "source": b["source"]}
+            for b in win for e in (b.get("evidence") or [])
+        ],
         "votes": {b["source"]: b["value"] for b in ballots},
     }
 

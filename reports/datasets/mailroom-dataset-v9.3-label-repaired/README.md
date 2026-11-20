@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,430 labeled,
-5,178 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **88.6%** of per-class target fields (43,157 labeled,
+5,451 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,430 (89.2%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,157 (88.6%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 ## Files
