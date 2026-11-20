@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- **Production slices score against staged overlay `9.3.1-rc.5` (review fixes).**
+  - `config/staged_overlays.yaml` pins rc.5 (mailroom-issues `d4e92a68`, manifest `27d0bb37…`).
+    The seven `config/runs/production/slice-*` configs move from rc.4 to rc.5.
+  - rc.5 holds back the following as `disputed_unresolved`: 23 interim merger effective dates
+    whose audit awaits the owner, and conflicting labels on two pairs of identical-text
+    documents. It also removes suffix-only and defined-term name captures.
+  - Scores are not comparable to rc.4 on those fields. Establish a new baseline before a
+    paired re-run.
 - **Production slices now score against the validated staged overlay `9.3.1-rc.4`.**
   - `config/staged_overlays.yaml` pins rc.4 (mailroom-issues `3dd4e402`, manifest
     `3a6efaed…`). The seven `config/runs/production/slice-*` configs move from rc.3 to rc.4.

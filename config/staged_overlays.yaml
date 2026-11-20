@@ -29,3 +29,11 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.4
     manifest_sha256: 3a6efaed35ae51078edf7dc1206863b52af238b514d71e28b53f76be8761ebda
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.4 after review: owner-pending interim dates and same-text conflicts held as disputed,
+  # suffix-only / defined-term name captures removed (mailroom-issues d4e92a68, sandbox 9e641d99).
+  9.3.1-rc.5:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: d4e92a683f9c94f824283e84246ba64b8076af18
+    path: v9.3.0/pre-release/v9.3.1-rc.5
+    manifest_sha256: 27d0bb37803efb656b05576ceaf3d39b24f09fd2ff84fa558ed9ce92e6341778
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
