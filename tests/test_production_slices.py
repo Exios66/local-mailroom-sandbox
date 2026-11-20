@@ -51,7 +51,7 @@ def _draw(name: str, tmp_path: Path, exclude_file: Path | None = None) -> list[d
     cache = _cache_path()
     if cache is None:
         pytest.skip("cached ground_truth_all.jsonl not present (set SANDBOX_DATASET_CACHE)")
-    update = {"provider": "file", "local_path": str(cache), "interim_labels": False}
+    update = {"provider": "file", "local_path": str(cache), "interim_labels": False, "staged_overlay": None}
     if exclude_file is not None:
         update["exclude_ids_file"] = str(exclude_file)
     ds = _load(name).dataset.model_copy(update=update)
@@ -71,7 +71,10 @@ def test_slices_validate_and_share_settings():
         assert spec.task == "pipeline"
         assert spec.job.blind_routing is True
         assert spec.job.mock is False
-        assert spec.dataset.interim_labels is True
+        # Production scores against the pinned staged v10 overlay (docs/staged-label-overlay.md),
+        # which already merges the interim and near-gold layers.
+        assert spec.dataset.staged_overlay == "9.3.1-rc.3"
+        assert spec.dataset.interim_labels is False and spec.dataset.near_gold_labels is False
         assert spec.dataset.require_task_gt is True
         # Slices draw from the current family pin; r3 (the tuning source) stays on the
         # revision it was measured against, so the slices no longer share its revision.

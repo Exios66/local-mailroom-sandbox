@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+- **Production slice configs score against staged overlay `9.3.1-rc.3`.** The seven
+  `config/runs/production/slice-*` configs (local and Modal-host twins) set
+  `dataset.staged_overlay: 9.3.1-rc.3` in place of `interim_labels` / `near_gold_labels`.
+  Pull the cut before preflight. `judge-audit-0026` keeps its earlier labels on purpose.
 - **Production scoring reads the staged label overlay, pinned and hash-checked.**
   - New `dataset.staged_overlay: <version>` (`mailroom_sandbox.staged_overlay`). A run applies
     a mailroom-issues `production-overlay` cut over the Hub labels, instead of the interim and

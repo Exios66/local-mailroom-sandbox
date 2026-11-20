@@ -55,8 +55,10 @@ dataset:
       - {doc_class: merger_agreement, count: 5}
   sample_seed: 3302          # one seed for every slice, so the draws nest
   require_task_gt: true     # every document can be scored
-  interim_labels: true      # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
-  near_gold_labels: true  # fill fields still unlabelled with Claude near-gold labels (data/labels/gold-overlay; status near_gold)
+  # Staged v10 label repairs from mailroom-issues mailroom_cache (pinned in config/staged_overlays.yaml):
+  # the merged Hub + interim + near-gold + reviewed master, so it replaces interim_labels / near_gold_labels.
+  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.3 (docs/staged-label-overlay.md).
+  staged_overlay: 9.3.1-rc.3
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
   draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 
