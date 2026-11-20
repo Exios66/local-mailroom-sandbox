@@ -1,10 +1,11 @@
 # Mailroom Dataset v9.3: label-repaired CSV release
 
-A fully labeled, CSV version of
+A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
-release **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business
-and legal documents in five classes. It is one snapshot of a dataset that is still being developed,
-not the final release.
+**v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
+legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,430 labeled,
+5,178 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
 release labels **43,430 (89.2%)**. Each added or changed label was chosen by a consensus vote over
@@ -17,9 +18,11 @@ every label source in this repository, and the vote that chose it is kept in the
 | `mailroom_dataset_v9.3_label_repaired.csv` | 3,302 | One row per document: identifiers, metadata, text statistics, a 280-character text preview, every label field, and per-row completeness counters. **The main analysis file.** |
 | `mailroom_dataset_v9.3_label_repaired_label_provenance.csv` | 48,688 | One row per document and target field (plus the 2 subclass changes): the chosen value, its presence code, the winning source, every source's vote, the agreement and the evidence quote. |
 | `mailroom_dataset_v9.3_label_repaired_field_completeness.csv` | 74 | Per class and field: how many documents are labeled in v9.3 and here, populated or documented absent, still unlabeled, disputed, and conflicts resolved. |
-| `mailroom_dataset_v9.3_label_repaired_summary.json` | | Totals, source weights, and the sha256 of every input file. |
-| `build_label_repaired.py` | | The deterministic builder that wrote all of the above. |
+| `mailroom_dataset_v9.3_label_repaired_summary.json` | N/A | Totals, source weights, and the sha256 of every input file. |
+| `build_label_repaired.py` | N/A | The deterministic builder that wrote all of the above. |
 | `mailroom_dataset_v9.3_label_repaired_text.csv.gz` | 3,302 | Full document text (`document_id`, `doc_text`), about 26 MB. **Not committed.** Run the builder with `--with-text` to create it. |
+
+Paths below are relative to this release directory.
 
 ```python
 import pandas as pd, json
@@ -28,7 +31,11 @@ df = pd.read_csv("mailroom_dataset_v9.3_label_repaired.csv")
 prov = pd.read_csv("mailroom_dataset_v9.3_label_repaired_label_provenance.csv")
 # list-valued cells (parties, keywords, signatories, ...) are JSON strings
 df["parties_list"] = df["parties"].dropna().map(json.loads)
-# optional full text
+```
+
+Optional full text (only after rebuilding with `--with-text`; the archive is not committed):
+
+```python
 text = pd.read_csv("mailroom_dataset_v9.3_label_repaired_text.csv.gz")
 df = df.merge(text, on="document_id", how="left")
 ```
@@ -80,16 +87,18 @@ that label, and the label keeps its fuller wording. `agreement` records
 weight. A vote with three or more competing values whose winner holds under half of the weight is
 flagged `needs_human`; none occurred.
 
-**Check against production truth.** The repository's own scoring merge (`interim_labels.apply_overlay`
-and then `gold_labels.apply_near_gold`) labels 35,140 of these cells. The vote chose the same value
-on all 35,140, with no differences. The 8,290 cells it adds come from the generated labels (6,900),
-CUAD spans (584), unreviewed gold candidates (802), and 4 disputed gold values that a CUAD span
-confirms. Each of these keeps its own source name.
+**Check against production truth (unverified in this README).** A prior local rebuild reported that
+the repository's scoring merge (`interim_labels.apply_overlay` then `gold_labels.apply_near_gold`)
+labeled 35,140 of these cells and that the vote matched all 35,140, with 8,290 added cells from
+generated labels (6,900), CUAD spans (584), unreviewed gold candidates (802), and 4 disputed gold
+values a CUAD span confirms. Re-run the builder and compare against a dated validation artifact
+before citing these totals; they are not pinned here.
 
-**Check of the CUAD span mapping.** Where a CUAD-mapped value and an existing two-pass or gold label
-cover the same cell, they agree on 169 of 171 `expiration_date` cells, 43 of 46
-`termination_notice_period` cells and 10 of 10 `dispute_forum` cells. CUAD does not annotate
-party roles, so `party_roles` is not mapped from it.
+**Check of the CUAD span mapping (unverified in this README).** The same local rebuild reported
+agreement on 169 of 171 `expiration_date` cells, 43 of 46 `termination_notice_period` cells and
+10 of 10 `dispute_forum` cells where a CUAD-mapped value overlapped a two-pass or gold label. CUAD
+does not annotate party roles, so `party_roles` is not mapped from it. Treat these counts as
+unverified until a dated rebuild records them in `summary.json` / provenance.
 
 ## Presence codes (provenance file)
 
@@ -100,14 +109,17 @@ party roles, so `party_roles` is not mapped from it.
 | `unlabeled` | No source labels this field for this document. Treat as missing, not as absent. |
 | `disputed_unresolved` | Only a disputed value exists. Left blank for human review (78 cells, all contract fields). |
 
-In the main CSV, a blank cell is ambiguous on its own. Use the provenance file, or the per-row
-`fields_labeled` / `label_completeness` counters, to tell `documented_absence` from `unlabeled`.
+In the main CSV, a blank cell is ambiguous on its own. Classify each blank from the provenance row
+for that `(document_id, field)` (`presence` = `documented_absence` or `unlabeled`). The wide-row
+counters `fields_labeled` and `label_completeness` are aggregates only; they cannot identify which
+blank in a row is absence versus unlabeled.
 
 ## Other repairs
 
 - **2,100 `"nan"` placeholder strings** on GNOTHEIA and BDR insurance rows are dropped. They sat in
   fields that do not apply to insurance claims (staged upstream for v9.4).
-- **13 duplicate documents are flagged**, not removed: `duplicate_of` names the copy that is kept.
+- **13 duplicate documents are flagged**, not removed: `duplicate_of` names the kept copy. When a
+  reviewed subclass correction exists in a duplicate group, that reviewed document is kept.
   `exact_duplicate_count` and `normalized_duplicate_count` give the size of each group. Drop rows
   with a non-blank `duplicate_of` for de-duplicated analysis (upstream v9.4 removes 10).
 - **2 subclasses corrected** by reviewed evidence (`subclass_changed`). The v9.3 value is kept in
@@ -140,8 +152,13 @@ In the main CSV, a blank cell is ambiguous on its own. Use the provenance file, 
 
 ```bash
 .venv/bin/sandbox datasets pull        # caches v9.3 under data/cache/ (no LLM, no spend)
-.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py --with-text
+.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py \
+  --out reports/datasets/mailroom-dataset-v9.3-label-repaired/generated-YYYYMMDD
+# optional: add --with-text for the gzipped text archive (not committed)
 ```
 
-The build is deterministic and network-free once the cache exists, and takes about five seconds.
-`summary.json` pins the sha256 of every input it read.
+The builder refuses an existing `--out` directory and publishes by renaming a complete staged set,
+so readers never see a mix of old and new release files. The build is deterministic and
+network-free once the cache exists. `summary.json` pins the sha256 of every input byte it parsed
+(including consumed Parquet shards) and of each output file. Rebuild timing is environment-dependent;
+do not treat a prior “about five seconds” figure as a pinned measurement.

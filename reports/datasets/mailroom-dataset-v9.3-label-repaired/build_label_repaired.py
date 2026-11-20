@@ -31,12 +31,16 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
-import glob
+import argparse
 import hashlib
+import io
 import json
+import os
 import re
 import sys
+import tempfile
 from collections import Counter, defaultdict
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -49,8 +53,6 @@ from llm_dojo_scoring.schemas.maud_schema import hub_merger_expected_fields  # n
 
 REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
 CACHE = ROOT / "data" / "cache" / f"Lucius-Morningstar__mailroom-dataset__{REVISION[:12]}" / "ground_truth_all.jsonl"
-PARQUET_GLOB = str(ROOT / "data" / "cache" / "hf" / "hub" / "datasets--Lucius-Morningstar--mailroom-dataset"
-                   / "snapshots" / REVISION / "parquet" / "ground_truth" / "*" / "*.parquet")
 LABELS = ROOT / "data" / "labels"
 STEM = "mailroom_dataset_v9.3_label_repaired"
 
@@ -117,8 +119,12 @@ def to_iso(text: str) -> str | None:
     """ISO date (or ``YYYY-MM`` for a month and year) of a date phrase; None when it holds no date."""
     s = re.sub(r"(\d)\s*(s\s*t|n\s*d|r\s*d|t\s*h)\b", lambda m: m.group(1) + m.group(2).replace(" ", ""),
                str(text).strip())
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
-        return s
+    iso = re.search(r"\b\d{4}-\d{2}-\d{2}\b", s)
+    if iso:
+        try:
+            return dt.date.fromisoformat(iso.group()).isoformat()
+        except ValueError:
+            return None
     ymd = None
     m = re.search(r"\b([A-Za-z]{3,9})\.?\s*(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(\d{4})\b", s)
     if m and m.group(1).lower() in MONTHS:
@@ -171,7 +177,16 @@ def canon(field: str, v: Any) -> str:
         if field in PARTY_FIELDS:
             return _toks(_ANNOT.sub(" ", s)) or _toks(s)
         if field == "contract_value" or field.endswith("_fee") or field.endswith("_amount"):
-            return re.sub(r"[^0-9.]", "", s).rstrip("0").rstrip(".") or _toks(s)
+            amount = re.fullmatch(r"\s*([A-Za-z]{3}|[$€£])?\s*(-?\d[\d,]*(?:\.\d+)?)\s*([A-Za-z]{3})?\s*", s)
+            if amount:
+                currency = (amount[1] or amount[3] or "").upper()
+                currency = {"$": "USD", "€": "EUR", "£": "GBP"}.get(currency, currency)
+                try:
+                    number = format(Decimal(amount[2].replace(",", "")).normalize(), "f")
+                    return f"{currency}:{number}"
+                except InvalidOperation:
+                    pass
+            return _toks(s)
         return _toks(s)
 
     if isinstance(v, list):
@@ -181,24 +196,48 @@ def canon(field: str, v: Any) -> str:
 
 # --------------------------------------------------------------------------- inputs
 
-def jsonl(path: Path | str) -> list[dict[str, Any]]:
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+class InputSnapshot:
+    """Hash the exact bytes parsed, including each consumed Parquet shard."""
+
+    def __init__(self) -> None:
+        self.hashes: dict[str, str] = {}
+
+    def read(self, path: Path, *, label: str | None = None) -> bytes:
+        data = path.read_bytes()
+        key = label or str(path.relative_to(ROOT))
+        digest = hashlib.sha256(data).hexdigest()
+        if key in self.hashes and self.hashes[key] != digest:
+            raise ValueError(f"input changed during build: {key}")
+        self.hashes[key] = digest
+        return data
+
+    def jsonl(self, path: Path) -> list[dict[str, Any]]:
+        return [json.loads(line) for line in self.read(path).decode("utf-8").splitlines() if line.strip()]
 
 
 def doc_sha(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:16]
 
 
-def load_parquet_meta() -> dict[str, dict[str, Any]]:
+def load_parquet_meta(inputs: InputSnapshot) -> dict[str, dict[str, Any]]:
     import pyarrow.parquet as pq
 
     meta: dict[str, dict[str, Any]] = {}
-    for p in sorted(glob.glob(PARQUET_GLOB)):
-        for r in pq.read_table(p).to_pylist():
+    hf_home = Path(os.environ.get("HF_HOME") or ROOT / "data" / "cache" / "hf")
+    hub = Path(os.environ.get("HF_HUB_CACHE") or hf_home / "hub")
+    snapshot = hub / "datasets--Lucius-Morningstar--mailroom-dataset" / "snapshots" / REVISION
+    shards = sorted(snapshot.glob("parquet/ground_truth/*/*.parquet"))
+    if not shards:
+        raise ValueError("pinned ground-truth Parquet metadata is not cached; configure HF_HOME/HF_HUB_CACHE")
+    for p in shards:
+        data = inputs.read(p, label=f"hf-snapshot/{REVISION}/{p.relative_to(snapshot)}")
+        for r in pq.read_table(io.BytesIO(data)).to_pylist():
             r.pop("gt_fields", None)
             r.pop("prompt", None)
-            meta[r["document_id"]] = r
+            did = r["document_id"]
+            if did in meta:
+                raise ValueError(f"duplicate Parquet metadata ID: {did}")
+            meta[did] = r
     return meta
 
 
@@ -309,11 +348,12 @@ def _date_value(span: str) -> str | None:
 _MONTH_RX = (r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar"
              r"|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)")
 SPAN_DATE_RX = re.compile(rf"({_MONTH_RX}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\s*,?\s*\d{{4}}"
-                          rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?{_MONTH_RX},?\s+\d{{4}}|\d{{1,2}}/\d{{1,2}}/\d{{4}})")
+                          rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?{_MONTH_RX},?\s+\d{{4}}|\d{{1,2}}/\d{{1,2}}/\d{{4}}|\d{{4}}-\d{{2}}-\d{{2}})")
 END_CUE_RX = re.compile(r"(?:until|through|thru|expir\w*|end\w*|terminat\w*|to\s+and\s+including)\W+(?:\w+\W+){0,6}?$", re.I)
-PERIOD_RX = re.compile(r"((?:at\s+least|not\s+less\s+than|no\s+less\s+than|no\s+later\s+than|a\s+minimum\s+of|upon|with|"
-                       r"giving|on)?\s*(?:[a-z\-]+\s+)?\(?\d+\)?\s*(?:calendar\s+|business\s+|working\s+)?"
-                       r"(?:days?|months?|years?)['’]?[^.;:,]{0,120})", re.I)
+PERIOD_RX = re.compile(r"((?:(?:at\s+least|at\s+most|not\s+less\s+than|no\s+less\s+than|not\s+more\s+than|"
+                       r"no\s+more\s+than|no\s+later\s+than|a\s+minimum\s+of|a\s+maximum\s+of)\s+)?"
+                       r"(?:[a-z\-]+\s+)?\(?\d+\)?\s*(?:calendar\s+|business\s+|working\s+)?"
+                       r"(?:days?|months?|years?))\b", re.I)
 START_CUE_RX = re.compile(r"(?:commenc\w*|begin\w*|effective|from|dated|as\s+of|start\w*|since|force)\W+(?:\w+\W+){0,3}?$",
                           re.I)
 FORUM_TAIL_RX = re.compile(r",?\s+(?:pursuant|for\s+the\s+(?:resolution|purpose)|in\s+relation|in\s+connection|with\s+respect"
@@ -321,29 +361,36 @@ FORUM_TAIL_RX = re.compile(r",?\s+(?:pursuant|for\s+the\s+(?:resolution|purpose)
                            r"\s+over\s+(?:the|any)|in\s+that\s+regard|and\s+waive|to\s+(?:the\s+)?exclusion|which\s+shall|shall\s+(?:have|be)"
                            r"|arising|and\s+agree)\b.*$",
                           re.I)
-NOTICE_CUE_RX = re.compile(r"notic|notif|prior\s+to|before\s+the\s+(?:end|expiration)", re.I)
+NOTICE_CUE_RX = re.compile(r"\b(?:notice|notification)\b", re.I)
 FORUM_RX = re.compile(r"((?:(?:the\s+)?(?:state\s+(?:and|or)\s+federal|federal\s+(?:and|or)\s+state|state|federal|"
                       r"exclusive|competent)\s+)?courts?\s+(?:of|located\s+in|in|sitting\s+in|for|having\s+jurisdiction\s+in)"
                       r"\s+[^.;]{3,160}|arbitration\s+(?:in|held\s+in|conducted\s+in|administered\s+by|under)\s+[^.;]{3,140})",
                       re.I)
 def _cuad_expiration(spans: list[str]) -> str | None | bool:
     """ISO end date stated in the Expiration Date spans; None when no calendar date; False when ambiguous."""
+    if not spans or not any(s.strip() for s in spans):
+        return False  # an absent annotation is not evidence of documented absence
     hits = []
     for s in spans:
         for m in SPAN_DATE_RX.finditer(s):
             iso = to_iso(m.group(1))
+            if iso is None:
+                return False  # invalid calendar dates cannot support an absence vote
             if iso and len(iso) == 10:
                 before = s[:m.start()][-80:]
                 hits.append((iso, bool(END_CUE_RX.search(before)), bool(START_CUE_RX.search(before[-40:]))))
     cued = sorted({d for d, c, _ in hits if c})
     every = sorted({d for d, _, start in hits if not start})
+    if not hits:
+        # Span text without a parseable calendar date is not evidence of documented absence.
+        return False
     if len(cued) == 1:
         return cued[0]
     if not cued and len(every) == 1 and len(hits) == 1:
         return every[0]
     if not cued and not every:  # only a start date ("begins on February 1, 1998 and ends on ...")
         return None
-    return False if hits else None
+    return False
 
 
 def _cuad_notice(spans: list[str]) -> str | None:
@@ -351,10 +398,14 @@ def _cuad_notice(spans: list[str]) -> str | None:
     out: list[str] = []
     for s in spans:
         flat = re.sub(r"\s+", " ", s)
-        for m in PERIOD_RX.finditer(flat):
+        periods = list(PERIOD_RX.finditer(flat))
+        for cue in NOTICE_CUE_RX.finditer(flat):
+            nearby = [m for m in periods if max(m.start() - cue.end(), cue.start() - m.end(), 0) <= 80
+                      and not re.search(r"[.;]", flat[min(m.end(), cue.end()):max(m.start(), cue.start())])]
+            if not nearby:
+                continue
+            m = min(nearby, key=lambda m: max(m.start() - cue.end(), cue.start() - m.end(), 0))
             phrase = m.group(1).strip(" ,")
-            if not NOTICE_CUE_RX.search(flat[max(0, m.start() - 40):m.end()]):
-                continue  # a term length ("twelve (12) months from the date hereof"), not a notice period
             if phrase and canon("termination_notice_period", phrase) not in {canon("x", p) for p in out}:
                 out.append(phrase)
     return "; ".join(out)[:400] or None
@@ -364,9 +415,10 @@ def _ev(text: str, m: re.Match, g: int = 0) -> dict[str, Any]:
     return {"start": m.start(g), "end": m.end(g), "text": text[m.start(g):m.end(g)][:300]}
 
 
-def _span_ev(cuad: dict[str, Any], cat: str) -> list[dict[str, Any]]:
+def _span_ev(cuad: dict[str, Any], cat: str, *, matching: str | None = None) -> list[dict[str, Any]]:
     return [{"start": x.get("start"), "cuad_category": cat, "text": str(x.get("text", ""))[:300]}
-            for x in (cuad.get(cat) or [])[:3] if isinstance(x, dict)]
+            for x in (cuad.get(cat) or []) if isinstance(x, dict)
+            and (matching is None or x.get("text") == matching)]
 
 
 def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") -> dict[str, tuple[str, Any, list]]:
@@ -429,7 +481,7 @@ def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") 
                     forum = FORUM_TAIL_RX.sub("", m.group(1)).strip(" ,")
                     if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
                         continue  # no named place: "courts", "court of law arising out of ..."
-                    out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law"))
+                    out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law", matching=s))
                     break
         head = text[:4000]
         m = DATED_RX.search(head)
@@ -521,9 +573,11 @@ _STOP = {"the", "of", "a", "an", "and", "or", "to", "in", "by", "for", "with", "
          "shall", "other", "party", "parties", "upon", "after", "thereof", "written", "prior", "notice", "located", "courts", "court"}
 
 
-def span_compatible(span_key: str, other_key: str) -> bool:
+def span_compatible(span_key: str, other_key: str, *, field: str = "") -> bool:
     """True when every number and most content words of the span phrase appear in the other label."""
     if EMPTY in (span_key, other_key):
+        return False
+    if field == "termination_notice_period" and _notice_terms(span_key) != _notice_terms(other_key):
         return False
     a, b = set(_TOKEN.findall(span_key)), set(_TOKEN.findall(other_key))
     nums = {t for t in a if t.isdigit()}
@@ -531,6 +585,23 @@ def span_compatible(span_key: str, other_key: str) -> bool:
     if not nums <= b or not (nums or content):
         return False
     return not content or len(content & b) / len(content) >= 0.6
+
+
+def _notice_terms(text: str) -> set[tuple[str, str, str, str]]:
+    """Compare operators, magnitudes, units and business/calendar day qualifiers conservatively."""
+    terms = set()
+    for m in PERIOD_RX.finditer(text):
+        phrase = m.group().lower()
+        operator = "exact"
+        if re.search(r"at least|(?:not|no) less than|minimum", phrase):
+            operator = "minimum"
+        elif re.search(r"at most|(?:not|no) more than|maximum|no later than", phrase):
+            operator = "maximum"
+        number = re.search(r"\d+", phrase).group()
+        unit = re.search(r"(day|month|year)s?\b", phrase).group(1)
+        qualifier = re.search(r"\b(business|calendar|working)\b", phrase)
+        terms.add((operator, number, unit, qualifier.group() if qualifier else ""))
+    return terms
 
 
 def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
@@ -543,7 +614,7 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
         if b["source"] == "cuad_span":
             key = canon(field, b["value"])
             if field in SPAN_COMPAT_FIELDS and key not in groups:
-                key = next((k for k in groups if span_compatible(key, k)), key)
+                key = next((k for k in groups if span_compatible(key, k, field=field)), key)
             groups[key].append(b)
     if owner:
         win_key = canon(field, owner[0]["value"])
@@ -572,7 +643,8 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
     if disputed_only:  # a value a check disputed is not truth on its own
         presence, needs_human = "disputed_unresolved", True
     return {
-        "value": best["value"] if win_key != EMPTY and not disputed_only else None,
+        "value": (to_iso(str(best["value"])) or best["value"] if field in DATE_FIELDS else best["value"])
+                 if win_key != EMPTY and not disputed_only else None,
         "presence": presence,
         "chosen_source": best["source"],
         "agreeing_sources": "|".join(sorted({b["source"] for b in win})),
@@ -583,7 +655,7 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
         "n_distinct_values": len(groups),
         "conflict": len(groups) > 1,
         "needs_human": needs_human,
-        "evidence": best.get("evidence") or [],
+        "evidence": [{**e, "source": b["source"]} for b in win for e in b.get("evidence") or []],
         "votes": {b["source"]: b["value"] for b in ballots},
     }
 
@@ -605,9 +677,50 @@ def interim_source(lab: dict[str, Any]) -> str | None:
     return "interim_gate"
 
 
-def main() -> None:
+def duplicate_keepers(rows: list[dict[str, Any]], meta: dict[str, dict[str, Any]],
+                      corrections: dict[str, dict[str, Any]]) -> dict[str, str]:
+    """Choose a reviewed representative across connected exact/normalized duplicate groups."""
+    parent = {r["id"]: r["id"] for r in rows}
+
+    def find(key: str) -> str:
+        while parent[key] != key:
+            parent[key] = parent[parent[key]]
+            key = parent[key]
+        return key
+
+    seen: dict[tuple[str, str], str] = {}
+    for row in rows:
+        did = row["id"]
+        keys = [("exact", row.get("content_sha256") or hashlib.sha256((row.get("doc_text") or "").encode()).hexdigest()),
+                ("normalized", meta[did].get("normalized_text_sha256"))]
+        for kind, digest in keys:
+            if not digest:
+                continue
+            key = (kind, digest)
+            if key in seen:
+                parent[find(did)] = find(seen[key])
+            seen[key] = did
+    groups: dict[str, list[str]] = defaultdict(list)
+    for did in parent:
+        groups[find(did)].append(did)
+    result = {}
+    for members in groups.values():
+        reviewed = {corrections[did]["subclass"] for did in members if did in corrections}
+        if len(reviewed) > 1:
+            raise ValueError("duplicate group has conflicting reviewed subclasses")
+        keeper = min(members, key=lambda did: (did not in corrections, did))
+        result.update({did: keeper for did in members})
+    return result
+
+
+def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
+    inputs = InputSnapshot()
+    jsonl = inputs.jsonl
     rows = jsonl(CACHE)
-    meta = load_parquet_meta()
+    meta = load_parquet_meta(inputs)
+    missing_meta = [r["id"] for r in rows if not (meta.get(r["id"]) or {}).get("source_corpus")]
+    if missing_meta:
+        raise ValueError(f"missing required source metadata for {len(missing_meta)} documents")
     fields_by_class = class_fields()
     interim = {}
     for p in sorted((LABELS / "interim").glob("*.jsonl")):
@@ -625,6 +738,7 @@ def main() -> None:
              if r.get("decision") in ("keep", "use_suggestion", "correct")}
     subfix = {r["doc_id"]: r for r in jsonl(LABELS / "review" / "subclass_corrections.jsonl")
               if r.get("verdict") == "correct"}
+    keepers = duplicate_keepers(rows, meta, subfix)
 
     all_fields: list[str] = []
     for d in es.MAILROOM_DOC_TYPES:
@@ -637,7 +751,8 @@ def main() -> None:
     norm_groups: dict[str, list[str]] = defaultdict(list)
     for row in rows:
         m = meta.get(row["id"], {})
-        content_groups[row["content_sha256"]].append(row["id"])
+        content_key = row.get("content_sha256") or hashlib.sha256((row.get("doc_text") or "").encode()).hexdigest()
+        content_groups[content_key].append(row["id"])
         if m.get("normalized_text_sha256"):
             norm_groups[m["normalized_text_sha256"]].append(row["id"])
 
@@ -648,7 +763,6 @@ def main() -> None:
         gt = dict(row["expected_fields"])
         nan_cleaned += sum(1 for v in gt.values() if isinstance(v, str) and v.strip().lower() == "nan")
         pres = parse_jsonish(gt.get("gt_presence")) or {}
-        gen = generated_labels(row, gt, m.get("source_corpus", ""))
         irec = interim.get(did)
         if irec and irec.get("doc_sha256") != sha:
             stale["interim"] += 1
@@ -664,6 +778,15 @@ def main() -> None:
             sub_ballots.append({"source": "subclass_review", "value": subfix[did]["subclass"],
                                 "evidence": [{"text": e[:300]} for e in subfix[did].get("evidence") or []]})
         sub_res = vote("subclass", sub_ballots)
+        gen = generated_labels({**row, "expected_subclass": sub_res["value"]}, gt, m["source_corpus"])
+        if sub_res["value"] != row["expected_subclass"]:
+            for field in ("merger_consideration", "cuad_family", "communication_type", "cms_source_table"):
+                if field in gen:
+                    source, value, evidence = gen[field]
+                    gen[field] = (source, value, [*evidence, {"derived_from_subclass": sub_res["value"],
+                                                           "source": sub_res["chosen_source"],
+                                                           "review_evidence": sub_res["evidence"]}])
+        content_key = row.get("content_sha256") or hashlib.sha256(text.encode()).hexdigest()
         out = {
             "document_id": did,
             "filename": row["filename"],
@@ -688,15 +811,13 @@ def main() -> None:
             "char_count": len(text),
             "word_count": len(text.split()),
             "content_sha256": row["content_sha256"],
-            "exact_duplicate_count": len(content_groups[row["content_sha256"]]),
+            "exact_duplicate_count": len(content_groups[content_key]),
             "normalized_duplicate_count": len(norm_groups.get(m.get("normalized_text_sha256", ""), [did])),
             "duplicate_of": "",
             "doc_text_preview": re.sub(r"\s+", " ", text[:280]).strip(),
         }
-        dup_group = sorted(set(content_groups[row["content_sha256"]])
-                           | set(norm_groups.get(m.get("normalized_text_sha256", ""), [did])))
-        if len(dup_group) > 1 and dup_group[0] != did:
-            out["duplicate_of"] = dup_group[0]
+        if keepers[did] != did:
+            out["duplicate_of"] = keepers[did]
         if sub_res["value"] != row["expected_subclass"]:
             long_rows.append({"document_id": did, "doc_class": cls, "field": "subclass", **_long(sub_res)})
 
@@ -725,7 +846,7 @@ def main() -> None:
                 ballots.append({"source": src, "value": lab.get("value"), "evidence": lab.get("evidence") or []})
             elif (did, field) in gold_cat:
                 g = gold_cat[(did, field)]
-                if g.get("content_sha256", "")[:16] == sha or g.get("doc_sha") == sha:
+                if (g.get("content_sha256") or "")[:16] == sha or g.get("doc_sha") == sha:
                     src = {"candidate": "gold_candidate", "disputed": "gold_disputed",
                            "near_gold": "near_gold_two_pass"}.get(g.get("status"))
                     if src:
@@ -757,8 +878,8 @@ def main() -> None:
         out["fields_needs_human"] = n_human
         wide.append(out)
 
-    _write(OUT / f"{STEM}.csv", wide)
-    _write(OUT / f"{STEM}_label_provenance.csv", long_rows)
+    _write(output / f"{STEM}.csv", wide)
+    _write(output / f"{STEM}_label_provenance.csv", long_rows)
 
     # per-field completeness, before (Hub only) and after
     comp = []
@@ -783,7 +904,7 @@ def main() -> None:
             "needs_human": sum(1 for i in items if str(i["needs_human"]) == "True"),
             "top_source": src.most_common(1)[0][0] if src else "",
         })
-    _write(OUT / f"{STEM}_field_completeness.csv", comp)
+    _write(output / f"{STEM}_field_completeness.csv", comp)
 
     chosen = Counter(lr["chosen_source"] for lr in long_rows if lr["chosen_source"])
     summary = {
@@ -803,22 +924,42 @@ def main() -> None:
         "stale_overlay_records_skipped": dict(stale),
         "chosen_source_counts": dict(chosen.most_common()),
         "source_weights": {k: {"weight": w, "tie_rank": r} for k, (w, r) in SOURCES.items()},
-        "inputs_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
-                          for p in [CACHE, *sorted(LABELS.glob("interim/*.jsonl")),
-                                    *sorted(LABELS.glob("gold/*.jsonl")), *sorted(LABELS.glob("gold-overlay/*.jsonl")),
-                                    LABELS / "review" / "human_reviews.jsonl",
-                                    LABELS / "review" / "subclass_corrections.jsonl"]},
+        "inputs_sha256": dict(sorted(inputs.hashes.items())),
     }
-    (OUT / f"{STEM}_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    if "--with-text" in sys.argv:  # full document text, joined on document_id (about 26 MB gzipped; not committed)
+    if with_text:  # full document text, joined on document_id; never committed
         import gzip
 
-        with gzip.open(OUT / f"{STEM}_text.csv.gz", "wt", newline="", encoding="utf-8") as f:
+        with (output / f"{STEM}_text.csv.gz").open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as compressed, io.TextIOWrapper(compressed, newline="", encoding="utf-8") as f:
             tw = csv.writer(f)
             tw.writerow(["document_id", "doc_text"])
             for r in sorted(rows, key=lambda r: r["id"]):
                 tw.writerow([r["id"], r.get("doc_text") or ""])
-    print(json.dumps({k: v for k, v in summary.items() if k not in ("inputs_sha256", "source_weights")}, indent=1))
+    summary["outputs_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir())}
+    (output / f"{STEM}_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    return summary
+
+
+def build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
+    """Publish a complete new generation by directory rename; never replace existing output."""
+    output = output.resolve()
+    if output.exists():
+        raise FileExistsError(f"output exists; choose a new generation directory: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".label-repair-", dir=output.parent) as temp:
+        staged = Path(temp) / "generation"
+        staged.mkdir()
+        summary = _build(staged, with_text=with_text)
+        staged.rename(output)
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", type=Path, default=OUT / "generated", help="new output directory; existing directories are refused")
+    parser.add_argument("--with-text", action="store_true")
+    args = parser.parse_args()
+    summary = build(args.out, with_text=args.with_text)
+    print(json.dumps({k: v for k, v in summary.items() if k not in ("inputs_sha256", "outputs_sha256", "source_weights")}, indent=1))
 
 
 def _cell(v: Any) -> str:
@@ -835,7 +976,7 @@ def _long(res: dict[str, Any]) -> dict[str, Any]:
             "weight_share": res["weight_share"], "n_sources": res["n_sources"],
             "n_distinct_values": res["n_distinct_values"], "conflict": res["conflict"],
             "needs_human": res["needs_human"],
-            "evidence": json.dumps(res["evidence"][:3], ensure_ascii=False) if res["evidence"] else "",
+            "evidence": json.dumps(res["evidence"], ensure_ascii=False) if res["evidence"] else "",
             "votes": json.dumps(res["votes"], ensure_ascii=False, sort_keys=True, default=str)}
 
 
