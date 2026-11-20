@@ -500,14 +500,11 @@ def show_figure(fig: Any) -> None:
 
     from IPython.display import Image, display
 
+    import matplotlib.pyplot as plt
+
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
-    try:
-        import matplotlib.pyplot as plt
-
-        plt.close(fig)
-    except Exception:  # pragma: no cover - close is best-effort
-        pass
+    plt.close(fig)
     display(Image(data=buf.getvalue()))
 
 
