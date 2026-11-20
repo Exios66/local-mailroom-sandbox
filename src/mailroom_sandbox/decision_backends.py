@@ -368,6 +368,59 @@ def load_question_set(stem: str) -> dict[str, Any]:
     return qset
 
 
+def _check_v42_form_flags(stem: str, qset: Mapping[str, Any]) -> None:
+    """``document_form_flags`` shape: exclusive with ``document_form``, park_min in (0, 1]."""
+    flags = qset.get("document_form_flags")
+    if flags is None:
+        return
+    if not isinstance(flags, dict):
+        raise ValueError(f"{stem}: document_form_flags must be a mapping with park_min and flags")
+    items = flags.get("flags")
+    if not isinstance(items, dict) or not items or not all(isinstance(v, dict) and v.get("instructions") for v in items.values()):
+        raise ValueError(f"{stem}: document_form_flags.flags needs one block with instructions per flag")
+    if qset.get("document_form"):
+        raise ValueError(f"{stem}: ask document_form or document_form_flags, not both")
+    if not 0.0 < float(flags.get("park_min", 0.5)) <= 1.0:
+        raise ValueError(f"{stem}: document_form_flags.park_min must be in (0, 1]")
+
+
+def _is_string_list(value: Any) -> bool:
+    if not isinstance(value, list):
+        return False
+    return all(isinstance(item, str) for item in value)
+
+
+def _exclude_names_known(qset: Mapping[str, Any], cls: str, names: list[str]) -> bool:
+    options = ((qset.get("subclass") or {}).get(cls) or {}).get("criteria") or {}
+    return bool(options) and all(name in options for name in names)
+
+
+def _check_v42_fit_exclude(stem: str, qset: Mapping[str, Any], exclude: Any) -> None:
+    """``subclass_fit.exclude`` is a list or class→option-list map naming known criteria."""
+    groups = list(exclude.values()) if isinstance(exclude, dict) else [exclude]
+    if any(not _is_string_list(group) for group in groups):
+        raise ValueError(f"{stem}: subclass_fit.exclude must be a list or class mapping of option lists")
+    if not isinstance(exclude, dict):
+        return
+    for cls, names in exclude.items():
+        if not _exclude_names_known(qset, cls, names):
+            raise ValueError(f"{stem}: subclass_fit.exclude has an unknown class or option")
+
+
+def _check_v42_subclass_fit(stem: str, qset: Mapping[str, Any]) -> None:
+    """``subclass_fit`` instructions/exclusions and ``abstain.subclass_fit_min`` when set."""
+    fit = qset.get("subclass_fit")
+    if fit is not None:
+        exclude = fit.get("exclude", []) if isinstance(fit, dict) else None
+        _check_v42_fit_exclude(stem, qset, exclude)
+        text = str(fit.get("instructions") or "")
+        if "{cls}" not in text or "{options}" not in text:
+            raise ValueError(f"{stem}: subclass_fit.instructions must name {{cls}} and {{options}}")
+    fit_min = (qset.get("abstain") or {}).get("subclass_fit_min")
+    if fit_min is not None and not 0.0 < float(fit_min) <= 1.0:
+        raise ValueError(f"{stem}: abstain.subclass_fit_min must be in (0, 1]")
+
+
 def _check_v42_keys(stem: str, qset: Mapping[str, Any]) -> None:
     """Shape checks for the 4.2.0 keys; a misspelt block must fail at load, not mid-run."""
     if qset.get("state_shape") not in (None, "object"):
@@ -379,34 +432,8 @@ def _check_v42_keys(stem: str, qset: Mapping[str, Any]) -> None:
             raise ValueError(f"{stem}: {key} must be true or false")
     if "untrusted_notice" in qset and not (isinstance(qset["untrusted_notice"], str) and qset["untrusted_notice"].strip()):
         raise ValueError(f"{stem}: untrusted_notice must be a non-empty sentence")
-    flags = qset.get("document_form_flags")
-    if flags is not None:
-        if not isinstance(flags, dict):
-            raise ValueError(f"{stem}: document_form_flags must be a mapping with park_min and flags")
-        items = flags.get("flags")
-        if not isinstance(items, dict) or not items or not all(isinstance(v, dict) and v.get("instructions") for v in items.values()):
-            raise ValueError(f"{stem}: document_form_flags.flags needs one block with instructions per flag")
-        if qset.get("document_form"):
-            raise ValueError(f"{stem}: ask document_form or document_form_flags, not both")
-        if not 0.0 < float(flags.get("park_min", 0.5)) <= 1.0:
-            raise ValueError(f"{stem}: document_form_flags.park_min must be in (0, 1]")
-    fit = qset.get("subclass_fit")
-    if fit is not None:
-        exclude = fit.get("exclude", []) if isinstance(fit, dict) else None
-        groups = exclude.values() if isinstance(exclude, dict) else [exclude]
-        if not all(isinstance(group, list) and all(isinstance(x, str) for x in group) for group in groups):
-            raise ValueError(f"{stem}: subclass_fit.exclude must be a list or class mapping of option lists")
-        if isinstance(exclude, dict):
-            for cls, names in exclude.items():
-                options = ((qset.get("subclass") or {}).get(cls) or {}).get("criteria") or {}
-                if not options or any(name not in options for name in names):
-                    raise ValueError(f"{stem}: subclass_fit.exclude has an unknown class or option")
-        text = str(fit.get("instructions") or "")
-        if "{cls}" not in text or "{options}" not in text:
-            raise ValueError(f"{stem}: subclass_fit.instructions must name {{cls}} and {{options}}")
-    fit_min = (qset.get("abstain") or {}).get("subclass_fit_min")
-    if fit_min is not None and not 0.0 < float(fit_min) <= 1.0:
-        raise ValueError(f"{stem}: abstain.subclass_fit_min must be in (0, 1]")
+    _check_v42_form_flags(stem, qset)
+    _check_v42_subclass_fit(stem, qset)
 
 
 EXTRACTION_GATE = "extraction_gate"
@@ -714,6 +741,104 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     }
 
 
+#: 4.2.0+ question-key prefixes: yes/no form flags and the separate subclass-fit question.
+FORM_FLAG_PREFIX = "form__"
+FIT_PREFIX = "fit__"
+
+
+def _fit_option_names(block: Mapping[str, Any], fit: Mapping[str, Any], cls: str) -> str:
+    """Comma-joined subclass options for the fit question, omitting class-specific exclusions."""
+    options = dict(block["criteria"])
+    excluded = fit.get("exclude") or ()
+    if isinstance(excluded, dict):
+        excluded = excluded.get(cls, ())
+    return ", ".join(k for k in options if k not in set(excluded))
+
+
+def _subclass_pick_options(
+    qset: Mapping[str, Any],
+    cls: str,
+    block: Mapping[str, Any],
+    *,
+    contract: bool,
+    fit: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Criteria for ``subclass__<cls>``, with fit-mode, not-this-class, or undetermined options."""
+    if fit:
+        # 4.2.0+: fit is a separate question, so the pick has no NOT_THIS_CLASS option.
+        options = dict(block["criteria"])
+    else:
+        # Every subclass question is asked of every document, and the model refuses a question
+        # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
+        # answer is used.
+        options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
+    if contract and qset.get("subclass_gate") and SUBCLASS_UNDETERMINED not in options:
+        # 4.0.0+ (SHF-009): every subclass question can abstain.
+        options[SUBCLASS_UNDETERMINED] = "The text does not settle which subclass this is."
+    return options
+
+
+def _add_subclass_questions(
+    questions: dict[str, Any],
+    qset: Mapping[str, Any],
+    cls: str,
+    block: Mapping[str, Any],
+    *,
+    contract: bool,
+    fit: Mapping[str, Any] | None,
+) -> None:
+    """Append one class's marker and/or fit + subclass pick questions."""
+    if block.get("markers"):
+        # Marker classes: one yes/no question per marker; marker_subclass applies the order.
+        for key, text in block["markers"].items():
+            questions[f"marker__{cls}__{key}"] = {"type": "noul", "instructions": text}
+        return
+    if fit:
+        # 4.2.0+: "does any option fit?" is its own yes/no question instead of an option,
+        # so a forced pick never hides a wrong class. A refusal of the pick is recorded.
+        # A catch-all ("other": no family fits) would make "does one fit?" a near-certain yes.
+        names = _fit_option_names(block, fit, cls)
+        questions[f"{FIT_PREFIX}{cls}"] = {
+            "type": "noul",
+            "instructions": fit["instructions"].format(cls=cls, options=names),
+        }
+    options = _subclass_pick_options(qset, cls, block, contract=contract, fit=fit)
+    _checked_options(f"subclass.{cls}", list(options))
+    questions[f"subclass__{cls}"] = {
+        "type": "choice",
+        "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
+        "criteria": options,
+    }
+
+
+def _add_form_questions(questions: dict[str, Any], qset: Mapping[str, Any], *, contract: bool) -> None:
+    """Append the pick-one form question or the 4.2.0 per-flag yes/no questions."""
+    if not contract:
+        return
+    if qset.get("document_form"):
+        # 4.0.0+ (SHF-009): the state of the document as an extraction input.
+        form = dict(qset["document_form"]["criteria"])
+        _checked_options("document_form", list(form))
+        questions["document_form"] = {
+            "type": "choice",
+            "instructions": qset["document_form"]["instructions"],
+            "criteria": form,
+        }
+    if qset.get("document_form_flags"):
+        # 4.2.0+: one yes/no question per form defect; a cut-off text can also be a bundle.
+        for key, block in qset["document_form_flags"]["flags"].items():
+            questions[f"{FORM_FLAG_PREFIX}{key}"] = {"type": "noul", "instructions": block["instructions"]}
+
+
+def _prefix_untrusted_notice(questions: dict[str, Any], qset: Mapping[str, Any]) -> None:
+    """4.2.0+: every question says that the document is data, never instructions."""
+    notice = str(qset.get("untrusted_notice") or "").strip()
+    if not notice:
+        return
+    for question in questions.values():
+        question["instructions"] = f"{notice} {question['instructions']}"
+
+
 def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = None) -> dict[str, Any]:
     """The request's ``questions``: ``doc_type`` plus one ``subclass__<class>`` per class.
 
@@ -733,57 +858,14 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         questions["verdict"] = {"type": "choice", "instructions": qset["verdict"]["instructions"],
                                 "criteria": dict(qset["verdict"]["criteria"])}
     contract = _contract_enabled(qset)
-    if contract and qset.get("document_form"):
-        # 4.0.0+ (SHF-009): the state of the document as an extraction input.
-        form = dict(qset["document_form"]["criteria"])
-        _checked_options("document_form", list(form))
-        questions["document_form"] = {"type": "choice", "instructions": qset["document_form"]["instructions"],
-                                      "criteria": form}
-    if contract and qset.get("document_form_flags"):
-        # 4.2.0+: one yes/no question per form defect; a cut-off text can also be a bundle.
-        for key, block in qset["document_form_flags"]["flags"].items():
-            questions[f"{FORM_FLAG_PREFIX}{key}"] = {"type": "noul", "instructions": block["instructions"]}
+    _add_form_questions(questions, qset, contract=contract)
     fit = subclass_fit(qset)
     for cls, block in (qset.get("subclass") or {}).items():
         if doc_types and cls not in criteria:
             continue
-        if block.get("markers"):
-            # Marker classes: one yes/no question per marker; marker_subclass applies the order.
-            for key, text in block["markers"].items():
-                questions[f"marker__{cls}__{key}"] = {"type": "noul", "instructions": text}
-            continue
-        if fit:
-            # 4.2.0+: "does any option fit?" is its own yes/no question instead of an option,
-            # so a forced pick never hides a wrong class. A refusal of the pick is recorded.
-            options = dict(block["criteria"])
-            # A catch-all ("other": no family fits) would make "does one fit?" a near-certain yes.
-            excluded = fit.get("exclude") or ()
-            if isinstance(excluded, dict):
-                excluded = excluded.get(cls, ())
-            names = ", ".join(k for k in options if k not in set(excluded))
-            questions[f"{FIT_PREFIX}{cls}"] = {"type": "noul", "instructions": fit["instructions"].format(cls=cls, options=names)}
-        else:
-            # Every subclass question is asked of every document, and the model refuses a question
-            # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
-            # answer is used.
-            options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
-        if contract and qset.get("subclass_gate") and SUBCLASS_UNDETERMINED not in options:
-            # 4.0.0+ (SHF-009): every subclass question can abstain.
-            options[SUBCLASS_UNDETERMINED] = "The text does not settle which subclass this is."
-        _checked_options(f"subclass.{cls}", list(options))
-        questions[f"subclass__{cls}"] = {"type": "choice", "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
-                                         "criteria": options}
-    notice = str(qset.get("untrusted_notice") or "").strip()
-    if notice:
-        # 4.2.0+: every question says that the document is data, never instructions.
-        for question in questions.values():
-            question["instructions"] = f"{notice} {question['instructions']}"
+        _add_subclass_questions(questions, qset, cls, block, contract=contract, fit=fit)
+    _prefix_untrusted_notice(questions, qset)
     return questions
-
-
-#: 4.2.0+ question-key prefixes: yes/no form flags and the separate subclass-fit question.
-FORM_FLAG_PREFIX = "form__"
-FIT_PREFIX = "fit__"
 
 
 def subclass_fit(qset: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -1036,6 +1118,127 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     return result
 
 
+def _v42_fired_form_flags(
+    answers: Mapping[str, Any], qset: Mapping[str, Any], flag_block: Mapping[str, Any]
+) -> tuple[list[str], dict[str, float]]:
+    """Flags at or above ``park_min``, plus every flag's probability."""
+    park_min = float(flag_block.get("park_min", 0.5))
+    flags = form_flag_probabilities(answers, qset)
+    keys = [str(k) for k in flag_block.get("flags") or {}]
+    fired = [k for k in keys if flags.get(k, 0.0) >= park_min]
+    return fired, flags
+
+
+def _v42_form_flag_reasons(
+    out: dict[str, Any], answers: Mapping[str, Any], qset: Mapping[str, Any], refused: set[str]
+) -> list[str]:
+    """Record fired form flags and refused-flag reasons; mutate ``out`` with form fields."""
+    flag_block = qset.get("document_form_flags") or {}
+    if not flag_block:
+        return []
+    fired, flags = _v42_fired_form_flags(answers, qset, flag_block)
+    keys = [str(k) for k in flag_block.get("flags") or {}]
+    out["document_form"] = fired[0] if fired else ("complete_instrument" if flags else None)
+    out["document_form_flags"] = fired
+    reasons = [f"document_form:{k}" for k in fired]
+    for key in keys:
+        if f"{FORM_FLAG_PREFIX}{key}" in refused:
+            reasons.append(f"refused:{FORM_FLAG_PREFIX}{key}")
+    return reasons
+
+
+def _v42_marker_unusable(
+    out: dict[str, Any],
+    block: Mapping[str, Any],
+    answers: Mapping[str, Any],
+    doc_type: str,
+    refused: set[str],
+) -> str | None:
+    """Clear subclass when a refused marker can still change the ordered pick."""
+    for key in block.get("order") or list(block["markers"]):
+        question = f"marker__{doc_type}__{key}"
+        if question in refused:
+            out["doc_subclass"] = None
+            out["subclass_confidence"] = None
+            return "marker_unanswered"
+        if (answers.get(question) or {}).get("noul", 0.0) >= 0.5:
+            return None
+    return None
+
+
+def _v42_fit_status(
+    out: dict[str, Any],
+    answers: Mapping[str, Any],
+    qset: Mapping[str, Any],
+    doc_type: str,
+    refused: set[str],
+) -> tuple[str | None, list[str]]:
+    """Record fit probability; return (unusable reason, abstain reasons)."""
+    value = (answers.get(f"{FIT_PREFIX}{doc_type}") or {}).get("noul")
+    answered = f"{FIT_PREFIX}{doc_type}" not in refused
+    usable = answered and isinstance(value, (int, float)) and not isinstance(value, bool)
+    if not usable:
+        return "fit_unanswered", []
+    out["subclass_fit_probability"] = float(value)
+    threshold = float((qset.get("abstain") or {}).get("subclass_fit_min", 0.5))
+    return (None, ["subclass_fit"]) if float(value) < threshold else (None, [])
+
+
+def _v42_keep_sorter_subclass(
+    out: dict[str, Any], doc_type: str | None, handoff: Mapping[str, Any] | None, unusable: str
+) -> list[str]:
+    """Reuse a same-class sorter subclass, or park when none is available."""
+    same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
+    kept = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+    out["doc_subclass"] = kept
+    out["subclass_source"] = "sorter" if kept is not None else "unresolved"
+    out["subclass_confidence"] = None
+    if doc_type == "contract":
+        out["contract_subtype"] = out["doc_subclass"]
+    return [] if kept is not None else [f"subclass_gate:{unusable}"]
+
+
+def _v42_apply_unusable_subclass(
+    out: dict[str, Any],
+    qset: Mapping[str, Any],
+    doc_type: str | None,
+    unusable: str,
+    handoff: Mapping[str, Any] | None,
+) -> list[str]:
+    """Apply ``subclass_gate`` for an unusable subclass; return new abstain reasons."""
+    if "subclass_gate" in out:
+        return []
+    gate = qset.get("subclass_gate") or {}
+    policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
+    out["subclass_gate"] = policy
+    if policy == "park":
+        return [f"subclass_gate:{unusable}"]
+    return _v42_keep_sorter_subclass(out, doc_type, handoff, unusable)
+
+
+def _v42_subclass_gate_reasons(
+    out: dict[str, Any],
+    answers: Mapping[str, Any],
+    qset: Mapping[str, Any],
+    refused: set[str],
+    handoff: Mapping[str, Any] | None,
+) -> list[str]:
+    """Fit / marker unusable handling and the resulting subclass_gate reasons."""
+    doc_type = out.get("doc_type")
+    block = ((qset.get("subclass") or {}).get(doc_type) or {}) if doc_type else {}
+    fit = subclass_fit(qset)
+    reasons: list[str] = []
+    unusable = None
+    if block.get("markers"):
+        unusable = _v42_marker_unusable(out, block, answers, str(doc_type), refused)
+    elif fit and doc_type and doc_type not in NON_CLASS_OPTIONS:
+        unusable, fit_reasons = _v42_fit_status(out, answers, qset, str(doc_type), refused)
+        reasons.extend(fit_reasons)
+    if unusable:
+        reasons.extend(_v42_apply_unusable_subclass(out, qset, doc_type, unusable, handoff))
+    return reasons
+
+
 def apply_v42_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset: Mapping[str, Any], *,
                     handoff: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """The 4.2.0 routing rules, applied after the SHF-009 contract and only for a set that asks them.
@@ -1052,56 +1255,12 @@ def apply_v42_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset:
     if not flag_block and not fit and "refused_questions" not in result:
         return dict(result)
     out = dict(result)
-    reasons = list(out.get("abstain_reasons") or [])
     refused = set(out.get("refused_questions") or [])
-    if flag_block:
-        park_min = float(flag_block.get("park_min", 0.5))
-        flags = form_flag_probabilities(answers, qset)
-        keys = [str(k) for k in flag_block.get("flags") or {}]
-        fired = [k for k in keys if flags.get(k, 0.0) >= park_min]
-        out["document_form"] = fired[0] if fired else ("complete_instrument" if flags else None)
-        out["document_form_flags"] = fired
-        reasons.extend(f"document_form:{k}" for k in fired)
-        reasons.extend(f"refused:{FORM_FLAG_PREFIX}{k}" for k in keys if f"{FORM_FLAG_PREFIX}{k}" in refused)
+    reasons = list(out.get("abstain_reasons") or [])
+    reasons.extend(_v42_form_flag_reasons(out, answers, qset, refused))
     if "doc_type" in refused:
         reasons.append("refused:doc_type")
-    doc_type = out.get("doc_type")
-    block = ((qset.get("subclass") or {}).get(doc_type) or {}) if doc_type else {}
-    unusable = None
-    if block.get("markers"):
-        for key in block.get("order") or list(block["markers"]):
-            question = f"marker__{doc_type}__{key}"
-            if question in refused:
-                unusable = "marker_unanswered"
-                out["doc_subclass"] = None
-                out["subclass_confidence"] = None
-                break
-            if (answers.get(question) or {}).get("noul", 0.0) >= 0.5:
-                break
-    if fit and doc_type and doc_type not in NON_CLASS_OPTIONS and not block.get("markers"):
-        value = (answers.get(f"{FIT_PREFIX}{doc_type}") or {}).get("noul")
-        if f"{FIT_PREFIX}{doc_type}" not in refused and isinstance(value, (int, float)) and not isinstance(value, bool):
-            out["subclass_fit_probability"] = float(value)
-            if float(value) < float((qset.get("abstain") or {}).get("subclass_fit_min", 0.5)):
-                reasons.append("subclass_fit")
-        else:
-            unusable = "fit_unanswered"
-    if unusable and "subclass_gate" not in out:
-        gate = qset.get("subclass_gate") or {}
-        policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
-        out["subclass_gate"] = policy
-        if policy == "park":
-            reasons.append(f"subclass_gate:{unusable}")
-        else:
-            same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
-            kept = (handoff or {}).get("sorter_doc_subclass") if same_class else None
-            out["doc_subclass"] = kept
-            out["subclass_source"] = "sorter" if kept is not None else "unresolved"
-            out["subclass_confidence"] = None
-            if doc_type == "contract":
-                out["contract_subtype"] = out["doc_subclass"]
-            if kept is None:
-                reasons.append(f"subclass_gate:{unusable}")
+    reasons.extend(_v42_subclass_gate_reasons(out, answers, qset, refused, handoff))
     out["abstain_reasons"] = reasons
     out["abstained"] = bool(reasons)
     if reasons:
