@@ -21,13 +21,14 @@ def test_roster_entries_have_opencode_prompts():
 def test_meta_subagents_present():
     assert get_subagent("harness-doctor") is not None
     assert get_subagent("adversarial-reviewer") is not None
+    assert get_subagent("pr-domain-reviewer") is not None
 
 
 def test_family_package_filter():
     sandbox = load_roster(package="local-mailroom-sandbox")
     mailroom = load_roster(package="llm-mailroom")
     eval_env = load_roster(package="eval-environment")
-    assert len(sandbox) == 8
+    assert len(sandbox) == 9
     assert len(eval_env) == 8
     assert {e.id for e in eval_env} == {
         "prompt-engineer",
@@ -46,6 +47,7 @@ def test_family_package_filter():
         "legal-changelog-auditor",
         "adversarial-reviewer",
     }
+    assert "pr-domain-reviewer" in {e.id for e in sandbox}
 
 
 def test_sync_cursor_writes_agents(tmp_path):
