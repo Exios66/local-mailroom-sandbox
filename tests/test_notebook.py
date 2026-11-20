@@ -897,6 +897,9 @@ def test_show_figure_embeds_png(monkeypatch):
 
     import matplotlib.pyplot as plt
 
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+
     captured: list[object] = []
 
     class FakeImage:
@@ -908,11 +911,11 @@ def test_show_figure_embeds_png(monkeypatch):
     fake_display.display = captured.append
     fake_ipython = types.ModuleType("IPython")
     fake_ipython.display = fake_display
+    fake_ipython.get_ipython = lambda: None
+    # Inject only for show_figure's late import; figure creation already used Agg.
     monkeypatch.setitem(sys.modules, "IPython", fake_ipython)
     monkeypatch.setitem(sys.modules, "IPython.display", fake_display)
 
-    fig, ax = plt.subplots()
-    ax.plot([0, 1], [0, 1])
     notebook.show_figure(fig)
     assert len(captured) == 1
     assert isinstance(captured[0], FakeImage)
