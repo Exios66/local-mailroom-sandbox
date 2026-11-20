@@ -130,3 +130,24 @@ versions:
       the default until calibration draw 2 (100 new documents, draw 1 excluded) gives "adopt"
       under the paired rule fixed before it ran (rb1_form_floor.py compare; see
       docs/rb1-r13b-smoke-review.md).
+  - version: 4.1.0
+    file: reviewer_decisions_v4.1.0.yaml
+    parent: 4.0.2
+    status: draft
+    summary: >-
+      MINOR: what the model reads changes, the classes and criteria do not. state is always
+      {"document": ...} (4.0.x named state.document but sent bare text); every question opens
+      with an untrusted-data notice; code passes form_signals (length, window cut, last 240
+      characters, <DOCUMENT>/<TYPE> and "Source:" counts); document_form becomes four yes/no
+      flags (fragment, bundle, unreadable, non_english); subclass questions drop
+      not_this_class for a separate fit__<class> yes/no question; correspondence markers say a
+      denial does not count; unanswered questions are recorded and a refused doc_type or form
+      flag parks; requests carry session_id = the run id. Design: docs/decision-model-inputs.md.
+    adoption: >-
+      Drafted 2026-11-20 from the docs, code and split files; no run, no API call. Thresholds
+      are provisional. Before any comparison: a smoke on runbook-v2 calibration documents
+      (never dev-look1, which is all tuned, never held-out) that shows the object state, the
+      flags and the fit questions answered, and the refusal record populated or empty. Judged
+      against 4.0.2 on the same runbook-v2 calibration draw under a paired rule fixed before it
+      runs; the separate-fit form is compared with an in-question option ablation before it is
+      kept (OpenRouter's question-design guidance says to test both).

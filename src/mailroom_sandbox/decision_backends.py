@@ -363,7 +363,33 @@ def load_question_set(stem: str) -> dict[str, Any]:
             markers, order = block["markers"], block.get("order") or []
             if not isinstance(markers, dict) or not markers or set(order) - set(markers):
                 raise ValueError(f"{stem}: subclass.{cls}.order must name only keys of its markers")
+    _check_v41_keys(stem, qset)
     return qset
+
+
+def _check_v41_keys(stem: str, qset: Mapping[str, Any]) -> None:
+    """Shape checks for the 4.1.0 keys; a misspelt block must fail at load, not mid-run."""
+    if qset.get("state_shape") not in (None, "object"):
+        raise ValueError(f"{stem}: state_shape must be 'object' when set")
+    if qset.get("session_id") not in (None, "run"):
+        raise ValueError(f"{stem}: session_id must be 'run' when set")
+    flags = qset.get("document_form_flags")
+    if flags is not None:
+        items = (flags or {}).get("flags")
+        if not isinstance(items, dict) or not items or not all(isinstance(v, dict) and v.get("instructions") for v in items.values()):
+            raise ValueError(f"{stem}: document_form_flags.flags needs one block with instructions per flag")
+        if qset.get("document_form"):
+            raise ValueError(f"{stem}: ask document_form or document_form_flags, not both")
+        if not 0.0 < float(flags.get("park_min", 0.5)) <= 1.0:
+            raise ValueError(f"{stem}: document_form_flags.park_min must be in (0, 1]")
+    fit = qset.get("subclass_fit")
+    if fit is not None:
+        text = str((fit or {}).get("instructions") or "")
+        if "{cls}" not in text or "{options}" not in text:
+            raise ValueError(f"{stem}: subclass_fit.instructions must name {{cls}} and {{options}}")
+    fit_min = (qset.get("abstain") or {}).get("subclass_fit_min")
+    if fit_min is not None and not 0.0 < float(fit_min) <= 1.0:
+        raise ValueError(f"{stem}: abstain.subclass_fit_min must be in (0, 1]")
 
 
 EXTRACTION_GATE = "extraction_gate"
@@ -696,6 +722,11 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         _checked_options("document_form", list(form))
         questions["document_form"] = {"type": "choice", "instructions": qset["document_form"]["instructions"],
                                       "criteria": form}
+    if contract and qset.get("document_form_flags"):
+        # 4.1.0+: one yes/no question per form defect; a cut-off text can also be a bundle.
+        for key, block in qset["document_form_flags"]["flags"].items():
+            questions[f"{FORM_FLAG_PREFIX}{key}"] = {"type": "noul", "instructions": block["instructions"]}
+    fit = subclass_fit(qset)
     for cls, block in (qset.get("subclass") or {}).items():
         if doc_types and cls not in criteria:
             continue
@@ -704,17 +735,95 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
             for key, text in block["markers"].items():
                 questions[f"marker__{cls}__{key}"] = {"type": "noul", "instructions": text}
             continue
-        # Every subclass question is asked of every document, and the model refuses a question
-        # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
-        # answer is used.
-        options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
+        if fit:
+            # 4.1.0+: "does any option fit?" is its own yes/no question instead of an option,
+            # so a forced pick never hides a wrong class. A refusal of the pick is recorded.
+            options = dict(block["criteria"])
+            names = ", ".join(options)
+            questions[f"{FIT_PREFIX}{cls}"] = {"type": "noul", "instructions": fit["instructions"].format(cls=cls, options=names)}
+        else:
+            # Every subclass question is asked of every document, and the model refuses a question
+            # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
+            # answer is used.
+            options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
         if contract and qset.get("subclass_gate") and SUBCLASS_UNDETERMINED not in options:
             # 4.0.0+ (SHF-009): every subclass question can abstain.
             options[SUBCLASS_UNDETERMINED] = "The text does not settle which subclass this is."
         _checked_options(f"subclass.{cls}", list(options))
         questions[f"subclass__{cls}"] = {"type": "choice", "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
                                          "criteria": options}
+    notice = str(qset.get("untrusted_notice") or "").strip()
+    if notice:
+        # 4.1.0+: every question says that the document is data, never instructions.
+        for question in questions.values():
+            question["instructions"] = f"{notice} {question['instructions']}"
     return questions
+
+
+#: 4.1.0+ question-key prefixes: yes/no form flags and the separate subclass-fit question.
+FORM_FLAG_PREFIX = "form__"
+FIT_PREFIX = "fit__"
+
+
+def subclass_fit(qset: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The 4.1.0+ ``subclass_fit`` block when the SHF-009 contract applies, else None."""
+    block = (qset or {}).get("subclass_fit")
+    return dict(block) if isinstance(block, Mapping) and _contract_enabled(qset) else None
+
+
+def form_signals(text: str, *, original_chars: int, window_chars: int) -> dict[str, Any]:
+    """Facts code can establish about a document's form, passed to the model as data (4.1.0+).
+
+    Nothing here is a judgement: the model still decides whether the document is a fragment or
+    a bundle, but it no longer has to find the last line of a million-character text itself.
+    """
+    stripped = text.rstrip()
+    last = stripped[-1:] if stripped else ""
+    lower = text.lower()
+    return {
+        "characters": original_chars,
+        "cut_by_window": original_chars > window_chars,
+        "ends_with": stripped[-240:],
+        "ends_with_sentence_punctuation": last in '.!?:;)]}"\'>' if last else False,
+        "document_tags": lower.count("<document>"),
+        "type_tags": lower.count("<type>"),
+        "filing_source_lines": sum(1 for line in text.splitlines() if line.lstrip().lower().startswith("source:")),
+    }
+
+
+def run_session_id(qset: Mapping[str, Any] | None) -> str | None:
+    """OpenRouter ``session_id`` for a 4.1.0+ request: the run id, so provider logs group by run.
+
+    OpenRouter uses it for observability grouping and never sends it to the provider (at most
+    256 characters). None outside a run, or when the question set does not ask for it.
+    """
+    if (qset or {}).get("session_id") != "run":
+        return None
+    try:
+        from mailroom_sandbox.provider_pins import run_context
+
+        run_id = run_context().get("run_id")
+    except Exception:  # noqa: BLE001 - no run context: no session id
+        return None
+    return f"sandbox-{run_id}"[:256] if run_id else None
+
+
+def refused_questions(questions: Mapping[str, Any], answers: Mapping[str, Any]) -> list[str]:
+    """Questions asked but not answered: missing, flagged as refused, or with no choice or noul.
+
+    The exact refusal shape of a single refused question is not pinned here (no live call was
+    made to confirm it), so anything that is not a usable answer counts as refused.
+    """
+    out = []
+    for key, question in questions.items():
+        answer = answers.get(key)
+        if not isinstance(answer, Mapping) or any(answer.get(k) for k in ("refusal", "refused", "error")):
+            out.append(key)
+            continue
+        value = answer.get("noul") if question.get("type") == "noul" else answer.get("choice")
+        if value is None or isinstance(value, bool):
+            out.append(key)
+    return out
 
 
 def build_handoff(sorter_doc_type: Any, sorter_doc_subclass: Any, sorter_confidence: Any,
@@ -821,12 +930,22 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         # 3.0.0+: the sorter's answer travels with the document as a claim to check.
         state = {"document": document,
                  "sorter_handoff": dict(handoff) if handoff else {"available": False, "note": "no sorter answer was passed"}}
-    body = {"model": model, "state": state, "questions": dict(questions)}
+    elif (qset or {}).get("state_shape") == "object":
+        # 4.1.0+: the questions say "state.document", so the document is always that field.
+        # 4.0.x sent the bare text while its questions named state.document (a field that did not exist).
+        state = {"document": document}
+    if isinstance(state, dict) and (qset or {}).get("form_signals"):
+        state["form_signals"] = form_signals(text, original_chars=original_chars, window_chars=max_input_chars)
+    body: dict[str, Any] = {"model": model, "state": state, "questions": dict(questions)}
+    session = run_session_id(qset)
+    if session:
+        body["session_id"] = session
     data = _post_decision(body, timeout=timeout, attempts=attempts)
     _record_served(model, data)
     usage = data.get("usage") or {}
     _record_usage(model, usage)
     answers = data.get("answers") or {}
+    refused = refused_questions(questions, answers) if (qset or {}).get("record_refusals") else None
     top = answers.get("doc_type") or {}
     doc_type = top.get("choice")
     probs = top.get("probabilities") or {}
@@ -871,12 +990,76 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
                   "cost": usage.get("cost")},
     }
+    if refused is not None:
+        result["refused_questions"] = refused
+    if session:
+        result["session_id"] = session
     if _contract_enabled(qset):
         result = apply_question_set_contract(result, answers, qset or {}, handoff=handoff,
                                              truncated=original_chars > max_input_chars,
                                              original_chars=original_chars, window_chars=max_input_chars)
+        result = apply_v41_rules(result, answers, qset or {}, handoff=handoff)
     result.update(document_form_evidence(answers, qset))
     return result
+
+
+def apply_v41_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset: Mapping[str, Any], *,
+                    handoff: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The 4.1.0 routing rules, applied after the SHF-009 contract and only for a set that asks them.
+
+    Kept out of ``apply_question_set_contract`` so SHF-009's fingerprint (and every lock taken
+    under it) is untouched: a 4.0.x answer leaves here unchanged. A 4.1.0 answer is parked when a
+    yes/no form flag is at or above ``document_form_flags.park_min``, when a form flag or
+    ``doc_type`` went unanswered (``refused_questions``), or when the chosen class's ``fit__``
+    answer is below ``abstain.subclass_fit_min``. An unanswered ``fit__`` question is an unusable
+    subclass and goes through the class's ``subclass_gate`` policy, like ``undetermined``.
+    """
+    flag_block = qset.get("document_form_flags") or {}
+    fit = subclass_fit(qset)
+    if not flag_block and not fit and "refused_questions" not in result:
+        return dict(result)
+    out = dict(result)
+    reasons = list(out.get("abstain_reasons") or [])
+    refused = set(out.get("refused_questions") or [])
+    if flag_block:
+        park_min = float(flag_block.get("park_min", 0.5))
+        flags = form_flag_probabilities(answers, qset)
+        keys = [str(k) for k in flag_block.get("flags") or {}]
+        fired = [k for k in keys if flags.get(k, 0.0) >= park_min]
+        out["document_form"] = fired[0] if fired else ("complete_instrument" if flags else None)
+        out["document_form_flags"] = fired
+        reasons.extend(f"document_form:{k}" for k in fired)
+        reasons.extend(f"refused:{FORM_FLAG_PREFIX}{k}" for k in keys if f"{FORM_FLAG_PREFIX}{k}" in refused)
+    if "doc_type" in refused:
+        reasons.append("refused:doc_type")
+    doc_type = out.get("doc_type")
+    block = ((qset.get("subclass") or {}).get(doc_type) or {}) if doc_type else {}
+    if fit and doc_type and doc_type not in NON_CLASS_OPTIONS and not block.get("markers"):
+        value = (answers.get(f"{FIT_PREFIX}{doc_type}") or {}).get("noul")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out["subclass_fit_probability"] = float(value)
+            if float(value) < float((qset.get("abstain") or {}).get("subclass_fit_min", 0.5)):
+                reasons.append("subclass_fit")
+        elif "subclass_gate" not in out:
+            # The pick itself was usable (the contract did not gate it), but nothing says it fits.
+            gate = qset.get("subclass_gate") or {}
+            policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
+            out["subclass_gate"] = policy
+            if policy == "park":
+                reasons.append("subclass_gate:fit_unanswered")
+            else:
+                same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
+                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+                out["subclass_source"] = "sorter" if same_class else "unresolved"
+                out["subclass_confidence"] = None
+                if doc_type == "contract":
+                    out["contract_subtype"] = out["doc_subclass"]
+    out["abstain_reasons"] = reasons
+    out["abstained"] = bool(reasons)
+    if reasons:
+        out["route_to_human"] = True
+        out["confidence"] = 0.0
+    return out
 
 
 def document_form_evidence(answers: Mapping[str, Any], qset: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -886,6 +1069,11 @@ def document_form_evidence(answers: Mapping[str, Any], qset: Mapping[str, Any] |
     or score (the SHF-009 contract still parks on the chosen form); empty when the question
     set asks no form question or the answer carries no probabilities.
     """
+    flags = form_flag_probabilities(answers, qset)
+    if flags:
+        # 4.1.0+: the flags are not exclusive, so the mass that needs a person is the largest one.
+        return {"document_form_flag_probabilities": flags,
+                "document_form_human_mass": round(max(flags.values()), 6)}
     raw = (answers.get("document_form") or {}).get("probabilities")
     if not isinstance(raw, Mapping):
         return {}
@@ -895,6 +1083,17 @@ def document_form_evidence(answers: Mapping[str, Any], qset: Mapping[str, Any] |
     human = set((qset or {}).get("human_forms") or [])
     return {"document_form_probabilities": probs,
             "document_form_human_mass": round(sum(v for k, v in probs.items() if k in human), 6)}
+
+
+def form_flag_probabilities(answers: Mapping[str, Any], qset: Mapping[str, Any] | None) -> dict[str, float]:
+    """``{flag: p(yes)}`` of the 4.1.0+ yes/no form questions that were answered."""
+    flags = ((qset or {}).get("document_form_flags") or {}).get("flags") or {}
+    out = {}
+    for key in flags:
+        value = (answers.get(f"{FORM_FLAG_PREFIX}{key}") or {}).get("noul")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out[str(key)] = float(value)
+    return out
 
 
 #: Doc-type options that are not a class: probability on them is abstention mass (4.0.0 ``unknown_max``).
