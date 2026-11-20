@@ -6,7 +6,7 @@
 # Template for the lineage model: when R13b keeps a different finalist, copy this file with that
 # model's id, stem and price (rb1-r70b-decision-sorter-<stem>-heldout), before unsealing; the finalists (at most 2) are fixed at G6 and
 # recorded in the plan, never chosen after a held-out look.
-# Same question set as R13b (reviewer_decisions_v4.0.0, no handoff), scored by
+# Same question set as R13b (reviewer_decisions_v4.1.0, no handoff), scored by
 # scripts/compare_sorter_arms.py against R70's sorter arms, which run the same 1,000 ids:
 #   python scripts/compare_sorter_arms.py --a <R70 v0 sorter run> --b rb1-r70b-decision-sorter-luna-heldout --set heldout \
 #       --confirmatory --volume-docs-per-month 100000 --experiment-key rb1-r70b --write
@@ -47,7 +47,7 @@ engine:
 reviewer:
   backend: decisions
   model: openai/gpt-6-luna-decisions
-  questions: reviewer_decisions_v4.0.0
+  questions: reviewer_decisions_v4.1.0
 
 job:
   mode: endpoint
