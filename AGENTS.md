@@ -156,7 +156,9 @@ prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
 Cursor stubs (`sandbox subagents sync --harness project`). Materialize into sibling checkouts on **Digital-Mailroom** with
 `sandbox subagents propagate` or `materialize --package <id> --root <path>`
 ([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
-Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
+Meta agents: **`harness-doctor`**, **`adversarial-reviewer`** and
+**`pr-domain-reviewer`** (domain PR lane vs CodeRabbit/CodeAnt/CodeFactor; see
+[`docs/pr-review-lanes.md`](docs/pr-review-lanes.md)). See
 [`config/subagents/README.md`](config/subagents/README.md). Harness health:
 `sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
 sibling checkouts). Durable eve doctor:

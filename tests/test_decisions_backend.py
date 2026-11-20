@@ -389,6 +389,32 @@ def test_taxonomy_table_matches_the_vendored_mailroom():
     assert set(TAXONOMY["correspondence"]) == set(inv.CORRESPONDENCE_TYPES)
 
 
+def test_v4_1_matches_the_classification_node_and_keeps_4_0_2_elsewhere():
+    """4.1.0 is the handoff-free sorter set aligned to sorter_condensed_v5 / sorter_guide.
+
+    Only the class and subclass criteria the production classifier states, and 4.0.2 got
+    wrong or omitted, change. document_form, abstain and the subclass gate stay 4.0.2.
+    """
+    old, new = db.load_question_set("reviewer_decisions_v4.0.2"), db.load_question_set("reviewer_decisions_v4.1.0")
+    assert new["version"] == "4.1.0"
+    assert not new.get("handoff")
+    corp = new["subclass"]["corporate_record"]["criteria"]
+    assert "never board_resolution" in corp["bylaws"]
+    assert "bylaw" not in corp["board_resolution"].lower()
+    assert "amendments are appended" in corp["articles_of_incorporation"]
+    assert "never rights_instrument" in corp["officer_certificate"]
+    assert "unit purchase option" in corp["rights_instrument"]
+    assert "asset purchase" in new["subclass"]["contract"]["criteria"]["supply"]
+    assert "termination" in new["subclass"]["contract"]["criteria"]["consulting"]
+    assert "arbitration demand" in new["subclass"]["correspondence"]["markers"]["demand"]
+    assert "unit purchase option" in new["doc_type"]["criteria"]["contract"]
+    assert "bylaws, never board_resolution" in new["subclass"]["corporate_record"]["instructions"]
+    for key in ("document_form", "abstain", "subclass_gate", "human_forms", "max_input_chars"):
+        assert new[key] == old[key]
+    # The request shape is unchanged: same question names, same option keys.
+    assert set(db.decision_questions(new)) == set(db.decision_questions(old))
+
+
 def test_v3_2_files_a_bylaw_amendment_under_bylaws():
     """3.2.0 changes only the bylaws and board_resolution meanings: a bylaw amendment is bylaws,
     never board_resolution (mailroom-dataset v10 corpus rule C)."""

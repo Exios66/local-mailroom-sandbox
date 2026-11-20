@@ -605,10 +605,10 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
         else:
             if resp.status_code == 200:
                 data = resp.json()
-                # Decisions calls bypass the chat wrappers that price returned
-                # calls (HF-004). Count this returned call in the document scope
-                # too, even when the payload reports no usage keys, so repeated
-                # calls cannot slide past the per-document ceiling.
+                # The single live charge for this HTTP response. HF-004 also
+                # prices ``record_usage``; ``_record_usage`` uses the unwrapped
+                # accumulator so the same response is not charged again. A
+                # payload with no usage keys still takes one ceiling slot.
                 call_guard.after_call((data or {}).get("usage") or {})
                 return data
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
@@ -774,15 +774,23 @@ def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: s
 
 
 def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_reviewer") -> None:
-    """Count the call in the run's usage accumulator, so job budgets and cost see it."""
+    """Count the call in the run's usage accumulator, so job budgets and cost see it.
+
+    ``_post_decision`` already priced this response, including a payload with no
+    usage keys. HF-004 wraps ``record_usage`` and prices it again; while that
+    wrapper is installed, the tokens go to the unwrapped accumulator only.
+    """
     try:
         from pipeline.limits import record_usage
     except ImportError:
         return
+    fn = record_usage
+    if getattr(fn, "_sandbox_hotfix", None) == "HF-004":
+        fn = getattr(fn, "__wrapped__", fn)
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
-    record_usage({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
-                 model=model, agent=agent)
+    fn({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
+       model=model, agent=agent)
 
 
 def _record_served(model: str, data: Mapping[str, Any]) -> None:

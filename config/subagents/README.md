@@ -4,6 +4,7 @@
 | --- | --- |
 | [`family-roster.yaml`](family-roster.yaml) | **Canonical family manifest** (packages, harnesses, all subagents) |
 | [`roster.yaml`](roster.yaml) | Pointer for this checkout (`package: local-mailroom-sandbox`) |
+| [`../../docs/pr-review-lanes.md`](../../docs/pr-review-lanes.md) | How `pr-domain-reviewer` meshes with CodeRabbit / CodeAnt / CodeFactor |
 
 Commands:
 

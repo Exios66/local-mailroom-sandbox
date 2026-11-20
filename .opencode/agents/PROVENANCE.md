@@ -14,6 +14,7 @@ by re-downloading from the cited refs and updating `config/subagents/roster.yaml
 | legal-changelog-auditor | Exios66/llm-mailroom | `28cb4be8` |
 | harness-doctor | sandbox-native | SAND-017 |
 | adversarial-reviewer | sandbox-native | SAND-017 |
+| pr-domain-reviewer | sandbox-native | PR domain review lane |
 
 Cursor stubs under `.cursor/agents/` are generated — run:
 

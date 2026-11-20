@@ -1,0 +1,232 @@
+# Decision reviewer question set 4.1.0 (lineage: config/decisions/LINEAGE.yaml).
+# Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API; $0.10 per 1M input, $0 output).
+#
+# MINOR of 4.0.2. Request shape, document_form, abstain, subclass_gate and every criterion
+# not named here stay 4.0.2. This version aligns the class and subclass questions with the
+# primary classification node: llm-mailroom classify_node, SorterAgent, production prompt
+# sorter_condensed_v5, user-message catalog llm_dojo_scoring.schemas.sorter_guide.
+# Sets 4.0.0-4.0.2 branched from 3.1.0 and kept the v9.3 bylaw rule that prompt reversed.
+#
+# Criteria that change, and the node text they follow:
+#   - bylaws / board_resolution: a bylaw amendment is bylaws, never board_resolution
+#     (sorter_condensed_v5; the same meanings as question set 3.2.0 and the guide).
+#   - contract class line and supply: asset purchase, and extensions of a note or asset
+#     purchase, are supply (condensed hard case and the guide).
+#   - contract class line and rights_instrument: a unit purchase option is
+#     corporate_record / rights_instrument (boundary B1 and the guide).
+#   - officer_certificate: never rights_instrument (condensed hard case and the guide).
+#   - articles_of_incorporation: the charter itself stays that subclass when its
+#     amendments are appended (the guide). The subclass instructions name a charter
+#     amendment instrument as charter_amendment and a bylaw amendment as bylaws.
+#   - consulting: an employment or offer letter's termination stays consulting (the guide).
+#   - correspondence demand marker: an arbitration demand is a demand (the guide).
+#
+# document_form is still 4.0.2. That wording was written from calibration draw 1, so
+# draw-1 form figures are in-sample for it. Draw 2 has not adopted or rejected it.
+# This file does not replace 4.0.1 or 4.0.2 on the form-calibration runs.
+#
+# Not the reviewer frontrunner (3.1.0, which reads a sorter handoff). The unrun H5
+# decision-sorter configs pin this file. Abstain thresholds stay provisional.
+schema: sandbox.decisions/v1
+name: reviewer_decisions
+version: 4.1.0
+max_input_chars: 1000000
+truncation_notice: true   # say so when the window still cuts a document; never truncate silently
+
+# Any of these document-form answers sends the document to a person whatever the class says.
+human_forms: [fragment_or_excerpt, multiple_documents, unreadable, non_english]
+
+doc_type:
+  instructions: >-
+    Classify state.document from its own text. Classify the instrument the title names, not an
+    exhibit stamp or filing wrapper. Amendments, restatements, joinders, forms and drafts take
+    the class of the instrument they change or copy.
+  criteria:
+    contract: >-
+      Commercial agreement between parties (license, supply, distribution, services, hosting,
+      maintenance, development, manufacturing, marketing, sponsorship, franchise, agency,
+      consulting or employment, collaboration or cooperation, joint venture, note or asset
+      purchase, IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT
+      registration/investor/stockholder rights or subscription agreements, warrants, unit
+      purchase options or indentures (corporate_record). A power of attorney is corporate_record even when it is
+      titled "Limited Power of Attorney" and appoints an agent under an agreement.
+    merger_agreement: >-
+      Agreement and Plan of Merger, its amendments or restatements; also a Transaction or
+      Business Combination Agreement that merges through a Merger Sub.
+    corporate_record: >-
+      A company's own organisation, governance or securities instrument: charter, certificate
+      of incorporation or formation, charter amendment, bylaws, board or stockholder
+      resolution or consent, officer certificate or Certificate of Designation, power of
+      attorney, list or table of subsidiaries, indenture, securities rights instrument,
+      unit purchase option.
+    correspondence: >-
+      A communication: letter, email, memo, notice, demand, press release, meeting request.
+      All mailbox text, including forwards, newsletters, automated notices and bare message
+      fragments. NOT a First Notice of Loss or claim file (insurance_claim).
+    insurance_claim: >-
+      Claim paperwork: First Notice of Loss form (Claim Reference, Policy Number, Date of
+      Loss), with its call notes, emails or letters; adjuster reports; claim demand packages;
+      coverage or denial letters; CMS / DE-SynPUF claim tables.
+    unknown: >-
+      Plainly not a communication and fits no class (court opinion, accounting standard,
+      due-diligence checklist), or too garbled to identify.
+
+document_form:
+  instructions: >-
+    Judge the state of state.document as an input to extraction. Choose the one description
+    that is true of the text you can see. A document's own annexes, exhibits, schedules,
+    amendments, indexes of defined terms, cover pages and the attachments or supporting papers
+    of the same matter (an invoice, estimate or report filed with a claim; a disclosure
+    schedule filed with an agreement) are part of that one document. A filed agreement is
+    judged as filed: redactions ("[***]"), schedules or exhibits noted as omitted, and annexes
+    listed but not attached do not make it a fragment. An email is judged by its newest
+    message: quoted or forwarded history below it, however it ends, is part of that one email.
+    Look at the very end of the document: a last word or sentence that is cut off is a
+    fragment, except inside an email's quoted or forwarded history, where only the newest
+    message counts.
+  criteria:
+    complete_instrument: >-
+      One document, with whatever it carries of its own, from its own beginning to its own end:
+      it opens with a title, a form heading or a salutation and its body runs to a signature
+      block, a closing, a final section, or the annexes, schedules, index or attachments that
+      follow it. A form or exhibit whose signature or date lines are blank is complete. A
+      one-page agreement, a one-page letter, a single table, a claim notice with the invoices
+      or estimates it cites, a long merger agreement ending on its annexes or signature pages,
+      and an email thread whose newest message is whole are complete instruments.
+    fragment_or_excerpt: >-
+      Part of a longer document whose body is missing: the text stops in the middle of a word
+      or sentence, starts mid-sentence or mid-section, is marked "continued", is a form or
+      notice with its heading and identifiers but none of its body (no items, services,
+      narrative or terms), or is only a signature page, cover page, table of contents, exhibit
+      index or schedule without the instrument it belongs to. Ending on an annex, a schedule,
+      an index of defined terms or blank signature lines is not a fragment.
+    multiple_documents: >-
+      Two or more unrelated documents in one text: different matters, parties or classes (a
+      contract followed by an unrelated letter, two separate claims). Signs: a newsletter,
+      advertisement or message about something else after the end of an agreement or its
+      filing footer ("Source: ..., 10-K"); a short record (a claim header, a note) followed by a
+      separate filed exhibit of another kind, often opened by <DOCUMENT> or <TYPE> tags. An
+      agreement with its own amendment, exhibits or schedules, a claim with its supporting
+      papers, and an email carrying a forwarded or quoted message are each ONE document. A
+      filing footer, page header or exhibit stamp on its own is not a sign of a second document.
+    unreadable: >-
+      Empty, garbled, mostly OCR noise, or too fragmentary to identify any form.
+    non_english: >-
+      The substantive text is not in English.
+
+abstain:
+  # Provisional (see the header). Each rule that fires parks the document.
+  margin: 0.10            # p(best) - p(second) below this: two classes still stand
+  subclass_not_this_class_max: 0.50   # the subclass question itself rejects the chosen class
+  unknown_max: 0.34       # this much probability on a non-class
+
+subclass_gate:
+  # What to do when the subclass answer is unusable: the model abstained, or it chose
+  # not_this_class (which in 3.1.0 fell back to the runner-up). `park` folds the gated
+  # confidence to zero so the routing parks the document; `keep_sorter` passes the sorter's
+  # subclass through, so a guess never replaces a guess. A calibrated per-class subclass
+  # cutoff is the next step (LINEAGE open_for_4.1.0), not part of this set.
+  default: {on_low: keep_sorter}
+  merger_agreement: {on_low: park}     # merger_consideration is a scored extraction field
+  corporate_record: {on_low: park}     # the subclass selects the scoring schema
+
+subclass:
+  contract:
+    instructions: >-
+      Agreement family. A title naming one family decides it ("Supply Agreement" is supply
+      even when the supplier manufactures; "Cooperation" or "Collaboration Agreement" is
+      collaboration). Hybrid titles: the family the operating obligations mostly concern.
+    abstain: No agreement family fits the operative text well enough to name one.
+    criteria:
+      affiliate: Affiliate or referral programme.
+      agency: Agency or sales agency.
+      collaboration: Collaboration or Cooperation Agreement, incl. shareholder standstill settlements.
+      co_branding: Co-branding.
+      consulting: Consulting, employment agreement, executive offer or employment letter, and their termination.
+      development: Development work, milestones, steering committee.
+      distributor: Distribution.
+      endorsement: Endorsement, incl. insurance or annuity endorsement riders.
+      franchise: Franchise.
+      hosting: Hosting, platform or SaaS provision.
+      ip: IP assignment, transfer or separation.
+      joint_venture: Joint venture; Rule 13d-1(k) Joint Filing Agreement.
+      license: Licence of IP, software, content or technology.
+      maintenance: Maintenance or support; licence plus support; capital or net-worth maintenance.
+      manufacturing: Manufacturing.
+      marketing: Marketing or remarketing.
+      non_compete_no_solicit: Stand-alone non-compete or non-solicit.
+      outsourcing: Outsourcing.
+      promotion: Promotion.
+      reseller: Reseller.
+      service: Services, master services, statement of work.
+      sponsorship: Sponsorship.
+      strategic_alliance: Strategic alliance.
+      supply: Supply or purchase; asset purchase and note purchase agreements, and their extensions.
+      transportation: Transportation, shipping or logistics.
+      other: No family fits.
+  merger_agreement:
+    instructions: >-
+      What each share of the target's COMMON stock converts into, from the conversion or
+      Effect on Capital Stock section (not the table of contents). Options, appraisal,
+      financing and escrow do not change it.
+    abstain: The conversion terms are not in the text, and the recitals do not state them.
+    criteria:
+      all_cash: Cash only, incl. a cash tender offer then merger.
+      all_stock: Acquirer shares only; cash in lieu of fractional shares is still all_stock.
+      mixed_cash_stock: A fixed mix of cash and stock for every share.
+      mixed_cash_stock_election: Holders elect cash or stock, usually prorated.
+      other: Cash or stock plus a CVR, units, partnership interests, or other consideration.
+  corporate_record:
+    instructions: >-
+      Which record, by the document's own title first; an exhibit stamp never decides. A
+      resolution that adopts or approves an amendment is board_resolution. A Certificate
+      or Articles of Amendment of a charter is charter_amendment. An amendment to the
+      bylaws is bylaws, never board_resolution.
+    abstain: The title names no record and the operative text does not settle one.
+    criteria:
+      articles_of_incorporation: Charter or restated charter, certificate or articles of incorporation, certificate of formation, articles of organization; the charter itself even when its amendments are appended.
+      charter_amendment: Certificate or Articles of Amendment, Certificate of Correction.
+      bylaws: Bylaws, restated bylaws, or an amendment to the bylaws, even one the board adopted (never board_resolution).
+      board_resolution: Board or stockholder resolution or written consent.
+      officer_certificate: Officer's or secretary's certificate; Certificate of Designation and its amendments (never rights_instrument).
+      powers_of_attorney: Power of attorney.
+      subsidiary_list: List or table of subsidiaries.
+      indenture: Indenture or supplemental indenture.
+      rights_instrument: Registration, investor, stockholder or preemptive-rights or subscription agreement; warrant; unit purchase option; specimen stock certificate.
+      other: None fits.
+  correspondence:
+    instructions: Which form the content takes, by markers anywhere in the text, including forwards.
+    order: [attorney_demand, letter, press_release, memo, demand, notice, meeting_request]
+    default: email
+    markers:
+      attorney_demand: Does it contain a demand made by or for an attorney or law firm (Esq., Law Offices, counsel for)?
+      letter: Does it contain a letter, a salutation ("Dear ...") with a formal closing (Sincerely, Very truly yours, Regards)?
+      press_release: Does it contain or discuss a press or news release (For Immediate Release, PR Newswire, Business Wire, media contact)?
+      memo: Does it contain a memorandum (TO / FROM / DATE / RE header lines in the body, or the word memo or memorandum naming it)?
+      demand: Does it contain or discuss a demand (demand letter, demand for payment, past due, final notice, arbitration demand)? Mentions in an ordinary email count.
+      notice: Does it contain or discuss a notice (Notice of ..., Notice No., give notice, please be notified)?
+      meeting_request: Does it invite or ask someone to meet or confer (meeting, call, appointment, event invitation)?
+    criteria:
+      attorney_demand: Attorney demand.
+      letter: Letter.
+      press_release: Press release.
+      memo: Memo.
+      demand: Demand.
+      notice: Notice.
+      meeting_request: Meeting request.
+      email: Ordinary message.
+  insurance_claim:
+    instructions: CMS tables by file type; claim paperwork by line of insurance.
+    abstain: Claim paperwork is present but the line of insurance is not stated and not inferable.
+    criteria:
+      inpatient: CMS inpatient claims table.
+      outpatient: CMS outpatient claims table.
+      carrier: CMS carrier (professional) claims table.
+      pde: CMS Part D prescription drug events.
+      auto: Auto or motor-vehicle claim.
+      property: Property, homeowner, household or building claim.
+      liability: General, professional or product liability claim (injury or damage to a third party).
+      health: Health or medical claim paperwork (not a CMS table).
+      life: Life insurance or death-benefit claim.
+      workers_comp: Workers' compensation claim (an employee's work injury).
+      other: Claim paperwork of another line (marine, travel, crop, pet) or no line stated.
