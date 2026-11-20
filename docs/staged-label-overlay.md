@@ -11,14 +11,14 @@ central cache, so every deployment scores against the same labels.
 ```yaml
 dataset:
   name: family-corpus            # Hub v9.3 (ff4ca546); the overlay is a delta against it
-  staged_overlay: 9.3.1-rc.3     # a version pinned in config/staged_overlays.yaml
+  staged_overlay: 9.3.1-rc.4     # a version pinned in config/staged_overlays.yaml
 ```
 
 Pull the pinned cut before preparing the dataset. This needs GitHub network access but involves
 no spend:
 
 ```bash
-python scripts/pull_staged_overlay.py --version 9.3.1-rc.3
+python scripts/pull_staged_overlay.py --version 9.3.1-rc.4
 ```
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
@@ -61,6 +61,23 @@ for dependency snapshots (`docs/dependency-snapshots.md`).
   itself stays in this repository, because mailroom-issues holds no code;
 - joins the assist CSV;
 - rewrites cut-off magnitudes ("eighty (180) days" from a builder grammar that keeps one number
-  word) with the document's own spelling, and queues any it cannot ground.
+  word) with the document's own spelling, and queues any it cannot ground;
+- validates the merged labels against the document text (rc.4 on; `validation_repair` in the
+  manifest):
+  - it keeps only whole ISO dates, maps `cuad_family` to the canonical key the scorer compares,
+    and reduces a whole governing-law clause to the jurisdiction it names (found in the text,
+    otherwise queued);
+  - it drops defined-term aliases and clause fragments from `parties` and de-duplicates entity
+    lists;
+  - it strips maildir user, folder and timestamp tokens from Hub correspondence `keywords`,
+    which makes them Hub overrides for sign-off;
+- applies reviewed corrections from `data/labels/review/validation_corrections.jsonl`. Each one
+  quotes the document, and the stager refuses a quote that is not in the text or a correction
+  that matches no cell;
+- writes `queues/header_restoration.csv`: the correspondence documents whose labels (basis
+  `original_header`) quote the Enron email header that the cleaned corpus text dropped. Those
+  labels stay as truth. The next official release restores the listed header lines into
+  `doc_text`, so a model sees what it is scored on. Until then, a miss on those fields can
+  reflect the missing header rather than the model.
 
 Commit the cut in mailroom-issues, then add its pin here.

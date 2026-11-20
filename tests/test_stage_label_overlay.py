@@ -159,3 +159,110 @@ def test_verify_builder_refuses_other_bytes(mod, tmp_path, monkeypatch):
         mod.verify_builder(head, files, files / mod.BUILDER_SCRIPT)
     with pytest.raises(mod.CacheError, match="not in this clone"):
         mod.verify_builder("0" * 40, files, files / mod.BUILDER_SCRIPT)
+
+
+@pytest.mark.parametrize("value, text, expected", [
+    ("This Agreement shall be governed by the laws of the State of New York, without regard to conflicts.",
+     "governed by the laws of the State of New York", "State of New York"),
+    ("THIS AGREEMENT SHALL BE GOVERNED BY THE LAWS, OTHER THAN CHOICE OF LAW RULES, OF THE STATE OF GEORGIA.",
+     "OF THE STATE OF GEORGIA", "State of Georgia"),
+    ("This Agreement shall be governed by the laws of the St",
+     "This Agreement shall be governed by the laws of the State of Ohio. Notices", "State of Ohio"),
+    ("construed in accordance with English law.", "in accordance with English law.", "English law"),
+    ("governed by the laws of the People's Republic of China", "laws of the People's Republic of China",
+     "People's Republic of China"),
+    ("governed by the law governing the Distributor Agreement.", "the Distributor Agreement", None),
+    ("governed by the laws of the State of Nevada.", "no jurisdiction here", None),  # must be in the text
+])
+def test_jurisdiction_reads_the_named_place(mod, value, text, expected):
+    assert mod.jurisdiction(value, text) == expected
+
+
+def test_clean_parties_drops_defined_term_clauses(mod):
+    items = ['ACCURAY INCORPORATED ("Accuray")', '("MSCI")', "Siemens AG",
+             'Accuray and Siemens are each referred to as a "Party" and collectively as the "Parties"',
+             'e-centives, Inc., ("Application Provider")', "SIEMENS AG"]
+    assert mod.clean_parties(items) == ["ACCURAY INCORPORATED", "Siemens AG", "e-centives, Inc."]
+
+
+def test_keyword_metadata_keeps_topic_words(mod):
+    kw = ["energy_market", "notice", "dasovich-j", "all_documents", "2001-04-09T08:00:00+00:00", "Dabhol"]
+    assert mod.keyword_metadata(kw, "dasovich-j/all_documents/10778.") == ["energy_market", "notice", "Dabhol"]
+
+
+VTEXT = 'This AGREEMENT is made the 20 March day of 1998 between A ("A") and B. Governed by the laws of the State of Texas.'
+
+
+def _row(**cells):
+    return {"document_id": "DOC-1", "filename": "f", "fields_targeted": "4", "fields_labeled": "4",
+            "label_completeness": "1.0", **cells}
+
+
+def test_validate_repairs_applies_rules_and_reviewed_corrections(mod):
+    prov = [_cell(field="agreement_date", value="20 March day of 1998", chosen_source="generated_derived",
+                  agreeing_sources="generated_derived", rule="weighted_vote"),
+            _cell(field="effective_date", value="1998-03", chosen_source="generated_derived",
+                  agreeing_sources="generated_derived", rule="weighted_vote"),
+            _cell(field="parties", value='["A (\\"A\\")", "B", "b"]', chosen_source="generated_derived",
+                  agreeing_sources="generated_derived", rule="weighted_vote"),
+            _cell(field="governing_law", value="Governed by the laws of the State of Texas.", rule="weighted_vote",
+                  chosen_source="generated_derived", agreeing_sources="generated_derived")]
+    for c in prov:
+        c["doc_class"] = "contract"
+    rows = [_row(agreement_date="20 March day of 1998", effective_date="1998-03", parties=prov[2]["value"],
+                 governing_law=prov[3]["value"])]
+    fix = {("DOC-1", "agreement_date"): {"doc_id": "DOC-1", "field": "agreement_date", "presence": "populated",
+                                         "value": "1998-03-20", "quote": "the 20 March day of 1998", "note": "n"}}
+    new_prov, new_rows, queue, counts = mod.validate_repairs(prov, rows, {"DOC-1": VTEXT}, fix)
+    got = {c["field"]: (c["value"], c["presence"]) for c in new_prov}
+    assert got == {"agreement_date": ("1998-03-20", "populated"), "effective_date": ("", "unlabeled"),
+                   "parties": ('["A", "B"]', "populated"), "governing_law": ("State of Texas", "populated")}
+    assert new_prov[0]["chosen_source"] == mod.VALIDATION_SOURCE
+    assert json.loads(new_prov[0]["evidence"])[0]["text"] == "the 20 March day of 1998"
+    assert new_rows[0]["fields_labeled"] == "3" and new_rows[0]["parties"] == '["A", "B"]'
+    assert [q["field"] for q in queue] == ["effective_date"]
+    assert counts == {"governing_law_jurisdiction": 1, "partial_date_unlabeled": 1, "parties_cleaned": 1,
+                      "validation_review": 1}
+    assert prov[1]["value"] == "1998-03"  # inputs untouched
+
+
+def test_validate_repairs_strips_hub_keywords_as_an_override(mod):
+    cell = _cell(field="keywords", doc_class="correspondence", value='["notice", "kean-s", "inbox"]',
+                 chosen_source="hub_v9.3", agreeing_sources="hub_v9.3", votes='{"hub_v9.3": ["notice"]}')
+    new_prov, _rows, _q, counts = mod.validate_repairs([cell], [_row(filename="kean-s/inbox/1.", keywords="")],
+                                                       {"DOC-1": ""}, {})
+    assert new_prov[0]["value"] == '["notice"]' and mod.is_override(new_prov[0])
+    assert counts == {"keyword_metadata_stripped": 1}
+
+
+def test_corrections_must_quote_the_text_and_match_a_cell(mod, tmp_path):
+    bad = tmp_path / "c.jsonl"
+    bad.write_text(json.dumps({"doc_id": "D", "field": "f", "presence": "populated", "value": "v", "note": "n"}) + "\n")
+    with pytest.raises(mod.CacheError, match="needs a value and a quote"):
+        mod.read_corrections(bad)
+    fix = {("DOC-1", "x"): {"doc_id": "DOC-1", "field": "x", "presence": "unlabeled", "note": "n"}}
+    with pytest.raises(mod.CacheError, match="no merged cell"):
+        mod.validate_repairs([], [], {}, fix)
+    cell = _cell(field="agreement_date", doc_class="contract")
+    fix = {("DOC-1", "agreement_date"): {"doc_id": "DOC-1", "field": "agreement_date", "presence": "populated",
+                                         "value": "2000-01-01", "quote": "not there", "note": "n"}}
+    with pytest.raises(mod.CacheError, match="quote is not in the document text"):
+        mod.validate_repairs([cell], [_row()], {"DOC-1": VTEXT}, fix)
+
+
+def test_header_restoration_lists_the_quoted_header_lines(mod, tmp_path):
+    src = tmp_path / "correspondence.jsonl"
+    rec = {"doc_id": "DOC-1", "labels": {
+        "sender": {"basis": "original_header", "evidence": [{"file": "kean-s/inbox/1.", "header": "From: a@x.com"}]},
+        "communication_date": {"basis": "original_header", "evidence": [{"file": "kean-s/inbox/1.", "header": "Date: Mon"}]},
+        "intent": {"basis": "review_read_message", "evidence": []}}}
+    src.write_text(json.dumps(rec) + "\n" + json.dumps({"doc_id": "DOC-9", "labels": rec["labels"]}) + "\n")
+    out = mod.header_restoration(src, [_row(filename="kean-s/inbox/1.")])
+    assert out == [{"document_id": "DOC-1", "filename": "kean-s/inbox/1.", "maildir_file": "kean-s/inbox/1.",
+                    "fields": "communication_date|sender", "header_lines": '["Date: Mon", "From: a@x.com"]'}]
+
+
+def test_clean_parties_drops_a_sentence_period_the_text_lacks(mod):
+    text = "between DSP Group, Inc. and Synaptics Incorporated, a Delaware corporation"
+    assert mod.clean_parties(["DSP Group, Inc.", "Synaptics Incorporated."], text) == [
+        "DSP Group, Inc.", "Synaptics Incorporated"]

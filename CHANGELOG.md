@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+- **Production slices now score against the validated staged overlay `9.3.1-rc.4`.**
+  - `config/staged_overlays.yaml` pins rc.4 (mailroom-issues `3dd4e402`, manifest
+    `3a6efaed…`). The seven `config/runs/production/slice-*` configs move from rc.3 to rc.4.
+  - `scripts/stage_label_overlay.py` validates the merged labels before staging:
+    - whole ISO dates only; canonical `cuad_family` keys;
+    - governing-law jurisdictions taken from whole clauses;
+    - `parties` without aliases or clause fragments, and de-duplicated entity lists;
+    - Hub correspondence `keywords` stripped of maildir metadata (queued as overrides).
+  - The stager also applies the reviewed, quote-checked corrections in
+    `data/labels/review/validation_corrections.jsonl`.
+  - It writes `queues/header_restoration.csv`, which lists the correspondence whose
+    header-sourced labels need the Enron header text restored in the next release. Those labels
+    stay as truth.
+  - Docs: `docs/staged-label-overlay.md` and `scripts/export_mailroom_cache.py` (the cache
+    README).
 - **Production slice configs score against staged overlay `9.3.1-rc.3`.** The seven
   `config/runs/production/slice-*` configs (local and Modal-host twins) set
   `dataset.staged_overlay: 9.3.1-rc.3` in place of `interim_labels` / `near_gold_labels`.

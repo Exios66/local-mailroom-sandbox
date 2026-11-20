@@ -183,7 +183,7 @@ class DatasetSpec(BaseModel):
     near_gold_labels: bool = False
     # Score against a staged production label overlay from the mailroom-issues mailroom_cache
     # (mailroom_sandbox.staged_overlay): a version pinned in config/staged_overlays.yaml, e.g.
-    # "9.3.1-rc.3". It is the merged master of the Hub, interim and near-gold layers, so it
+    # "9.3.1-rc.4". It is the merged master of the Hub, interim and near-gold layers, so it
     # replaces interim_labels / near_gold_labels (never both). The pinned MANIFEST.json sha256 is
     # hashed into the spec and each row names the fields and Hub overrides it took.
     staged_overlay: str | None = None

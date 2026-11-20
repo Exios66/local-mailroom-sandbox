@@ -38,7 +38,7 @@ Outputs, under ``<out>/v9.3.0/pre-release/v<version>/`` (immutable once written)
 - ``queues/needs_human.csv`` (unresolved disputes plus queued join cells) and
   ``queues/gold_override_signoff.csv`` (Hub overrides, ``decided_by`` left blank).
 
-    python scripts/stage_label_overlay.py --version 9.3.1-rc.3 \\
+    python scripts/stage_label_overlay.py --version 9.3.1-rc.4 \\
         --builder-dir reports/datasets/mailroom-dataset-v9.3-label-repaired \\
         --builder-commit <sha> --builder-script <dir>/build_label_repaired.py \\
         --assist mailroom_dataset_v9.3_label_repaired_copy.csv \\
@@ -354,6 +354,289 @@ def repair_cells(prov: list[dict[str, str]], rows: list[dict[str, str]], texts: 
     return prov, [by_id[r["document_id"]] for r in rows], queue, dict(sorted(counts.items()))
 
 
+VALIDATION_SOURCE = "validation_review"  # a hand-read correction (CORRECTIONS_FILE)
+VALIDATION_RULE = "validation_rule"  # a deterministic repair of a Hub value (queued for sign-off)
+CORRECTIONS_FILE = "data/labels/review/validation_corrections.jsonl"
+HEADER_SOURCE = "data/labels/interim/correspondence.jsonl"
+HEADER_COLUMNS = ("document_id", "filename", "maildir_file", "fields", "header_lines")
+CORRECTION_PRESENCE = ("populated", "documented_absence", "unlabeled")
+#: Enron maildir folder names the Hub keywords picked up from the file path, not the message.
+MAILDIR_FOLDERS = frozenset({"all_documents", "deleted_items", "sent_items", "sent", "_sent_mail", "inbox",
+                             "discussion_threads", "notes_inbox", "calendar", "contacts", "archiving"})
+_ISO_TS = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d")
+_ISO_DATE = re.compile(r"\d{4}-\d\d-\d\d")
+_JURIS_PREFIX = (r"(?:State|Commonwealth|Province|Republic|Kingdom|People'?s\s+Republic|Hong\s+Kong\s+Special"
+                 r"\s+Administrative\s+Region|Federal\s+Republic|Canton|District)\s+of\s+(?:the\s+)?")
+_JURIS = re.compile(r"(?i:\blaws?\s+(?:in\s+force\s+in|of)\s+(?:the\s+)?)(?P<j>(?i:" + _JURIS_PREFIX
+                    + r")?[A-Z][A-Za-z.\-]*(?:[ \t]+(?:and[ \t]+)?[A-Z][A-Za-z.\-]*)*)")
+_ALIAS = re.compile(r"[\s,]*\((?:[^()]*?)[\"“”][^()]*\)[\s,]*$")
+#: a ``parties`` element that is a defined-term clause, not a party ("each referred to as a Party").
+_PARTY_JUNK = re.compile(r"referred\s+to|hereinafter|hereafter|collectively|individually|separately|"
+                         r"\beach,?\s+(?:as\s+)?an?\b|together\s+with|^\(|^[\"“]|^the\s+[\"“]|\bpart(?:y|ies)\b[\"”]|"
+                         r"^if\s+you\b|^on\s+behalf\b|^_{3,}|\bis\s+executing\b|^.{140,}$", re.I)
+#: words that end a jurisdiction run read from an upper-case clause ("STATE OF DELAWARE WITHOUT ...")
+_JURIS_STOP = frozenset("without shall or in applicable to excluding except as which that for regardless having "
+                        "arising apply governing notwithstanding its their any with by under other than".split())
+_ADJ_LAW = re.compile(r"\b(?:with|under|by)\s+(?:the\s+)?((?:[A-Z][\w.]*\s+){0,2}[A-Z][\w.]*)\s+[Ll]aws?\b")
+_NAMED_JURIS = re.compile(r"\b(?:State|Commonwealth|Province|Republic)\s+of\s+(?:the\s+)?[A-Z][A-Za-z.\-]*(?:[ \t]+[A-Z][A-Za-z.\-]*)*",
+                          re.I)
+
+
+def _field_types() -> dict[str, dict[str, str]]:
+    from mailroom_sandbox import dojo_source
+
+    dojo_source.choose()
+    from llm_dojo_scoring.schemas.doc_classes import DOC_CLASSES
+
+    return {k: dict(v.fields) for k, v in DOC_CLASSES.items()}
+
+
+def _canonical_family(value: str) -> str:
+    from mailroom_sandbox import dojo_source
+
+    dojo_source.choose()
+    from llm_dojo_scoring.schemas.scored_enums import canonical_label
+
+    return canonical_label("contract", "cuad_family", value) or value
+
+
+def _find(doc_text: str, quote: str) -> re.Match[str] | None:
+    return re.search(r"\s+".join(map(re.escape, quote.split())), doc_text, re.I)
+
+
+def jurisdiction(value: str, doc_text: str) -> str | None:
+    """The jurisdiction a governing-law clause names ("State of New York"), if the text states it."""
+    probe = value
+    if not value.rstrip().endswith((".", ";", ")")):
+        # The builder cuts long clauses ("... the laws of the St"): finish the sentence from the text.
+        m = _find(doc_text, value.strip())
+        if m:
+            probe = value.rstrip() + doc_text[m.end():m.end() + 240].split(".")[0]
+    probe = re.sub(r"\s+", " ", probe)
+    probe = probe.title().replace("'S ", "'s ") if probe.isupper() else probe
+    found = [_trim_juris(m.group("j")) for m in _JURIS.finditer(probe)]
+    found = [j for j in found if j and j.lower() not in {"state", "commonwealth", "province"}]
+    if not found:
+        # "...the laws, other than choice of law rules, of the state of Florida": one named state.
+        named = {re.sub(r"\s+", " ", m.group(0)).rstrip(".") for m in _NAMED_JURIS.finditer(probe)}
+        named = {_trim_juris(j) for j in named}
+        found = [named.pop()] if len(named) == 1 else []
+    if not found:
+        # "... in accordance with Swiss law" / "English law" / "New York law": the text's own phrase.
+        adj = _ADJ_LAW.search(probe)
+        found = [f"{adj.group(1)} law"] if adj else []
+    found = [j for j in found if len(j.replace(".", "")) >= 3]
+    if not found:
+        return None
+    best = next((j for j in found if " of " in j), found[0])
+    best = re.sub(r"\b(Of|The|And)\b", lambda w: w.group(1).lower(), best)
+    best = re.sub(r"(?<![\w'’])(?!of\b|the\b|and\b|law\b)([a-z])", lambda w: w.group(1).upper(), best)
+    return best if _find(doc_text, best) else None
+
+
+def _trim_juris(j: str) -> str:
+    """Cut a jurisdiction run at the first clause word ("State of Delaware Without Giving ...")."""
+    out = []
+    for w in j.rstrip(".,;").split():
+        if w.lower() in _JURIS_STOP:
+            break
+        out.append(w)
+    while out and out[-1].lower() in {"and", "of", "the"}:
+        out.pop()
+    return " ".join(out).rstrip(".,;")
+
+
+def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
+    """``parties`` without defined-term clauses and trailing alias parentheticals, de-duplicated.
+
+    A sentence period the builder kept ("Synaptics Incorporated.") goes when the text has the name
+    without it and never with it.
+    """
+    out, seen = [], set()
+    for v in items:
+        if isinstance(v, str):
+            v = _ALIAS.sub("", v).strip()
+            if not v or _PARTY_JUNK.search(v):
+                continue
+            if doc_text and v.endswith(".") and not _find(doc_text, v) and _find(doc_text, v[:-1]):
+                v = v[:-1]
+        k = re.sub(r"\s+", " ", str(v)).strip().lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(v)
+    return out
+
+
+def keyword_metadata(values: list[Any], filename: str) -> list[Any]:
+    """The Hub keywords without maildir path parts and timestamps (they come from the file, not the text)."""
+    user = filename.split("/", 1)[0] if "/" in filename else ""
+    return [v for v in values if not (isinstance(v, str) and (_ISO_TS.match(v) or v in MAILDIR_FOLDERS
+                                                               or (user and v == user)))]
+
+
+def read_corrections(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    if not path.exists():
+        return out
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        c = json.loads(line)
+        key = (c["doc_id"], c["field"])
+        if key in out or c.get("presence") not in CORRECTION_PRESENCE or not c.get("note"):
+            raise CacheError(f"{path}:{n}: duplicate key, bad presence or missing note")
+        if c["presence"] == "populated" and not (c.get("value") not in (None, "") and c.get("quote")):
+            raise CacheError(f"{path}:{n}: a populated correction needs a value and a quote")
+        out[key] = c
+    return out
+
+
+def header_restoration(path: Path, rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Per correspondence document, the original email header lines its labels quote.
+
+    The corpus text lost these headers in cleaning; the labels keep the header values, and this
+    list is what the next dataset release needs to put the headers back into the text.
+    """
+    names = {r["document_id"]: r["filename"] for r in rows}
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        lines, files, fields = [], set(), []
+        for field, lab in sorted(rec["labels"].items()):
+            if lab.get("basis") != "original_header":
+                continue
+            fields.append(field)
+            for e in lab.get("evidence") or []:
+                files.add(e.get("file", ""))
+                if e.get("header") and e["header"] not in lines:
+                    lines.append(e["header"])
+        if fields and rec["doc_id"] in names:
+            out.append({"document_id": rec["doc_id"], "filename": names[rec["doc_id"]],
+                        "maildir_file": "|".join(sorted(f for f in files if f)), "fields": "|".join(fields),
+                        "header_lines": json.dumps(lines, ensure_ascii=False)})
+    return sorted(out, key=lambda r: r["document_id"])
+
+
+def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], texts: dict[str, str],
+                     corrections: dict[tuple[str, str], dict[str, Any]]
+                     ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
+    """The validation pass over the merged cells (inputs are not mutated).
+
+    - a hand-read correction (``CORRECTIONS_FILE``) replaces the cell; its quote must be in the text;
+    - Hub ``keywords``: maildir folders, the mailbox owner and timestamps are dropped (a Hub override);
+    - staged (non-Hub) cells: a ``date`` that is not a whole calendar date becomes unlabeled and is
+      queued; ``cuad_family`` takes Dojo's canonical key; a ``governing_law`` clause becomes the
+      jurisdiction it names (queued when the text does not state one); entity lists lose duplicates,
+      and ``parties`` lose defined-term clauses and trailing alias parentheticals.
+    """
+    types = _field_types()
+    prov = [dict(r) for r in prov]
+    by_id = {r["document_id"]: dict(r) for r in rows}
+    queue: list[dict[str, str]] = []
+    counts: collections.Counter[str] = collections.Counter()
+    used: set[tuple[str, str]] = set()
+
+    def update(cell: dict[str, str], value: str, presence: str, rule: str, source: str | None = None,
+               evidence: list[dict[str, Any]] | None = None) -> None:
+        row = by_id[cell["document_id"]]
+        was = cell["presence"] in LABELED
+        if source:
+            votes = json.loads(cell["votes"] or "{}")
+            votes[source] = _jsonish(value) if presence == "populated" else None
+            cell.update(chosen_source=source, agreeing_sources=source, votes=json.dumps(votes, sort_keys=True),
+                        agreement="single_source", conflict="False", needs_human="False")
+        if evidence is not None:
+            cell["evidence"] = json.dumps(evidence, ensure_ascii=False)
+        cell.update(value=value, presence=presence, rule=f"{cell['rule']}+{rule}")
+        row[cell["field"]] = value
+        delta = (presence in LABELED) - was
+        if delta:
+            targeted = int(row["fields_targeted"] or 0)
+            labeled = int(row["fields_labeled"] or 0) + delta
+            row["fields_labeled"] = str(labeled)
+            row["label_completeness"] = str(round(labeled / targeted, 4)) if targeted else row["label_completeness"]
+        counts[rule] += 1
+
+    def enqueue(cell: dict[str, str], reason: str) -> None:
+        queue.append({"document_id": cell["document_id"], "doc_class": cell["doc_class"], "field": cell["field"],
+                      "reason": reason, "builder_value": cell["value"], "assist_value": ""})
+
+    for cell in prov:
+        key = (cell["document_id"], cell["field"])
+        text = texts.get(cell["document_id"], "")
+        c = corrections.get(key)
+        if c is not None:
+            used.add(key)
+            ev = None
+            if c["presence"] == "populated":
+                m = _find(text, c["quote"])
+                if m is None:
+                    raise CacheError(f"{CORRECTIONS_FILE}: {key} quote is not in the document text")
+                ev = [{"start": m.start(), "end": m.end(), "text": text[m.start():m.end()], "source": VALIDATION_SOURCE}]
+            value = c["value"] if isinstance(c.get("value"), str) else (
+                json.dumps(c["value"], ensure_ascii=False) if c["presence"] == "populated" else "")
+            update(cell, value, c["presence"], "validation_review", VALIDATION_SOURCE, ev if ev is not None else [])
+            continue
+        if cell["presence"] != "populated":
+            continue
+        ftype = types.get(cell["doc_class"], {}).get(cell["field"], "")
+        if from_hub(cell):
+            if cell["field"] == "keywords" and cell["value"][:1] == "[":
+                old = json.loads(cell["value"])
+                new = keyword_metadata(old, by_id[cell["document_id"]].get("filename", ""))
+                if new != old:
+                    update(cell, json.dumps(new, ensure_ascii=False) if new else "",
+                           "populated" if new else "documented_absence", "keyword_metadata_stripped", VALIDATION_RULE)
+            continue
+        value = cell["value"]
+        if ftype == "date" and not (_ISO_DATE.fullmatch(value) and _valid_date(value)):
+            enqueue(cell, "not a whole calendar date (the text states only part of it); left unlabeled")
+            update(cell, "", "unlabeled", "partial_date_unlabeled")
+        elif cell["field"] == "cuad_family":
+            new = _canonical_family(value)
+            if new != value:
+                update(cell, new, "populated", "cuad_family_canonical")
+        elif cell["field"] == "governing_law" and (len(value) > 40 or re.search(r"\blaws?\b", value, re.I)):
+            new = jurisdiction(value, text)
+            if new:
+                update(cell, new, "populated", "governing_law_jurisdiction")
+            else:
+                counts["governing_law_clause_queued"] += 1
+                enqueue(cell, "governing-law clause names no jurisdiction the text states; kept as is")
+        elif ftype.startswith("entity_list") and value[:1] == "[":
+            items = json.loads(value)
+            if cell["field"] == "parties":
+                new = clean_parties(items, text)
+                if not new:
+                    enqueue(cell, "every parties element is a defined-term clause; left unlabeled")
+                    update(cell, "", "unlabeled", "parties_cleaned")
+                elif new != items:
+                    update(cell, json.dumps(new, ensure_ascii=False), "populated", "parties_cleaned")
+                continue
+            seen, dedup = set(), []
+            for v in items:
+                k = re.sub(r"\s+", " ", str(v)).strip().lower()
+                if k not in seen:
+                    seen.add(k)
+                    dedup.append(v)
+            if dedup != items:
+                update(cell, json.dumps(dedup, ensure_ascii=False), "populated", "entity_list_deduplicated")
+    missing = set(corrections) - used
+    if missing:
+        raise CacheError(f"{CORRECTIONS_FILE}: no merged cell for {sorted(missing)[:3]}")
+    return prov, [by_id[r["document_id"]] for r in rows], queue, dict(sorted(counts.items()))
+
+
+def _valid_date(value: str) -> bool:
+    import datetime
+
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def overlay_records(prov: list[dict[str, str]], shas: dict[str, str]) -> dict[str, list[dict[str, Any]]]:
     """Per class, the labels that differ from Hub v9.3 (the production overlay)."""
     docs: dict[str, dict[str, Any]] = {}
@@ -457,10 +740,13 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
     columns, rows = joined["labels"]
     pcols, prov = joined["provenance"]
     prov, rows, magnitude_queue, magnitudes = repair_cells(prov, rows, texts)
+    corrections_path = emc.ROOT / CORRECTIONS_FILE
+    prov, rows, validation_queue, validation = validate_repairs(prov, rows, texts, read_corrections(corrections_path))
+    headers = header_restoration(emc.ROOT / HEADER_SOURCE, rows)
     disputed = [{"document_id": r["document_id"], "doc_class": r["doc_class"], "field": r["field"],
                  "reason": "disputed_unresolved", "builder_value": r["value"], "assist_value": ""}
                 for r in prov if r["needs_human"] == "True"]
-    queue = disputed + joined["queue"] + magnitude_queue
+    queue = disputed + joined["queue"] + magnitude_queue + validation_queue
     signoff = signoff_rows(prov)
     overlay = overlay_records(prov, shas)
     targeted = sum(1 for r in prov)
@@ -490,7 +776,7 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
                                                                          encoding="utf-8")
         new_summary = dict(summary, label_cells_labeled_repaired=labeled,
                            label_cells_unlabeled=sum(r["presence"] == "unlabeled" for r in prov),
-                           assist_join=joined["counts"], magnitude_repair=magnitudes,
+                           assist_join=joined["counts"], magnitude_repair=magnitudes, validation_repair=validation,
                            chosen_source_counts=dict(collections.Counter(
                                r["chosen_source"] for r in prov if r["presence"] in LABELED).most_common()))
         emc._dump(dest / "master" / f"{name}_summary.json", new_summary)
@@ -499,6 +785,7 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
                 "".join(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n" for r in recs), encoding="utf-8")
         (dest / "queues" / "needs_human.csv").write_text(_csv_text(QUEUE_COLUMNS, queue), encoding="utf-8")
         (dest / "queues" / "gold_override_signoff.csv").write_text(_csv_text(SIGNOFF_COLUMNS, signoff), encoding="utf-8")
+        (dest / "queues" / "header_restoration.csv").write_text(_csv_text(HEADER_COLUMNS, headers), encoding="utf-8")
         manifest = {
             "schema": emc.SCHEMA, "channel": "pre-release", "kind": "production-overlay",
             "version": version, "semver": f"{version}+hf.{emc.FAMILY_HF_REVISION[:8]}",
@@ -514,16 +801,24 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
             "inputs_sha256": {"builder_labels": _sha_bytes(builder_dir / BUILDER_FILES["labels"]),
                               "builder_provenance": _sha_bytes(builder_dir / BUILDER_FILES["provenance"]),
                               "builder_script": _sha_bytes(builder_script),
-                              "assist": _sha_bytes(assist), "corpus": corpus_sha},
+                              "assist": _sha_bytes(assist), "corpus": corpus_sha,
+                              "validation_corrections": _sha_bytes(corrections_path) if corrections_path.exists() else "",
+                              "header_source": _sha_bytes(emc.ROOT / HEADER_SOURCE)},
             "coverage": {"cells_targeted": targeted, "cells_labeled": labeled,
                          "completeness": round(labeled / targeted, 4),
                          "cells_labeled_hub_v9_3": summary.get("label_cells_labeled_hub_v9_3")},
             "assist_join": joined["counts"],
             "magnitude_repair": magnitudes,
+            "validation_repair": validation,
+            "header_restoration": {"documents": len(headers), "file": "queues/header_restoration.csv",
+                                   "note": ("correspondence labels that quote the original Enron email header, "
+                                            "which the corpus text lost in cleaning; the next release restores "
+                                            "these header lines into doc_text")},
             "overlay": {cls: {"documents": len(recs), "labels": sum(len(r["labels"]) for r in recs),
                               "overrides": sum(v["override"] for r in recs for v in r["labels"].values())}
                         for cls, recs in overlay.items()},
-            "queues": {"needs_human": len(queue), "gold_override_signoff": len(signoff)},
+            "queues": {"needs_human": len(queue), "gold_override_signoff": len(signoff),
+                       "header_restoration": len(headers)},
         }
         manifest["files"] = emc._files(dest)
         emc._dump(dest / "MANIFEST.json", manifest)
@@ -559,7 +854,8 @@ def main(argv: list[str] | None = None) -> int:
     except CacheError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({k: m[k] for k in ("version", "coverage", "assist_join", "magnitude_repair", "overlay", "queues")},
+    print(json.dumps({k: m[k] for k in ("version", "coverage", "assist_join", "magnitude_repair", "validation_repair",
+                                        "overlay", "queues")},
                      indent=1))
     return 0
 

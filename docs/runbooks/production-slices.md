@@ -13,7 +13,7 @@ This page is hand-written. It is not generated from `config/runbooks/catalog.yam
 
 All slices share r3's settings:
 
-- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.3`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.3`, see [the staged overlay guide](../staged-label-overlay.md));
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.4`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.4`, see [the staged overlay guide](../staged-label-overlay.md));
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;

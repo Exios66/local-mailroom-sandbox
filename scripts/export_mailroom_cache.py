@@ -340,6 +340,7 @@ mailroom_cache/
       builder/                          the builder outputs it was staged from (rc.3 on)
       queues/needs_human.csv            unresolved disputes and join cells a person must decide
       queues/gold_override_signoff.csv  Hub overrides, decided_by blank until initialled
+      queues/header_restoration.csv     correspondence whose labels quote the lost Enron header (rc.4 on)
 ```
 
 A pre-release is either `label-sets` (the raw sandbox layers, as cut) or `production-overlay`
@@ -351,6 +352,16 @@ in the run config). The Hub label comes first, replaced field by field by `overl
 where `override: true` marks a replaced Hub value. Each record's `content_sha256` is checked
 against the document before it is applied. The overlay already contains the interim and
 near-gold labels it merged, so it is applied instead of those layers, never on top of them.
+
+From rc.4 the stager also validates the merged labels before staging (`validation_repair` in
+the manifest). It keeps only whole ISO dates, maps `cuad_family` to its canonical key, reduces
+whole governing-law clauses to the named jurisdiction, removes defined-term aliases and clause
+fragments from `parties`, strips the maildir user, folder and timestamp tokens from Hub
+correspondence `keywords`, and applies reviewed corrections quoted from the document text. Some
+correspondence labels quote the original Enron email header (sender, recipients, date, subject).
+The cleaned corpus text dropped that header, so `queues/header_restoration.csv` lists each such
+document with its maildir file and the quoted header lines. The next official release restores
+those lines into `doc_text`, so a model can read what the labels expect.
 
 - **Patch** (`X.Y.P`) counts label repair rounds on release `X.Y`.
 - **Pre-release** (`-rc.N`) is one cut of that round. A cut is never rewritten: changed labels
