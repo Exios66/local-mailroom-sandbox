@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **H5 decision-sorter question set 4.1.0.** The unrun decision-model-as-sorter configs (`rb1-r13b-decision-sorter-luna-dev-look1`, `rb1-r13b-decision-sorter-jev-1.14-dev-look1`, sealed `rb1-r70b-decision-sorter-luna-heldout`) pinned `reviewer_decisions_v4.0.0`. That set, and 4.0.1 / 4.0.2, still filed a board-adopted bylaw amendment as `board_resolution`. The primary classification node (`classify_node`, production prompt `sorter_condensed_v5`, catalog `sorter_guide`) files it as `bylaws`. `reviewer_decisions_v4.1.0` keeps 4.0.2's form, abstain and subclass gate, and aligns the class and subclass criteria the node states: bylaw amendments, asset-purchase supply, unit purchase options, officer certificates, appended charter amendments, employment-letter termination, and arbitration demands. Completed smokes and the form-calibration runs stay on the sets they ran. No paid run. The reviewer frontrunner stays 3.1.0.
+
 - **PR domain reviewer subagent and review-lane map.** New roster agent
   `pr-domain-reviewer` (canonical `.opencode/agents/pr-domain-reviewer.md`, Claude
   wrapper, Cursor stub) owns silent-failure / Dojo / spend / SHF-HF PR review and

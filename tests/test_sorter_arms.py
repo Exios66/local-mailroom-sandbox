@@ -766,7 +766,8 @@ def test_h5_configs_are_handoff_free_capped_and_counted_by_the_r01_gate():
             assert text.startswith("# SEALED.") and heldout_seal.SEALED_RUN_ID.match(spec.run_id)
         (model, want), = gate.expected_calls(spec).items()
         assert model == spec.reviewer.model and want["paths"] == {"decisions": spec.dataset.limit}
-    assert yaml.safe_load((RUNS / H5_CONFIGS[0].name).read_text())["reviewer"]["questions"] == "reviewer_decisions_v4.0.0"
+    questions = {yaml.safe_load(path.read_text())["reviewer"]["questions"] for path in H5_CONFIGS}
+    assert questions == {"reviewer_decisions_v4.1.0"}
 
 
 def test_h5_run_ids_start_with_their_experiment_key():
