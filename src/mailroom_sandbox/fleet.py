@@ -45,19 +45,40 @@ class FleetPlan:
     machines_for_specialist_rate: int
 
     @property
+    def rate_concurrency(self) -> int:
+        """In-flight documents that fill the rate-matching fleet.
+
+        ``machines_for_specialist_rate`` slots stay idle unless the run admits
+        this many documents at once. That is ``document_concurrency`` times
+        ``gpu_stages`` under the equal-stage-time assumption.
+        """
+        return self.document_concurrency * self.gpu_stages
+
+    @property
     def tunnel_ports(self) -> tuple[int, ...]:
         """Host ports the control machine forwards to each GPU machine's vLLM."""
         count = self.machines_for_specialist_rate
         return tuple(TUNNEL_BASE_PORT + i for i in range(count))
 
     def ssh_forwards(self, hosts: list[str]) -> list[str]:
-        """One ``ssh -N -L`` per GPU machine. ``hosts`` are ``user@host`` strings the operator supplies."""
+        """One ``ssh -N -L`` per GPU machine. ``hosts`` are ``user@host`` strings the operator supplies.
+
+        nginx dials ``host.docker.internal``. On Linux that is the Docker bridge,
+        which cannot connect to a listener bound only to ``127.0.0.1``. Docker
+        Desktop on macOS does reach host loopback through that name. Each line
+        binds ``SANDBOX_FLEET_BIND``: ``127.0.0.1`` on Darwin, otherwise the
+        bridge gateway. The remote vLLM port stays on the GPU machine's loopback.
+        """
         if len(hosts) != len(self.tunnel_ports):
             raise ValueError(
                 f"expected {len(self.tunnel_ports)} hosts for this fleet, got {len(hosts)}"
             )
+        bind = (
+            '$(if [ "$(uname)" = Darwin ]; then printf %s 127.0.0.1; '
+            "else docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}'; fi)"
+        )
         return [
-            f"ssh -N -L {port}:127.0.0.1:8000 {host}"
+            f"ssh -N -L {bind}:{port}:127.0.0.1:8000 {host}"
             for port, host in zip(self.tunnel_ports, hosts, strict=True)
         ]
 
@@ -74,7 +95,9 @@ def pipeline_fleet(
     then takes ``gpu_stages`` sequential GPU calls, so the document rate falls
     by about that factor. ``machines_for_specialist_rate`` is the fleet that
     buys the rate back, on the assumption that each stage lasts about as long
-    as one specialist call.
+    as one specialist call. The run then has to admit ``rate_concurrency``
+    documents (``document_concurrency * gpu_stages``) or the extra machines
+    have nothing to run.
     """
     if document_concurrency < 1:
         raise ValueError("document_concurrency must be >= 1")

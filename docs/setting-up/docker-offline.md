@@ -100,8 +100,8 @@ Specialist cells in the SAND-39 through SAND-42 series ran one GPU call per in-f
 
 `mailroom_sandbox.fleet.pipeline_fleet` turns that into a machine count. With the long-prompt cap of 6 sequences per L4:
 
-- 2 GPU machines hold 10 documents in flight. Each document then takes about three sequential GPU calls, so the document rate is about a third of a specialist run at the same concurrency.
-- 5 GPU machines is the planning fleet that buys that specialist document rate back, if each stage lasts about as long as one specialist call. That assumption is not a measurement. A smoke run's observed GPU calls per document replaces `gpu_stages`.
+- 2 GPU machines hold the slice's 10 documents in flight. Each document then takes about three sequential GPU calls, so the document rate is about a third of a specialist run at that same concurrency.
+- 5 GPU machines provide 30 sequence slots. Under the assumption that each stage lasts about as long as one specialist call, restoring that specialist document rate means admitting about 30 documents at once (`rate_concurrency`). A run kept at concurrency 10 fills the 2-machine in-flight fleet and leaves the other three machines idle. That assumption is a planning stand-in. A smoke run's observed GPU calls per document replaces `gpu_stages`.
 
 The Compose shape matches the OpenRouter path: one CPU process runs the graph, and every LLM call goes to one OpenAI-compatible URL. On the control machine:
 
@@ -109,7 +109,15 @@ The Compose shape matches the OpenRouter path: one CPU process runs the graph, a
 sandbox up -d --compose-profile langfuse --compose-profile pipeline
 ```
 
-`pipeline` starts `vllm-front` (nginx `1.27.4-alpine` on `127.0.0.1:8000`) and one `pipeline` container whose `VLLM_BASE_URL` is `http://vllm-front:8000/v1`. The container sleeps. It does not start a run. A person launches with `sandbox run preflight` and `sandbox run start --initials`. `vllm` and `pipeline` both bind port 8000, so Compose refuses to start them on the same machine.
+`pipeline` starts `vllm-front` (nginx `1.27.4-alpine` on `127.0.0.1:8000`) and one `pipeline` container whose `VLLM_BASE_URL` is `http://vllm-front:8000/v1`. The container sleeps. It does not start a run. Launch from the host, with the front door as `VLLM_BASE_URL`, a run config, and initials of 2–6 capital letters that belong to the person starting it:
+
+```bash
+export VLLM_BASE_URL=http://127.0.0.1:8000/v1
+sandbox run preflight --config config/runs/examples/pipeline-modal.yaml
+sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials '<XX>'
+```
+
+`config/runs/examples/pipeline-modal.yaml` is a pipeline spec. Its `profile` is `modal-vllm`. For this front door, set the run's profile to `vllm-local` so the host uses `VLLM_BASE_URL` instead of a Modal URL. `vllm` and `pipeline` both bind port 8000, so Compose refuses to start them on the same machine, including when `COMPOSE_PROFILES` names the other one.
 
 Each GPU machine runs only the vLLM profile, still bound to `127.0.0.1:8000`:
 
@@ -117,7 +125,7 @@ Each GPU machine runs only the vLLM profile, still bound to `127.0.0.1:8000`:
 sandbox up -d --compose-profile vllm
 ```
 
-The control machine reaches those servers with one SSH forward per machine, onto ports 18000–18004. That list is `deploy/pipeline-front/nginx.conf`. The front door uses least-connections and `max_conns=6` on each upstream, so one machine cannot accept more in-flight requests than its sequence cap. `FleetPlan.ssh_forwards` prints the `ssh -N -L` lines once the operator supplies the `user@host` names. `sandbox tunnel` remains the single-host forward.
+The control machine reaches those servers with one SSH forward per machine, onto ports 18000–18004. That list is `deploy/pipeline-front/nginx.conf`. The front door uses least-connections and `max_conns=6` on each upstream, so one machine cannot accept more in-flight requests than its sequence cap. `FleetPlan.ssh_forwards` prints the `ssh -N -L` lines once the operator supplies the `user@host` names. Each line binds the Docker bridge gateway on Linux, because `host.docker.internal` cannot dial a loopback listener there, and binds `127.0.0.1` on macOS, where Docker Desktop can. The GPU machine's vLLM stays on `127.0.0.1:8000`. `sandbox tunnel` remains the single-host forward.
 
 ## Pipeline floor assets
 

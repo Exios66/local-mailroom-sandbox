@@ -30,11 +30,22 @@ def _docker() -> str:
     return docker
 
 
+def _profiles_in_effect(profiles: list[str]) -> list[str]:
+    """CLI profiles plus ``COMPOSE_PROFILES``, which Compose enables on its own."""
+    names = list(profiles)
+    for part in os.environ.get("COMPOSE_PROFILES", "").split(","):
+        part = part.strip()
+        if part:
+            names.append(part)
+    return names
+
+
 def compose_argv(profiles: list[str], *args: str, docker_bin: str = "docker") -> list[str]:
-    unknown = [name for name in profiles if name not in VALID_PROFILES]
+    effective = _profiles_in_effect(profiles)
+    unknown = [name for name in effective if name not in VALID_PROFILES]
     if unknown:
         raise ValueError(f"Unknown compose profile {unknown[0]!r}. Valid: {VALID_PROFILES}")
-    if _PORT_8000.issubset(profiles):
+    if _PORT_8000.issubset(effective):
         raise ValueError(
             "compose profiles vllm and pipeline both bind 127.0.0.1:8000; "
             "start vllm on each GPU machine and pipeline on the control machine"

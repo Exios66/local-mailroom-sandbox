@@ -16,6 +16,7 @@ def test_production_slice_needs_five_machines_to_match_specialist_rate():
     assert plan.seqs_per_gpu == 6
     assert plan.machines_for_inflight == 2
     assert plan.machines_for_specialist_rate == 5
+    assert plan.rate_concurrency == 30
     assert plan.tunnel_ports == (18000, 18001, 18002, 18003, 18004)
 
 
@@ -40,10 +41,11 @@ def test_ssh_forwards_follow_the_rate_fleet():
     plan = pipeline_fleet(document_concurrency=6, gpu_stages=2, seqs_per_gpu=6)
     assert plan.machines_for_specialist_rate == 2
     lines = plan.ssh_forwards(["gpu@a.example", "gpu@b.example"])
-    assert lines == [
-        "ssh -N -L 18000:127.0.0.1:8000 gpu@a.example",
-        "ssh -N -L 18001:127.0.0.1:8000 gpu@b.example",
-    ]
+    assert len(lines) == 2
+    assert "127.0.0.1:8000" in lines[0] and lines[0].endswith("gpu@a.example")
+    assert ":18000:" in lines[0] and ":18001:" in lines[1]
+    assert "Darwin" in lines[0] and "docker network inspect bridge" in lines[0]
+    assert not lines[0].startswith("ssh -N -L 18000:127.0.0.1:8000")
 
 
 def test_ssh_forwards_reject_a_short_host_list():
