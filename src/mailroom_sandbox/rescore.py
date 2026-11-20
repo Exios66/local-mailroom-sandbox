@@ -317,6 +317,35 @@ def _restrict(items: list[dict[str, Any]], ids: Iterable[str] | None) -> list[di
     return [it for it in items if str(it.get("item_id")) in wanted]
 
 
+def _finished_lock(files: RunFiles, *, force: bool) -> dict[str, Any]:
+    lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
+    checkpoint = files.get("checkpoint.json")
+    if checkpoint is not None and not force:
+        state = (json.loads(checkpoint.read_text(encoding="utf-8")) or {}).get("state")
+        if state == "running":
+            run_id = lock.get("run_id") or files.path.name
+            raise RescoreError(f"{run_id}: its checkpoint says 'running'; re-score a finished run (or --force)")
+    return lock
+
+
+def _rescore_items(items: Sequence[Mapping[str, Any]], truth: Mapping[str, Mapping[str, Any]],
+                   score: Callable[..., dict[str, Any]]) -> list[dict[str, Any]]:
+    """Score stored usable answers against available truth, preserving failures and first scores."""
+    out_items: list[dict[str, Any]] = []
+    for original in items:
+        doc_id = str(original.get("item_id"))
+        if doc_id not in truth:
+            continue
+        item = dict(original)
+        pred = item.get("pred")
+        if item.get("ok") and isinstance(pred, dict):
+            fresh = score(truth[doc_id], pred)
+            item.setdefault("score_original", item.get("score"))
+            item.update(score=fresh, rescored=True)
+        out_items.append(item)
+    return out_items
+
+
 def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str | Path | None = None,
             overlays: str = "lock", ids: Iterable[str] | None = None, out: str | Path | None = None,
             allow_missing: bool = False, force: bool = False, dry_run: bool = False,
@@ -328,13 +357,8 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     from mailroom_sandbox.job.checkpoint import utc_now
 
     files = locate(run, runs_root=runs_root)
-    lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
+    lock = _finished_lock(files, force=force)
     run_id = str(lock.get("run_id") or files.path.name)
-    checkpoint = files.get("checkpoint.json")
-    if checkpoint is not None and not force:
-        state = (json.loads(checkpoint.read_text(encoding="utf-8")) or {}).get("state")
-        if state == "running":
-            raise RescoreError(f"{run_id}: its checkpoint says 'running'; re-score a finished run (or --force)")
     score = scorer_for(lock)
     items = _restrict(_jsonl(files.files["items.jsonl"]), ids)
     if not items:
@@ -361,21 +385,7 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     else:
         old_truth = {}
 
-    out_items: list[dict[str, Any]] = []
-    for it in items:
-        doc_id = str(it.get("item_id"))
-        if doc_id in missing:
-            continue
-        it = dict(it)
-        pred, row = it.get("pred"), new_truth[doc_id]
-        # Only answers the run scored are re-scored: an errored or unparseable item has no answer
-        # to score, and keeps its record as it was.
-        if it.get("ok") and isinstance(pred, dict):
-            fresh = score(row, pred)
-            it.setdefault("score_original", it.get("score"))
-            it["score"] = fresh
-            it["rescored"] = True
-        out_items.append(it)
+    out_items = _rescore_items(items, new_truth, score)
 
     label = ("file-" + str(meta.get("sha256") or "")[:12]) if dataset_file else _revision_label(spec.revision or "")
     dest = Path(out) if out else Path(runs_root or _default_root()) / f"{run_id}.rescore-{label}"
