@@ -65,8 +65,8 @@ carry from a `noul` to a `choice` or from one model to another.
 | Extraction gate | `extraction_gate_v1.3.0` | `{"document", "extraction_handoff"}` | verdict plus per-field support |
 | Closed-field resolver | `closed_field_resolver_v1.0.0` | `{"document", "closed_field_handoff"}` | one choice |
 
-One request per document; the whole document goes in (`max_input_chars` 1,000,000 for v4.0.2, well
-inside the context window), so API runs do not chunk.
+One request per document. Document text is truncated to `max_input_chars` (1,000,000 for v4.0.2)
+before sending; text beyond that cap is not sent. API runs do not chunk.
 
 ## Request format: findings and changes
 
@@ -204,14 +204,18 @@ billed cost for every paired document.
 
 ## Recommended sequence
 
-1. Draft question set 4.2.0 with items 1 to 6 above. Add each probe variant (null option against
+1. Reserve and lock the fitting and reporting halves of the runbook-v2 calibration set before
+   probing any documents. Keep the reporting half untouched during question and threshold selection.
+2. Draft question set 4.2.0 with items 1 to 6 above. Add each probe variant (null option against
    companion `noul`, form `choice` against four `noul`s) as an extra question in the same request, so
    one run compares them on identical documents.
-2. Probe on 20 to 30 runbook-v2 **calibration** documents, chosen to cover each class, a cut-off
+3. Probe on 20 to 30 documents from the **fitting half only**, chosen to cover each class, a cut-off
    document, a bundle, an empty text and a document that argues for its own class. Read the raw
    probabilities. Keep the exact payloads.
-3. Run 4.2.0 over the whole v2 calibration set (1,000 documents; input-only billing at $0.10 per
-   1M tokens, sized and capped by `sandbox run preflight`; the owner launches it). Fit the abstain thresholds and per-class cutoffs on one half. Report on
-   the other half, by class and length band, with the certified bound per class.
-4. Compare 4.2.0 with 4.0.2 on the same calibration half that neither was tuned on. Only then go
+4. Freeze the selected questions, fit abstain thresholds and per-class cutoffs using only the fitting
+   half, then evaluate the frozen configuration on the reserved reporting half. The full calibration
+   set has 1,000 documents; size and cap any paid requests with `sandbox run preflight` and the
+   pinned price configuration before the owner launches them. Report by class and length band,
+   with the certified bound per class.
+5. Compare 4.2.0 with 4.0.2 on the same reserved reporting half that neither was tuned on. Only then go
    to dev, then to the sealed held-out run.
