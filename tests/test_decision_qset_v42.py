@@ -221,8 +221,10 @@ def test_a_marker_class_has_no_fit_rule_and_unknown_parks(monkeypatch, v42):
     corr = {"doc_type": {"choice": "correspondence", "probabilities": {"correspondence": 0.97, "contract": 0.03}},
             **{k: v for k, v in _merger_answers().items() if k.startswith("form__")}}
     _, result = _send(monkeypatch, v42, corr)
-    assert result["abstained"] is False and "subclass_fit_probability" not in result
+    assert "subclass_fit_probability" not in result
     assert result["doc_subclass"] is None and result["subclass_gate"] == "keep_sorter"
+    assert result["abstained"] and result["route_to_human"]
+    assert any(r.startswith("subclass_gate:") for r in result["abstain_reasons"])
     unknown = {**corr, "doc_type": {"choice": "unknown", "probabilities": {"unknown": 0.8, "contract": 0.2}}}
     _, result = _send(monkeypatch, v42, unknown)
     assert "doc_type:unknown" in result["abstain_reasons"] and result["route_to_human"]
@@ -281,7 +283,7 @@ def test_marker_refusals_gate_only_when_they_can_change_the_subclass(monkeypatch
         answers[f"marker__correspondence__{missing}"] = {"type": "refusal"}
     _, result = _send(monkeypatch, qset, answers)
     assert result["doc_subclass"] == expected
-    assert result["abstained"] == (expected is None and policy == "park")
+    assert result["abstained"] == (expected is None)
     if expected is None:
         assert result["subclass_confidence"] is None
         assert result["subclass_gate"] == policy

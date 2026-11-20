@@ -1094,11 +1094,14 @@ def apply_v42_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset:
             reasons.append(f"subclass_gate:{unusable}")
         else:
             same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
-            out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
-            out["subclass_source"] = "sorter" if same_class else "unresolved"
+            kept = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+            out["doc_subclass"] = kept
+            out["subclass_source"] = "sorter" if kept is not None else "unresolved"
             out["subclass_confidence"] = None
             if doc_type == "contract":
                 out["contract_subtype"] = out["doc_subclass"]
+            if kept is None:
+                reasons.append(f"subclass_gate:{unusable}")
     out["abstain_reasons"] = reasons
     out["abstained"] = bool(reasons)
     if reasons:
@@ -1203,11 +1206,14 @@ def apply_question_set_contract(result: Mapping[str, Any], answers: Mapping[str,
                 # The sorter's subclass belongs to the sorter's class: reuse it only when the
                 # classes agree, and never under the reviewer's probability for another answer.
                 same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
-                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
-                out["subclass_source"] = "sorter" if same_class else "unresolved"
+                kept = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+                out["doc_subclass"] = kept
+                out["subclass_source"] = "sorter" if kept is not None else "unresolved"
                 out["subclass_confidence"] = None
                 if doc_type == "contract":
                     out["contract_subtype"] = out["doc_subclass"]
+                if kept is None:
+                    reasons.append(f"subclass_gate:{choice or 'none'}")
     if qset.get("truncation_notice"):
         out["truncated"] = bool(truncated)
         if truncated:
