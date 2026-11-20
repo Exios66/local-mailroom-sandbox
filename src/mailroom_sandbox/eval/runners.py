@@ -106,6 +106,23 @@ def _classify_mock(row: dict[str, Any]) -> str:
     return str(row.get("expected_doc_class") or row.get("doc_type") or "unknown")
 
 
+def isolated_call_scope(task: str, *, mock: bool):
+    """Per-document call ceiling for a one-request Decisions task.
+
+    Pipeline documents already enter ``call_guard.document`` (the R01 ceiling).
+    An isolated chat specialist can legitimately exceed the default ceiling
+    while it chunks a long document, so only ``sorter_reviewer`` and
+    ``extraction_gate`` take the scope. Mock rows do not.
+    """
+    from contextlib import nullcontext
+
+    if mock or task not in ("sorter_reviewer", "extraction_gate"):
+        return nullcontext({"calls": 0, "refused": None})
+    from mailroom_sandbox.job import call_guard
+
+    return call_guard.document()
+
+
 def _run_rows_bounded(
     rows: list[Any],
     *,
@@ -342,50 +359,54 @@ def run_isolated_eval(
         scored: dict[str, Any] = {}
         fell_back = False
         usage: dict[str, Any] = {}
-        try:
-            # SAND-018: reset the thread's usage accumulator so this row's tokens
-            # are its own — without it, pooled rows sum into one inflated total.
-            reset_usage()
-            with tracing.document_pipeline_trace(
-                seed=seed,
-                session_id=session,
-                input={"filename": row.get("filename") or row.get("id"), "matter_id": sandbox_matter_id(row, experiment_name)},
-                metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
-                tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
-            ):
-                with tracing.child_observation(
-                    spec.observation,
-                    as_type=tracing.observation_type_for(spec.observation),
-                    input=tracing.public_ground_truth(row),
+        with isolated_call_scope(task, mock=mock) as scope:
+            try:
+                # SAND-018: reset the thread's usage accumulator so this row's tokens
+                # are its own — without it, pooled rows sum into one inflated total.
+                reset_usage()
+                with tracing.document_pipeline_trace(
+                    seed=seed,
+                    session_id=session,
+                    input={"filename": row.get("filename") or row.get("id"), "matter_id": sandbox_matter_id(row, experiment_name)},
+                    metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
+                    tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
                 ):
-                    pred, fell_back = _predict_spec(spec, row, mock=mock)
-                scored = spec.score_one(row, pred)
-            # SAND-018: per-item token capture — the isolated path used to drop
-            # usage entirely, so a specialist run had no tokens/latency to report.
-            usage = usage_from_pipeline()
-        except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
-            error = f"{type(exc).__name__}: {str(exc)[:300]}"
-            # SAND-089: a call made before the failure was still billed; keep its tokens.
-            usage = usage_from_pipeline()
-        calls = call_usage_from_pipeline()
-        entry: dict[str, Any] = {
-            "id": row.get("id"),
-            "pred": pred,
-            "score": scored,
-            "offline_fallback": fell_back,
-            "error": error,
-            "started_at_ns": started_ns,
-            "finished_at_ns": time.time_ns(),
-        }
-        if calls:
-            entry["call_usage"] = calls
-        entry.update(
-            merge_item_metrics(
-                latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
-                usage=usage,
+                    with tracing.child_observation(
+                        spec.observation,
+                        as_type=tracing.observation_type_for(spec.observation),
+                        input=tracing.public_ground_truth(row),
+                    ):
+                        pred, fell_back = _predict_spec(spec, row, mock=mock)
+                    scored = spec.score_one(row, pred)
+                # SAND-018: per-item token capture — the isolated path used to drop
+                # usage entirely, so a specialist run had no tokens/latency to report.
+                usage = usage_from_pipeline()
+            except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
+                error = f"{type(exc).__name__}: {str(exc)[:300]}"
+                # SAND-089: a call made before the failure was still billed; keep its tokens.
+                usage = usage_from_pipeline()
+            if scope.get("refused") and not error:
+                error = (f"document stopped by the API call guard ({scope['calls']} calls): "
+                         f"{scope['refused']}")[:300]
+            calls = call_usage_from_pipeline()
+            entry: dict[str, Any] = {
+                "id": row.get("id"),
+                "pred": pred,
+                "score": scored,
+                "offline_fallback": fell_back,
+                "error": error,
+                "started_at_ns": started_ns,
+                "finished_at_ns": time.time_ns(),
+            }
+            if calls:
+                entry["call_usage"] = calls
+            entry.update(
+                merge_item_metrics(
+                    latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
+                    usage=usage,
+                )
             )
-        )
-        return entry
+            return entry
 
     def _absorb(entry: dict[str, Any]) -> None:
         nonlocal offline, errors

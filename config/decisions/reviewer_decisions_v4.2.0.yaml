@@ -1,8 +1,8 @@
 # Decision reviewer question set 4.2.0 (lineage: config/decisions/LINEAGE.yaml).
 # Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API; $0.10 per 1M input, $0 output).
 #
-# MINOR of 4.0.2: the questions and the request change; the classes, subclasses, criteria
-# texts and the subclass gate are 4.0.2's. Design and evidence: docs/decision-model-input-design.md.
+# MINOR of 4.1.0: the questions and the request change; the classes, subclasses, criteria
+# texts and the subclass gate are 4.1.0's. Design and evidence: docs/decision-model-input-design.md.
 #
 # 1. state is always {"document": ...} (state_shape: object). Every 4.0.x question names
 #    state.document, but 4.0.x sent the document as bare text, so that field did not exist.
@@ -46,10 +46,10 @@ doc_type:
     contract: >-
       Commercial agreement between parties (license, supply, distribution, services, hosting,
       maintenance, development, manufacturing, marketing, sponsorship, franchise, agency,
-      consulting or employment, collaboration or cooperation, joint venture, note purchase,
-      IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT
-      registration/investor/stockholder rights or subscription agreements, warrants or
-      indentures (corporate_record). A power of attorney is corporate_record even when it is
+      consulting or employment, collaboration or cooperation, joint venture, note or asset
+      purchase, IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT
+      registration/investor/stockholder rights or subscription agreements, warrants, unit
+      purchase options or indentures (corporate_record). A power of attorney is corporate_record even when it is
       titled "Limited Power of Attorney" and appoints an agent under an agreement.
     merger_agreement: >-
       Agreement and Plan of Merger, its amendments or restatements; also a Transaction or
@@ -58,7 +58,8 @@ doc_type:
       A company's own organisation, governance or securities instrument: charter, certificate
       of incorporation or formation, charter amendment, bylaws, board or stockholder
       resolution or consent, officer certificate or Certificate of Designation, power of
-      attorney, list or table of subsidiaries, indenture, securities rights instrument.
+      attorney, list or table of subsidiaries, indenture, securities rights instrument,
+      unit purchase option.
     correspondence: >-
       A communication: letter, email, memo, notice, demand, press release, meeting request.
       All mailbox text, including forwards, newsletters, automated notices and bare message
@@ -140,7 +141,7 @@ subclass:
       agency: Agency or sales agency.
       collaboration: Collaboration or Cooperation Agreement, incl. shareholder standstill settlements.
       co_branding: Co-branding.
-      consulting: Consulting, employment agreement or executive offer letter.
+      consulting: Consulting, employment agreement, executive offer or employment letter, and their termination.
       development: Development work, milestones, steering committee.
       distributor: Distribution.
       endorsement: Endorsement, incl. insurance or annuity endorsement riders.
@@ -159,7 +160,7 @@ subclass:
       service: Services, master services, statement of work.
       sponsorship: Sponsorship.
       strategic_alliance: Strategic alliance.
-      supply: Supply or purchase; note purchase agreements.
+      supply: Supply or purchase; asset purchase and note purchase agreements, and their extensions.
       transportation: Transportation, shipping or logistics.
       other: No family fits.
   merger_agreement:
@@ -177,19 +178,20 @@ subclass:
   corporate_record:
     instructions: >-
       Which record, by the document's own title first; an exhibit stamp never decides. A
-      resolution that adopts or approves an amendment is board_resolution; the amendment
-      instrument itself is charter_amendment.
+      resolution that adopts or approves an amendment is board_resolution. A Certificate
+      or Articles of Amendment of a charter is charter_amendment. An amendment to the
+      bylaws is bylaws, never board_resolution.
     abstain: The title names no record and the operative text does not settle one.
     criteria:
-      articles_of_incorporation: Charter or restated charter; certificate of formation; articles of organization.
+      articles_of_incorporation: Charter or restated charter, certificate or articles of incorporation, certificate of formation, articles of organization; the charter itself even when its amendments are appended.
       charter_amendment: Certificate or Articles of Amendment, Certificate of Correction.
-      bylaws: Bylaws or restated bylaws.
-      board_resolution: Board or stockholder resolution or written consent; short board-adopted bylaw amendment.
-      officer_certificate: Officer certificate; Certificate of Designation and amendments to it.
+      bylaws: Bylaws, restated bylaws, or an amendment to the bylaws, even one the board adopted (never board_resolution).
+      board_resolution: Board or stockholder resolution or written consent.
+      officer_certificate: Officer's or secretary's certificate; Certificate of Designation and its amendments (never rights_instrument).
       powers_of_attorney: Power of attorney.
       subsidiary_list: List or table of subsidiaries.
       indenture: Indenture or supplemental indenture.
-      rights_instrument: Registration/investor/stockholder/preemptive rights or subscription agreement; warrant; specimen stock certificate.
+      rights_instrument: Registration, investor, stockholder or preemptive-rights or subscription agreement; warrant; unit purchase option; specimen stock certificate.
       other: None fits.
   correspondence:
     instructions: Which form the content takes, by markers anywhere in the text, including forwards.

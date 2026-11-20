@@ -130,12 +130,32 @@ versions:
       the default until calibration draw 2 (100 new documents, draw 1 excluded) gives "adopt"
       under the paired rule fixed before it ran (rb1_form_floor.py compare; see
       docs/rb1-r13b-smoke-review.md).
+  - version: 4.1.0
+    file: reviewer_decisions_v4.1.0.yaml
+    parent: 4.0.2
+    status: candidate
+    summary: >-
+      MINOR: class and subclass criteria only, so the handoff-free sorter questions match
+      the primary classification node (classify_node, sorter_condensed_v5, sorter_guide).
+      A bylaw amendment is bylaws, never board_resolution. Asset purchase and its extensions
+      are supply. A unit purchase option is rights_instrument. Officer certificates are never
+      rights_instrument. A charter stays articles_of_incorporation when its amendments are
+      appended. Employment-letter termination stays consulting. An arbitration demand is a
+      demand. document_form, abstain and subclass_gate stay 4.0.2.
+    adoption: >-
+      Pinned by the unrun H5 decision-sorter configs (dev-look1 and the sealed held-out
+      template). Not the reviewer frontrunner: 3.1.0 still reads a sorter handoff. Form
+      wording is 4.0.2's and stays unadopted until draw 2. Abstain thresholds stay provisional.
+    open_for_4.2.0: >-
+      Calibrate the abstain thresholds and a per-class subclass cutoff on calibration-set
+      runs, as calibrate_reviewer already does for the class cutoffs. 4.0.0 reserved this
+      for 4.1.0; 4.1.0 was used for the classification-node alignment instead.
   - version: 4.2.0
     file: reviewer_decisions_v4.2.0.yaml
-    parent: 4.0.2
+    parent: 4.1.0
     status: draft
     summary: >-
-      MINOR: what the model reads changes, the classes and criteria do not. state is always
+      MINOR: what the model reads changes, the classes and criteria stay 4.1.0. state is always
       {"document": ...} (4.0.x named state.document but sent bare text); every question opens
       with an untrusted-data notice; code passes form_signals (length, window cut, last 240
       characters, <DOCUMENT>/<TYPE> and "Source:" counts); document_form becomes four yes/no
