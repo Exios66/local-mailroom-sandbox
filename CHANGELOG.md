@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- **PR domain reviewer subagent and review-lane map.** New roster agent
+  `pr-domain-reviewer` (canonical `.opencode/agents/pr-domain-reviewer.md`, Claude
+  wrapper, Cursor stub) owns silent-failure / Dojo / spend / SHF-HF PR review and
+  meshes with CodeRabbit, CodeAnt and CodeFactor via companion notes. Lane map:
+  [`docs/pr-review-lanes.md`](docs/pr-review-lanes.md). CodeRabbit tone and
+  `src/**/*.py` path instructions defer that domain deep-dive. Complementary to
+  `adversarial-reviewer`. No paid run or deployment.
+
 - **Decisions calls are charged once against the live API cap.** A returned Decisions response was priced by the transport and again by HF-004's `record_usage` wrapper, so a decision-model run reached `job.api_cost_cap_usd` at about half the real spend and could be cut off mid-document. The accumulator now records tokens without a second live charge. Isolated `sorter_reviewer` and `extraction_gate` rows enter the per-document call scope at the default ceiling of 16 (a pipeline document stays at 40); chunked specialists stay unscoped. No paid run.
 
 - **Experiment figures in one house style, and H5 comparison figures (#373).** New `figure_style` (colour roles, type scale, deterministic SVG, text linter), `decision_figures` (per-run: routing, confidence, risk-coverage, form-mass, park-reasons, subclass, latency) and `comparison_figures` (H5: runtime, latency, quality against the margins, routing, cost-quality, list pricing by prompt size). Human guide: [`docs/experiment-figures.md`](docs/experiment-figures.md).
@@ -11,6 +19,7 @@
   - `scripts/compare_sorter_arms.py --figures DIR` is new, and `--write` also writes the figures. `--allow-mock` labels every figure simulated. Without `--split-dir` the arms pair on the split their locks drew from.
   - The pricing figure places one tick per model call at that call's prompt size (`call_usage`, else the item total split over `llm_calls`), the size a price tier applies to.
   - Cost: `per_1k_docs_usd` is list price × tokens for every arm. Figures plot billed totals only when every arm is billed, and neither figures nor the digest call an arm cheaper or dearer until every arm is billed and at least 1,000 paired documents are compared (`sorter_arms.COST_CLAIM_MIN_DOCS`); the digest prints `not a cost comparison yet (...)` until then.
+  - Follow-up: H5's verdict reads `undecided` instead of `SUPPORTED` while the lower-cost leg rests on list-price cost that is not yet a cost comparison, every pair of arms is checked for a list-price/billed reversal, and a speed-up needs complete timing (`timing_complete`, `interleaved_docs` known).
   - `python -m mailroom_sandbox.figure_style lint PATH...` checks figure text and type; exit 0 clean, 1 problems, 2 on a usage error, a missing path or no SVG found.
   - New skill `.claude/skills/experiment-figures/`. No paid run, deployment or model call.
 

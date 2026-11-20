@@ -98,18 +98,19 @@ def _wall_covers(arm: Mapping[str, Any]) -> bool:
 def _isolated(arm: Mapping[str, Any]) -> bool:
     """Whether the active window timed only the compared documents (no other document ran inside it)."""
     rt = arm.get("runtime") or {}
-    return bool(rt.get("active_seconds")) and rt.get("interleaved_docs") == 0
+    return bool(rt.get("active_seconds")) and rt.get("interleaved_docs") == 0 and rt.get("timing_complete") is True
 
 
 def _basis(arms: Sequence[Mapping[str, Any]]) -> str | None:
     """One timing basis for every arm, so bars and speed-ups compare like with like.
 
-    ``wall`` when each run was exactly the compared documents, ``active`` when each arm's active
-    window held no other document, else None: the subset has no run time of its own.
+    ``wall`` when each run was exactly the compared documents (the run's wall clock needs no item
+    timestamps), ``active`` when every arm's active window is complete and held no other document,
+    else None: the subset has no run time of its own.
     """
     if arms and all(_wall_covers(a) for a in arms):
         return "wall"
-    if arms and all(_wall_covers(a) or _isolated(a) for a in arms):
+    if arms and all(_isolated(a) for a in arms):  # every arm's own active window, complete and unshared
         return "active"
     return None
 

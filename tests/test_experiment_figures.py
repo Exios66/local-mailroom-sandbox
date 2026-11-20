@@ -104,7 +104,7 @@ def test_an_explicit_zero_probability_stays_zero():
 
 def _arm(run_id, task, model, secs, cost, unit, parked, billed):
     return {"run_id": run_id, "task": task, "model": model, "n": 20, "failed": 0, "unit_accuracy": unit,
-            "runtime": {"run_wall_seconds": secs, "run_items": 20, "answered": 20, "failed": 0,
+            "runtime": {"run_wall_seconds": secs, "run_items": 20, "answered": 20, "failed": 0, "timing_complete": True,
                         "docs_per_minute": 20 / secs * 60, "concurrency": 8,
                         "hours_per_100k_docs": 100_000 / (20 / secs * 60) / 60},
             "routing": {"auto_routed": 20 - parked, "auto_class_accuracy": 1.0, "abstained": parked,
@@ -299,6 +299,8 @@ def test_runtime_needs_one_basis_isolated_from_other_documents():
     assert "runtime" not in cf.build(r)
     r["arms"][1]["runtime"].update(run_items=20, interleaved_docs=0)  # one full run, two subsets
     assert "Active time" in cf.build(r)["runtime"]  # one basis: every arm on active time
+    r["arms"][1]["runtime"].update(run_items=100, timing_complete=False)  # a window cut short
+    assert "runtime" not in cf.build(r)
 
 
 def test_a_failed_defect_did_not_reach_extraction():
@@ -306,6 +308,21 @@ def test_a_failed_defect_did_not_reach_extraction():
     items = [_run_item(0), _run_item(1), _run_item(2, ok=False, error="timeout", pred={}, score={})]
     figs, _ = dfig.build("rb1-r13b-test-dec", items, rows_by_id)
     assert "2 of 3 constructed defects reached extraction, 1 failed" in figs["routing"]
+
+
+def test_active_basis_needs_every_arm_complete_even_a_full_run():
+    r = _report()
+    for a in r["arms"]:
+        a["runtime"].update(active_seconds=a["runtime"]["run_wall_seconds"] / 2, interleaved_docs=0)
+    r["arms"][1]["runtime"].update(run_items=100)  # a subset, so the basis is active time
+    assert "Active time" in cf.build(r)["runtime"]
+    r["arms"][0]["runtime"]["timing_complete"] = False  # the full run's window is cut short
+    assert "runtime" not in cf.build(r)
+    del r["arms"][0]["runtime"]["timing_complete"]  # saved without the field: unknown
+    assert "runtime" not in cf.build(r)
+    for a in r["arms"]:
+        a["runtime"].update(run_items=20, timing_complete=False)
+    assert "Wall-clock run time" in cf.build(r)["runtime"]  # the wall clock needs no item timestamps
 
 
 def test_font_shorthand_from_matplotlib_3_8_is_normalised_and_checked():
