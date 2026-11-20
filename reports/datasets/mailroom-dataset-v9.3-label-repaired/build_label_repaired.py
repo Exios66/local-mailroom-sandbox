@@ -468,6 +468,49 @@ def _span_ev(cuad: dict[str, Any], cat: str, *, matching: str | None = None) -> 
             and (matching is None or x.get("text") == matching)]
 
 
+def _cuad_party_names(spans: dict[str, list[str]]) -> list[str] | None:
+    names, seen = [], set()
+    for party in spans.get("Parties", []):
+        key = canon("parties", party)
+        if key not in seen and len(party) > 3:
+            seen.add(key)
+            names.append(party.strip())
+    return names or None
+
+
+def _cuad_governing_law(spans: dict[str, list[str]]) -> str | None:
+    if not spans.get("Governing Law"):
+        return None
+    match = GOV_RX.search(" ".join(spans["Governing Law"]))
+    return match.group(1) if match else spans["Governing Law"][0][:200]
+
+
+def _cuad_dispute_forum(
+    cuad: dict[str, Any],
+    spans: dict[str, list[str]],
+) -> tuple[str, list[dict[str, Any]]] | None:
+    for span in spans.get("Governing Law", []):
+        match = FORUM_RX.search(re.sub(r"\s+", " ", span))
+        if not match:
+            continue
+        forum = FORUM_TAIL_RX.sub("", match.group(1)).strip(" ,")
+        if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
+            continue  # no named place
+        return forum, _span_ev(cuad, "Governing Law", matching=span)
+    return None
+
+
+def _cuad_notice_ballot(
+    cuad: dict[str, Any],
+    spans: dict[str, list[str]],
+) -> tuple[str, list[dict[str, Any]]] | None:
+    notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
+    notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
+    if not notice:
+        return None
+    return notice, [e for c in notice_cats for e in _span_ev(cuad, c)]
+
+
 def _generated_contract_cuad(
     out: dict[str, tuple[str, Any, list]],
     *,
@@ -477,47 +520,27 @@ def _generated_contract_cuad(
     """Map populated CUAD clause spans onto schema / pending fields."""
     present = sorted(k for k, v in spans.items() if v)
     out["cuad_clauses"] = ("generated_derived", present, [])
-    if spans.get("Document Name"):
-        out["document_name"] = ("generated_derived", spans["Document Name"][0].strip(), [])
-    else:
-        out["document_name"] = ("generated_derived", None, [])
-    names, seen = [], set()
-    for p in spans.get("Parties", []):
-        k = canon("parties", p)
-        if k not in seen and len(p) > 3:
-            seen.add(k)
-            names.append(p.strip())
-    out["parties"] = ("generated_derived", names or None, [])
+    out["document_name"] = (
+        "generated_derived",
+        spans["Document Name"][0].strip() if spans.get("Document Name") else None,
+        [],
+    )
+    out["parties"] = ("generated_derived", _cuad_party_names(spans), [])
     for fld, cat in (("effective_date", "Effective Date"), ("agreement_date", "Agreement Date")):
         if spans.get(cat):
             out[fld] = ("generated_derived", _date_value(spans[cat][0]), [])
-    if spans.get("Governing Law"):
-        m = GOV_RX.search(" ".join(spans["Governing Law"]))
-        out["governing_law"] = ("generated_derived", m.group(1) if m else spans["Governing Law"][0][:200], [])
-    else:
-        out["governing_law"] = ("generated_derived", None, [])
+    out["governing_law"] = ("generated_derived", _cuad_governing_law(spans), [])
     for fld, cat in (("term_length", "Expiration Date"), ("renewal_terms", "Renewal Term")):
         out[fld] = ("generated_derived", spans[cat][0].strip()[:400] if spans.get(cat) else None, [])
     exp = _cuad_expiration(spans.get("Expiration Date", []))
     if exp is not False:  # ambiguous multi-date spans are left to other sources
         out["expiration_date"] = ("cuad_span", exp, _span_ev(cuad, "Expiration Date"))
-    notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
-    notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
+    notice = _cuad_notice_ballot(cuad, spans)
     if notice:
-        out["termination_notice_period"] = (
-            "cuad_span",
-            notice,
-            [e for c in notice_cats for e in _span_ev(cuad, c)],
-        )
-    for s in spans.get("Governing Law", []):
-        m = FORUM_RX.search(re.sub(r"\s+", " ", s))
-        if not m:
-            continue
-        forum = FORUM_TAIL_RX.sub("", m.group(1)).strip(" ,")
-        if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
-            continue  # no named place
-        out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law", matching=s))
-        break
+        out["termination_notice_period"] = ("cuad_span", notice[0], notice[1])
+    forum = _cuad_dispute_forum(cuad, spans)
+    if forum:
+        out["dispute_forum"] = ("cuad_span", forum[0], forum[1])
 
 
 def _generated_contract_rules(out: dict[str, tuple[str, Any, list]], text: str) -> None:
