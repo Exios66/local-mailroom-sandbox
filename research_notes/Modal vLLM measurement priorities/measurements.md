@@ -120,7 +120,7 @@ Pre-registered margins to copy and not invent past:
 
 ### Inferences
 
-- The eight rows collapse into one scrape plus `items.jsonl` plus the telemetry window. A second instrument is not required to tell the modes apart: a raise with zero requests is a boot failure; ready plus a latency jump and waiting requests at concurrency 8 is a cliff; a large idle tail after the last answer is scaledown; hit rate near 0 with a large query count is a cold prefix; length finishes with completions glued to the cap are a decode loop; missing chunk counts are a logging hole; high probability on a wrong class is saturation.
+- The eight rows collapse into `/metrics` reads (a before scrape, a mid-run sample for each concurrency pass, and an after scrape) plus `items.jsonl` plus the telemetry window. A second instrument is not required to tell the modes apart: a raise with zero requests is a boot failure; ready plus a latency jump and waiting requests at concurrency 8 is a cliff; a large idle tail after the last answer is scaledown; hit rate near 0 with a large query count is a cold prefix; length finishes with completions glued to the cap are a decode loop; missing chunk counts are a logging hole; high probability on a wrong class is saturation.
 - Queue gauges must be sampled while requests are in flight. A before/after pair reads zero by construction and cannot show the cliff.
 - Persist the raw `/metrics` body. The summarizer keeps a small set, and the rest is gone after teardown.
 

@@ -101,7 +101,7 @@ Specialist cells in the SAND-39 through SAND-42 series ran one GPU call per in-f
 `mailroom_sandbox.fleet.pipeline_fleet` turns that into a machine count. With the long-prompt cap of 6 sequences per L4:
 
 - 2 GPU machines hold the slice's 10 documents in flight. Each document then takes about three sequential GPU calls, so the document rate is about a third of a specialist run at that same concurrency.
-- 5 GPU machines provide 30 sequence slots. Under the assumption that each stage lasts about as long as one specialist call, restoring that specialist document rate means admitting about 30 documents at once (`rate_concurrency`). A run kept at concurrency 10 fills the 2-machine in-flight fleet and leaves the other three machines idle. That assumption is a planning stand-in. A smoke run's observed GPU calls per document replaces `gpu_stages`.
+- 5 GPU machines provide 30 sequence slots. Under the assumption that each stage lasts about as long as one specialist call, restoring that specialist document rate means admitting about 30 documents at once (`rate_concurrency`). A run kept at concurrency 10 uses at most 10 of those 30 slots. `least_conn` spreads those requests across all five upstreams, so the extra machines stay up and underused. That assumption is a planning stand-in. A smoke run's observed GPU calls per document replaces `gpu_stages`.
 
 The Compose shape matches the OpenRouter path: one CPU process runs the graph, and every LLM call goes to one OpenAI-compatible URL. On the control machine:
 
