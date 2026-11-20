@@ -56,6 +56,17 @@ def test_missing_expiration_annotation_is_not_absence():
     assert blr._cuad_expiration(["   "]) is False
     assert blr._cuad_expiration(["The term expires on 2027-06-30."]) == "2027-06-30"
     assert blr._cuad_expiration(["perpetual agreement with no calendar end"]) is False
+    # Start-date-only span text must not become a documented-absence ballot.
+    assert blr._cuad_expiration(
+        ["The term of this Agreement shall commence on January 10th, 2020."]
+    ) is False
+
+
+def test_expected_cache_digest_is_pinned():
+    assert len(blr.EXPECTED_CACHE_SHA256) == 64
+    assert blr.EXPECTED_CACHE_SHA256 == (
+        "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
+    )
 
 
 def test_notice_span_compatible_rejects_reversed_threshold():

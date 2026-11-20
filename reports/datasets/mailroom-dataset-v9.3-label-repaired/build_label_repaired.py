@@ -53,6 +53,8 @@ from llm_dojo_scoring.schemas.maud_schema import hub_merger_expected_fields  # n
 
 REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
 CACHE = ROOT / "data" / "cache" / f"Lucius-Morningstar__mailroom-dataset__{REVISION[:12]}" / "ground_truth_all.jsonl"
+# Pinned digest of the v9.3 ground_truth_all.jsonl at REVISION; path alone is not identity.
+EXPECTED_CACHE_SHA256 = "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
 LABELS = ROOT / "data" / "labels"
 STEM = "mailroom_dataset_v9.3_label_repaired"
 
@@ -215,6 +217,20 @@ class InputSnapshot:
         # Use "\n" only: str.splitlines() also splits on U+2028/U+2029 inside doc_text.
         return [json.loads(line) for line in self.read(path).decode("utf-8").split("\n") if line.strip()]
 
+    def verify_unchanged(self) -> None:
+        """Re-read every hashed path so publication cannot outrun a mid-build rewrite."""
+        for key, digest in self.hashes.items():
+            if key.startswith("hf-snapshot/"):
+                rel = key.split("/", 2)[2]
+                hf_home = Path(os.environ.get("HF_HOME") or ROOT / "data" / "cache" / "hf")
+                hub = Path(os.environ.get("HF_HUB_CACHE") or hf_home / "hub")
+                path = hub / "datasets--Lucius-Morningstar--mailroom-dataset" / "snapshots" / REVISION / rel
+            else:
+                path = ROOT / key
+            current = hashlib.sha256(path.read_bytes()).hexdigest()
+            if current != digest:
+                raise ValueError(f"input changed before publish: {key}")
+
 
 def doc_sha(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:16]
@@ -368,7 +384,12 @@ FORUM_RX = re.compile(r"((?:(?:the\s+)?(?:state\s+(?:and|or)\s+federal|federal\s
                       r"\s+[^.;]{3,160}|arbitration\s+(?:in|held\s+in|conducted\s+in|administered\s+by|under)\s+[^.;]{3,140})",
                       re.I)
 def _cuad_expiration(spans: list[str]) -> str | None | bool:
-    """ISO end date stated in the Expiration Date spans; None when no calendar date; False when ambiguous."""
+    """ISO end date from Expiration Date spans.
+
+    Returns False when there is no ballot (missing annotation, unparseable text,
+    start-date-only spans, or ambiguous end dates). None is reserved for an
+    explicit documented-absence ballot and is unused for CUAD expiration today.
+    """
     if not spans or not any(s.strip() for s in spans):
         return False  # an absent annotation is not evidence of documented absence
     hits = []
@@ -389,8 +410,9 @@ def _cuad_expiration(spans: list[str]) -> str | None | bool:
         return cued[0]
     if not cued and len(every) == 1 and len(hits) == 1:
         return every[0]
-    if not cued and not every:  # only a start date ("begins on February 1, 1998 and ends on ...")
-        return None
+    # Start-date-only spans ("shall commence on …") are not documented absence.
+    if not cued and not every:
+        return False
     return False
 
 
@@ -721,10 +743,19 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     inputs = InputSnapshot()
     jsonl = inputs.jsonl
     rows = jsonl(CACHE)
+    cache_key = str(CACHE.relative_to(ROOT))
+    if inputs.hashes.get(cache_key) != EXPECTED_CACHE_SHA256:
+        raise ValueError(
+            f"ground_truth_all.jsonl digest mismatch for {REVISION}: "
+            f"got {inputs.hashes.get(cache_key)}, expected {EXPECTED_CACHE_SHA256}"
+        )
     meta = load_parquet_meta(inputs)
     missing_meta = [r["id"] for r in rows if not (meta.get(r["id"]) or {}).get("source_corpus")]
     if missing_meta:
         raise ValueError(f"missing required source metadata for {len(missing_meta)} documents")
+    missing_rows = sorted(set(meta) - {r["id"] for r in rows})
+    if missing_rows:
+        raise ValueError(f"Parquet metadata includes {len(missing_rows)} IDs absent from the pinned JSONL")
     fields_by_class = class_fields()
     interim = {}
     for p in sorted((LABELS / "interim").glob("*.jsonl")):
@@ -911,6 +942,7 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     _write(output / f"{STEM}_field_completeness.csv", comp)
 
     chosen = Counter(lr["chosen_source"] for lr in long_rows if lr["chosen_source"])
+    inputs.verify_unchanged()
     summary = {
         "dataset": "Lucius-Morningstar/mailroom-dataset", "revision": REVISION, "release": "v9.3",
         "documents": len(wide),

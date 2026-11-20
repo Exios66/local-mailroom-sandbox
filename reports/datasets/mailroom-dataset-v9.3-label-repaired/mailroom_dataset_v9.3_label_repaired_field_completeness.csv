@@ -6,7 +6,7 @@ contract,cuad_family,600,0,600,600,0,0,0,0.0,1.0,0,0,generated_derived
 contract,dispute_forum,600,0,241,105,136,355,4,0.0,0.4017,1,4,gold_candidate
 contract,document_name,600,0,509,509,0,91,0,0.0,0.8483,1,0,generated_derived
 contract,effective_date,600,0,402,307,95,198,0,0.0,0.67,0,0,generated_derived
-contract,expiration_date,600,0,282,87,195,316,2,0.0,0.47,1,2,near_gold_two_pass
+contract,expiration_date,600,0,273,87,186,325,2,0.0,0.455,1,2,near_gold_two_pass
 contract,governing_law,600,0,537,464,73,63,0,0.0,0.895,1,0,generated_derived
 contract,parties,600,0,509,508,1,91,0,0.0,0.8483,35,0,generated_derived
 contract,party_roles,600,0,161,160,1,418,21,0.0,0.2683,0,21,near_gold_two_pass
