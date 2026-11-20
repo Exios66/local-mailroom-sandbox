@@ -10,13 +10,13 @@
     "correspondence": 1000,
     "merger_agreement": 152
   },
-  "label_cells_targeted": 49786,
+  "label_cells_targeted": 48686,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 42953,
-  "label_cells_unlabeled": 6751,
-  "label_cells_disputed_unresolved": 82,
-  "conflicts_resolved": 2070,
-  "needs_human": 82,
+  "label_cells_labeled_repaired": 43430,
+  "label_cells_unlabeled": 5178,
+  "label_cells_disputed_unresolved": 78,
+  "conflicts_resolved": 2094,
+  "needs_human": 78,
   "subclass_changed": 2,
   "nan_placeholders_dropped": 2100,
   "duplicate_rows_flagged": 13,
@@ -28,8 +28,9 @@
     "near_gold_reviewed": 3567,
     "interim_reviewed": 1894,
     "generated_rule": 972,
-    "gold_candidate": 913,
     "interim_derived": 836,
+    "gold_candidate": 802,
+    "cuad_span": 584,
     "interim_gate": 346,
     "gold_disputed": 82,
     "interim_correction": 45,
@@ -74,6 +75,10 @@
       "tie_rank": 7
     },
     "interim_gate": {
+      "weight": 1.5,
+      "tie_rank": 8
+    },
+    "cuad_span": {
       "weight": 1.5,
       "tie_rank": 8
     },

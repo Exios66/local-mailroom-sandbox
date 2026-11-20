@@ -3,10 +3,10 @@ contract,agreement_date,600,0,549,468,81,51,0,0.0,0.915,23,0,generated_derived
 contract,contract_value,600,0,225,74,151,373,2,0.0,0.375,0,2,gold_candidate
 contract,cuad_clauses,600,0,509,509,0,91,0,0.0,0.8483,4,0,generated_derived
 contract,cuad_family,600,0,600,600,0,0,0,0.0,1.0,0,0,generated_derived
-contract,dispute_forum,600,0,223,87,136,373,4,0.0,0.3717,0,4,gold_candidate
+contract,dispute_forum,600,0,241,105,136,355,4,0.0,0.4017,1,4,gold_candidate
 contract,document_name,600,0,509,509,0,91,0,0.0,0.8483,1,0,generated_derived
 contract,effective_date,600,0,402,307,95,198,0,0.0,0.67,0,0,generated_derived
-contract,expiration_date,600,0,224,37,187,374,2,0.0,0.3733,0,2,gold_candidate
+contract,expiration_date,600,0,552,85,467,46,2,0.0,0.92,5,2,cuad_span
 contract,governing_law,600,0,537,464,73,63,0,0.0,0.895,1,0,generated_derived
 contract,parties,600,0,509,508,1,91,0,0.0,0.8483,35,0,generated_derived
 contract,party_roles,600,0,161,160,1,418,21,0.0,0.2683,0,21,near_gold_two_pass
@@ -14,7 +14,7 @@ contract,payment_terms,600,0,191,121,70,375,34,0.0,0.3183,0,34,gold_candidate
 contract,renewal_terms,600,0,509,176,333,91,0,0.0,0.8483,3,0,generated_derived
 contract,signatories,600,0,274,233,41,324,2,0.0,0.4567,27,2,gold_candidate
 contract,term_length,600,0,509,412,97,91,0,0.0,0.8483,0,0,generated_derived
-contract,termination_notice_period,600,0,213,91,122,373,14,0.0,0.355,0,14,gold_candidate
+contract,termination_notice_period,600,0,344,222,122,246,10,0.0,0.5733,18,10,cuad_span
 contract,territory,600,0,224,62,162,373,3,0.0,0.3733,0,3,gold_candidate
 corporate_record,effective_date,450,0,434,273,161,16,0,0.0,0.9644,0,0,near_gold_reviewed
 corporate_record,entity_name,450,412,450,434,16,0,0,0.9156,1.0,95,0,hub_v9.3
@@ -39,7 +39,6 @@ correspondence,sentiment_label,1000,1000,1000,1000,0,0,0,1.0,1.0,0,0,hub_v9.3
 correspondence,subject_matter,1000,1000,1000,1000,0,0,0,1.0,1.0,0,0,hub_v9.3
 correspondence,urgency,1000,0,1000,1000,0,0,0,0.0,1.0,0,0,near_gold_two_pass
 insurance_claim,adjuster,1100,1100,1100,150,950,0,0,1.0,1.0,0,0,hub_v9.3
-insurance_claim,claim_checklist,1100,0,0,0,0,1100,0,0.0,0.0,0,0,
 insurance_claim,claim_number,1100,1100,1100,1100,0,0,0,1.0,1.0,0,0,hub_v9.3
 insurance_claim,claim_type,1100,1100,1100,1100,0,0,0,1.0,1.0,0,0,hub_v9.3
 insurance_claim,claimed_amount,1100,1100,1100,1100,0,0,0,1.0,1.0,0,0,hub_v9.3

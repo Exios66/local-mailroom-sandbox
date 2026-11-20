@@ -68,11 +68,15 @@ SOURCES: dict[str, tuple[float, int]] = {
     "interim_derived": (2.0, 6),           # computed from the Hub subclass, no model
     "generated_derived": (2.0, 7),         # this build: Hub CUAD / MAUD / subclass through Dojo rules
     "interim_gate": (1.5, 8),              # gate-accepted extraction, every token in the text
+    "cuad_span": (1.5, 8),                 # this build: a CUAD annotator's clause span mapped to a pending field
     "gold_candidate": (1.0, 9),            # gold labeler output that passed checks, not yet reviewed
     "generated_rule": (1.0, 10),           # this build: regex extraction quoting verbatim text
     "gold_disputed": (0.5, 11),            # gold label a check disputed
     "interim_disputed": (0.5, 11),         # gate value that disagreed with the Hub
 }
+
+#: Schema fields left out of the release entirely (no column, no target cell).
+DROPPED_FIELDS = frozenset({"claim_checklist"})
 
 EMPTY = "<documented_absence>"
 NOT_LABELED = "unlabeled"
@@ -205,6 +209,9 @@ def class_fields() -> dict[str, list[str]]:
         out[d] = [n for n, f in es.extraction_schema(d).fields.items() if f.status != "not_applicable"]
     out["corporate_record"].append("filing_number")  # schema n/a, but interim gap-fills it for EDA
     out["insurance_claim"] += [f for f in ("keywords", "cms_source_table") if f not in out["insurance_claim"]]
+    # Dropped from the release: no experiment or production path reads it, and no source labels it.
+    for cls in out:
+        out[cls] = [f for f in out[cls] if f not in DROPPED_FIELDS]
     return out
 
 
@@ -298,8 +305,68 @@ def _date_value(span: str) -> str | None:
     return span.strip() if has_month and not blank else None
 
 
+# CUAD clause spans that answer schema fields the Dojo still marks pending_annotation.
+_MONTH_RX = (r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar"
+             r"|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)")
+SPAN_DATE_RX = re.compile(rf"({_MONTH_RX}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\s*,?\s*\d{{4}}"
+                          rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?{_MONTH_RX},?\s+\d{{4}}|\d{{1,2}}/\d{{1,2}}/\d{{4}})")
+END_CUE_RX = re.compile(r"(?:until|through|thru|expir\w*|end\w*|terminat\w*|to\s+and\s+including)\W+(?:\w+\W+){0,6}?$", re.I)
+PERIOD_RX = re.compile(r"((?:at\s+least|not\s+less\s+than|no\s+less\s+than|no\s+later\s+than|a\s+minimum\s+of|upon|with|"
+                       r"giving|on)?\s*(?:[a-z\-]+\s+)?\(?\d+\)?\s*(?:calendar\s+|business\s+|working\s+)?"
+                       r"(?:days?|months?|years?)['’]?[^.;:,]{0,120})", re.I)
+START_CUE_RX = re.compile(r"(?:commenc\w*|begin\w*|effective|from|dated|as\s+of|start\w*|since|force)\W+(?:\w+\W+){0,3}?$",
+                          re.I)
+FORUM_TAIL_RX = re.compile(r",?\s+(?:pursuant|for\s+the\s+(?:resolution|purpose)|in\s+relation|in\s+connection|with\s+respect"
+                           r"|in\s+any\s+(?:action|suit|proceeding)|provided|and\s+(?:each|both|the)\s+part|having\s+jurisdiction"
+                           r"\s+over\s+(?:the|any)|in\s+that\s+regard|and\s+waive|to\s+(?:the\s+)?exclusion|which\s+shall|shall\s+(?:have|be)"
+                           r"|arising|and\s+agree)\b.*$",
+                          re.I)
+NOTICE_CUE_RX = re.compile(r"notic|notif|prior\s+to|before\s+the\s+(?:end|expiration)", re.I)
+FORUM_RX = re.compile(r"((?:(?:the\s+)?(?:state\s+(?:and|or)\s+federal|federal\s+(?:and|or)\s+state|state|federal|"
+                      r"exclusive|competent)\s+)?courts?\s+(?:of|located\s+in|in|sitting\s+in|for|having\s+jurisdiction\s+in)"
+                      r"\s+[^.;]{3,160}|arbitration\s+(?:in|held\s+in|conducted\s+in|administered\s+by|under)\s+[^.;]{3,140})",
+                      re.I)
+def _cuad_expiration(spans: list[str]) -> str | None | bool:
+    """ISO end date stated in the Expiration Date spans; None when no calendar date; False when ambiguous."""
+    hits = []
+    for s in spans:
+        for m in SPAN_DATE_RX.finditer(s):
+            iso = to_iso(m.group(1))
+            if iso and len(iso) == 10:
+                before = s[:m.start()][-80:]
+                hits.append((iso, bool(END_CUE_RX.search(before)), bool(START_CUE_RX.search(before[-40:]))))
+    cued = sorted({d for d, c, _ in hits if c})
+    every = sorted({d for d, _, start in hits if not start})
+    if len(cued) == 1:
+        return cued[0]
+    if not cued and len(every) == 1 and len(hits) == 1:
+        return every[0]
+    if not cued and not every:  # only a start date ("begins on February 1, 1998 and ends on ...")
+        return None
+    return False if hits else None
+
+
+def _cuad_notice(spans: list[str]) -> str | None:
+    """Verbatim notice-period phrases from renewal-notice and termination-for-convenience spans."""
+    out: list[str] = []
+    for s in spans:
+        flat = re.sub(r"\s+", " ", s)
+        for m in PERIOD_RX.finditer(flat):
+            phrase = m.group(1).strip(" ,")
+            if not NOTICE_CUE_RX.search(flat[max(0, m.start() - 40):m.end()]):
+                continue  # a term length ("twelve (12) months from the date hereof"), not a notice period
+            if phrase and canon("termination_notice_period", phrase) not in {canon("x", p) for p in out}:
+                out.append(phrase)
+    return "; ".join(out)[:400] or None
+
+
 def _ev(text: str, m: re.Match, g: int = 0) -> dict[str, Any]:
     return {"start": m.start(g), "end": m.end(g), "text": text[m.start(g):m.end(g)][:300]}
+
+
+def _span_ev(cuad: dict[str, Any], cat: str) -> list[dict[str, Any]]:
+    return [{"start": x.get("start"), "cuad_category": cat, "text": str(x.get("text", ""))[:300]}
+            for x in (cuad.get(cat) or [])[:3] if isinstance(x, dict)]
 
 
 def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") -> dict[str, tuple[str, Any, list]]:
@@ -347,6 +414,23 @@ def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") 
                 out["governing_law"] = ("generated_derived", None, [])
             for fld, cat in (("term_length", "Expiration Date"), ("renewal_terms", "Renewal Term")):
                 out[fld] = ("generated_derived", spans[cat][0].strip()[:400] if spans.get(cat) else None, [])
+            # Pending schema fields that a CUAD span answers directly (source cuad_span, evidence = the span).
+            exp = _cuad_expiration(spans.get("Expiration Date", []))
+            if exp is not False:  # an ambiguous span (several candidate end dates) is left to other sources
+                out["expiration_date"] = ("cuad_span", exp, _span_ev(cuad, "Expiration Date"))
+            notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
+            notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
+            if notice:
+                out["termination_notice_period"] = ("cuad_span", notice,
+                                                    [e for c in notice_cats for e in _span_ev(cuad, c)])
+            for s in spans.get("Governing Law", []):
+                m = FORUM_RX.search(re.sub(r"\s+", " ", s))
+                if m:
+                    forum = FORUM_TAIL_RX.sub("", m.group(1)).strip(" ,")
+                    if "governed" in forum.lower() or not re.search(r"\b(?:of|in|at)\s+(?:the\s+)?[A-Z]", forum):
+                        continue  # no named place: "courts", "court of law arising out of ..."
+                    out["dispute_forum"] = ("cuad_span", forum, _span_ev(cuad, "Governing Law"))
+                    break
         head = text[:4000]
         m = DATED_RX.search(head)
         if m and to_iso(m.group(1)) and "agreement_date" not in out:
@@ -431,11 +515,36 @@ def generated_labels(row: dict[str, Any], gt: dict[str, Any], corpus: str = "") 
 
 # --------------------------------------------------------------------------- vote
 
+#: free-text fields whose CUAD phrase is folded into a label that contains it.
+SPAN_COMPAT_FIELDS = {"termination_notice_period", "dispute_forum"}
+_STOP = {"the", "of", "a", "an", "and", "or", "to", "in", "by", "for", "with", "any", "such", "this", "that", "be",
+         "shall", "other", "party", "parties", "upon", "after", "thereof", "written", "prior", "notice", "located", "courts", "court"}
+
+
+def span_compatible(span_key: str, other_key: str) -> bool:
+    """True when every number and most content words of the span phrase appear in the other label."""
+    if EMPTY in (span_key, other_key):
+        return False
+    a, b = set(_TOKEN.findall(span_key)), set(_TOKEN.findall(other_key))
+    nums = {t for t in a if t.isdigit()}
+    content = {t for t in a - _STOP if not t.isdigit()}
+    if not nums <= b or not (nums or content):
+        return False
+    return not content or len(content & b) / len(content) >= 0.6
+
+
 def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
     owner = [b for b in ballots if b["source"] == "owner_review"]
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for b in ballots:
-        groups[canon(field, b["value"])].append(b)
+        if b["source"] != "cuad_span":
+            groups[canon(field, b["value"])].append(b)
+    for b in ballots:  # a CUAD span phrase backs a longer label that states the same thing
+        if b["source"] == "cuad_span":
+            key = canon(field, b["value"])
+            if field in SPAN_COMPAT_FIELDS and key not in groups:
+                key = next((k for k in groups if span_compatible(key, k)), key)
+            groups[key].append(b)
     if owner:
         win_key = canon(field, owner[0]["value"])
         rule = "owner_final"
@@ -445,7 +554,9 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
         win_key = max(groups, key=score)
         rule = "weighted_vote"
     win = groups[win_key]
-    best = min(win, key=lambda b: SOURCES[b["source"]][1])
+    # A folded CUAD phrase backs the label it agrees with; that label keeps its fuller wording.
+    named = [b for b in win if b["source"] != "cuad_span"] if field in SPAN_COMPAT_FIELDS else []
+    best = min(named or win, key=lambda b: SOURCES[b["source"]][1])
     total = sum(SOURCES[b["source"]][0] for b in ballots)
     share = sum(SOURCES[b["source"]][0] for b in win) / total if total else 0.0
     n = len(ballots)
