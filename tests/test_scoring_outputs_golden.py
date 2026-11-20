@@ -49,8 +49,11 @@ from llm_dojo_scoring.config import clear_settings_cache
 from mailroom_sandbox import scoring_hotfixes as sh
 from mailroom_sandbox.eval.scoring import _score_extraction_row_once, emit, score_extraction_row
 
-#: Keys the scorer added after these goldens were frozen (run-level micro F1 needs them).
-ADDED_KEYS = ("tp", "fp", "fn")
+#: Keys the scorer added after these goldens were frozen (run-level micro F1 needs the event
+#: counts; the pain-point composites need the stated-value outcomes, ``eval/pain_points.py``).
+ADDED_KEYS = ("tp", "fp", "fn", "n_value_wrong", "n_value_partial")
+#: Every key the dual row reports raw and hotfixed.
+DUAL_KEYS = (*sh.HEADLINE_KEYS, "n_value_wrong", "n_value_partial")
 
 
 def raw_score_row(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -209,7 +212,7 @@ def test_dual_rows_keep_the_raw_values_and_name_every_change(default_dojo_settin
         dual = score_extraction_row(*args, **kwargs)
         for key, value in dual["raw_dojo"].items():
             assert _dump(value) == _dump(raw.get(key)), (case["case_id"], key)
-        changed = [k for k in sh.HEADLINE_KEYS if k in dual or k in raw
+        changed = [k for k in DUAL_KEYS if k in dual or k in raw
                    if _dump(dual.get(k)) != _dump(raw.get(k))]
         assert sorted(changed) == dual["scoring_hotfixes_changed"], case["case_id"]
         assert set(dual["scoring_hotfixes"]) <= sh.EXTRACTION_FIXES

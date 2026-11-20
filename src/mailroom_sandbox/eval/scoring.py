@@ -57,6 +57,11 @@ _EXTRACT_PRF_KEYS = (
     "extraction_f2",
     "entity_list_f1",
 )
+#: A value stated on a targeted field that the Dojo scores under this bar is counted as wrong
+#: (``n_value_wrong``: unsupported by the truth); between it and 1.0 it is a near miss
+#: (``n_value_partial``). Read by the pain-point composites (``eval/pain_points.py``).
+FABRICATION_MAX_FIELD_SCORE = 0.5
+_FIELD_OUTCOME_KEYS = ("n_value_wrong", "n_value_partial")
 
 
 def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
@@ -138,7 +143,7 @@ def score_extraction_row(
         fixed_expected = expected if "SHF-010" in on else raw_expected
         fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
                                            expected_subclass, field_scores=field_scores)
-    out = sh.merge_dual(raw_payload, fixed, on)
+    out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")
     return out
@@ -275,6 +280,7 @@ def _score_extraction_row_once(
     if field_scores:
         per_field = getattr(extraction_obj, "field_scores", None)
         payload["field_scores"] = dict(per_field) if isinstance(per_field, Mapping) else {}
+    payload.update(_field_value_outcomes(expected, predicted, getattr(extraction_obj, "field_scores", None)))
     if hasattr(result, "__dict__"):
         try:
             prf = extraction_binary_metrics(
@@ -324,6 +330,32 @@ def _score_extraction_row_once(
         payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
         payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
+
+
+def _field_value_outcomes(expected: Mapping[str, Any], predicted: Mapping[str, Any],
+                          per_field: Any) -> dict[str, int]:
+    """Stated values on targeted fields that missed: wrong (under the bar) or a near miss.
+
+    A targeted field is one the truth gives a value and the scorer scored. A missed field with a
+    blank prediction is neither (it is a plain miss, already in ``fn``). Empty when the scorer
+    returned no per-field scores.
+    """
+    from mailroom_sandbox.eval.extraction_scope import is_empty_gt
+
+    if not isinstance(per_field, Mapping):
+        return {}
+    wrong = partial = 0
+    for name, value in expected.items():
+        score = per_field.get(name)
+        if is_empty_gt(value) or isinstance(score, bool) or not isinstance(score, (int, float)):
+            continue
+        if float(score) >= 1.0 or is_empty_gt(predicted.get(name)):
+            continue
+        if float(score) < FABRICATION_MAX_FIELD_SCORE:
+            wrong += 1
+        else:
+            partial += 1
+    return {"n_value_wrong": wrong, "n_value_partial": partial}
 
 
 def _norm_label(value: Any) -> str:

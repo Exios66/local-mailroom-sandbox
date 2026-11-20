@@ -128,6 +128,13 @@ keys matching is a runner alias, not proof that partial credit is off.
 Empty-field and partial-credit behavior is documented in
 [`docs/archive/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
+## Pain-point composites
+
+Pipeline runs also report two client pain-point penalty scores, one for classification and one
+for entity extraction. Each document earns 0 points (correct and complete) to 4 (sent to a
+person when the pipeline could have finished it); lower is better. Definitions, the
+`amfam-v1` scale and the output keys: [`pain-point-composites.md`](pain-point-composites.md).
+
 ## Fixtures
 
 Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
