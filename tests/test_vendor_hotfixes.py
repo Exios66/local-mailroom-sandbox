@@ -172,9 +172,8 @@ def test_hf007_confidence_at_or_above_the_band_still_reaches_the_judge(monkeypat
 
 
 def test_hf008_records_each_window_and_keeps_the_weakest_confidence():
-    from langchain_agents.specialist_agents import merge_chunk_windows
-
     assert vh.apply_hotfixes()["HF-008"] == "applied"
+    from langchain_agents.specialist_agents import merge_chunk_windows
     windows = [({"entity_name": "First", "confidence": 0.99}, "first"),
                ({"entity_name": "Second", "confidence": 0.2}, "second")]
     merged = merge_chunk_windows(windows, agent_name="corporate_records_specialist")
