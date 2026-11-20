@@ -122,6 +122,70 @@ def test_decisions_transport_obeys_the_run_guard_before_each_attempt(monkeypatch
     assert calls == []
 
 
+def test_a_decisions_call_is_charged_once_when_hf004_wraps_record_usage(monkeypatch):
+    """One Decisions HTTP response is one live charge and one ceiling slot.
+
+    ``_post_decision`` prices the returned call, and HF-004 prices ``record_usage``.
+    Feeding both the same response charged Luna and Jev runs twice, so a cap set
+    for the real estimate aborted near the halfway document.
+    """
+    from mailroom_sandbox import decision_backends as db
+    from pipeline import limits
+
+    assert vh.apply_hotfixes()["HF-004"] == "applied"
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {
+                "model": "openai/gpt-6-luna-decisions",
+                "answers": {"doc_type": {"choice": "contract", "probabilities": {"contract": 0.91}}},
+                "usage": {"input_tokens": 1_000_000, "output_tokens": 0, "cost": 0.10},
+            }
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("httpx.post", lambda *a, **k: Resp())
+    monkeypatch.setattr(db, "_record_served", lambda *a, **k: None)
+    budget = api_budget.ApiBudget(1.0, 0.10, 0.0, ["openai/gpt-6-luna-decisions"])
+    call_guard.arm(budget, ceiling=2)
+    limits.reset_run_usage()
+    with call_guard.document() as doc:
+        db.decide("a short contract", model="openai/gpt-6-luna-decisions",
+                  questions={"doc_type": {"type": "choice", "criteria": {"contract": "a contract"}}})
+        assert doc["calls"] == 1
+        assert budget.live_usd == pytest.approx(0.10, abs=1e-6)
+        summary = limits.usage_summary()
+        assert summary["calls"] == 1
+        assert summary["prompt_tokens"] == 1_000_000
+        call_guard.before_call()  # ceiling 2: the next document call may still start
+    assert doc["refused"] is None
+
+
+def test_decision_tasks_take_the_per_document_ceiling_and_chunked_specialists_do_not():
+    """Isolated decision smokes are one request per document, so the R01 ceiling applies.
+
+    A chunked specialist can legitimately pass that count. Mock rows stay unscoped.
+    """
+    from mailroom_sandbox.eval.runners import isolated_call_scope
+
+    call_guard.arm(_budget(cap=1_000), ceiling=1)
+    for task in ("sorter_reviewer", "extraction_gate"):
+        with isolated_call_scope(task, mock=False) as scope:
+            call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+            assert scope["calls"] == 1
+            with pytest.raises(Exception, match="per-document ceiling"):
+                call_guard.before_call()
+    with isolated_call_scope("specialist", mock=False) as scope:
+        call_guard.before_call()
+        assert scope["calls"] == 0
+    with isolated_call_scope("sorter_reviewer", mock=True) as scope:
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        assert scope["calls"] == 0
+
+
 def test_decisions_rechecks_budget_before_retry(monkeypatch):
     import httpx
     from mailroom_sandbox import decision_backends as db

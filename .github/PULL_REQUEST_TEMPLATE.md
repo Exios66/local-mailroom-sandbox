@@ -34,6 +34,8 @@ guard that covers it and its output from this head, or say why it does not apply
 - [ ] Resume/retry cannot reuse or corrupt a measurement (9)
 - [ ] Offline paths stay offline; the suite stays network-free (10)
 - [ ] No quality gate loosened (coverage 84, lint, snapshots, CLI reference) (11)
+- [ ] Explicit numeric confidence of zero stays zero (12)
+- [ ] A Decisions response is charged once (13)
 
 ## Risks / follow-ups
 
