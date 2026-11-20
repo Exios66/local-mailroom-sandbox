@@ -202,3 +202,114 @@ def test_the_cli_prints_the_digest(tmp_path, capsys):
     assert "match" in out and "wrote" in out
     assert cli.main(["rescore", str(run), "--dataset-file", str(truth), "--out", str(tmp_path / "out")]) == 2
     assert "exists" in capsys.readouterr().err
+
+
+def _repo_split(name: str) -> tuple[Path, str]:
+    from mailroom_sandbox.paths import repo_root
+
+    split = repo_root() / "config" / "splits" / name
+    return split, json.loads((split / "manifest.json").read_text())["dataset"]["revision"]
+
+
+def _drawn_from(tmp_path: Path, split: str, **kw) -> Path:
+    """A run on ``split``'s revision whose lock names that split's dev exclude file."""
+    _, rev = _repo_split(split)
+    truth = [{**_row("DOC-1", "contract"), "source_revision": rev},
+             {**_row("DOC-2", "correspondence"), "source_revision": rev}]
+    run = _run(tmp_path, truth=truth, **kw)
+    lock = json.loads((run / "spec.lock.json").read_text())
+    lock["dataset"].update(revision=rev, revision_resolved=rev,
+                           exclude_ids_file=f"config/splits/{split}/dev.exclude.ids")
+    lock["agent_assignments"] = {"sorter": {"model": "m"}}
+    (run / "spec.lock.json").write_text(json.dumps(lock))
+    return run
+
+
+def _loader_on(split: str):
+    _, rev = _repo_split(split)
+
+    def loader(spec, ids):
+        rows = [{**_row("DOC-1", "contract"), "source_revision": rev},
+                {**_row("DOC-2", "contract"), "source_revision": rev}]
+        return [r for r in rows if r["id"] in set(ids)], {"source": "huggingface", "revision": rev,
+                                                          "revision_resolved": rev}
+    return loader
+
+
+def test_a_rescore_to_another_revision_drops_the_old_split_and_the_gold_audit_follows(tmp_path):
+    """runbook-v1 (v9.1) and runbook-v2 (v9.3) assign sets differently (a v1 dev document can be
+    v2 held-out), so a v9.3 rescore must not keep the v1 split file: the audit then resolves the
+    split and registry of the new revision, and its set checks are v2's."""
+    from mailroom_sandbox import gold_audit as ga
+    from mailroom_sandbox.paths import repo_root
+
+    run = _drawn_from(tmp_path, "runbook-v1")
+    moved = rs.rescore(run, revision="v9.3", out=tmp_path / "v93", truth_loader=_loader_on("runbook-v2"))
+    lock = json.loads((Path(moved["out"]) / "spec.lock.json").read_text())
+    assert "exclude_ids_file" not in lock["dataset"]
+    assert lock["rescore"]["source_dataset"]["exclude_ids_file"] == "config/splits/runbook-v1/dev.exclude.ids"
+    rows = [json.loads(line) for line in (Path(moved["out"]) / "dataset.jsonl").read_text().splitlines()]
+    root = repo_root()
+    assert ga.resolve_inputs(Path(moved["out"]), rows) == (root / "config/splits/runbook-v2",
+                                                           root / "config/extraction/subclass_schemas.json")
+
+    same = rs.rescore(run, out=tmp_path / "same", truth_loader=_loader_on("runbook-v1"))
+    lock = json.loads((Path(same["out"]) / "spec.lock.json").read_text())
+    assert lock["dataset"]["exclude_ids_file"] == "config/splits/runbook-v1/dev.exclude.ids"
+    rows = [json.loads(line) for line in (Path(same["out"]) / "dataset.jsonl").read_text().splitlines()]
+    assert ga.resolve_inputs(Path(same["out"]), rows)[0] == root / "config/splits/runbook-v1"
+
+
+def test_a_gold_audit_sheet_builds_from_a_rescored_run(tmp_path):
+    from mailroom_sandbox import gold_audit as ga
+
+    split, _ = _repo_split("runbook-v2")
+    dev = sorted(json.loads(line)["id"] for line in (split / "assignments.jsonl").read_text().splitlines()
+                 if json.loads(line)["set"] == "dev")[:2]
+    rev = _repo_split("runbook-v2")[1]
+    truth = [{**_row(dev[0], "contract"), "source_revision": rev},
+             {**_row(dev[1], "correspondence"), "source_revision": rev}]
+    run = _run(tmp_path, truth=truth, items=[
+        {"item_id": dev[0], "ok": True, "pred": {"doc_type": "contract"}, "score": {"match": 1.0}},
+        {"item_id": dev[1], "ok": True, "pred": {"doc_type": "contract"}, "score": {"match": 0.0}}])
+    out = rs.rescore(run, dataset_file=_truth_file(tmp_path, truth), out=tmp_path / "out")["out"]
+    sheet = ga.build_sheet(Path(out), "sorter", seed=1)
+    assert sheet.digest["documents"] == 2 and [r["doc_id"] for r in sheet.rows] == [dev[1]]
+
+
+def test_an_original_run_pairs_with_a_rescore_only_on_the_same_revision(tmp_path):
+    """Original vs. its own rescore pairs while the revision and labels are the same (a scorer-drift
+    check); moved labels or another revision are other truth and are refused; two arms rescored to
+    the same revision pair."""
+    from mailroom_sandbox import sorter_arms
+
+    a = _drawn_from(tmp_path, "runbook-v1", name="arm-a")
+    b = _drawn_from(tmp_path, "runbook-v1", name="arm-b")
+    original = [json.loads(line) for line in (a / "dataset.jsonl").read_text().splitlines()]
+    meta = {k: json.loads((a / "spec.lock.json").read_text())["dataset"][k] for k in ("revision", "revision_resolved")}
+    drift = rs.rescore(a, out=tmp_path / "a-drift", truth_loader=lambda spec, ids: (original, meta))["out"]
+    assert sorter_arms.pair([sorter_arms.load_arm(a), sorter_arms.load_arm(drift)]) == ["DOC-1", "DOC-2"]
+    moved = rs.rescore(a, out=tmp_path / "a-moved", truth_loader=_loader_on("runbook-v1"))["out"]
+    with pytest.raises(sorter_arms.ArmError, match="the truth differs between runs"):
+        sorter_arms.pair([sorter_arms.load_arm(a), sorter_arms.load_arm(moved)])
+
+    a93 = rs.rescore(a, revision="v9.3", out=tmp_path / "a93", truth_loader=_loader_on("runbook-v2"))["out"]
+    b93 = rs.rescore(b, revision="v9.3", out=tmp_path / "b93", truth_loader=_loader_on("runbook-v2"))["out"]
+    with pytest.raises(sorter_arms.ArmError, match="dataset revisions differ"):
+        sorter_arms.pair([sorter_arms.load_arm(a), sorter_arms.load_arm(a93)])
+    arms = [sorter_arms.load_arm(a93), sorter_arms.load_arm(b93)]
+    assert sorter_arms.pair(arms) == ["DOC-1", "DOC-2"]
+    assert all(arm.split_dir is None for arm in arms)  # resolved from v9.3, not the v1 file
+
+
+def test_the_derived_run_carries_run_level_scores(tmp_path):
+    run = _run(tmp_path, items=[
+        {"item_id": "DOC-1", "ok": True, "pred": {"doc_type": "contract"}, "score": {"match": 1.0}},
+        {"item_id": "DOC-2", "ok": False, "error": "timeout", "pred": None, "score": None}])
+    report = rs.rescore(run, dataset_file=_truth_file(tmp_path, [_row("DOC-1", "contract"), _row("DOC-2", "contract")]),
+                        out=tmp_path / "out")
+    scores = json.loads((Path(report["out"]) / "scores.json").read_text())
+    assert scores == report["scores"]
+    assert (scores["items"], scores["scored"], scores["unscored"]) == (2, 1, 1)
+    assert scores["means"]["match"] == {"n": 1, "mean": 1.0}
+    assert scores["by_class"]["contract"]["match"]["n"] == 1

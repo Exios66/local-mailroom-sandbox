@@ -32,12 +32,18 @@ the gold audit read that layout.
 
 - `spec.lock.json`: the source lock. Its `dataset` block describes the new truth. It also gets
   `lock_kind: rescore.lock`, the new `run_id`, and a `rescore` block that names the source run
-  and keeps the source `dataset` block.
+  and keeps the source `dataset` block. When the truth is on another revision, the source's
+  split file (`exclude_ids_file`) is left out of `dataset`. Splits assign sets per revision: a
+  runbook-v1 dev document can be held out in runbook-v2. Readers then resolve the split of the
+  new revision, and its held-out checks apply. The source's split stays in `rescore.source_dataset`.
 - `dataset.jsonl`: the new truth rows, in item order.
 - `items.jsonl`: each answered item with its new `score`. The first score it ever had is kept in
   `score_original`, including when a rescore is itself re-scored. Errored and unparseable items
   have no answer to score and are copied unchanged.
-- `rescore.json`: the provenance and the digest the command prints.
+- `scores.json`: run-level means of every numeric per-item score, overall and by class. These are
+  plain means. A task runner's own run summary can hold other statistics (macro-F1, intervals),
+  which a rescore does not recompute.
+- `rescore.json`: the provenance, the digest the command prints, and the same run-level scores.
 - `events.jsonl`, `checkpoint.json` and `prompt.lock.json`, copied when present.
 
 ## Reading the digest
@@ -65,4 +71,15 @@ A rescore stops and writes nothing if any of these hold:
 - the task has no per-document scorer.
 
 Supported tasks are `pipeline`, `specialist`, `isolated` (the sorter) and every registered agent
-task. A rescore uses the scorer code of the current checkout.
+task. `extract`, `chained`, `local_vs_api` and `sorter_vs_modernbert` keep only run-level scores
+and store no per-document answers, so they are refused. A rescore uses the scorer code of the
+current checkout.
+
+## Using a derived run
+
+- Gold audit (`scripts/build_gold_audit_sheet.py`): reads a derived run like any other. A v9.3
+  rescore of a v9.1 run is audited against runbook-v2 and its field registry.
+- `compare_sorter_arms`: pairs runs on the same revision and truth. An original run and its
+  rescore pair only when the labels did not move, which makes a scorer-drift check. To compare
+  two arms on new labels, re-score both to the same revision and pair the two derived runs. An
+  original paired with a rescore on another revision is refused (`dataset revisions differ`).

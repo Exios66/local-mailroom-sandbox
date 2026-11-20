@@ -133,8 +133,11 @@ def scorer_for(lock: Mapping[str, Any]) -> Callable[[dict[str, Any], dict[str, A
     name = "sorter" if task == "isolated" else task
     if name in agents.SPECS:
         return agents.SPECS[name].score_one
-    raise RescoreError(f"task {task!r} has no per-document scorer to re-run "
-                       "(supported: pipeline, specialist, isolated and the registered agent tasks)")
+    # extract, chained, local_vs_api and sorter_vs_modernbert keep run-level scores only: their
+    # runners store no per-document answer, so there is nothing to score again.
+    raise RescoreError(f"task {task!r} has no per-document scorer to re-run; its run stores no "
+                       "per-document answers (supported: pipeline, specialist, isolated and the "
+                       "registered agent tasks)")
 
 
 # --------------------------------------------------------------------------- truth
@@ -255,6 +258,34 @@ def digest(items: Sequence[Mapping[str, Any]], old_truth: Mapping[str, Mapping[s
     }
 
 
+def run_scores(items: Sequence[Mapping[str, Any]], truth: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Run-level means of every numeric per-item score key, overall and by truth class.
+
+    These are plain means over the items that carry each key. A task runner's own run summary can
+    hold other statistics (macro-F1, confidence intervals), which a rescore does not recompute.
+    """
+    def means(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+        vals: dict[str, list[float]] = defaultdict(list)
+        for it in rows:
+            for key, value in (it.get("score") or {}).items():
+                if (num := _num(value)) is not None:
+                    vals[key].append(num)
+        return {k: {"n": len(v), "mean": sum(v) / len(v)} for k, v in sorted(vals.items())}
+
+    scored = [i for i in items if i.get("ok") and isinstance(i.get("score"), Mapping)]
+    groups: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for it in scored:
+        groups[_truth_key(truth.get(str(it.get("item_id"))))[0]].append(it)
+    return {
+        "source": "mean of the re-scored per-item scores (sandbox rescore)",
+        "items": len(items),
+        "scored": len(scored),
+        "unscored": len(items) - len(scored),
+        "means": means(scored),
+        "by_class": {cls: means(rows) for cls, rows in sorted(groups.items())},
+    }
+
+
 # --------------------------------------------------------------------------- rescore
 
 
@@ -354,6 +385,7 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
         "ids_restricted": ids is not None,
         "missing": missing,
         "digest": digest(out_items, old_truth, new_truth),
+        "scores": run_scores(out_items, new_truth),
     }
     if dry_run:
         return {**report, "dry_run": True, "out": str(dest)}
@@ -364,8 +396,13 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     dest.mkdir(parents=True)
     new_lock = json.loads(json.dumps(lock))
     new_lock.update({"run_id": dest.name, "lock_kind": "rescore.lock"})
+    # A split's sets are drawn per revision (runbook-v1 on v9.1, runbook-v2 on v9.3, and a v1 dev
+    # document can be v2 held-out), so the source's split file stays only while the revision does;
+    # otherwise readers resolve the split of the new revision, and its held-out checks apply.
+    kept = ("strata_actual",) if not _revision_moved(lock.get("dataset") or {}, meta) else ("strata_actual",
+                                                                                            "exclude_ids_file")
     new_lock["dataset"] = {
-        **{k: v for k, v in (lock.get("dataset") or {}).items() if k not in ("strata_actual",)},
+        **{k: v for k, v in (lock.get("dataset") or {}).items() if k not in kept},
         "revision": meta.get("revision"), "revision_resolved": meta.get("revision_resolved"),
         "rows": len(new_truth), "sha256": hashlib.sha256(dataset_payload.encode("utf-8")).hexdigest(),
         "metadata": {k: v for k, v in meta.items() if k not in ("missing", "rows")},
@@ -381,9 +418,23 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     for name in _COPIED:
         if files.get(name) is not None:
             shutil.copyfile(files.files[name], dest / name)
+    (dest / "scores.json").write_text(json.dumps(report["scores"], indent=2, ensure_ascii=False) + "\n",
+                                      encoding="utf-8")
     (dest / "rescore.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str) + "\n",
                                        encoding="utf-8")
     return {**report, "out": str(dest)}
+
+
+def _revision_moved(source: Mapping[str, Any], meta: Mapping[str, Any]) -> bool:
+    """Whether the new truth is on another dataset revision than the run (unknown counts as moved)."""
+    from mailroom_sandbox.job.spec import family_tag_commit
+
+    def commit(d: Mapping[str, Any]) -> str:
+        rev = str(d.get("revision_resolved") or d.get("revision") or "")
+        return family_tag_commit(rev) if rev else ""
+
+    old, new = commit(source), commit(meta)
+    return not (old and new and old == new)
 
 
 def _default_root() -> Path:
