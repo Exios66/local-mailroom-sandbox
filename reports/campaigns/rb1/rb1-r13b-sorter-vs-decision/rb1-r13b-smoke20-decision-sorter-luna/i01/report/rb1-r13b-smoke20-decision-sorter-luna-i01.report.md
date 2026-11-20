@@ -14,7 +14,20 @@
 
 ## Headline (run scorer, from the experiment log)
 
-Not recorded: no experiment-log record matches this generation. Nothing is recomputed here.
+| metric | value |
+| --- | --- |
+| error_count | 0 |
+| exact_match | 0.7500 |
+| n | 20 |
+
+## Figures
+
+Each figure's data is in [`analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.figure-data.csv`](../analysis/rb1-r13b-smoke20-decision-sorter-luna-i01.figure-data.csv)
+
+![Stacked bars per group: documents archived correct, parked, misarchived, unscored](../figures/rb1-r13b-smoke20-decision-sorter-luna-i01.routing.svg)
+![Strip plot of chosen-class probability for right and wrong forced answers](../figures/rb1-r13b-smoke20-decision-sorter-luna-i01.confidence.svg)
+![Bar chart of how many documents each park rule fired on](../figures/rb1-r13b-smoke20-decision-sorter-luna-i01.park-reasons.svg)
+![Scatter of latency against input tokens per document, log scales](../figures/rb1-r13b-smoke20-decision-sorter-luna-i01.latency.svg)
 
 ## Cost and serving (serving renderer)
 
@@ -29,6 +42,5 @@ Not recorded: no experiment-log record matches this generation. Nothing is recom
 
 ## Caveats
 
-- No experiment-log record matches this generation: headline scores are not recorded (never recomputed here).
 - Cost basis is `token_price_estimate` (from the serving renderer), not a provider invoice.
 - docs/ config is the committed config today; the spec lock in logs/ is authoritative.

@@ -1,0 +1,625 @@
+{
+  "agent_knobs": {},
+  "agent_models": {},
+  "created_at": "2026-11-19T11:05:15.893+00:00",
+  "dataset": {
+    "config": "ground_truth",
+    "limit": null,
+    "metadata": {
+      "revision": "offline",
+      "sha256": "b1fb01f2653df4482f59d790dfa0828e4ce8aaf6d3a2f5587568f1153eafa94b",
+      "source": "local"
+    },
+    "repo": "form-controls.jsonl",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "revision_resolved": null,
+    "rows": 7,
+    "sample_seed": null,
+    "selection": {
+      "require_task_gt": false
+    },
+    "sha256": "7aa795c7f8f6aa592a6e038680e308e5b0455732778ca11796114bd2ea9bf34c",
+    "split": "all",
+    "strata": null,
+    "strata_actual": {
+      "contract::Affiliate_Agreements": 1,
+      "corporate_record::board_resolution": 1,
+      "insurance_claim::property": 2,
+      "merger_agreement::mixed_cash_stock": 3
+    }
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "effective_confidence": {
+    "arbiter_retry_max": 2,
+    "by_class": {
+      "contract": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      },
+      "corporate_record": {
+        "high": 0.96,
+        "judge_band_high": 0.94,
+        "low": 0.86
+      },
+      "correspondence": {
+        "high": 0.95,
+        "judge_band_high": 0.92,
+        "low": 0.85
+      },
+      "insurance_claim": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      },
+      "merger_agreement": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      }
+    },
+    "conflict_threshold": 0.3,
+    "high": 0.95,
+    "judge_band_high": 0.95,
+    "judge_max_passes": 3,
+    "judge_rejudge_retry": false,
+    "keep_best_attempt": false,
+    "low": 0.7,
+    "retry_max": 1
+  },
+  "engine": {
+    "kind": "openrouter",
+    "modal": null,
+    "model": "openai/gpt-6-luna-decisions",
+    "vllm": {
+      "cudagraph_capture_sizes": [],
+      "enable_prefix_caching": true,
+      "enable_thinking": null,
+      "enforce_eager": true,
+      "gpu_memory_utilization": 0.9,
+      "hf_overrides": null,
+      "kv_cache_dtype": "",
+      "limit_mm_per_prompt": null,
+      "max_inputs": 0,
+      "max_model_len": 16384,
+      "max_num_batched_tokens": null,
+      "max_num_seqs": 6,
+      "quantization": "",
+      "revision": ""
+    }
+  },
+  "generation_id": "28607ec7bea549e8a2efa76eb0d0743c",
+  "git": {
+    "commit": "fdfb399b",
+    "dirty": true
+  },
+  "job": {
+    "api_cost_cap_usd": 0.1,
+    "blind_routing": false,
+    "checkpoint_every": 1,
+    "concurrency": 8,
+    "cost_cap_usd": 0.1,
+    "fail_fast": false,
+    "max_retries": 1,
+    "max_wall_seconds": 900,
+    "mock": false,
+    "mode": "endpoint",
+    "pipeline_handoff": false,
+    "schema_guide": false,
+    "specialist_subclass": "none",
+    "specialist_subclass_file": null,
+    "task": "sorter"
+  },
+  "lock_kind": "spec.lock",
+  "otel": {
+    "environment": "pilot",
+    "sink": "none"
+  },
+  "package": {
+    "commit": "fdfb399b0fd9faef5b0ce31ab331c37efcdabe3f",
+    "path": "/Users/luciusjmorningstar/Downloads/local-mailroom-sandbox"
+  },
+  "profile": "openrouter",
+  "prompt": {
+    "agents": {},
+    "default": {
+      "agent": "default",
+      "file": null,
+      "label": null,
+      "name": "mailroom-default",
+      "sha256": null,
+      "source": "code-default",
+      "text": null,
+      "version": null
+    },
+    "known_agents": [
+      "arbiter",
+      "boss",
+      "contracts_specialist",
+      "corporate_records_specialist",
+      "correspondence_specialist",
+      "gmail_triage",
+      "image_extractor",
+      "insurance_claims_specialist",
+      "intake",
+      "judge",
+      "judge-classification",
+      "judge-correctness",
+      "merger_agreement_specialist",
+      "pdf_transcriber",
+      "relations",
+      "reporter",
+      "sorter",
+      "sorter_reviewer"
+    ]
+  },
+  "prompt_text_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "reviewer": {
+    "backend": "decisions",
+    "classes": {},
+    "model": "openai/gpt-6-luna-decisions",
+    "question_set": {
+      "abstain": {
+        "margin": 0.1,
+        "subclass_not_this_class_max": 0.5,
+        "unknown_max": 0.34
+      },
+      "doc_type": {
+        "criteria": {
+          "contract": "Commercial agreement between parties (license, supply, distribution, services, hosting, maintenance, development, manufacturing, marketing, sponsorship, franchise, agency, consulting or employment, collaboration or cooperation, joint venture, note purchase, IP assignment). Insurance policies. Rule 13d-1(k) Joint Filing Agreements. NOT registration/investor/stockholder rights or subscription agreements, warrants or indentures (corporate_record). A power of attorney is corporate_record even when it is titled \"Limited Power of Attorney\" and appoints an agent under an agreement.",
+          "corporate_record": "A company's own organisation, governance or securities instrument: charter, certificate of incorporation or formation, charter amendment, bylaws, board or stockholder resolution or consent, officer certificate or Certificate of Designation, power of attorney, list or table of subsidiaries, indenture, securities rights instrument.",
+          "correspondence": "A communication: letter, email, memo, notice, demand, press release, meeting request. All mailbox text, including forwards, newsletters, automated notices and bare message fragments. NOT a First Notice of Loss or claim file (insurance_claim).",
+          "insurance_claim": "Claim paperwork: First Notice of Loss form (Claim Reference, Policy Number, Date of Loss), with its call notes, emails or letters; adjuster reports; claim demand packages; coverage or denial letters; CMS / DE-SynPUF claim tables.",
+          "merger_agreement": "Agreement and Plan of Merger, its amendments or restatements; also a Transaction or Business Combination Agreement that merges through a Merger Sub.",
+          "unknown": "Plainly not a communication and fits no class (court opinion, accounting standard, due-diligence checklist), or too garbled to identify."
+        },
+        "instructions": "Classify state.document from its own text. Classify the instrument the title names, not an exhibit stamp or filing wrapper. Amendments, restatements, joinders, forms and drafts take the class of the instrument they change or copy."
+      },
+      "document_form": {
+        "criteria": {
+          "complete_instrument": "One document, from its own beginning to its own end: it opens with a title or a salutation and closes with a signature block, a formal closing or a final paragraph. A one-page agreement, a one-page letter or a single table is a complete instrument.",
+          "fragment_or_excerpt": "Part of a longer document: starts or stops mid-sentence or mid-section, is marked \"continued\", is a signature page, cover page, table of contents, exhibit index or schedule without the instrument it belongs to, or ends with no signature block or closing although the form requires one.",
+          "multiple_documents": "Two or more separate documents of different classes in one text (a contract followed by an unrelated letter). An email carrying a forwarded or quoted message is ONE document.",
+          "non_english": "The substantive text is not in English.",
+          "unreadable": "Empty, garbled, mostly OCR noise, or too fragmentary to identify any form."
+        },
+        "instructions": "Judge the state of state.document as an input to extraction. Choose the one description that is true of the text you can see."
+      },
+      "human_forms": [
+        "fragment_or_excerpt",
+        "multiple_documents",
+        "unreadable",
+        "non_english"
+      ],
+      "max_input_chars": 1000000,
+      "name": "reviewer_decisions",
+      "schema": "sandbox.decisions/v1",
+      "subclass": {
+        "contract": {
+          "abstain": "No agreement family fits the operative text well enough to name one.",
+          "criteria": {
+            "affiliate": "Affiliate or referral programme.",
+            "agency": "Agency or sales agency.",
+            "co_branding": "Co-branding.",
+            "collaboration": "Collaboration or Cooperation Agreement, incl. shareholder standstill settlements.",
+            "consulting": "Consulting, employment agreement or executive offer letter.",
+            "development": "Development work, milestones, steering committee.",
+            "distributor": "Distribution.",
+            "endorsement": "Endorsement, incl. insurance or annuity endorsement riders.",
+            "franchise": "Franchise.",
+            "hosting": "Hosting, platform or SaaS provision.",
+            "ip": "IP assignment, transfer or separation.",
+            "joint_venture": "Joint venture; Rule 13d-1(k) Joint Filing Agreement.",
+            "license": "Licence of IP, software, content or technology.",
+            "maintenance": "Maintenance or support; licence plus support; capital or net-worth maintenance.",
+            "manufacturing": "Manufacturing.",
+            "marketing": "Marketing or remarketing.",
+            "non_compete_no_solicit": "Stand-alone non-compete or non-solicit.",
+            "other": "No family fits.",
+            "outsourcing": "Outsourcing.",
+            "promotion": "Promotion.",
+            "reseller": "Reseller.",
+            "service": "Services, master services, statement of work.",
+            "sponsorship": "Sponsorship.",
+            "strategic_alliance": "Strategic alliance.",
+            "supply": "Supply or purchase; note purchase agreements.",
+            "transportation": "Transportation, shipping or logistics."
+          },
+          "instructions": "Agreement family. A title naming one family decides it (\"Supply Agreement\" is supply even when the supplier manufactures; \"Cooperation\" or \"Collaboration Agreement\" is collaboration). Hybrid titles: the family the operating obligations mostly concern."
+        },
+        "corporate_record": {
+          "abstain": "The title names no record and the operative text does not settle one.",
+          "criteria": {
+            "articles_of_incorporation": "Charter or restated charter; certificate of formation; articles of organization.",
+            "board_resolution": "Board or stockholder resolution or written consent; short board-adopted bylaw amendment.",
+            "bylaws": "Bylaws or restated bylaws.",
+            "charter_amendment": "Certificate or Articles of Amendment, Certificate of Correction.",
+            "indenture": "Indenture or supplemental indenture.",
+            "officer_certificate": "Officer certificate; Certificate of Designation and amendments to it.",
+            "other": "None fits.",
+            "powers_of_attorney": "Power of attorney.",
+            "rights_instrument": "Registration/investor/stockholder/preemptive rights or subscription agreement; warrant; specimen stock certificate.",
+            "subsidiary_list": "List or table of subsidiaries."
+          },
+          "instructions": "Which record, by the document's own title first; an exhibit stamp never decides. A resolution that adopts or approves an amendment is board_resolution; the amendment instrument itself is charter_amendment."
+        },
+        "correspondence": {
+          "criteria": {
+            "attorney_demand": "Attorney demand.",
+            "demand": "Demand.",
+            "email": "Ordinary message.",
+            "letter": "Letter.",
+            "meeting_request": "Meeting request.",
+            "memo": "Memo.",
+            "notice": "Notice.",
+            "press_release": "Press release."
+          },
+          "default": "email",
+          "instructions": "Which form the content takes, by markers anywhere in the text, including forwards.",
+          "markers": {
+            "attorney_demand": "Does it contain a demand made by or for an attorney or law firm (Esq., Law Offices, counsel for)?",
+            "demand": "Does it contain or discuss a demand (demand letter, demand for payment, past due, final notice)? Mentions in an ordinary email count.",
+            "letter": "Does it contain a letter, a salutation (\"Dear ...\") with a formal closing (Sincerely, Very truly yours, Regards)?",
+            "meeting_request": "Does it invite or ask someone to meet or confer (meeting, call, appointment, event invitation)?",
+            "memo": "Does it contain a memorandum (TO / FROM / DATE / RE header lines in the body, or the word memo or memorandum naming it)?",
+            "notice": "Does it contain or discuss a notice (Notice of ..., Notice No., give notice, please be notified)?",
+            "press_release": "Does it contain or discuss a press or news release (For Immediate Release, PR Newswire, Business Wire, media contact)?"
+          },
+          "order": [
+            "attorney_demand",
+            "letter",
+            "press_release",
+            "memo",
+            "demand",
+            "notice",
+            "meeting_request"
+          ]
+        },
+        "insurance_claim": {
+          "abstain": "Claim paperwork is present but the line of insurance is not stated and not inferable.",
+          "criteria": {
+            "auto": "Auto or motor-vehicle claim.",
+            "carrier": "CMS carrier (professional) claims table.",
+            "health": "Health or medical claim paperwork (not a CMS table).",
+            "inpatient": "CMS inpatient claims table.",
+            "liability": "General, professional or product liability claim (injury or damage to a third party).",
+            "life": "Life insurance or death-benefit claim.",
+            "other": "Claim paperwork of another line (marine, travel, crop, pet) or no line stated.",
+            "outpatient": "CMS outpatient claims table.",
+            "pde": "CMS Part D prescription drug events.",
+            "property": "Property, homeowner, household or building claim.",
+            "workers_comp": "Workers' compensation claim (an employee's work injury)."
+          },
+          "instructions": "CMS tables by file type; claim paperwork by line of insurance."
+        },
+        "merger_agreement": {
+          "abstain": "The conversion terms are not in the text, and the recitals do not state them.",
+          "criteria": {
+            "all_cash": "Cash only, incl. a cash tender offer then merger.",
+            "all_stock": "Acquirer shares only; cash in lieu of fractional shares is still all_stock.",
+            "mixed_cash_stock": "A fixed mix of cash and stock for every share.",
+            "mixed_cash_stock_election": "Holders elect cash or stock, usually prorated.",
+            "other": "Cash or stock plus a CVR, units, partnership interests, or other consideration."
+          },
+          "instructions": "What each share of the target's COMMON stock converts into, from the conversion or Effect on Capital Stock section (not the table of contents). Options, appraisal, financing and escrow do not change it."
+        }
+      },
+      "subclass_gate": {
+        "corporate_record": {
+          "on_low": "park"
+        },
+        "default": {
+          "on_low": "keep_sorter"
+        },
+        "merger_agreement": {
+          "on_low": "park"
+        }
+      },
+      "truncation_notice": true,
+      "version": "4.0.0"
+    },
+    "questions": "reviewer_decisions_v4.0.0",
+    "questions_sha256": "1bf754698bd831d12e51d7d9ba18905ad5a8cf54ff43ab10f43f5416842b4447"
+  },
+  "run_id": "rb1-r13b-controls-decision-luna-v4.0.0",
+  "schema_version": 1,
+  "scoring_hotfixes": {
+    "fixes": [
+      {
+        "id": "SHF-001",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15",
+            "target": "mailroom_sandbox.eval.extraction_scope:applicable_expected_fields"
+          },
+          {
+            "source_sha256": "a5003c2a8b7137457848b0fa5c9c662d1e048b7623d856874c94acb8bc537015",
+            "target": "llm_dojo_scoring.scoring.extraction_metrics:extraction_binary_metrics"
+          }
+        ]
+      },
+      {
+        "id": "SHF-002",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "2858ef5f4d580f3e7f0f2f4ab220d12b423b299072b595bd306bece00c07787e",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_name_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-003",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "25ea35162ccef237c2c7f9aa655c810176305270ac279dcc101c636f1c9b087f",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_money_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-004",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "4ed5c2db371ebf14f322810f44d6828721e293482a4f9e0badf3bbbcfdbac1c3",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_id_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-005",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e",
+            "target": "mailroom_sandbox.eval.runners:_isolated_headline"
+          },
+          {
+            "source_sha256": "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e",
+            "target": "mailroom_sandbox.job.runner:_scored_pairs"
+          }
+        ]
+      },
+      {
+        "id": "SHF-006",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e",
+            "target": "mailroom_sandbox.eval.runners:_isolated_headline"
+          }
+        ]
+      },
+      {
+        "id": "SHF-007",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "fc038e9b4d1f9a4b51c0191be894c9f89a7daa88f7cc973a1b3e7797b7fa6004",
+            "target": "mailroom_sandbox.eval.agents:_score_class"
+          },
+          {
+            "source_sha256": "c332fba81b273d2b661944556f62bbc6fa6271ae132b6ef38ea5b75a991164e4",
+            "target": "mailroom_sandbox.eval.agents:_fold"
+          },
+          {
+            "source_sha256": "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984",
+            "target": "mailroom_sandbox.eval.agents:_class_answer"
+          }
+        ]
+      },
+      {
+        "id": "SHF-008",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "fffe11dc169fd7a1ff52840d9ae4a2bf8f8952bada93f88d9909c7e39bc58f2e",
+            "target": "mailroom_sandbox.eval.agents:_score_verdict"
+          }
+        ]
+      },
+      {
+        "id": "SHF-009",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "c2c16b90d935e51d308a9206184866e4325ee86ea3b0fd751693e75634a8e8af",
+            "target": "mailroom_sandbox.decision_backends:apply_question_set_contract"
+          }
+        ]
+      },
+      {
+        "id": "SHF-010",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "708f35c78dd7bdb9dcdcd69a0102b2d408ec94ddfbf19aa02a57869edc5f0ec2",
+            "target": "mailroom_sandbox.gold_labels:supersede_interim_gap_fills"
+          }
+        ]
+      },
+      {
+        "id": "SHF-011",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "1b3a8928f5620383dfab186021eb3232b90fdb83b0d2c751ce19c0459d570ac9",
+            "target": "mailroom_sandbox.job.pair_report:_arm_score"
+          }
+        ]
+      },
+      {
+        "id": "SHF-012",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "59bbc509ecd0c2817093d537984c1d52a45fff7530908c7146e287f85004d46f",
+            "target": "mailroom_sandbox.eval.runners:_run_pipeline_doc_once"
+          },
+          {
+            "source_sha256": "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451",
+            "target": "mailroom_sandbox.eval.scoring:predicted_subclass"
+          },
+          {
+            "source_sha256": "e5bcf80dfa6598718cba4b7fd363f016e21d15cd73d8b5f0d530171824427f59",
+            "target": "mailroom_sandbox.eval.scoring:score_subclass"
+          }
+        ]
+      },
+      {
+        "id": "SHF-013",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "37caf94d1d496885350500ac13164b5c94125ceb3eb7df6b626a974c52649ad0",
+            "target": "mailroom_sandbox.eval.scoring:sorter_subclass_row"
+          },
+          {
+            "source_sha256": "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f",
+            "target": "mailroom_sandbox.eval.scoring:sorter_subclass_scores"
+          },
+          {
+            "source_sha256": "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3",
+            "target": "file:data/labels/review/subclass_corrections.jsonl"
+          }
+        ]
+      }
+    ],
+    "module_sha256": "f7d709d35d05780de1fe3596f83daa299cccd08c5cb84fda2809a051d0de4fbc"
+  },
+  "spec_core": {
+    "dataset": {
+      "exclude_expected": null,
+      "file": "form-controls.jsonl",
+      "limit": null,
+      "provider": "file",
+      "sample_seed": null,
+      "sha256": "b1fb01f2653df4482f59d790dfa0828e4ce8aaf6d3a2f5587568f1153eafa94b",
+      "strata": null
+    },
+    "engine": {
+      "kind": "openrouter",
+      "modal": null,
+      "model": "openai/gpt-6-luna-decisions",
+      "vllm": {
+        "enable_prefix_caching": true,
+        "enforce_eager": true,
+        "gpu_memory_utilization": 0.9,
+        "max_model_len": 16384,
+        "max_num_seqs": 6,
+        "quantization": "",
+        "revision": ""
+      }
+    },
+    "job": {
+      "api_cost_cap_usd": 0.1,
+      "checkpoint_every": 1,
+      "concurrency": 8,
+      "cost_cap_usd": 0.1,
+      "fail_fast": false,
+      "max_retries": 1,
+      "max_wall_seconds": 900,
+      "mock": false,
+      "mode": "endpoint",
+      "task": "sorter"
+    },
+    "profile": "openrouter",
+    "prompt": {
+      "default": {
+        "source": "code-default"
+      }
+    },
+    "reviewer": {
+      "backend": "decisions",
+      "classes": {},
+      "model": "openai/gpt-6-luna-decisions",
+      "questions": "reviewer_decisions_v4.0.0"
+    },
+    "task": "sorter_reviewer",
+    "trace": {
+      "endpoint": null,
+      "environment": "pilot",
+      "otlp": true,
+      "sink": "none",
+      "tags": [
+        "sandbox",
+        "job",
+        "runbook",
+        "R13b",
+        "H5",
+        "form-controls",
+        "v4.0.0",
+        "decisions-api",
+        "decision-sorter",
+        "dev-look1"
+      ]
+    }
+  },
+  "spec_hash": "4cecaff35132c13b499f01c008567473e951dea900466b93b3de31fef926a3f6",
+  "task": "sorter_reviewer",
+  "trace": {
+    "endpoint": null,
+    "environment": "pilot",
+    "otlp": true,
+    "sink": "none",
+    "tags": [
+      "sandbox",
+      "job",
+      "runbook",
+      "R13b",
+      "H5",
+      "form-controls",
+      "v4.0.0",
+      "decisions-api",
+      "decision-sorter",
+      "dev-look1"
+    ]
+  },
+  "vendor_hotfixes": {
+    "fixes": [
+      {
+        "id": "HF-001",
+        "source_sha256": "a9986cab125fc26e76d36de77ccd4a18d0537f5fa93f6ce146e9389186d20a90",
+        "target": "langchain_agents.doc_inventories.enrich_extraction"
+      },
+      {
+        "id": "HF-002",
+        "source_sha256": "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
+        "target": "agents.judge.CompletenessJudge.judge_completeness"
+      },
+      {
+        "id": "HF-003",
+        "source_sha256": "f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
+        "target": "agents.intake.IntakeAgent.intake_run"
+      },
+      {
+        "id": "HF-004",
+        "source_sha256": "f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
+        "target": "pipeline.limits.record_usage"
+      }
+    ],
+    "module_sha256": "695b00788b922b698c3729de5146c02744d09420d34a05201c25402d1c886778"
+  },
+  "versions": {
+    "llm_dojo_scoring": "0.30.1",
+    "llm_dojo_scoring_source": "vendored",
+    "mailroom_sandbox": "0.3.0",
+    "opentelemetry": "?"
+  }
+}

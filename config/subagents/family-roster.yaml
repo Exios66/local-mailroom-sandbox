@@ -195,3 +195,17 @@ subagents:
         authenticity (files/commits/tests exist), documentation honesty, and
         verification depth; assume good-faith errors and hallucinated evidence
         until disproven.
+
+  - id: pr-domain-reviewer
+    title: PR Domain Reviewer
+    home_package: local-mailroom-sandbox
+    packages: [local-mailroom-sandbox, digital-mailroom]
+    tags: [meta, review, pr, dojo, regressions]
+    harnesses: [cursor, opencode, opencode-global]
+    opencode:
+      mode: all
+    cursor:
+      invoke_hint: >-
+        Delegate for domain-aware PR review: critical regressions, Dojo/vendor
+        ownership, SHF/HF hotfixes, spend gates and campaign CP-* — complementary
+        to CodeRabbit/CodeAnt/CodeFactor and to adversarial-reviewer.

@@ -1,0 +1,33 @@
+{
+  "agents": {},
+  "default": {
+    "agent": "default",
+    "file": null,
+    "label": null,
+    "name": "mailroom-default",
+    "sha256": null,
+    "source": "code-default",
+    "text": null,
+    "version": null
+  },
+  "known_agents": [
+    "arbiter",
+    "boss",
+    "contracts_specialist",
+    "corporate_records_specialist",
+    "correspondence_specialist",
+    "gmail_triage",
+    "image_extractor",
+    "insurance_claims_specialist",
+    "intake",
+    "judge",
+    "judge-classification",
+    "judge-correctness",
+    "merger_agreement_specialist",
+    "pdf_transcriber",
+    "relations",
+    "reporter",
+    "sorter",
+    "sorter_reviewer"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "dataset": {
+    "exclude_expected": null,
+    "file": "form-controls.jsonl",
+    "limit": null,
+    "provider": "file",
+    "sample_seed": null,
+    "sha256": "b1fb01f2653df4482f59d790dfa0828e4ce8aaf6d3a2f5587568f1153eafa94b",
+    "strata": null
+  },
+  "engine": {
+    "kind": "openrouter",
+    "modal": null,
+    "model": "openai/gpt-6-luna-decisions",
+    "vllm": {
+      "enable_prefix_caching": true,
+      "enforce_eager": true,
+      "gpu_memory_utilization": 0.9,
+      "max_model_len": 16384,
+      "max_num_seqs": 6,
+      "quantization": "",
+      "revision": ""
+    }
+  },
+  "job": {
+    "api_cost_cap_usd": 0.1,
+    "checkpoint_every": 1,
+    "concurrency": 8,
+    "cost_cap_usd": 0.1,
+    "fail_fast": false,
+    "max_retries": 1,
+    "max_wall_seconds": 900,
+    "mock": false,
+    "mode": "endpoint",
+    "task": "sorter"
+  },
+  "profile": "openrouter",
+  "prompt": {
+    "default": {
+      "source": "code-default"
+    }
+  },
+  "reviewer": {
+    "backend": "decisions",
+    "classes": {},
+    "model": "openai/gpt-6-luna-decisions",
+    "questions": "reviewer_decisions_v4.0.1"
+  },
+  "task": "sorter_reviewer",
+  "trace": {
+    "endpoint": null,
+    "environment": "pilot",
+    "otlp": true,
+    "sink": "none",
+    "tags": [
+      "sandbox",
+      "job",
+      "runbook",
+      "R13b",
+      "H5",
+      "form-controls",
+      "v4.0.1",
+      "decisions-api",
+      "decision-sorter",
+      "dev-look1"
+    ]
+  }
+}

@@ -37,22 +37,28 @@ table and path contract are in
 
 ## What runs
 
-| Task | Agent | N docs | Prompt stem (same as Modal runs) |
+| Task | Agent | N docs | Prompt (preflight-resolved) |
 | --- | --- | --- | --- |
-| `api-contracts-20` | `contracts_specialist` | 20 | `contracts_specialist_v33_simplified` |
-| `api-contracts-40` | `contracts_specialist` | 40 | `contracts_specialist_v33_simplified` |
-| `api-contracts-100` | `contracts_specialist` | 100 | `contracts_specialist_v33_simplified` |
-| `api-correspondence-20` | `correspondence_specialist` | 20 | `correspondence_specialist_simplified` |
-| `api-correspondence-40` | `correspondence_specialist` | 40 | `correspondence_specialist_simplified` |
-| `api-correspondence-100` | `correspondence_specialist` | 100 | `correspondence_specialist_simplified` |
+| `api-contracts-20` | `contracts_specialist` | 20 | lineage frontrunner (today `contracts_specialist_v33_simplified`) |
+| `api-contracts-40` | `contracts_specialist` | 40 | lineage frontrunner (today `contracts_specialist_v33_simplified`) |
+| `api-contracts-100` | `contracts_specialist` | 100 | lineage frontrunner (today `contracts_specialist_v33_simplified`) |
+| `api-correspondence-20` | `correspondence_specialist` | 20 | lineage frontrunner (today `correspondence_specialist_condensed_v3`) |
+| `api-correspondence-40` | `correspondence_specialist` | 40 | lineage frontrunner (today `correspondence_specialist_condensed_v3`) |
+| `api-correspondence-100` | `correspondence_specialist` | 100 | lineage frontrunner (today `correspondence_specialist_condensed_v3`) |
 
-Every run spec (`api-evals/config/runs/*.yaml`) is **byte-comparable** to the
-sandbox Modal specialist YAMLs:
+Every run spec (`api-evals/config/runs/*.yaml`) stays **comparable** to the
+sandbox Modal specialist runs:
 
 - the dataset block is the same draw method — `split: all`, class bucket
   `count: N`, `sample_seed: 42`, pinned revision `ed7576b6…` (the
   `run-20-contracts*` / `run-20-correspondence*` draw);
-- the prompt pin is the same local stem (SAND-026 simplified);
+- the prompt is the **lineage frontrunner both legs resolve at preflight**
+  (`prompt_lineage.with_lineage_defaults`): a spec names no agent stem, so an
+  api-evals run can never silently run a superseded prompt — when a condensed
+  frontrunner moves, the next preflight creates a new generation on the
+  current stem. The historical simplified-stem pairs (SAND-026/042, and the
+  Modal legs they compared against) remain recorded in the run store and
+  reports;
 - the only difference is the engine: `profile: openrouter`, `model:
   qwen/qwen3.7-flash` — the OpenRouter champion the sandbox maps the Modal
   `Qwen/Qwen3-8B` workhorse onto (`config/models.yaml`), so cost numbers are
@@ -63,8 +69,11 @@ sandbox Modal specialist YAMLs:
 - **Real API cost** = per-item tokens × the **live OpenRouter list price**
   (refreshed from `GET /api/v1/models` at run time; verified against a real
   response's `usage.cost` on 2026-09-25: 17×$0.03 + 5×$0.13 per 1M = $1.16e-6).
-- If the live refresh fails, the registry pin (`$0.03/$0.13 per 1M`) is used;
-  if neither resolves, cost fields are `None` with an honest gap — never $0.
+- If the live refresh fails, the **CORE ledger pin** is used — the same
+  `config/api_prices.yaml` the sandbox bills with (`api_evals.cost.
+  core_ledger_prices`); the harness carries no second price pin that could
+  drift from it.
+- If neither resolves, cost fields are `None` with an honest gap — never $0.
 - `cost_cap_usd` is deliberately **disabled** on these run specs: that cap is
   a Modal GPU-wall estimate and would be meaningless (and wrong) for an API
   run. The wall cap (`max_wall_seconds`) remains the safety guard.

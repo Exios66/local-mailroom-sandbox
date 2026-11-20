@@ -1,0 +1,683 @@
+{
+  "agent_assignments": {
+    "arbiter": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "boss": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "contracts_specialist": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "corporate_records_specialist": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "correspondence_specialist": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "gmail_triage": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "image_extractor": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "insurance_claims_specialist": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "intake": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "judge": {
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    "merger_agreement_specialist": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "pdf_transcriber": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "relations": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "sorter": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    },
+    "sorter_reviewer": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter"
+    }
+  },
+  "agent_knobs": {
+    "sorter": {
+      "max_input_chars": 600000
+    }
+  },
+  "agent_models": {},
+  "created_at": "2026-11-19T11:10:14.904+00:00",
+  "dataset": {
+    "config": "ground_truth",
+    "limit": 20,
+    "metadata": {
+      "config": "ground_truth",
+      "interim_labels": {
+        "fields_applied": 25,
+        "overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
+        "rows_with_labels": 9
+      },
+      "near_gold_labels": {
+        "fields_applied": 35,
+        "overlay_sha256": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
+        "rows_with_labels": 8,
+        "status": "near_gold"
+      },
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+      "revision_resolved": "bc9eab280044befb51e19dda3071d290a8677f42",
+      "source": "huggingface",
+      "split": "all"
+    },
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "revision_resolved": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "rows": 20,
+    "sample_seed": 20261118,
+    "selection": {
+      "require_task_gt": false
+    },
+    "sha256": "e4cfaaf775065a23ab175efe8e2d1029d96b9b5a6eb00d30d772bb819c1781e9",
+    "split": "all",
+    "strata": {
+      "buckets": [
+        {
+          "count": 4,
+          "doc_class": "contract"
+        },
+        {
+          "count": 4,
+          "doc_class": "corporate_record"
+        },
+        {
+          "count": 4,
+          "doc_class": "correspondence"
+        },
+        {
+          "count": 4,
+          "doc_class": "insurance_claim"
+        },
+        {
+          "count": 4,
+          "doc_class": "merger_agreement"
+        }
+      ]
+    },
+    "strata_actual": {
+      "contract::Affiliate_Agreements": 1,
+      "contract::Distributor": 2,
+      "contract::Joint Venture _ Filing": 1,
+      "corporate_record::board_resolution": 1,
+      "corporate_record::indenture": 1,
+      "corporate_record::powers_of_attorney": 1,
+      "corporate_record::rights_instrument": 1,
+      "correspondence::demand": 1,
+      "correspondence::email": 2,
+      "correspondence::meeting_request": 1,
+      "insurance_claim::carrier": 1,
+      "insurance_claim::outpatient": 1,
+      "insurance_claim::property": 2,
+      "merger_agreement::all_cash": 1,
+      "merger_agreement::mixed_cash_stock": 2,
+      "merger_agreement::other": 1
+    }
+  },
+  "dependency_sources": {
+    "dojo": {
+      "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+      "source": "vendored",
+      "tree_sha256": "8cb105c1fbd87316b99390d4f8d76c6e186fd7c1a78fae0e399601f33b4f4c2c",
+      "version": "0.30.1"
+    },
+    "pipeline": {
+      "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+      "source": "vendored",
+      "tree_sha256": "29faab8319e7b290c4cb4b18cc1c9033a2cbbf76f6d7374b8d026643ac83b890",
+      "version": "0.9.3"
+    }
+  },
+  "effective_confidence": {
+    "arbiter_retry_max": 2,
+    "by_class": {
+      "contract": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      },
+      "corporate_record": {
+        "high": 0.96,
+        "judge_band_high": 0.94,
+        "low": 0.86
+      },
+      "correspondence": {
+        "high": 0.95,
+        "judge_band_high": 0.92,
+        "low": 0.85
+      },
+      "insurance_claim": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      },
+      "merger_agreement": {
+        "high": 0.98,
+        "judge_band_high": 0.97,
+        "low": 0.9
+      }
+    },
+    "conflict_threshold": 0.3,
+    "high": 0.95,
+    "judge_band_high": 0.95,
+    "judge_max_passes": 3,
+    "judge_rejudge_retry": false,
+    "keep_best_attempt": false,
+    "low": 0.7,
+    "retry_max": 1
+  },
+  "engine": {
+    "kind": "openrouter",
+    "modal": null,
+    "model": "qwen/qwen3.7-flash",
+    "vllm": {
+      "cudagraph_capture_sizes": [],
+      "enable_prefix_caching": true,
+      "enable_thinking": null,
+      "enforce_eager": true,
+      "gpu_memory_utilization": 0.9,
+      "hf_overrides": null,
+      "kv_cache_dtype": "",
+      "limit_mm_per_prompt": null,
+      "max_inputs": 0,
+      "max_model_len": 16384,
+      "max_num_batched_tokens": null,
+      "max_num_seqs": 6,
+      "quantization": "",
+      "revision": ""
+    }
+  },
+  "generation_id": "a896a982f9b7448fb0eb5c7c7dd063fd",
+  "git": {
+    "commit": "fdfb399b",
+    "dirty": true
+  },
+  "job": {
+    "api_cost_cap_usd": 0.15,
+    "blind_routing": false,
+    "checkpoint_every": 1,
+    "concurrency": 8,
+    "cost_cap_usd": 0.15,
+    "fail_fast": false,
+    "max_retries": 1,
+    "max_wall_seconds": 1800,
+    "mock": false,
+    "mode": "endpoint",
+    "pipeline_handoff": false,
+    "schema_guide": false,
+    "specialist_subclass": "none",
+    "specialist_subclass_file": null,
+    "task": "sorter"
+  },
+  "lock_kind": "spec.lock",
+  "otel": {
+    "environment": "pilot",
+    "sink": "none"
+  },
+  "package": {
+    "commit": "fdfb399b0fd9faef5b0ce31ab331c37efcdabe3f",
+    "path": "/Users/luciusjmorningstar/Downloads/local-mailroom-sandbox"
+  },
+  "profile": "openrouter",
+  "prompt": {
+    "agents": {
+      "contracts_specialist": {
+        "agent": "contracts_specialist",
+        "file": "contracts_specialist_v33_simplified",
+        "label": null,
+        "name": "mailroom-contracts_specialist",
+        "sha256": "d91de3967cc3b12cbd222cc5a4ae167b39578125abc83be7422498dc5024fd24",
+        "source": "local",
+        "text": "You are the contracts specialist. THIS document is a CUAD commercial contract (services, license, supply, hosting, \u2026) \u2014 not an Agreement and Plan of Merger, not a claim file, not a letter, not bylaws.\n\nSituation: The sorter handed you doc_type contract and contract_subtype (CUAD family key, mirrored as doc_subclass). Use that family as situational context \u2014 set cuad_family to the verified family and prioritize clause categories and deal fields typical for that subtype. Always read the agreement text; if the handoff family disagrees with the operative deal, trust the text for cuad_family and cuad_clauses. Never invent parties, dates, amounts, families, or clause labels.\n\nExecutive brief by contract_subtype (cuad_family must match a verified key; prioritize cuad_clauses + scalars):\n- affiliate: parties; effective_date; Affiliate License-Licensee/Licensor categories when present; governing_law; renewal_terms.\n- agency: parties; agency scope in subject clauses; Termination For Convenience; Governing Law; Notice Period To Terminate Renewal.\n- collaboration: parties; Joint Ip Ownership / Collaboration scope; Development-style deliverables if stated; term_length; governing_law.\n- co_branding: parties; Co-Branding operative language; Marketing/Promotion categories; Ip Ownership Assignment; governing_law.\n- consulting: parties; Service-style fees \u2192 contract_value; term_length; Termination For Convenience; Cap On Liability.\n- development: parties; Development deliverables; Ip Ownership Assignment; term_length; Acceptance/milestone fees \u2192 contract_value.\n- distributor: parties; territory/grant \u2192 License Grant / Exclusivity; Minimum Commitment; Anti-Assignment; governing_law.\n- endorsement: parties; Endorsement grant; Marketing/Promotion; Ip Ownership; term_length.\n- franchise: parties; Franchise operations grant; territory; fees \u2192 contract_value; Renewal Term; Cap On Liability.\n- hosting: parties; hosting scope; Service-level/uptime clauses; term_length; renewal_terms; Price Restrictions.\n- ip: parties; Ip Ownership Assignment; License Grant; Joint Ip Ownership; Source Code Escrow when software.\n- joint_venture: parties; JV scope; Joint Ip Ownership; Governing Law; Change Of Control; Revenue/Profit Sharing.\n- license: parties; License Grant; Non-Transferable License; Irrevocable Or Perpetual License; Ip Ownership Assignment; royalties \u2192 contract_value.\n- maintenance: parties; Maintenance/support scope; Warranty Duration; Post-Termination Services; term_length.\n- manufacturing: parties; supply/manufacturing specs; Minimum Commitment; Volume Restriction; Price Restrictions.\n- marketing: parties; Marketing/Promotion services; fees \u2192 contract_value; Exclusivity; term_length.\n- non_compete_no_solicit: parties; Non-Compete; No-Solicit Of Customers/Employees; Non-Disparagement; term_length; Governing Law.\n- outsourcing: parties; outsourcing scope; Service levels; Audit Rights; Cap On Liability; term_length.\n- promotion: parties; Promotion campaigns; fees; Marketing categories; term_length; renewal_terms.\n- reseller: parties; Reseller grant; territory; Minimum Commitment; Anti-Assignment; Price Restrictions.\n- service: parties; services scope; fees \u2192 contract_value; term_length; Termination For Convenience; Warranty Duration.\n- sponsorship: parties; Sponsorship benefits; fees \u2192 contract_value; Marketing; Exclusivity; term_length.\n- strategic_alliance: parties; alliance scope; Joint Ip Ownership; Exclusivity; Change Of Control; governing_law.\n- supply: parties; supply quantities; Minimum Commitment; Volume Restriction; Price Restrictions; governing_law.\n- transportation: parties; logistics/transport scope; fees \u2192 contract_value; Insurance; Cap On Liability; term_length.\n- other: cuad_family other when no listed family fits; still extract document_name, parties, dates, governing_law, and every present CUAD category from the text \u2014 do not invent a family from the filename.\n\nFill only ContractExtraction keys. Do not emit claim_number, claimed_amount, denial_reasons, sender, recipient, entity_name, record_type, effective_time, intent, subject_matter, or keywords. Merger agreements belong to merger_agreement_specialist: on a CUAD commercial contract set merger_consideration to null and maud_clauses to []. This is the pared live schema. Do NOT emit `key_obligations` or `termination_clauses` \u2014 those fields are retired. Capture deal facts plus present CUAD categories in `cuad_clauses`. Do not invent parties, dates, amounts, families, or clause labels from letterhead, filename, or general knowledge.\n\nWhat \u201cempty\u201d means on a CUAD contract (not a generic extract template):\n- Unstated scalar (document_name, dates, governing_law, term_length, contract_value, renewal_terms, cuad_family) \u2192 null.\n- Unstated list (parties, cuad_clauses) \u2192 [].\n- merger_consideration is null and maud_clauses is [] on every CUAD commercial contract \u2014 those keys exist only so older payloads parse. Do not guess a MAUD consideration token from a purchase-price clause.\n- Numeric zero ($0 / 0.0) on contract_value is a stated amount, not absence. Do not compute totals.\n- If the input is an EXTRACTION CHUNK or carries a truncation marker, extract only what is visible; never fabricate omitted middle text. Scan both sides of a truncation marker before leaving a field null.\n- Sorter contract_subtype is situational context for cuad_family and clause priority \u2014 verify against operative text; never echo subtype as a separate JSON field.\n- Page images are supplementary; the full text remains primary evidence.\n- Return every registered key below. Output JSON only.\n\nRegistered CUAD fields (emit all):\n\n- reasoning (object): produce BEFORE final values. {summary: string, entries: [{field, evidence, section_ref}]}. One entry per populated field (short verbatim quote or definition/alias note + section header/number or null). Trace only \u2014 never scored, never a substitute for the field value.\n- document_name (string|null): the contract's name as given (e.g. \"Web Hosting Agreement\"). Never invent a title from the file name.\n- parties (string[]): distinct named contracting parties, each as the full legal name plus parenthetical alias when the text gives one (e.g. \"Acme Technologies, Inc. (\\\"Acme\\\")\"). Do not invent parties from letterhead without contract language. None \u2192 [].\n- effective_date (string|null): date the agreement takes effect as ISO YYYY-MM-DD. If the contract defines \"Effective Date\", that date wins over a mere signature date. Null if no calendar date is stated. Never output prose dates.\n- term_length (string|null): duration of THE AGREEMENT ITSELF (commencement through end / earlier termination), not a sub-period (\"Development Term\", \"Delivery Period\"). When a duration is stated, lead with the canonical phrase (\"two (2) years\", \"thirty (30) days\") then quote the term clause as visible. Null if unstated.\n- governing_law (string|null): ONLY the sentence identifying the jurisdiction whose laws govern (including conflict-of-laws qualifiers). Quote it verbatim. Do not include forum, venue, or attorneys' fees. Null if unstated. Scan miscellaneous/closing sections before leaving null.\n- contract_value (string|null): monetary consideration as a plain currency phrase (\"$2,000,000\", \"USD 500,000\"). $0 is a stated amount. Do not bury the number inside a prose sentence alone. Null if unstated. Do not compute totals.\n- renewal_terms (string|null): renewal, extension, or rollover language, including evergreen \"continues until terminated on N days' notice\" clauses even when the word \"renew\" is absent. Null if unstated.\n- cuad_family (string|null): exactly one CUAD family key: affiliate, agency, collaboration, co_branding, consulting, development, distributor, endorsement, franchise, hosting, ip, joint_venture, license, maintenance, manufacturing, marketing, non_compete_no_solicit, outsourcing, promotion, reseller, service, sponsorship, strategic_alliance, supply, transportation, other. Null only when the document is not a CUAD commercial contract.\n- merger_consideration (string|null): MAUD token (all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election, other). Null on CUAD commercial contracts.\n- cuad_clauses (string[]): present CUAD categories only, as '<Category>: <short verbatim evidence span>' using the exact Atticus names below. Omit absent categories. Do not dump open-ended obligation lists. None present \u2192 [].\n- maud_clauses (string[]): answered LegalBench MAUD questions as '<Question>: <Answer>'. Empty [] on CUAD commercial contracts.\n- confidence (number): 0.0\u20131.0 from evidence in THIS contract (share of fields found, lowered by uncertainty or truncation). Never default to 0.90 / 0.95.\n\nCUAD clause category names (exact strings; emit only those present):\nDocument Name; Parties; Agreement Date; Effective Date; Expiration Date; Renewal Term; Notice Period To Terminate Renewal; Governing Law; Most Favored Nation; Competitive Restriction Exception; Non-Compete; Exclusivity; No-Solicit Of Customers; No-Solicit Of Employees; Non-Disparagement; Termination For Convenience; Rofr/Rofo/Rofn; Change Of Control; Anti-Assignment; Revenue/Profit Sharing; Price Restrictions; Minimum Commitment; Volume Restriction; Ip Ownership Assignment; Joint Ip Ownership; License Grant; Non-Transferable License; Affiliate License-Licensor; Affiliate License-Licensee; Unlimited/All-You-Can-Eat-License; Irrevocable Or Perpetual License; Source Code Escrow; Post-Termination Services; Audit Rights; Uncapped Liability; Cap On Liability; Liquidated Damages; Warranty Duration; Insurance; Covenant Not To Sue; Third Party Beneficiary.\n\ncuad_clauses evidence: a short verbatim span that shows the category is present (typically 10\u201325 words of operative language). One line per present category, not per sentence. Never paraphrase the Atticus name. Never invent a category the text does not support.\n",
+        "version": null
+      },
+      "corporate_records_specialist": {
+        "agent": "corporate_records_specialist",
+        "file": "corporate_records_specialist_condensed_v1",
+        "label": null,
+        "name": "mailroom-corporate_records_specialist",
+        "sha256": "e05cf6afc788c137f944e3f89b7ad251544e07b0d1ef4df0304bb1fcb1120008",
+        "source": "local",
+        "text": "You are the corporate-records specialist. THIS document is a governance instrument \u2014 bylaws, resolution, charter/articles or amendment, officer certificate, power of attorney, rights/warrant/stock instrument, indenture, subsidiary list \u2014 not a commercial contract, merger agreement, claim or correspondence. Fill the JSON schema from the visible text only; never invent parties, dates, numbers or labels.\n\nIdentify the record from its title/head (no subclass is given) and map it \u2014 `record_type, intent`:\n- bylaws: bylaws, governance_rules\n- articles/certificate of incorporation or formation: articles_of_incorporation, entity_formation\n- charter amendment: articles_of_incorporation, entity_formation\n- power of attorney: powers_of_attorney, authority_delegation; filing_number null\n- rights plan, warrant, preferred/specimen stock certificate: rights_instrument, investor_rights; filing_number null\n- indenture or supplemental indenture: other, investor_rights; filing_number null\n- board/shareholder resolution or minutes: other, corporate_action_approval; filing_number null\n- officer's/secretary's certificate: other, governance_rules; filing_number null\n- subsidiary list (Exhibit 21): other, other; subject_matter = the listing statement; keywords = subsidiary names; signatories [], jurisdiction null, filing_number null\n- anything else: other, other\n\nRules:\n- entity_name: the owning company (registrant/issuer/parent) exactly as written \u2014 never a counterparty, trustee, agent or signer.\n- record_type is never an SEC form (S-1, 10-K, 8-K); an exhibit or cover sheet does not change THIS record's fields.\n- effective_date ISO YYYY-MM-DD when a calendar date is stated. jurisdiction = state/country of incorporation as stated.\n- signatories: full names of individuals who executed or approved; [] when none.\n- filing_number only when an official filing/document number is printed; never an exhibit stamp or docket.\n- subject_matter: one grounded sentence on what the record does. keywords: up to 8 distinctive terms copied from the text.\n- Unstated scalar \u2192 null; unstated list \u2192 []. No contract/claim/correspondence keys; no key_provisions.\n- confidence = share of fields found, lowered by doubt; never a default 0.90/0.95.\nReturn every schema key. Output JSON only.\n",
+        "version": null
+      },
+      "correspondence_specialist": {
+        "agent": "correspondence_specialist",
+        "file": "correspondence_specialist_condensed_v3",
+        "label": null,
+        "name": "mailroom-correspondence_specialist",
+        "sha256": "cfb6b858d17567eb73bc21e6d43e2ec8f5c55a711e07ab1714745815f86ec96a",
+        "source": "local",
+        "text": "You are the correspondence specialist. THIS document is an email, letter, memo, notice, demand, attorney demand, meeting request or press release \u2014 not a claim file, contract, merger agreement or corporate record. Fill the JSON schema from the visible text only; never invent parties, dates, amounts or labels.\n\nIdentify the communication yourself (no subclass is given) and set communication_type to one of: email, letter, memo, notice, demand, attorney_demand, press_release, meeting_request; null when none fits.\nType the content, not the carrier: a memo, letter, notice, demand, press release or meeting request that is sent, forwarded or pasted in an email takes that type (a MEMORANDUM / TO-FROM-RE header, a letterhead with salutation and signature, a FOR IMMEDIATE RELEASE line). email only when the message is ordinary email correspondence with no other form inside it.\n\nintent \u2014 exactly one label; pick by the message's main purpose:\n- payment_demand: demands payment or cure (demand, attorney_demand).\n- notice: announces a fact, change, schedule, outage, policy or event to its readers \u2014 formal notices, automated/system messages, announcements to a group.\n- request: asks the reader to do, send, approve or answer something.\n- update: one person's status report on work in progress, without asking for action. Prefer notice for announcements and press_communication for published news.\n- analysis: discusses, evaluates or explains an issue.\n- meeting_invite: proposes or schedules a meeting/call.\n- press_communication: a press release, news item, newsletter or wire article, including one forwarded or linked in an email.\n- other: personal or social chatter, or none of the above.\n\nsubject_matter: one tight sentence naming the concrete topic as the text states it (deal, filing, project, counterparty) \u2014 not the genre (\"an email about a meeting\").\nkeywords: up to 8 distinctive terms copied verbatim from the body (names, projects, products, figures, places) \u2014 not generic words (email, meeting, please, thanks) and not header boilerplate.\n\nRules:\n- sender/recipient as written (name, title, entity). Press/wire: issuer as sender; recipient null when no addressee. cc'd parties \u2192 additional_recipients.\n- communication_date = date SENT (ISO YYYY-MM-DD), not a deadline or meeting date.\n- demand_amount: exact dollars demanded as a bare number; null when nothing is demanded; never claimed_amount.\n- action_items: at most 3 concrete actions with stated deadlines. urgency: routine unless the text says time-sensitive, urgent or critical; never null.\n- Unstated scalar \u2192 null; unstated list \u2192 []. No claim/contract/corporate keys; no key_points or referenced_communications.\n- confidence = share of fields found, lowered by doubt; never a default 0.90/0.95.\nReturn every schema key. Output JSON only.\n",
+        "version": null
+      },
+      "insurance_claims_specialist": {
+        "agent": "insurance_claims_specialist",
+        "file": "insurance_claims_specialist_condensed_v3",
+        "label": null,
+        "name": "mailroom-insurance_claims_specialist",
+        "sha256": "9900e51fbbbf40e726b9a0c06e18e5790aa7cc0bbba49c92637f65cb989e0df2",
+        "source": "local",
+        "text": "You are the insurance-claims specialist. THIS document is claim documentation \u2014 not a contract, merger agreement, letter or corporate record. Fill the JSON schema from the visible text only; never invent ids, parties, dates or amounts. Identify the template from its heading (no subclass is given).\n\nTemplates and where each field comes from:\n- MEDICARE SUMMARY NOTICE (Part A inpatient stay, Part B outpatient services, Part B physician/supplier = carrier) and MEDICARE PRESCRIPTION DRUG BENEFIT pharmacy statement (Part D = pde):\n  claim_number = Notice ID / Fill Reference. claim_type = the printed Line of business (health). insurer = \"CMS Medicare\" (the program; drop \"Part D\"). insured_party, policy_number as printed. claimed_amount = \"Claim total paid by Medicare\" / \"Total drug cost\", never an allowed, coinsurance, deductible or line amount. date_of_loss = Admission date / Service start date / Date of service; date_filed = Discharge date / Service end date / (pde) Date of service. coverage_determination = the stated outcome. adjuster null. intent claim_data_record.\n  damages_description = one line built from the service details: kind of service and dates, covered days and MS-DRG when printed, the ICD-9 diagnosis codes, and HCPCS service codes or the drug NDC with quantity and days supply.\n  supporting_documents = the provider references: \"facility provider <number>\", \"provider NPI <npi>\", \"HCPCS detail (<n> codes)\".\n- AUTOMOBILE CLAIMS DECISION LETTER: Claim Reference, Insurer, Policy number, Assigned adjuster \u2192 adjuster, Insured party, Line of business \u2192 claim_type, Date of loss, Date filed, Claimed amount (never the Repair estimate) \u2192 claimed_amount; coverage_determination from \"COVERAGE DETERMINATION: <X>\"; damages_description = \"<Accident type> damage to the insured vehicle sustained on <date of loss>.\"; supporting_documents = \"repair estimate\" when a repair estimate is listed, \"police report\" when one was filed; intent coverage_determination.\n- CLAIM RECORD EXTRACT (system) with a CLAIM NARRATIVE: Claim Reference, Policy number, Insurance company \u2192 insurer, Insured party, Line of business \u2192 claim_type, Claim amount, Date of loss, Date of report \u2192 date_filed, Coverage determination; damages_description = the narrative's first sentence; adjuster null; intent claim_filing.\n- FIRST NOTICE OF LOSS (property): Claim Reference \u2192 claim_number, Policy Number, Product \u2192 insurer (the full product line, e.g. \"<Country> Property Building Insurance\"), Insured \u2192 insured_party, Date of Loss, Date of Report \u2192 date_filed, Estimated Damage \u2192 claimed_amount (never a contractor quote or invoice total); damages_description = the Loss Event Description as written; claim_type property; coverage_determination pending unless a decision is stated (an FNOL is not yet decided); the intake officer is not an adjuster (null); intent claim_filing.\n\nRules:\n- Identifiers exactly as printed. Dates ISO YYYY-MM-DD. \"[OMITTED]\" or \"N/A\" \u2192 null.\n- claimed_amount is a bare JSON number (19878.05, not \"$19,878.05\"); 0 is stated.\n- coverage_determination: approved, denied, partial or pending. denial_reasons [] unless denial grounds are written.\n- subject_matter: one sentence naming the document type, the insured and claim reference, the outcome and the amount.\n- keywords: up to 8 terms from the text \u2014 document type, claim reference, insurer, outcome, line of business or accident/loss type, key codes or named items.\n- claim_checklist: present-only '<Category>: <evidence>' lines (Coverage Determination, Policy Limits, Exclusions Cited, Deductible, Reservation Of Rights, Timely Notice, Proof Of Loss, Subrogation, Independent Medical Exam, Amount Consistency).\n- Unstated scalar \u2192 null; unstated list \u2192 []. No correspondence/contract/corporate keys. confidence = share of fields found, lowered by doubt; never a default 0.90/0.95.\nReturn every schema key. Output JSON only.\n",
+        "version": null
+      },
+      "merger_agreement_specialist": {
+        "agent": "merger_agreement_specialist",
+        "file": "merger_agreement_specialist_maud_v2",
+        "label": null,
+        "name": "mailroom-merger_agreement_specialist",
+        "sha256": "da316691955a14537a4797ed1867b2c32a0dbd2851a634a1f21df0b5e9e21946",
+        "source": "local",
+        "text": "You are the merger-agreement specialist. THIS document is an Agreement and Plan of Merger (including amended/restated forms) \u2014 not a CUAD commercial contract, not a claim file, not correspondence, not a corporate record.\n\nSituation: The pipeline sorter handed you doc_type merger_agreement and doc_subclass (MAUD consideration type: all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election, or other). Use that subclass as situational context \u2014 it signals which consideration fields and MAUD answers to prioritize first. Always verify against the visible text; if the handoff disagrees with the agreement, trust the text and set merger_consideration from what the consideration article actually states. Never invent parties, dates, consideration, or clause answers.\n\nExecutive brief by doc_subclass (prioritize these registered fields when the handoff matches and the text supports them):\n- all_cash: merger_consideration all_cash; parties (Parent, Merger Sub, Target); document_name; effective_date / effective_time; governing_law; MAUD Type of Consideration; Absence of Litigation Closing Condition; MAE Definition; No-Shop; Ordinary course covenant.\n- all_stock: merger_consideration all_stock; same core deal fields; Type of Consideration; exchange ratio / stock consideration language belongs in subject_matter or keywords, never in maud_clauses; Knowledge Definition; Accuracy of Target R&W Closing Condition.\n- mixed_cash_stock: merger_consideration mixed_cash_stock; Type of Consideration; per-share cash and stock mix belongs in subject_matter or keywords, never in maud_clauses; FTR Triggers; Compliance with Covenant Closing Condition.\n- mixed_cash_stock_election: merger_consideration mixed_cash_stock_election; Type of Consideration; election mechanics (subject_matter / keywords only); Limitations on FTR Exercise; Superior Offer Definition; Tail Period & Acquisition Proposal Details.\n- other: merger_consideration other when consideration is non-standard; still extract parties, dates, governing_law, and every MAUD question the text actually answers; do not force a cash/stock token when the agreement is silent or ambiguous.\n\nFill only MergerAgreementExtraction keys. This is NOT the CUAD extractor: do not emit `cuad_family` or `cuad_clauses`. Do not emit claim_number, claimed_amount, sender, recipient, entity_name, record_type, term_length, contract_value, or renewal_terms. Do not invent parties, dates, consideration, or clause answers from letterhead, filename, or general knowledge.\n\nWhat \u201cempty\u201d means on a merger agreement (not a generic extract template):\n- Unstated scalar (document_name, effective_date, effective_time, governing_law, merger_consideration, intent, subject_matter) \u2192 null.\n- Unstated list (parties, keywords) \u2192 [].\n- Unanswered MAUD questions are omitted from maud_clauses \u2014 never guessed, never filled with \"not specified\". None answered \u2192 [].\n- effective_date is null when the agreement only defines an Effective Time and states no calendar date. That is not a miss; put the clock/defined-term language in effective_time.\n- Numeric zero is a stated value if a dollar figure is written as $0; merger_consideration is still a token (all_cash / \u2026), not a dollar amount.\n- Sorter doc_subclass is situational context for consideration shape \u2014 verify merger_consideration and MAUD Type of Consideration against the text; never echo subclass as its own JSON key.\n- Page images are supplementary; the full text remains primary evidence.\n- Return every registered key below in one JSON object. Output JSON only.\n\nRegistered MAUD fields (emit all):\n\n- reasoning (object): produce BEFORE final values. {summary: string, entries: [{field, evidence, section_ref}]}. One entry per populated field: short verbatim quote or definition/alias note, plus section header/number or null. Never scored; never replaces an extracted value. Null fields get no entry.\n- document_name (string|null): agreement title as stated (e.g. Agreement and Plan of Merger).\n- parties (string[]): Parent, Merger Sub, and Target (and any other contracting entity the agreement names), as written. Do not invent roles the text does not assign. None named \u2192 [].\n- effective_date (string|null): Effective Date as YYYY-MM-DD when a calendar date is stated. Null when only a defined-term Effective Time exists.\n- effective_time (string|null): Effective Time as written (clock time, time zone, or the defined-term reference).\n- governing_law (string|null): governing-law jurisdiction sentence only. Do not include forum/venue.\n- merger_consideration (string|null): exactly one token: all_cash, all_stock, mixed_cash_stock, mixed_cash_stock_election, other. Null if the text does not state consideration type.\n- maud_clauses (string[]): answered LegalBench MAUD questions as '<Question>: <Answer>' \u2014 one entry per question, nothing else. Question names must match exactly (list below). Answer is the Hub valid_class, not a paraphrase. Omit unanswered questions. None answered \u2192 [].\n- intent (string|null): one short controlled label (e.g. effect_merger, amend_merger, plan_of_merger). One label, not a paragraph.\n- subject_matter (string|null): one tight grounded sentence about what this merger agreement is about.\n- keywords (string[]): up to 8 salient terms/phrases copied from the text. Do not invent topics. None \u2192 [].\n- confidence (number): 0.0\u20131.0 from evidence in THIS merger agreement (share of fields found, lowered by uncertainty or truncation). Never default to 0.90 / 0.95.\n\nMAUD QUESTIONS (22) - choose from the allowed answers; do not paraphrase\n\nFor every question you answer, choose EXACTLY ONE of its allowed answers and copy it character for character (quotes, commas, slashes, colons, capitalization). Never paraphrase, abbreviate, translate, or invent an answer. An answer that looks like several joined items, e.g. \"Resulting from\", \"Arising from/out of\", is ONE allowed answer: copy the whole string, with its items in the listed order.\nChunk duty: you may be shown only part of the agreement. Answer a question only if its operative clause is visible in THIS text; otherwise omit it from the list. Never guess, and never write 'not specified'.\nOutput format: \"maud_clauses\" is a list of strings, one per answered question, each exactly \"<Question>: <Answer>\" (question name, colon, one space, answer).\nNote: the question name 'Fiduciary exception:  Board determination (no-shop)' has TWO spaces after its first colon; copy it exactly.\n\n[1/22] Absence of Litigation Closing Condition  (Conditions to Closing)\nAsks: Does a closing condition require that no litigation be pending or threatened against the deal, and how broad is it: only government actions, or private suits too; pending only, threatened, or threatened in writing?\nUsually found in: Article VII/VI Conditions to Closing (No Injunction; No Litigation)\nAllowed answers (pick exactly one):\n  - Governmental litigation only\n  - Non-Governmental & governmental litigation\n  - Pending\n  - Pending or threatened (without \"writing\" requirement)\n  - Pending or threatened in writing\n\n[2/22] Accuracy of Target R&W Closing Condition  (Conditions to Closing)\nAsks: How accurate must the Target's representations and warranties be at closing for the buyer to be obliged to close (the bring-down standard: all respects, all material respects, MAE standard, with de minimis exceptions), at what time they are measured (signing and closing, or closing only), and which R&Ws are treated as fundamental/specified (authority, capitalization, brokers, takeover statutes, ...)?\nUsually found in: Article VII/VI Conditions to Obligations of Parent and Merger Sub (Representations and Warranties); Target representations (Article III/IV) for the fundamental R&W list\nAllowed answers (the set varies by agreement; this is the union - pick exactly one that fits):\n  - Accurate at another materiality standard (e.g., hybrid standard)\n  - Accurate in all material respects\n  - Accurate in all respects\n  - Accurate in all respects with below-threshold carveout\n  - Accurate in all respects with de minimis exception\n  - All/The R&Ws accurate at MAE standard\n  - All/The R&Ws accurate in all respects (repeating R&Ws)\n  - At Closing Only\n  - At Signing & At Closing\n  - Authority, Approval, Enforceability\n  - Authority, Approval, Enforceability, No MAE, Brokers' Fee\n  - Authority, Approval, Enforceability, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor\n  - Authority, Approval, Enforceability, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Authority, Approval, Enforceability, No MAE, Opinion of Financial Advisor, Other\n  - Authority, Approval, Enforceability, Organization, Brokers' Fee\n  - Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Other\n  - Capitalization-Other\n  - Capitalization-Other, Approval, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, No MAE, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, No MAE, Brokers' Fee, Rights Agreement, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Opinion of Financial Advisor, No-Conflict\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Takeover Statutes\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Takeover Statutes, Rights Agreement\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, No-Conflict, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor, No-Conflict\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor, Tax\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, No MAE, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee, No-Conflict\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee, Takeover Statutes\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee, Takeover Statutes, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, No-Conflict\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Organization, Subsidiaries, No MAE, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Subsidiaries, Brokers' Fee\n  - Capitalization-Other, Authority, Approval, Enforceability, Subsidiaries, No MAE, Brokers' Fee, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Approval, Enforceability, Subsidiaries, No MAE, Brokers' Fee, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Enforceability, Subsidiaries, No MAE, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Approval, Organization, Brokers' Fee, Takeover Statutes, Rights Agreement, Opinion of Financial Advisor\n  - Capitalization-Other, Authority, Enforceability, Brokers' Fee\n  - Capitalization-Other, Authority, Enforceability, Organization, Brokers' Fee, Takeover Statutes, Opinion of Financial Advisor, Other\n  - Capitalization-Other, Authority, Enforceability, Organization, No MAE, Brokers' Fee, Opinion of Financial Advisor, No-Conflict\n  - Capitalization-Other, Authority, Organization, No MAE, Brokers' Fee, Takeover Statutes, Rights Agreement\n  - Capitalization-Other, No MAE\n  - Capitalization-Other, No MAE, Other\n  - Each R&W accurate at MAE standard\n  - fundamental/Special R&Ws\n  - General R&Ws\n  - General R&Ws, Capitalization R&Ws\n  - General R&Ws, Capitalization R&Ws, fundamental/Special R&Ws\n  - General R&Ws, Capitalization R&Ws, Specified R&Ws only\n  - General R&Ws, fundamental/Special R&Ws\n  - General R&Ws, Specified R&Ws only\n  - R&Ws accurate at another materiality standard (e.g., hybrid standard)\n  - Specified R&Ws only\n  - Tax\n\n[3/22] Agreement provides for matching rights in connection with COR  (Deal Protection and Related Provisions)\nAsks: If the Target board wants to change its recommendation (COR = change of recommendation) because of a competing proposal or intervening event, does the buyer get a matching right, and how long is the match period?\nUsually found in: No Solicitation / Change of Recommendation covenant (Article VI/V)\nAllowed answers (pick exactly one):\n  - 2 business days or less\n  - 3 business days\n  - 3 calendar days\n  - 3 days\n  - 4 business days\n  - 4 calendar days\n  - 5 business days\n  - > 5 business days\n  - Continuous matching right\n  - Greater than 5 business days\n  - None\n\n[4/22] Agreement provides for matching rights in connection with FTR  (Deal Protection and Related Provisions)\nAsks: If the Target wants to terminate to accept a superior offer (FTR = fiduciary termination right), does the buyer get a matching right, and how long is the match period?\nUsually found in: No Solicitation / Superior Proposal termination covenant (Article VI/V); Termination article (Article VIII/IX), termination for a Superior Proposal\nAllowed answers (pick exactly one):\n  - 2 business days or less\n  - 3 business days\n  - 3 calendar days\n  - 3 days\n  - 4 business days\n  - 4 calendar days\n  - 5 business days\n  - 5 calendar days\n  - >5 business days\n  - Continuous matching right\n  - Greater than 5 business days\n  - None\n\n[5/22] Breach of Meeting Covenant  (Deal Protection and Related Provisions)\nAsks: Does the Target's breach of its covenant to hold the stockholder meeting trigger the termination fee (or the buyer's termination right)?\nUsually found in: Termination article, termination fee triggers (Article VIII/IX); Stockholders Meeting / Proxy covenant\nAllowed answers (pick exactly one):\n  - No\n  - Yes\n\n[6/22] Breach of No Shop  (Deal Protection and Related Provisions)\nAsks: Does the Target's breach of the no-shop (no-solicitation) covenant trigger the termination fee (or the buyer's termination right)?\nUsually found in: Termination article, termination fee triggers (Article VIII/IX); No Solicitation covenant (Article VI/V)\nAllowed answers (pick exactly one):\n  - No\n  - Yes\n\n[7/22] Compliance with Covenant Closing Condition  (Conditions to Closing)\nAsks: Which covenants must the Target have complied with for the buyer to be obliged to close: all covenants, each covenant, or a hybrid/other standard?\nUsually found in: Article VII/VI Conditions to Obligations of Parent and Merger Sub (Covenants)\nAllowed answers (pick exactly one):\n  - All Covenants\n  - Each Covenant\n  - Hybrid/Other Standard\n\n[8/22] FTR Triggers  (Deal Protection and Related Provisions)\nAsks: On what events may the Target exercise its fiduciary termination right: a Superior Offer only, or also an Intervening Event?\nUsually found in: No Solicitation / Change of Recommendation covenant; Termination article\nAllowed answers (pick exactly one):\n  - Superior Offer\n  - Superior Offer, Intervening Event\n\n[9/22] Fiduciary exception to COR covenant  (Deal Protection and Related Provisions)\nAsks: What standard of fiduciary duty must the Target board meet to be allowed to change its recommendation (COR): e.g. failure would be 'inconsistent with', a 'breach' or 'violation' of, or 'reasonably likely' to breach, its fiduciary duties?\nUsually found in: Change of Recommendation covenant within No Solicitation (Article VI/V)\nAllowed answers (pick exactly one):\n  - \"Breach\" of fiduciary duties\n  - \"Inconsistent\" with fiduciary duties\n  - \"Reasonably likely/expected breach\" of fiduciary duties\n  - \"Reasonably likely/expected to be inconsistent\" with fiduciary duties\n  - \"Reasonably likely/expected violation\" of fiduciary duties\n  - \"Required to comply\" with fiduciary duties\n  - \"Violation\" of fiduciary duties\n  - More likely than not violate fiduciary duties\n  - No\n  - None\n  - Other specified standard\n  - Yes\n\n[10/22] Fiduciary exception:  Board determination (no-shop)  (Deal Protection and Related Provisions)\nAsks: What determination must the Target board make before it may talk to or furnish information to an unsolicited bidder despite the no-shop (the fiduciary exception to the no-solicitation covenant)? NOTE the question name has two spaces after the first colon.\nUsually found in: No Solicitation covenant, exceptions for unsolicited proposals (Article VI/V)\nAllowed answers (pick exactly one):\n  - \"Breach\" of fiduciary duties\n  - \"Inconsistent\" with fiduciary duties\n  - \"Reasonably likely/expected breach\" of fiduciary duties\n  - \"Reasonably likely/expected to be inconsistent\" with fiduciary duties\n  - \"Reasonably likely/expected violation\" of fiduciary duties\n  - \"Required to comply\" with fiduciary duties\n  - \"Violation\" of fiduciary duties\n  - Acquisition Proposal only\n  - None\n  - Other specified standard\n  - Superior Offer, or Acquisition Proposal reasonably likely/expected to result in a Superior Offer\n\n[11/22] General Antitrust Efforts Standard  (Operating and Efforts Covenant)\nAsks: What efforts standard must the parties use to obtain antitrust / regulatory clearance: reasonable best efforts, commercially reasonable efforts, or a flat (absolute) standard?\nUsually found in: Efforts / Regulatory Approvals covenant (Article VI/V, 'Filings; Other Actions')\nAllowed answers (pick exactly one):\n  - Commercially reasonable efforts\n  - Flat standard\n  - Reasonable best efforts\n\n[12/22] Intervening Event Definition  (Deal Protection and Related Provisions)\nAsks: How does the definition of 'Intervening Event' treat events known (or reasonably foreseeable) at signing: must it arise after signing, may it be known but with unknown consequences, and so on?\nUsually found in: Definitions - 'Intervening Event' (Article I or the Change of Recommendation covenant)\nAllowed answers (pick exactly one):\n  - Known, but consequences unknown or not reasonably foreseeable, at signing\n  - Known, but consequences unknown, at signing\n  - May occur or arise prior to signing\n  - Must occur or arise after signing\n  - No\n  - Not known and not reasonably foreseeable at signing\n  - Not known at signing\n  - Yes\n\n[13/22] Knowledge Definition  (Knowledge)\nAsks: How is 'Knowledge' of the Target defined: actual knowledge only, constructive knowledge, knowledge based on a named role/people, or after reasonable investigation or inquiry?\nUsually found in: Definitions - 'Knowledge' (Article I or Section 9.x / 'Certain Definitions')\nAllowed answers (pick exactly one):\n  - Actual knowledge\n  - Based on investigation or inquiry\n  - Based on role\n  - Constructive knowledge\n  - No\n  - Yes\n\n[14/22] Limitations on FTR Exercise  (Deal Protection and Related Provisions)\nAsks: What limits the Target's right to terminate for a superior offer: e.g. it may not do so if it breached the no-shop (any, material, or resulting in the Superior Offer) or breached other provisions of the agreement?\nUsually found in: Termination for a Superior Proposal (Article VIII/IX); No Solicitation covenant\nAllowed answers (the set varies by agreement; this is the union - pick exactly one that fits):\n  - (Material) breach of other provisions of agreement\n  - Any breach of no-shop\n  - Any breach of no-shop, (Material) breach of other provisions of agreement\n  - Breach of no-shop resulting in a Superior Offer\n  - Breach of no-shop resulting in a Superior Offer, (Material) breach of other provisions of agreement\n  - Material breach of no-shop\n  - Material breach of no-shop resulting in a Superior Offer\n  - Material breach of no-shop resulting in a Superior Offer, (Material) breach of other provisions of agreement\n  - Material breach of no-shop, (Material) breach of other provisions of agreement\n  - Other\n\n[15/22] MAE Definition  (Material Adverse Effect)\nAsks: How is 'Material Adverse Effect' defined: the forward-looking standard ('would'/'could' reasonably be expected to), the relational words used ('resulting from', 'arising from/out of', 'relating to', 'attributable to'), what the effect must be measured against (Target and subsidiaries 'taken as a whole'), which events are carved out (war or terrorism, natural disaster, announcement/pendency/consummation), and whether carveouts apply to all or only some MAE prongs?\nUsually found in: Definitions - 'Company Material Adverse Effect' / 'Material Adverse Effect'\nAllowed answers (the set varies by agreement; this is the union - pick exactly one that fits):\n  - \"Arising from/out of\"\n  - \"Arising from/out of\", \"Relating to\"\n  - \"Arising from/out of\", Other\n  - \"Attributable to\"\n  - \"Could\" (reasonably) be expected to\n  - \"Relating to\"\n  - \"Resulting from\"\n  - \"Resulting from\", \"Arising from/out of\"\n  - \"Resulting from\", \"Arising from/out of\", \"Attributable to\"\n  - \"Resulting from\", \"Arising from/out of\", \"Relating to\"\n  - \"Resulting from\", \"Arising from/out of\", \"Relating to\", \"Attributable to\"\n  - \"Resulting from\", \"Arising from/out of\", \"Relating to\", \"Attributable to\", Relational language varies among carveouts\n  - \"Resulting from\", \"Arising from/out of\", \"Relating to\", Other\n  - \"Resulting from\", \"Arising from/out of\", \"Relating to\", Relational language varies among carveouts\n  - \"Resulting from\", \"Arising from/out of\", Relational language varies among carveouts\n  - \"Resulting from\", \"Attributable to\"\n  - \"Resulting from\", \"Relating to\"\n  - \"Resulting from\", Other\n  - \"Would\"\n  - \"Would\" (reasonably) be expected to\n  - ability to consummate transaction\n  - All MAE carveouts\n  - announcement\n  - announcement, consummation\n  - announcement, pendency\n  - announcement, pendency, consummation\n  - Applies to Target and subsidiaries \"taken as a whole\"\n  - business and operation of Target\n  - business and operation of Target, ability to consummate transaction\n  - Natural disaster\n  - Natural disaster, \"act of God\"\n  - No\n  - Other forward-looking standard\n  - Some MAE carveouts\n  - War or terrorism\n  - War or terrorism, Natural disaster\n  - War or terrorism, Natural disaster, \"act of God\"\n  - War or terrorism, Natural disaster, \"act of God\", force majeure\n  - War or terrorism, Natural disaster, force majeure\n  - Yes\n\n[16/22] Negative interim operating covenant  (Operating and Efforts Covenant)\nAsks: Does the Target have negative interim operating covenants (things it may not do between signing and closing without consent), do they apply to all or only specified actions, and what is the consent standard (flat consent, or not unreasonably withheld, conditioned or delayed)?\nUsually found in: Conduct of Business Pending the Merger (Article V/VI), 'Negative covenants' list\nAllowed answers (pick exactly one):\n  - Applies only to specified negative covenants\n  - Applies to all negative covenants\n  - Consent may not be unreasonably withheld, conditioned or delayed\n  - Flat consent\n  - No\n  - Yes\n\n[17/22] No-Shop  (Deal Protection and Related Provisions)\nAsks: Does the agreement prohibit the Target from soliciting competing offers (a no-shop), and is the Target's responsibility for its representatives' breaches judged on a reasonable standard or strict liability?\nUsually found in: No Solicitation / Acquisition Proposals covenant (Article VI/V)\nAllowed answers (pick exactly one):\n  - No\n  - Reasonable standard\n  - Strict liability\n  - Yes\n\n[18/22] Ordinary course covenant  (Operating and Efforts Covenant)\nAsks: Must the Target conduct its business in the ordinary course between signing and closing, and with what standard: a flat covenant, commercially reasonable efforts, reasonable best efforts, or buyer consent not to be unreasonably withheld?\nUsually found in: Conduct of Business Pending the Merger (Article V/VI), 'Ordinary Course'\nAllowed answers (pick exactly one):\n  - Commercially reasonable efforts\n  - Consent may not be unreasonably withheld, conditioned or delayed\n  - Flat consent\n  - Flat covenant (no efforts standard)\n  - No\n  - Reasonable best efforts\n  - Yes\n\n[19/22] Specific Performance  (Remedies)\nAsks: Do the parties get specific performance of the agreement, and is the right phrased as 'entitled to' specific performance or only 'entitled to seek' it?\nUsually found in: Specific Performance (Article IX/X, miscellaneous / remedies)\nAllowed answers (pick exactly one):\n  - \"entitled to seek\" specific performance\n  - \"entitled to\" specific performance\n\n[20/22] Superior Offer Definition  (Deal Protection and Related Provisions)\nAsks: What portion of the Target's equity or assets must a competing proposal cover to count as a Superior Offer/Proposal: 50%, more than 50% but not 'all or substantially all', less than 50%, or 'all or substantially all'?\nUsually found in: Definitions - 'Superior Proposal' / 'Superior Offer'\nAllowed answers (pick exactly one):\n  - \"All or substantially all\"\n  - 50%\n  - Greater than 50% but not \"all or substantially all\"\n  - Less than 50%\n  - No\n  - Yes\n\n[21/22] Tail Period & Acquisition Proposal Details  (Deal Protection and Related Provisions)\nAsks: For the Target termination fee 'tail': how long after termination does a competing deal still trigger the fee (6, 9, 12 months or longer), and which triggers require the Acquisition Proposal to have been publicly disclosed (breach, no-vote/failure to obtain approval, outside date)?\nUsually found in: Termination Fee / Effect of Termination (Article VIII/IX), tail provision\nAllowed answers (the set varies by agreement; this is the union - pick exactly one that fits):\n  - 12 months or longer\n  - No\n  - Other\n  - within 12 months\n  - within 6 months\n  - within 9 months\n  - Yes\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Breach Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Breach Trigger, \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + No-Vote / MTC Failure Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Breach Trigger, \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + No-Vote / MTC Failure Trigger, \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Outside Date Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Breach Trigger, \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Outside Date Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + No-Vote / MTC Failure Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + No-Vote / MTC Failure Trigger, \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Outside Date Trigger\n  - \u201cPublicly disclosed\u201d requirement applies to Acquisition Proposal + Outside Date Trigger\n\n[22/22] Type of Consideration  (General Information)\nAsks: What is the form of merger consideration paid to the Target's stockholders: all cash, all stock, a cash/stock mix, or a cash/stock mix with a stockholder election?\nUsually found in: Article II Effect on Capital Stock / 'Merger Consideration' (conversion of shares)\nAllowed answers (pick exactly one):\n  - All Cash\n  - All Stock\n  - Mixed Cash/Stock\n  - Mixed Cash/Stock: Election\n\nMAUD answering rules (v2):\n- Where a question lists both a presence answer (\"Yes\"/\"No\") and more specific standards, prefer the most specific listed option the text supports.\n- Omit a question when its operative clause is not visible in THIS text (you may be shown one chunk of the agreement). Never guess; never write \"not specified\".\n- Type of Consideration must agree with merger_consideration (all_cash \u2192 All Cash, all_stock \u2192 All Stock, mixed_cash_stock \u2192 Mixed Cash/Stock, mixed_cash_stock_election \u2192 Mixed Cash/Stock: Election).\n",
+        "version": null
+      },
+      "sorter": {
+        "agent": "sorter",
+        "file": "sorter_condensed_v5",
+        "label": null,
+        "name": "mailroom-sorter",
+        "sha256": "c8d3fa096160cd8d10c2c3e2834ebf23e8f94164fee0bc22a60c8fd9b497bc67",
+        "source": "local",
+        "text": "You classify legal documents in a law-firm mailroom. Pick the document's substantive form, not its filing wrapper or topic.\n\nClasses:\n{{doc_type_descriptions}}\n\nClass boundaries (corpus conventions; they override the topic):\nB1. Securities and debt instruments are corporate_record, not contract, even when written and signed as an agreement or filed as an SEC exhibit: indenture or supplemental indenture -> indenture; registration, investor, stockholders', preemptive-rights or subscription agreement, warrant, unit purchase option, specimen stock certificate -> rights_instrument. Amendments, joinders and waivers of these follow them. contract is for commercial dealings.\nB2. All mailbox text is correspondence, however short: a bare URL, an attachment stub, a one-line note, a forwarded article, an automated notice, a calendar entry, a reply chain. Mailbox headers (From:/To:/Subject:/Sent:) or a forward marker are enough. unknown is only for a stand-alone non-communication that fits no class (court opinion, accounting standard, due-diligence checklist) or unreadable text.\nB3. Merger agreements (agreement and plan of merger) are merger_agreement, not contract.\n\nSubclass (doc_subclass) \u2014 use exactly one key of the chosen class from the catalog in the user message; the text after each key is what the label means. Never a key of another class, never invented. Hard cases:\n- Insurance CMS tables: PHYSICIAN/SUPPLIER (Part B) is carrier, never outpatient; OUTPATIENT SERVICES is outpatient.\n- Corporate: Certificate of Designation and officer's/secretary's certificates are officer_certificate, never rights_instrument; a Certificate/Articles of Amendment is charter_amendment; a bylaw amendment is bylaws, never board_resolution; certificate_of_formation is not a label (use articles_of_incorporation).\n- Correspondence: scan the whole text, quoted and forwarded mail included, and give the FIRST form in catalog order whose marker appears; email only when none does.\n- Contract: copy the key into contract_subtype; employment/offer letters are consulting, note or asset purchase is supply, IP assignment is ip; other only when no family fits. contract_subtype is null for every other class.\n- Merger: what each common share converts into, from the conversion section.\n\nConfidence: derive it from this document's evidence (0.0-1.0). Below 0.85 when two classes compete; never 0.90+ for contract when the title names an indenture, rights, warrant, subscription or option instrument. Name the boundary rule you applied in the reasoning.\n\nReturn strict JSON only: {\"doc_type\": <class key>, \"contract_subtype\": <key or null>, \"doc_subclass\": <key or null>, \"confidence\": <0-1>, \"reasoning\": <one or two sentences citing the evidence>}\n",
+        "version": null
+      }
+    },
+    "default": {
+      "agent": "default",
+      "file": null,
+      "label": null,
+      "name": "mailroom-default",
+      "sha256": null,
+      "source": "code-default",
+      "text": null,
+      "version": null
+    },
+    "known_agents": [
+      "arbiter",
+      "boss",
+      "contracts_specialist",
+      "corporate_records_specialist",
+      "correspondence_specialist",
+      "gmail_triage",
+      "image_extractor",
+      "insurance_claims_specialist",
+      "intake",
+      "judge",
+      "judge-classification",
+      "judge-correctness",
+      "merger_agreement_specialist",
+      "pdf_transcriber",
+      "relations",
+      "reporter",
+      "sorter",
+      "sorter_reviewer"
+    ]
+  },
+  "prompt_text_sha": "95d1a79d6e6167b5eacd08f512e2c4c74dad2aa877e230f40d0c14818d8e00ca",
+  "run_id": "rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash",
+  "schema_version": 1,
+  "scoring_hotfixes": {
+    "fixes": [
+      {
+        "id": "SHF-001",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15",
+            "target": "mailroom_sandbox.eval.extraction_scope:applicable_expected_fields"
+          },
+          {
+            "source_sha256": "a5003c2a8b7137457848b0fa5c9c662d1e048b7623d856874c94acb8bc537015",
+            "target": "llm_dojo_scoring.scoring.extraction_metrics:extraction_binary_metrics"
+          }
+        ]
+      },
+      {
+        "id": "SHF-002",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "2858ef5f4d580f3e7f0f2f4ab220d12b423b299072b595bd306bece00c07787e",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_name_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-003",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "25ea35162ccef237c2c7f9aa655c810176305270ac279dcc101c636f1c9b087f",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_money_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-004",
+        "layer": "dojo",
+        "targets": [
+          {
+            "source_sha256": "4ed5c2db371ebf14f322810f44d6828721e293482a4f9e0badf3bbbcfdbac1c3",
+            "target": "llm_dojo_scoring.scoring.field_scoring:score_id_field"
+          }
+        ]
+      },
+      {
+        "id": "SHF-005",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e",
+            "target": "mailroom_sandbox.eval.runners:_isolated_headline"
+          },
+          {
+            "source_sha256": "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e",
+            "target": "mailroom_sandbox.job.runner:_scored_pairs"
+          }
+        ]
+      },
+      {
+        "id": "SHF-006",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e",
+            "target": "mailroom_sandbox.eval.runners:_isolated_headline"
+          }
+        ]
+      },
+      {
+        "id": "SHF-007",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "fc038e9b4d1f9a4b51c0191be894c9f89a7daa88f7cc973a1b3e7797b7fa6004",
+            "target": "mailroom_sandbox.eval.agents:_score_class"
+          },
+          {
+            "source_sha256": "c332fba81b273d2b661944556f62bbc6fa6271ae132b6ef38ea5b75a991164e4",
+            "target": "mailroom_sandbox.eval.agents:_fold"
+          },
+          {
+            "source_sha256": "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984",
+            "target": "mailroom_sandbox.eval.agents:_class_answer"
+          }
+        ]
+      },
+      {
+        "id": "SHF-008",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "fffe11dc169fd7a1ff52840d9ae4a2bf8f8952bada93f88d9909c7e39bc58f2e",
+            "target": "mailroom_sandbox.eval.agents:_score_verdict"
+          }
+        ]
+      },
+      {
+        "id": "SHF-009",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "c2c16b90d935e51d308a9206184866e4325ee86ea3b0fd751693e75634a8e8af",
+            "target": "mailroom_sandbox.decision_backends:apply_question_set_contract"
+          }
+        ]
+      },
+      {
+        "id": "SHF-010",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "708f35c78dd7bdb9dcdcd69a0102b2d408ec94ddfbf19aa02a57869edc5f0ec2",
+            "target": "mailroom_sandbox.gold_labels:supersede_interim_gap_fills"
+          }
+        ]
+      },
+      {
+        "id": "SHF-011",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "1b3a8928f5620383dfab186021eb3232b90fdb83b0d2c751ce19c0459d570ac9",
+            "target": "mailroom_sandbox.job.pair_report:_arm_score"
+          }
+        ]
+      },
+      {
+        "id": "SHF-012",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "59bbc509ecd0c2817093d537984c1d52a45fff7530908c7146e287f85004d46f",
+            "target": "mailroom_sandbox.eval.runners:_run_pipeline_doc_once"
+          },
+          {
+            "source_sha256": "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451",
+            "target": "mailroom_sandbox.eval.scoring:predicted_subclass"
+          },
+          {
+            "source_sha256": "e5bcf80dfa6598718cba4b7fd363f016e21d15cd73d8b5f0d530171824427f59",
+            "target": "mailroom_sandbox.eval.scoring:score_subclass"
+          }
+        ]
+      },
+      {
+        "id": "SHF-013",
+        "layer": "sandbox",
+        "targets": [
+          {
+            "source_sha256": "37caf94d1d496885350500ac13164b5c94125ceb3eb7df6b626a974c52649ad0",
+            "target": "mailroom_sandbox.eval.scoring:sorter_subclass_row"
+          },
+          {
+            "source_sha256": "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f",
+            "target": "mailroom_sandbox.eval.scoring:sorter_subclass_scores"
+          },
+          {
+            "source_sha256": "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3",
+            "target": "file:data/labels/review/subclass_corrections.jsonl"
+          }
+        ]
+      }
+    ],
+    "module_sha256": "f7d709d35d05780de1fe3596f83daa299cccd08c5cb84fda2809a051d0de4fbc"
+  },
+  "spec_core": {
+    "agent_knobs": {
+      "sorter": {
+        "max_input_chars": 600000
+      }
+    },
+    "dataset": {
+      "config": "ground_truth",
+      "draw": "ranked",
+      "exclude_expected": null,
+      "exclude_ids_sha256": "9a5b2f8cbbda9febab9622260bdb08ec8dec67c5cd70aed0d844d18ba215c001",
+      "interim_labels": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
+      "limit": 20,
+      "near_gold_labels": "c9d3b9594c36b5058d436474e9ec7b361a5125560c47583fb2f12f6f9e678ba6",
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+      "sample_seed": 20261118,
+      "split": "all",
+      "strata": {
+        "buckets": [
+          {
+            "count": 4,
+            "doc_class": "contract"
+          },
+          {
+            "count": 4,
+            "doc_class": "corporate_record"
+          },
+          {
+            "count": 4,
+            "doc_class": "correspondence"
+          },
+          {
+            "count": 4,
+            "doc_class": "insurance_claim"
+          },
+          {
+            "count": 4,
+            "doc_class": "merger_agreement"
+          }
+        ]
+      }
+    },
+    "engine": {
+      "kind": "openrouter",
+      "modal": null,
+      "model": "qwen/qwen3.7-flash",
+      "vllm": {
+        "enable_prefix_caching": true,
+        "enforce_eager": true,
+        "gpu_memory_utilization": 0.9,
+        "max_model_len": 16384,
+        "max_num_seqs": 6,
+        "quantization": "",
+        "revision": ""
+      }
+    },
+    "job": {
+      "api_cost_cap_usd": 0.15,
+      "checkpoint_every": 1,
+      "concurrency": 8,
+      "cost_cap_usd": 0.15,
+      "fail_fast": false,
+      "max_retries": 1,
+      "max_wall_seconds": 1800,
+      "mock": false,
+      "mode": "endpoint",
+      "task": "sorter"
+    },
+    "profile": "openrouter",
+    "prompt": {
+      "agents": {
+        "contracts_specialist": {
+          "file": "contracts_specialist_v33_simplified",
+          "source": "local"
+        },
+        "corporate_records_specialist": {
+          "file": "corporate_records_specialist_condensed_v1",
+          "source": "local"
+        },
+        "correspondence_specialist": {
+          "file": "correspondence_specialist_condensed_v3",
+          "source": "local"
+        },
+        "insurance_claims_specialist": {
+          "file": "insurance_claims_specialist_condensed_v3",
+          "source": "local"
+        },
+        "merger_agreement_specialist": {
+          "file": "merger_agreement_specialist_maud_v2",
+          "source": "local"
+        },
+        "sorter": {
+          "file": "sorter_condensed_v5",
+          "source": "local"
+        }
+      },
+      "default": {
+        "source": "code-default"
+      }
+    },
+    "task": "isolated",
+    "trace": {
+      "endpoint": null,
+      "environment": "pilot",
+      "otlp": true,
+      "sink": "none",
+      "tags": [
+        "sandbox",
+        "job",
+        "runbook",
+        "R13b",
+        "H5",
+        "smoke20b",
+        "llm-sorter",
+        "dev-look1"
+      ]
+    }
+  },
+  "spec_hash": "460efe30a1f229ded04a2423eefd2c3e6250ade557238f62b3b897dbeaaa5c5d",
+  "task": "isolated",
+  "trace": {
+    "endpoint": null,
+    "environment": "pilot",
+    "otlp": true,
+    "sink": "none",
+    "tags": [
+      "sandbox",
+      "job",
+      "runbook",
+      "R13b",
+      "H5",
+      "smoke20b",
+      "llm-sorter",
+      "dev-look1"
+    ]
+  },
+  "vendor_hotfixes": {
+    "fixes": [
+      {
+        "id": "HF-001",
+        "source_sha256": "a9986cab125fc26e76d36de77ccd4a18d0537f5fa93f6ce146e9389186d20a90",
+        "target": "langchain_agents.doc_inventories.enrich_extraction"
+      },
+      {
+        "id": "HF-002",
+        "source_sha256": "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
+        "target": "agents.judge.CompletenessJudge.judge_completeness"
+      },
+      {
+        "id": "HF-003",
+        "source_sha256": "f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
+        "target": "agents.intake.IntakeAgent.intake_run"
+      },
+      {
+        "id": "HF-004",
+        "source_sha256": "f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
+        "target": "pipeline.limits.record_usage"
+      }
+    ],
+    "module_sha256": "695b00788b922b698c3729de5146c02744d09420d34a05201c25402d1c886778"
+  },
+  "versions": {
+    "llm_dojo_scoring": "0.30.1",
+    "llm_dojo_scoring_source": "vendored",
+    "mailroom_sandbox": "0.3.0",
+    "opentelemetry": "?"
+  }
+}

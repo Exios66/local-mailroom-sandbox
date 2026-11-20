@@ -156,7 +156,9 @@ prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
 Cursor stubs (`sandbox subagents sync --harness project`). Materialize into sibling checkouts on **Digital-Mailroom** with
 `sandbox subagents propagate` or `materialize --package <id> --root <path>`
 ([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
-Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
+Meta agents: **`harness-doctor`**, **`adversarial-reviewer`** and
+**`pr-domain-reviewer`** (domain PR lane vs CodeRabbit/CodeAnt/CodeFactor; see
+[`docs/pr-review-lanes.md`](docs/pr-review-lanes.md)). See
 [`config/subagents/README.md`](config/subagents/README.md). Harness health:
 `sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
 sibling checkouts). Durable eve doctor:
@@ -202,6 +204,8 @@ sandbox -q|-v|-vv <command>          # console verbosity on stderr: quiet / key 
 sandbox run gate --run-id <id> [--prev-run-id <id>] [--thresholds]  # offline production slice gate → gate.json/gate.md; docs/runbooks/production-slices.md
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox report build --run <run_id> [--iteration N] [--check] | --campaign rb1 [--check]  # campaign report tree reports/campaigns/ from run logs (reports/campaigns/README.md)
+python scripts/compare_sorter_arms.py --a <llm sorter run> --b <decision run> [--figures DIR] [--write]  # H5 paired comparison + figures, offline; docs/experiment-figures.md
+python -m mailroom_sandbox.figure_style lint PATH...   # figure text/type rules; exit 0 clean, 1 problems, 2 missing path or no SVG
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
 sandbox subagents sync --harness project [--check]  # project OpenCode + Cursor; --check writes nothing

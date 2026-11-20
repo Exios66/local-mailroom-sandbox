@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "api_cost_cap_usd": 0.15,
+    "api_models": {
+      "openai/gpt-6-luna-decisions": [
+        0.1,
+        0.0
+      ]
+    },
+    "gpu_cost_cap_usd": 0.15,
+    "max_wall_seconds": 1800
+  },
+  "fingerprint": "3653915a6c769b204da6f7955868c3143f15bbd00d08f6f30f08f2d7409facda",
+  "generation_id": "c17e262254fc4afc83a73efbbfe86486",
+  "note": "digest only; the signer's initials stay in the run store",
+  "signed": true,
+  "signed_at": 1795086662.603319,
+  "source": {
+    "bytes": 5810,
+    "path": "data/runtime/runs/rb1-r13b-smoke20b-decision-sorter-luna-v4.0.1/spend-authorization.json",
+    "sha256": "7ee4aafae53e8b9ede7665fc726ce0eb1f473ecaf8641f1fc8e63479bde99232"
+  }
+}

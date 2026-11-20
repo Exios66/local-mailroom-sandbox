@@ -592,6 +592,11 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
         raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
     last: Exception | None = None
     for attempt in range(max(1, attempts)):
+        # Decisions calls bypass the chat provider wrappers; enforce the same run guard
+        # before each HTTP attempt, including retries.
+        from mailroom_sandbox.job import call_guard
+
+        call_guard.before_call()
         try:
             resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=timeout,
                               headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
@@ -599,7 +604,13 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             last = exc
         else:
             if resp.status_code == 200:
-                return resp.json()
+                data = resp.json()
+                # The single live charge for this HTTP response. HF-004 also
+                # prices ``record_usage``; ``_record_usage`` uses the unwrapped
+                # accumulator so the same response is not charged again. A
+                # payload with no usage keys still takes one ceiling slot.
+                call_guard.after_call((data or {}).get("usage") or {})
+                return data
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
                 raise last
@@ -763,15 +774,23 @@ def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: s
 
 
 def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_reviewer") -> None:
-    """Count the call in the run's usage accumulator, so job budgets and cost see it."""
+    """Count the call in the run's usage accumulator, so job budgets and cost see it.
+
+    ``_post_decision`` already priced this response, including a payload with no
+    usage keys. HF-004 wraps ``record_usage`` and prices it again; while that
+    wrapper is installed, the tokens go to the unwrapped accumulator only.
+    """
     try:
         from pipeline.limits import record_usage
     except ImportError:
         return
+    fn = record_usage
+    if getattr(fn, "_sandbox_hotfix", None) == "HF-004":
+        fn = getattr(fn, "__wrapped__", fn)
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
-    record_usage({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
-                 model=model, agent=agent)
+    fn({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
+       model=model, agent=agent)
 
 
 def _record_served(model: str, data: Mapping[str, Any]) -> None:

@@ -1182,3 +1182,15 @@ def test_persist_isolated_items_keeps_the_execution_window_and_per_call_usage(tm
     item = json.loads(store.items_path.read_text().splitlines()[0])
     assert item["call_usage"] == [[10_000, 10], [50_000, 10]]
     assert (item["started_at_ns"], item["finished_at_ns"]) == (row["started_at_ns"], row["finished_at_ns"])
+
+
+@pytest.mark.parametrize("key", ["vendor_hotfixes", "scoring_hotfixes"])
+def test_direct_resume_refuses_a_checkpoint_with_unknown_hotfix_basis(tmp_path, key):
+    store = _prepped_store(tmp_path, rows=2)
+    lock = store.read_lock()
+    lock.pop(key)
+    store.lock_path.write_text(json.dumps(lock))
+    store.write_checkpoint(state="running", cursor=1, total=2)
+    with pytest.raises(RuntimeError, match="cannot resume a checkpoint without locked"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()

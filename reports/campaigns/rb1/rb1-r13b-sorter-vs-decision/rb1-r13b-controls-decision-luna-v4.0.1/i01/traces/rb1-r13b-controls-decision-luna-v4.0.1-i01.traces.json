@@ -1,0 +1,16 @@
+{
+  "copy_cap_bytes": 262144,
+  "note": "files over the cap (and every dataset, span mirror and trace pack) are referenced by path + sha256, not copied",
+  "references": {
+    "dataset": {
+      "bytes": 440988,
+      "path": "data/runtime/runs/rb1-r13b-controls-decision-luna-v4.0.1/dataset.jsonl",
+      "sha256": "7aa795c7f8f6aa592a6e038680e308e5b0455732778ca11796114bd2ea9bf34c"
+    },
+    "spans": {
+      "bytes": 1075,
+      "path": "data/traces/rb1-r13b-controls-decision-luna-v4.0.1.spans.jsonl.gz",
+      "sha256": "eda7312795b9b7e20f2b04b9566983a6394e4567d676ce8a7df8bfdb7082520a"
+    }
+  }
+}

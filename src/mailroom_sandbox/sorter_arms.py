@@ -443,8 +443,11 @@ def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
     """Wall time and throughput of an arm over the compared documents.
 
     ``active_seconds`` runs from the first compared request to the last answer, failed attempts
-    included (they hold a worker), so start-up and scoring are excluded and a ``--set`` subset is
-    timed on its own documents. Each request is timed by the evaluator's execution window
+    included (they hold a worker), so start-up and scoring are excluded. ``interleaved_docs`` counts
+    the run's other documents that ran inside that window; when it is not 0 the window also times
+    them, so a ``--set`` subset has no run time of its own. It is None (unknown) when a compared
+    request or another item has no end time; ``timing_complete`` is False when a compared request
+    has none, so the window may be cut short. Each request is timed by the evaluator's execution window
     (``started_at_ns`` / ``finished_at_ns``); an item without one is placed by its persistence time
     ``ts`` less its latency, and ``timing_basis`` then says ``estimate``. Throughput counts answered
     documents per unit of that time (failed attempts cost time but deliver nothing).
@@ -461,12 +464,34 @@ def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
         spans.append((start, r.finished_ts))
     latency_sum = sum((r.latency_ms or 0.0) for r in rows) / 1000.0
     active = (max(e for _, e in spans) - min(st for st, _ in spans)) if spans else None
+    # documents of the run outside the comparison that ran inside that window: the window then
+    # times them too, so it is not this subset's own run time
+    # unknown (None) unless every compared request and every other item of the run has an end time
+    complete = bool(rows) and len(spans) == len(rows)
+    interleaved = None
+    if complete and getattr(arm, "items", None) is not None:
+        lo, hi = min(st for st, _ in spans), max(e for _, e in spans)
+        compared = {r.doc_id for r in rows}
+        interleaved = 0
+        for doc_id, item in arm.items.items():
+            if doc_id in compared:
+                continue
+            end = _ns_epoch(item.get("finished_at_ns")) or _epoch(item.get("ts"))
+            if end is None:  # cannot place it: isolation is unknown
+                interleaved = None
+                break
+            start = _ns_epoch(item.get("started_at_ns")) or end - float(item.get("latency_ms") or 0.0) / 1000.0
+            interleaved += start < hi and end > lo
     answered = sum(1 for r in rows if not r.failed)
     per_min = answered / active * 60.0 if active else None
     return {
         "concurrency": arm.concurrency,
         "run_wall_seconds": arm.run_wall_seconds,
+        # the run's whole size: its wall time covers these, not only the compared rows
+        "run_items": len(arm.items) if getattr(arm, "items", None) is not None else None,
         "active_seconds": active,
+        "interleaved_docs": interleaved,
+        "timing_complete": complete,
         "latency_sum_seconds": latency_sum,
         "answered": answered,
         "failed": len(rows) - answered,
@@ -912,7 +937,7 @@ def compare(refs: Sequence[str | Path], *, set_name: str | None = None, split_di
         pairs[b.run_id] = compare_pair(rows[ref], rows[b.run_id], labels=labels, margin_macro_f1=margin_macro_f1,
                                        margin_unit=margin_unit, n_boot=n_boot, n_perm=n_perm, seed=seed, volume=volume)
         strata[b.run_id] = strata_differences(rows[ref], rows[b.run_id], exposure, labels)
-    return {
+    report = {
         "schema": "mailroom.sorter_arms/v1",
         "reference": ref, "set": set_name, "confirmatory": confirmatory, "n": len(ids),
         "revision": arms[0].revision, "labels": labels,
@@ -921,6 +946,26 @@ def compare(refs: Sequence[str | Path], *, set_name: str | None = None, split_di
         "h5": h5_family(pairs),
         "frontier": frontier(summaries) if len(arms) > 2 else None,
     }
+    gate_h5_cost(report)
+    return report
+
+
+def gate_h5_cost(report: dict[str, Any]) -> None:
+    """H5's lower-cost leg is a cost claim: an arm whose three tests pass is ``undecided`` (not
+    supported) until its costs are a comparison (``cost_not_comparable`` is empty)."""
+    why = cost_not_comparable(report, _arm_ids(report))
+    for verdict in (report.get("h5") or {}).get("verdicts", {}).values():
+        verdict["cost_not_comparable"] = list(why)
+        verdict["undecided"] = bool(why) and verdict["supported"]
+        if why:
+            verdict["supported"] = False
+
+
+def _arm_ids(report: Mapping[str, Any]) -> list[str]:
+    """Every arm of the comparison, reference first: a cost claim needs all of them billed and in agreement."""
+    ids = [a["run_id"] for a in report.get("arms") or []]
+    ref = report.get("reference")
+    return ([ref] if ref in ids else []) + [r for r in ids if r != ref]
 
 
 # --------------------------------------------------------------------------- planning
@@ -1029,15 +1074,23 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
     ref_rt = (ref or {}).get("runtime") or {}
     lines.append(f"runtime (compared documents)                 {'conc':>4} {'active s':>9} {'run s':>7} "
                  f"{'latency s':>10} {'docs/min':>9} {'/worker':>8} {'h/100k':>7} {'speed-up':>9}")
+    # a speed-up compares windows known to time all of, and only, the compared documents
+    shared = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("interleaved_docs")]
+    unknown = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("interleaved_docs") is None
+               or (s.get("runtime") or {}).get("timing_complete") is not True]
     for s in report["arms"]:
         rt = s.get("runtime") or {}
         speed = (ref_rt["active_seconds"] / rt["active_seconds"]
-                 if ref_rt.get("active_seconds") and rt.get("active_seconds") else None)
+                 if ref_rt.get("active_seconds") and rt.get("active_seconds") and not shared and not unknown else None)
         lines.append(f"  {s['run_id'][:43]:43} {_fmt(rt.get('concurrency'), 'd') if rt.get('concurrency') else '-':>4} "
                      f"{_fmt(rt.get('active_seconds'), '.1f'):>9} {_fmt(rt.get('run_wall_seconds'), '.1f'):>7} "
                      f"{_fmt(rt.get('latency_sum_seconds'), '.1f'):>10} {_fmt(rt.get('docs_per_minute'), '.0f'):>9} "
                      f"{_fmt(rt.get('docs_per_minute_per_worker'), '.1f'):>8} {_fmt(rt.get('hours_per_100k_docs'), '.1f'):>7} "
                      f"{(_fmt(speed, '.1f') + 'x') if speed else '-':>9}")
+    if shared:
+        lines.append(f"  no speed-up: other documents of the run ran inside the active window of {', '.join(shared)}")
+    if unknown:
+        lines.append(f"  no speed-up: timing is incomplete or its isolation unknown for {', '.join(unknown)}")
     estimated = [s["run_id"][:44] for s in report["arms"] if (s.get("runtime") or {}).get("timing_basis") == "estimate"]
     if estimated:
         lines.append(f"  timing is an estimate for {', '.join(estimated)}: items carry no execution window "
@@ -1046,6 +1099,52 @@ def _render_runtime(report: Mapping[str, Any]) -> list[str]:
     if len(concs) > 1:
         lines.append("  arms ran at different concurrency: compare docs/min/worker, not docs/min or active seconds")
     return lines
+
+
+# A cost direction between arms is a claim only on billed costs over at least this many paired
+# documents: per-document cost depends on the document-length mix, and an OpenRouter chat model's
+# cost is priced from config/api_prices.yaml rather than billed.
+COST_CLAIM_MIN_DOCS = 1000
+
+
+def billed_per_1k(arm: Mapping[str, Any]) -> float | None:
+    """The provider-billed cost per 1,000 documents, when every compared document has a billed cost.
+
+    ``per_1k_docs_usd`` is list price × tokens for every arm; only this is a charge.
+    """
+    cost = arm.get("cost") or {}
+    n, docs, usd = arm.get("n") or 0, cost.get("provider_reported_docs") or 0, cost.get("provider_reported_usd")
+    return usd / n * 1000.0 if n and docs >= n and isinstance(usd, (int, float)) else None
+
+
+def cost_not_comparable(report: Mapping[str, Any], run_ids: Sequence[str]) -> list[str]:
+    """Why the arms' costs are not yet a cost comparison (empty when they are).
+
+    The per-1k figures in the report are list price × tokens; a cost direction needs billed totals
+    on every arm over at least ``COST_CLAIM_MIN_DOCS`` paired documents."""
+    n = int(report.get("n") or 0)
+    why = [f"n = {n}, under {COST_CLAIM_MIN_DOCS:,} paired documents"] if n < COST_CLAIM_MIN_DOCS else []
+    arms = {a["run_id"]: a for a in report.get("arms") or []}
+    unbilled = [r for r in run_ids if r in arms and billed_per_1k(arms[r]) is None]
+    unpriced = [r for r in run_ids if r in arms and (arms[r].get("cost") or {}).get("per_1k_docs_usd") is None]
+    if unbilled:
+        why.append("no billed cost for: " + ", ".join(unbilled))
+    if unpriced:  # no list-price ranking to check against the bill
+        why.append("no list-price cost for: " + ", ".join(unpriced))
+    if not unbilled:
+        # the cost lines and the frontier rank by list price × tokens; they stand for the billed
+        # direction only if every pair of arms agrees
+        known = [r for r in run_ids if r in arms and (arms[r].get("cost") or {}).get("per_1k_docs_usd") is not None]
+        for i, a in enumerate(known):
+            for b in known[i + 1:]:
+                listed = arms[b]["cost"]["per_1k_docs_usd"] - arms[a]["cost"]["per_1k_docs_usd"]
+                if _sign(listed) != _sign(billed_per_1k(arms[b]) - billed_per_1k(arms[a])):
+                    why.append(f"list-price and billed costs disagree on direction for {a} and {b}")
+    return why
+
+
+def _sign(x: float) -> int:
+    return (x > 0) - (x < 0)
 
 
 def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> list[str]:
@@ -1073,8 +1172,11 @@ def _render_pair(report: Mapping[str, Any], b: str, p: Mapping[str, Any]) -> lis
     cost = p.get("cost")
     if cost:
         lo, hi = cost["per_1k_docs"]["ci95"]
-        lines.append(f"  cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
+        lines.append(f"  list-price cost per 1k docs {_usd(cost['per_1k_docs']['estimate'])} [{_usd(lo)}, {_usd(hi)}], "
                      f"lower-cost p={cost['lower_cost_p_value']:.4f}")
+        why = cost_not_comparable(report, _arm_ids(report))
+        if why:
+            lines.append("  not a cost comparison yet (" + "; ".join(why) + ")")
         if cost.get("monthly"):
             m = cost["monthly"]
             lines.append(f"  at {m['docs_per_month']:,} docs/month: A {_usd(m['a']['estimate'])} "
@@ -1095,10 +1197,19 @@ def _render_h5(report: Mapping[str, Any]) -> list[str]:
     lines.append(f"\nH5 confirmatory family (Holm, alpha {h5['alpha']}):")
     for key, adj in h5["holm"].items():
         lines.append(f"  {key:70} raw {h5['raw'][key]:.4f}  holm {adj:.4f}")
+    # recomputed, so a report saved before the gate existed cannot print SUPPORTED on list price
+    why = cost_not_comparable(report, _arm_ids(report))
     for b, v in h5["verdicts"].items():
-        lines.append(f"  {b}: {'SUPPORTED' if v['supported'] else 'not supported (' + ', '.join(v['failed']) + ')'}")
+        if v.get("undecided") or (why and v.get("supported")):
+            lines.append(f"  {b}: undecided: the tests pass on list-price cost, which is not a cost comparison yet "
+                         f"({'; '.join(why or v.get('cost_not_comparable') or [])})")
+        else:
+            lines.append(f"  {b}: {'SUPPORTED' if v['supported'] else 'not supported (' + ', '.join(v['failed']) + ')'}")
     if report.get("frontier"):
-        lines.append("\ncost-quality frontier (cheapest first):")
+        lines.append("\ncost-quality frontier (ordered by cost per 1k docs):")
+        why = cost_not_comparable(report, [r["run_id"] for r in report["frontier"]])
+        if why:
+            lines.append("  not a cost comparison yet (" + "; ".join(why) + ")")
         for r in report["frontier"]:
             lines.append(f"  {r['run_id'][:44]:44} mF1 {_pct(r['class_macro_f1'])} unit {_pct(r['unit_accuracy'])} "
                          f"{_usd(r['per_1k_docs_usd'])}/1k  {'dominated by ' + r['dominated_by'] if r['dominated_by'] else 'frontier'}")

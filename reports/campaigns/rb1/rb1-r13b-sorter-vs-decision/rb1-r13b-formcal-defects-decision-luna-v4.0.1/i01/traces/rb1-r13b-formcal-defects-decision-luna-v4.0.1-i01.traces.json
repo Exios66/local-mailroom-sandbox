@@ -1,0 +1,16 @@
+{
+  "copy_cap_bytes": 262144,
+  "note": "files over the cap (and every dataset, span mirror and trace pack) are referenced by path + sha256, not copied",
+  "references": {
+    "dataset": {
+      "bytes": 3828092,
+      "path": "data/runtime/runs/rb1-r13b-formcal-defects-decision-luna-v4.0.1/dataset.jsonl",
+      "sha256": "a5a091fe92407b8cb87b0ab0cd9489bd366271940cb7879b25a74f5fbb28179e"
+    },
+    "spans": {
+      "bytes": 4900,
+      "path": "data/traces/rb1-r13b-formcal-defects-decision-luna-v4.0.1.spans.jsonl.gz",
+      "sha256": "5472b0a65af6d721742c113e1ceaee830070647dd1766fa1c022560be558db10"
+    }
+  }
+}

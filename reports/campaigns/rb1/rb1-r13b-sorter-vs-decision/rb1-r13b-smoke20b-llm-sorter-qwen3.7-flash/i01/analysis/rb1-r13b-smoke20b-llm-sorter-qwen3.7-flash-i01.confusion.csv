@@ -1,0 +1,6 @@
+truth,contract,corporate_record,correspondence,insurance_claim,merger_agreement
+contract,4,0,0,0,0
+corporate_record,0,4,0,0,0
+correspondence,0,0,4,0,0
+insurance_claim,0,0,0,4,0
+merger_agreement,0,0,0,0,4

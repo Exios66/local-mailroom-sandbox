@@ -106,6 +106,23 @@ def _classify_mock(row: dict[str, Any]) -> str:
     return str(row.get("expected_doc_class") or row.get("doc_type") or "unknown")
 
 
+def isolated_call_scope(task: str, *, mock: bool):
+    """Per-document call ceiling for a one-request Decisions task.
+
+    Pipeline documents already enter ``call_guard.document`` (the R01 ceiling).
+    An isolated chat specialist can legitimately exceed the default ceiling
+    while it chunks a long document, so only ``sorter_reviewer`` and
+    ``extraction_gate`` take the scope. Mock rows do not.
+    """
+    from contextlib import nullcontext
+
+    if mock or task not in ("sorter_reviewer", "extraction_gate"):
+        return nullcontext({"calls": 0, "refused": None})
+    from mailroom_sandbox.job import call_guard
+
+    return call_guard.document()
+
+
 def _run_rows_bounded(
     rows: list[Any],
     *,
@@ -291,9 +308,16 @@ def run_isolated_eval(
 
     spec = spec_for(task)
     if prompt_version is None:
-        from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+        # No --prompt: the agent's lineage frontrunner (the same default a locked run
+        # gets), never a silent regression to the pre-condensed stem. An explicit
+        # --prompt-version selection owns the surface instead; agents outside the
+        # condensed lineages keep their eval-environment parity stem.
+        from mailroom_sandbox import prompt_versions as pv
 
-        prompt_version = default_prompt_variant(task)
+        if not pv.active_selection():
+            from mailroom_sandbox.prompt_lineage import default_stem_for
+
+            prompt_version = default_stem_for(task)
     rows = spec.load_rows() if rows is None else rows
     if sample is not None:
         if sample <= 0:
@@ -335,50 +359,54 @@ def run_isolated_eval(
         scored: dict[str, Any] = {}
         fell_back = False
         usage: dict[str, Any] = {}
-        try:
-            # SAND-018: reset the thread's usage accumulator so this row's tokens
-            # are its own — without it, pooled rows sum into one inflated total.
-            reset_usage()
-            with tracing.document_pipeline_trace(
-                seed=seed,
-                session_id=session,
-                input={"filename": row.get("filename") or row.get("id"), "matter_id": sandbox_matter_id(row, experiment_name)},
-                metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
-                tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
-            ):
-                with tracing.child_observation(
-                    spec.observation,
-                    as_type=tracing.observation_type_for(spec.observation),
-                    input=tracing.public_ground_truth(row),
+        with isolated_call_scope(task, mock=mock) as scope:
+            try:
+                # SAND-018: reset the thread's usage accumulator so this row's tokens
+                # are its own — without it, pooled rows sum into one inflated total.
+                reset_usage()
+                with tracing.document_pipeline_trace(
+                    seed=seed,
+                    session_id=session,
+                    input={"filename": row.get("filename") or row.get("id"), "matter_id": sandbox_matter_id(row, experiment_name)},
+                    metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
+                    tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
                 ):
-                    pred, fell_back = _predict_spec(spec, row, mock=mock)
-                scored = spec.score_one(row, pred)
-            # SAND-018: per-item token capture — the isolated path used to drop
-            # usage entirely, so a specialist run had no tokens/latency to report.
-            usage = usage_from_pipeline()
-        except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
-            error = f"{type(exc).__name__}: {str(exc)[:300]}"
-            # SAND-089: a call made before the failure was still billed; keep its tokens.
-            usage = usage_from_pipeline()
-        calls = call_usage_from_pipeline()
-        entry: dict[str, Any] = {
-            "id": row.get("id"),
-            "pred": pred,
-            "score": scored,
-            "offline_fallback": fell_back,
-            "error": error,
-            "started_at_ns": started_ns,
-            "finished_at_ns": time.time_ns(),
-        }
-        if calls:
-            entry["call_usage"] = calls
-        entry.update(
-            merge_item_metrics(
-                latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
-                usage=usage,
+                    with tracing.child_observation(
+                        spec.observation,
+                        as_type=tracing.observation_type_for(spec.observation),
+                        input=tracing.public_ground_truth(row),
+                    ):
+                        pred, fell_back = _predict_spec(spec, row, mock=mock)
+                    scored = spec.score_one(row, pred)
+                # SAND-018: per-item token capture — the isolated path used to drop
+                # usage entirely, so a specialist run had no tokens/latency to report.
+                usage = usage_from_pipeline()
+            except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
+                error = f"{type(exc).__name__}: {str(exc)[:300]}"
+                # SAND-089: a call made before the failure was still billed; keep its tokens.
+                usage = usage_from_pipeline()
+            if scope.get("refused") and not error:
+                error = (f"document stopped by the API call guard ({scope['calls']} calls): "
+                         f"{scope['refused']}")[:300]
+            calls = call_usage_from_pipeline()
+            entry: dict[str, Any] = {
+                "id": row.get("id"),
+                "pred": pred,
+                "score": scored,
+                "offline_fallback": fell_back,
+                "error": error,
+                "started_at_ns": started_ns,
+                "finished_at_ns": time.time_ns(),
+            }
+            if calls:
+                entry["call_usage"] = calls
+            entry.update(
+                merge_item_metrics(
+                    latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
+                    usage=usage,
+                )
             )
-        )
-        return entry
+            return entry
 
     def _absorb(entry: dict[str, Any]) -> None:
         nonlocal offline, errors
@@ -610,6 +638,12 @@ def run_sorter_eval(
         return plan
 
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("sorter")
     predicted: list[str] = []
     expected: list[str] = []
     for row in rows:
@@ -688,6 +722,12 @@ def run_extract_eval(
     if dry_run:
         return plan
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("extract")
     overall: list[float] = []
     schema_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -1198,6 +1238,12 @@ def run_pipeline_eval(
     activation = activate(
         profile, model=model, prompt_variant=prompt_version, agent_models=agent_models
     )
+    if prompt_version is None:
+        # Unlocked eval: unnamed lineage agents run their frontrunner, not the vendored
+        # prompt. A no-op under a locked run policy (the lock applied its own surface).
+        from mailroom_sandbox.prompt_lineage import apply_eval_defaults
+
+        apply_eval_defaults("pipeline")
     session = tracing.session_id_for("pipeline")
     import threading
     import time
@@ -1402,6 +1448,11 @@ def run_pipeline_eval(
     from mailroom_sandbox.eval import human_review
 
     scores.update(human_review.for_pipeline(results))
+    # The incorrect-archive metric beside the review metric (eval/archive_correctness.py):
+    # per-class wrong/incomplete archives with reasons, gate semantics (quality bar 0.90).
+    from mailroom_sandbox.eval import archive_correctness
+
+    scores.update(archive_correctness.for_pipeline(rows, results, extraction_rows=extraction_rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))

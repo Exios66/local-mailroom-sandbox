@@ -126,12 +126,16 @@ or sibling updates are intended.
 
 ## Coding subagents
 
-The roster and canonical prompts are in `.opencode/agents/`. Two are registered as Claude
+The roster and canonical prompts are in `.opencode/agents/`. Three are registered as Claude
 Code subagents in `.claude/agents/` as thin read-only wrappers that load the canonical
-prompt (no duplicated text to drift): `adversarial-reviewer` and `eval-judge`. For any
-other persona (`harness-doctor`, `trace-auditor`, …) read its file in `.opencode/agents/`.
+prompt (no duplicated text to drift): `adversarial-reviewer`, `eval-judge` and
+`pr-domain-reviewer`. For any other persona (`harness-doctor`, `trace-auditor`, …)
+read its file in `.opencode/agents/`.
 
 ## Skills
 
 - `/vendor-sync` (`.claude/skills/vendor-sync/`) — the sanctioned way to refresh
   `vendor/`. User-invoked only.
+- `experiment-figures` (`.claude/skills/experiment-figures/`) — how every experiment figure is
+  made: colour roles, type scale, finding-as-title text rules, the figure catalog (per-run,
+  sorter vs decision model, calibration) and `python -m mailroom_sandbox.figure_style lint`.

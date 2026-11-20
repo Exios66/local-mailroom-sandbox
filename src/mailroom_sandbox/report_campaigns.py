@@ -646,44 +646,38 @@ def _stats(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _figures(stem: str, items: list[dict[str, Any]], scores: Mapping[str, Any] | None) -> tuple[dict[str, str], str | None]:
-    """Deterministic SVG figures; returns ``{filename_suffix_name: svg_text}``."""
+def _locked_rows(gen: Generation) -> dict[str, dict[str, Any]]:
+    path = gen.path("dataset.jsonl")
+    if not path.is_file():
+        return {}
+    rows = [json.loads(ln) for ln in path.read_bytes().decode("utf-8").split("\n") if ln.strip()]
+    return {str(r.get("id")): r for r in rows}
+
+
+def _wall_seconds(items: list[dict[str, Any]]) -> float | None:
+    starts = [i["started_at_ns"] for i in items if isinstance(i.get("started_at_ns"), int)]
+    ends = [i["finished_at_ns"] for i in items if isinstance(i.get("finished_at_ns"), int)]
+    return (max(ends) - min(starts)) / 1e9 if starts and ends and max(ends) > min(starts) else None
+
+
+def _figures(stem: str, items: list[dict[str, Any]], scores: Mapping[str, Any] | None,
+             rows_by_id: Mapping[str, Mapping[str, Any]] | None = None
+             ) -> tuple[dict[str, str], str | None, list[dict[str, Any]]]:
+    """Deterministic SVG figures ``{name: svg_text}``, a caveat, and the table rows behind them.
+
+    Sorter and decision-model runs share one figure set in the house style (``decision_figures``,
+    ``figure_style``); the figures a run lacks the data for are left out.
+    """
     try:
         import matplotlib
 
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
     except Exception as exc:  # noqa: BLE001
-        return {}, f"figures skipped: matplotlib unavailable ({type(exc).__name__})"
-    out: dict[str, str] = {}
-    with matplotlib.rc_context({"svg.hashsalt": stem, "svg.fonttype": "none", "font.size": 9}):
-        lat = [float(i["latency_ms"]) / 1000.0 for i in items if isinstance(i.get("latency_ms"), (int, float))]
-        if lat:
-            fig, ax = plt.subplots(figsize=(5, 3))
-            ax.hist(lat, bins=min(20, max(5, len(lat) // 2)), color="#4c72b0")
-            ax.set_xlabel("latency per document (s)")
-            ax.set_ylabel("documents")
-            ax.set_title(f"{stem} latency")
-            fig.tight_layout()
-            buf = io.StringIO()
-            fig.savefig(buf, format="svg", metadata={"Date": None, "Creator": None})
-            plt.close(fig)
-            out["latency"] = buf.getvalue()
-        per_class = (((scores or {}).get("task") or {}).get("per_class")) if isinstance(scores, Mapping) else None
-        if isinstance(per_class, Mapping) and per_class:
-            names = sorted(per_class)
-            vals = [float((per_class[n] or {}).get("f1") or 0.0) for n in names]
-            fig, ax = plt.subplots(figsize=(5, 3))
-            ax.barh(names, vals, color="#55a868")
-            ax.set_xlim(0, 1)
-            ax.set_xlabel("F1 (run scorer)")
-            ax.set_title(f"{stem} per-class F1")
-            fig.tight_layout()
-            buf = io.StringIO()
-            fig.savefig(buf, format="svg", metadata={"Date": None, "Creator": None})
-            plt.close(fig)
-            out["per-class-f1"] = buf.getvalue()
-    return out, None
+        return {}, f"figures skipped: matplotlib unavailable ({type(exc).__name__})", []
+    from mailroom_sandbox import decision_figures as dfig
+
+    figs, rows = dfig.build(stem, items, rows_by_id, wall_s=_wall_seconds(items))
+    return figs, None, rows
 
 
 def _status(gen: Generation) -> str:
@@ -849,9 +843,11 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
             [{"truth": t, **stats["confusion"][t]} for t in labels], ["truth", *labels])
 
     # figures/
-    figs, fig_err = _figures(stem, items, scores)
+    figs, fig_err, fig_rows = _figures(stem, items, scores, _locked_rows(gen))
     for name, svg in figs.items():
         files[rel("figures", name, "svg")] = svg
+    if fig_rows:  # the table view behind every figure
+        files[rel("analysis", "figure-data", "csv")] = _csv(fig_rows, list(fig_rows[0]))
     if fig_err:
         caveats.append(fig_err)
 
@@ -874,6 +870,7 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
     engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
     report = {
         "schema": "sandbox.campaign-run-report/v1",
+        "figures": sorted(figs),
         "campaign": paths.key.campaign,
         "experiment": paths.key.experiment,
         "run_id": gen.run_id,
@@ -912,6 +909,18 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
     return files
 
 
+_FIGURE_ORDER = ("routing", "confidence", "risk-coverage", "form-mass", "park-reasons", "subclass", "latency")
+_FIGURE_ALT = {
+    "routing": "Stacked bars per group: documents archived correct, parked, misarchived, unscored",
+    "confidence": "Strip plot of chosen-class probability for right and wrong forced answers",
+    "form-mass": "Strip plot of document-form probability on human forms per group, park line at 0.5",
+    "park-reasons": "Bar chart of how many documents each park rule fired on",
+    "subclass": "Bar chart of subclass accuracy per truth class among archived documents",
+    "risk-coverage": "Step line of error rate among archived documents against coverage, run routing marked",
+    "latency": "Scatter of latency against input tokens per document, log scales",
+}
+
+
 def _render_report_md(report: Mapping[str, Any], paths: RunPaths) -> str:
     head = report.get("headline") or {}
     cost = report.get("cost") or {}
@@ -943,6 +952,15 @@ def _render_report_md(report: Mapping[str, Any], paths: RunPaths) -> str:
                   "| class | n | correct | accuracy | Hub-truth accuracy |", "| --- | --- | --- | --- | --- |",
                   *(f"| {cls} | {cell.get('n')} | {cell.get('correct')} | {_fmt(cell.get('accuracy'))} | "
                     f"{_fmt(cell.get('hub_truth_accuracy'))} |" for cls, cell in by_class.items())]
+    figures = report.get("figures") or []
+    if figures:
+        lines += ["", "## Figures", "",
+                  "Each figure's data is in "
+                  f"[`analysis/{paths.stem}.figure-data.csv`](../analysis/{paths.stem}.figure-data.csv)"
+                  if "routing" in figures else
+                  "Item-level data is in `outputs/` and `traces/`.", ""]
+        lines += [f"![{_FIGURE_ALT.get(n, n)}](../figures/{paths.stem}.{n}.svg)" for n in
+                  sorted(figures, key=lambda n: (_FIGURE_ORDER.index(n) if n in _FIGURE_ORDER else 99, n))]
     lines += ["", "## Cost and serving (serving renderer)", "", "| metric | value |", "| --- | --- |",
               *(f"| {k} | {_fmt(v, 6)} |" for k, v in cost.items()), "", "## Caveats", "",
               *(f"- {c}" for c in report.get("caveats") or ["None recorded."]), ""]

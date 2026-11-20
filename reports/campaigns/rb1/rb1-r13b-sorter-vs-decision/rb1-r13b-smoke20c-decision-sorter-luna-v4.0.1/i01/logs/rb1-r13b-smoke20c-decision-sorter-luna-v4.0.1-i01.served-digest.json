@@ -1,0 +1,39 @@
+{
+  "by_requested_served_provider_status": {
+    "openai/gpt-6-luna-decisions | openai/gpt-6-luna-decisions-20261006 | OpenAI | verified": 20
+  },
+  "mismatch_rows": 0,
+  "rows": 20,
+  "sources": [
+    {
+      "bytes": 12846,
+      "path": "data/runtime/rb1-r13b/served-luna-20b.jsonl",
+      "sha256": "ff49942e67c774a302af479239946600c7c5ac5dd3467dbd32c8a846dc0cf827"
+    },
+    {
+      "bytes": 12846,
+      "path": "data/runtime/rb1-r13b/served-luna-20c.jsonl",
+      "sha256": "b93253160750c0e4e30e852daf4d4fd71849f391f22d8e8a485eaff117227f7b"
+    },
+    {
+      "bytes": 75090,
+      "path": "data/runtime/rb1-r13b/served-luna-formcal.jsonl",
+      "sha256": "9cce3d43e364c46c04ce9bb34baf5e057fdf1db224e9253821234ae50f5e2029"
+    },
+    {
+      "bytes": 19991,
+      "path": "data/runtime/rb1-r13b/served-luna.jsonl",
+      "sha256": "d9bc91cec6088838e7901a5dfb2043950d56e058981cac3847b4ea726b122668"
+    },
+    {
+      "bytes": 10796,
+      "path": "data/runtime/rb1-r13b/served-qwen3.7-flash-20b.jsonl",
+      "sha256": "a17e7acdef3cd98188a56d2f0d6f67c18c188fcf105e9f9df91a44ed16952f28"
+    },
+    {
+      "bytes": 9140,
+      "path": "data/runtime/rb1-r13b/served-qwen3.7-flash.jsonl",
+      "sha256": "25762001336105673821d2842b36829314739867bf08c1a4d1ca47d7ec3314ff"
+    }
+  ]
+}

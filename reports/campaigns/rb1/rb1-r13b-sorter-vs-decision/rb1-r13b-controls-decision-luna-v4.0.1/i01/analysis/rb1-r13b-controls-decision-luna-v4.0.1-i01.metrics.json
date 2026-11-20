@@ -1,0 +1,128 @@
+{
+  "scores": {
+    "abstain": 5,
+    "error_count": 0,
+    "exact_match": 0.2857142857142857,
+    "n": 7,
+    "n_no_truth": 0,
+    "n_scored": 7,
+    "offline_fallback": 0,
+    "raw_dojo": {
+      "abstain": null,
+      "exact_match": 0.8571428571428571,
+      "n_no_truth": null,
+      "n_scored": 7,
+      "subclass_by_class": {
+        "contract": {
+          "accuracy": 0.0,
+          "correct": 0,
+          "n": 1
+        },
+        "corporate_record": {
+          "accuracy": 0.0,
+          "correct": 0,
+          "n": 1
+        },
+        "insurance_claim": {
+          "accuracy": 0.5,
+          "correct": 1,
+          "n": 2
+        },
+        "merger_agreement": {
+          "accuracy": 0.333333,
+          "correct": 1,
+          "n": 3
+        }
+      },
+      "subclass_match": 0.285714,
+      "subclass_scored": 7
+    },
+    "routed_to_human_review": 5,
+    "routed_to_human_review_basis": "reviewer",
+    "routed_to_human_review_by_class": {
+      "contract": {
+        "n": 1,
+        "rate": 1.0,
+        "routed": 1
+      },
+      "insurance_claim": {
+        "n": 3,
+        "rate": 0.666667,
+        "routed": 2
+      },
+      "merger_agreement": {
+        "n": 3,
+        "rate": 0.666667,
+        "routed": 2
+      }
+    },
+    "routed_to_human_review_rate": 0.714286,
+    "scoring_hotfixes": [
+      "SHF-005",
+      "SHF-006",
+      "SHF-007",
+      "SHF-013"
+    ],
+    "scoring_hotfixes_changed": [
+      "abstain",
+      "exact_match",
+      "n_no_truth"
+    ],
+    "subclass_by_class": {
+      "contract": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "n": 1
+      },
+      "corporate_record": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "n": 1
+      },
+      "insurance_claim": {
+        "accuracy": 0.5,
+        "correct": 1,
+        "n": 2
+      },
+      "merger_agreement": {
+        "accuracy": 0.333333,
+        "correct": 1,
+        "n": 3
+      }
+    },
+    "subclass_corrections_applied": 0,
+    "subclass_match": 0.285714,
+    "subclass_scored": 7
+  },
+  "scores_source": "experiment log record matched to this generation",
+  "serving": {
+    "concurrency": 8,
+    "cost_basis": "token_price_estimate",
+    "cost_per_document": 0.00160786,
+    "dataset_fingerprint": "7aa795c7f8f6",
+    "e2e_latency_seconds": 0.7017021428571428,
+    "estimated_cost_usd": 0.011255,
+    "latency_max_seconds": 1.36936,
+    "latency_p50_seconds": 0.572489,
+    "latency_p95_seconds": 1.36936,
+    "latency_sum_over_wall": 0.33,
+    "latency_sum_seconds": 4.912,
+    "model": "openai/gpt-6-luna-decisions",
+    "n": 7,
+    "profile": "openrouter",
+    "prompt_tokens": 112550,
+    "prompt_version": "code-default",
+    "provider": "openrouter",
+    "replicas": 1,
+    "run_id": "rb1-r13b-controls-decision-luna-v4.0.1",
+    "serving_kind": "api",
+    "spec_hash": "99a29459097d33ff160d866fbab6c34708bef21fabd9c74e406581a3f119582f",
+    "task": "sorter_reviewer",
+    "tokens_per_second": 7465.51,
+    "total_tokens": 112550,
+    "ttft_note": "TTFT never inferred (hosted API; do not infer from e2e)",
+    "ttft_seconds": null,
+    "wall_seconds": 15.076
+  },
+  "serving_source": "mailroom_sandbox.job.metrics.serving_record_from_store"
+}

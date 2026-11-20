@@ -332,6 +332,16 @@ def _closed_field_resolver_backend(resolver: Any, *, mock: bool = False) -> Any:
     return closed_field_resolver_backend(str(resolver["model"]), qset)
 
 
+def locked_policy() -> dict[str, Any] | None:
+    """The active locked-runtime policy (a ``sandbox run`` in this context), or None.
+
+    Direct eval paths (``sandbox eval``, notebook calls) run unlocked: their prompt
+    surface is either an explicit ``--prompt``/selection or the lineage frontrunner
+    defaults (``prompt_lineage.apply_eval_defaults``), never a silent vendored default.
+    """
+    return _LOCKED_RUNTIME.get()
+
+
 def _register_closed_field_resolver(resolver: Any) -> None:
     """Replace the process-wide closed-field resolver (None clears it)."""
     try:

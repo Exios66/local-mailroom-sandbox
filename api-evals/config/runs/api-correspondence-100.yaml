@@ -1,7 +1,9 @@
 # api-evals: correspondence_specialist on 100 CORRESPONDENCE docs via OpenRouter API.
-# COMPARABLE to the sandbox run-20-correspondence draw method: split=all, bucket
-# correspondence count 100, seed 42, pinned revision; SAME prompt stem
-# (correspondence_specialist_simplified). profile=openrouter, model
+# COMPARABLE to a paired sandbox Modal run on the SAME draw method: split=all,
+# bucket correspondence count 100, seed 42, pinned revision, and the SAME
+# prompt — an unlocked Modal leg resolves the lineage frontrunner at preflight,
+# so both legs run correspondence_specialist_condensed_v3 today and only the
+# engine differs. profile=openrouter, model
 # qwen/qwen3.7-flash. Real API costs are captured per item.
 schema: sandbox.run/v1
 run_id: api-correspondence-100
@@ -9,11 +11,13 @@ task: correspondence_specialist
 profile: openrouter
 
 prompt:
+  # No explicit agent stem: preflight fills the agent's lineage frontrunner
+  # (prompt_lineage.with_lineage_defaults), so this harness always runs the
+  # current condensed prompt and can never silently regress to a superseded
+  # stem. Today that is correspondence_specialist_condensed_v3; the frozen
+  # simplified-stem pairs (and the Modal legs they compared against) remain
+  # recorded in the run store and reports history.
   default: {source: code-default}
-  agents:
-    correspondence_specialist:
-      source: local
-      file: correspondence_specialist_simplified
 
 dataset:
   provider: huggingface

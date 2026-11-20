@@ -549,3 +549,29 @@ def test_decide_extraction_masks_card_numbers_before_posting(monkeypatch):
     assert sent_handoff["notes"] == ["paid to ####-####-####-####"]
     assert handoff["fields"]["iban"] == "VLT00 8812 3456 7890 1234"  # the caller's handoff is untouched
     assert recorded == [db.EXTRACTION_GATE]
+
+
+def test_post_decision_counts_returned_calls_against_the_document_ceiling(monkeypatch):
+    """A 200 from the Decisions transport counts in the document scope like any other call.
+
+    Transport-error retries stay uncounted (the request returned nothing); ``attempts``
+    bounds them and ``record_failed_request`` ledgers the unknown spend."""
+    from mailroom_sandbox.job import api_budget, call_guard
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"model": DECISIONS, "answers": {}, "usage": {}}
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("httpx.post", lambda *a, **k: Resp())
+    call_guard.arm(api_budget.ApiBudget(1000.0, 0.17, 0.25, [DECISIONS]), ceiling=1)
+    with call_guard.document() as doc:
+        db._post_decision({}, timeout=1, attempts=3)
+        assert doc["calls"] == 1
+        with pytest.raises(Exception, match="per-document ceiling"):
+            db._post_decision({}, timeout=1, attempts=3)
+    assert doc["refused"].startswith("call refused")
