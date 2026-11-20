@@ -797,13 +797,16 @@ def apply_label_overlays(chosen: list[dict[str, Any]], source_meta: dict[str, An
     return chosen, source_meta
 
 
-def truth_rows(spec: DatasetSpec, ids: Iterable[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def truth_rows(spec: DatasetSpec, ids: Iterable[str], *, keep_raw: bool = False,
+               ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The ground-truth rows of the documents ``ids`` at ``spec``'s source, in ``ids`` order.
 
     For re-scoring a finished run (``sandbox rescore``): no draw, no exclusion list and no strata,
     only the named documents, normalized and overlaid exactly as ``prepare_subset`` would. A
     document the source lacks is reported in ``missing`` rather than raising, so a revision that
-    drops a document still re-scores the rest.
+    drops a document still re-scores the rest. ``keep_raw`` keeps each source row's other keys
+    under the normalized ones, for agent scorers that read truth outside the corpus row shape
+    (``expected_snippet``, ``required_keys``, ...).
     """
     wanted = [str(i) for i in ids]
     if spec.is_local():
@@ -819,7 +822,8 @@ def truth_rows(spec: DatasetSpec, ids: Iterable[str]) -> tuple[list[dict[str, An
         resolved = str(rows[0].get("source_revision") or "") if rows else ""
         source_meta = {"source": "huggingface", "repo": spec.repo, "config": spec.config, "split": spec.split,
                        "revision": spec.revision or FAMILY_HF_REVISION, "revision_resolved": resolved or None}
-    by_id = {str(r.get("id") or ""): r for r in normalize_rows(rows)}
+    by_id = {str(r.get("id") or ""): ({**raw, **r} if keep_raw else r)
+             for raw, r in zip(rows, normalize_rows(rows))}
     chosen = []
     for doc_id in wanted:
         row = by_id.get(doc_id)

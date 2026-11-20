@@ -313,3 +313,59 @@ def test_the_derived_run_carries_run_level_scores(tmp_path):
     assert (scores["items"], scores["scored"], scores["unscored"]) == (2, 1, 1)
     assert scores["means"]["match"] == {"n": 1, "mean": 1.0}
     assert scores["by_class"]["contract"]["match"]["n"] == 1
+
+
+def test_agent_truth_keys_survive_into_the_rescore(tmp_path):
+    """pdf_transcriber scores against ``expected_snippet``; a truth file normalized to the corpus
+    shape would drop it and match any non-empty transcription."""
+    truth = [{"id": "pdf_hello", "doc_text": "", "expected_snippet": "SANDBOX PDF"},
+             {"id": "pdf_other", "doc_text": "", "expected_snippet": "INVOICE 42"}]
+    run = _run(tmp_path, task="pdf_transcriber", truth=truth, items=[
+        {"item_id": "pdf_hello", "ok": True, "pred": {"markdown": "# SANDBOX PDF"}, "score": {"match": 1.0}},
+        {"item_id": "pdf_other", "ok": True, "pred": {"markdown": "something else"}, "score": {"match": 0.0}}])
+    report = rs.rescore(run, dataset_file=_truth_file(tmp_path, truth), out=tmp_path / "out")
+    items = [json.loads(line) for line in (Path(report["out"]) / "items.jsonl").read_text().splitlines()]
+    assert [i["score"]["match"] for i in items] == [1.0, 0.0]
+    rows = [json.loads(line) for line in (Path(report["out"]) / "dataset.jsonl").read_text().splitlines()]
+    assert [r["expected_snippet"] for r in rows] == ["SANDBOX PDF", "INVOICE 42"]
+
+
+def test_out_may_not_contain_or_sit_inside_the_source_even_with_force(tmp_path):
+    run = _run(tmp_path)
+    truth = _truth_file(tmp_path, [_row("DOC-1", "contract"), _row("DOC-2", "contract")])
+    before = sorted(p.name for p in run.parent.iterdir())
+    for out in (run.parent, tmp_path, run / "nested"):
+        with pytest.raises(rs.RescoreError, match="never rewrites its source"):
+            rs.rescore(run, dataset_file=truth, out=out, force=True)
+    assert sorted(p.name for p in run.parent.iterdir()) == before and (run / "items.jsonl").is_file()
+    assert rs.rescore(run, dataset_file=truth, out=tmp_path / "sibling")["digest"]["rescored"] == 2
+
+
+def test_a_derived_run_remembers_the_overlays_its_truth_was_built_with(tmp_path):
+    run = _run(tmp_path)
+    lock = json.loads((run / "spec.lock.json").read_text())
+    lock["spec_core"]["dataset"]["interim_labels"] = "sha-of-interim"
+    (run / "spec.lock.json").write_text(json.dumps(lock))
+    assert rs.truth_spec(lock, dataset_file="x.jsonl").interim_labels
+    truth = _truth_file(tmp_path, [_row("DOC-1", "contract"), _row("DOC-2", "contract")])
+    out = rs.rescore(run, dataset_file=truth, overlays="none", out=tmp_path / "out")["out"]
+    derived = json.loads((Path(out) / "spec.lock.json").read_text())
+    assert derived["rescore"]["overlays_effective"] == {"interim_labels": False, "near_gold_labels": False}
+    assert derived["spec_core"]["dataset"]["interim_labels"] == "sha-of-interim"  # provenance kept
+    # Re-scoring the derived run "as it was" applies no overlay, not the source's interim labels.
+    assert not rs.truth_spec(derived, dataset_file="x.jsonl").interim_labels
+
+
+def test_a_local_truth_file_takes_the_revision_its_rows_carry(tmp_path):
+    from mailroom_sandbox import sorter_arms
+
+    run = _run(tmp_path)
+    lock = json.loads((run / "spec.lock.json").read_text())
+    lock["agent_assignments"] = {"sorter": {"model": "m"}}
+    (run / "spec.lock.json").write_text(json.dumps(lock))
+    rows = [{**_row("DOC-1", "contract"), "source_revision": "rev-b"},
+            {**_row("DOC-2", "contract"), "source_revision": "rev-b"}]
+    out = rs.rescore(run, dataset_file=_truth_file(tmp_path, rows), out=tmp_path / "out")["out"]
+    derived = json.loads((Path(out) / "spec.lock.json").read_text())
+    assert (derived["dataset"]["revision"], derived["dataset"]["revision_resolved"]) == ("rev-b", "rev-b")
+    assert sorter_arms.load_arm(out).revision == "rev-b"  # was refused: rows rev-b, lock "offline"

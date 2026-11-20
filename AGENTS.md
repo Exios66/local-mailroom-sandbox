@@ -204,6 +204,7 @@ sandbox -q|-v|-vv <command>          # console verbosity on stderr: quiet / key 
 sandbox run gate --run-id <id> [--prev-run-id <id>] [--thresholds]  # offline production slice gate → gate.json/gate.md; docs/runbooks/production-slices.md
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox report build --run <run_id> [--iteration N] [--check] | --campaign rb1 [--check]  # campaign report tree reports/campaigns/ from run logs (reports/campaigns/README.md)
+sandbox rescore <run> [--revision v9.3 | --dataset-file F] [--overlays lock|none|all] [--dry-run]  # re-score a finished run's stored answers against new truth into a derived run, no model call; docs/rescore.md
 python scripts/compare_sorter_arms.py --a <llm sorter run> --b <decision run> [--figures DIR] [--write]  # H5 paired comparison + figures, offline; docs/experiment-figures.md
 python -m mailroom_sandbox.figure_style lint PATH...   # figure text/type rules; exit 0 clean, 1 problems, 2 missing path or no SVG
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)

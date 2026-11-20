@@ -17,10 +17,12 @@ and the gold audit read:
 * ``dataset.jsonl``: the new truth rows of the scored documents, in item order;
 * ``items.jsonl``: the source items, ``score`` re-computed and the first score kept in
   ``score_original``;
+* ``scores.json``: run-level means of every numeric per-item score, overall and by class;
 * ``rescore.json``: the provenance and the before/after digest that the CLI prints;
 * ``events.jsonl``, ``checkpoint.json`` and ``prompt.lock.json`` copied when present.
 
-Truth sources: the lock's own revision (default; isolates scorer drift), ``--revision`` (a tag
+Truth sources: the lock's own revision (default; isolates scorer drift while the run's overlays
+are unchanged, since they apply at their current content), ``--revision`` (a tag
 such as ``v9.3`` or a commit; the run's documents are read from that revision's full corpus, not
 re-drawn), or ``--dataset-file`` (a local JSONL, for hand-corrected truth). ``--overlays lock``
 (default) applies the label overlays the run used, at their current content; ``none`` drops them;
@@ -30,6 +32,7 @@ re-drawn), or ``--dataset-file`` (a local JSONL, for hand-corrected truth). ``--
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import shutil
@@ -161,8 +164,12 @@ def truth_spec(lock: Mapping[str, Any], *, revision: str | None = None, dataset_
         raise RescoreError("give --revision or --dataset-file, not both")
     core = dict((lock.get("spec_core") or {}).get("dataset") or {})
     locked = dict(lock.get("dataset") or {})
-    interim = overlays == "all" or (overlays == "lock" and bool(core.get("interim_labels")))
-    near_gold = overlays == "all" or (overlays == "lock" and bool(core.get("near_gold_labels")))
+    # A derived run records the overlays its truth was built with; "lock" reads those, not the
+    # source spec_core, so a rescore with --overlays none stays without them when re-scored again.
+    used = (lock.get("rescore") or {}).get("overlays_effective")
+    used = used if isinstance(used, Mapping) else core
+    interim = overlays == "all" or (overlays == "lock" and bool(used.get("interim_labels")))
+    near_gold = overlays == "all" or (overlays == "lock" and bool(used.get("near_gold_labels")))
     if dataset_file:
         return DatasetSpec(provider="file", local_path=str(dataset_file), interim_labels=interim,
                            near_gold_labels=near_gold)
@@ -335,7 +342,10 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     order = list(dict.fromkeys(str(it.get("item_id")) for it in items))
 
     spec = truth_spec(lock, revision=revision, dataset_file=dataset_file, overlays=overlays)
-    rows, meta = (truth_loader or corpus.truth_rows)(spec, order)
+    # Agent scorers can read truth keys outside the corpus row shape (pdf_transcriber's
+    # expected_snippet): normalizing them away would score any non-empty answer as a match.
+    load = truth_loader or functools.partial(corpus.truth_rows, keep_raw=_agent_truth(lock))
+    rows, meta = load(spec, order)
     new_truth = {str(r["id"]): r for r in rows}
     missing = [i for i in order if i not in new_truth]
     if missing and not allow_missing:
@@ -346,7 +356,7 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     elif not dataset_file and _hub_run(lock):
         # A report bundle keeps no dataset.jsonl: rebuild the truth the run was scored on, so the
         # digest still says which labels moved.
-        old_rows, _ = (truth_loader or corpus.truth_rows)(truth_spec(lock), order)
+        old_rows, _ = load(truth_spec(lock), order)
         old_truth = {str(r["id"]): r for r in old_rows}
     else:
         old_truth = {}
@@ -369,8 +379,12 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
 
     label = ("file-" + str(meta.get("sha256") or "")[:12]) if dataset_file else _revision_label(spec.revision or "")
     dest = Path(out) if out else Path(runs_root or _default_root()) / f"{run_id}.rescore-{label}"
-    if dest.resolve() == files.path.resolve():
-        raise RescoreError("--out is the source run; a rescore never rewrites its source")
+    src_dir, dest_dir = files.path.resolve(), dest.resolve()
+    if dest_dir == src_dir or src_dir.is_relative_to(dest_dir) or dest_dir.is_relative_to(src_dir):
+        # --force removes --out first: a parent of the source would take the source with it.
+        raise RescoreError(f"--out {dest} is the source run, contains it or lies inside it; "
+                           "a rescore never rewrites its source")
+    meta = _with_row_revision(meta, new_truth.values())
     dataset_payload = _dump_jsonl(new_truth[i] for i in order if i in new_truth)
     counts = Counter(f"{r['expected_doc_class']}::{r['expected_subclass']}" for r in new_truth.values())
     report = {
@@ -410,6 +424,8 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     }
     new_lock["rescore"] = {"source_run": run_id, "source_dataset": lock.get("dataset"),
                            "source_spec_hash": lock.get("spec_hash"), "overlays": overlays,
+                           "overlays_effective": {"interim_labels": bool(spec.interim_labels),
+                                                  "near_gold_labels": bool(spec.near_gold_labels)},
                            "created_at": report["created_at"], "missing": missing}
     (dest / "spec.lock.json").write_text(json.dumps(new_lock, indent=2, ensure_ascii=False, default=str) + "\n",
                                          encoding="utf-8")
@@ -423,6 +439,27 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     (dest / "rescore.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str) + "\n",
                                        encoding="utf-8")
     return {**report, "out": str(dest)}
+
+
+def _with_row_revision(meta: Mapping[str, Any], rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """``meta`` with the revision its rows carry, when the source names none (a local truth file).
+
+    Readers check a lock's revision against its rows' ``source_revision``: a local file that says
+    "offline" while its rows carry one real revision would be refused, so that revision is used.
+    """
+    meta = dict(meta)
+    if str(meta.get("revision") or "") not in ("", "offline"):
+        return meta
+    revs = {str(r.get("source_revision")) for r in rows if str(r.get("source_revision") or "") not in ("", "offline")}
+    if len(revs) == 1:
+        meta["revision"] = meta["revision_resolved"] = next(iter(revs))
+    return meta
+
+
+def _agent_truth(lock: Mapping[str, Any]) -> bool:
+    """Whether the task is scored by an agent spec other than the corpus-shaped ones."""
+    task = str(lock.get("task") or (lock.get("spec_core") or {}).get("task") or "")
+    return task not in ("pipeline", "specialist", "isolated", "sorter")
 
 
 def _revision_moved(source: Mapping[str, Any], meta: Mapping[str, Any]) -> bool:
