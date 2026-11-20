@@ -469,6 +469,7 @@ def _span_ev(cuad: dict[str, Any], cat: str, *, matching: str | None = None) -> 
 
 
 def _cuad_party_names(spans: dict[str, list[str]]) -> list[str] | None:
+    """Deduped party names from CUAD Parties spans."""
     names, seen = [], set()
     for party in spans.get("Parties", []):
         key = canon("parties", party)
@@ -479,6 +480,7 @@ def _cuad_party_names(spans: dict[str, list[str]]) -> list[str] | None:
 
 
 def _cuad_governing_law(spans: dict[str, list[str]]) -> str | None:
+    """Governing-law jurisdiction text from CUAD Governing Law spans."""
     if not spans.get("Governing Law"):
         return None
     match = GOV_RX.search(" ".join(spans["Governing Law"]))
@@ -489,6 +491,7 @@ def _cuad_dispute_forum(
     cuad: dict[str, Any],
     spans: dict[str, list[str]],
 ) -> tuple[str, list[dict[str, Any]]] | None:
+    """First named dispute forum found in Governing Law spans."""
     for span in spans.get("Governing Law", []):
         match = FORUM_RX.search(re.sub(r"\s+", " ", span))
         if not match:
@@ -504,6 +507,7 @@ def _cuad_notice_ballot(
     cuad: dict[str, Any],
     spans: dict[str, list[str]],
 ) -> tuple[str, list[dict[str, Any]]] | None:
+    """Termination-notice ballot backed by CUAD notice spans."""
     notice_cats = ("Notice Period To Terminate Renewal", "Termination For Convenience")
     notice = _cuad_notice([x for c in notice_cats for x in spans.get(c, [])])
     if not notice:
@@ -518,13 +522,9 @@ def _generated_contract_cuad(
     spans: dict[str, list[str]],
 ) -> None:
     """Map populated CUAD clause spans onto schema / pending fields."""
-    present = sorted(k for k, v in spans.items() if v)
-    out["cuad_clauses"] = ("generated_derived", present, [])
-    out["document_name"] = (
-        "generated_derived",
-        spans["Document Name"][0].strip() if spans.get("Document Name") else None,
-        [],
-    )
+    out["cuad_clauses"] = ("generated_derived", sorted(k for k, v in spans.items() if v), [])
+    doc = spans.get("Document Name")
+    out["document_name"] = ("generated_derived", doc[0].strip() if doc else None, [])
     out["parties"] = ("generated_derived", _cuad_party_names(spans), [])
     for fld, cat in (("effective_date", "Effective Date"), ("agreement_date", "Agreement Date")):
         if spans.get(cat):
