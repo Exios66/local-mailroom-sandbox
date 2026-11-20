@@ -394,6 +394,15 @@ _SUFFIX_ONLY = re.compile(r"^(?:the\s+)?(?:(?:holdings?|group|inc|incorporated|l
                           r"|lp|l\.p|n\.v|b\.v|s\.a|ag|gmbh)\.?,?\s*)+$", re.I)
 #: a bare defined term standing in for a party ("the Company"), not the party's name.
 _GENERIC_PARTY = re.compile(r"^(?:the\s+)?(?:company|corporation|holding\s+company)$", re.I)
+#: words before a party's name that describe it, not name it: "the retention of Keefe, Bruyette & Woods, Inc."
+#: and "Subsidiary of Standard Industries Holdings Inc., and Gibraltar Merger Sub Inc." (a run-on
+#: from the previous party's description); the name that follows is kept.
+_NAME_LEAD_IN = re.compile(r"^(?:the\s+)?(?:retention|engagement)\s+of\s+(?=[A-Z0-9])|"
+                           r"^(?i:(?:an?\s+|the\s+)?(?:(?:direct|indirect)\s+)?(?:wholly[- ]owned\s+)?"
+                           r"subsidiary\s+of\s+)[^,]+,\s+and\s+(?=[A-Z0-9])")
+#: fields that hold party, advisor or counsel names (the lead-in trim applies to these only)
+ENTITY_FIELDS = frozenset({"parties", "acquirer", "target", "merger_sub", "financial_advisors", "legal_counsel",
+                           "signatories"})
 INTERIM_AUDIT = "data/labels/review/interim_audit.jsonl"
 DISPUTED = "disputed_unresolved"
 #: words that end a jurisdiction run read from an upper-case clause ("STATE OF DELAWARE WITHOUT ...")
@@ -477,7 +486,7 @@ def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
     out, seen = [], set()
     for v in items:
         if isinstance(v, str):
-            v = _ALIAS.sub("", v).strip()
+            v = _ALIAS.sub("", trim_name(v)).strip()
             if not v or _PARTY_JUNK.search(v) or not_a_name(v):
                 continue
             if doc_text and v.endswith(".") and not _find(doc_text, v) and _find(doc_text, v[:-1]):
@@ -487,6 +496,13 @@ def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
             seen.add(k)
             out.append(v)
     return out
+
+
+def trim_name(value: str) -> str:
+    """A party name without a describing lead-in ("the retention of X" is X); else ``value``."""
+    v = value.strip()
+    m = _NAME_LEAD_IN.match(v)
+    return v[m.end():] if m else value
 
 
 def not_a_name(value: str) -> bool:
@@ -567,7 +583,8 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
       jurisdiction it names (queued when the text does not state one); entity lists lose duplicates,
       and ``parties`` lose defined-term clauses, trailing alias parentheticals, bare defined terms
       ("the Company") and suffix-only captures ("Inc."); a ``name`` field holding only such a
-      capture becomes unlabeled and is queued;
+      capture becomes unlabeled and is queued; party, advisor and counsel names lose a describing
+      lead-in ("the retention of X", "Subsidiary of Y, and X" become X), the evidence quote kept;
     - an interim value whose audit still waits for the owner (``decisions``) is not truth yet: it
       becomes ``disputed_unresolved`` and is queued;
     - documents with the same text (``shas``) that hold different staged values for a field become
@@ -641,6 +658,16 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
                            "populated" if new else "documented_absence", "keyword_metadata_stripped", VALIDATION_RULE)
             continue
         value = cell["value"]
+        if cell["field"] in ENTITY_FIELDS and cell["field"] != "parties":
+            if ftype == "name" and trim_name(value) != value:
+                value = trim_name(value)
+                update(cell, value, "populated", "name_lead_in_trimmed")
+            elif ftype.startswith("entity_list") and value[:1] == "[":
+                items = json.loads(value)
+                trimmed = [trim_name(v) if isinstance(v, str) else v for v in items]
+                if trimmed != items:
+                    value = json.dumps(trimmed, ensure_ascii=False)
+                    update(cell, value, "populated", "name_lead_in_trimmed")
         if ftype == "date" and not (_ISO_DATE.fullmatch(value) and _valid_date(value)):
             enqueue(cell, "not a whole calendar date (the text states only part of it); left unlabeled")
             update(cell, "", "unlabeled", "partial_date_unlabeled")
@@ -850,6 +877,8 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
                            label_cells_unlabeled=sum(r["presence"] == "unlabeled" for r in prov),
                            label_cells_disputed_unresolved=sum(r["presence"] == DISPUTED for r in prov),
                            assist_join=joined["counts"], magnitude_repair=magnitudes, validation_repair=validation,
+                           needs_human=len(queue), builder_outputs_sha256=summary.get("outputs_sha256", {}),
+                           outputs_sha256={p.name: _sha_bytes(p) for p in sorted((dest / "master").glob("*.csv"))},
                            chosen_source_counts=dict(collections.Counter(
                                r["chosen_source"] for r in prov if r["presence"] in LABELED).most_common()))
         emc._dump(dest / "master" / f"{name}_summary.json", new_summary)

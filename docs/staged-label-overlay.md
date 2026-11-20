@@ -73,6 +73,8 @@ for dependency snapshots (`docs/dependency-snapshots.md`).
   - it drops defined-term aliases, clause fragments, bare defined terms ("the Company") and
     suffix-only captures ("Inc.") from `parties`, unlabels and queues a `name` field holding only
     such a capture (rc.5 on), and de-duplicates entity lists;
+  - it trims a describing lead-in from party, advisor and counsel names ("the retention of X",
+    "Subsidiary of Y, and X" become X), keeping the evidence quote (rc.6 on);
   - it holds back, as `disputed_unresolved` and queued, an interim value whose audit row still
     waits for the owner (`action: owner_decides` in `data/labels/review/interim_audit.jsonl`) and
     the conflicting values of documents that share the same text (rc.5 on);

@@ -322,6 +322,37 @@ def test_validate_repairs_withholds_suffix_names_open_decisions_and_same_text_co
     assert mod.overlay_records(new, {}).get("merger_agreement", [{}])[0]["labels"].keys() == {"parties"}
 
 
+@pytest.mark.parametrize("value, expected", [
+    ("the retention of Keefe, Bruyette & Woods, Inc.", "Keefe, Bruyette & Woods, Inc."),
+    ("engagement of Goldman Sachs & Co. LLC", "Goldman Sachs & Co. LLC"),
+    ("Subsidiary of Standard Industries Holdings Inc., and Gibraltar Merger Sub Inc.", "Gibraltar Merger Sub Inc."),
+    ("a wholly owned subsidiary of Parent, and Merger Sub LLC", "Merger Sub LLC"),
+    ("Eli Lilly and Company", "Eli Lilly and Company"), ("Retention Partners LLC", "Retention Partners LLC"),
+    ("Subsidiary of Parent Inc.", "Subsidiary of Parent Inc.")])
+def test_trim_name_drops_a_describing_lead_in(mod, value, expected):
+    assert mod.trim_name(value) == expected
+
+
+def test_validate_repairs_trims_lead_ins_from_party_and_advisor_names(mod):
+    ev = '[{"text": "the retention of Keefe, Bruyette & Woods, Inc."}]'
+    run_on = "Subsidiary of Standard Industries Holdings Inc., and Gibraltar Merger Sub Inc."
+    prov = [_cell(field="financial_advisors", doc_class="merger_agreement", evidence=ev,
+                  value='["the retention of Keefe, Bruyette & Woods, Inc.", "the retention of Boenning & Scattergood, Inc."]',
+                  chosen_source="generated_rule", agreeing_sources="generated_rule"),
+            _cell(field="merger_sub", doc_class="merger_agreement", value=json.dumps([run_on]),
+                  chosen_source="generated_rule", agreeing_sources="generated_rule"),
+            _cell(field="parties", doc_class="merger_agreement", value=json.dumps(["W. R. Grace & Co.", run_on]),
+                  chosen_source="generated_rule", agreeing_sources="generated_rule"),
+            _cell(field="legal_counsel", doc_class="merger_agreement", value='["Wilmer Cutler Pickering Hale and Dorr LLP"]',
+                  chosen_source="generated_rule", agreeing_sources="generated_rule")]
+    new, _, queue, counts = mod.validate_repairs(prov, [_row()], {"DOC-1": VTEXT}, {})
+    assert [json.loads(c["value"]) for c in new] == [
+        ["Keefe, Bruyette & Woods, Inc.", "Boenning & Scattergood, Inc."], ["Gibraltar Merger Sub Inc."],
+        ["W. R. Grace & Co.", "Gibraltar Merger Sub Inc."], ["Wilmer Cutler Pickering Hale and Dorr LLP"]]
+    assert new[0]["evidence"] == ev and queue == []
+    assert counts == {"name_lead_in_trimmed": 2, "parties_cleaned": 1}
+
+
 def test_open_decisions_reads_only_owner_decides_rows(mod, tmp_path):
     p = tmp_path / "audit.jsonl"
     p.write_text(json.dumps({"doc_id": "D", "field": "f", "action": "owner_decides", "value": "v"}) + "\n"
