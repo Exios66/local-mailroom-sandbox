@@ -283,6 +283,49 @@ class TestThroughTheScorer:
         assert reason == "partial"
 
 
+def _detailed_cases():
+    """Golden cases scored on the detailed suite path (a subclass, or a corporate record)."""
+    cases = json.loads(INPUTS.read_text())["cases"]
+    picked: dict[tuple[str, bool], dict] = {}
+    for case in cases:
+        if case["doc_type"] in ("contract", "merger_agreement"):
+            continue  # clause-label truth on live rows; the share path is tested separately
+        subclass = bool(case.get("doc_subclass") or case.get("expected_subclass"))
+        if subclass or case["doc_type"] == "corporate_record":
+            picked.setdefault((case["doc_type"], subclass), case)
+    return [pytest.param(c, id=f"{k[0]}-subclass={k[1]}") for k, c in sorted(picked.items())]
+
+
+@pytest.mark.parametrize("case", _detailed_cases())
+def test_detailed_rows_can_be_fabricated(case):
+    """Regression (Bugbot on #393): the detailed suite path returns no tp / fn, and the composite
+    fell back to the soft headline share, so a fully invented extraction was never fabricated."""
+    expected = case["expected"]
+    kwargs = {"doc_subclass": case.get("doc_subclass"), "expected_subclass": case.get("expected_subclass")}
+    stated = [k for k, v in expected.items() if v not in (None, "", [], {})]
+
+    def reason(predicted):
+        scored = scoring.score_extraction_row(case["doc_type"], predicted, expected, **kwargs)
+        return _ext(_row(case["doc_type"]), _result(doc_type=case["doc_type"]), scored).reason
+
+    assert reason(dict(expected)) == "complete"
+    assert reason({k: "zzqq entirely invented value" for k in stated}) == "fabricated"
+    assert reason({}) == "low_recall"
+
+
+def test_per_field_counts_stand_in_for_missing_event_counts():
+    scored = {"n_targeted": 4, "n_value_correct": 0, "n_value_wrong": 4, "scoring_method": "suite",
+              "overall_extraction_score": 0.4}
+    assert _ext(_row(), _result(), scored).reason == "fabricated"
+    assert _ext(_row(), _result(), {**scored, "n_value_correct": 2, "n_value_wrong": 0}).reason == "partial"
+    # Without fp, documented-absence hallucinations count as values invented on empty truth.
+    hallucinated = {"n_targeted": 2, "n_value_correct": 2, "n_hallucinated": 1, "scoring_method": "suite"}
+    assert _ext(_row(), _result(), hallucinated).reason == "partial"
+    # Dojo event counts win when both are present.
+    both = {"tp": 3, "fn": 0, "fp": 0, "n_targeted": 3, "n_value_correct": 0, "scoring_method": "suite"}
+    assert _ext(_row(), _result(), both).reason == "complete"
+
+
 def test_field_value_outcomes_split_wrong_from_near_misses():
     out = scoring._field_value_outcomes(
         {"a": "x", "b": "y", "c": "z", "d": "w", "e": ""},
@@ -290,7 +333,7 @@ def test_field_value_outcomes_split_wrong_from_near_misses():
         {"a": 1.0, "b": 0.1, "c": 0.8, "d": 0.0, "e": 0.0},
     )
     # a correct, b wrong, c near miss, d blank (a plain miss), e empty truth (an fp, not counted here).
-    assert out == {"n_value_wrong": 1, "n_value_partial": 1}
+    assert out == {"n_targeted": 4, "n_value_correct": 1, "n_value_wrong": 1, "n_value_partial": 1}
     assert scoring._field_value_outcomes({"a": "x"}, {"a": "y"}, None) == {}
 
 

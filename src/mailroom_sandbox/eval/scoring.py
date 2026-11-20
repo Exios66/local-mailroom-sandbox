@@ -61,7 +61,7 @@ _EXTRACT_PRF_KEYS = (
 #: (``n_value_wrong``: unsupported by the truth); between it and 1.0 it is a near miss
 #: (``n_value_partial``). Read by the pain-point composites (``eval/pain_points.py``).
 FABRICATION_MAX_FIELD_SCORE = 0.5
-_FIELD_OUTCOME_KEYS = ("n_value_wrong", "n_value_partial")
+_FIELD_OUTCOME_KEYS = ("n_targeted", "n_value_correct", "n_value_wrong", "n_value_partial")
 
 
 def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
@@ -334,28 +334,35 @@ def _score_extraction_row_once(
 
 def _field_value_outcomes(expected: Mapping[str, Any], predicted: Mapping[str, Any],
                           per_field: Any) -> dict[str, int]:
-    """Stated values on targeted fields that missed: wrong (under the bar) or a near miss.
+    """Per-field outcomes on the targeted fields: how many, how many right, how stated ones missed.
 
-    A targeted field is one the truth gives a value and the scorer scored. A missed field with a
-    blank prediction is neither (it is a plain miss, already in ``fn``). Empty when the scorer
-    returned no per-field scores.
+    A targeted field is one the truth gives a value and the scorer scored (``n_targeted``); it is
+    right at a field score of 1.0 (``n_value_correct``, the Dojo's ``tp`` rule). A stated value
+    that missed is wrong under the bar (``n_value_wrong``) or a near miss (``n_value_partial``); a
+    missed field with a blank prediction is neither. The detailed suite path (corporate records,
+    any row with a subclass) returns no ``tp`` / ``fn``, so these are the event counts there.
+    Empty when the scorer returned no per-field scores.
     """
     from mailroom_sandbox.eval.extraction_scope import is_empty_gt
 
     if not isinstance(per_field, Mapping):
         return {}
-    wrong = partial = 0
+    targeted = correct = wrong = partial = 0
     for name, value in expected.items():
         score = per_field.get(name)
         if is_empty_gt(value) or isinstance(score, bool) or not isinstance(score, (int, float)):
             continue
-        if float(score) >= 1.0 or is_empty_gt(predicted.get(name)):
+        targeted += 1
+        if float(score) >= 1.0:
+            correct += 1
+            continue
+        if is_empty_gt(predicted.get(name)):
             continue
         if float(score) < FABRICATION_MAX_FIELD_SCORE:
             wrong += 1
         else:
             partial += 1
-    return {"n_value_wrong": wrong, "n_value_partial": partial}
+    return {"n_targeted": targeted, "n_value_correct": correct, "n_value_wrong": wrong, "n_value_partial": partial}
 
 
 def _norm_label(value: Any) -> str:

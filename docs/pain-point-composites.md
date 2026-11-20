@@ -54,6 +54,11 @@ than a fully fabricated extraction, and a needless review costs the most.
 - **Targeted entities** are the expected fields that have a value: the Dojo's `tp + fn`
   events. An entity is **correct** when the Dojo scores its field 1.0 (`tp`). The share is
   `tp / (tp + fn)`. Exactly one third is not "under a third".
+- **Rows without event counts.** The detailed suite path (corporate records, and any row with a
+  subclass) returns no `tp` / `fn`. For those rows the scorer's own per-field counts are used:
+  `n_targeted` (targeted fields it scored) and `n_value_correct` (those scored 1.0). Without
+  `fp`, the documented-absence hallucinations (`n_hallucinated`) count as values invented on
+  empty truth.
 - **Invented values** are the Dojo's false positives (`fp`) plus `n_value_wrong`. A false
   positive is a value on a field the truth leaves empty, including a documented absence
   under SHF-001, or an unmatched list item. `n_value_wrong` counts values stated on a
@@ -65,10 +70,11 @@ than a fully fabricated extraction, and a needless review costs the most.
   `fabricated`. Its invented values still show in the run's `extraction_fp`.
 - **Contract (CUAD) and merger (MAUD) rows** are scored on clause labels, not fields. Their
   share is the row's `overall_extraction_score`, and they are never called `fabricated`. A row
-  without event counts uses the same share.
+  with neither event counts nor per-field counts uses the same share.
 
-The scorer reports `n_value_wrong` and `n_value_partial` on each scored extraction row whose
-scorer returned per-field scores, raw and hotfixed, beside `tp`, `fp` and `fn`.
+The scorer reports `n_targeted`, `n_value_correct`, `n_value_wrong` and `n_value_partial` on
+each scored extraction row whose scorer returned per-field scores, raw and hotfixed, beside `tp`,
+`fp` and `fn`.
 
 ## What "unnecessary review" relies on
 

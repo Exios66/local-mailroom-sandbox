@@ -51,9 +51,9 @@ from mailroom_sandbox.eval.scoring import _score_extraction_row_once, emit, scor
 
 #: Keys the scorer added after these goldens were frozen (run-level micro F1 needs the event
 #: counts; the pain-point composites need the stated-value outcomes, ``eval/pain_points.py``).
-ADDED_KEYS = ("tp", "fp", "fn", "n_value_wrong", "n_value_partial")
+ADDED_KEYS = ("tp", "fp", "fn", "n_targeted", "n_value_correct", "n_value_wrong", "n_value_partial")
 #: Every key the dual row reports raw and hotfixed.
-DUAL_KEYS = (*sh.HEADLINE_KEYS, "n_value_wrong", "n_value_partial")
+DUAL_KEYS = (*sh.HEADLINE_KEYS, "n_targeted", "n_value_correct", "n_value_wrong", "n_value_partial")
 
 
 def raw_score_row(*args: Any, **kwargs: Any) -> dict[str, Any]:

@@ -42,6 +42,9 @@ Definitions, so a number can be traced back:
 
 - *Targeted entities* are the expected fields with a value (the Dojo's ``tp + fn`` events);
   *reported correctly* is a field the Dojo scores 1.0 (``tp``). The share is ``tp / (tp + fn)``.
+  The detailed suite path (corporate records, any row with a subclass) returns no ``tp`` /
+  ``fn``; there the scorer's per-field ``n_value_correct`` / ``n_targeted`` are used, and
+  without ``fp`` the documented-absence hallucinations (``n_hallucinated``) stand in for it.
 - *Invented values* are the Dojo's false positives (``fp``: a value on a field the truth
   leaves empty, including a documented absence under SHF-001, or an unmatched list item) plus
   ``n_value_wrong`` (a value stated on a targeted field that scores under
@@ -214,10 +217,10 @@ def extraction_outcome(
     routed = _routing(row, result, scale)
     if routed is not None:
         return routed
-    tp, fn, fp = (_num(scored.get(k)) for k in ("tp", "fn", "fp"))
-    clause_labels = "+maud" in str(scored.get("scoring_method") or "") or "+cuad" in str(
-        scored.get("scoring_method") or "")
-    if clause_labels or tp is None or fn is None:
+    method = str(scored.get("scoring_method") or "")
+    clause_labels = "+maud" in method or "+cuad" in method
+    correct, targeted, invented = _field_counts(scored)
+    if clause_labels or correct is None or targeted is None:
         share = _num(scored.get("overall_extraction_score"))
         if share is None:
             return None
@@ -226,20 +229,36 @@ def extraction_outcome(
         if share < scale.low_recall_below:
             return Outcome(scale.low_recall, ("low_recall",))
         return Outcome(scale.partial, ("partial",))
-    invented = (fp or 0.0) + (_num(scored.get("n_value_wrong")) or 0.0)
     near_miss = _num(scored.get("n_value_partial")) or 0.0
-    targeted = tp + fn
     if targeted <= 0:
         # The truth holds only empty fields: anything stated was invented.
         return Outcome(scale.fabricated, ("fabricated",)) if invented > 0 else Outcome(0.0, ("complete",))
-    share = tp / targeted
-    if tp == 0 and near_miss == 0 and invented > 0:
+    share = correct / targeted
+    if correct == 0 and near_miss == 0 and invented > 0:
         return Outcome(scale.fabricated, ("fabricated",))
     if share < scale.low_recall_below:
         return Outcome(scale.low_recall, ("low_recall",))
     if share < 1.0 or invented > 0:
         return Outcome(scale.partial, ("partial",))
     return Outcome(0.0, ("complete",))
+
+
+def _field_counts(scored: Mapping[str, Any]) -> tuple[float | None, float | None, float]:
+    """``(correct, targeted, invented)`` of one scored row.
+
+    The Dojo event counts (``tp``, ``tp + fn``, ``fp``) when the row has them; otherwise the
+    scorer's per-field counts (``n_value_correct``, ``n_targeted``), which the detailed suite
+    path (corporate records, rows with a subclass) needs because it returns no ``tp`` / ``fn``.
+    Without ``fp`` the documented-absence hallucinations (``n_hallucinated``) stand in for the
+    values stated on empty truth. ``n_value_wrong`` is always added.
+    """
+    tp, fn, fp = (_num(scored.get(k)) for k in ("tp", "fn", "fp"))
+    if tp is not None and fn is not None:
+        correct, targeted = tp, tp + fn
+    else:
+        correct, targeted = _num(scored.get("n_value_correct")), _num(scored.get("n_targeted"))
+    empty_truth = fp if fp is not None else (_num(scored.get("n_hallucinated")) or 0.0)
+    return correct, targeted, empty_truth + (_num(scored.get("n_value_wrong")) or 0.0)
 
 
 def summarize(
