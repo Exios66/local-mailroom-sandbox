@@ -110,7 +110,7 @@ fingerprinted 4.0.0 routing contract; `apply_v41_rules()` adds the 4.1.0 rules a
 | 1 | **Bug.** 4.0.x questions say "Classify state.document", "Judge the state of state.document", but `decide()` sends `state` as the bare string when the set has no `handoff` key, which no 4.0.x set has. | `decide()` before this change: `state: Any = document` unless `qset["handoff"]`; `sorter_arms.arm_model` refuses handoff sets as sorter arms, so every decision-as-sorter run (R13b) sent bare text. | `state_shape: object`: always `{"document": ...}`. |
 | 2 | No sentence tells the model the document is untrusted data. OpenRouter's examples all carry one, and its model-limits page names text that argues for its own classification as a known weakness. | 4.0.2 question texts. | `untrusted_notice` is prepended to every question. It says the text's titles, headings and content are the evidence, so it does not tell the model to ignore a title. |
 | 3 | The form question asks the model to notice a cut-off ending or a second bundled document inside a text of up to 1M characters, and forces one pick although "cut off" and "bundled" can both be true. | 4.0.2 `document_form`; the R13b form calibration's misses were cut-off endings and footer-separated bundles (4.0.2 header). | `form_signals` passes measured facts (length, window cut, the last 240 characters, whether it ends on sentence punctuation, `<DOCUMENT>`/`<TYPE>` and `Source:` counts). `document_form` becomes four yes/no flags: `fragment`, `bundle`, `unreadable`, `non_english`. |
-| 4 | "None of these fits" is an option inside every pick-one subclass question (`not_this_class`). OpenRouter's question-design guidance recommends a separate yes/no "does any option fit?" question and says to test both forms. | `decision_questions()` adds `not_this_class` to every subclass pick. | `subclass_fit`: a `fit__<class>` yes/no question per pick-one class; `not_this_class` is dropped (`undetermined` stays). `abstain.subclass_fit_min` replaces `subclass_not_this_class_max`. |
+| 4 | "None of these fits" is an option inside every pick-one subclass question (`not_this_class`). OpenRouter's question-design guidance recommends a separate yes/no "does any option fit?" question and says to test both forms. | `decision_questions()` adds `not_this_class` to every subclass pick. | `subclass_fit`: a `fit__<class>` yes/no question per pick-one class; `not_this_class` is dropped (`undetermined` stays). The fit question lists the named subclasses only (`exclude: [other]`): listing the catch-all would make "yes" near-certain. `abstain.subclass_fit_min` replaces `subclass_not_this_class_max`. |
 | 5 | Correspondence markers ask whether the text "contains or discusses" a demand, notice and so on. "This is not a demand" satisfies that wording. | 4.0.2 `subclass.correspondence.markers`. | "Contains or discusses" stays (the corpus scores markers anywhere, forwards included), but each negatable marker says a denial does not count. |
 | 6 | The park thresholds are placeholders, refusals are not recorded, and runs do not set `session_id`. | 4.0.2 `abstain` comment ("Provisional"); `_post_decision` raises only on a whole-request refusal; no `session_id` in the body. | `record_refusals`: `refused_questions` on every result, and a refused `doc_type` or form flag parks. `session_id: run`. Thresholds stay provisional and are fitted on runbook-v2 calibration (section 4). |
 
@@ -154,7 +154,11 @@ A parked document has `abstained` and `route_to_human` true, `confidence` 0 and 
 | `subclass_fit` | the chosen class's `fit__` p(yes) < `subclass_fit_min` | `apply_v41_rules` | 0.50 (provisional) |
 | `subclass_gate:fit_unanswered` | `fit__` unanswered while the pick was usable; same per-class policy | `apply_v41_rules` | — |
 
-`document_form` reports the first flag that fired, else `complete_instrument`.
+`document_form` reports the first flag that fired (`fragment`, `bundle`, `unreadable`,
+`non_english`), else `complete_instrument`; `document_form_flags` lists every flag that fired.
+This is a different vocabulary from 4.0.x's options: `scripts/rb1_build_form_controls.py
+--check-run` maps the flags back (`FLAG_FORMS`) and passes a control when any fired flag names
+its form.
 `document_form_human_mass` (read by `decision_figures` and `rb1_form_floor.py`) is the largest
 flag probability, because the flags are not exclusive; in 4.0.x it is the summed mass on
 `human_forms`. The two are not the same quantity: do not pool them across versions.
@@ -167,8 +171,11 @@ flag probability, because the flags are not exclusive; in 4.0.x it is the summed
   the masked text, so `ends_with` never carries an unmasked number.
 - A single refused question no longer disappears: it is listed in `refused_questions`, and the
   routing treats it as unusable (park or gate), never as a confident default.
-- A malformed 4.1.0 key (`state_shape`, `session_id`, `document_form_flags`, `subclass_fit`,
-  `subclass_fit_min`, or asking both `document_form` and the flags) fails at load, not mid-run.
+- A malformed 4.1.0 key (`state_shape`, `session_id`, `form_signals`, `record_refusals`,
+  `untrusted_notice`, `document_form_flags`, `subclass_fit`, `subclass_fit_min`, or asking both
+  `document_form` and the flags) fails at load, not mid-run.
+- Every published set's request body is pinned by sha256 in
+  `tests/test_decision_qset_v41.py` (computed from the code before this change).
 
 ## 4. Data splits and scale
 
@@ -187,9 +194,11 @@ held-out document has been looked at.
 - **Calibrate on runbook-v2 calibration.** runbook-v1's calibration set contains the 50
   form-calibration draw-1 documents the 4.0.2 wording was written from; runbook-v2 removes them
   (`calibration ∩ formcal-draw1`: 50 in v1, 0 in v2).
-- **Do not compare across versions.** The R13b runs ran on v1's dataset (`bc9eab28`, 78
-  references in `reports/campaigns/rb1/rb1-r13b-sorter-vs-decision`), while the R13b run
-  configs now point at v2 (`ff4ca546`).
+- **Do not compare across versions.** The completed R13b runs ran on v1's dataset
+  (`bc9eab28`, 78 references in `reports/campaigns/rb1/rb1-r13b-sorter-vs-decision`). The R13b
+  run configs are mixed: the smoke20, smoke20b, smoke20c and first form-calibration configs pin
+  `bc9eab28`; the dev-look1 decision-sorter configs and the draw-2 form-calibration
+  (`formcal2-intact-*`) configs pin v2's `ff4ca546`. Pair runs only within one revision.
 
 ### 4.3 Per-class error target (2% at 95%)
 
@@ -237,7 +246,7 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 | Fix the bug in 4.0.x or a new version | New version 4.1.0 | Patch `decide()` for every set | Locked runs must replay exactly (F5); patching would silently change what 4.0.x runs sent. |
 | Where the 4.1.0 rules live | `apply_v41_rules` after the SHF-009 contract | Edit `apply_question_set_contract` | Editing it makes SHF-009 stale and every lock under it unresumable. Cost: the 4.1.0 rules are not fingerprinted by a hotfix id; they are pinned by the question set's sha256 in the run lock. Registering them as their own SHF id is a reviewable follow-up. |
 | Form question | Four yes/no flags | One pick-one question | Defects are not exclusive; one pick hid the second. Cost: four probabilities to calibrate instead of one mass. |
-| "None fits" | Separate `fit__<class>` question | `not_this_class` option | Provider guidance; a forced pick can no longer hide a wrong class. Cost: 4 more questions per request, and a pick with no fitting option may now be refused (recorded). Kept only if an ablation against the option form agrees. |
+| "None fits" | Separate `fit__<class>` question | `not_this_class` option | Provider guidance; a forced pick can no longer hide a wrong class. Cost: 4 fit questions per request (20 in all against 4.0.2's 13, with the four form flags replacing `document_form`), and a pick with no fitting option may now be refused (recorded). Kept only if an ablation against the option form agrees. |
 | Form facts | Computed in code, passed as data | Model reads the whole text | Code finds the last line of a 1M-character text exactly; the model still judges what it means. |
 | Refusal rule | Anything that is not a usable answer | Match one documented shape | The single-question refusal shape is not confirmed here; over-counting is visible, under-counting is silent. |
 | An unanswered form flag | Parks | Treated as no | Nothing then says the document is intact (F3). |
@@ -261,7 +270,13 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 - Per-class subclass cutoffs where calibration documents exist; more calibration documents (or
   a pooled family) for contract, corporate_record and merger_agreement before any 2% claim.
 - A length-stratified calibration draw if long-document claims matter (55 documents today).
-- `form_signals`' fixed 240-character tail, if fragments are missed whose cut is earlier.
+- `form_signals`' fixed 240-character tail, if fragments are missed whose cut is earlier, and
+  `ends_with_sentence_punctuation`, a weak heuristic: a complete letter ending on a signature
+  line reads False.
+- The untrusted-data notice against the correspondence markers: letters and demands address
+  the reader by nature; the smoke should show the markers still fire.
+- `refused_questions` lists the unused classes' picks too; only the chosen class's answers
+  route. Narrow the list once the refusal shape is known.
 
 ## Not verified
 

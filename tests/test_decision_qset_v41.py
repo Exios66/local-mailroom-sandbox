@@ -179,3 +179,78 @@ def test_misspelt_v41_keys_fail_at_load(monkeypatch, tmp_path, v41, patch, messa
     (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v41, **patch}))
     with pytest.raises(ValueError, match=message):
         db.load_question_set("bad")
+
+
+#: sha256 of the request body each published set sent before 4.1.0 (computed from commit ca1e2935's
+#: decide()): a later change to the request builder that alters any of them fails here.
+_PUBLISHED_REQUESTS = {
+    "reviewer_decisions_v1": "4f710c165b38d95dcda5deef5c4d33b1b11e79963b4796cb1509ca31fa2522c4",
+    "reviewer_decisions_v2": "6b1588fc22888b8afe3818b72e1742325e89e8158077f9704c3d514d10cb167f",
+    "reviewer_decisions_v3.0.0": "3e3c1597af37e134949a73ac1298523672fa7a83441499869f0abf26d9dc5282",
+    "reviewer_decisions_v3.1.0": "6842a3ccfc3d8726c8c5e277d1d67e70841a235ec71226f0b6be8d9db0b38471",
+    "reviewer_decisions_v3.2.0": "29b8388040244d8384c3bd399c0fd9858a4d9069d3c9a6ab6ea833f2c70b8518",
+    "reviewer_decisions_v4.0.0": "6dbeaece641e151c618f2b0d9bce7cdf727cdf04e55a3e0997b86479a97d5b9a",
+    "reviewer_decisions_v4.0.1": "2318f515598520d4e7f897e71fc6649cf05daa7f0907105ef28ba781de810d53",
+    "reviewer_decisions_v4.0.2": "32ff39eb9067d81009db6bd54ab0aadad7d5dc5c812138e34b9878deaaa92619",
+}
+
+
+@pytest.mark.parametrize("stem", sorted(_PUBLISHED_REQUESTS))
+def test_published_sets_send_byte_identical_requests(monkeypatch, stem):
+    import hashlib
+    import json
+
+    qset = db.load_question_set(stem)
+    sent, _ = _send(monkeypatch, qset, {}, run_id="golden-run",
+                    text="AGREEMENT AND PLAN OF MERGER\nCard 4111 1111 1111 1111.\nEach share converts into $10.00 in cash.",
+                    handoff={"sorter_doc_type": "merger_agreement", "sorter_doc_subclass": "all_cash"})
+    assert hashlib.sha256(json.dumps(sent, sort_keys=True).encode()).hexdigest() == _PUBLISHED_REQUESTS[stem]
+
+
+def test_the_fit_question_leaves_out_the_catch_all(v41):
+    questions = db.decision_questions(v41)
+    for cls in ("contract", "merger_agreement", "corporate_record", "insurance_claim"):
+        listed = questions[f"{db.FIT_PREFIX}{cls}"]["instructions"].split("describe it:", 1)[1].split("?", 1)[0]
+        assert "other" not in [name.strip() for name in listed.split(",")], cls
+        assert db.SUBCLASS_UNDETERMINED not in listed
+
+
+def test_a_marker_class_has_no_fit_rule_and_unknown_parks(monkeypatch, v41):
+    corr = {"doc_type": {"choice": "correspondence", "probabilities": {"correspondence": 0.97, "contract": 0.03}},
+            **{k: v for k, v in _merger_answers().items() if k.startswith("form__")}}
+    _, result = _send(monkeypatch, v41, corr)
+    assert result["abstained"] is False and "subclass_fit_probability" not in result
+    unknown = {**corr, "doc_type": {"choice": "unknown", "probabilities": {"unknown": 0.8, "contract": 0.2}}}
+    _, result = _send(monkeypatch, v41, unknown)
+    assert "doc_type:unknown" in result["abstain_reasons"] and result["route_to_human"]
+
+
+def test_a_refused_pick_with_a_low_fit_parks_on_fit(monkeypatch, v41):
+    answers = _merger_answers(**{"subclass__merger_agreement": {"refusal": "declined"},
+                                 "fit__merger_agreement": {"noul": 0.0}})
+    _, result = _send(monkeypatch, v41, answers)
+    assert {"subclass_fit", "subclass_gate:none"} <= set(result["abstain_reasons"])
+    assert result["subclass_fit_probability"] == 0.0                   # 0.0 is an answer, not a refusal
+    assert "fit__merger_agreement" not in result["refused_questions"]
+
+
+@pytest.mark.parametrize("patch, message", [
+    ({"form_signals": "yes"}, "form_signals"),
+    ({"record_refusals": 1}, "record_refusals"),
+    ({"untrusted_notice": "  "}, "untrusted_notice"),
+    ({"document_form_flags": ["fragment"]}, "document_form_flags"),
+    ({"subclass_fit": {"exclude": "other", "instructions": "{cls} {options}"}}, "subclass_fit"),
+])
+def test_more_misspelt_v41_keys_fail_at_load(monkeypatch, tmp_path, v41, patch, message):
+    import yaml
+
+    monkeypatch.setattr(db, "decisions_dir", lambda: tmp_path)
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v41, **patch}))
+    with pytest.raises(ValueError, match=message):
+        db.load_question_set("bad")
+
+
+def test_a_signature_line_is_not_sentence_punctuation():
+    assert db.form_signals("Sincerely,\nJane Roe", original_chars=18, window_chars=100)["ends_with_sentence_punctuation"] is False
+    assert db.form_signals("<TYPE>EX-24>", original_chars=12, window_chars=100)["ends_with_sentence_punctuation"] is False
+    assert db.form_signals('He said "done."', original_chars=15, window_chars=100)["ends_with_sentence_punctuation"] is True

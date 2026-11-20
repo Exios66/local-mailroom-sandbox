@@ -373,9 +373,16 @@ def _check_v41_keys(stem: str, qset: Mapping[str, Any]) -> None:
         raise ValueError(f"{stem}: state_shape must be 'object' when set")
     if qset.get("session_id") not in (None, "run"):
         raise ValueError(f"{stem}: session_id must be 'run' when set")
+    for key in ("form_signals", "record_refusals"):
+        if key in qset and not isinstance(qset[key], bool):
+            raise ValueError(f"{stem}: {key} must be true or false")
+    if "untrusted_notice" in qset and not (isinstance(qset["untrusted_notice"], str) and qset["untrusted_notice"].strip()):
+        raise ValueError(f"{stem}: untrusted_notice must be a non-empty sentence")
     flags = qset.get("document_form_flags")
     if flags is not None:
-        items = (flags or {}).get("flags")
+        if not isinstance(flags, dict):
+            raise ValueError(f"{stem}: document_form_flags must be a mapping with park_min and flags")
+        items = flags.get("flags")
         if not isinstance(items, dict) or not items or not all(isinstance(v, dict) and v.get("instructions") for v in items.values()):
             raise ValueError(f"{stem}: document_form_flags.flags needs one block with instructions per flag")
         if qset.get("document_form"):
@@ -384,7 +391,10 @@ def _check_v41_keys(stem: str, qset: Mapping[str, Any]) -> None:
             raise ValueError(f"{stem}: document_form_flags.park_min must be in (0, 1]")
     fit = qset.get("subclass_fit")
     if fit is not None:
-        text = str((fit or {}).get("instructions") or "")
+        exclude = fit.get("exclude", []) if isinstance(fit, dict) else None
+        if not isinstance(exclude, list) or not all(isinstance(x, str) for x in exclude):
+            raise ValueError(f"{stem}: subclass_fit must be a mapping; exclude a list of option names")
+        text = str(fit.get("instructions") or "")
         if "{cls}" not in text or "{options}" not in text:
             raise ValueError(f"{stem}: subclass_fit.instructions must name {{cls}} and {{options}}")
     fit_min = (qset.get("abstain") or {}).get("subclass_fit_min")
@@ -739,7 +749,8 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
             # 4.1.0+: "does any option fit?" is its own yes/no question instead of an option,
             # so a forced pick never hides a wrong class. A refusal of the pick is recorded.
             options = dict(block["criteria"])
-            names = ", ".join(options)
+            # A catch-all ("other": no family fits) would make "does one fit?" a near-certain yes.
+            names = ", ".join(k for k in options if k not in set(fit.get("exclude") or ()))
             questions[f"{FIT_PREFIX}{cls}"] = {"type": "noul", "instructions": fit["instructions"].format(cls=cls, options=names)}
         else:
             # Every subclass question is asked of every document, and the model refuses a question
@@ -784,7 +795,7 @@ def form_signals(text: str, *, original_chars: int, window_chars: int) -> dict[s
         "characters": original_chars,
         "cut_by_window": original_chars > window_chars,
         "ends_with": stripped[-240:],
-        "ends_with_sentence_punctuation": last in '.!?:;)]}"\'>' if last else False,
+        "ends_with_sentence_punctuation": last in '.!?:;)]"\'' if last else False,
         "document_tags": lower.count("<document>"),
         "type_tags": lower.count("<type>"),
         "filing_source_lines": sum(1 for line in text.splitlines() if line.lstrip().lower().startswith("source:")),
