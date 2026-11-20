@@ -1309,12 +1309,13 @@ def _interim_labels_of(doc_id: str, overlay_sha: str | None = None) -> Mapping[s
 
     key = _interim_key()
     if _INTERIM_CACHE.get("key") != key or "overlay" not in _INTERIM_CACHE:
-        _INTERIM_CACHE["overlay"] = il.load_overlay()
+        overlay, fingerprint, problems = il.overlay_snapshot()
+        if problems:
+            raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
+        _INTERIM_CACHE["overlay"] = overlay
         _INTERIM_CACHE["key"] = key
-        _INTERIM_CACHE.pop("sha", None)
+        _INTERIM_CACHE["sha"] = fingerprint
     if overlay_sha is not None:
-        if "sha" not in _INTERIM_CACHE:
-            _INTERIM_CACHE["sha"] = il.overlay_fingerprint()
         if _INTERIM_CACHE["sha"] != overlay_sha:
             return None
     return ((_INTERIM_CACHE["overlay"].get(doc_id) or {}).get("labels")) or {}

@@ -781,10 +781,9 @@ def apply_label_overlays(chosen: list[dict[str, Any]], source_meta: dict[str, An
     if interim:
         from mailroom_sandbox import interim_labels as il
 
-        problems = il.verify()
+        interim_overlay, overlay_sha, problems = il.overlay_snapshot()
         if problems:
             raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
-        interim_overlay, overlay_sha = il.load_overlay(), il.overlay_fingerprint()
         chosen = [il.apply_overlay(r, interim_overlay, overlay_sha=overlay_sha) for r in chosen]
         source_meta = {**source_meta, "interim_labels": {
             "overlay_sha256": overlay_sha,

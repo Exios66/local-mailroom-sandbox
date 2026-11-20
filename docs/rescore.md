@@ -24,6 +24,11 @@ sandbox rescore <run> --revision v9.3 --dry-run
 
 `--ids-file` or `--set dev-look1` (with `--split-dir`) re-scores only those documents.
 
+Interim labels are read as a validated snapshot: the manifest fingerprint, applied records and
+review checks use the same bytes. A rebuild that leaves a shard inconsistent with its manifest
+is refused before any derived run is written. Subset preparation, Parquet overlays and the
+near-gold precedence cache use the same snapshot contract.
+
 ## What it writes
 
 The source run is never modified. The result is a derived run directory, by default
