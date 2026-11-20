@@ -17,6 +17,8 @@ This module keeps their first cell identical and their side effects predictable:
 * :func:`check_prepared_artifacts` re-reads what ``prepare_offline_datasets``
   wrote and reports every invariant it breaks.
 
+* :func:`show_figure` embeds matplotlib figures as PNG so Agg/demo runs stay visual.
+
 * :func:`gold_field_grounding` checks that every extractive gold value in
 ``data/fixtures/manifest.csv`` is written in its fixture text, so a gold block
 copied onto the wrong row (parties that are not in the document) is caught
@@ -486,6 +488,27 @@ def ungrounded(findings: Iterable[GroundingFinding]) -> list[GroundingFinding]:
 LOCAL_PROBE_HOSTS: frozenset[str] = frozenset(
     {"localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "ollama", "vllm", "llamacpp"}  # nosec B104 -- hosts a probe connects to; nothing binds here
 )
+
+
+def show_figure(fig: Any) -> None:
+    """Embed ``fig`` as a PNG in the notebook cell (works with the Agg backend).
+
+    ``plt.show()`` is a no-op under Agg and only warns; ``display(fig)`` often
+    yields a text representation. Saving to PNG keeps demo outputs visual.
+    """
+    import io
+
+    from IPython.display import Image, display
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", dpi=120)
+    try:
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+    except Exception:  # pragma: no cover - close is best-effort
+        pass
+    display(Image(data=buf.getvalue()))
 
 
 def probe_refusal(profile: str) -> str | None:

@@ -53,8 +53,21 @@ from llm_dojo_scoring.schemas.maud_schema import hub_merger_expected_fields  # n
 
 REVISION = "ff4ca546d4346991628c2616ae014afc15e9fe04"
 CACHE = ROOT / "data" / "cache" / f"Lucius-Morningstar__mailroom-dataset__{REVISION[:12]}" / "ground_truth_all.jsonl"
-# Pinned digest of the v9.3 ground_truth_all.jsonl at REVISION; path alone is not identity.
-EXPECTED_CACHE_SHA256 = "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
+# Content digests for Hub JSONL + Parquet shards. Path/REVISION alone is not identity.
+PINNED_HUB_INPUT_SHA256 = {
+    f"data/cache/Lucius-Morningstar__mailroom-dataset__{REVISION[:12]}/ground_truth_all.jsonl": (
+        "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
+    ),
+    f"hf-snapshot/{REVISION}/parquet/ground_truth/train/train-00000-of-00001.parquet": (
+        "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
+    ),
+    f"hf-snapshot/{REVISION}/parquet/ground_truth/test/test-00000-of-00001.parquet": (
+        "769334cf81c2dc6dc9c64dc30f8676794adc48b2b8df19f013d19d337116f75a"
+    ),
+}
+EXPECTED_CACHE_SHA256 = PINNED_HUB_INPUT_SHA256[
+    f"data/cache/Lucius-Morningstar__mailroom-dataset__{REVISION[:12]}/ground_truth_all.jsonl"
+]
 LABELS = ROOT / "data" / "labels"
 STEM = "mailroom_dataset_v9.3_label_repaired"
 
@@ -216,6 +229,17 @@ class InputSnapshot:
     def jsonl(self, path: Path) -> list[dict[str, Any]]:
         # Use "\n" only: str.splitlines() also splits on U+2028/U+2029 inside doc_text.
         return [json.loads(line) for line in self.read(path).decode("utf-8").split("\n") if line.strip()]
+
+    def require_pinned(self, expected: dict[str, str]) -> None:
+        """Refuse a rebuild whose Hub JSONL/Parquet bytes do not match the release pins."""
+        for key, digest in expected.items():
+            got = self.hashes.get(key)
+            if got is None:
+                raise ValueError(f"missing pinned input during build: {key}")
+            if got != digest:
+                raise ValueError(
+                    f"pinned input digest mismatch for {key}: got {got[:12]}, expected {digest[:12]}"
+                )
 
     def verify_unchanged(self) -> None:
         """Re-read every hashed path so publication cannot outrun a mid-build rewrite."""
@@ -743,13 +767,8 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     inputs = InputSnapshot()
     jsonl = inputs.jsonl
     rows = jsonl(CACHE)
-    cache_key = str(CACHE.relative_to(ROOT))
-    if inputs.hashes.get(cache_key) != EXPECTED_CACHE_SHA256:
-        raise ValueError(
-            f"ground_truth_all.jsonl digest mismatch for {REVISION}: "
-            f"got {inputs.hashes.get(cache_key)}, expected {EXPECTED_CACHE_SHA256}"
-        )
     meta = load_parquet_meta(inputs)
+    inputs.require_pinned(PINNED_HUB_INPUT_SHA256)
     missing_meta = [r["id"] for r in rows if not (meta.get(r["id"]) or {}).get("source_corpus")]
     if missing_meta:
         raise ValueError(f"missing required source metadata for {len(missing_meta)} documents")

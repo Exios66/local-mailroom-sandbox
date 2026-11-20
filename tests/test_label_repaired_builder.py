@@ -67,6 +67,24 @@ def test_expected_cache_digest_is_pinned():
     assert blr.EXPECTED_CACHE_SHA256 == (
         "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
     )
+    assert blr.PINNED_HUB_INPUT_SHA256[
+        f"data/cache/Lucius-Morningstar__mailroom-dataset__{blr.REVISION[:12]}/ground_truth_all.jsonl"
+    ] == blr.EXPECTED_CACHE_SHA256
+    assert len(blr.PINNED_HUB_INPUT_SHA256) == 3
+    for digest in blr.PINNED_HUB_INPUT_SHA256.values():
+        assert len(digest) == 64
+
+
+def test_require_pinned_rejects_tampered_hub_bytes():
+    snap = blr.InputSnapshot()
+    snap.hashes = dict(blr.PINNED_HUB_INPUT_SHA256)
+    snap.require_pinned(blr.PINNED_HUB_INPUT_SHA256)
+    bad = dict(snap.hashes)
+    key = next(iter(bad))
+    bad[key] = "0" * 64
+    snap.hashes = bad
+    with pytest.raises(ValueError, match="digest mismatch"):
+        snap.require_pinned(blr.PINNED_HUB_INPUT_SHA256)
 
 
 def test_notice_span_compatible_rejects_reversed_threshold():

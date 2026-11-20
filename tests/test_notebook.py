@@ -886,3 +886,19 @@ def test_notebook_local_probe_timeout_never_lists_modal_apps(monkeypatch):
     result = health.health_check("modal-vllm", cloud_diagnostics=False)
     assert not result["ok"]
     assert "ReadTimeout" in result["models"]["detail"]
+
+
+def test_show_figure_embeds_png(monkeypatch):
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from IPython.display import Image
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    captured: list[object] = []
+    monkeypatch.setattr("IPython.display.display", captured.append)
+    notebook.show_figure(fig)
+    assert len(captured) == 1
+    assert isinstance(captured[0], Image)
+    assert captured[0].data[:8] == b"\x89PNG\r\n\x1a\n"
