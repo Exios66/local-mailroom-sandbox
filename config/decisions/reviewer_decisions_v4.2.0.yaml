@@ -107,7 +107,10 @@ document_form_flags:
       instructions: Is the substantive text of state.document in a language other than English?
 
 subclass_fit:
-  exclude: [other]        # the catch-all is not listed: "other fits" would make every answer yes
+  # Only true catchalls are excluded. Merger and insurance 'other' name real categories.
+  exclude:
+    contract: [other]
+    corporate_record: [other]
   instructions: >-
     Suppose state.document is a {cls}. Does one of these {cls} subclasses describe it:
     {options}? Answer no when the document is not a {cls} at all, or when none of these
@@ -216,7 +219,7 @@ subclass:
         word memo or memorandum naming it)?
       demand: >-
         Does it contain or discuss a demand (demand letter, demand for payment, past due, final
-        notice)? Mentions in an ordinary email count. A denial ("this is not a demand", "no
+        notice, arbitration demand)? Mentions in an ordinary email count. A denial ("this is not a demand", "no
         payment is due") does not count.
       notice: >-
         Does it contain or discuss a notice (Notice of ..., Notice No., give notice, please be

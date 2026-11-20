@@ -181,7 +181,8 @@ def test_misspelt_v42_keys_fail_at_load(monkeypatch, tmp_path, v42, patch, messa
         db.load_question_set("bad")
 
 
-#: sha256 of the request body each published set sent before 4.2.0 (computed from commit ca1e2935's
+#: sha256 of the request body each published set sent before 4.2.0 (4.1.0 from c4e612db;
+#: earlier versions from ca1e2935's
 #: decide()): a later change to the request builder that alters any of them fails here.
 _PUBLISHED_REQUESTS = {
     "reviewer_decisions_v1": "4f710c165b38d95dcda5deef5c4d33b1b11e79963b4796cb1509ca31fa2522c4",
@@ -192,6 +193,7 @@ _PUBLISHED_REQUESTS = {
     "reviewer_decisions_v4.0.0": "6dbeaece641e151c618f2b0d9bce7cdf727cdf04e55a3e0997b86479a97d5b9a",
     "reviewer_decisions_v4.0.1": "2318f515598520d4e7f897e71fc6649cf05daa7f0907105ef28ba781de810d53",
     "reviewer_decisions_v4.0.2": "32ff39eb9067d81009db6bd54ab0aadad7d5dc5c812138e34b9878deaaa92619",
+    "reviewer_decisions_v4.1.0": "7fbea05dc6e2925fafa73a69b777af129fabe898df8e72d43d1d53c09036f83d",
 }
 
 
@@ -211,7 +213,7 @@ def test_the_fit_question_leaves_out_the_catch_all(v42):
     questions = db.decision_questions(v42)
     for cls in ("contract", "merger_agreement", "corporate_record", "insurance_claim"):
         listed = questions[f"{db.FIT_PREFIX}{cls}"]["instructions"].split("describe it:", 1)[1].split("?", 1)[0]
-        assert "other" not in [name.strip() for name in listed.split(",")], cls
+        assert ("other" in [name.strip() for name in listed.split(",")]) == (cls in {"merger_agreement", "insurance_claim"}), cls
         assert db.SUBCLASS_UNDETERMINED not in listed
 
 
@@ -220,6 +222,7 @@ def test_a_marker_class_has_no_fit_rule_and_unknown_parks(monkeypatch, v42):
             **{k: v for k, v in _merger_answers().items() if k.startswith("form__")}}
     _, result = _send(monkeypatch, v42, corr)
     assert result["abstained"] is False and "subclass_fit_probability" not in result
+    assert result["doc_subclass"] is None and result["subclass_gate"] == "keep_sorter"
     unknown = {**corr, "doc_type": {"choice": "unknown", "probabilities": {"unknown": 0.8, "contract": 0.2}}}
     _, result = _send(monkeypatch, v42, unknown)
     assert "doc_type:unknown" in result["abstain_reasons"] and result["route_to_human"]
@@ -240,6 +243,8 @@ def test_a_refused_pick_with_a_low_fit_parks_on_fit(monkeypatch, v42):
     ({"untrusted_notice": "  "}, "untrusted_notice"),
     ({"document_form_flags": ["fragment"]}, "document_form_flags"),
     ({"subclass_fit": {"exclude": "other", "instructions": "{cls} {options}"}}, "subclass_fit"),
+    ({"subclass_fit": {"exclude": {"typo": ["other"]}, "instructions": "{cls} {options}"}}, "unknown class"),
+    ({"subclass_fit": {"exclude": {"contract": ["typo"]}, "instructions": "{cls} {options}"}}, "unknown class"),
 ])
 def test_more_misspelt_v42_keys_fail_at_load(monkeypatch, tmp_path, v42, patch, message):
     import yaml
@@ -254,3 +259,45 @@ def test_a_signature_line_is_not_sentence_punctuation():
     assert db.form_signals("Sincerely,\nJane Roe", original_chars=18, window_chars=100)["ends_with_sentence_punctuation"] is False
     assert db.form_signals("<TYPE>EX-24>", original_chars=12, window_chars=100)["ends_with_sentence_punctuation"] is False
     assert db.form_signals('He said "done."', original_chars=15, window_chars=100)["ends_with_sentence_punctuation"] is True
+
+
+@pytest.mark.parametrize("missing, positive, expected", [
+    ("attorney_demand", None, None),
+    ("attorney_demand", "letter", None),
+    ("meeting_request", "letter", "letter"),
+    (None, None, "email"),
+])
+@pytest.mark.parametrize("policy", ["park", "keep_sorter"])
+def test_marker_refusals_gate_only_when_they_can_change_the_subclass(monkeypatch, v42, missing, positive, expected, policy):
+    from copy import deepcopy
+
+    qset = deepcopy(v42)
+    qset["subclass_gate"]["correspondence"] = {"on_low": policy}
+    answers = {"doc_type": {"choice": "correspondence", "probabilities": {"correspondence": 0.98}},
+               **{k: v for k, v in _merger_answers().items() if k.startswith("form__")}}
+    for key in qset["subclass"]["correspondence"]["markers"]:
+        answers[f"marker__correspondence__{key}"] = {"noul": 0.97 if key == positive else 0.01}
+    if missing:
+        answers[f"marker__correspondence__{missing}"] = {"type": "refusal"}
+    _, result = _send(monkeypatch, qset, answers)
+    assert result["doc_subclass"] == expected
+    assert result["abstained"] == (expected is None and policy == "park")
+    if expected is None:
+        assert result["subclass_confidence"] is None
+        assert result["subclass_gate"] == policy
+        handoff = {"sorter_doc_type": "correspondence", "sorter_doc_subclass": "memo"}
+        _, kept = _send(monkeypatch, qset, answers, handoff=handoff)
+        assert kept["doc_subclass"] == ("memo" if policy == "keep_sorter" else None)
+
+
+@pytest.mark.parametrize("value", ["yes", True, -0.1, 1.1, float("nan"), float("inf"), None])
+def test_unusable_probability_counts_as_refused(value):
+    assert db.refused_questions({"flag": {"type": "noul"}}, {"flag": {"noul": value}}) == ["flag"]
+
+
+def test_v42_retains_the_aligned_classification_criteria(v42):
+    parent = db.load_question_set("reviewer_decisions_v4.1.0")
+    assert v42["doc_type"] == parent["doc_type"]
+    for cls in parent["subclass"]:
+        assert v42["subclass"][cls]["criteria"] == parent["subclass"][cls]["criteria"]
+    assert "arbitration demand" in v42["subclass"]["correspondence"]["markers"]["demand"]

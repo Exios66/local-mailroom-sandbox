@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import re
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping, Optional
 
@@ -392,8 +393,14 @@ def _check_v42_keys(stem: str, qset: Mapping[str, Any]) -> None:
     fit = qset.get("subclass_fit")
     if fit is not None:
         exclude = fit.get("exclude", []) if isinstance(fit, dict) else None
-        if not isinstance(exclude, list) or not all(isinstance(x, str) for x in exclude):
-            raise ValueError(f"{stem}: subclass_fit must be a mapping; exclude a list of option names")
+        groups = exclude.values() if isinstance(exclude, dict) else [exclude]
+        if not all(isinstance(group, list) and all(isinstance(x, str) for x in group) for group in groups):
+            raise ValueError(f"{stem}: subclass_fit.exclude must be a list or class mapping of option lists")
+        if isinstance(exclude, dict):
+            for cls, names in exclude.items():
+                options = ((qset.get("subclass") or {}).get(cls) or {}).get("criteria") or {}
+                if not options or any(name not in options for name in names):
+                    raise ValueError(f"{stem}: subclass_fit.exclude has an unknown class or option")
         text = str(fit.get("instructions") or "")
         if "{cls}" not in text or "{options}" not in text:
             raise ValueError(f"{stem}: subclass_fit.instructions must name {{cls}} and {{options}}")
@@ -750,7 +757,10 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
             # so a forced pick never hides a wrong class. A refusal of the pick is recorded.
             options = dict(block["criteria"])
             # A catch-all ("other": no family fits) would make "does one fit?" a near-certain yes.
-            names = ", ".join(k for k in options if k not in set(fit.get("exclude") or ()))
+            excluded = fit.get("exclude") or ()
+            if isinstance(excluded, dict):
+                excluded = excluded.get(cls, ())
+            names = ", ".join(k for k in options if k not in set(excluded))
             questions[f"{FIT_PREFIX}{cls}"] = {"type": "noul", "instructions": fit["instructions"].format(cls=cls, options=names)}
         else:
             # Every subclass question is asked of every document, and the model refuses a question
@@ -832,7 +842,11 @@ def refused_questions(questions: Mapping[str, Any], answers: Mapping[str, Any]) 
             out.append(key)
             continue
         value = answer.get("noul") if question.get("type") == "noul" else answer.get("choice")
-        if value is None or isinstance(value, bool):
+        if question.get("type") == "noul":
+            usable = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1
+        else:
+            usable = isinstance(value, str) and bool(value) and (not question.get("criteria") or value in question["criteria"])
+        if not usable:
             out.append(key)
     return out
 
@@ -1053,26 +1067,38 @@ def apply_v42_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset:
         reasons.append("refused:doc_type")
     doc_type = out.get("doc_type")
     block = ((qset.get("subclass") or {}).get(doc_type) or {}) if doc_type else {}
+    unusable = None
+    if block.get("markers"):
+        for key in block.get("order") or list(block["markers"]):
+            question = f"marker__{doc_type}__{key}"
+            if question in refused:
+                unusable = "marker_unanswered"
+                out["doc_subclass"] = None
+                out["subclass_confidence"] = None
+                break
+            if (answers.get(question) or {}).get("noul", 0.0) >= 0.5:
+                break
     if fit and doc_type and doc_type not in NON_CLASS_OPTIONS and not block.get("markers"):
         value = (answers.get(f"{FIT_PREFIX}{doc_type}") or {}).get("noul")
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if f"{FIT_PREFIX}{doc_type}" not in refused and isinstance(value, (int, float)) and not isinstance(value, bool):
             out["subclass_fit_probability"] = float(value)
             if float(value) < float((qset.get("abstain") or {}).get("subclass_fit_min", 0.5)):
                 reasons.append("subclass_fit")
-        elif "subclass_gate" not in out:
-            # The pick itself was usable (the contract did not gate it), but nothing says it fits.
-            gate = qset.get("subclass_gate") or {}
-            policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
-            out["subclass_gate"] = policy
-            if policy == "park":
-                reasons.append("subclass_gate:fit_unanswered")
-            else:
-                same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
-                out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
-                out["subclass_source"] = "sorter" if same_class else "unresolved"
-                out["subclass_confidence"] = None
-                if doc_type == "contract":
-                    out["contract_subtype"] = out["doc_subclass"]
+        else:
+            unusable = "fit_unanswered"
+    if unusable and "subclass_gate" not in out:
+        gate = qset.get("subclass_gate") or {}
+        policy = ((gate.get(doc_type) or gate.get("default") or {}).get("on_low")) or "keep_sorter"
+        out["subclass_gate"] = policy
+        if policy == "park":
+            reasons.append(f"subclass_gate:{unusable}")
+        else:
+            same_class = _norm_class((handoff or {}).get("sorter_doc_type")) == _norm_class(doc_type)
+            out["doc_subclass"] = (handoff or {}).get("sorter_doc_subclass") if same_class else None
+            out["subclass_source"] = "sorter" if same_class else "unresolved"
+            out["subclass_confidence"] = None
+            if doc_type == "contract":
+                out["contract_subtype"] = out["doc_subclass"]
     out["abstain_reasons"] = reasons
     out["abstained"] = bool(reasons)
     if reasons:

@@ -164,7 +164,11 @@ versions:
       denial does not count; unanswered questions are recorded and a refused doc_type or form
       flag parks; requests carry session_id = the run id. Design: docs/decision-model-input-design.md.
     adoption: >-
-      Drafted 2026-11-20 from the docs, code and split files; no run, no API call. Thresholds
+      Drafted 2026-11-20 from the docs, code and split files; no run, no API call. Before live
+      adoption, enforce Python routing identity in locks and resume checks; the YAML hash alone
+      does not protect routing-code identity. Reserve fitting/reporting halves before probes,
+      keep all probes in the fitting half, and freeze questions and thresholds before reporting.
+      Thresholds
       are provisional. Before any comparison: a smoke on runbook-v2 calibration documents
       (never dev-look1, which is all tuned, never held-out) that shows the object state, the
       flags and the fit questions answered, and the refusal record populated or empty. Judged
