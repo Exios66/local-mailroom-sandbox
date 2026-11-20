@@ -1,4 +1,4 @@
-# Decision model inputs: findings and the 4.1.0 design
+# Decision model inputs: findings and the 4.2.0 design
 
 2026-11-20. Scope: how the sandbox formats requests for the decision model
 (`openai/gpt-6-luna-decisions` on OpenRouter's Decisions endpoint) when it acts as the sorter
@@ -11,7 +11,7 @@ Every number below is computed from committed files; the commands are under
 ## Summary
 
 - **One real bug.** Every 4.0.x question names `state.document`, but `decide()` sent 4.0.x
-  documents as bare text, so that field never existed in the request. 4.1.0 always sends
+  documents as bare text, so that field never existed in the request. 4.2.0 always sends
   `{"document": ...}`.
 - **Five weaker spots**, ordered by likely effect: no untrusted-data notice; a form question
   that makes the model find the end of a text of up to 1M characters and pick one defect when
@@ -19,7 +19,7 @@ Every number below is computed from committed files; the commands are under
   markers that a denial satisfies; and placeholder thresholds, unrecorded refusals and no
   `session_id`.
 - All of them change what the model reads, so they are a new question-set version,
-  **4.1.0** (`config/decisions/reviewer_decisions_v4.1.0.yaml`, lineage status `draft`), never
+  **4.2.0** (`config/decisions/reviewer_decisions_v4.2.0.yaml`, lineage status `draft`), never
   an edit to 4.0.x. Published sets send byte-identical requests after this change.
 - **Splits:** both runbook versions pass every integrity check. They are large enough for
   the 4-point subclass margin and for a 2% per-class error claim on `insurance_claim` and
@@ -42,7 +42,7 @@ Every number below is computed from committed files; the commands are under
 
 | Id | Requirement | Current figure |
 | --- | --- | --- |
-| N1 | Cost | $0.10 per 1M input tokens, output free; the exact charge is in each response's `usage.cost`. 4.1.0's questions are 17,977 characters of JSON against 4.0.2's 11,115 (about +1.7k tokens, +$0.00017, per document). |
+| N1 | Cost | $0.10 per 1M input tokens, output free; the exact charge is in each response's `usage.cost`. 4.2.0's questions are 17,977 characters of JSON against 4.0.2's 11,115 (about +1.7k tokens, +$0.00017, per document). |
 | N2 | Context | 1.05M tokens; `max_input_chars: 1000000` keeps the largest document whole, and `truncation_notice` records any cut. |
 | N3 | Tunable parameters | None on this model: everything is in the state and the question texts. |
 | N4 | Calibration | OpenRouter calls the probabilities calibrated. That is the provider's claim, not a measurement on these documents: every threshold here is fitted on our calibration set. |
@@ -52,9 +52,9 @@ Every number below is computed from committed files; the commands are under
 
 - Offline tests only; no paid call is launched by an agent (`CLAUDE.md`).
 - SHF-009 fingerprints `apply_question_set_contract`; editing it makes the fix stale and
-  every run lock taken under it unresumable. 4.1.0's rules therefore live in a separate
-  function (`apply_v41_rules`).
-- `dev-look1` is fully tuned and held-out is sealed; neither may be used to fit 4.1.0.
+  every run lock taken under it unresumable. 4.2.0's rules therefore live in a separate
+  function (`apply_v42_rules`).
+- `dev-look1` is fully tuned and held-out is sealed; neither may be used to fit 4.2.0.
 
 ## 2. High-level design
 
@@ -64,18 +64,18 @@ Every number below is computed from committed files; the commands are under
                          ┌────────────────────┴───────────────────────┐
                          │ 4.0.x: state = "<bare text>"               │
                          │ 3.x:   state = {document, sorter_handoff}  │
-                         │ 4.1.0: state = {document, form_signals}    │◄── form_signals(): length, window cut,
+                         │ 4.2.0: state = {document, form_signals}    │◄── form_signals(): length, window cut,
                          └────────────────────┬───────────────────────┘     last 240 chars, <DOCUMENT>/<TYPE>
                                               │                             and "Source:" counts
- decision_questions(qset) ── questions ──────►│◄── session_id = "sandbox-<run_id>" (4.1.0, inside a run)
-   4.1.0: untrusted_notice on every question  ▼
+ decision_questions(qset) ── questions ──────►│◄── session_id = "sandbox-<run_id>" (4.2.0, inside a run)
+   4.2.0: untrusted_notice on every question  ▼
           form__* yes/no, fit__<class> yes/no  POST /api/alpha/decisions  (_post_decision: retries, run guard)
                                               │
                                               ▼
-                       answers + usage ──► refused_questions (4.1.0) ──► forced-choice reading
+                       answers + usage ──► refused_questions (4.2.0) ──► forced-choice reading
                                               │
                                               ▼
-                    apply_question_set_contract (SHF-009, unchanged) ──► apply_v41_rules (4.1.0 only)
+                    apply_question_set_contract (SHF-009, unchanged) ──► apply_v42_rules (4.2.0 only)
                                               │
                                               ▼
                  {doc_type, doc_subclass, confidence (0 when parked), abstain_reasons, forced_choice,
@@ -84,7 +84,7 @@ Every number below is computed from committed files; the commands are under
 
 Components and owners: `decide()` builds the state and reads the answers;
 `decision_questions()` builds the question map; `apply_question_set_contract()` is the
-fingerprinted 4.0.0 routing contract; `apply_v41_rules()` adds the 4.1.0 rules after it;
+fingerprinted 4.0.0 routing contract; `apply_v42_rules()` adds the 4.2.0 rules after it;
 `sorter_arms.arm_model()` refuses any set that reads the sorter handoff as a stand-alone sorter.
 
 ## 3. Deep dive
@@ -101,11 +101,11 @@ fingerprinted 4.0.0 routing contract; `apply_v41_rules()` adds the 4.1.0 rules a
 - **Not verified here:** the exact JSON shape of a single refused question. The sandbox
   therefore treats any asked question whose answer is missing, carries a truthy `refusal`,
   `refused` or `error` key, or has no `choice` / `noul` value as refused
-  (`refused_questions`). Confirm the shape on the first 4.1.0 smoke and narrow the rule then.
+  (`refused_questions`). Confirm the shape on the first 4.2.0 smoke and narrow the rule then.
 
 ### 3.2 Findings, ordered by likely effect
 
-| # | Finding | Evidence | 4.1.0 change |
+| # | Finding | Evidence | 4.2.0 change |
 | --- | --- | --- | --- |
 | 1 | **Bug.** 4.0.x questions say "Classify state.document", "Judge the state of state.document", but `decide()` sends `state` as the bare string when the set has no `handoff` key, which no 4.0.x set has. | `decide()` before this change: `state: Any = document` unless `qset["handoff"]`; `sorter_arms.arm_model` refuses handoff sets as sorter arms, so every decision-as-sorter run (R13b) sent bare text. | `state_shape: object`: always `{"document": ...}`. |
 | 2 | No sentence tells the model the document is untrusted data. OpenRouter's examples all carry one, and its model-limits page names text that argues for its own classification as a known weakness. | 4.0.2 question texts. | `untrusted_notice` is prepended to every question. It says the text's titles, headings and content are the evidence, so it does not tell the model to ignore a title. |
@@ -114,7 +114,7 @@ fingerprinted 4.0.0 routing contract; `apply_v41_rules()` adds the 4.1.0 rules a
 | 5 | Correspondence markers ask whether the text "contains or discusses" a demand, notice and so on. "This is not a demand" satisfies that wording. | 4.0.2 `subclass.correspondence.markers`. | "Contains or discusses" stays (the corpus scores markers anywhere, forwards included), but each negatable marker says a denial does not count. |
 | 6 | The park thresholds are placeholders, refusals are not recorded, and runs do not set `session_id`. | 4.0.2 `abstain` comment ("Provisional"); `_post_decision` raises only on a whole-request refusal; no `session_id` in the body. | `record_refusals`: `refused_questions` on every result, and a refused `doc_type` or form flag parks. `session_id: run`. Thresholds stay provisional and are fitted on runbook-v2 calibration (section 4). |
 
-### 3.3 The 4.1.0 request
+### 3.3 The 4.2.0 request
 
 ```json
 {
@@ -149,10 +149,10 @@ A parked document has `abstained` and `route_to_human` true, `confidence` 0 and 
 | --- | --- | --- | --- |
 | `doc_type:unknown`, `margin`, `unknown_max` | as 4.0.x | SHF-009 contract | 0.10 margin, 0.34 unknown (provisional) |
 | `subclass_gate:<choice>` | `undetermined` or a refused pick, per-class policy (`park` for merger_agreement and corporate_record, `keep_sorter` otherwise) | SHF-009 contract | — |
-| `document_form:<flag>` | a form flag's p(yes) ≥ `park_min` | `apply_v41_rules` | 0.50 (provisional) |
-| `refused:form__<flag>`, `refused:doc_type` | the question went unanswered; nothing then says the document is intact | `apply_v41_rules` | — |
-| `subclass_fit` | the chosen class's `fit__` p(yes) < `subclass_fit_min` | `apply_v41_rules` | 0.50 (provisional) |
-| `subclass_gate:fit_unanswered` | `fit__` unanswered while the pick was usable; same per-class policy | `apply_v41_rules` | — |
+| `document_form:<flag>` | a form flag's p(yes) ≥ `park_min` | `apply_v42_rules` | 0.50 (provisional) |
+| `refused:form__<flag>`, `refused:doc_type` | the question went unanswered; nothing then says the document is intact | `apply_v42_rules` | — |
+| `subclass_fit` | the chosen class's `fit__` p(yes) < `subclass_fit_min` | `apply_v42_rules` | 0.50 (provisional) |
+| `subclass_gate:fit_unanswered` | `fit__` unanswered while the pick was usable; same per-class policy | `apply_v42_rules` | — |
 
 `document_form` reports the first flag that fired (`fragment`, `bundle`, `unreadable`,
 `non_english`), else `complete_instrument`; `document_form_flags` lists every flag that fired.
@@ -171,11 +171,11 @@ flag probability, because the flags are not exclusive; in 4.0.x it is the summed
   the masked text, so `ends_with` never carries an unmasked number.
 - A single refused question no longer disappears: it is listed in `refused_questions`, and the
   routing treats it as unusable (park or gate), never as a confident default.
-- A malformed 4.1.0 key (`state_shape`, `session_id`, `form_signals`, `record_refusals`,
+- A malformed 4.2.0 key (`state_shape`, `session_id`, `form_signals`, `record_refusals`,
   `untrusted_notice`, `document_form_flags`, `subclass_fit`, `subclass_fit_min`, or asking both
   `document_form` and the flags) fails at load, not mid-run.
 - Every published set's request body is pinned by sha256 in
-  `tests/test_decision_qset_v41.py` (computed from the code before this change).
+  `tests/test_decision_qset_v42.py` (computed from the code before this change).
 
 ## 4. Data splits and scale
 
@@ -243,8 +243,8 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 
 | Decision | Chosen | Alternative | Why |
 | --- | --- | --- | --- |
-| Fix the bug in 4.0.x or a new version | New version 4.1.0 | Patch `decide()` for every set | Locked runs must replay exactly (F5); patching would silently change what 4.0.x runs sent. |
-| Where the 4.1.0 rules live | `apply_v41_rules` after the SHF-009 contract | Edit `apply_question_set_contract` | Editing it makes SHF-009 stale and every lock under it unresumable. Cost: the 4.1.0 rules are not fingerprinted by a hotfix id; they are pinned by the question set's sha256 in the run lock. Registering them as their own SHF id is a reviewable follow-up. |
+| Fix the bug in 4.0.x or a new version | New version 4.2.0 | Patch `decide()` for every set | Locked runs must replay exactly (F5); patching would silently change what 4.0.x runs sent. |
+| Where the 4.2.0 rules live | `apply_v42_rules` after the SHF-009 contract | Edit `apply_question_set_contract` | Editing it makes SHF-009 stale and every lock under it unresumable. Cost: the 4.2.0 rules are not fingerprinted by a hotfix id; they are pinned by the question set's sha256 in the run lock. Registering them as their own SHF id is a reviewable follow-up. |
 | Form question | Four yes/no flags | One pick-one question | Defects are not exclusive; one pick hid the second. Cost: four probabilities to calibrate instead of one mass. |
 | "None fits" | Separate `fit__<class>` question | `not_this_class` option | Provider guidance; a forced pick can no longer hide a wrong class. Cost: 4 fit questions per request (20 in all against 4.0.2's 13, with the four form flags replacing `document_form`), and a pick with no fitting option may now be refused (recorded). Kept only if an ablation against the option form agrees. |
 | Form facts | Computed in code, passed as data | Model reads the whole text | Code finds the last line of a 1M-character text exactly; the model still judges what it means. |
@@ -253,9 +253,9 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 
 ## 6. Rollout
 
-1. Land 4.1.0 as `draft` (this change): offline tests, byte-identity of every published set.
+1. Land 4.2.0 as `draft` (this change): offline tests, byte-identity of every published set.
 2. Smoke on a few runbook-v2 calibration documents (operator launch, with spend caps): check
-   that `state` is an object, every 4.1.0 question is answered or listed in
+   that `state` is an object, every 4.2.0 question is answered or listed in
    `refused_questions`, `session_id` groups the run in provider logs, and record the refusal
    shape.
 3. Fit `park_min`, `subclass_fit_min`, `margin` and `unknown_max` on runbook-v2 calibration;
@@ -266,7 +266,7 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 ## 7. What to revisit
 
 - The refusal rule, once the real single-question refusal shape is observed.
-- Whether `apply_v41_rules` should carry its own scoring-hotfix id.
+- Whether `apply_v42_rules` should carry its own scoring-hotfix id.
 - Per-class subclass cutoffs where calibration documents exist; more calibration documents (or
   a pooled family) for contract, corporate_record and merger_agreement before any 2% claim.
 - A length-stratified calibration draw if long-document claims matter (55 documents today).
@@ -280,7 +280,7 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 
 ## Not verified
 
-- No live request was made: the 4.1.0 answers, the refusal shape and `session_id` grouping are
+- No live request was made: the 4.2.0 answers, the refusal shape and `session_id` grouping are
   untested against the provider.
 - The question-design guidance (a separate "does any option fit?" question, test both forms)
   and the model-limits note (text that argues for its own classification) come from an earlier
@@ -294,7 +294,7 @@ documents. Measure d on the first paired dev run before committing to the 2-poin
 All offline, from the repository root:
 
 ```bash
-.venv/bin/python -m pytest -q tests/test_decision_qset_v41.py -n 0 --no-cov   # 4.1.0 request and routing
+.venv/bin/python -m pytest -q tests/test_decision_qset_v42.py -n 0 --no-cov   # 4.2.0 request and routing
 ```
 
 The split digest (integrity, per-class counts and bounds, bands, zero-calibration units,

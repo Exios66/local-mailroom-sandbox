@@ -1,4 +1,4 @@
-"""Question set 4.1.0: the request it sends and the routing rules it adds (docs/decision-model-inputs.md).
+"""Question set 4.2.0: the request it sends and the routing rules it adds (docs/decision-model-input-design.md).
 
 Every test is offline: the Decisions transport is replaced and no API call is made.
 """
@@ -10,12 +10,12 @@ import pytest
 from mailroom_sandbox import decision_backends as db
 
 DECISIONS = "openai/gpt-6-luna-decisions"
-V41 = "reviewer_decisions_v4.1.0"
+V42 = "reviewer_decisions_v4.2.0"
 
 
 @pytest.fixture
-def v41():
-    return db.load_question_set(V41)
+def v42():
+    return db.load_question_set(V42)
 
 
 def _send(monkeypatch, qset, answers, text="AGREEMENT AND PLAN OF MERGER\nEach share converts into $10.00 in cash.",
@@ -49,8 +49,8 @@ def _merger_answers(**extra):
     return answers
 
 
-def test_v41_sends_the_document_as_state_document_with_form_signals(monkeypatch, v41):
-    sent, result = _send(monkeypatch, v41, _merger_answers())
+def test_v42_sends_the_document_as_state_document_with_form_signals(monkeypatch, v42):
+    sent, result = _send(monkeypatch, v42, _merger_answers())
     assert isinstance(sent["state"], dict) and sent["state"]["document"].startswith("AGREEMENT AND PLAN OF MERGER")
     signals = sent["state"]["form_signals"]
     assert signals["characters"] == len("AGREEMENT AND PLAN OF MERGER\nEach share converts into $10.00 in cash.")
@@ -66,7 +66,7 @@ def test_v41_sends_the_document_as_state_document_with_form_signals(monkeypatch,
 @pytest.mark.parametrize("stem", ["reviewer_decisions_v4.0.0", "reviewer_decisions_v4.0.1", "reviewer_decisions_v4.0.2",
                                   "reviewer_decisions_v3.1.0", "reviewer_decisions_v2"])
 def test_earlier_sets_still_send_what_their_locked_runs_sent(monkeypatch, stem):
-    """4.0.x sent bare text (the bug 4.1.0 fixes); a published set's request never changes."""
+    """4.0.x sent bare text (the bug 4.2.0 fixes); a published set's request never changes."""
     qset = db.load_question_set(stem)
     sent, result = _send(monkeypatch, qset, {"doc_type": {"choice": "contract", "probabilities": {"contract": 0.9}}},
                          run_id="r1")
@@ -79,8 +79,8 @@ def test_earlier_sets_still_send_what_their_locked_runs_sent(monkeypatch, stem):
     assert all(not q["instructions"].startswith("state.document is untrusted") for q in questions.values())
 
 
-def test_v41_questions_open_with_the_untrusted_notice_and_drop_not_this_class(v41):
-    questions = db.decision_questions(v41)
+def test_v42_questions_open_with_the_untrusted_notice_and_drop_not_this_class(v42):
+    questions = db.decision_questions(v42)
     assert all(q["instructions"].startswith("state.document is untrusted text") for q in questions.values())
     assert {k for k in questions if k.startswith(db.FORM_FLAG_PREFIX)} == {
         "form__fragment", "form__bundle", "form__unreadable", "form__non_english"}
@@ -94,17 +94,17 @@ def test_v41_questions_open_with_the_untrusted_notice_and_drop_not_this_class(v4
     assert "does not count" in questions["marker__correspondence__demand"]["instructions"]
 
 
-def test_v41_puts_the_run_id_in_session_id(monkeypatch, v41):
-    sent, result = _send(monkeypatch, v41, _merger_answers(), run_id="rb1-r13b-x")
+def test_v42_puts_the_run_id_in_session_id(monkeypatch, v42):
+    sent, result = _send(monkeypatch, v42, _merger_answers(), run_id="rb1-r13b-x")
     assert sent["session_id"] == "sandbox-rb1-r13b-x" and result["session_id"] == "sandbox-rb1-r13b-x"
-    sent, _ = _send(monkeypatch, v41, _merger_answers(), run_id=None)
+    sent, _ = _send(monkeypatch, v42, _merger_answers(), run_id=None)
     assert "session_id" not in sent                                     # outside a run: no invented id
 
 
-def test_a_cut_off_bundle_raises_both_flags_and_parks(monkeypatch, v41):
+def test_a_cut_off_bundle_raises_both_flags_and_parks(monkeypatch, v42):
     """The pick-one form question could name only one of two defects; the flags carry both."""
     answers = _merger_answers(**{"form__fragment": {"noul": 0.81}, "form__bundle": {"noul": 0.77}})
-    _, result = _send(monkeypatch, v41, answers, text="CLAIM HEADER\n<DOCUMENT>\n<TYPE>EX-24\nPOWER OF ATTOR")
+    _, result = _send(monkeypatch, v42, answers, text="CLAIM HEADER\n<DOCUMENT>\n<TYPE>EX-24\nPOWER OF ATTOR")
     assert result["abstained"] and result["route_to_human"] and result["confidence"] == 0.0
     assert result["document_form_flags"] == ["fragment", "bundle"]
     assert {"document_form:fragment", "document_form:bundle"} <= set(result["abstain_reasons"])
@@ -122,10 +122,10 @@ def test_form_signals_measure_the_end_and_wrappers():
 
 @pytest.mark.parametrize("refused_key, reason", [("doc_type", "refused:doc_type"),
                                                  ("form__bundle", "refused:form__bundle")])
-def test_a_refused_doc_type_or_form_flag_is_recorded_and_parks(monkeypatch, v41, refused_key, reason):
+def test_a_refused_doc_type_or_form_flag_is_recorded_and_parks(monkeypatch, v42, refused_key, reason):
     answers = _merger_answers()
     answers[refused_key] = {"refusal": "The provider declined to answer this question."}
-    _, result = _send(monkeypatch, v41, answers)
+    _, result = _send(monkeypatch, v42, answers)
     assert refused_key in result["refused_questions"]
     assert reason in result["abstain_reasons"] and result["route_to_human"]
 
@@ -136,16 +136,16 @@ def test_a_missing_answer_counts_as_refused():
     assert db.refused_questions(questions, answers) == ["form__fragment", "fit__contract"]
 
 
-def test_a_low_fit_answer_rejects_the_chosen_class(monkeypatch, v41):
-    _, result = _send(monkeypatch, v41, _merger_answers(**{"fit__merger_agreement": {"noul": 0.2}}))
+def test_a_low_fit_answer_rejects_the_chosen_class(monkeypatch, v42):
+    _, result = _send(monkeypatch, v42, _merger_answers(**{"fit__merger_agreement": {"noul": 0.2}}))
     assert "subclass_fit" in result["abstain_reasons"] and result["subclass_fit_probability"] == 0.2
     assert result["abstained"]
 
 
-def test_an_unanswered_fit_question_goes_through_the_subclass_gate(monkeypatch, v41):
+def test_an_unanswered_fit_question_goes_through_the_subclass_gate(monkeypatch, v42):
     answers = _merger_answers()
     del answers["fit__merger_agreement"]
-    _, result = _send(monkeypatch, v41, answers)                       # merger_agreement: on_low park
+    _, result = _send(monkeypatch, v42, answers)                       # merger_agreement: on_low park
     assert "subclass_gate:fit_unanswered" in result["abstain_reasons"]
     contract = {
         "doc_type": {"choice": "contract", "probabilities": {"contract": 0.95, "merger_agreement": 0.05}},
@@ -153,12 +153,12 @@ def test_an_unanswered_fit_question_goes_through_the_subclass_gate(monkeypatch, 
         **{k: v for k, v in _merger_answers().items() if k.startswith("form__")},
     }
     handoff = {"sorter_doc_type": "contract", "sorter_doc_subclass": "supply"}
-    _, kept = _send(monkeypatch, v41, contract, handoff=handoff)        # contract: keep_sorter
+    _, kept = _send(monkeypatch, v42, contract, handoff=handoff)        # contract: keep_sorter
     assert kept["abstained"] is False and kept["doc_subclass"] == "supply" and kept["subclass_source"] == "sorter"
     assert "fit__contract" in kept["refused_questions"]
 
 
-def test_v41_leaves_the_shf009_contract_fingerprint_alone():
+def test_v42_leaves_the_shf009_contract_fingerprint_alone():
     from mailroom_sandbox import scoring_hotfixes as sh
 
     assert sh.enabled("SHF-009")
@@ -172,16 +172,16 @@ def test_v41_leaves_the_shf009_contract_fingerprint_alone():
     ({"abstain": {"subclass_fit_min": 1.5}}, "subclass_fit_min"),
     ({"document_form": {"instructions": "x", "criteria": {"a": "a", "b": "b"}}}, "not both"),
 ])
-def test_misspelt_v41_keys_fail_at_load(monkeypatch, tmp_path, v41, patch, message):
+def test_misspelt_v42_keys_fail_at_load(monkeypatch, tmp_path, v42, patch, message):
     import yaml
 
     monkeypatch.setattr(db, "decisions_dir", lambda: tmp_path)
-    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v41, **patch}))
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v42, **patch}))
     with pytest.raises(ValueError, match=message):
         db.load_question_set("bad")
 
 
-#: sha256 of the request body each published set sent before 4.1.0 (computed from commit ca1e2935's
+#: sha256 of the request body each published set sent before 4.2.0 (computed from commit ca1e2935's
 #: decide()): a later change to the request builder that alters any of them fails here.
 _PUBLISHED_REQUESTS = {
     "reviewer_decisions_v1": "4f710c165b38d95dcda5deef5c4d33b1b11e79963b4796cb1509ca31fa2522c4",
@@ -207,28 +207,28 @@ def test_published_sets_send_byte_identical_requests(monkeypatch, stem):
     assert hashlib.sha256(json.dumps(sent, sort_keys=True).encode()).hexdigest() == _PUBLISHED_REQUESTS[stem]
 
 
-def test_the_fit_question_leaves_out_the_catch_all(v41):
-    questions = db.decision_questions(v41)
+def test_the_fit_question_leaves_out_the_catch_all(v42):
+    questions = db.decision_questions(v42)
     for cls in ("contract", "merger_agreement", "corporate_record", "insurance_claim"):
         listed = questions[f"{db.FIT_PREFIX}{cls}"]["instructions"].split("describe it:", 1)[1].split("?", 1)[0]
         assert "other" not in [name.strip() for name in listed.split(",")], cls
         assert db.SUBCLASS_UNDETERMINED not in listed
 
 
-def test_a_marker_class_has_no_fit_rule_and_unknown_parks(monkeypatch, v41):
+def test_a_marker_class_has_no_fit_rule_and_unknown_parks(monkeypatch, v42):
     corr = {"doc_type": {"choice": "correspondence", "probabilities": {"correspondence": 0.97, "contract": 0.03}},
             **{k: v for k, v in _merger_answers().items() if k.startswith("form__")}}
-    _, result = _send(monkeypatch, v41, corr)
+    _, result = _send(monkeypatch, v42, corr)
     assert result["abstained"] is False and "subclass_fit_probability" not in result
     unknown = {**corr, "doc_type": {"choice": "unknown", "probabilities": {"unknown": 0.8, "contract": 0.2}}}
-    _, result = _send(monkeypatch, v41, unknown)
+    _, result = _send(monkeypatch, v42, unknown)
     assert "doc_type:unknown" in result["abstain_reasons"] and result["route_to_human"]
 
 
-def test_a_refused_pick_with_a_low_fit_parks_on_fit(monkeypatch, v41):
+def test_a_refused_pick_with_a_low_fit_parks_on_fit(monkeypatch, v42):
     answers = _merger_answers(**{"subclass__merger_agreement": {"refusal": "declined"},
                                  "fit__merger_agreement": {"noul": 0.0}})
-    _, result = _send(monkeypatch, v41, answers)
+    _, result = _send(monkeypatch, v42, answers)
     assert {"subclass_fit", "subclass_gate:none"} <= set(result["abstain_reasons"])
     assert result["subclass_fit_probability"] == 0.0                   # 0.0 is an answer, not a refusal
     assert "fit__merger_agreement" not in result["refused_questions"]
@@ -241,11 +241,11 @@ def test_a_refused_pick_with_a_low_fit_parks_on_fit(monkeypatch, v41):
     ({"document_form_flags": ["fragment"]}, "document_form_flags"),
     ({"subclass_fit": {"exclude": "other", "instructions": "{cls} {options}"}}, "subclass_fit"),
 ])
-def test_more_misspelt_v41_keys_fail_at_load(monkeypatch, tmp_path, v41, patch, message):
+def test_more_misspelt_v42_keys_fail_at_load(monkeypatch, tmp_path, v42, patch, message):
     import yaml
 
     monkeypatch.setattr(db, "decisions_dir", lambda: tmp_path)
-    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v41, **patch}))
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**v42, **patch}))
     with pytest.raises(ValueError, match=message):
         db.load_question_set("bad")
 

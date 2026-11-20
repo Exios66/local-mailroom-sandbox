@@ -90,7 +90,7 @@ def build(rows: dict[str, dict]) -> list[dict]:
     return out
 
 
-#: 4.1.0 form flags in the 4.0.x document_form vocabulary the controls are written in.
+#: 4.2.0 form flags in the 4.0.x document_form vocabulary the controls are written in.
 FLAG_FORMS = {"fragment": "fragment_or_excerpt", "bundle": "multiple_documents",
               "unreadable": "unreadable", "non_english": "non_english"}
 
@@ -131,7 +131,7 @@ def check_run(run_dir: Path, controls: Path) -> int:
         got, parked = pred.get("document_form"), bool(pred.get("abstained") or pred.get("route_to_human"))
         flags = pred.get("document_form_flags")
         if isinstance(flags, list):
-            # 4.1.0+ yes/no flags: any fired flag may name the defect (a cut-off bundle fires two).
+            # 4.2.0+ yes/no flags: any fired flag may name the defect (a cut-off bundle fires two).
             fired = [FLAG_FORMS.get(str(f), str(f)) for f in flags]
             got = (want if want in fired else fired[0]) if fired else "complete_instrument"
         ok = got == want and parked == (want != "complete_instrument")

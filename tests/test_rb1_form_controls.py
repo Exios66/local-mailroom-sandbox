@@ -121,8 +121,8 @@ def test_check_run_fails_a_truncated_or_edited_controls_file(tmp_path, capsys):
     assert f"0/{len(fc.CONTROLS)} controls correct" in capsys.readouterr().out
 
 
-def test_check_run_reads_the_v41_form_flags(tmp_path, capsys):
-    """4.1.0 reports yes/no flags (fragment, bundle, ...); a control passes when any fired flag names its form."""
+def test_check_run_reads_the_v42_form_flags(tmp_path, capsys):
+    """4.2.0 reports yes/no flags (fragment, bundle, ...); a control passes when any fired flag names its form."""
     src = _source(tmp_path)
     controls = tmp_path / "controls.jsonl"
     fc.main(["--source", str(src), "--out", str(controls)])

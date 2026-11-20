@@ -1,8 +1,8 @@
-# Decision reviewer question set 4.1.0 (lineage: config/decisions/LINEAGE.yaml).
+# Decision reviewer question set 4.2.0 (lineage: config/decisions/LINEAGE.yaml).
 # Model: openai/gpt-6-luna-decisions (OpenRouter Decisions API; $0.10 per 1M input, $0 output).
 #
 # MINOR of 4.0.2: the questions and the request change; the classes, subclasses, criteria
-# texts and the subclass gate are 4.0.2's. Design and evidence: docs/decision-model-inputs.md.
+# texts and the subclass gate are 4.0.2's. Design and evidence: docs/decision-model-input-design.md.
 #
 # 1. state is always {"document": ...} (state_shape: object). Every 4.0.x question names
 #    state.document, but 4.0.x sent the document as bare text, so that field did not exist.
@@ -24,7 +24,7 @@
 # never on dev-look1 (all of it tuned) and never on held-out.
 schema: sandbox.decisions/v1
 name: reviewer_decisions
-version: 4.1.0
+version: 4.2.0
 max_input_chars: 1000000
 truncation_notice: true   # say so when the window still cuts a document; never truncate silently
 state_shape: object      # state = {"document": <text>, "form_signals": {...}}
@@ -123,7 +123,7 @@ subclass_gate:
   # the pick, or did not answer fit__<class>. `park` folds the gated confidence to zero so the
   # routing parks the document; `keep_sorter` passes the sorter's subclass through, so a guess
   # never replaces a guess. Unchanged from 4.0.2. A calibrated per-class subclass cutoff still
-  # needs calibration documents several subclass units do not have (docs/decision-model-inputs.md).
+  # needs calibration documents several subclass units do not have (docs/decision-model-input-design.md).
   default: {on_low: keep_sorter}
   merger_agreement: {on_low: park}     # merger_consideration is a scored extraction field
   corporate_record: {on_low: park}     # the subclass selects the scoring schema
@@ -196,7 +196,7 @@ subclass:
     order: [attorney_demand, letter, press_release, memo, demand, notice, meeting_request]
     default: email
     markers:
-      # 4.1.0: "contains or discusses" stays (the corpus scores markers anywhere, forwards too),
+      # 4.2.0: "contains or discusses" stays (the corpus scores markers anywhere, forwards too),
       # but a denial or a negated mention no longer counts as the marker.
       attorney_demand: >-
         Does it contain a demand made by or for an attorney or law firm (Esq., Law Offices,
