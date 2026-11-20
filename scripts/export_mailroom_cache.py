@@ -109,14 +109,41 @@ def parse_version(version: str) -> tuple[int, int, int, str]:
     return major, minor, patch, m.group(4)
 
 
-def labels_commit() -> str:
-    """The last commit that changed ``data/labels``; refuse uncommitted label edits."""
-    dirty = subprocess.run(["git", "status", "--porcelain", "--", "data/labels"], cwd=ROOT,
-                           capture_output=True, text=True, check=True).stdout.strip()
+def _git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+
+
+def _labels_tree(commit: str) -> str | None:
+    res = subprocess.run(["git", "rev-parse", "--verify", "-q", f"{commit}:data/labels"], cwd=ROOT,
+                         capture_output=True, text=True)
+    return res.stdout.strip() if res.returncode == 0 else None
+
+
+def labels_commit(prefer: str | None = None) -> str:
+    """The commit that introduced the current ``data/labels`` content; refuse uncommitted edits.
+
+    Found by content, not by ``git log -- data/labels``: in a shallow clone a boundary commit
+    looks as if it added every file. ``prefer`` (an already recorded commit) is kept when its
+    labels tree is still the current one, so re-checks never drift with clone depth.
+    """
+    dirty = _git("status", "--porcelain", "--", "data/labels")
     if dirty:
         raise CacheError(f"data/labels has uncommitted changes; commit them first:\n{dirty}")
-    return subprocess.run(["git", "log", "-1", "--format=%H", "--", "data/labels"], cwd=ROOT,
-                          capture_output=True, text=True, check=True).stdout.strip()
+    tree = _labels_tree("HEAD")
+    if prefer and _labels_tree(prefer) == tree:
+        return prefer
+    shallow_file = Path(_git("rev-parse", "--git-path", "shallow"))
+    shallow_file = shallow_file if shallow_file.is_absolute() else ROOT / shallow_file
+    shallow = set(shallow_file.read_text().split()) if shallow_file.exists() else set()
+    found = None
+    for commit in _git("rev-list", "--first-parent", "HEAD").split():
+        if _labels_tree(commit) != tree:
+            break
+        found = commit
+        if commit in shallow:
+            raise CacheError("history is too shallow to find the commit that introduced data/labels; "
+                             "fetch more history (git fetch --depth=200 origin <branch>)")
+    return found
 
 
 def accepted_subclass_corrections() -> dict[str, tuple[str, str]]:
@@ -263,7 +290,7 @@ def render_registry(out: Path) -> dict[str, Any]:
         if m["channel"] == "hf-revision":
             entry.update(hf_tag=m["hf_tag"], tag_commit=m["tag_commit"], data_revision=m["data_revision"])
         else:
-            entry.update(base_release=m["base_release"], semver=m["semver"],
+            entry.update(kind=m.get("kind", "label-sets"), base_release=m["base_release"], semver=m["semver"],
                          labels_commit=m["source"]["labels_commit"],
                          manifest_sha256=_sha256(mf))
         versions.append(entry)
@@ -276,7 +303,7 @@ def render_readme(registry: dict[str, Any]) -> str:
         f"| `{v['version']}` | {v['channel']} | `{v['path']}/` | "
         + (f"Hub `{v['hf_tag']}` → `{v['tag_commit'][:8]}` (data `{v['data_revision'][:8]}`)"
            if v["channel"] == "hf-revision" else
-           f"builds on `{v['base_release']}`; sandbox labels `{v['labels_commit'][:8]}`")
+           f"{v['kind']} on `{v['base_release']}`; sandbox labels `{v['labels_commit'][:8]}`")
         + " |"
         for v in registry["versions"]
     )
@@ -306,7 +333,20 @@ mailroom_cache/
       enhancements/gold-overlay/        the near-gold overlay production runs merge
       enhancements/gold-supplementary/  supplementary labeler output (never ground truth)
       enhancements/interim/             repaired interim gap fills and corrections
+    pre-release/vX.Y.P-rc.N/            kind "production-overlay": the merged master, staged
+      MANIFEST.json                     inputs (builder commit, sha256), coverage, overlay counts
+      master/                           joined wide CSV, per-cell provenance, completeness, summary
+      overlay/<class>.jsonl             every label that differs from Hub vX.Y (pulled by deployments)
+      queues/needs_human.csv            unresolved disputes and join cells a person must decide
+      queues/gold_override_signoff.csv  Hub overrides, decided_by blank until initialled
 ```
+
+A pre-release is either `label-sets` (the raw sandbox layers, as cut) or `production-overlay`
+(those layers merged into one master by the repaired-label builder, then staged as an overlay).
+Production scoring pulls the newest `production-overlay`: Hub label first, replaced field by field
+by `overlay/<class>.jsonl`, where `override: true` marks a replaced Hub value. Check each record's
+`content_sha256` against the document before applying it. The overlay already contains the
+interim and near-gold labels it merged, so apply it instead of those layers, never on top of them.
 
 - **Patch** (`X.Y.P`) counts label repair rounds on release `X.Y`.
 - **Pre-release** (`-rc.N`) is one cut of that round. A cut is never rewritten: changed labels
@@ -350,9 +390,11 @@ def export(out: Path, version: str, full_labels: Path | None, *, check: bool) ->
     """Write (or, with ``check``, compare) the cache. Returns the list of stale paths."""
     major, minor, _patch, _pre = parse_version(version)
     version = version.removeprefix("v")
-    commit = labels_commit()
     pre_rel = Path(f"v{major}.{minor}.0") / "pre-release" / f"v{version}"
     existing = out / pre_rel
+    recorded = (json.loads((existing / "MANIFEST.json").read_text())["source"]["labels_commit"]
+                if (existing / "MANIFEST.json").exists() else None)
+    commit = labels_commit(prefer=recorded)
     if full_labels is None:
         cached = sorted((existing / FULL_SET_DIR).glob("*.csv")) if existing.exists() else []
         if len(cached) != 1 or not (existing / "MANIFEST.json").exists():
