@@ -119,3 +119,35 @@ def test_check_run_fails_a_truncated_or_edited_controls_file(tmp_path, capsys):
     controls.write_text("", encoding="utf-8")
     assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
     assert f"0/{len(fc.CONTROLS)} controls correct" in capsys.readouterr().out
+
+
+def test_check_run_reads_the_v42_form_flags(tmp_path, capsys):
+    """4.2.0 reports yes/no flags (fragment, bundle, ...); a control passes when any fired flag names its form."""
+    src = _source(tmp_path)
+    controls = tmp_path / "controls.jsonl"
+    fc.main(["--source", str(src), "--out", str(controls)])
+    run = tmp_path / "run"
+    run.mkdir()
+    rows = [json.loads(line) for line in controls.read_text().splitlines()]
+    to_flag = {v: k for k, v in fc.FLAG_FORMS.items()}
+
+    def write(extra_flag=None, drop_flags=False):
+        items = []
+        for r in rows:
+            form = r["expected_document_form"]
+            flags = [] if form == "complete_instrument" or drop_flags else [to_flag[form]]
+            if extra_flag and flags:
+                flags = [extra_flag, *flags]                 # a cut-off bundle fires both; order must not matter
+            pred = {"document_form": flags[0] if flags else "complete_instrument", "document_form_flags": flags,
+                    "abstained": bool(flags) or (drop_flags and form != "complete_instrument")}
+            items.append({"item_id": r["id"], "pred": pred})
+        (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
+
+    write()
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 0
+    write(extra_flag="unreadable")
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 0
+    # Parked for another reason (no flag fired) is a miss: the form question did not catch the defect.
+    write(drop_flags=True)
+    assert fc.main(["--check-run", str(run), "--controls", str(controls)]) == 1
+    assert "MISS" in capsys.readouterr().out

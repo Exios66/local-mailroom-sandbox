@@ -372,6 +372,15 @@ def test_shf009_keep_sorter_never_crosses_classes(monkeypatch):
     answers = _v4_answers(top=("contract", 0.9), second=("merger_agreement", 0.05), sub_choice="undetermined")
     out = _decide(monkeypatch, answers, handoff={"sorter_doc_type": "merger_agreement", "sorter_doc_subclass": "cash"})
     assert out["doc_subclass"] is None and out["subclass_source"] == "unresolved"
+    assert out["abstained"] and "subclass_gate:undetermined" in out["abstain_reasons"]
+
+
+def test_shf009_keep_sorter_without_handoff_parks(monkeypatch):
+    answers = _v4_answers(top=("contract", 0.9), second=("merger_agreement", 0.05), sub_choice="undetermined")
+    out = _decide(monkeypatch, answers, handoff=None)
+    assert out["doc_subclass"] is None and out["subclass_source"] == "unresolved"
+    assert out["abstained"] and out["route_to_human"] and out["confidence"] == 0.0
+    assert "subclass_gate:undetermined" in out["abstain_reasons"]
 
 
 def test_shf012_raw_subclass_macro_f1_counts_the_predicted_label():
