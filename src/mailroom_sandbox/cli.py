@@ -1839,6 +1839,45 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
         return 1
 
 
+def _visualizer_clean_head(dest: Path) -> str | None:
+    """HEAD when the checkout is clean. None leaves a dirty checkout untouched."""
+    status = subprocess.run(
+        ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
+         "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
+         "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
+        capture_output=True, text=True, check=False,
+    )
+    current = subprocess.run(
+        ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
+        capture_output=True, text=True, check=False,
+    )
+    if status.returncode or status.stdout or current.returncode:
+        print("!! visualizer has local files; left untouched", file=sys.stderr)
+        return None
+    return current.stdout.strip()
+
+
+def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | None]:
+    """``(stop code, HEAD)``. A stop code means the checkout was left untouched."""
+    if not dest.exists() and not dest.is_symlink():
+        return None, None
+    if dest.is_symlink() or not (dest / ".git").exists():
+        print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
+        return 1, None
+    existing_head = _visualizer_clean_head(dest)
+    if existing_head is None:
+        return 1, None
+    marker = dest / ".git" / "mailroom-reviewed-head"
+    try:
+        reviewed_head = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        reviewed_head = None
+    if existing_head != sha and reviewed_head != existing_head:
+        print("!! visualizer HEAD is not a previously reviewed snapshot; left untouched", file=sys.stderr)
+        return 1, None
+    return None, existing_head
+
+
 def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
     """Retrieve the reviewed visualizer without discarding local work.
 
@@ -1851,36 +1890,9 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
     import tempfile
 
     dest = vendor_dir() / "The-Mailroom"
-    existing_head = None
-    if dest.exists() or dest.is_symlink():
-        if dest.is_symlink() or not (dest / ".git").exists():
-            print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
-            return 1
-        status = subprocess.run(
-            ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
-             "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
-             "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
-            capture_output=True, text=True, check=False,
-        )
-        current = subprocess.run(
-            ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
-            capture_output=True, text=True, check=False,
-        )
-        if status.returncode or status.stdout or current.returncode:
-            print("!! visualizer has local files; left untouched", file=sys.stderr)
-            return 1
-        existing_head = current.stdout.strip()
-        marker = dest / ".git" / "mailroom-reviewed-head"
-        try:
-            reviewed_head = marker.read_text(encoding="utf-8").strip()
-        except OSError:
-            reviewed_head = None
-        if existing_head != sha and reviewed_head != existing_head:
-            print(
-                "!! visualizer HEAD is not a previously reviewed snapshot; left untouched",
-                file=sys.stderr,
-            )
-            return 1
+    stopped, existing_head = _visualizer_existing_head(dest, sha)
+    if stopped:
+        return stopped
     refresh_root = vendor_dir() / ".refresh"
     try:
         refresh_root.mkdir(parents=True, exist_ok=True)
