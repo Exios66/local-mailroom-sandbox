@@ -46,8 +46,10 @@ request-body tests cover every previously published reviewer set through 4.1.0.
 The question-set SHA-256 identifies YAML bytes only. It does **not** fingerprint
 `apply_v42_rules()`. A question set that uses the 4.2.0 rules also locks
 `reviewer.routing_sha256`, the source digest of those routing helpers. Resume
-refuses that lock when the digest differs. Published sets and locks taken
-before the key existed do not carry it and resume as before. SHF-009
+returns `drift_refused` with `run_id` and `detail` when that digest differs.
+`--force` archives the previous generation and writes a new lock. Published
+sets and locks taken before the key existed do not carry it and resume as
+before. SHF-009
 fingerprints and existing experiment locks are unchanged.
 
 That guard does not adopt 4.2.0. Until the acceptance work below is complete,
