@@ -48,6 +48,15 @@ Then open <http://127.0.0.1:8888/lab>. Add `--compose-profile ollama` (and
 The same check runs in `tests/test_notebooks.py`. Without `nbclient` (part of the
 `[notebooks]` extra) only the structure checks run.
 
+**Demo copies with outputs** (figures embedded, every code cell exercised):
+
+```bash
+.venv/bin/python scripts/render_notebook_demos.py
+```
+
+Writes executed notebooks to [`demos/`](demos/). Source notebooks stay output-free;
+open the demos when you want a worked example of each cell's display.
+
 ## What every notebook does first
 
 The first code cell calls `mailroom_sandbox.notebook.bootstrap()`, which:
@@ -95,8 +104,9 @@ Ollama running. Paid work (Modal GPUs, OpenRouter) goes only through
 
 ## Editing the notebooks
 
-- Commit them **without outputs** (`jupyter nbconvert --clear-output --inplace notebooks/*.ipynb`).
+- Commit source notebooks **without outputs** (`jupyter nbconvert --clear-output --inplace notebooks/0*.ipynb`).
   `tests/test_notebooks.py` checks this and that every cell has an id.
+- Refresh [`demos/`](demos/) with `python scripts/render_notebook_demos.py` after cell or helper changes so the committed examples stay current.
 - Put reusable logic in `src/mailroom_sandbox/notebook.py` (with tests in
   `tests/test_notebook.py`), not in cells.
 - `ruff check notebooks` lints them with the repo's correctness rules.
