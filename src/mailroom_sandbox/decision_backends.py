@@ -24,6 +24,8 @@ types (``DecisionAnswer``) are imported lazily too, after
 from __future__ import annotations
 
 import functools
+import hashlib
+import inspect
 import json
 import math
 import re
@@ -1237,6 +1239,32 @@ def _v42_subclass_gate_reasons(
     if unusable:
         reasons.extend(_v42_apply_unusable_subclass(out, qset, doc_type, unusable, handoff))
     return reasons
+
+
+#: Functions whose source is the 4.2.0 routing identity. The question-set SHA-256 covers YAML only.
+_V42_ROUTING = (
+    "_v42_fired_form_flags",
+    "_v42_form_flag_reasons",
+    "_v42_marker_unusable",
+    "_v42_fit_status",
+    "_v42_keep_sorter_subclass",
+    "_v42_apply_unusable_subclass",
+    "_v42_subclass_gate_reasons",
+    "apply_v42_rules",
+)
+
+
+def uses_v42_routing(qset: Mapping[str, Any] | None) -> bool:
+    """True when this question set applies the 4.2.0 routing rules."""
+    if not qset:
+        return False
+    return bool(qset.get("document_form_flags") or qset.get("subclass_fit") or qset.get("record_refusals"))
+
+
+def v42_routing_sha256() -> str:
+    """sha256 of the 4.2.0 routing helpers. Resume refuses a lock whose copy differs."""
+    chunks = [inspect.getsource(globals()[name]) for name in _V42_ROUTING]
+    return hashlib.sha256("".join(chunks).encode()).hexdigest()
 
 
 def apply_v42_rules(result: Mapping[str, Any], answers: Mapping[str, Any], qset: Mapping[str, Any], *,
