@@ -148,8 +148,8 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
     a below-target extraction in this sample. Fewer than ``MIN_DOCS`` scored
     documents with a recorded confidence gives no suggestion.
     """
-    pairs = sorted((d["extraction_confidence"][0], d["quality"]) for d in docs
-                   if d["extraction_confidence"] and d["quality"] is not None)
+    pairs = sorted((conf, d["quality"]) for d in docs
+                   if (conf := _first_confidence(d)) is not None and d["quality"] is not None)
     if len(pairs) < MIN_DOCS:
         return {"suggestion": None, "basis": f"{len(pairs)} scored document(s) with a recorded extraction_confidence; need {MIN_DOCS}"}
     for i, (conf, _) in enumerate(pairs):
@@ -159,32 +159,38 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
     return {"suggestion": None, "basis": f"the most confident document scored below {target}: confidence does not separate quality"}
 
 
-def _band(band: Any) -> float:
-    if isinstance(band, bool) or not isinstance(band, (int, float)):
-        return 0.85
-    return float(band)
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _first_confidence(doc: Mapping[str, Any]) -> float | None:
+    """First-pass extraction confidence, or None when the decision recorded no number."""
+    confidences = doc.get("extraction_confidence") or []
+    return _number(confidences[0]) if confidences else None
 
 
 def _quality_above(doc: Mapping[str, Any], threshold: float) -> float | None:
-    confidences = doc.get("extraction_confidence") or []
-    quality = doc.get("quality")
-    if not confidences or isinstance(quality, bool) or not isinstance(quality, (int, float)):
+    confidence, quality = _first_confidence(doc), _number(doc.get("quality"))
+    if confidence is None or quality is None or confidence < threshold:
         return None
-    if confidences[0] < threshold:
-        return None
-    return float(quality)
+    return quality
 
 
 def above_band_quality(docs: list[dict[str, Any]], band: Any, *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
     """Accuracy of scored documents whose first extraction confidence is at or above ``band``.
 
     The interval is the same two-sided exact interval the gold audit uses. A
-    class with no scored document above the band returns a null rate. This is
-    the table a labelled run records; it does not choose the band.
+    class with no scored document above the band, or a run with no numeric
+    ``judge_band_high``, returns a null rate. This is the table a labelled run
+    records; it does not choose the band.
     """
     from mailroom_sandbox.gold_audit import clopper_pearson_interval
 
-    threshold = _band(band)
+    threshold = _number(band)
+    if threshold is None:
+        return {"band": None, "target": target, "n": 0, "met_target": 0, "rate": None, "ci95": None}
     qualities = [quality for doc in docs if (quality := _quality_above(doc, threshold)) is not None]
     met = sum(quality >= target for quality in qualities)
     n = len(qualities)

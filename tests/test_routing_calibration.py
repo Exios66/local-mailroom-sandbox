@@ -215,6 +215,15 @@ def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     assert empty["n"] == 0 and empty["rate"] is None
 
 
+def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():
+    sample = [{"extraction_confidence": [None], "quality": 0.9}] + [
+        {"extraction_confidence": [0.96], "quality": 0.9}] * 5
+    assert routing_audit.suggest_judge_band_high(sample, target=0.7)["of"] == 5
+    assert routing_audit.above_band_quality(sample, 0.95, target=0.7)["n"] == 5
+    unset = routing_audit.above_band_quality(sample, None, target=0.7)
+    assert unset["band"] is None and unset["n"] == 0 and unset["rate"] is None
+
+
 # --- cost envelope --------------------------------------------------------------------
 
 
