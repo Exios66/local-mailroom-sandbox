@@ -275,6 +275,48 @@ def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> C
     return merge_chunk_windows
 
 
+class WholeDocumentTooLong(ValueError):
+    """An API-routed specialist got a document longer than its input budget (HF-009)."""
+
+
+def _api_route(agent_name: str) -> bool:
+    """True when ``agent_name`` calls a hosted API, not Modal/vLLM or another self-hosted server."""
+    from llm.client import is_free_only_exempt, resolve_agent_model  # type: ignore
+    from pipeline.config import get_agent_config  # type: ignore
+
+    resolved = resolve_agent_model(agent_name, get_agent_config(agent_name))
+    return not (resolved.served_by_vllm or is_free_only_exempt(resolved.provider.name))
+
+
+def _install_api_whole_document(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """On an API route a specialist reads the whole document in one call; chunking stays local.
+
+    Context fit widens API readers' budgets to the model's context, but the vendored graph
+    still windows any document longer than that budget. On OpenRouter that multiplies calls
+    per document, so it is refused: the document fails with :class:`WholeDocumentTooLong`
+    (the extract node's parse-failure path, then review) instead of being chunked or
+    truncated. Modal, vLLM and other self-hosted routes keep the vendored chunking.
+    """
+
+    @functools.wraps(original)
+    def _run_chunked_extraction(agent_fn, doc_text, pages, handoff_context):
+        name = str(getattr(agent_fn, "agent_name", "") or "")
+        if not name or not _api_route(name):
+            return original(agent_fn, doc_text, pages, handoff_context)
+        agent = module._instantiate_specialist(agent_fn, handoff_context)
+        budget = module._specialist_input_budget(agent)
+        if len(doc_text or "") > budget:
+            raise WholeDocumentTooLong(
+                f"{name}: {len(doc_text)} chars exceed the {budget}-char input budget on an API "
+                "route, which never chunks; route this class to Modal/vLLM to window it")
+        try:
+            return agent.extract(doc_text, pages=pages, handoff_context=handoff_context)
+        except TypeError:
+            return agent.extract(doc_text, pages=pages)
+
+    return _run_chunked_extraction
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -357,6 +399,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="a chunked merge records each surviving window's confidence and length under "
                 "_window_confidences and _window_lengths; the merged confidence stays the weakest window (#214)",
         install=_install_window_confidences,
+    ),
+    Hotfix(
+        id="HF-009",
+        module="graph.build_graph",
+        attr="_run_chunked_extraction",
+        source_sha256="4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f",
+        upstream="draft J-5 below (not filed)",
+        summary="an API-routed specialist reads the whole document in one call and refuses a "
+                "document over its budget; only Modal/vLLM and self-hosted routes chunk",
+        install=_install_api_whole_document,
     ),
 )
 
