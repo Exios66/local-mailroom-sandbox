@@ -50,41 +50,85 @@ def _short(value: Any, n: int = 60) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+def _confidence(record: dict[str, Any]) -> float:
+    raw = record["prediction"].get("confidence")
+    return float(raw or 0.0)
+
+
+def _finite_scores(scores: list[Any]) -> list[float]:
+    return [float(score) for score in scores if isinstance(score, (int, float))]
+
+
+def _score_shift(st: Any, scores: list[Any]) -> tuple[float | None, float | None]:
+    finite = _finite_scores(scores)
+    if not finite:
+        return None, None
+    return st.paired_permutation([1.0] * len(finite), finite, n_perm=2000, seed=0)
+
+
+def _rounded_diff(diff: float | None) -> float | None:
+    if diff is None:
+        return None
+    return round(diff, 4)
+
+
+def _per_class_f1(classified: dict[str, Any]) -> str:
+    task = classified.get("task") or {}
+    per_class = task.get("per_class") or {}
+    parts = [f"{name} {row.get('f1')}" for name, row in sorted(per_class.items())]
+    return "per-class F1 (Dojo): " + ", ".join(parts)
+
+
+def _error_count(correct: list[bool]) -> int:
+    return sum(1 for flag in correct if not flag)
+
+
+def _holm_text(st: Any, compared: Any, perm_p: float | None) -> str:
+    perm = 1.0 if perm_p is None else perm_p
+    holm = {name: round(value, 4) for name, value in st.holm(
+        {"mcnemar": compared.p_value, "perm": perm}).items()}
+    return f"Holm over those two: {holm}"
+
+
+def _digest_columns(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]],
+                    per_doc: dict[str, dict[str, Any]]):
+    truth = [str(rows[record["doc_id"]]["expected_doc_class"]) for record in records]
+    pred = [str(record["prediction"]["doc_type"]) for record in records]
+    correct = [left == right for left, right in zip(truth, pred)]
+    unit_ok = [bool(per_doc[record["doc_id"]]["subclass_unit"]) for record in records]
+    conf = [_confidence(record) for record in records]
+    scores = [per_doc[record["doc_id"]]["doc_score"] for record in records]
+    return truth, pred, correct, unit_ok, conf, scores
+
+
 def stats_digest(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]],
                  per_doc: dict[str, dict[str, Any]], stats: dict[str, Any]) -> list[str]:
     """The statistics layer on the hand-check documents (a sanity read, not a gate)."""
     from mailroom_sandbox import experiment_stats as st
 
-    truth = [str(rows[r["doc_id"]]["expected_doc_class"]) for r in records]
-    pred = [str(r["prediction"]["doc_type"]) for r in records]
-    correct = [t == p for t, p in zip(truth, pred)]
-    unit_ok = [bool(per_doc[r["doc_id"]]["subclass_unit"]) for r in records]
-    conf = [float(r["prediction"].get("confidence") or 0.0) for r in records]
-    n, errors = len(records), sum(1 for c in correct if not c)
-    cls = stats["_classification"]
-    per_class = (cls.get("task") or {}).get("per_class") or {}
-    confusion = Counter(zip(truth, pred))
+    truth, pred, correct, unit_ok, conf, scores = _digest_columns(records, rows, per_doc)
+    errors = _error_count(correct)
+    classified = stats["_classification"]
     pairs = list(zip(conf, correct))
-    mc = st.mcnemar(correct, unit_ok)
-    doc_scores = [per_doc[r["doc_id"]]["doc_score"] for r in records]
-    finite = [float(s) for s in doc_scores if isinstance(s, (int, float))]
-    diff, perm_p = st.paired_permutation([1.0] * len(finite), finite, n_perm=2000, seed=0) if finite else (None, None)
-    lines = [
-        f"n {n}  class accuracy {cls.get('accuracy')}  errors {errors}  "
-        f"Clopper-Pearson 95% upper on class error {st.clopper_pearson_upper(errors, n)}",
-        f"macro-F1: Dojo sorter suite {cls.get('f1_macro')}  experiment_stats.macro_f1 "
+    compared = st.mcnemar(correct, unit_ok)
+    diff, perm_p = _score_shift(st, scores)
+    return [
+        f"n {len(records)}  class accuracy {classified.get('accuracy')}  errors {errors}  "
+        f"Clopper-Pearson 95% upper on class error {st.clopper_pearson_upper(errors, len(records))}",
+        f"macro-F1: Dojo sorter suite {classified.get('f1_macro')}  experiment_stats.macro_f1 "
         f"{round(st.macro_f1(truth, pred), 4)}",
-        "per-class F1 (Dojo): " + ", ".join(f"{c} {v.get('f1')}" for c, v in sorted(per_class.items())),
+        _per_class_f1(classified),
         f"unit accuracy {stats['stat:unit_accuracy']}",
-        f"cost-weighted error, unit costs (no committed cost matrix) {st.cost_weighted_error(confusion, {})}",
+        f"cost-weighted error, unit costs (no committed cost matrix) "
+        f"{st.cost_weighted_error(Counter(zip(truth, pred)), {})}",
         f"Brier {st.brier_score(pairs)} (null floor {st.brier_null_floor(correct)})  "
         f"ECE {st.expected_calibration_error(pairs)} (null floor {st.ece_null_floor(conf, n_sim=500, seed=0)})  "
         f"AUROC {st.auroc(conf, correct)}",
-        f"McNemar class-correct vs unit-correct (sanity) b={mc.b} c={mc.c} p={round(mc.p_value, 4)}  "
-        f"sign-flip permutation doc score vs 1.0: mean diff {None if diff is None else round(diff, 4)} p={perm_p}",
-        f"Holm over those two: {({k: round(v, 4) for k, v in st.holm({'mcnemar': mc.p_value, 'perm': perm_p or 1.0}).items()})}",
+        f"McNemar class-correct vs unit-correct (sanity) b={compared.b} c={compared.c} "
+        f"p={round(compared.p_value, 4)}  "
+        f"sign-flip permutation doc score vs 1.0: mean diff {_rounded_diff(diff)} p={perm_p}",
+        _holm_text(st, compared, perm_p),
     ]
-    return lines
 
 
 def _truth_drift(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]]) -> list[str]:

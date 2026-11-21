@@ -458,83 +458,172 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
-def _engine_errors(spec: RunSpec) -> list[str]:
-    errs: list[str] = []
-    if spec.agent_models or spec.agent_knobs:
-        from mailroom_sandbox.agent_routes import known_agents
-        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
-        if unknown:
-            errs.append(f"unknown or retired agents: {sorted(unknown)}")
-    if spec.confidence.get("by_class"):
-        from mailroom_sandbox.overlay import live_doc_classes
-        unknown = set(spec.confidence["by_class"]) - set(live_doc_classes())
-        if unknown:
-            errs.append(f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}")
-    if spec.agent_routes:
-        from mailroom_sandbox.agent_routes import validate
-        from mailroom_sandbox.services._exec import ServiceError
-        try:
-            validate(spec.agent_routes, credentials=not spec.job.mock)
-        except (ValueError, ServiceError) as exc:
-            errs.append(str(exc))
-    errs.extend(_decision_slots_errors(spec))
-    errs.extend(_archive_check_errors(spec))
-    if spec.reviewer:
-        from mailroom_sandbox.overlay import live_doc_classes
+def _named_agent_errors(spec: RunSpec) -> list[str]:
+    if not spec.agent_models and not spec.agent_knobs:
+        return []
+    from mailroom_sandbox.agent_routes import known_agents
 
-        live = live_doc_classes()
-        unknown = sorted(set(spec.reviewer.classes) - set(live))
-        if unknown:
-            errs.append(f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}")
-        if spec.reviewer.backend == "jev" and spec.job.mock:
-            # A mock pipeline run patches the LLM clients but not the decision backend.
-            errs.append("decision reviewer backend jev would make live Jev calls in a mock run; use backend mock")
-        elif spec.reviewer.backend == "jev" and spec.job.mode == "modal":
-            # The Modal worker image excludes the decision extra.
-            errs.append("decision reviewer backend jev is not supported for modal jobs (the Modal worker image has no decision extra); use endpoint mode or backend mock")
-        elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
-            errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
-        if spec.reviewer.backend == "local":
-            errs.extend(_local_reviewer_errors(spec))
-        if spec.reviewer.backend == "api":
-            errs.extend(_api_reviewer_errors(spec))
-        if spec.reviewer.backend == "decisions":
-            errs.extend(_decisions_reviewer_errors(spec))
-        if spec.task == "pipeline" and not spec.reviewer.classes:
-            errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
-        if spec.task == "extraction_gate" and not spec.job.mock and spec.reviewer.backend != "decisions":
-            errs.append("a live extraction_gate run needs reviewer backend decisions; "
-                        f"{spec.reviewer.backend!r} has no extraction-gate path")
-    elif spec.task == "extraction_gate" and not spec.job.mock:
-        errs.append("a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
-                    "model, a kind: extraction_gate question set and reviewer.handoff_run")
-    elif spec.task == "sorter_reviewer" and not spec.job.mock and _reviewer_route_bills_tokens(spec):
+    unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+    if not unknown:
+        return []
+    return [f"unknown or retired agents: {sorted(unknown)}"]
+
+
+def _confidence_class_errors(spec: RunSpec) -> list[str]:
+    named = spec.confidence.get("by_class")
+    if not named:
+        return []
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    unknown = set(named) - set(live_doc_classes())
+    if not unknown:
+        return []
+    return [f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}"]
+
+
+def _agent_route_errors(spec: RunSpec) -> list[str]:
+    if not spec.agent_routes:
+        return []
+    from mailroom_sandbox.agent_routes import validate
+    from mailroom_sandbox.services._exec import ServiceError
+
+    try:
+        validate(spec.agent_routes, credentials=not spec.job.mock)
+    except (ValueError, ServiceError) as exc:
+        return [str(exc)]
+    return []
+
+
+def _reviewer_class_errors(spec: RunSpec) -> list[str]:
+    if spec.reviewer is None:
+        return []
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    live = live_doc_classes()
+    unknown = sorted(set(spec.reviewer.classes) - set(live))
+    if not unknown:
+        return []
+    return [f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}"]
+
+
+def _jev_backend_errors(spec: RunSpec) -> list[str]:
+    """One Jev refusal. Mock, Modal, and a missing key cannot apply together."""
+    reviewer = spec.reviewer
+    if reviewer is None or reviewer.backend != "jev":
+        return []
+    if spec.job.mock:
+        # A mock pipeline run patches the LLM clients but not the decision backend.
+        return ["decision reviewer backend jev would make live Jev calls in a mock run; use backend mock"]
+    if spec.job.mode == "modal":
+        # The Modal worker image excludes the decision extra.
+        return ["decision reviewer backend jev is not supported for modal jobs "
+                "(the Modal worker image has no decision extra); use endpoint mode or backend mock"]
+    if not os.environ.get("TYPESAFE_API_KEY", "").strip():
+        return ["decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)"]
+    return []
+
+
+def _reviewer_backend_errors(spec: RunSpec) -> list[str]:
+    reviewer = spec.reviewer
+    if reviewer is None:
+        return []
+    if reviewer.backend == "local":
+        return _local_reviewer_errors(spec)
+    if reviewer.backend == "api":
+        return _api_reviewer_errors(spec)
+    if reviewer.backend == "decisions":
+        return _decisions_reviewer_errors(spec)
+    return []
+
+
+def _present_reviewer_task_errors(spec: RunSpec) -> list[str]:
+    reviewer = spec.reviewer
+    errs: list[str] = []
+    if reviewer is not None and spec.task == "pipeline" and not reviewer.classes:
+        errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
+    if reviewer is not None and spec.task == "extraction_gate" and not spec.job.mock and reviewer.backend != "decisions":
+        errs.append("a live extraction_gate run needs reviewer backend decisions; "
+                    f"{reviewer.backend!r} has no extraction-gate path")
+    return errs
+
+
+def _missing_reviewer_errors(spec: RunSpec) -> list[str]:
+    if spec.reviewer is not None or spec.job.mock:
+        return []
+    if spec.task == "extraction_gate":
+        return ["a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
+                "model, a kind: extraction_gate question set and reviewer.handoff_run"]
+    if spec.task == "sorter_reviewer" and _reviewer_route_bills_tokens(spec):
         # A paid reviewer calibration must name its reviewer: without a reviewer block the
         # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
-        errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
-                    "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
-    if spec.engine.kind == "openrouter" and not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
-        # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
-        errs.append("engine kind openrouter needs OPENROUTER_API_KEY set in this shell")
+        return ["a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
+                "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true"]
+    return []
+
+
+def _openrouter_key_error(spec: RunSpec) -> list[str]:
+    # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
+    needs_key = spec.engine.kind == "openrouter" and not spec.job.mock
+    if needs_key and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return ["engine kind openrouter needs OPENROUTER_API_KEY set in this shell"]
+    return []
+
+
+def _vllm_bound_errors(spec: RunSpec) -> list[str]:
     vllm = spec.engine.vllm
+    errs: list[str] = []
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
     if not 0.0 < vllm.gpu_memory_utilization <= 1.0:
         errs.append("gpu_memory_utilization must be in (0, 1]")
     if vllm.max_num_seqs < 1:
         errs.append("max_num_seqs must be >= 1")
-    if spec.engine.modal:
-        if spec.engine.modal.image_tag == "latest":
-            errs.append("modal image_tag must be pinned (never 'latest')")
-        if spec.engine.modal.max_containers < 1:
-            errs.append("modal max_containers must be >= 1 (cost guard)")
-        # Mock runs call no vLLM endpoint, so admission cannot serialize billed GPU time.
-        if not spec.job.mock and spec.engine.kind == "modal-vllm" and spec.job.concurrency > 1 and vllm.max_inputs < 1:
-            errs.append(
-                f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
-                "with 0 Modal serves one request at a time while the GPU bills"
-            )
     return errs
+
+
+def _modal_admission_error(spec: RunSpec) -> str | None:
+    # Mock runs call no vLLM endpoint, so admission cannot serialize billed GPU time.
+    modal = spec.engine.modal
+    if modal is None or spec.job.mock or spec.engine.kind != "modal-vllm":
+        return None
+    if spec.job.concurrency <= 1 or spec.engine.vllm.max_inputs >= 1:
+        return None
+    return (f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
+            "with 0 Modal serves one request at a time while the GPU bills")
+
+
+def _modal_engine_errors(spec: RunSpec) -> list[str]:
+    modal = spec.engine.modal
+    if modal is None:
+        return []
+    errs: list[str] = []
+    if modal.image_tag == "latest":
+        errs.append("modal image_tag must be pinned (never 'latest')")
+    if modal.max_containers < 1:
+        errs.append("modal max_containers must be >= 1 (cost guard)")
+    admission = _modal_admission_error(spec)
+    if admission:
+        errs.append(admission)
+    return errs
+
+
+def _engine_errors(spec: RunSpec) -> list[str]:
+    """Engine, route, and reviewer refusals, in the order preflight prints them."""
+    return [
+        *_named_agent_errors(spec),
+        *_confidence_class_errors(spec),
+        *_agent_route_errors(spec),
+        *_decision_slots_errors(spec),
+        *_archive_check_errors(spec),
+        *_reviewer_class_errors(spec),
+        *_jev_backend_errors(spec),
+        *_reviewer_backend_errors(spec),
+        *_present_reviewer_task_errors(spec),
+        *_missing_reviewer_errors(spec),
+        *_openrouter_key_error(spec),
+        *_vllm_bound_errors(spec),
+        *_modal_engine_errors(spec),
+    ]
 
 
 def _engine_summary(spec: RunSpec) -> str:
