@@ -208,6 +208,11 @@ def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     assert got["suggestion"] == 0.9 and got["would_judge"] == 2 and got["of"] == 6
     flat = routing_audit.suggest_judge_band_high([doc(0.99, 0.2)] * 5)
     assert flat["suggestion"] is None and "does not separate quality" in flat["basis"]
+    above = routing_audit.above_band_quality(sample, 0.9, target=0.7)
+    assert above["n"] == 4 and above["met_target"] == 4 and above["rate"] == 1.0
+    assert above["ci95"][0] < 1.0
+    empty = routing_audit.above_band_quality(sample, 1.01, target=0.7)
+    assert empty["n"] == 0 and empty["rate"] is None
 
 
 # --- cost envelope --------------------------------------------------------------------

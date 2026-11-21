@@ -17,6 +17,8 @@ reports:
 * **threshold suggestions**: from the recorded gate inputs (sorter
   ``classification_confidence``, specialist ``extraction_confidence``) against
   each document's score.
+* **above-band quality**: for each class, how many scored documents at or
+  above ``judge_band_high`` met the target, with a 95% exact interval.
 
 Suggestions are evidence, not settings. A run's thresholds change only through
 its own ``confidence`` block, which is locked and hashed. Small samples are
@@ -157,6 +159,59 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
     return {"suggestion": None, "basis": f"the most confident document scored below {target}: confidence does not separate quality"}
 
 
+def _band(band: Any) -> float:
+    if isinstance(band, bool) or not isinstance(band, (int, float)):
+        return 0.85
+    return float(band)
+
+
+def _quality_above(doc: Mapping[str, Any], threshold: float) -> float | None:
+    confidences = doc.get("extraction_confidence") or []
+    quality = doc.get("quality")
+    if not confidences or isinstance(quality, bool) or not isinstance(quality, (int, float)):
+        return None
+    if confidences[0] < threshold:
+        return None
+    return float(quality)
+
+
+def above_band_quality(docs: list[dict[str, Any]], band: Any, *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
+    """Accuracy of scored documents whose first extraction confidence is at or above ``band``.
+
+    The interval is the same two-sided exact interval the gold audit uses. A
+    class with no scored document above the band returns a null rate. This is
+    the table a labelled run records; it does not choose the band.
+    """
+    from mailroom_sandbox.gold_audit import clopper_pearson_interval
+
+    threshold = _band(band)
+    qualities = [quality for doc in docs if (quality := _quality_above(doc, threshold)) is not None]
+    met = sum(quality >= target for quality in qualities)
+    n = len(qualities)
+    if n == 0:
+        return {"band": threshold, "target": target, "n": 0, "met_target": 0, "rate": None, "ci95": None}
+    lower, upper = clopper_pearson_interval(met, n)
+    return {"band": threshold, "target": target, "n": n, "met_target": met,
+            "rate": round(met / n, 4), "ci95": [round(lower, 4), round(upper, 4)]}
+
+
+def compare_window_rules(windows: list[tuple[float, int]]) -> dict[str, Any]:
+    """Compare the three recorded-window merge rules. The adopted rule stays the weakest window.
+
+    ``windows`` is ``(confidence, character length)`` for each surviving window.
+    Length-weighted uses those lengths. A labelled long-document comparison is
+    what can replace ``adopted``; this checkout does not contain one.
+    """
+    if not windows:
+        raise ValueError("no windows")
+    confidences = [float(confidence) for confidence, _length in windows]
+    weights = [max(int(length), 0) for _confidence, length in windows]
+    total = sum(weights)
+    weighted = sum(c * w for c, w in zip(confidences, weights, strict=True)) / total if total else sum(confidences) / len(confidences)
+    return {"min": min(confidences), "max": max(confidences),
+            "length_weighted": round(weighted, 4), "adopted": "min"}
+
+
 def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str, Any], *,
                   model: str | None, target: float) -> dict[str, Any]:
     nodes = Counter(n for d in docs for n in d["nodes"])
@@ -190,6 +245,7 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
                     "archived": q([d for d in docs if d["stage"] == "archived"])},
         "escalation_input_cost": _escalation_cost(docs, model),
         "judge_band_high": suggest_judge_band_high(docs, target=target),
+        "above_band": above_band_quality(docs, thresholds.get("judge_band_high"), target=target),
         "findings": [],
     }
     report["findings"] = _findings(cls, report, thresholds, target)

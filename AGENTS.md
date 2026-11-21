@@ -286,6 +286,14 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
   emit null for `communication_type` when no registered token fits the text;
   still extract sender, recipient, and date from headers. Never invent a type.
+- Live extraction confidence is the model's number when it states one, including
+  `0.0`. Production slices pin `corporate_records_specialist_condensed_v1`,
+  `correspondence_specialist_condensed_v3`, and
+  `insurance_claims_specialist_condensed_v3`, and each asks for the share of
+  fields found. The frozen `corporate_records_specialist_simplified.txt` still
+  says confidence is unregistered; that file is not the production pin and its
+  bytes stay frozen. Contracts and merger use the code-default schema, which
+  includes `confidence`.
 
 Keep extraction guidance aligned with these frozen rules; see
 [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)

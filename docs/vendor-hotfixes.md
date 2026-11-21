@@ -42,6 +42,12 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-007 | `graph.routing.judge_gate` | A confidence at or above `judge_band_high` still reaches the judge. `MAILROOM_JUDGE_VERIFY=off` still disables the lane. `MAILROOM_JUDGE_HIGH_BAND=off` restores the vendored band. The API cap still bounds spend. | [Exios66/llm-mailroom#278](https://github.com/Exios66/llm-mailroom/issues/278) |
 | HF-008 | `langchain_agents.specialist_agents.merge_chunk_windows` | Records each surviving window's confidence on `_window_confidences`. The merged confidence stays the vendored minimum (the old max-confidence merge is already gone). Scoring ignores the underscore key. | [Exios66/llm-mailroom#255](https://github.com/Exios66/llm-mailroom/issues/255) |
 
+### Confidence decisions
+
+- **HF-008.** The adopted merge stays the weakest window. `compare_window_rules` reports that minimum, the maximum, and the length-weighted value from recorded `(confidence, character length)` windows. A labelled long-document accuracy comparison is not in this checkout, so the rule is not replaced.
+- **HF-007.** A confidence at or above `judge_band_high` still reaches the judge. `above_band_quality` reports, per class, how many scored documents at or above that band met the target and the 95% exact interval. The band changes only when a labelled run's table shows that confidence separates quality. This checkout does not contain that table.
+- **HF-006.** Every live extraction schema registers `confidence`. Production `slice-0100` pins `corporate_records_specialist_condensed_v1`, `correspondence_specialist_condensed_v3`, and `insurance_claims_specialist_condensed_v3`; each asks for the share of fields found. Contracts and merger use the code-default schema, which includes the same field. A stated `0.0` stays `0.0` on the four LangChain specialists, and a missing value there uses the evidence share. Insurance keeps a stated `0.0`; a missing insurance confidence becomes the schema default `0.0`. The frozen `corporate_records_specialist_simplified.txt` still says confidence is unregistered. It is not the production pin, and its bytes stay frozen.
+
 ### Draft llm-mailroom issues (not filed)
 
 - **J-1** `CompletenessJudge.judge_completeness` turns a structured-output parse failure into an
