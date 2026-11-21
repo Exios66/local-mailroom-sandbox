@@ -458,83 +458,172 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
-def _engine_errors(spec: RunSpec) -> list[str]:
-    errs: list[str] = []
-    if spec.agent_models or spec.agent_knobs:
-        from mailroom_sandbox.agent_routes import known_agents
-        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
-        if unknown:
-            errs.append(f"unknown or retired agents: {sorted(unknown)}")
-    if spec.confidence.get("by_class"):
-        from mailroom_sandbox.overlay import live_doc_classes
-        unknown = set(spec.confidence["by_class"]) - set(live_doc_classes())
-        if unknown:
-            errs.append(f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}")
-    if spec.agent_routes:
-        from mailroom_sandbox.agent_routes import validate
-        from mailroom_sandbox.services._exec import ServiceError
-        try:
-            validate(spec.agent_routes, credentials=not spec.job.mock)
-        except (ValueError, ServiceError) as exc:
-            errs.append(str(exc))
-    errs.extend(_decision_slots_errors(spec))
-    errs.extend(_archive_check_errors(spec))
-    if spec.reviewer:
-        from mailroom_sandbox.overlay import live_doc_classes
+def _named_agent_errors(spec: RunSpec) -> list[str]:
+    if not spec.agent_models and not spec.agent_knobs:
+        return []
+    from mailroom_sandbox.agent_routes import known_agents
 
-        live = live_doc_classes()
-        unknown = sorted(set(spec.reviewer.classes) - set(live))
-        if unknown:
-            errs.append(f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}")
-        if spec.reviewer.backend == "jev" and spec.job.mock:
-            # A mock pipeline run patches the LLM clients but not the decision backend.
-            errs.append("decision reviewer backend jev would make live Jev calls in a mock run; use backend mock")
-        elif spec.reviewer.backend == "jev" and spec.job.mode == "modal":
-            # The Modal worker image excludes the decision extra.
-            errs.append("decision reviewer backend jev is not supported for modal jobs (the Modal worker image has no decision extra); use endpoint mode or backend mock")
-        elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
-            errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
-        if spec.reviewer.backend == "local":
-            errs.extend(_local_reviewer_errors(spec))
-        if spec.reviewer.backend == "api":
-            errs.extend(_api_reviewer_errors(spec))
-        if spec.reviewer.backend == "decisions":
-            errs.extend(_decisions_reviewer_errors(spec))
-        if spec.task == "pipeline" and not spec.reviewer.classes:
-            errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
-        if spec.task == "extraction_gate" and not spec.job.mock and spec.reviewer.backend != "decisions":
-            errs.append("a live extraction_gate run needs reviewer backend decisions; "
-                        f"{spec.reviewer.backend!r} has no extraction-gate path")
-    elif spec.task == "extraction_gate" and not spec.job.mock:
-        errs.append("a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
-                    "model, a kind: extraction_gate question set and reviewer.handoff_run")
-    elif spec.task == "sorter_reviewer" and not spec.job.mock and _reviewer_route_bills_tokens(spec):
+    unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+    if not unknown:
+        return []
+    return [f"unknown or retired agents: {sorted(unknown)}"]
+
+
+def _confidence_class_errors(spec: RunSpec) -> list[str]:
+    named = spec.confidence.get("by_class")
+    if not named:
+        return []
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    unknown = set(named) - set(live_doc_classes())
+    if not unknown:
+        return []
+    return [f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}"]
+
+
+def _agent_route_errors(spec: RunSpec) -> list[str]:
+    if not spec.agent_routes:
+        return []
+    from mailroom_sandbox.agent_routes import validate
+    from mailroom_sandbox.services._exec import ServiceError
+
+    try:
+        validate(spec.agent_routes, credentials=not spec.job.mock)
+    except (ValueError, ServiceError) as exc:
+        return [str(exc)]
+    return []
+
+
+def _reviewer_class_errors(spec: RunSpec) -> list[str]:
+    if spec.reviewer is None:
+        return []
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    live = live_doc_classes()
+    unknown = sorted(set(spec.reviewer.classes) - set(live))
+    if not unknown:
+        return []
+    return [f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}"]
+
+
+def _jev_backend_errors(spec: RunSpec) -> list[str]:
+    """One Jev refusal. Mock, Modal, and a missing key cannot apply together."""
+    reviewer = spec.reviewer
+    if reviewer is None or reviewer.backend != "jev":
+        return []
+    if spec.job.mock:
+        # A mock pipeline run patches the LLM clients but not the decision backend.
+        return ["decision reviewer backend jev would make live Jev calls in a mock run; use backend mock"]
+    if spec.job.mode == "modal":
+        # The Modal worker image excludes the decision extra.
+        return ["decision reviewer backend jev is not supported for modal jobs "
+                "(the Modal worker image has no decision extra); use endpoint mode or backend mock"]
+    if not os.environ.get("TYPESAFE_API_KEY", "").strip():
+        return ["decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)"]
+    return []
+
+
+def _reviewer_backend_errors(spec: RunSpec) -> list[str]:
+    reviewer = spec.reviewer
+    if reviewer is None:
+        return []
+    if reviewer.backend == "local":
+        return _local_reviewer_errors(spec)
+    if reviewer.backend == "api":
+        return _api_reviewer_errors(spec)
+    if reviewer.backend == "decisions":
+        return _decisions_reviewer_errors(spec)
+    return []
+
+
+def _present_reviewer_task_errors(spec: RunSpec) -> list[str]:
+    reviewer = spec.reviewer
+    errs: list[str] = []
+    if reviewer is not None and spec.task == "pipeline" and not reviewer.classes:
+        errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
+    if reviewer is not None and spec.task == "extraction_gate" and not spec.job.mock and reviewer.backend != "decisions":
+        errs.append("a live extraction_gate run needs reviewer backend decisions; "
+                    f"{reviewer.backend!r} has no extraction-gate path")
+    return errs
+
+
+def _missing_reviewer_errors(spec: RunSpec) -> list[str]:
+    if spec.reviewer is not None or spec.job.mock:
+        return []
+    if spec.task == "extraction_gate":
+        return ["a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
+                "model, a kind: extraction_gate question set and reviewer.handoff_run"]
+    if spec.task == "sorter_reviewer" and _reviewer_route_bills_tokens(spec):
         # A paid reviewer calibration must name its reviewer: without a reviewer block the
         # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
-        errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
-                    "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
-    if spec.engine.kind == "openrouter" and not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
-        # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
-        errs.append("engine kind openrouter needs OPENROUTER_API_KEY set in this shell")
+        return ["a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
+                "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true"]
+    return []
+
+
+def _openrouter_key_error(spec: RunSpec) -> list[str]:
+    # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
+    needs_key = spec.engine.kind == "openrouter" and not spec.job.mock
+    if needs_key and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return ["engine kind openrouter needs OPENROUTER_API_KEY set in this shell"]
+    return []
+
+
+def _vllm_bound_errors(spec: RunSpec) -> list[str]:
     vllm = spec.engine.vllm
+    errs: list[str] = []
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
     if not 0.0 < vllm.gpu_memory_utilization <= 1.0:
         errs.append("gpu_memory_utilization must be in (0, 1]")
     if vllm.max_num_seqs < 1:
         errs.append("max_num_seqs must be >= 1")
-    if spec.engine.modal:
-        if spec.engine.modal.image_tag == "latest":
-            errs.append("modal image_tag must be pinned (never 'latest')")
-        if spec.engine.modal.max_containers < 1:
-            errs.append("modal max_containers must be >= 1 (cost guard)")
-        # Mock runs call no vLLM endpoint, so admission cannot serialize billed GPU time.
-        if not spec.job.mock and spec.engine.kind == "modal-vllm" and spec.job.concurrency > 1 and vllm.max_inputs < 1:
-            errs.append(
-                f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
-                "with 0 Modal serves one request at a time while the GPU bills"
-            )
     return errs
+
+
+def _modal_admission_error(spec: RunSpec) -> str | None:
+    # Mock runs call no vLLM endpoint, so admission cannot serialize billed GPU time.
+    modal = spec.engine.modal
+    if modal is None or spec.job.mock or spec.engine.kind != "modal-vllm":
+        return None
+    if spec.job.concurrency <= 1 or spec.engine.vllm.max_inputs >= 1:
+        return None
+    return (f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
+            "with 0 Modal serves one request at a time while the GPU bills")
+
+
+def _modal_engine_errors(spec: RunSpec) -> list[str]:
+    modal = spec.engine.modal
+    if modal is None:
+        return []
+    errs: list[str] = []
+    if modal.image_tag == "latest":
+        errs.append("modal image_tag must be pinned (never 'latest')")
+    if modal.max_containers < 1:
+        errs.append("modal max_containers must be >= 1 (cost guard)")
+    admission = _modal_admission_error(spec)
+    if admission:
+        errs.append(admission)
+    return errs
+
+
+def _engine_errors(spec: RunSpec) -> list[str]:
+    """Engine, route, and reviewer refusals, in the order preflight prints them."""
+    return [
+        *_named_agent_errors(spec),
+        *_confidence_class_errors(spec),
+        *_agent_route_errors(spec),
+        *_decision_slots_errors(spec),
+        *_archive_check_errors(spec),
+        *_reviewer_class_errors(spec),
+        *_jev_backend_errors(spec),
+        *_reviewer_backend_errors(spec),
+        *_present_reviewer_task_errors(spec),
+        *_missing_reviewer_errors(spec),
+        *_openrouter_key_error(spec),
+        *_vllm_bound_errors(spec),
+        *_modal_engine_errors(spec),
+    ]
 
 
 def _engine_summary(spec: RunSpec) -> str:
@@ -998,6 +1087,554 @@ def preflight(
                 "detail": "run writer is active; cancel and wait for paused before resetting"}
 
 
+class _OpenRun:
+    """A generation that passed the early refusals and can be locked or resumed."""
+
+    def __init__(self, store, existing, report, prompt_block, prompt_text_sha, report_group, package, run_id):
+        self.store = store
+        self.existing = existing
+        self.report = report
+        self.prompt_block = prompt_block
+        self.prompt_text_sha = prompt_text_sha
+        self.report_group = report_group
+        self.package = package
+        self.run_id = run_id
+
+
+def _lock_read_failure(store, run_id: str):
+    """``(existing lock, failure report)``. A corrupt lock is a loud failure."""
+    try:
+        existing = store.read_lock()
+        store.refuse_replay()
+    except RuntimeError as exc:
+        # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
+        # never a silent run with spec_hash: null.
+        return None, {
+            "status": "failed",
+            "run_id": run_id,
+            "checks": [{"name": "lock", "ok": False, "detail": str(exc)}],
+        }
+    return existing, None
+
+
+def _heldout_failure(spec: RunSpec, run_id: str, report: dict[str, Any]):
+    """Refuse a sealed held-out before anything is prepared, including a resume."""
+    from mailroom_sandbox.heldout_seal import seal_errors
+
+    sealed = seal_errors(spec, run_id)
+    if sealed:
+        report["status"] = "failed"
+        report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(sealed)})
+        return report
+    return None
+
+
+def _prompt_surface(spec: RunSpec, offline: bool, report: dict[str, Any]):
+    """``(prompt block, text digest, failure)``. Drift hashing needs the resolved text."""
+    try:
+        # Unnamed agents run their lineage frontrunner, never the vendored prompt (prompt_lineage).
+        from mailroom_sandbox.prompt_lineage import with_lineage_defaults
+
+        prompt_block = prompt_lock_block(with_lineage_defaults(spec.prompt, spec.task), offline=offline)
+    except (KeyError, PromptSelectionError) as exc:
+        report["status"] = "failed"
+        report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
+        return None, None, report
+    prompt_text_sha = _prompt_text_sha(prompt_block)
+    report["checks"].append({"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)})
+    return prompt_block, prompt_text_sha, None
+
+
+def _blind_routing_failure(spec: RunSpec, report: dict[str, Any]):
+    """A live pipeline must not be handed the gold class (oracle routing)."""
+    if spec.task == "pipeline" and spec.job.blind_routing is False and not spec.job.mock:
+        report["status"] = "failed"
+        report["checks"].append({"name": "blind_routing", "ok": False, "detail": (
+            "job.blind_routing: false gives the pipeline graph the ground truth (oracle routing, "
+            "llm-mailroom #207); a live run must be blind: drop the key or set it to true")})
+        return report
+    return None
+
+
+def _identity_context(spec: RunSpec, report: dict[str, Any], run_id: str, config_path):
+    """``(package, report group, failure)``. Checkout and hotfix checks share the report."""
+    try:
+        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return None, None, report
+    # SAND-104 (#312): the code must come from the checkout the run is launched from,
+    # both for a new lock and for a start that reuses one.
+    package = package_checkout()
+    report["checks"].append(_checkout_check(package))
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
+        return None, None, report
+    report["checks"].append(_hotfix_check())
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
+        return None, None, report
+    report["checks"].append(_scoring_hotfix_check())
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
+        return None, None, report
+    return package, report_group, None
+
+
+def _open_preflight(spec: RunSpec, *, run_id: str, config_path, offline: bool, dry_run: bool):
+    """The early refusals. A dict is the finished report; an ``_OpenRun`` continues."""
+    run_id = run_id or resolve_run_id(spec)
+    store = RunStore(run_dir(run_id))
+    existing, failed = _lock_read_failure(store, run_id)
+    if failed is not None:
+        return failed
+    report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
+    if dry_run:
+        return report
+    failed = _heldout_failure(spec, run_id, report)
+    if failed is not None:
+        return failed
+    prompt_block, prompt_text_sha, failed = _prompt_surface(spec, offline, report)
+    if failed is not None:
+        return failed
+    failed = _blind_routing_failure(spec, report)
+    if failed is not None:
+        return failed
+    package, report_group, failed = _identity_context(spec, report, run_id, config_path)
+    if failed is not None:
+        return failed
+    return _OpenRun(store, existing, report, prompt_block, prompt_text_sha, report_group, package, run_id)
+
+
+def _hotfix_drift_detail(existing: Mapping[str, Any], store) -> str | None:
+    """Why a recorded hotfix set, or a pre-hotfix lock with completed work, cannot resume."""
+    from mailroom_sandbox import vendor_hotfixes
+
+    # Locks from before the hotfix layer carry no key and resume; a recorded set must match.
+    if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != vendor_hotfixes.describe():
+        return "vendor hotfix set changed since this run was locked; restore it or use --force to re-lock"
+    from mailroom_sandbox import scoring_hotfixes
+
+    if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != scoring_hotfixes.describe():
+        return "scoring hotfix set changed since this run was locked; restore it or use --force to re-lock"
+    # A lock from before the scoring hotfix layer with completed work would resume its pending
+    # rows on the hotfixed basis next to rows scored raw: one run, two scoring bases.
+    if "scoring_hotfixes" not in existing and store.read_checkpoint():
+        return ("this run was locked before the scoring hotfixes and has completed work; resuming "
+                "would mix scoring bases: use --force to re-lock and rerun it")
+    return None
+
+
+def _locked_task_gt(existing: Mapping[str, Any]):
+    """The lock's task-GT flag, or None when an older lock does not prove it."""
+    selection = (existing.get("dataset") or {}).get("selection") or {}
+    locked_filter = selection.get("require_task_gt")
+    if type(locked_filter) is not bool:
+        # Post-filter locks that explicitly hashed True remain unambiguous.
+        # Older omitted flags can mean either filtered or unfiltered: fail
+        # closed instead of treating the old hash as proof of False.
+        recorded = ((existing.get("spec_core") or {}).get("dataset") or {}).get("require_task_gt")
+        return True if recorded is True else None
+    return locked_filter
+
+
+def _optional_lock_drifted(existing: Mapping[str, Any], key: str, current) -> bool:
+    """A key absent on older locks resumes. A present key still drifts."""
+    return key in existing and existing.get(key) != current
+
+
+def _spec_fields_drifted(existing, spec: RunSpec, prompt_text_sha: str, report_group, locked_filter) -> bool:
+    """Spec hash, prompt text, runbook, or report group moved since the lock."""
+    if existing.get("spec_hash") != spec.spec_hash() or locked_filter != spec.dataset.require_task_gt:
+        return True
+    recorded_prompt = existing.get("prompt_text_sha")
+    if recorded_prompt and recorded_prompt != prompt_text_sha:
+        return True
+    if _optional_lock_drifted(existing, "runbook_id", spec.runbook_id or None):
+        return True
+    return _optional_lock_drifted(existing, "report_group", report_group or None)
+
+
+def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, prompt_text_sha: str, report_group):
+    """Refuse resume when the locked identity no longer matches this checkout."""
+    if not existing or force:
+        return None
+    from mailroom_sandbox.dependency_sources import verify_locked
+
+    try:
+        verify_locked(existing)
+    except ValueError as exc:
+        return {"status": "drift_refused", "run_id": run_id, "detail": str(exc)}
+    detail = _hotfix_drift_detail(existing, store)
+    if detail:
+        return {"status": "drift_refused", "run_id": run_id, "detail": detail}
+    locked_filter = _locked_task_gt(existing)
+    if locked_filter is None:
+        return {"status": "drift_refused", "run_id": run_id,
+                "detail": "Legacy lock does not prove task-GT selection; preserve it and use --force to archive/re-lock explicitly"}
+    drifted = _spec_fields_drifted(existing, spec, prompt_text_sha, report_group, locked_filter)
+    # A changed 4.2.0 routing digest refuses on its own. Spec, prompt, runbook,
+    # or report-group drift keeps the broader message.
+    routing_detail = _routing_identity_drift(existing)
+    if not drifted and routing_detail:
+        return {"status": "drift_refused", "run_id": run_id, "detail": routing_detail}
+    if drifted:
+        return {
+            "status": "drift_refused",
+            "run_id": run_id,
+            "spec_hash": spec.spec_hash(),
+            "locked_spec_hash": existing.get("spec_hash"),
+            "detail": (
+                "spec, resolved prompt text, runbook, or report group drifted "
+                "since the lock; pass --force to re-lock"
+            ),
+        }
+    return None
+
+
+def _foreign_store_refusal(existing, spec: RunSpec, force: bool, run_id: str):
+    """Refuse a --force re-lock of a store that belongs to another Modal app."""
+    if not existing or not force or _takeover_foreign_store():
+        return None
+    foreign = _foreign_app(existing, spec)
+    if not foreign:
+        return None
+    current_app = spec.engine.modal.app if spec.engine.modal else None
+    return {
+        "status": "foreign_store_refused",
+        "run_id": run_id,
+        "lock_app": foreign,
+        "spec_app": current_app,
+        "detail": (
+            f"this store is locked to modal app {foreign!r}, this fleet is "
+            f"{current_app!r} — a --force re-lock would archive another "
+            "fleet's items and both fleets would then append to the same "
+            "items.jsonl. Run the cell on the fleet that owns the store, "
+            "remove the store, or set SANDBOX_TAKEOVER_FOREIGN_STORE=1 to "
+            "take it over deliberately."
+        ),
+    }
+
+
+def _writer_still_live(store, force: bool, cp: Mapping[str, Any]) -> bool:
+    """A forced re-lock must not archive a generation that may still be writing."""
+    remote_call = (cp.get("remote") or {}).get("call_id")
+    if force and remote_call:
+        from mailroom_sandbox.job.remote import terminal_confirmed
+
+        # A stale checkpoint or diagnostic call graph is not proof of death.
+        remote_busy = not terminal_confirmed(store)
+    else:
+        remote_busy = False
+    return bool(force and (remote_busy or (cp.get("state") == "running" and not remote_call)))
+
+
+def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: dict[str, Any]):
+    """The existing generation's report, or None when preparation should continue."""
+    if not existing:
+        return None
+    if _writer_still_live(store, force, store.read_checkpoint() or {}):
+        return {"status": "busy_refused", "run_id": report["run_id"],
+                "detail": "generation may still have a live writer; cancel and confirm termination first"}
+    if force:
+        return None
+    # Existing lock is the generation's commit point. Validate its
+    # artifacts, never recreate missing bytes under that identity.
+    try:
+        store.verify_generation()
+    except RuntimeError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
+        return report
+    # Credentials live in the shell, not the lock: a lock prepared where
+    # the key was set must not let `run start` proceed where it is not.
+    eng_errors = _engine_errors(spec)
+    if eng_errors:
+        report["status"] = "failed"
+        report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
+        return report
+    report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
+    report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+    frozen = (store.read_lock() or {}).get("agent_knobs") or {}
+    _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
+    return report
+
+
+def _existing_generation(spec: RunSpec, opened: _OpenRun, *, force: bool):
+    """Drift, foreign-store, and reuse refusals. None means prepare a new generation."""
+    failed = _drift_refusal(
+        opened.existing, force, spec, opened.store, opened.run_id, opened.prompt_text_sha, opened.report_group,
+    )
+    if failed is not None:
+        return failed
+    failed = _foreign_store_refusal(opened.existing, spec, force, opened.run_id)
+    if failed is not None:
+        return failed
+    return _reuse_existing_lock(spec, opened.store, opened.existing, force, opened.report)
+
+
+def _archive_replaced_generation(store, existing, force: bool, report: dict[str, Any]) -> None:
+    """Archive a forced re-lock so new dataset bytes never sit under an old lock."""
+    archived = store.archive_generation() if (existing and force) else None
+    if archived is not None:
+        report["archived"] = str(archived)
+
+
+def _dataset_check(prov: Mapping[str, Any]) -> dict[str, Any]:
+    excluded = ""
+    if prov.get("excluded"):
+        excluded = f" excluded={prov['excluded']['matched']}/{prov['excluded']['listed']}"
+    return {
+        "name": "dataset",
+        "ok": True,
+        "detail": (
+            f"rows={prov['rows']} sha256={prov['sha256'][:12]} "
+            f"revision={prov.get('revision_requested')}{excluded}"
+        ),
+    }
+
+
+def _target_row_failure(spec: RunSpec, store, report: dict[str, Any]):
+    """Zero matching rows for a level-2 target is a config error, not an empty run."""
+    if not spec.target:
+        return None
+    from mailroom_sandbox.eval.primary import rows_for_class
+
+    try:
+        narrowed = len(rows_for_class(store.dataset_rows(), spec.target))
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
+        return report
+    report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
+    return None
+
+
+def _prepare_dataset_rows(spec: RunSpec, store, report: dict[str, Any]):
+    """``(provenance, failure)``. The prepared file is removed when a held-out id leaks."""
+    try:
+        prov = prepare_subset(spec.dataset, store.dataset_path)
+        report["checks"].append(_dataset_check(prov))
+    except Exception as exc:  # noqa: BLE001
+        report["status"] = "failed"
+        report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
+        return None, report
+    from mailroom_sandbox.heldout_seal import leak_errors
+
+    if spec.dataset.exclude_ids_file:
+        leaked = leak_errors(spec, (row.get("id") for row in store.dataset_rows()))
+        if leaked:
+            store.dataset_path.unlink(missing_ok=True)  # no held-out text stays behind unlocked
+            report["status"] = "failed"
+            report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
+            return None, report
+    failed = _target_row_failure(spec, store, report)
+    if failed is not None:
+        return None, failed
+    return prov, None
+
+
+def _engine_spec_failure(spec: RunSpec, report: dict[str, Any]):
+    eng_errors = _engine_errors(spec)
+    if eng_errors:
+        report["status"] = "failed"
+        report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
+        return report
+    report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
+    return None
+
+
+def _record_probe(store, report: dict[str, Any], run_id: str, probe: Mapping[str, Any]):
+    """Attach a cold-boot measurement when the live probe reports one."""
+    boot_seconds = probe.get("cold_boot_seconds")
+    if boot_seconds is None:
+        return
+    measurement = record_cold_boot(store, probe, run_id=run_id)
+    if measurement is None:
+        return
+    report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+    report["cold_boot_path"] = str(store.cold_boot_path)
+    report["checks"][-1]["detail"] += f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
+
+
+def _live_probe_failure(spec: RunSpec, store, report: dict[str, Any], run_id: str, live: bool):
+    if not live:
+        return None
+    probe = _probe_engine(spec)
+    report["checks"].append(
+        {"name": "engine_probe", "ok": probe["ok"], "detail": probe.get("reason", probe.get("detail", "ok"))}
+    )
+    if not probe["ok"]:
+        report["status"] = "failed"
+        report["checks"][-1]["detail"] = probe.get("reason", "probe failed")
+        return report
+    _record_probe(store, report, run_id, probe)
+    return None
+
+
+def _langfuse_failure(spec: RunSpec, sink, offline: bool, report: dict[str, Any]):
+    """Missing Langfuse credentials or SDK. Other sinks are not checked here."""
+    if spec.trace.sink != "langfuse" or offline:
+        return None
+    if not sink.headers.get("Authorization"):
+        report["status"] = "failed"
+        report["checks"].append(
+            {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
+        )
+        return report
+    if find_spec("langfuse") is None:
+        report["status"] = "failed"
+        report["checks"].append(
+            {"name": "trace_sink", "ok": False,
+             "detail": "langfuse SDK missing: install mailroom-sandbox[observability] or set trace.sink: none"}
+        )
+        return report
+    return None
+
+
+def _trace_sink_failure(spec: RunSpec, report: dict[str, Any], run_id: str, offline: bool):
+    try:
+        sink = resolve_sink(
+            sink=spec.trace.sink,
+            otlp=spec.trace.otlp,
+            endpoint=spec.trace.endpoint,
+            environment=spec.trace.environment,
+            service_name="sandbox-job",
+            run_id=run_id,
+            tags=spec.trace.tags,
+        )
+        failed = _langfuse_failure(spec, sink, offline, report)
+        if failed is not None:
+            return failed
+        report["checks"].append(
+            {"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"}
+        )
+    except Exception as exc:  # noqa: BLE001
+        report["status"] = "failed"
+        report["checks"].append({"name": "trace_sink", "ok": False, "detail": str(exc)})
+        return report
+    return None
+
+
+def _runtime_checks(spec: RunSpec, opened: _OpenRun, *, live: bool, offline: bool):
+    """Engine, optional live probe, trace sink, and the Modal guard. None means continue."""
+    failed = _engine_spec_failure(spec, opened.report)
+    if failed is not None:
+        return failed
+    failed = _live_probe_failure(spec, opened.store, opened.report, opened.run_id, live)
+    if failed is not None:
+        return failed
+    failed = _trace_sink_failure(spec, opened.report, opened.run_id, offline)
+    if failed is not None:
+        return failed
+    opened.report["checks"].append(
+        {"name": "modal_spec", "ok": _modal_check(spec),
+         "detail": "modal guards ok" if _modal_check(spec) else "modal guard failed"}
+    )
+    return None
+
+
+def _frozen_dataset_hashes(prov: Mapping[str, Any], spec: RunSpec):
+    """Source, exclusion, and near-gold hashes of the bytes the draw actually used."""
+    source_sha = (prov.get("metadata") or {}).get("sha256") if spec.dataset.is_local() else None
+    exclude_sha = (prov.get("excluded") or {}).get("sha256")
+    near_gold_sha = ((prov.get("metadata") or {}).get("near_gold_labels") or {}).get("overlay_sha256")
+    return source_sha, exclude_sha, near_gold_sha
+
+
+def _stamp_optional_lock(lock: dict[str, Any], spec: RunSpec, prompt_block, report_group) -> None:
+    """Assignments, prompt versions, runbook, and report group, only when the run has them."""
+    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
+        from mailroom_sandbox.agent_routes import describe
+
+        lock["agent_assignments"] = describe(spec)
+    selected = selection_from_lock(prompt_block)
+    if selected:
+        # The selected eval-environment keys + sha256 are part of the run's identity.
+        lock["prompt_versions"] = selected.versions_stamp()
+    if spec.runbook_id:
+        lock["runbook_id"] = spec.runbook_id
+    if report_group:
+        lock["report_group"] = report_group
+
+
+def _prepared_total(spec: RunSpec, store) -> int:
+    total = len(store.dataset_rows())
+    if spec.target:
+        from mailroom_sandbox.eval.primary import rows_for_class
+
+        total = len(rows_for_class(store.dataset_rows(), spec.target))
+    return total
+
+
+def _commit_prepared_lock(spec: RunSpec, opened: _OpenRun, prov: Mapping[str, Any], run_knobs) -> dict[str, Any]:
+    """Write the prompt lock, the spec lock, and the prepared checkpoint."""
+    from mailroom_sandbox.dependency_sources import describe
+
+    report = opened.report
+    store = opened.store
+    # prepare_subset hashes the exact immutable byte buffer it normalized. Use
+    # that provenance for every new identity, even if the source path changed
+    # after preparation or while engine checks were running.
+    source_sha, exclude_sha, near_gold_sha = _frozen_dataset_hashes(prov, spec)
+    frozen_core = spec_core(spec, source_sha256=source_sha, exclude_ids_sha256=exclude_sha,
+                            near_gold_sha256=near_gold_sha)
+    frozen_hash = core_hash(frozen_core)
+    store.write_prompt_lock(opened.prompt_block)
+    lock = {
+        "schema_version": 1,
+        "lock_kind": "spec.lock",
+        "run_id": opened.run_id,
+        "created_at": checkpoint.utc_now(),
+        "generation_id": uuid.uuid4().hex,
+        "spec_hash": frozen_hash,
+        "prompt_text_sha": opened.prompt_text_sha,
+        "task": spec.task,
+        **({"target": spec.target} if spec.target else {}),
+        "profile": spec.profile,
+        "agent_models": dict(spec.agent_models),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
+        **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
+        **({"decision_slots": _decision_slots_lock(spec)} if spec.decision_slots else {}),
+        **({"confidence": spec.confidence} if spec.confidence else {}),
+        "prompt": opened.prompt_block,
+        "engine": spec.engine.model_dump(),
+        "job": spec.job.model_dump(),
+        "trace": spec.trace.model_dump(),
+        "dataset": _dataset_lock(prov, spec),
+        "otel": {"sink": spec.trace.sink, "environment": spec.trace.environment},
+        "versions": _versions(),
+        "dependency_sources": describe(),
+        "vendor_hotfixes": _hotfix_identity(),
+        "scoring_hotfixes": _scoring_hotfix_identity(),
+        "git": git_snapshot(),
+        "package": dict(opened.package),
+        "spec_core": frozen_core,
+    }
+    # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
+    # chunk_chars / temperature). Without this the card can only read the LIVE posture
+    # table, so editing a posture later silently rewrites what every historical card
+    # claims the run was configured with — and the contracts whole-document change is
+    # exactly such an edit.
+    lock["agent_knobs"] = deepcopy(run_knobs)
+    # Freeze the resolved confidence block (vendored taxonomy, overlay, then the run's own
+    # overrides) so the routing audit reports the thresholds this run used; a later overlay
+    # edit must not rewrite a finished run's settings.
+    from mailroom_sandbox.job.routing_audit import effective_thresholds
+    lock["effective_confidence"] = effective_thresholds(spec.confidence)
+    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
+    # rebuilds the remaining agents from the live profile/taxonomy, so a later
+    # judge_model edit silently changes a resumed run without changing its lock.
+    _stamp_optional_lock(lock, spec, opened.prompt_block, opened.report_group)
+    store.write_lock(lock)
+    store.write_checkpoint(state="prepared", cursor=0, total=_prepared_total(spec, store), remote=None)
+    store.append_event("preflight_ok", "info", spec_hash=frozen_hash)
+    report.update({"status": "prepared", "spec_hash": frozen_hash, "lock_path": str(store.lock_path)})
+    return report
+
+
 def _preflight(
     spec: RunSpec,
     *,
@@ -1019,411 +1656,19 @@ def _preflight(
     Caught prompt, dataset, and tracing errors become failed
     reports; uncaught configuration and file-access errors propagate.
     """
-    run_id = run_id or resolve_run_id(spec)
-    store = RunStore(run_dir(run_id))
-
-    try:
-        existing = store.read_lock()
-        store.refuse_replay()
-    except RuntimeError as exc:
-        # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
-        # never a silent run with spec_hash: null.
-        return {
-            "status": "failed",
-            "run_id": run_id,
-            "checks": [{"name": "lock", "ok": False, "detail": str(exc)}],
-        }
-
-    report: dict[str, Any] = {"run_id": run_id, "status": "prepared", "checks": []}
-    if dry_run:
-        return report
-
-    # 0) sealed held-out (runbook R70-R72): refused before anything is prepared, on a fresh
-    #    preparation and on the start that reuses a lock alike.
-    from mailroom_sandbox.heldout_seal import seal_errors
-
-    sealed = seal_errors(spec, run_id)
-    if sealed:
-        report["status"] = "failed"
-        report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(sealed)})
-        return report
-
-    # 1) prompt surface — resolves all agent overrides (fails fast on typos).
-    #    Resolved FIRST so the drift check can hash the prompt TEXTS: spec_hash
-    #    covers refs only, and two identical refs whose file bodies changed
-    #    would otherwise resume with different prompt text (DMR-049).
-    try:
-        # Unnamed agents run their lineage frontrunner, never the vendored prompt (prompt_lineage).
-        from mailroom_sandbox.prompt_lineage import with_lineage_defaults
-
-        prompt_block = prompt_lock_block(with_lineage_defaults(spec.prompt, spec.task), offline=offline)
-    except (KeyError, PromptSelectionError) as exc:
-        report["status"] = "failed"
-        report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
-        return report
-    prompt_text_sha = _prompt_text_sha(prompt_block)
-    report["checks"].append(
-        {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
-    )
-    if spec.task == "pipeline" and spec.job.blind_routing is False and not spec.job.mock:
-        # Oracle routing hands the gold class and fields to the graph: it routes on them and
-        # scores itself against them mid-run, so its accuracy is leaked, not measured.
-        report["status"] = "failed"
-        report["checks"].append({"name": "blind_routing", "ok": False, "detail": (
-            "job.blind_routing: false gives the pipeline graph the ground truth (oracle routing, "
-            "llm-mailroom #207); a live run must be blind: drop the key or set it to true")})
-        return report
-
-    try:
-        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
-    except ValueError as exc:
-        report["status"] = "failed"
-        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
-        return report
-
-    # SAND-104 (#312): the code must come from the checkout the run is launched from,
-    # both for a new lock and for a start that reuses one.
-    package = package_checkout()
-    report["checks"].append(_checkout_check(package))
-    if not report["checks"][-1]["ok"]:
-        report["status"] = "failed"
-        return report
-
-    from mailroom_sandbox.dependency_sources import describe, verify_locked
-
-    report["checks"].append(_hotfix_check())
-    if not report["checks"][-1]["ok"]:
-        report["status"] = "failed"
-        return report
-    report["checks"].append(_scoring_hotfix_check())
-    if not report["checks"][-1]["ok"]:
-        report["status"] = "failed"
-        return report
-
-    if existing and not force:
-        try:
-            verify_locked(existing)
-        except ValueError as exc:
-            return {"status": "drift_refused", "run_id": run_id, "detail": str(exc)}
-        from mailroom_sandbox import vendor_hotfixes
-
-        # Locks from before the hotfix layer carry no key and resume; a recorded set must match.
-        if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != vendor_hotfixes.describe():
-            return {"status": "drift_refused", "run_id": run_id,
-                    "detail": "vendor hotfix set changed since this run was locked; restore it or use --force to re-lock"}
-        from mailroom_sandbox import scoring_hotfixes
-
-        if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != scoring_hotfixes.describe():
-            return {"status": "drift_refused", "run_id": run_id,
-                    "detail": "scoring hotfix set changed since this run was locked; restore it or use --force to re-lock"}
-        # A lock from before the scoring hotfix layer with completed work would resume its pending
-        # rows on the hotfixed basis next to rows scored raw: one run, two scoring bases.
-        if "scoring_hotfixes" not in existing and store.read_checkpoint():
-            return {"status": "drift_refused", "run_id": run_id,
-                    "detail": "this run was locked before the scoring hotfixes and has completed work; resuming "
-                              "would mix scoring bases: use --force to re-lock and rerun it"}
-        selection = (existing.get("dataset") or {}).get("selection") or {}
-        locked_filter = selection.get("require_task_gt")
-        if type(locked_filter) is not bool:
-            # Post-filter locks that explicitly hashed True remain unambiguous.
-            # Older omitted flags can mean either filtered or unfiltered: fail
-            # closed instead of treating the old hash as proof of False.
-            recorded = ((existing.get("spec_core") or {}).get("dataset") or {}).get("require_task_gt")
-            locked_filter = True if recorded is True else None
-        if locked_filter is None:
-            return {"status": "drift_refused", "run_id": run_id,
-                    "detail": "Legacy lock does not prove task-GT selection; preserve it and use --force to archive/re-lock explicitly"}
-        drifted = (existing.get("spec_hash") != spec.spec_hash()
-                   or locked_filter != spec.dataset.require_task_gt)
-        if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
-            drifted = True
-        # Keys absent on pre-catalog locks: resume. Present keys still drift.
-        if (
-            not drifted
-            and "runbook_id" in existing
-            and existing.get("runbook_id") != (spec.runbook_id or None)
-        ):
-            drifted = True
-        if (
-            not drifted
-            and "report_group" in existing
-            and existing.get("report_group") != (report_group or None)
-        ):
-            drifted = True
-        routing_detail = _routing_identity_drift(existing)
-        if not drifted and routing_detail:
-            return {"status": "drift_refused", "run_id": run_id, "detail": routing_detail}
-        if drifted:
-            return {
-                "status": "drift_refused",
-                "run_id": run_id,
-                "spec_hash": spec.spec_hash(),
-                "locked_spec_hash": existing.get("spec_hash"),
-                "detail": (
-                    "spec, resolved prompt text, runbook, or report group drifted "
-                    "since the lock; pass --force to re-lock"
-                ),
-            }
-
-    # A --force re-lock of a store locked to ANOTHER Modal app is refused: the
-    # archive below cannot stop that fleet's live writer (it reopens items.jsonl
-    # by path and recreates it), so two fleets would end up appending to one
-    # file. Taking the store over anyway is a deliberate, named act.
-    if existing and force and not _takeover_foreign_store():
-        foreign = _foreign_app(existing, spec)
-        if foreign:
-            current_app = spec.engine.modal.app if spec.engine.modal else None
-            return {
-                "status": "foreign_store_refused",
-                "run_id": run_id,
-                "lock_app": foreign,
-                "spec_app": current_app,
-                "detail": (
-                    f"this store is locked to modal app {foreign!r}, this fleet is "
-                    f"{current_app!r} — a --force re-lock would archive another "
-                    "fleet's items and both fleets would then append to the same "
-                    "items.jsonl. Run the cell on the fleet that owns the store, "
-                    "remove the store, or set SANDBOX_TAKEOVER_FOREIGN_STORE=1 to "
-                    "take it over deliberately."
-                ),
-            }
-
-    if existing:
-        cp = store.read_checkpoint() or {}
-        remote_call = (cp.get("remote") or {}).get("call_id")
-        if force and remote_call:
-            from mailroom_sandbox.job.remote import terminal_confirmed
-
-            # A stale checkpoint or diagnostic call graph is not proof of death.
-            remote_busy = not terminal_confirmed(store)
-        else:
-            remote_busy = False
-        if force and (remote_busy or (cp.get("state") == "running" and not remote_call)):
-            return {"status": "busy_refused", "run_id": run_id,
-                    "detail": "generation may still have a live writer; cancel and confirm termination first"}
-        if not force:
-            # Existing lock is the generation's commit point. Validate its
-            # artifacts, never recreate missing bytes under that identity.
-            try:
-                store.verify_generation()
-            except RuntimeError as exc:
-                report["status"] = "failed"
-                report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
-                return report
-            # Credentials live in the shell, not the lock: a lock prepared where
-            # the key was set must not let `run start` proceed where it is not.
-            eng_errors = _engine_errors(spec)
-            if eng_errors:
-                report["status"] = "failed"
-                report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
-                return report
-            report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
-            report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
-            frozen = (store.read_lock() or {}).get("agent_knobs") or {}
-            _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
-            return report
-
-    # write_lock refuses to overwrite in place, so a forced re-lock archives
-    # the old generation first — new dataset bytes must never sit under an old
-    # lock/checkpoint (DMR-049).
-    archived = store.archive_generation() if (existing and force) else None
-    if archived is not None:
-        report["archived"] = str(archived)
-
-    # 2) dataset — prepared subset (idempotent; network only for Hub specs).
-    try:
-        prov = prepare_subset(spec.dataset, store.dataset_path)
-        report["checks"].append(
-            {
-                "name": "dataset",
-                "ok": True,
-                "detail": (
-                    f"rows={prov['rows']} sha256={prov['sha256'][:12]} "
-                    f"revision={prov.get('revision_requested')}"
-                    + (
-                        f" excluded={prov['excluded']['matched']}/{prov['excluded']['listed']}"
-                        if prov.get("excluded")
-                        else ""
-                    )
-                ),
-            }
-        )
-    except Exception as exc:  # noqa: BLE001
-        report["status"] = "failed"
-        report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
-        return report
-
-    from mailroom_sandbox.heldout_seal import leak_errors
-
-    if spec.dataset.exclude_ids_file:
-        leaked = leak_errors(spec, (r.get("id") for r in store.dataset_rows()))
-        if leaked:
-            store.dataset_path.unlink(missing_ok=True)  # no held-out text stays behind unlocked
-            report["status"] = "failed"
-            report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
-            return report
-
-    if spec.target:
-        # Level-2 target: the lock keeps the prepared subset (its sha is the
-        # dataset identity); the runner narrows it. Zero matching rows is a
-        # config error now, not an empty run later.
-        from mailroom_sandbox.eval.primary import rows_for_class
-
-        try:
-            narrowed = len(rows_for_class(store.dataset_rows(), spec.target))
-        except ValueError as exc:
-            report["status"] = "failed"
-            report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
-            return report
-        report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
-
-    # One knob resolution, shared by the plan and the lock written below.
-    run_knobs = _run_knobs(spec, run_id)
-    _record_context_plan(report, spec, store, run_knobs)
-
-    # 3) engine spec validators (pydantic ranges + repo guards)
-    eng_errors = _engine_errors(spec)
-    if eng_errors:
-        report["status"] = "failed"
-        report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
-        return report
-    report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
-
-    # 4) optional live engine probe — also the cold-boot measurement (SAND-018)
-    if live:
-        probe = _probe_engine(spec)
-        report["checks"].append(
-            {
-                "name": "engine_probe",
-                "ok": probe["ok"],
-                "detail": probe.get("reason", probe.get("detail", "ok")),
-            }
-        )
-        if not probe["ok"]:
-            report["status"] = "failed"
-            report["checks"][-1]["detail"] = probe.get("reason", "probe failed")
-            return report
-        boot_seconds = probe.get("cold_boot_seconds")
-        if boot_seconds is not None:
-            measurement = record_cold_boot(store, probe, run_id=run_id)
-            if measurement is not None:
-                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
-                report["cold_boot_path"] = str(store.cold_boot_path)
-                report["checks"][-1]["detail"] += (
-                    f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
-                )
-
-    # 5) trace sink
-    try:
-        sink = resolve_sink(
-            sink=spec.trace.sink,
-            otlp=spec.trace.otlp,
-            endpoint=spec.trace.endpoint,
-            environment=spec.trace.environment,
-            service_name="sandbox-job",
-            run_id=run_id,
-            tags=spec.trace.tags,
-        )
-        if spec.trace.sink == "langfuse" and not offline and not sink.headers.get("Authorization"):
-            report["status"] = "failed"
-            report["checks"].append(
-                {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
-            )
-            return report
-        if spec.trace.sink == "langfuse" and not offline and find_spec("langfuse") is None:
-            report["status"] = "failed"
-            report["checks"].append(
-                {"name": "trace_sink", "ok": False,
-                 "detail": "langfuse SDK missing: install mailroom-sandbox[observability] or set trace.sink: none"}
-            )
-            return report
-        report["checks"].append({"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"})
-    except Exception as exc:  # noqa: BLE001
-        report["status"] = "failed"
-        report["checks"].append({"name": "trace_sink", "ok": False, "detail": str(exc)})
-        return report
-
-    # 6) modal cost guards
-    report["checks"].append(
-        {"name": "modal_spec", "ok": _modal_check(spec), "detail": "modal guards ok" if _modal_check(spec) else "modal guard failed"}
-    )
-
-    # Commit point: prompt lock then spec lock then prepared checkpoint.
-    # prepare_subset hashes the exact immutable byte buffer it normalized. Use
-    # that provenance for every new identity, even if the source path changed
-    # after preparation or while engine checks were running.
-    source_sha = (prov.get("metadata") or {}).get("sha256") if spec.dataset.is_local() else None
-    # The exclusion hash is the one of the bytes the draw used, for the same reason.
-    exclude_sha = (prov.get("excluded") or {}).get("sha256")
-    # The near-gold fingerprint is the one of the overlay the prepared rows used.
-    near_gold_sha = ((prov.get("metadata") or {}).get("near_gold_labels") or {}).get("overlay_sha256")
-    frozen_core = spec_core(spec, source_sha256=source_sha, exclude_ids_sha256=exclude_sha,
-                            near_gold_sha256=near_gold_sha)
-    frozen_hash = core_hash(frozen_core)
-    store.write_prompt_lock(prompt_block)
-    lock = {
-        "schema_version": 1,
-        "lock_kind": "spec.lock",
-        "run_id": run_id,
-        "created_at": checkpoint.utc_now(),
-        "generation_id": uuid.uuid4().hex,
-        "spec_hash": frozen_hash,
-        "prompt_text_sha": prompt_text_sha,
-        "task": spec.task,
-        **({"target": spec.target} if spec.target else {}),
-        "profile": spec.profile,
-        "agent_models": dict(spec.agent_models),
-        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
-        **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
-        **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
-        **({"decision_slots": _decision_slots_lock(spec)} if spec.decision_slots else {}),
-        **({"confidence": spec.confidence} if spec.confidence else {}),
-        "prompt": prompt_block,
-        "engine": spec.engine.model_dump(),
-        "job": spec.job.model_dump(),
-        "trace": spec.trace.model_dump(),
-        "dataset": _dataset_lock(prov, spec),
-        "otel": {"sink": spec.trace.sink, "environment": spec.trace.environment},
-        "versions": _versions(),
-        "dependency_sources": describe(),
-        "vendor_hotfixes": _hotfix_identity(),
-        "scoring_hotfixes": _scoring_hotfix_identity(),
-        "git": git_snapshot(),
-        "package": dict(package),
-        "spec_core": frozen_core,
-    }
-    # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
-    # chunk_chars / temperature). Without this the card can only read the LIVE posture
-    # table, so editing a posture later silently rewrites what every historical card
-    # claims the run was configured with — and the contracts whole-document change is
-    # exactly such an edit.
-    lock["agent_knobs"] = deepcopy(run_knobs)
-    # Freeze the resolved confidence block (vendored taxonomy, overlay, then the run's own
-    # overrides) so the routing audit reports the thresholds this run used; a later overlay
-    # edit must not rewrite a finished run's settings.
-    from mailroom_sandbox.job.routing_audit import effective_thresholds
-    lock["effective_confidence"] = effective_thresholds(spec.confidence)
-    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
-    # rebuilds the remaining agents from the live profile/taxonomy, so a later
-    # judge_model edit silently changes a resumed run without changing its lock.
-    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
-        from mailroom_sandbox.agent_routes import describe
-        lock["agent_assignments"] = describe(spec)
-    selected = selection_from_lock(prompt_block)
-    if selected:
-        # The selected eval-environment keys + sha256 are part of the run's identity.
-        lock["prompt_versions"] = selected.versions_stamp()
-    if spec.runbook_id:
-        lock["runbook_id"] = spec.runbook_id
-    if report_group:
-        lock["report_group"] = report_group
-    store.write_lock(lock)
-    total = len(store.dataset_rows())
-    if spec.target:
-        from mailroom_sandbox.eval.primary import rows_for_class
-
-        total = len(rows_for_class(store.dataset_rows(), spec.target))
-    store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)
-    store.append_event("preflight_ok", "info", spec_hash=frozen_hash)
-    report.update({"status": "prepared", "spec_hash": frozen_hash, "lock_path": str(store.lock_path)})
-    return report
+    opened = _open_preflight(spec, run_id=run_id, config_path=config_path, offline=offline, dry_run=dry_run)
+    if isinstance(opened, dict):
+        return opened
+    stopped = _existing_generation(spec, opened, force=force)
+    if stopped is not None:
+        return stopped
+    _archive_replaced_generation(opened.store, opened.existing, force, opened.report)
+    prov, failed = _prepare_dataset_rows(spec, opened.store, opened.report)
+    if failed is not None:
+        return failed
+    run_knobs = _run_knobs(spec, opened.run_id)
+    _record_context_plan(opened.report, spec, opened.store, run_knobs)
+    failed = _runtime_checks(spec, opened, live=live, offline=offline)
+    if failed is not None:
+        return failed
+    return _commit_prepared_lock(spec, opened, prov, run_knobs)

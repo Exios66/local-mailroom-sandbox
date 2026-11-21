@@ -50,41 +50,168 @@ def _short(value: Any, n: int = 60) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+def _confidence(record: dict[str, Any]) -> float:
+    raw = record["prediction"].get("confidence")
+    return float(raw or 0.0)
+
+
+def _finite_scores(scores: list[Any]) -> list[float]:
+    return [float(score) for score in scores if isinstance(score, (int, float))]
+
+
+def _score_shift(st: Any, scores: list[Any]) -> tuple[float | None, float | None]:
+    finite = _finite_scores(scores)
+    if not finite:
+        return None, None
+    return st.paired_permutation([1.0] * len(finite), finite, n_perm=2000, seed=0)
+
+
+def _rounded_diff(diff: float | None) -> float | None:
+    if diff is None:
+        return None
+    return round(diff, 4)
+
+
+def _per_class_f1(classified: dict[str, Any]) -> str:
+    task = classified.get("task") or {}
+    per_class = task.get("per_class") or {}
+    parts = [f"{name} {row.get('f1')}" for name, row in sorted(per_class.items())]
+    return "per-class F1 (Dojo): " + ", ".join(parts)
+
+
+def _error_count(correct: list[bool]) -> int:
+    return sum(1 for flag in correct if not flag)
+
+
+def _holm_text(st: Any, compared: Any, perm_p: float | None) -> str:
+    perm = 1.0 if perm_p is None else perm_p
+    holm = {name: round(value, 4) for name, value in st.holm(
+        {"mcnemar": compared.p_value, "perm": perm}).items()}
+    return f"Holm over those two: {holm}"
+
+
+def _digest_columns(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]],
+                    per_doc: dict[str, dict[str, Any]]):
+    truth = [str(rows[record["doc_id"]]["expected_doc_class"]) for record in records]
+    pred = [str(record["prediction"]["doc_type"]) for record in records]
+    correct = [left == right for left, right in zip(truth, pred)]
+    unit_ok = [bool(per_doc[record["doc_id"]]["subclass_unit"]) for record in records]
+    conf = [_confidence(record) for record in records]
+    scores = [per_doc[record["doc_id"]]["doc_score"] for record in records]
+    return truth, pred, correct, unit_ok, conf, scores
+
+
 def stats_digest(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]],
                  per_doc: dict[str, dict[str, Any]], stats: dict[str, Any]) -> list[str]:
     """The statistics layer on the hand-check documents (a sanity read, not a gate)."""
     from mailroom_sandbox import experiment_stats as st
 
-    truth = [str(rows[r["doc_id"]]["expected_doc_class"]) for r in records]
-    pred = [str(r["prediction"]["doc_type"]) for r in records]
-    correct = [t == p for t, p in zip(truth, pred)]
-    unit_ok = [bool(per_doc[r["doc_id"]]["subclass_unit"]) for r in records]
-    conf = [float(r["prediction"].get("confidence") or 0.0) for r in records]
-    n, errors = len(records), sum(1 for c in correct if not c)
-    cls = stats["_classification"]
-    per_class = (cls.get("task") or {}).get("per_class") or {}
-    confusion = Counter(zip(truth, pred))
+    truth, pred, correct, unit_ok, conf, scores = _digest_columns(records, rows, per_doc)
+    errors = _error_count(correct)
+    classified = stats["_classification"]
     pairs = list(zip(conf, correct))
-    mc = st.mcnemar(correct, unit_ok)
-    doc_scores = [per_doc[r["doc_id"]]["doc_score"] for r in records]
-    finite = [float(s) for s in doc_scores if isinstance(s, (int, float))]
-    diff, perm_p = st.paired_permutation([1.0] * len(finite), finite, n_perm=2000, seed=0) if finite else (None, None)
-    lines = [
-        f"n {n}  class accuracy {cls.get('accuracy')}  errors {errors}  "
-        f"Clopper-Pearson 95% upper on class error {st.clopper_pearson_upper(errors, n)}",
-        f"macro-F1: Dojo sorter suite {cls.get('f1_macro')}  experiment_stats.macro_f1 "
+    compared = st.mcnemar(correct, unit_ok)
+    diff, perm_p = _score_shift(st, scores)
+    return [
+        f"n {len(records)}  class accuracy {classified.get('accuracy')}  errors {errors}  "
+        f"Clopper-Pearson 95% upper on class error {st.clopper_pearson_upper(errors, len(records))}",
+        f"macro-F1: Dojo sorter suite {classified.get('f1_macro')}  experiment_stats.macro_f1 "
         f"{round(st.macro_f1(truth, pred), 4)}",
-        "per-class F1 (Dojo): " + ", ".join(f"{c} {v.get('f1')}" for c, v in sorted(per_class.items())),
+        _per_class_f1(classified),
         f"unit accuracy {stats['stat:unit_accuracy']}",
-        f"cost-weighted error, unit costs (no committed cost matrix) {st.cost_weighted_error(confusion, {})}",
+        f"cost-weighted error, unit costs (no committed cost matrix) "
+        f"{st.cost_weighted_error(Counter(zip(truth, pred)), {})}",
         f"Brier {st.brier_score(pairs)} (null floor {st.brier_null_floor(correct)})  "
         f"ECE {st.expected_calibration_error(pairs)} (null floor {st.ece_null_floor(conf, n_sim=500, seed=0)})  "
         f"AUROC {st.auroc(conf, correct)}",
-        f"McNemar class-correct vs unit-correct (sanity) b={mc.b} c={mc.c} p={round(mc.p_value, 4)}  "
-        f"sign-flip permutation doc score vs 1.0: mean diff {None if diff is None else round(diff, 4)} p={perm_p}",
-        f"Holm over those two: {({k: round(v, 4) for k, v in st.holm({'mcnemar': mc.p_value, 'perm': perm_p or 1.0}).items()})}",
+        f"McNemar class-correct vs unit-correct (sanity) b={compared.b} c={compared.c} "
+        f"p={round(compared.p_value, 4)}  "
+        f"sign-flip permutation doc score vs 1.0: mean diff {_rounded_diff(diff)} p={perm_p}",
+        _holm_text(st, compared, perm_p),
     ]
-    return lines
+
+
+def _truth_drift(records: list[dict[str, Any]], rows: dict[str, dict[str, Any]]) -> list[str]:
+    """Reasons the sheet's documents no longer match the dev truth."""
+    drift = []
+    for rec in records:
+        row = rows.get(rec["doc_id"])
+        if row is None:
+            drift.append(f"{rec['doc_id']}: not in the dev truth rows")
+        elif row.get("content_sha256") != rec["content_sha256"]:
+            drift.append(f"{rec['doc_id']}: document text changed (content_sha256)")
+        elif hc.canonical_sha(hc.expected_fields(row)) != rec["expected_fields_sha256"]:
+            drift.append(f"{rec['doc_id']}: truth labels changed since the sheet was built")
+    return drift
+
+
+def _scored_values(records, rows, table, bars, sheet):
+    """Per-document scores, the statistics layer, and the sheet comparison."""
+    per_doc = {rec["doc_id"]: hc.score_case(rec, rows[rec["doc_id"]], table, bars) for rec in records}
+    values: dict[tuple[str, str], Any] = {}
+    for doc_id, scored in per_doc.items():
+        for check, value in scored.items():
+            if not check.startswith("_"):
+                values[(doc_id, check)] = value
+    stats = hc.stat_values(records, rows, per_doc, bars)
+    for check in hc.STAT_CHECKS:
+        values[("*", check)] = stats[check]
+    return per_doc, values, stats, hc.compare(sheet, values)
+
+
+def _gate_verdict(cmp, n_records: int, min_docs: int) -> tuple[str, int]:
+    """The R02 exit line and code. A short confirmed sheet is still a failure."""
+    verdict = {
+        0: "R02 GATE PASSES: every row scored by a person and reproduced by the scorers",
+        1: "R02 gate NOT passed: scorer and hand scores disagree (or the check lists differ)",
+        2: "R02 gate NOT passed: blank hand scores remain",
+        3: "R02 gate NOT passed: hand scores match but are agent-draft; a person must confirm each row",
+    }[cmp.exit_code]
+    code = cmp.exit_code
+    if code == 0 and n_records < min_docs:
+        verdict = (f"R02 gate NOT passed: the sheet holds {n_records} documents, the gate needs {min_docs}")
+        code = 5
+    return verdict, code
+
+
+def _print_row_diffs(cmp, values) -> None:
+    """Mismatches, unlisted checks, unscored rows, and blanks. Capped at MAX_LISTED."""
+    by_check = Counter(r["check"].split(":", 1)[0] for r in cmp.mismatched)
+    if cmp.mismatched:
+        print("mismatches by check: " + ", ".join(f"{k} {v}" for k, v in sorted(by_check.items())))
+        for row in cmp.mismatched[:MAX_LISTED]:
+            print(f"  {row['row_id']} {row['doc_id']} {row['check']:<28} {row['perturbation']:<18} "
+                  f"hand {row['hand_score']!r} ({row['hand_scored_by']})  scorer {_short(row['scorer_value'], 30)}")
+    for doc_id, check in cmp.unlisted[:MAX_LISTED]:
+        print(f"  unlisted: {doc_id} {check} = {_short(values[(doc_id, check)], 30)}")
+    for row_id in cmp.missing_checks[:MAX_LISTED]:
+        print(f"  unscored: {row_id}")
+    if cmp.blank:
+        print("blank rows (need a person): " + ", ".join(cmp.blank[:MAX_LISTED]) + (" …" if len(cmp.blank) > MAX_LISTED else ""))
+
+
+def _print_comparison(records, rows, sheet, prov, cmp, values, per_doc, stats) -> None:
+    """The human-readable hand-check report. The exit code is decided separately."""
+    labels = prov.get("labels") or {}
+    print(f"R02 hand-check  documents {len(records)}  rows {len(sheet)}  "
+          f"labels named {str(labels.get('runbook_named_commit'))[:8]} (checkout {str(labels.get('checkout_head'))[:8]})  "
+          f"Dojo pin {str((prov.get('scorer') or {}).get('dojo_vendor_pin'))[:12]}  "
+          f"dataset {str((prov.get('dataset') or {}).get('revision'))[:12]}")
+    filled = len(sheet) - len(cmp.blank)
+    print(f"filled {filled}  blank {len(cmp.blank)}  agent-draft {len(cmp.draft)}  person-confirmed {len(cmp.confirmed)}  "
+          f"matches {filled - len(cmp.mismatched)}  mismatches {len(cmp.mismatched)}  "
+          f"unscored rows {len(cmp.missing_checks)}  unlisted scorer checks {len(cmp.unlisted)}")
+    _print_row_diffs(cmp, values)
+    print("statistics layer on these documents (sanity, not the gate):")
+    for line in stats_digest(records, rows, per_doc, stats):
+        print("  " + line)
+
+
+def _write_json(path: Path, cmp) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"rows": cmp.rows, "unlisted": cmp.unlisted, "exit_code": cmp.exit_code},
+                               indent=1, default=str) + "\n", encoding="utf-8")
+    print(f"wrote {path}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,74 +234,17 @@ def main(argv: list[str] | None = None) -> int:
     prov = json.loads((sheet_dir / hc.PROVENANCE_FILE).read_text(encoding="utf-8"))
     truth_rows, _ = _load_build_module().load_truth(split_dir, args.rows)
     rows = {str(r["id"]): r for r in truth_rows}
-
-    drift = []
-    for rec in records:
-        row = rows.get(rec["doc_id"])
-        if row is None:
-            drift.append(f"{rec['doc_id']}: not in the dev truth rows")
-        elif row.get("content_sha256") != rec["content_sha256"]:
-            drift.append(f"{rec['doc_id']}: document text changed (content_sha256)")
-        elif hc.canonical_sha(hc.expected_fields(row)) != rec["expected_fields_sha256"]:
-            drift.append(f"{rec['doc_id']}: truth labels changed since the sheet was built")
+    drift = _truth_drift(records, rows)
     if drift:
         print("TRUTH DRIFT: rebuild the sheet (and re-score it) before checking", file=sys.stderr)
         for line in drift[:MAX_LISTED]:
             print("  " + line, file=sys.stderr)
         return 4
-
-    table = load_unit_table(split_dir)
-    bars = load_bars()
-    per_doc = {rec["doc_id"]: hc.score_case(rec, rows[rec["doc_id"]], table, bars) for rec in records}
-    values: dict[tuple[str, str], Any] = {}
-    for doc_id, scored in per_doc.items():
-        for check, value in scored.items():
-            if not check.startswith("_"):
-                values[(doc_id, check)] = value
-    stats = hc.stat_values(records, rows, per_doc, bars)
-    for check in hc.STAT_CHECKS:
-        values[("*", check)] = stats[check]
-    cmp = hc.compare(sheet, values)
-
-    labels = prov.get("labels") or {}
-    print(f"R02 hand-check  documents {len(records)}  rows {len(sheet)}  "
-          f"labels named {str(labels.get('runbook_named_commit'))[:8]} (checkout {str(labels.get('checkout_head'))[:8]})  "
-          f"Dojo pin {str((prov.get('scorer') or {}).get('dojo_vendor_pin'))[:12]}  "
-          f"dataset {str((prov.get('dataset') or {}).get('revision'))[:12]}")
-    filled = len(sheet) - len(cmp.blank)
-    print(f"filled {filled}  blank {len(cmp.blank)}  agent-draft {len(cmp.draft)}  person-confirmed {len(cmp.confirmed)}  "
-          f"matches {filled - len(cmp.mismatched)}  mismatches {len(cmp.mismatched)}  "
-          f"unscored rows {len(cmp.missing_checks)}  unlisted scorer checks {len(cmp.unlisted)}")
-    by_check = Counter(r["check"].split(":", 1)[0] for r in cmp.mismatched)
-    if cmp.mismatched:
-        print("mismatches by check: " + ", ".join(f"{k} {v}" for k, v in sorted(by_check.items())))
-        for r in cmp.mismatched[:MAX_LISTED]:
-            print(f"  {r['row_id']} {r['doc_id']} {r['check']:<28} {r['perturbation']:<18} "
-                  f"hand {r['hand_score']!r} ({r['hand_scored_by']})  scorer {_short(r['scorer_value'], 30)}")
-    for doc_id, check in cmp.unlisted[:MAX_LISTED]:
-        print(f"  unlisted: {doc_id} {check} = {_short(values[(doc_id, check)], 30)}")
-    for row_id in cmp.missing_checks[:MAX_LISTED]:
-        print(f"  unscored: {row_id}")
-    if cmp.blank:
-        print("blank rows (need a person): " + ", ".join(cmp.blank[:MAX_LISTED]) + (" …" if len(cmp.blank) > MAX_LISTED else ""))
-    print("statistics layer on these documents (sanity, not the gate):")
-    for line in stats_digest(records, rows, per_doc, stats):
-        print("  " + line)
+    per_doc, values, stats, cmp = _scored_values(records, rows, load_unit_table(split_dir), load_bars(), sheet)
+    _print_comparison(records, rows, sheet, prov, cmp, values, per_doc, stats)
     if args.json:
-        args.json.parent.mkdir(parents=True, exist_ok=True)
-        args.json.write_text(json.dumps({"rows": cmp.rows, "unlisted": cmp.unlisted, "exit_code": cmp.exit_code},
-                                        indent=1, default=str) + "\n", encoding="utf-8")
-        print(f"wrote {args.json}")
-    verdict = {
-        0: "R02 GATE PASSES: every row scored by a person and reproduced by the scorers",
-        1: "R02 gate NOT passed: scorer and hand scores disagree (or the check lists differ)",
-        2: "R02 gate NOT passed: blank hand scores remain",
-        3: "R02 gate NOT passed: hand scores match but are agent-draft; a person must confirm each row",
-    }[cmp.exit_code]
-    code = cmp.exit_code
-    if code == 0 and len(records) < args.min_docs:
-        verdict, code = (f"R02 gate NOT passed: the sheet holds {len(records)} documents, the gate needs "
-                         f"{args.min_docs}"), 5
+        _write_json(args.json, cmp)
+    verdict, code = _gate_verdict(cmp, len(records), args.min_docs)
     print(verdict)
     return code
 

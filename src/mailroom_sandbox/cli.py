@@ -1857,48 +1857,126 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
         return 1
 
 
-def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
-    """Retrieve the reviewed visualizer without discarding local work.
+def _visualizer_clean_head(dest: Path, *, announce: bool = True) -> str | None:
+    """HEAD when the checkout is clean. None leaves a dirty checkout untouched."""
+    status = subprocess.run(
+        ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
+         "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
+         "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
+        capture_output=True, text=True, check=False,
+    )
+    current = subprocess.run(
+        ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
+        capture_output=True, text=True, check=False,
+    )
+    if status.returncode or status.stdout or current.returncode:
+        if announce:
+            print("!! visualizer has local files; left untouched", file=sys.stderr)
+        return None
+    return current.stdout.strip()
 
-    Dirty or divergent checkouts are preserved. A clean checkout whose HEAD
-    matches the reviewed-head marker written by an earlier refresh is an older
-    reviewed snapshot and is replaced atomically; local commits and unrelated
-    HEADs are never reset.
+
+def _visualizer_still_replaceable(dest: Path, existing_head: str | None) -> bool:
+    """The tree is still the clean snapshot observed before the fetch.
+
+    The fetch is slow enough for edits, a new commit, or a newly created
+    checkout to land. Those must not be moved into recovery and deleted.
+    """
+    if existing_head is None:
+        return False
+    return _visualizer_clean_head(dest, announce=False) == existing_head
+
+
+def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | None]:
+    """``(stop code, HEAD)``. A stop code means the checkout was left untouched."""
+    if not dest.exists() and not dest.is_symlink():
+        return None, None
+    if dest.is_symlink() or not (dest / ".git").exists():
+        print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
+        return 1, None
+    existing_head = _visualizer_clean_head(dest)
+    if existing_head is None:
+        return 1, None
+    marker = dest / ".git" / "mailroom-reviewed-head"
+    try:
+        reviewed_head = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        reviewed_head = None
+    if existing_head != sha and reviewed_head != existing_head:
+        print("!! visualizer HEAD is not a previously reviewed snapshot; left untouched", file=sys.stderr)
+        return 1, None
+    return None, existing_head
+
+
+def _restore_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
+    """Put a moved checkout back. The recovery copy stays if the restore fails."""
+    import shutil
+
+    try:
+        backup.rename(dest)
+    except OSError as restore_error:
+        print(
+            "!! visualizer changed during refresh; original snapshot preserved "
+            f"at {backup} ({restore_error})",
+            file=sys.stderr,
+        )
+        return 1
+    shutil.rmtree(recovery)
+    print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+    return 1
+
+
+def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refresh_root: Path) -> int | None:
+    """Install ``work`` over a clean reviewed checkout. None means it is in place.
+
+    The live tree is moved aside and checked again. An edit that lands after the
+    fetch, including one that lands after the first clean check, is put back.
+    The aside copy is deleted only after the new checkout is installed.
     """
     import shutil
     import tempfile
 
-    dest = vendor_dir() / "The-Mailroom"
-    existing_head = None
-    if dest.exists() or dest.is_symlink():
-        if dest.is_symlink() or not (dest / ".git").exists():
-            print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
-            return 1
-        status = subprocess.run(
-            ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
-             "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
-             "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
-            capture_output=True, text=True, check=False,
-        )
-        current = subprocess.run(
-            ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
-            capture_output=True, text=True, check=False,
-        )
-        if status.returncode or status.stdout or current.returncode:
-            print("!! visualizer has local files; left untouched", file=sys.stderr)
-            return 1
-        existing_head = current.stdout.strip()
-        marker = dest / ".git" / "mailroom-reviewed-head"
+    if not _visualizer_still_replaceable(dest, existing_head):
+        print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+        return 1
+    recovery = Path(tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root))
+    backup = recovery / "The-Mailroom"
+    dest.rename(backup)
+    if not _visualizer_still_replaceable(backup, existing_head):
+        return _restore_visualizer(backup, dest, recovery)
+    try:
+        work.rename(dest)
+    except OSError as install_error:
         try:
-            reviewed_head = marker.read_text(encoding="utf-8").strip()
-        except OSError:
-            reviewed_head = None
-        if existing_head != sha and reviewed_head != existing_head:
+            backup.rename(dest)
+        except OSError as restore_error:
             print(
-                "!! visualizer HEAD is not a previously reviewed snapshot; left untouched",
+                f"!! visualizer install failed ({install_error}); rollback failed "
+                f"({restore_error}). Original snapshot preserved at {backup}",
                 file=sys.stderr,
             )
             return 1
+        shutil.rmtree(recovery)
+        raise
+    shutil.rmtree(recovery)
+    return None
+
+
+def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
+    """Retrieve the reviewed visualizer without discarding local work.
+
+    Dirty or divergent checkouts are preserved, including edits that land while
+    the reviewed snapshot is fetched or after that check. A clean checkout whose
+    HEAD matches the reviewed-head marker written by an earlier refresh is an
+    older reviewed snapshot and is replaced atomically; local commits and
+    unrelated HEADs are never reset.
+    """
+    import tempfile
+
+    dest = vendor_dir() / "The-Mailroom"
+    stopped, existing_head = _visualizer_existing_head(dest, sha)
+    if stopped:
+        return stopped
     refresh_root = vendor_dir() / ".refresh"
     try:
         refresh_root.mkdir(parents=True, exist_ok=True)
@@ -1909,26 +1987,9 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
             if not dest.exists():
                 work.rename(dest)
             elif existing_head != sha:
-                recovery = Path(
-                    tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
-                )
-                backup = recovery / "The-Mailroom"
-                dest.rename(backup)
-                try:
-                    work.rename(dest)
-                except OSError as install_error:
-                    try:
-                        backup.rename(dest)
-                    except OSError as restore_error:
-                        print(
-                            f"!! visualizer install failed ({install_error}); rollback failed "
-                            f"({restore_error}). Original snapshot preserved at {backup}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    shutil.rmtree(recovery)
-                    raise
-                shutil.rmtree(recovery)
+                replaced = _replace_clean_visualizer(dest, work, existing_head or "", refresh_root)
+                if replaced:
+                    return replaced
             marker = dest / ".git" / "mailroom-reviewed-head"
             try:
                 marker.write_text(f"{sha}\n", encoding="utf-8")
