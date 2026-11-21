@@ -259,6 +259,29 @@ def test_visualizer_preserves_edits_that_land_after_the_clean_check(monkeypatch,
     assert not any(path.name.startswith("visualizer-recovery-") for path in (vendor / ".refresh").iterdir())
 
 
+def test_visualizer_preserves_edits_that_land_after_the_backup_check(monkeypatch, source, vendor):
+    """An edit after the moved tree is judged clean is put back, not deleted."""
+    old = commit(source, {"index.html": "old\n"})
+    new = commit(source, {"index.html": "new\n"})
+    assert cli._refresh_visualizer(old, str(source), old) == 0
+    dest = vendor / "The-Mailroom"
+    real_check = cli._visualizer_still_replaceable
+    edited = {"done": False}
+
+    def check_then_edit(path, head):
+        clean = real_check(path, head)
+        if clean and path != dest and not edited["done"]:
+            edited["done"] = True
+            (path / "index.html").write_text("edit after backup check\n")
+        return clean
+
+    monkeypatch.setattr(cli, "_visualizer_still_replaceable", check_then_edit)
+    assert cli._refresh_visualizer(new, str(source), new) == 1
+    assert (dest / "index.html").read_text() == "edit after backup check\n"
+    assert git(dest, "rev-parse", "HEAD") == old
+    assert not any(path.name.startswith("visualizer-recovery-") for path in (vendor / ".refresh").iterdir())
+
+
 def test_visualizer_preserves_a_tree_created_during_fetch(monkeypatch, source, vendor):
     reviewed = commit(source, {"index.html": "reviewed\n"})
     dest = vendor / "The-Mailroom"

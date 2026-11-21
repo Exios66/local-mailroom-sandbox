@@ -1926,12 +1926,37 @@ def _restore_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
     return 1
 
 
+def _restore_installed_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
+    """The aside copy changed after install. Put it back and drop the new tree."""
+    installed = recovery / "installed"
+    try:
+        dest.rename(installed)
+    except OSError as hold_error:
+        print(
+            "!! visualizer changed during refresh; original snapshot preserved "
+            f"at {backup} ({hold_error})",
+            file=sys.stderr,
+        )
+        return 1
+    return _restore_visualizer(backup, dest, recovery)
+
+
+def _commit_visualizer_install(backup: Path, dest: Path, recovery: Path, existing_head: str) -> int | None:
+    """Delete the aside copy only when it is still the clean reviewed HEAD."""
+    import shutil
+
+    if not _visualizer_still_replaceable(backup, existing_head):
+        return _restore_installed_visualizer(backup, dest, recovery)
+    shutil.rmtree(recovery)
+    return None
+
+
 def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refresh_root: Path) -> int | None:
     """Install ``work`` over a clean reviewed checkout. None means it is in place.
 
     The live tree is moved aside and checked again. An edit that lands after the
     fetch, including one that lands after the first clean check, is put back.
-    The aside copy is deleted only after the new checkout is installed.
+    The aside copy is checked once more immediately before it is deleted.
     """
     import shutil
     import tempfile
@@ -1958,15 +1983,15 @@ def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refres
             return 1
         shutil.rmtree(recovery)
         raise
-    shutil.rmtree(recovery)
-    return None
+    return _commit_visualizer_install(backup, dest, recovery, existing_head)
 
 
 def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
     """Retrieve the reviewed visualizer without discarding local work.
 
     Dirty or divergent checkouts are preserved, including edits that land while
-    the reviewed snapshot is fetched or after that check. A clean checkout whose
+    the reviewed snapshot is fetched, after that check, or after the moved
+    checkout is judged clean. A clean checkout whose
     HEAD matches the reviewed-head marker written by an earlier refresh is an
     older reviewed snapshot and is replaced atomically; local commits and
     unrelated HEADs are never reset.
