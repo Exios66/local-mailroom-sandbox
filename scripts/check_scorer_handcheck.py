@@ -207,9 +207,10 @@ def _print_comparison(records, rows, sheet, prov, cmp, values, per_doc, stats) -
         print("  " + line)
 
 
-def _write_json(path: Path, cmp) -> None:
+def _write_json(path: Path, cmp, exit_code: int) -> None:
+    """Write the sheet rows. ``exit_code`` is the process exit, including the short-sheet rule."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"rows": cmp.rows, "unlisted": cmp.unlisted, "exit_code": cmp.exit_code},
+    path.write_text(json.dumps({"rows": cmp.rows, "unlisted": cmp.unlisted, "exit_code": exit_code},
                                indent=1, default=str) + "\n", encoding="utf-8")
     print(f"wrote {path}")
 
@@ -242,9 +243,9 @@ def main(argv: list[str] | None = None) -> int:
         return 4
     per_doc, values, stats, cmp = _scored_values(records, rows, load_unit_table(split_dir), load_bars(), sheet)
     _print_comparison(records, rows, sheet, prov, cmp, values, per_doc, stats)
-    if args.json:
-        _write_json(args.json, cmp)
     verdict, code = _gate_verdict(cmp, len(records), args.min_docs)
+    if args.json:
+        _write_json(args.json, cmp, code)
     print(verdict)
     return code
 

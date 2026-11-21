@@ -457,6 +457,43 @@ def test_preflight_prepares_and_locks(tmp_path):
     assert store.dataset_path.is_file()
     assert len(store.dataset_rows()) == 2
     assert store.spec_hash() == spec.spec_hash()
+    store.verify_generation()
+
+
+def test_checkpoint_is_written_before_the_lock(tmp_path, job_data_dir, monkeypatch):
+    """A failed lock publish leaves no commit point for the next preflight."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = _run_spec(tmp_path, run_id="pf-commit")
+    real_checkpoint = RunStore.write_checkpoint
+    real_lock = RunStore.write_lock
+    order: list[str] = []
+
+    def checkpoint(self, **kwargs):
+        order.append("checkpoint")
+        return real_checkpoint(self, **kwargs)
+
+    def lock(self, payload):
+        order.append("lock")
+        written = self.read_checkpoint()
+        assert written["spec_hash"] == payload["spec_hash"]
+        assert written["generation_id"] == payload["generation_id"]
+        raise OSError("lock publish failed")
+
+    monkeypatch.setattr(RunStore, "write_checkpoint", checkpoint)
+    monkeypatch.setattr(RunStore, "write_lock", lock)
+    with pytest.raises(OSError, match="lock publish failed"):
+        preflight.preflight(spec, offline=True)
+    assert order == ["checkpoint", "lock"]
+    store = RunStore(run_dir(spec.run_id))
+    assert not store.lock_path.is_file()
+    assert store.read_checkpoint()["state"] == "prepared"
+
+    monkeypatch.setattr(RunStore, "write_checkpoint", real_checkpoint)
+    monkeypatch.setattr(RunStore, "write_lock", real_lock)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared"
+    store.verify_generation()
 
 
 def test_preflight_corrupt_lock_refuses_loud(tmp_path, job_data_dir):
