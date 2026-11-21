@@ -1157,6 +1157,10 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
                                    result.get("doc_type"), scoring.predicted_subclass(result))
     if sub is not None:
         score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
+    # The pain-point penalty points of this document (eval/pain_points.py), headline side.
+    from mailroom_sandbox.eval import pain_points
+
+    score.update(pain_points.item_points(row, result, scored, subclass_ok=None if sub is None else bool(sub[1])))
     # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
     score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
     return score
@@ -1453,6 +1457,11 @@ def run_pipeline_eval(
     from mailroom_sandbox.eval import archive_correctness
 
     scores.update(archive_correctness.for_pipeline(rows, results, extraction_rows=extraction_rows))
+    # The client pain-point composites (eval/pain_points.py): penalty points per document for
+    # classification and extraction, a needless human review the worst outcome on both.
+    from mailroom_sandbox.eval import pain_points
+
+    scores.update(pain_points.for_pipeline(rows, results, extraction_rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))

@@ -30,6 +30,12 @@ scoring.compare_local_vs_api(...)
 scoring.score_extraction_row(...)  # attaches parse_error / schema_valid
 ```
 
+Pipeline runs report three cost-of-operation metrics beside the quality scores:
+`routed_to_human_review*` (documents routed to a person, from `human_review.py`),
+`incorrect_archives*` (incorrect archives, from `archive_correctness.py`) and `pain_points*` (the
+client pain-point composites: classification and extraction penalty points, from
+`pain_points.py`; see `docs/pain-point-composites.md`).
+
 There is no top-level `run_evaluation` symbol — the entrypoints live in
 `runners`. See `docs/evals.md` for the full eval-task surface and the
 `AgentSpec` extension point.
