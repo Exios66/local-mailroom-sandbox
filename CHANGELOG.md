@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+- **Production slices score against staged overlay `9.3.1-rc.7` (role words, signing dates).**
+  - `config/staged_overlays.yaml` pins rc.7 (mailroom-issues `bb721a67`, manifest `438ce30a…`).
+    The seven `config/runs/production/slice-*` configs move from rc.6 to rc.7.
+  - Against rc.6: 180 `parties` cells lose role words, descriptions or alias clauses, one
+    `parties` cell leaves the overlay, and 90 merger `effective_date` signing dates are held as
+    disputed until the owner answers the interim audit.
+  - Scores are not comparable to rc.6 on contract and merger `parties` and merger
+    `effective_date`. Re-baseline before a paired re-run.
 - **Stager rc.7 rules: party-role words and merger signing dates.**
   - `scripts/stage_label_overlay.py` drops party-role words ("the Customer", "Member"),
     descriptions of a party ("an individual", "your") and alias clauses ("d/b/a X") from

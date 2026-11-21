@@ -45,3 +45,11 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.6
     manifest_sha256: 28ec2d67e81eaae96c11cec714cc917f5da6f89793ecaf0de2f64aa6f24234ae
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.6 plus party-role words and descriptions dropped from parties, and signing-date-only merger
+  # effective dates held for the owner's audit answer (mailroom-issues bb721a67, sandbox 2597e9f4).
+  9.3.1-rc.7:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: bb721a67adf37e028e5e72cc7438209219a5c788
+    path: v9.3.0/pre-release/v9.3.1-rc.7
+    manifest_sha256: 438ce30a6661c4c00aa2f10acc6b20a2df76210cccdb6ca1d3a80aa523b04d19
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
