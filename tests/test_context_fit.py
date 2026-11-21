@@ -182,6 +182,18 @@ def test_activation_widens_for_openrouter_and_restores_for_modal(monkeypatch, ju
         source_windows.apply_source_windows({})
 
 
+def test_expansion_status_follows_an_openrouter_route_on_a_local_profile():
+    tax = build_merged_taxonomy(
+        load_profile("modal-vllm"),
+        agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}},
+    )
+    judge = next(row for row in context_fit.expansion_status(tax)["agents"] if row["agent"] == "judge")
+    assert judge["provider"] == "openrouter"
+    assert judge["expanded"] is True and judge["source_window"] > 16_000
+    sorter = next(row for row in context_fit.expansion_status(tax)["agents"] if row["agent"] == "sorter")
+    assert sorter["expanded"] is None
+
+
 def test_expansion_status_swaps_openrouter_readers_and_leaves_modal():
     fitted = context_fit.expansion_status(
         build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")

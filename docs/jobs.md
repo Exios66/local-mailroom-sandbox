@@ -389,6 +389,15 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `config/api_prices.yaml`. A Modal or local route has nothing to swap.
    `sandbox run preflight --agent-knob NAME.key=value` sets the same generation
    parameters a run YAML's `agent_knobs` block does, including `max_input_chars`.
+   The check uses the provider and model the fit used, so an OpenRouter route on
+   a local profile is still required to be wide. A new lock freezes that fit
+   (`context_fit.sha256`). Resume returns `drift_refused` when the price sheet
+   or overlay would change it; a lock without the key still resumes. Production
+   slices set `job.require_expanded_inputs`. Their sorter and intake stay at
+   600000 characters on purpose; the other readers use the fitted room. The
+   published API caps were estimated on the older chunked posture, so a
+   whole-document reader can spend more than `api_cost_cap_usd` and should be
+   re-measured before a paid slice.
    See
    [the Qwen-25 failure-mode audit](audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +

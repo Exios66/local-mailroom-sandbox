@@ -1326,6 +1326,9 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
     routing_detail = _routing_identity_drift(existing)
     if not drifted and routing_detail:
         return {"status": "drift_refused", "run_id": run_id, "detail": routing_detail}
+    fit_detail = _context_fit_drift(existing, spec) if not drifted else None
+    if fit_detail:
+        return {"status": "drift_refused", "run_id": run_id, "detail": fit_detail}
     if drifted:
         return {
             "status": "drift_refused",
@@ -1338,6 +1341,26 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
             ),
         }
     return None
+
+
+def _context_fit_drift(existing, spec: RunSpec) -> str | None:
+    """Refuse a lock whose fitted windows no longer match this checkout.
+
+    Locks written before the stamp have no ``context_fit`` key and still resume.
+    """
+    locked = existing.get("context_fit")
+    if not isinstance(locked, dict) or not locked.get("sha256"):
+        return None
+    from mailroom_sandbox.context_fit import identity
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    live = identity(taxonomy_for_spec(spec, existing.get("agent_knobs") or {}))
+    if live["sha256"] == locked["sha256"]:
+        return None
+    return (
+        "context fit changed since this run was locked (model window or overlay); "
+        "pass --force to re-lock"
+    )
 
 
 def _foreign_store_refusal(existing, spec: RunSpec, force: bool, run_id: str):
@@ -1672,6 +1695,12 @@ def _commit_prepared_lock(spec: RunSpec, opened: _OpenRun, prov: Mapping[str, An
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
     lock["agent_knobs"] = deepcopy(run_knobs)
+    from mailroom_sandbox.context_fit import identity
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    # Freeze the fitted windows. A later price sheet or overlay must not change
+    # what a resumed run sends. Locks without this key still resume.
+    lock["context_fit"] = identity(taxonomy_for_spec(spec, run_knobs))
     # Freeze the resolved confidence block (vendored taxonomy, overlay, then the run's own
     # overrides) so the routing audit reports the thresholds this run used; a later overlay
     # edit must not rewrite a finished run's settings.

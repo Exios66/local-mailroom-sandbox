@@ -29,6 +29,8 @@ The judge and arbiter source windows are vendored literals; see
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from copy import deepcopy
 from functools import lru_cache
@@ -128,10 +130,11 @@ def apply_context_fit(
     """
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)
+    cfg.pop("checked", None)
     out = deepcopy(taxonomy)
     chunking = out.setdefault("chunking", {})
     cap = int(chunking.get("chunk_chars", _DEFAULT_CHUNK_CHARS))
-    record: dict[str, Any] = {**cfg, "applied": {}, "chunk_chars": {"before": cap, "after": cap}}
+    record: dict[str, Any] = {**cfg, "applied": {}, "checked": {}, "chunk_chars": {"before": cap, "after": cap}}
     out["context_fit"] = record
     if not cfg.get("enabled", True):
         return out
@@ -140,6 +143,7 @@ def apply_context_fit(
     specialists = _specialists(out)
     routes = agent_routes or {}
     agents = out.get("agents") or {}
+    checked: dict[str, dict[str, str]] = {}
     for name in sorted(_targets(cfg, specialists)):
         agent = agents.get(name)
         if not isinstance(agent, dict):
@@ -147,6 +151,9 @@ def apply_context_fit(
         route = routes.get(name)
         provider = str(_route_field(route, "provider") or agent.get("provider") or "")
         model = str(_route_field(route, "model") or agent.get("model") or "")
+        # The profile provider stays on the agent. Preflight must see the route
+        # that the fit actually used, including a Modal profile with an OpenRouter route.
+        checked[name] = {"provider": provider, "model": model}
         context = contexts.get(model)
         if provider not in providers or not context:
             continue
@@ -156,6 +163,7 @@ def apply_context_fit(
             continue
         agent["max_input_chars"] = after
         record["applied"][name] = {"model": model, "context_length": context, "before": before, "after": after}
+    record["checked"] = checked
 
     fitted = [record["applied"][s]["after"] for s in specialists if s in record["applied"]]
     wide_unfitted = sorted(s for s in specialists if s not in record["applied"] and _budget(agents.get(s) or {}) > cap)
@@ -196,8 +204,9 @@ def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
         agent = agents.get(name)
         if not isinstance(agent, dict):
             continue
-        provider = str(agent.get("provider") or "")
-        model = str(agent.get("model") or "")
+        choice = ((taxonomy.get("context_fit") or {}).get("checked") or {}).get(name) or {}
+        provider = str(choice.get("provider") or agent.get("provider") or "")
+        model = str(choice.get("model") or agent.get("model") or "")
         budget = _budget(agent)
         on_route = provider in providers
         context = contexts.get(model) if on_route else None
@@ -233,13 +242,49 @@ def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
             "before": before,
             "expanded": expanded,
         })
-    from mailroom_sandbox.source_windows import windows_for
+    from mailroom_sandbox.source_windows import TARGETS, unavailable_targets, windows_for
 
     windows = windows_for(taxonomy)
+    missing = set(unavailable_targets())
     for row in rows:
         if row["agent"] in windows:
             row["source_window"] = windows[row["agent"]]
+        if not row["expanded"] or row["agent"] not in _SOURCE_AGENTS:
+            continue
+        absent = [
+            f"{module}.{attr}"
+            for module, attr in TARGETS.get(row["agent"], ())
+            if f"{module}.{attr}" in missing
+        ]
+        if absent:
+            row["expanded"] = False
+            gaps.append(
+                f"{row['agent']}: source window cannot be swapped on ({', '.join(absent)}); "
+                "the vendored 16k excerpt would stand"
+            )
     return {"agents": rows, "gaps": gaps, "source_windows": windows}
+
+
+def identity(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable digest of the fitted budgets a lock freezes.
+
+    A later price-sheet or overlay edit changes the digest. Locks written before
+    this stamp have no key and still resume.
+    """
+    fit = taxonomy.get("context_fit") or {}
+    applied = {
+        name: {
+            "model": row.get("model"),
+            "context_length": row.get("context_length"),
+            "after": row.get("after"),
+        }
+        for name, row in sorted((fit.get("applied") or {}).items())
+    }
+    body = {"applied": applied, "chunk_chars": (fit.get("chunk_chars") or {}).get("after")}
+    return {
+        "sha256": hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest(),
+        **body,
+    }
 
 
 def fitted_budget(taxonomy: Mapping[str, Any], agent: str) -> int | None:

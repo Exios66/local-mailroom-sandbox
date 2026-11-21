@@ -122,6 +122,23 @@ def test_preflight_skips_the_plan_for_sorter_runs(tmp_path, monkeypatch):
     assert check["ok"] is True
 
 
+def test_a_changed_context_fit_refuses_resume(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    spec = _pipeline_spec(tmp_path, monkeypatch)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = RunStore(run_dir(spec.run_id))
+    lock = store.read_lock()
+    assert lock["context_fit"]["sha256"]
+    lock["context_fit"]["sha256"] = "0" * 64
+    store.lock_path.write_text(json.dumps(lock))
+    again = preflight.preflight(spec, offline=True)
+    assert again["status"] == "drift_refused"
+    assert "context fit" in again["detail"]
+
+
 def test_preflight_requires_expanded_inputs_on_openrouter(tmp_path, monkeypatch):
     spec = _pipeline_spec(tmp_path, monkeypatch)
     spec = RunSpec.model_validate({
