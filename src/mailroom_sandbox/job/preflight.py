@@ -1628,8 +1628,14 @@ def _commit_prepared_lock(spec: RunSpec, opened: _OpenRun, prov: Mapping[str, An
     # rebuilds the remaining agents from the live profile/taxonomy, so a later
     # judge_model edit silently changes a resumed run without changing its lock.
     _stamp_optional_lock(lock, spec, opened.prompt_block, opened.report_group)
+    # The lock is the commit point (docs/jobs.md). Publish it only after the
+    # checkpoint carries the same spec and generation, so a crash cannot leave
+    # a lock whose generation check has nothing to verify.
+    store.write_checkpoint(
+        state="prepared", cursor=0, total=_prepared_total(spec, store), remote=None,
+        spec_hash=frozen_hash, generation_id=lock["generation_id"],
+    )
     store.write_lock(lock)
-    store.write_checkpoint(state="prepared", cursor=0, total=_prepared_total(spec, store), remote=None)
     store.append_event("preflight_ok", "info", spec_hash=frozen_hash)
     report.update({"status": "prepared", "spec_hash": frozen_hash, "lock_path": str(store.lock_path)})
     return report
