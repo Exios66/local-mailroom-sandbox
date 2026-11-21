@@ -99,6 +99,7 @@ job:
   cost_cap_usd: 0.50         # GPU cap field (validation requires one); OpenRouter spend is capped below
   max_wall_seconds: 10800
   api_cost_cap_usd: 5
+  require_expanded_inputs: true
   blind_routing: true       # no dataset labels in the graph's state (llm-mailroom #207)
 
 trace:

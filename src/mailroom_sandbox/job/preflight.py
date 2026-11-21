@@ -829,6 +829,47 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore,
     report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
 
 
+def _record_expanded_inputs(
+    report: dict[str, Any], spec: RunSpec, knobs: dict[str, Any], *, require: bool,
+) -> bool:
+    """Record each reader's expanded input length. Return whether preflight may continue.
+
+    The check is informational unless ``require`` is set (``job.require_expanded_inputs``
+    or ``sandbox run preflight --require-expanded-inputs``). A long-context reader that
+    is still on the short budget then fails the run before a lock is written. A Modal
+    or local route has nothing to swap and stays ok.
+    """
+    from mailroom_sandbox.context_fit import expansion_status
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    try:
+        status = expansion_status(taxonomy_for_spec(spec, knobs))
+    except Exception as exc:  # noqa: BLE001 — the check must not hide a taxonomy error when required
+        _log.debug("expanded-input check skipped", exc_info=exc)
+        ok = not require
+        if not ok:
+            report["status"] = "failed"
+        report["checks"].append({"name": "expanded_inputs", "ok": ok, "detail": f"skipped: {exc}"})
+        return ok
+    report["expanded_inputs"] = status
+    gaps = status["gaps"]
+    applicable = [row for row in status["agents"] if row["expanded"] is not None]
+    if not applicable:
+        detail, ok = "no long-context route; input lengths stay on the local budget", True
+    elif gaps and require:
+        detail, ok = "; ".join(gaps), False
+    elif gaps:
+        detail = f"not required; {len(gaps)} reader(s) still on the short budget: " + "; ".join(gaps)
+        ok = True
+    else:
+        shown = ", ".join(f"{row['agent']}={row['max_input_chars']}" for row in applicable if row["expanded"])
+        detail, ok = f"expanded input lengths on: {shown}", True
+    if not ok:
+        report["status"] = "failed"
+    report["checks"].append({"name": "expanded_inputs", "ok": ok, "detail": detail})
+    return ok
+
+
 def _modal_check(spec: RunSpec) -> bool:
     modal = spec.engine.modal
     if modal is None:
@@ -1053,6 +1094,7 @@ def preflight(
     force: bool = False,
     dry_run: bool = False,
     live: bool = False,
+    require_expanded_inputs: bool = False,
 ) -> dict[str, Any]:
     """Prepare or validate a generation under the writer and control locks.
 
@@ -1063,6 +1105,9 @@ def preflight(
     ``live`` probes the engine for a new generation. ``dry_run`` only checks
     lock readability and returns without resolving or preparing artifacts;
     the run directory and lock files may still be created.
+    ``require_expanded_inputs`` fails the run when a long-context reader is
+    still on the short budget. The run's ``job.require_expanded_inputs`` does
+    the same. Either one is enough.
     Uncaught configuration and file-access errors propagate.
     """
     # Dotenv supplies prompt credentials, endpoint and tracing configuration.
@@ -1076,12 +1121,14 @@ def preflight(
         if not run_dir(run_id).exists():
             return {"run_id": run_id, "status": "prepared", "checks": []}
         return _preflight(spec, run_id=run_id, config_path=config_path,
-                          offline=offline, force=force, dry_run=True, live=live)
+                          offline=offline, force=force, dry_run=True, live=live,
+                          require_expanded_inputs=require_expanded_inputs)
     store = RunStore(run_dir(run_id))
     try:
         with store.acquire(blocking=False), store.control():
             return _preflight(spec, run_id=run_id, config_path=config_path,
-                              offline=offline, force=force, dry_run=dry_run, live=live)
+                              offline=offline, force=force, dry_run=dry_run, live=live,
+                              require_expanded_inputs=require_expanded_inputs)
     except BlockingIOError:
         return {"status": "busy_refused", "run_id": run_id,
                 "detail": "run writer is active; cancel and wait for paused before resetting"}
@@ -1279,6 +1326,9 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
     routing_detail = _routing_identity_drift(existing)
     if not drifted and routing_detail:
         return {"status": "drift_refused", "run_id": run_id, "detail": routing_detail}
+    fit_detail = _context_fit_drift(existing, spec) if not drifted else None
+    if fit_detail:
+        return {"status": "drift_refused", "run_id": run_id, "detail": fit_detail}
     if drifted:
         return {
             "status": "drift_refused",
@@ -1291,6 +1341,63 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
             ),
         }
     return None
+
+
+def _fit_mismatch(locked: Any, taxonomy: Mapping[str, Any]) -> str | None:
+    """Why fitted windows no longer match, or None for a match or a legacy lock."""
+    if not isinstance(locked, dict) or not locked.get("sha256"):
+        return None
+    from mailroom_sandbox.context_fit import identity
+
+    if identity(taxonomy)["sha256"] == locked["sha256"]:
+        return None
+    return (
+        "context fit changed since this run was locked (model window or overlay); "
+        "pass --force to re-lock"
+    )
+
+
+def _lock_spec_view(lock: Mapping[str, Any]):
+    """The profile, model, routes and knobs a lock froze, as ``taxonomy_for_spec`` reads them."""
+    from types import SimpleNamespace
+
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    return SimpleNamespace(
+        profile=lock.get("profile") or "modal-vllm",
+        engine=SimpleNamespace(model=engine.get("model")),
+        agent_models=lock.get("agent_models") or {},
+        agent_knobs=lock.get("agent_knobs") or {},
+        agent_routes=lock.get("agent_routes") or {},
+        confidence=lock.get("confidence") or {},
+        run_id=lock.get("run_id"),
+    )
+
+
+def context_fit_resume_detail(lock: Mapping[str, Any]) -> str | None:
+    """Refuse execution when this checkout would fit different windows than the lock.
+
+    Run-id resume does not repeat preflight. Locks without ``context_fit.sha256``
+    still run. A matching stamp runs. A mismatch must stop before any document.
+    """
+    if not isinstance(lock, Mapping):
+        return None
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    knobs = lock.get("agent_knobs") or {}
+    return _fit_mismatch(lock.get("context_fit"), taxonomy_for_spec(_lock_spec_view(lock), knobs))
+
+
+def _context_fit_drift(existing, spec: RunSpec) -> str | None:
+    """Refuse a lock whose fitted windows no longer match this checkout.
+
+    Locks written before the stamp have no ``context_fit`` key and still resume.
+    """
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    return _fit_mismatch(
+        existing.get("context_fit"),
+        taxonomy_for_spec(spec, existing.get("agent_knobs") or {}),
+    )
 
 
 def _foreign_store_refusal(existing, spec: RunSpec, force: bool, run_id: str):
@@ -1330,7 +1437,7 @@ def _writer_still_live(store, force: bool, cp: Mapping[str, Any]) -> bool:
     return bool(force and (remote_busy or (cp.get("state") == "running" and not remote_call)))
 
 
-def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: dict[str, Any]):
+def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: dict[str, Any], *, require_expanded_inputs: bool = False):
     """The existing generation's report, or None when preparation should continue."""
     if not existing:
         return None
@@ -1358,10 +1465,13 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
     report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
+    require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
+    if not _record_expanded_inputs(report, spec, frozen, require=require):
+        return report
     return report
 
 
-def _existing_generation(spec: RunSpec, opened: _OpenRun, *, force: bool):
+def _existing_generation(spec: RunSpec, opened: _OpenRun, *, force: bool, require_expanded_inputs: bool = False):
     """Drift, foreign-store, and reuse refusals. None means prepare a new generation."""
     failed = _drift_refusal(
         opened.existing, force, spec, opened.store, opened.run_id, opened.prompt_text_sha, opened.report_group,
@@ -1371,7 +1481,10 @@ def _existing_generation(spec: RunSpec, opened: _OpenRun, *, force: bool):
     failed = _foreign_store_refusal(opened.existing, spec, force, opened.run_id)
     if failed is not None:
         return failed
-    return _reuse_existing_lock(spec, opened.store, opened.existing, force, opened.report)
+    return _reuse_existing_lock(
+        spec, opened.store, opened.existing, force, opened.report,
+        require_expanded_inputs=require_expanded_inputs,
+    )
 
 
 def _archive_replaced_generation(store, existing, force: bool, report: dict[str, Any]) -> None:
@@ -1619,6 +1732,12 @@ def _commit_prepared_lock(spec: RunSpec, opened: _OpenRun, prov: Mapping[str, An
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
     lock["agent_knobs"] = deepcopy(run_knobs)
+    from mailroom_sandbox.context_fit import identity
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    # Freeze the fitted windows. A later price sheet or overlay must not change
+    # what a resumed run sends. Locks without this key still resume.
+    lock["context_fit"] = identity(taxonomy_for_spec(spec, run_knobs))
     # Freeze the resolved confidence block (vendored taxonomy, overlay, then the run's own
     # overrides) so the routing audit reports the thresholds this run used; a later overlay
     # edit must not rewrite a finished run's settings.
@@ -1650,6 +1769,7 @@ def _preflight(
     force: bool = False,
     dry_run: bool = False,
     live: bool = False,
+    require_expanded_inputs: bool = False,
 ) -> dict[str, Any]:
     """Validate an existing generation or prepare artifacts and write a new lock.
 
@@ -1665,7 +1785,9 @@ def _preflight(
     opened = _open_preflight(spec, run_id=run_id, config_path=config_path, offline=offline, dry_run=dry_run)
     if isinstance(opened, dict):
         return opened
-    stopped = _existing_generation(spec, opened, force=force)
+    stopped = _existing_generation(
+        spec, opened, force=force, require_expanded_inputs=require_expanded_inputs,
+    )
     if stopped is not None:
         return stopped
     _archive_replaced_generation(opened.store, opened.existing, force, opened.report)
@@ -1674,6 +1796,9 @@ def _preflight(
         return failed
     run_knobs = _run_knobs(spec, opened.run_id)
     _record_context_plan(opened.report, spec, opened.store, run_knobs)
+    require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
+    if not _record_expanded_inputs(opened.report, spec, run_knobs, require=require):
+        return opened.report
     failed = _runtime_checks(spec, opened, live=live, offline=offline)
     if failed is not None:
         return failed
