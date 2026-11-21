@@ -992,30 +992,63 @@ GENERATION_KNOBS = frozenset({
 })
 
 
+def _finite_number(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def _reject_range(value: Any, low: float, high: float, message: str, *, low_open: bool = False) -> None:
+    above = value > low if low_open else value >= low
+    if not _finite_number(value) or not above or value > high:
+        raise ValueError(message)
+
+
+def _reject_count(value: Any, minimum: int, message: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(message)
+
+
+def _check_reasoning(value: Any) -> None:
+    if value is not None and not isinstance(value, str):
+        raise ValueError("reasoning_effort must be a string")
+
+
+def _check_temperature(value: Any) -> None:
+    _reject_range(value, 0, 2, "temperature must be finite in [0, 2]")
+
+
+def _check_top_p(value: Any) -> None:
+    _reject_range(value, 0, 1, "top_p must be finite in (0, 1]", low_open=True)
+
+
+def _check_presence(value: Any) -> None:
+    _reject_range(value, -2, 2, "presence_penalty must be finite in [-2, 2]")
+
+
+def _check_length_retries(value: Any) -> None:
+    _reject_count(value, 0, "length_retries must be an integer >= 0")
+
+
+def _check_count_knob(key: str, value: Any) -> None:
+    minimum = 0 if key == "overlap_chars" else 1
+    _reject_count(value, minimum, f"{key} must be a positive integer (overlap may be zero)")
+
+
+_KNOB_CHECKS = {
+    "reasoning_effort": _check_reasoning,
+    "temperature": _check_temperature,
+    "top_p": _check_top_p,
+    "presence_penalty": _check_presence,
+    "length_retries": _check_length_retries,
+}
+
+
 def _check_knob(key: str, value: Any) -> None:
     """Reject a generation knob the runtime would misread."""
-    if key == "reasoning_effort":
-        if value is not None and not isinstance(value, str):
-            raise ValueError("reasoning_effort must be a string")
+    check = _KNOB_CHECKS.get(key)
+    if check is None:
+        _check_count_knob(key, value)
         return
-    if key == "temperature":
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 2:
-            raise ValueError("temperature must be finite in [0, 2]")
-        return
-    if key == "top_p":
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value <= 1:
-            raise ValueError("top_p must be finite in (0, 1]")
-        return
-    if key == "presence_penalty":
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not -2 <= value <= 2:
-            raise ValueError("presence_penalty must be finite in [-2, 2]")
-        return
-    if key == "length_retries":
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise ValueError("length_retries must be an integer >= 0")
-        return
-    if isinstance(value, bool) or not isinstance(value, int) or value < (0 if key == "overlap_chars" else 1):
-        raise ValueError(f"{key} must be a positive integer (overlap may be zero)")
+    check(value)
 
 
 def parse_agent_knob_assignments(items: list[str] | None) -> dict[str, dict[str, Any]]:

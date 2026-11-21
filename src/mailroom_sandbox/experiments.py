@@ -235,179 +235,302 @@ def _fills(local: dict[str, list[str]], doc_class: str, quota: dict) -> bool:
     return have >= quota['count']
 
 
-def _create(args) -> int:
+def _validate_create_args(args) -> None:
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,23}', args.study):
         raise ServiceError('study must be 1–24 lowercase letters/digits/hyphens')
     if args.max_tokens < 1 or not math.isfinite(args.temperature) or not 0 <= args.temperature <= 2:
         raise ServiceError('max tokens must be positive; temperature must be finite in [0, 2]')
     if args.samples < 1:
         raise ServiceError('sample size must be positive')
-    for flag, value in (('--cost-cap-usd', args.cost_cap_usd), ('--api-cost-cap-usd', args.api_cost_cap_usd)):
-        if value is not None and (not math.isfinite(value) or value <= 0):
-            raise ServiceError(f'{flag} must be a finite positive number (omit it to use the recommendation)')
+    _reject_optional_caps(args)
     if args.max_wall_seconds is not None and args.max_wall_seconds < 60:
         raise ServiceError('--max-wall-seconds must be >= 60 (omit it to use the recommendation)')
     if not re.fullmatch(r'[a-fA-F0-9]{40}', args.revision):
         raise ServiceError('pin --revision to a full Hugging Face commit SHA')
-    root = Path(args.output or repo_root() / 'config' / 'experiments' / args.study).resolve()
-    if root.exists():
-        raise ServiceError(f'{root} already exists; choose a new study/output (nothing overwritten)')
-    cells = DESIGNS[args.design]
-    local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
-    if local is not None:
-        from mailroom_sandbox.corpus import _subclass_matches
-
-        for name in args.doc_class or list(CLASSES):
-            # Count only rows the subclass filter can retain.
-            subclasses = local.get(name, [])
-            have = sum(
-                not args.subclass or any(
-                    _subclass_matches({'expected_doc_class': name, 'expected_subclass': sub}, requested)
-                    for requested in args.subclass
-                )
-                for sub in subclasses
-            )
-            if have < args.samples:
-                raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
-                                   f'{max(have, 1)} or drop that class with --doc-class')
     if args.design == 'sand42' and (args.replicas is not None or args.concurrency is not None):
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
-    selected = args.doc_class or list(CLASSES)
-    generated = []
-    from mailroom_sandbox.agent_routes import (critical_route, known_agents, live_specialists, parse_routes,
-                                               specialist_tier)
-    routes = parse_routes(args.agent_routes)
+
+
+def _reject_optional_caps(args) -> None:
+    for flag, value in (('--cost-cap-usd', args.cost_cap_usd), ('--api-cost-cap-usd', args.api_cost_cap_usd)):
+        if value is not None and (not math.isfinite(value) or value <= 0):
+            raise ServiceError(f'{flag} must be a finite positive number (omit it to use the recommendation)')
+
+
+def _require_local_rows(args, local: dict[str, list[str]]) -> None:
+    """Refuse a local file that cannot fill the requested sample for every selected class."""
+    from mailroom_sandbox.corpus import _subclass_matches
+
+    for name in args.doc_class or list(CLASSES):
+        # Count only rows the subclass filter can retain.
+        have = _scoreable_local_rows(local.get(name, []), name, args.subclass, _subclass_matches)
+        if have < args.samples:
+            raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
+                               f'{max(have, 1)} or drop that class with --doc-class')
+
+
+def _scoreable_local_rows(subclasses: list[str], doc_class: str, requested: list[str] | None, matches) -> int:
+    return sum(_local_row_counts(sub, doc_class, requested, matches) for sub in subclasses)
+
+
+def _local_row_counts(sub: str, doc_class: str, requested: list[str] | None, matches) -> int:
+    if not requested:
+        return 1
+    return int(any(matches({'expected_doc_class': doc_class, 'expected_subclass': sub}, item) for item in requested))
+
+
+def _scoped_study_route(route, study: str):
+    # One app per tier model per study, so the judge and `full` specialists share it.
+    route = route.model_copy(deep=True)
+    route.modal.app = f"sandbox-vllm-{study}-{route.modal.app.removeprefix('sandbox-vllm-critical-')}"
+    return route
+
+
+def _study_routing(args):
+    from mailroom_sandbox.agent_routes import parse_routes
     from mailroom_sandbox.overlay import parse_agent_models
+
+    routes = parse_routes(args.agent_routes)
     try:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+    _assign_judge_route(args, routes, agent_models)
+    _assign_specialist_tier(args, routes, agent_models)
     reviewer = _reviewer_settings(getattr(args, 'decision_reviewer', None), getattr(args, 'decision_class', None))
+    return routes, agent_models, reviewer
 
-    def scoped(route):
-        # One app per tier model per study, so the judge and `full` specialists share it.
-        route = route.model_copy(deep=True)
-        route.modal.app = f"sandbox-vllm-{args.study}-{route.modal.app.removeprefix('sandbox-vllm-critical-')}"
-        return route
 
-    # SAND-078: on Modal the judge runs a larger sibling of the base model on its
-    # own app. OpenRouter keeps the profile's judge; an explicit judge pin wins.
-    if (args.provider == 'modal-vllm' and args.design != 'sand42' and args.task == 'pipeline'
-            and 'judge' not in routes and 'judge' not in agent_models and (judge := critical_route('judge'))):
-        routes['judge'] = scoped(judge)
-    # SAND-079: move the specialists to the mid or full tier; explicit pins win.
-    if args.specialist_tier != 'base':
-        if args.design == 'sand42' or args.task == 'sorter':
-            raise ServiceError('--specialist-tier applies to specialists/pipeline experiments, not sand42 or sorter')
-        tier = specialist_tier(args.specialist_tier, args.provider)
-        for name in live_specialists():
-            if name in routes or name in agent_models:
-                continue
-            if isinstance(tier, str):
-                agent_models[name] = tier
-            else:
-                routes[name] = scoped(tier)
+def _assign_judge_route(args, routes, agent_models) -> None:
+    """SAND-078: on Modal the judge runs a larger sibling on its own app.
+
+    OpenRouter keeps the profile's judge. An explicit judge pin wins.
+    """
+    from mailroom_sandbox.agent_routes import critical_route
+
+    if args.provider != 'modal-vllm' or args.design == 'sand42' or args.task != 'pipeline':
+        return
+    if 'judge' in routes or 'judge' in agent_models:
+        return
+    judge = critical_route('judge')
+    if judge:
+        routes['judge'] = _scoped_study_route(judge, args.study)
+
+
+def _assign_specialist_tier(args, routes, agent_models) -> None:
+    """SAND-079: move the specialists to the mid or full tier. Explicit pins win."""
+    from mailroom_sandbox.agent_routes import live_specialists, specialist_tier
+
+    if args.specialist_tier == 'base':
+        return
+    if args.design == 'sand42' or args.task == 'sorter':
+        raise ServiceError('--specialist-tier applies to specialists/pipeline experiments, not sand42 or sorter')
+    tier = specialist_tier(args.specialist_tier, args.provider)
+    for name in live_specialists():
+        _pin_specialist(name, tier, args.study, routes, agent_models)
+
+
+def _pin_specialist(name: str, tier, study: str, routes, agent_models) -> None:
+    if name in routes or name in agent_models:
+        return
+    if isinstance(tier, str):
+        agent_models[name] = tier
+        return
+    routes[name] = _scoped_study_route(tier, study)
+
+
+def _default_study_model(args) -> str:
     if args.design == 'sand42':  # frozen study: keeps its AWQ / champion pair
-        default_model = 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
-    else:  # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter
-        default_model = 'Qwen/Qwen3.5-9B' if args.provider == 'modal-vllm' else 'qwen/qwen3.5-9b'
-    chosen_model = args.model or default_model
-    for cell_index, (replicas, concurrency) in enumerate(cells):
-        for doc_class in (selected if args.task == 'specialists' else [selected[0]]):
-            template = repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[doc_class]}-awq-1l4-c8.yaml'
-            spec = load_run_spec(template)
-            data = spec.model_dump(by_alias=True)
-            label = f'{replicas}r-c{args.concurrency or concurrency}'
-            data['run_id'] = f'{args.study}-{CLASSES[doc_class] if args.task == "specialists" else args.task}-{label}'
-            data['runbook_id'] = None
-            data['note'] = f'{args.design} design; paired class draws, seed {args.seed}; cell {cell_index+1}'
-            data['profile'] = args.provider
-            data['engine']['kind'] = args.provider
-            data['engine']['model'] = chosen_model
-            if args.provider == 'modal-vllm' and chosen_model != spec.engine.model:
-                from mailroom_sandbox.modal_matrix import resolve_modal_row
-                try:
-                    row = resolve_modal_row(chosen_model, gpu_override=args.gpu)
-                except (KeyError, ValueError) as exc:
-                    raise ServiceError(str(exc)) from exc
-                data['engine']['vllm'].update(max_model_len=int(row['env']['MODAL_VLLM_MAX_MODEL_LEN']), quantization=row['env']['MODAL_VLLM_QUANTIZATION'])
-            if args.provider == 'modal-vllm':
-                data['engine']['modal'].update(app=f'sandbox-vllm-{args.study}-{label}', gpu=args.gpu,
-                    min_containers=0, max_containers=args.replicas or replicas, named_image=args.named_image)
-            else:
-                data['engine']['modal'] = None
-            # None = fill from the design-informed recommendation once the spec is complete.
-            data['job'].update(mock=args.mock, mode='endpoint', concurrency=args.concurrency or concurrency,
-                               cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds,
-                               api_cost_cap_usd=args.api_cost_cap_usd)
-            ds = data['dataset']
-            ds.update(repo=args.dataset, config=args.dataset_config, split=args.split, revision=args.revision,
-                      limit=args.samples, sample_seed=args.seed, require_task_gt=True)
-            bucket = ds['strata']['buckets'][0]
-            bucket['count'] = args.samples
-            if bucket.get('sub_buckets'):
-                bucket['sub_buckets'] = _quotas(bucket['sub_buckets'], args.samples)
-                # The published quotas name Hub subclasses; a local file may hold others.
-                if local is not None and not all(_fills(local, doc_class, sb) for sb in bucket['sub_buckets']):
-                    del bucket['sub_buckets']
-            if args.task != 'specialists':
-                data['task'] = args.task
-                ds['strata'] = {'buckets': [{'doc_class': name, 'count': args.samples} for name in selected]}
-                ds['limit'] = args.samples * len(selected)
-                data['prompt']['agents'] = {}
-                for name in selected:
-                    template_spec = load_run_spec(repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[name]}-awq-1l4-c8.yaml')
-                    data['prompt']['agents'].update(template_spec.prompt.get('agents', {}))
-            if args.subclass:
-                ds['strata'] = {'expected': selected if args.task != 'specialists' else [doc_class], 'expected_subclass': args.subclass}
-            if args.local_dataset:
-                ds.update(provider='file', local_path=str(Path(args.local_dataset).resolve()))
-            data['job']['task'] = data['task']
-            # The template's blind_routing was resolved for its own task; unset it so the new task
-            # resolves its own (blind for a pipeline, never an inherited oracle-routing false).
-            data['job']['blind_routing'] = None
-            data['trace'].update(sink=args.trace_sink, otlp=args.trace_sink != 'none', endpoint=args.trace_endpoint,
-                                 environment=args.study, tags=['sandbox', 'experiment', args.study, label])
-            data['agent_knobs'] = {name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in (known_agents() if args.task == 'pipeline' else [data['task']])}
-            # OpenRouter readers take the model's context. Preflight then refuses a
-            # reader that is still on the short local budget.
-            if args.provider == 'openrouter':
-                data['job']['require_expanded_inputs'] = True
-            data['agent_models'] = dict(agent_models)
-            data['reviewer'] = reviewer
-            data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}
-            for name, route in data['agent_routes'].items():
-                if route['provider'] == 'modal-vllm':
-                    route['modal']['named_image'] = args.named_image
-                if route['provider'] == 'modal-vllm' and route['modal']['app'].startswith('sandbox-vllm-route-'):
-                    route_key = hashlib.sha256(json.dumps({'model': route['model'], 'gpu': args.gpu, 'vllm': route['vllm']}, sort_keys=True).encode()).hexdigest()[:8]
-                    route['modal'].update(app=f'sandbox-vllm-{args.study}-{route_key}-{label}', gpu=args.gpu,
-                                          max_containers=args.replicas or replicas)
-                elif route['provider'] == 'modal-vllm' and args.design == 'sand42':
-                    route['modal']['max_containers'] = replicas
-                if name in data['agent_models']:
-                    route['model'] = data['agent_models'][name]
-            for setting in args.settings:
-                _set(data, setting)
-            try:
-                # Unknown parameter names must fail rather than silently disappear.
-                for section, model in [('engine', spec.engine), ('job', spec.job), ('trace', spec.trace), ('dataset', spec.dataset)]:
-                    if set(data[section]) - set(type(model).model_fields):
-                        raise ValueError(f'unknown {section} fields')
-                result = _with_recommended_budget(RunSpec.model_validate(data))
-                if result.job.mode != 'endpoint':
-                    raise ValueError('experiment launch requires endpoint mode')
-            except ValueError as exc:
-                raise ServiceError(f'invalid experiment settings: {exc}') from exc
-            generated.append(result)
+        return 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
+    # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter.
+    return 'Qwen/Qwen3.5-9B' if args.provider == 'modal-vllm' else 'qwen/qwen3.5-9b'
+
+
+def _apply_modal_row(data: dict, chosen_model: str, gpu: str | None) -> None:
+    from mailroom_sandbox.modal_matrix import resolve_modal_row
+
+    try:
+        row = resolve_modal_row(chosen_model, gpu_override=gpu)
+    except (KeyError, ValueError) as exc:
+        raise ServiceError(str(exc)) from exc
+    data['engine']['vllm'].update(
+        max_model_len=int(row['env']['MODAL_VLLM_MAX_MODEL_LEN']),
+        quantization=row['env']['MODAL_VLLM_QUANTIZATION'],
+    )
+
+
+def _stamp_modal_app(data: dict, args, label: str, replicas: int) -> None:
+    if args.provider != 'modal-vllm':
+        data['engine']['modal'] = None
+        return
+    data['engine']['modal'].update(
+        app=f'sandbox-vllm-{args.study}-{label}', gpu=args.gpu, min_containers=0,
+        max_containers=args.replicas or replicas, named_image=args.named_image,
+    )
+
+
+def _stamp_engine(data: dict, args, spec: RunSpec, chosen_model: str, label: str, replicas: int, concurrency: int) -> None:
+    if args.provider == 'modal-vllm' and chosen_model != spec.engine.model:
+        _apply_modal_row(data, chosen_model, args.gpu)
+    _stamp_modal_app(data, args, label, replicas)
+    # None = fill from the design-informed recommendation once the spec is complete.
+    data['job'].update(
+        mock=args.mock, mode='endpoint', concurrency=args.concurrency or concurrency,
+        cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds,
+        api_cost_cap_usd=args.api_cost_cap_usd,
+    )
+
+
+def _fit_sub_buckets(bucket: dict, local, doc_class: str, samples: int) -> None:
+    if not bucket.get('sub_buckets'):
+        return
+    bucket['sub_buckets'] = _quotas(bucket['sub_buckets'], samples)
+    # The published quotas name Hub subclasses; a local file may hold others.
+    if local is not None and not all(_fills(local, doc_class, item) for item in bucket['sub_buckets']):
+        del bucket['sub_buckets']
+
+
+def _widen_classes(data: dict, args, selected: list[str]) -> None:
+    ds = data['dataset']
+    data['task'] = args.task
+    ds['strata'] = {'buckets': [{'doc_class': name, 'count': args.samples} for name in selected]}
+    ds['limit'] = args.samples * len(selected)
+    data['prompt']['agents'] = {}
+    for name in selected:
+        template = repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[name]}-awq-1l4-c8.yaml'
+        data['prompt']['agents'].update(load_run_spec(template).prompt.get('agents', {}))
+
+
+def _stamp_dataset(data: dict, args, doc_class: str, selected: list[str], local) -> None:
+    ds = data['dataset']
+    ds.update(
+        repo=args.dataset, config=args.dataset_config, split=args.split, revision=args.revision,
+        limit=args.samples, sample_seed=args.seed, require_task_gt=True,
+    )
+    bucket = ds['strata']['buckets'][0]
+    bucket['count'] = args.samples
+    _fit_sub_buckets(bucket, local, doc_class, args.samples)
+    if args.task != 'specialists':
+        _widen_classes(data, args, selected)
+    if args.subclass:
+        expected = selected if args.task != 'specialists' else [doc_class]
+        ds['strata'] = {'expected': expected, 'expected_subclass': args.subclass}
+    if args.local_dataset:
+        ds.update(provider='file', local_path=str(Path(args.local_dataset).resolve()))
+    data['job']['task'] = data['task']
+    # The template's blind_routing was resolved for its own task; unset it so the new task
+    # resolves its own (blind for a pipeline, never an inherited oracle-routing false).
+    data['job']['blind_routing'] = None
+
+
+def _pin_route_model(name: str, route: dict, data: dict) -> None:
+    if name in data['agent_models']:
+        route['model'] = data['agent_models'][name]
+
+
+def _rename_route_app(route: dict, args, replicas: int, label: str) -> None:
+    body = {'model': route['model'], 'gpu': args.gpu, 'vllm': route['vllm']}
+    route_key = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:8]
+    route['modal'].update(
+        app=f'sandbox-vllm-{args.study}-{route_key}-{label}', gpu=args.gpu,
+        max_containers=args.replicas or replicas,
+    )
+
+
+def _stamp_one_route(name: str, route: dict, data: dict, args, replicas: int, label: str) -> None:
+    if route['provider'] != 'modal-vllm':
+        _pin_route_model(name, route, data)
+        return
+    route['modal']['named_image'] = args.named_image
+    if route['modal']['app'].startswith('sandbox-vllm-route-'):
+        _rename_route_app(route, args, replicas, label)
+    elif args.design == 'sand42':
+        route['modal']['max_containers'] = replicas
+    _pin_route_model(name, route, data)
+
+
+def _stamp_route_apps(data: dict, args, replicas: int, label: str) -> None:
+    for name, route in data['agent_routes'].items():
+        _stamp_one_route(name, route, data, args, replicas, label)
+
+
+def _validated_run(data: dict, spec: RunSpec) -> RunSpec:
+    try:
+        # Unknown parameter names must fail rather than silently disappear.
+        for section, model in (('engine', spec.engine), ('job', spec.job), ('trace', spec.trace), ('dataset', spec.dataset)):
+            if set(data[section]) - set(type(model).model_fields):
+                raise ValueError(f'unknown {section} fields')
+        result = _with_recommended_budget(RunSpec.model_validate(data))
+        if result.job.mode != 'endpoint':
+            raise ValueError('experiment launch requires endpoint mode')
+    except ValueError as exc:
+        raise ServiceError(f'invalid experiment settings: {exc}') from exc
+    return result
+
+
+def _one_run(args, replicas, concurrency, doc_class, cell_index, selected, local, routes, agent_models, reviewer, chosen_model) -> RunSpec:
+    from mailroom_sandbox.agent_routes import known_agents
+
+    template = repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[doc_class]}-awq-1l4-c8.yaml'
+    spec = load_run_spec(template)
+    data = spec.model_dump(by_alias=True)
+    label = f'{replicas}r-c{args.concurrency or concurrency}'
+    task_name = CLASSES[doc_class] if args.task == 'specialists' else args.task
+    data['run_id'] = f'{args.study}-{task_name}-{label}'
+    data['runbook_id'] = None
+    data['note'] = f'{args.design} design; paired class draws, seed {args.seed}; cell {cell_index + 1}'
+    data['profile'] = args.provider
+    data['engine']['kind'] = args.provider
+    data['engine']['model'] = chosen_model
+    _stamp_engine(data, args, spec, chosen_model, label, replicas, concurrency)
+    _stamp_dataset(data, args, doc_class, selected, local)
+    data['trace'].update(
+        sink=args.trace_sink, otlp=args.trace_sink != 'none', endpoint=args.trace_endpoint,
+        environment=args.study, tags=['sandbox', 'experiment', args.study, label],
+    )
+    names = known_agents() if args.task == 'pipeline' else [data['task']]
+    data['agent_knobs'] = {
+        name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in names
+    }
+    # OpenRouter readers take the model's context. Preflight then refuses a
+    # reader that is still on the short local budget.
+    if args.provider == 'openrouter':
+        data['job']['require_expanded_inputs'] = True
+    data['agent_models'] = dict(agent_models)
+    data['reviewer'] = reviewer
+    data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}
+    _stamp_route_apps(data, args, replicas, label)
+    for setting in args.settings:
+        _set(data, setting)
+    return _validated_run(data, spec)
+
+
+def _generate_runs(args, selected, local, routes, agent_models, reviewer, chosen_model) -> list[RunSpec]:
+    generated = []
+    classes = selected if args.task == 'specialists' else [selected[0]]
+    for cell_index, (replicas, concurrency) in enumerate(DESIGNS[args.design]):
+        for doc_class in classes:
+            generated.append(_one_run(
+                args, replicas, concurrency, doc_class, cell_index, selected, local,
+                routes, agent_models, reviewer, chosen_model,
+            ))
+    return generated
+
+
+def _plan_for(args, generated: list[RunSpec]) -> Plan:
     ids = [spec.run_id for spec in generated]
     if len(set(ids)) != len(ids):
         raise ServiceError('selected axes produce duplicate runs; remove --concurrency for the sand42 grid')
     try:
-        plan = Plan(study=args.study, design=args.design, runs=[f'runs/{spec.run_id}.yaml' for spec in generated],
-                    smoke_rows=args.smoke_rows, smoke_cost_cap_usd=args.smoke_cost_cap_usd)
+        return Plan(
+            study=args.study, design=args.design, runs=[f'runs/{spec.run_id}.yaml' for spec in generated],
+            smoke_rows=args.smoke_rows, smoke_cost_cap_usd=args.smoke_cost_cap_usd,
+        )
     except ValueError as exc:
         raise ServiceError(f'invalid smoke settings: {exc}') from exc
+
+
+def _write_study(root: Path, plan: Plan, generated: list[RunSpec]) -> None:
     root.mkdir(parents=True)
     (root / 'runs').mkdir()
     for name, spec in zip(plan.runs, generated):
@@ -417,6 +540,21 @@ def _create(args) -> int:
     print(f'Created {manifest} ({len(generated)} runs; no downloads or paid actions).')
     _print_budget(generated)
     print(f'Next: sandbox experiment preflight --config {manifest}')
+
+
+def _create(args) -> int:
+    _validate_create_args(args)
+    root = Path(args.output or repo_root() / 'config' / 'experiments' / args.study).resolve()
+    if root.exists():
+        raise ServiceError(f'{root} already exists; choose a new study/output (nothing overwritten)')
+    local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
+    if local is not None:
+        _require_local_rows(args, local)
+    selected = args.doc_class or list(CLASSES)
+    routes, agent_models, reviewer = _study_routing(args)
+    chosen_model = args.model or _default_study_model(args)
+    generated = _generate_runs(args, selected, local, routes, agent_models, reviewer, chosen_model)
+    _write_study(root, _plan_for(args, generated), generated)
     return 0
 
 

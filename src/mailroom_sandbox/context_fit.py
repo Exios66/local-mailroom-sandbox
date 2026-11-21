@@ -183,6 +183,99 @@ _VENDORED_SOURCE_CHARS = 16_000
 _SOURCE_AGENTS = ("judge", "arbiter")
 
 
+def _checked_route(taxonomy: Mapping[str, Any], name: str, agent: Mapping[str, Any]) -> tuple[str, str]:
+    choice = ((taxonomy.get("context_fit") or {}).get("checked") or {}).get(name) or {}
+    provider = str(choice.get("provider") or agent.get("provider") or "")
+    model = str(choice.get("model") or agent.get("model") or "")
+    return provider, model
+
+
+def _fitted_room(agent: Mapping[str, Any], model: str, on_route: bool, contexts: Mapping[str, int], cfg: Mapping[str, Any]) -> tuple[int | None, int | None]:
+    context = contexts.get(model) if on_route else None
+    room = fit_chars(context, int(agent.get("max_tokens") or 4096), cfg) if context else None
+    return context, room
+
+
+def _above_pre_fit(budget: int, before: int | None, in_applied: bool) -> bool:
+    return in_applied and before is not None and budget > before
+
+
+def _covers_fitted_room(name: str, budget: int, room: int | None, in_applied: bool) -> bool:
+    covers = room is not None and budget >= room
+    window_ok = name not in _SOURCE_AGENTS or in_applied
+    return covers and window_ok
+
+
+def _window_not_swapped(name: str, room: int | None, in_applied: bool) -> bool:
+    return name in _SOURCE_AGENTS and room is not None and room > _VENDORED_SOURCE_CHARS and not in_applied
+
+
+def _expansion_gap(name: str, model: str, budget: int, context: int | None, room: int | None, before: int | None, *, on_route: bool, in_applied: bool) -> tuple[bool | None, str | None]:
+    """Whether one reader is expanded, and the gap text when a long-context route is still short."""
+    if not on_route:
+        return None, None
+    if not context:
+        return False, (
+            f"{name}: model {model} has no context_length in config/api_prices.yaml, "
+            f"so its input length stays {budget}"
+        )
+    if _above_pre_fit(budget, before, in_applied):
+        return True, None
+    if _covers_fitted_room(name, budget, room, in_applied):
+        return True, None
+    if _window_not_swapped(name, room, in_applied):
+        return False, (
+            f"{name}: source window stays at {_VENDORED_SOURCE_CHARS} chars; "
+            "the expanded length was not swapped on"
+        )
+    return False, f"{name}: max_input_chars={budget} was not expanded (fitted room {room})"
+
+
+def _reader_status(taxonomy: Mapping[str, Any], name: str, agent: Mapping[str, Any], providers: set[str], contexts: Mapping[str, int], applied: Mapping[str, Any], cfg: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
+    provider, model = _checked_route(taxonomy, name, agent)
+    budget = _budget(agent)
+    context, room = _fitted_room(agent, model, provider in providers, contexts, cfg)
+    before = int(applied[name]["before"]) if name in applied else None
+    expanded, gap = _expansion_gap(
+        name, model, budget, context, room, before, on_route=provider in providers, in_applied=name in applied,
+    )
+    return {
+        "agent": name,
+        "provider": provider,
+        "model": model,
+        "max_input_chars": budget,
+        "context_length": context,
+        "before": before,
+        "expanded": expanded,
+    }, gap
+
+
+def _missing_window_attrs(agent: str, missing: set[str]) -> list[str]:
+    from mailroom_sandbox.source_windows import TARGETS
+
+    return [
+        f"{module}.{attr}"
+        for module, attr in TARGETS.get(agent, ())
+        if f"{module}.{attr}" in missing
+    ]
+
+
+def _record_source_windows(rows: list[dict[str, Any]], gaps: list[str], windows: Mapping[str, int], missing: set[str]) -> None:
+    for row in rows:
+        if row["agent"] in windows:
+            row["source_window"] = windows[row["agent"]]
+        if not row["expanded"] or row["agent"] not in _SOURCE_AGENTS:
+            continue
+        absent = _missing_window_attrs(row["agent"], missing)
+        if not absent:
+            continue
+        row["expanded"] = False
+        gaps.append(
+            f"{row['agent']}: source window cannot be swapped on ({', '.join(absent)}); "
+            "the vendored 16k excerpt would stand"
+        )
+
+
 def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
     """Whether each context-fit reader is on its expanded input length.
 
@@ -195,73 +288,23 @@ def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)
     applied = (taxonomy.get("context_fit") or {}).get("applied") or {}
-    providers = {str(p) for p in cfg.get("providers") or []}
-    contexts = api_context_lengths()
+    providers = {str(item) for item in cfg.get("providers") or []}
     agents = taxonomy.get("agents") or {}
+    contexts = api_context_lengths()
     rows: list[dict[str, Any]] = []
     gaps: list[str] = []
     for name in sorted(_targets(cfg, _specialists(taxonomy))):
         agent = agents.get(name)
         if not isinstance(agent, dict):
             continue
-        choice = ((taxonomy.get("context_fit") or {}).get("checked") or {}).get(name) or {}
-        provider = str(choice.get("provider") or agent.get("provider") or "")
-        model = str(choice.get("model") or agent.get("model") or "")
-        budget = _budget(agent)
-        on_route = provider in providers
-        context = contexts.get(model) if on_route else None
-        room = fit_chars(context, int(agent.get("max_tokens") or 4096), cfg) if context else None
-        before = int(applied[name]["before"]) if name in applied else None
-        if not on_route:
-            expanded: bool | None = None
-        elif not context:
-            expanded = False
-            gaps.append(
-                f"{name}: model {model} has no context_length in config/api_prices.yaml, "
-                f"so its input length stays {budget}"
-            )
-        elif name in applied and before is not None and budget > before:
-            expanded = True
-        elif room is not None and budget >= room and (name not in _SOURCE_AGENTS or name in applied):
-            expanded = True
-        elif name in _SOURCE_AGENTS and room is not None and room > _VENDORED_SOURCE_CHARS and name not in applied:
-            expanded = False
-            gaps.append(
-                f"{name}: source window stays at {_VENDORED_SOURCE_CHARS} chars; "
-                "the expanded length was not swapped on"
-            )
-        else:
-            expanded = False
-            gaps.append(f"{name}: max_input_chars={budget} was not expanded (fitted room {room})")
-        rows.append({
-            "agent": name,
-            "provider": provider,
-            "model": model,
-            "max_input_chars": budget,
-            "context_length": context,
-            "before": before,
-            "expanded": expanded,
-        })
-    from mailroom_sandbox.source_windows import TARGETS, unavailable_targets, windows_for
+        row, gap = _reader_status(taxonomy, name, agent, providers, contexts, applied, cfg)
+        rows.append(row)
+        if gap:
+            gaps.append(gap)
+    from mailroom_sandbox.source_windows import unavailable_targets, windows_for
 
     windows = windows_for(taxonomy)
-    missing = set(unavailable_targets())
-    for row in rows:
-        if row["agent"] in windows:
-            row["source_window"] = windows[row["agent"]]
-        if not row["expanded"] or row["agent"] not in _SOURCE_AGENTS:
-            continue
-        absent = [
-            f"{module}.{attr}"
-            for module, attr in TARGETS.get(row["agent"], ())
-            if f"{module}.{attr}" in missing
-        ]
-        if absent:
-            row["expanded"] = False
-            gaps.append(
-                f"{row['agent']}: source window cannot be swapped on ({', '.join(absent)}); "
-                "the vendored 16k excerpt would stand"
-            )
+    _record_source_windows(rows, gaps, windows, set(unavailable_targets()))
     return {"agents": rows, "gaps": gaps, "source_windows": windows}
 
 
