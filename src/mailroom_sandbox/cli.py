@@ -1238,6 +1238,28 @@ def _run_parser(sub, shared):
     common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
     common.add_argument("--target", default=None, metavar="TARGET", help="level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim)")
     common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
+    common.add_argument(
+        "--agent-knob",
+        action="append",
+        dest="agent_knobs",
+        default=[],
+        metavar="NAME.key=value",
+        help=(
+            "per-agent generation parameter (repeatable): max_input_chars, max_tokens, "
+            "temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, "
+            "presence_penalty, length_retries. Wins over the YAML for that key. "
+            "Example: judge.max_input_chars=800000"
+        ),
+    )
+    common.add_argument(
+        "--require-expanded-inputs",
+        action="store_true",
+        help=(
+            "preflight fails unless every long-context reader has its expanded input "
+            "length swapped on (OpenRouter context fit, or an agent knob above the short budget). "
+            "job.require_expanded_inputs in the run YAML does the same"
+        ),
+    )
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=_positive_int, default=None)
     common.add_argument(
@@ -3761,6 +3783,22 @@ def _run_load_spec(args) -> tuple[object, Path]:
     if getattr(args, "agent_routes", None):
         from mailroom_sandbox.agent_routes import parse_routes
         spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
+    if getattr(args, "agent_knobs", None):
+        from mailroom_sandbox.job.spec import parse_agent_knob_assignments
+
+        try:
+            parsed = parse_agent_knob_assignments(args.agent_knobs)
+        except ValueError as exc:
+            raise CLIUsageError(str(exc)) from exc
+        merged = {name: dict(knobs) for name, knobs in spec.agent_knobs.items()}
+        for name, knobs in parsed.items():
+            merged.setdefault(name, {}).update(knobs)
+        try:
+            spec = type(spec).model_validate({**spec.model_dump(by_alias=True), "agent_knobs": merged})
+        except ValueError as exc:
+            errors = getattr(exc, "errors", None)
+            message = errors()[0]["msg"].removeprefix("Value error, ") if callable(errors) else str(exc)
+            raise CLIUsageError(f"--agent-knob: {message}") from exc
     if getattr(args, "target", None):
         # Re-validate so the CLI target gets the same task check and normalization as the YAML.
         try:
@@ -3796,6 +3834,14 @@ def _run_id_required(args) -> str:
 _REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused", "busy_refused"}
 
 
+def _require_expanded_inputs(args, spec) -> bool:
+    """True when the CLI flag or the run YAML asks preflight to verify expanded inputs."""
+    return bool(
+        getattr(args, "require_expanded_inputs", False)
+        or getattr(getattr(spec, "job", None), "require_expanded_inputs", False)
+    )
+
+
 def _cmd_run_preflight(args) -> int:
     """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
@@ -3809,6 +3855,7 @@ def _cmd_run_preflight(args) -> int:
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
         live=False,
+        require_expanded_inputs=_require_expanded_inputs(args, spec),
     )
     if report.get("status") == "prepared" and getattr(args, "live", False) and not getattr(args, "dry_run", False):
         from mailroom_sandbox.job.checkpoint import RunStore
@@ -3870,6 +3917,7 @@ def _cmd_run_start(args) -> int:
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
         live=False,
+        require_expanded_inputs=_require_expanded_inputs(args, spec),
     )
     if report.get("status") != "prepared":
         _print(report)
@@ -4234,6 +4282,7 @@ def _cmd_run_resume(args) -> int:
             config_path=config_path,
             offline=bool(getattr(args, "offline", False)),
             force=bool(getattr(args, "force", False)),
+            require_expanded_inputs=_require_expanded_inputs(args, spec),
         )
         if report.get("status") != "prepared":
             _print(report)

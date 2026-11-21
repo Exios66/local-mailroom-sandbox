@@ -94,8 +94,11 @@ def _set(data: dict, assignment: str) -> None:
     if not sep:
         raise ServiceError('--set needs PATH=YAML_VALUE')
     parts = name.split('.')
-    if parts[0] not in {'engine', 'job', 'trace', 'dataset', 'prompt', 'agent_knobs'}:
+    if parts[0] not in {'engine', 'job', 'trace', 'dataset', 'prompt', 'agent_knobs', 'agent_models', 'agent_routes'}:
         raise ServiceError(f'unsupported setting {name!r}')
+    if parts[0] in {'agent_knobs', 'agent_models', 'agent_routes'}:
+        _set_role(data, parts, value, name)
+        return
     target = data
     for part in parts[:-1]:
         if part not in target or not isinstance(target[part], dict):
@@ -107,6 +110,53 @@ def _set(data: dict, assignment: str) -> None:
         target[parts[-1]] = yaml.safe_load(value)
     except yaml.YAMLError as exc:
         raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
+
+
+def _set_role(data: dict, parts: list[str], raw: str, name: str) -> None:
+    """Set one agent role parameter, creating the agent entry when it is absent.
+
+    ``agent_knobs.<agent>.<knob>``, ``agent_models.<agent>`` and
+    ``agent_routes.<agent>.<field>`` are the paths a preset uses to apply a role's
+    model, transport and expanded input length. The agent must be a live taxonomy
+    agent. RunSpec validation still rejects a bad value.
+    """
+    from mailroom_sandbox.agent_routes import known_agents
+    from mailroom_sandbox.job.spec import GENERATION_KNOBS
+
+    if len(parts) < 2 or not parts[1] or parts[1] not in known_agents():
+        raise ServiceError(f'unknown configuration path {name!r}')
+    try:
+        value = yaml.safe_load(raw)
+    except yaml.YAMLError as exc:
+        raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
+    root, agent = parts[0], parts[1]
+    block = data.setdefault(root, {})
+    if not isinstance(block, dict):
+        raise ServiceError(f'unknown configuration path {name!r}')
+    if root == 'agent_models':
+        if len(parts) != 2:
+            raise ServiceError(f'unknown configuration path {name!r}')
+        block[agent] = value
+        return
+    if root == 'agent_knobs':
+        if len(parts) != 3 or parts[2] not in GENERATION_KNOBS:
+            raise ServiceError(f'unknown configuration path {name!r}')
+        knobs = block.setdefault(agent, {})
+        if not isinstance(knobs, dict):
+            raise ServiceError(f'unknown configuration path {name!r}')
+        knobs[parts[2]] = value
+        return
+    route = block.setdefault(agent, {})
+    if not isinstance(route, dict) or len(parts) < 3:
+        raise ServiceError(f'unknown configuration path {name!r}')
+    target = route
+    for part in parts[2:-1]:
+        child = target.get(part)
+        if not isinstance(child, dict):
+            child = {}
+            target[part] = child
+        target = child
+    target[parts[-1]] = value
 
 
 def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict | None:
@@ -319,6 +369,10 @@ def _create(args) -> int:
             data['trace'].update(sink=args.trace_sink, otlp=args.trace_sink != 'none', endpoint=args.trace_endpoint,
                                  environment=args.study, tags=['sandbox', 'experiment', args.study, label])
             data['agent_knobs'] = {name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in (known_agents() if args.task == 'pipeline' else [data['task']])}
+            # OpenRouter readers take the model's context. Preflight then refuses a
+            # reader that is still on the short local budget.
+            if args.provider == 'openrouter':
+                data['job']['require_expanded_inputs'] = True
             data['agent_models'] = dict(agent_models)
             data['reviewer'] = reviewer
             data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}

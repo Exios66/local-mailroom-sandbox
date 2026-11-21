@@ -182,6 +182,45 @@ def test_activation_widens_for_openrouter_and_restores_for_modal(monkeypatch, ju
         source_windows.apply_source_windows({})
 
 
+def test_expansion_status_swaps_openrouter_readers_and_leaves_modal():
+    fitted = context_fit.expansion_status(
+        build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")
+    )
+    assert fitted["gaps"] == []
+    by_name = {row["agent"]: row for row in fitted["agents"]}
+    assert by_name["judge"]["expanded"] is True
+    assert by_name["judge"]["source_window"] > 16_000
+    assert by_name["arbiter"]["source_window"] > 16_000
+    assert by_name["sorter"]["expanded"] is True and by_name["intake"]["expanded"] is True
+    modal = context_fit.expansion_status(build_merged_taxonomy(load_profile("modal-vllm")))
+    assert modal["gaps"] == []
+    assert all(row["expanded"] is None for row in modal["agents"])
+
+
+def test_expansion_status_flags_a_model_without_a_context_length():
+    status = context_fit.expansion_status(
+        build_merged_taxonomy(load_profile("openrouter"), model_override="nobody/knows")
+    )
+    assert any("nobody/knows" in gap for gap in status["gaps"])
+
+
+def test_expansion_status_flags_a_knob_that_restores_the_short_budget():
+    tax = build_merged_taxonomy(
+        load_profile("openrouter"),
+        model_override="qwen/qwen3.7-flash",
+        agent_knobs={"judge": {"max_input_chars": 80000}},
+    )
+    status = context_fit.expansion_status(tax)
+    assert any(gap.startswith("judge:") for gap in status["gaps"])
+    kept = context_fit.expansion_status(build_merged_taxonomy(
+        load_profile("openrouter"),
+        model_override="qwen/qwen3.7-flash",
+        agent_knobs={"judge": {"max_input_chars": 200000}},
+    ))
+    judge = next(row for row in kept["agents"] if row["agent"] == "judge")
+    assert judge["expanded"] is True and judge["source_window"] == 200000
+
+
 def test_the_overlay_fits_every_whole_document_reader():
     """API routes read each document in one call per reader (rb1 R01: ~100 sorter windows per merger)."""
     import yaml

@@ -169,6 +169,79 @@ def apply_context_fit(
     return out
 
 
+# Vendored judge/arbiter excerpts. A fitted route must swap these on; a budget
+# that is already wide does not, because the literals ignore max_input_chars.
+_VENDORED_SOURCE_CHARS = 16_000
+_SOURCE_AGENTS = ("judge", "arbiter")
+
+
+def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """Whether each context-fit reader is on its expanded input length.
+
+    ``expanded`` is true when the live budget is above the pre-fit budget, or
+    already covers the model's fitted room. It is null when the agent's provider
+    is outside ``context_fit.providers`` (Modal and local routes keep the short
+    budget on purpose). ``gaps`` names every long-context reader still short,
+    including a judge or arbiter whose source window was not swapped on.
+    """
+    cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
+    cfg.pop("applied", None)
+    applied = (taxonomy.get("context_fit") or {}).get("applied") or {}
+    providers = {str(p) for p in cfg.get("providers") or []}
+    contexts = api_context_lengths()
+    agents = taxonomy.get("agents") or {}
+    rows: list[dict[str, Any]] = []
+    gaps: list[str] = []
+    for name in sorted(_targets(cfg, _specialists(taxonomy))):
+        agent = agents.get(name)
+        if not isinstance(agent, dict):
+            continue
+        provider = str(agent.get("provider") or "")
+        model = str(agent.get("model") or "")
+        budget = _budget(agent)
+        on_route = provider in providers
+        context = contexts.get(model) if on_route else None
+        room = fit_chars(context, int(agent.get("max_tokens") or 4096), cfg) if context else None
+        before = int(applied[name]["before"]) if name in applied else None
+        if not on_route:
+            expanded: bool | None = None
+        elif not context:
+            expanded = False
+            gaps.append(
+                f"{name}: model {model} has no context_length in config/api_prices.yaml, "
+                f"so its input length stays {budget}"
+            )
+        elif name in applied and before is not None and budget > before:
+            expanded = True
+        elif room is not None and budget >= room and (name not in _SOURCE_AGENTS or name in applied):
+            expanded = True
+        elif name in _SOURCE_AGENTS and room is not None and room > _VENDORED_SOURCE_CHARS and name not in applied:
+            expanded = False
+            gaps.append(
+                f"{name}: source window stays at {_VENDORED_SOURCE_CHARS} chars; "
+                "the expanded length was not swapped on"
+            )
+        else:
+            expanded = False
+            gaps.append(f"{name}: max_input_chars={budget} was not expanded (fitted room {room})")
+        rows.append({
+            "agent": name,
+            "provider": provider,
+            "model": model,
+            "max_input_chars": budget,
+            "context_length": context,
+            "before": before,
+            "expanded": expanded,
+        })
+    from mailroom_sandbox.source_windows import windows_for
+
+    windows = windows_for(taxonomy)
+    for row in rows:
+        if row["agent"] in windows:
+            row["source_window"] = windows[row["agent"]]
+    return {"agents": rows, "gaps": gaps, "source_windows": windows}
+
+
 def fitted_budget(taxonomy: Mapping[str, Any], agent: str) -> int | None:
     """``agent``'s final budget when it was context-fitted (None otherwise).
 

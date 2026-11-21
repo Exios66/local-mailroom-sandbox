@@ -118,6 +118,35 @@ def test_preflight_skips_the_plan_for_sorter_runs(tmp_path, monkeypatch):
     report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch, task="sorter"), offline=True)
     assert report["status"] == "prepared", report
     assert "context_plan" not in report
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is True
+
+
+def test_preflight_requires_expanded_inputs_on_openrouter(tmp_path, monkeypatch):
+    spec = _pipeline_spec(tmp_path, monkeypatch)
+    spec = RunSpec.model_validate({
+        **spec.model_dump(),
+        "profile": "openrouter",
+        "engine": {"kind": "openrouter", "model": "qwen/qwen3.7-flash", "modal": None},
+        "job": {**spec.job.model_dump(), "require_expanded_inputs": True},
+    })
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is True and "judge=" in check["detail"]
+    assert report["expanded_inputs"]["gaps"] == []
+
+
+def test_preflight_fails_when_expanded_inputs_are_required_and_missing(tmp_path, monkeypatch):
+    def short(_taxonomy):
+        return {"agents": [{"agent": "judge", "expanded": False, "max_input_chars": 80000}],
+                "gaps": ["judge: max_input_chars=80000 was not expanded"], "source_windows": {}}
+
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", short)
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch), offline=True, require_expanded_inputs=True)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is False and "judge:" in check["detail"]
 
 
 def test_chunk_count_keeps_paragraphs_intact():

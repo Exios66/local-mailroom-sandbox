@@ -704,6 +704,10 @@ class JobSpec(BaseModel):
     # the repaired (interim / near-gold) labels score (mailroom_sandbox.schema_guide). Off by
     # default, so a baseline keeps the vendored descriptions; hashed only when set.
     schema_guide: bool = False
+    # Preflight fails when a long-context reader is still on the short input budget.
+    # Off by default, so a Modal run and every existing YAML keep their spec_hash.
+    # OpenRouter experiment create turns it on. Hashed only when set.
+    require_expanded_inputs: bool = False
 
     @field_validator("task")
     @classmethod
@@ -979,6 +983,66 @@ def _check_thresholds(where: str, block: dict[str, Any]) -> None:
         raise ValueError(f"{where}: low must not exceed high")
 
 
+# Run-scoped generation parameters. Sampling keys match specialist_posture and
+# sampling.extra_overrides, so a YAML preset can carry the same role parameters
+# the posture table applies. Transports stay on agent_routes.
+GENERATION_KNOBS = frozenset({
+    "max_tokens", "temperature", "max_input_chars", "reasoning_effort",
+    "chunk_chars", "overlap_chars", "top_p", "top_k", "presence_penalty", "length_retries",
+})
+
+
+def _check_knob(key: str, value: Any) -> None:
+    """Reject a generation knob the runtime would misread."""
+    if key == "reasoning_effort":
+        if value is not None and not isinstance(value, str):
+            raise ValueError("reasoning_effort must be a string")
+        return
+    if key == "temperature":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 2:
+            raise ValueError("temperature must be finite in [0, 2]")
+        return
+    if key == "top_p":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value <= 1:
+            raise ValueError("top_p must be finite in (0, 1]")
+        return
+    if key == "presence_penalty":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not -2 <= value <= 2:
+            raise ValueError("presence_penalty must be finite in [-2, 2]")
+        return
+    if key == "length_retries":
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("length_retries must be an integer >= 0")
+        return
+    if isinstance(value, bool) or not isinstance(value, int) or value < (0 if key == "overlap_chars" else 1):
+        raise ValueError(f"{key} must be a positive integer (overlap may be zero)")
+
+
+def parse_agent_knob_assignments(items: list[str] | None) -> dict[str, dict[str, Any]]:
+    """Parse ``NAME.key=value`` assignments into an agent-knob map.
+
+    ``value`` is YAML, so ``800000`` is an int and ``0.1`` is a float. Unknown
+    keys and a missing ``=`` raise ``ValueError``.
+    """
+    import yaml
+
+    out: dict[str, dict[str, Any]] = {}
+    for item in items or []:
+        agent, dot, rest = str(item).partition(".")
+        key, eq, raw = rest.partition("=")
+        if not dot or not eq or not agent.strip() or key not in GENERATION_KNOBS:
+            raise ValueError(
+                f"--agent-knob needs NAME.key=value (key one of {sorted(GENERATION_KNOBS)}), got {item!r}"
+            )
+        try:
+            value = yaml.safe_load(raw)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"--agent-knob {item!r}: {exc}") from exc
+        _check_knob(key, value)
+        out.setdefault(agent.strip(), {})[key] = value
+    return out
+
+
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
@@ -1023,19 +1087,14 @@ class RunSpec(BaseModel):
     @field_validator("agent_knobs")
     @classmethod
     def _knobs(cls, values: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-        allowed = {"max_tokens", "temperature", "max_input_chars", "reasoning_effort", "chunk_chars", "overlap_chars"}
         for name, knobs in values.items():
-            if set(knobs) - allowed:
-                raise ValueError(f"{name}: unsupported generation knobs {sorted(set(knobs) - allowed)}; configure transports with agent_routes")
+            if set(knobs) - GENERATION_KNOBS:
+                raise ValueError(
+                    f"{name}: unsupported generation knobs {sorted(set(knobs) - GENERATION_KNOBS)}; "
+                    "configure transports with agent_routes"
+                )
             for key, value in knobs.items():
-                if key == "reasoning_effort":
-                    if value is not None and not isinstance(value, str):
-                        raise ValueError("reasoning_effort must be a string")
-                elif key == "temperature":
-                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 2:
-                        raise ValueError("temperature must be finite in [0, 2]")
-                elif isinstance(value, bool) or not isinstance(value, int) or value < (0 if key == "overlap_chars" else 1):
-                    raise ValueError(f"{key} must be a positive integer (overlap may be zero)")
+                _check_knob(key, value)
         return values
 
     @field_validator("task")
@@ -1230,11 +1289,11 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd, blind_routing, pipeline_handoff and schema_guide are hashed only when
-        # set, so older YAMLs keep their hash.
+        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide and
+        # require_expanded_inputs are hashed only when set, so older YAMLs keep their hash.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
-                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide") and value is False)
+                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "require_expanded_inputs") and value is False)
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
