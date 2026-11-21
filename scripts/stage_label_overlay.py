@@ -399,7 +399,24 @@ _GENERIC_PARTY = re.compile(r"^(?:the\s+)?(?:company|corporation|holding\s+compa
 #: from the previous party's description); the name that follows is kept.
 _NAME_LEAD_IN = re.compile(r"^(?:the\s+)?(?:retention|engagement)\s+of\s+(?=[A-Z0-9])|"
                            r"^(?i:(?:an?\s+|the\s+)?(?:(?:direct|indirect)\s+)?(?:wholly[- ]owned\s+)?"
-                           r"subsidiary\s+of\s+)[^,]+,\s+and\s+(?=[A-Z0-9])")
+                           r"subsidiary\s+of\s+)[^,]+,\s+and\s+(?=[A-Z0-9])|"
+                           # a role label before the name: "The buyer/End-User: Shenzhen LOHAS ... Co., Ltd."
+                           r"^(?i:the\s+[a-z][a-z/\- ]{1,30}:\s+)(?=[A-Z0-9])")
+#: party-role words. CUAD's Parties spans list a party's defined role ("Licensor", "the Customer")
+#: as its own answer, but ``parties`` holds named parties (Dojo: "full legal name plus parenthetical
+#: alias"). Dojo's scorer credits a few of these as matched; the rest can never match a name.
+_ROLE_WORDS = frozenset(
+    "shipper sponsor seller buyer company producer reseller licensee licensor party parties transporter customer "
+    "client vendor purchaser lender borrower guarantor manufacturer distributor owner operator agent bank developer "
+    "provider contractor consultant executive employer employee recipient servicer issuer investor supplier "
+    "franchisee franchisor individual parent member partner affiliate sales end-user user principal".split())
+#: an alternative name of a listed party, not another party ("d/b/a Recreation USA", "formerly known as ...").
+_PARTY_ALIAS_CLAUSE = re.compile(r"^(?:d/b/a|d\.b\.a\.?|dba|a/k/a|a\.k\.a\.?|aka|f/k/a|f\.k\.a\.?|fka|f/s/o|"
+                                 r"formerly\s+known\s+as|also\s+known\s+as|doing\s+business\s+as)(?=\W)", re.I)
+#: a description of who a party is, not its name ("an individual", "the Reseller named above").
+_PARTY_DESCRIPTOR = re.compile(r"^(?-i:your|you|our|its|each)\b|^persons?\s+and\s+entities\b|^together\b|"
+                               r"^an?\s+(?:individual|subsidiary\s+of)\b|\b(?:named\s+above|identified\s+on|"
+                               r"specified\s+as|listed\s+on|hereto|debtors\s+in\s+possession)\b", re.I)
 #: fields that hold party, advisor or counsel names (the lead-in trim applies to these only)
 ENTITY_FIELDS = frozenset({"parties", "acquirer", "target", "merger_sub", "financial_advisors", "legal_counsel",
                            "signatories"})
@@ -487,7 +504,7 @@ def clean_parties(items: list[Any], doc_text: str = "") -> list[Any]:
     for v in items:
         if isinstance(v, str):
             v = _ALIAS.sub("", trim_name(v)).strip()
-            if not v or _PARTY_JUNK.search(v) or not_a_name(v):
+            if not v or _PARTY_JUNK.search(v) or _PARTY_ALIAS_CLAUSE.match(v) or not_a_party(v):
                 continue
             if doc_text and v.endswith(".") and not _find(doc_text, v) and _find(doc_text, v[:-1]):
                 v = v[:-1]
@@ -505,10 +522,75 @@ def trim_name(value: str) -> str:
     return v[m.end():] if m else value
 
 
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+           "November", "December")
+#: text just before a date that makes it an effective date ("effective as of", "Effective Date: ")
+_EFFECTIVE_LEAD = re.compile(r"effective(?:\s+date)?\s*(?:as\s+of|on|is|shall\s+be|:)?\s*(?:the\s+)?$", re.I)
+#: text just before a date that makes it the signing date ("is made and entered into as of", "dated")
+_SIGNING_LEAD = re.compile(r"(?:dated|made|entered\s+into|executed)(?:\s+(?:and\s+entered\s+into|as\s+of|on|this))*"
+                           r"(?:\s+the)?(?:\s+\w+\s+day\s+of)?\s*$", re.I)
+
+
+def signing_date_only(value: str, doc_text: str) -> bool:
+    """True when a merger ``effective_date`` is the agreement's signing date and nothing more.
+
+    The date must appear in the text as a signing date (after "dated" / "entered into as of", or
+    in the title block), and never as an effective date ("effective as of <date>"). Dojo's
+    merger schema and the extraction gate leave ``effective_date`` empty in that case: only a
+    stated calendar Effective Date counts, and the closing is the defined Effective Time.
+    """
+    if not _ISO_DATE.fullmatch(value) or not _valid_date(value):
+        return False
+    y, m, d = (int(x) for x in value.split("-"))
+    pat = re.compile(rf"{_MONTHS[m - 1]}\s+{d}(?:st|nd|rd|th)?,?\s+{y}\b", re.I)
+    hits = list(pat.finditer(doc_text))
+    if not hits:
+        return False
+    before = [re.sub(r"\s+", " ", doc_text[max(0, h.start() - 80):h.start()]) for h in hits]
+    if any(_EFFECTIVE_LEAD.search(b) for b in before):
+        return False
+    return any(_SIGNING_LEAD.search(b) for b in before) or hits[0].start() < 1500
+
+
+def role_only(value: str) -> bool:
+    """A capture of one to three party-role words ("Licensor", "the Customer", "The seller:")."""
+    words = re.findall(r"[a-z][a-z\-]*", value.lower())
+    if words[:1] and words[0] in {"the", "a", "an"}:
+        words = words[1:]
+    return 1 <= len(words) <= 3 and all(w in _ROLE_WORDS or w.removesuffix("s") in _ROLE_WORDS for w in words)
+
+
 def not_a_name(value: str) -> bool:
     """A party or company capture that names no one: a bare corporate suffix or defined term."""
     v = value.strip()
     return bool(_SUFFIX_ONLY.match(v) or _GENERIC_PARTY.match(v))
+
+
+def not_a_party(value: str) -> bool:
+    """``not_a_name``, or a party-role word or a description of the party (party fields only)."""
+    v = value.strip()
+    return not_a_name(v) or role_only(v) or bool(_PARTY_DESCRIPTOR.search(v))
+
+
+SIGNING_KIND = "signing_date_as_effective_date"
+
+
+def signing_date_policy(path: Path) -> str | None:
+    """The owner's answer on merger signing dates, read from the interim audit's rows of that kind.
+
+    ``"pending"`` while any row still says ``owner_decides``; ``"clear"`` when the rows say the
+    gate rule stands (signing dates are not effective dates); ``"keep"`` when signing dates are
+    accepted; ``None`` when the audit has no such rows.
+    """
+    if not path.exists():
+        return None
+    actions = {r.get("action") for r in (json.loads(x) for x in path.read_text(encoding="utf-8").split("\n") if x.strip())
+               if r.get("kind") == SIGNING_KIND}
+    if not actions:
+        return None
+    if "owner_decides" in actions:
+        return "pending"
+    return "clear" if actions <= {"clear"} else "keep"
 
 
 def open_decisions(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
@@ -573,6 +655,7 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
                      corrections: dict[tuple[str, str], dict[str, Any]], *,
                      shas: dict[str, str] | None = None,
                      decisions: dict[tuple[str, str], dict[str, Any]] | None = None,
+                     signing_policy: str | None = None,
                      ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
     """The validation pass over the merged cells (inputs are not mutated).
 
@@ -585,6 +668,12 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
       ("the Company") and suffix-only captures ("Inc."); a ``name`` field holding only such a
       capture becomes unlabeled and is queued; party, advisor and counsel names lose a describing
       lead-in ("the retention of X", "Subsidiary of Y, and X" become X), the evidence quote kept;
+      ``parties`` also lose role words ("Licensor", "the Customer"), descriptions ("an individual")
+      and alias clauses ("d/b/a ..."), and a ``name`` field holding one is unlabeled and queued;
+    - a merger ``effective_date`` that is only the signing date (``signing_date_only``) follows the
+      owner's answer in the interim audit (``signing_policy``): held as ``disputed_unresolved`` and
+      queued while it is pending, a documented absence once the gate rule is confirmed (Dojo's
+      schema keeps it empty unless a calendar Effective Date is stated), unchanged if accepted;
     - an interim value whose audit still waits for the owner (``decisions``) is not truth yet: it
       becomes ``disputed_unresolved`` and is queued;
     - documents with the same text (``shas``) that hold different staged values for a field become
@@ -668,7 +757,15 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
                 if trimmed != items:
                     value = json.dumps(trimmed, ensure_ascii=False)
                     update(cell, value, "populated", "name_lead_in_trimmed")
-        if ftype == "date" and not (_ISO_DATE.fullmatch(value) and _valid_date(value)):
+        if (signing_policy in {"pending", "clear"} and cell["doc_class"] == "merger_agreement"
+                and cell["field"] == "effective_date" and signing_date_only(value, text)):
+            if signing_policy == "clear":
+                update(cell, "", "documented_absence", "signing_date_not_effective_date", VALIDATION_RULE, [])
+            else:
+                enqueue(cell, "the value is the signing date; whether a signing date counts as the effective date "
+                              "awaits the owner (interim audit kind signing_date_as_effective_date)")
+                update(cell, value, DISPUTED, "signing_date_pending_owner")
+        elif ftype == "date" and not (_ISO_DATE.fullmatch(value) and _valid_date(value)):
             enqueue(cell, "not a whole calendar date (the text states only part of it); left unlabeled")
             update(cell, "", "unlabeled", "partial_date_unlabeled")
         elif cell["field"] == "cuad_family":
@@ -682,7 +779,7 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
             else:
                 counts["governing_law_clause_queued"] += 1
                 enqueue(cell, "governing-law clause names no jurisdiction the text states; kept as is")
-        elif ftype == "name" and not_a_name(value):
+        elif ftype == "name" and (not_a_party(value) if cell["field"] in ENTITY_FIELDS else not_a_name(value)):
             enqueue(cell, "capture is only a corporate suffix or defined term, not a name; left unlabeled")
             update(cell, "", "unlabeled", "name_capture_unlabeled")
         elif ftype.startswith("entity_list") and value[:1] == "[":
@@ -840,7 +937,8 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
     corrections_path = emc.ROOT / CORRECTIONS_FILE
     audit_path = emc.ROOT / INTERIM_AUDIT
     prov, rows, validation_queue, validation = validate_repairs(
-        prov, rows, texts, read_corrections(corrections_path), shas=shas, decisions=open_decisions(audit_path))
+        prov, rows, texts, read_corrections(corrections_path), shas=shas, decisions=open_decisions(audit_path),
+        signing_policy=signing_date_policy(audit_path))
     headers = header_restoration(emc.ROOT / HEADER_SOURCE, rows)
     disputed = [{"document_id": r["document_id"], "doc_class": r["doc_class"], "field": r["field"],
                  "reason": "disputed_unresolved", "builder_value": r["value"], "assist_value": ""}
@@ -913,6 +1011,7 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
             "assist_join": joined["counts"],
             "magnitude_repair": magnitudes,
             "validation_repair": validation,
+            "signing_date_policy": signing_date_policy(audit_path) or "",
             "header_restoration": {"documents": len(headers), "file": "queues/header_restoration.csv",
                                    "note": ("correspondence labels that quote the original Enron email header, "
                                             "which the corpus text lost in cleaning; the next release restores "

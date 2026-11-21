@@ -75,6 +75,18 @@ for dependency snapshots (`docs/dependency-snapshots.md`).
     such a capture (rc.5 on), and de-duplicates entity lists;
   - it trims a describing lead-in from party, advisor and counsel names ("the retention of X",
     "Subsidiary of Y, and X" become X), keeping the evidence quote (rc.6 on);
+  - it drops party-role words ("the Customer", "Licensee", "Member"), descriptions of a party
+    ("an individual", "your", "the party named above") and alias clauses ("d/b/a X") from
+    `parties`, unlabels and queues a party, advisor or counsel name holding only one, and trims a
+    role label before a name ("the Supplier: X" becomes X) (rc.7 on). Other name fields, such as
+    correspondence `sender`, keep the narrower rc.5 check;
+  - it follows the owner's recorded answer on merger signing dates (rc.7 on). A merger
+    `effective_date` that is only the signing date (the date the agreement is "dated as of" or
+    "made", with no effective-date wording) is held back as `disputed_unresolved` and queued
+    while any `signing_date_as_effective_date` row in `interim_audit.jsonl` still says
+    `owner_decides`. When those rows say `clear`, the stager records it as a documented absence;
+    when they say `keep`, the date stays. The manifest records the policy it applied as
+    `signing_date_policy`. This covers the 23 audited interim dates and the 90 generated ones;
   - it holds back, as `disputed_unresolved` and queued, an interim value whose audit row still
     waits for the owner (`action: owner_decides` in `data/labels/review/interim_audit.jsonl`) and
     the conflicting values of documents that share the same text (rc.5 on);

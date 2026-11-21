@@ -353,6 +353,62 @@ def test_validate_repairs_trims_lead_ins_from_party_and_advisor_names(mod):
     assert counts == {"name_lead_in_trimmed": 2, "parties_cleaned": 1}
 
 
+@pytest.mark.parametrize("value, dropped", [
+    ("Licensor", True), ("the Customer", True), ("The seller:", True), ("sales agent", True), ("Guarantors", True),
+    ("an individual", True), ("your", True), ("the Reseller named above", True), ('you as an "Affiliate"', True),
+    ("each other party hereto identified on the signature page(s) hereto", True),
+    ("its associated chapter 11 debtors in possession", True), ("a subsidiary of Dynamex Inc.", True),
+    ("d/b/a Recreation USA", True), ("formerly known as Tarzan HoldCo, Inc.)", True), ("a.k.a. Beyond.com", True),
+    ("F/K/A SKYEPHARMA, INC.", True), ("f/s/o Dwyane Wade", True),
+    ("The Johns Hopkins University", False), ("THE BANKERS BANK", False), ("The Associated Press", False),
+    ("salesforce.com, inc.", False), ("iPass", False), ("YOU ON DEMAND HOLDINGS, INC.", False), ("Bank of America, N.A.", False), ("Agent Inc.", False)])
+def test_clean_parties_drops_role_words_descriptions_and_alias_clauses(mod, value, dropped):
+    assert (mod.clean_parties(["Acme Corp.", value]) == ["Acme Corp."]) is dropped
+
+
+def test_clean_parties_trims_a_role_label_before_the_name(mod):
+    assert mod.clean_parties(["The buyer/End-User: Shenzhen LOHAS Supply Chain Management Co., Ltd."]) == [
+        "Shenzhen LOHAS Supply Chain Management Co., Ltd."]
+
+
+SIGNED = ("AGREEMENT AND PLAN OF MERGER\n" + "x" * 2000 + " This Agreement is made and entered into as of "
+          "May 10, 2021, by and among Parent and the Company. The Effective Time is the time the certificate is filed.")
+
+
+@pytest.mark.parametrize("value, text, expected", [
+    ("2021-05-10", SIGNED, True),
+    ("2021-05-10", "Exhibit 2.1 AGREEMENT AND PLAN OF MERGER by and among A, B and C. May 10, 2021", True),
+    ("2021-05-10", SIGNED + " The merger shall be effective as of May 10, 2021.", False),
+    ("2021-05-11", SIGNED, False), ("2021-05", SIGNED, False)])
+def test_signing_date_only(mod, value, text, expected):
+    assert mod.signing_date_only(value, text) is expected
+
+
+def test_signing_date_policy_follows_the_audit_rows(mod, tmp_path):
+    p = tmp_path / "audit.jsonl"
+    assert mod.signing_date_policy(p) is None
+    rows = lambda *acts: "".join(json.dumps({"kind": mod.SIGNING_KIND, "action": a}) + "\n" for a in acts)
+    p.write_text(rows("owner_decides", "clear"))
+    assert mod.signing_date_policy(p) == "pending"
+    p.write_text(rows("clear", "clear"))
+    assert mod.signing_date_policy(p) == "clear"
+    p.write_text(rows("keep"))
+    assert mod.signing_date_policy(p) == "keep"
+
+
+@pytest.mark.parametrize("policy, value, presence, rule", [
+    ("pending", "2021-05-10", "disputed_unresolved", "signing_date_pending_owner"),
+    ("clear", "", "documented_absence", "signing_date_not_effective_date"),
+    ("keep", "2021-05-10", "populated", None), (None, "2021-05-10", "populated", None)])
+def test_merger_signing_dates_follow_the_owner_policy(mod, policy, value, presence, rule):
+    cell = _cell(field="effective_date", doc_class="merger_agreement", value="2021-05-10",
+                 chosen_source="generated_rule", agreeing_sources="generated_rule")
+    new, _, queue, counts = mod.validate_repairs([cell], [_row()], {"DOC-1": SIGNED}, {}, signing_policy=policy)
+    assert (new[0]["value"], new[0]["presence"]) == (value, presence)
+    assert counts == ({rule: 1} if rule else {})
+    assert len(queue) == (policy == "pending")
+
+
 def test_open_decisions_reads_only_owner_decides_rows(mod, tmp_path):
     p = tmp_path / "audit.jsonl"
     p.write_text(json.dumps({"doc_id": "D", "field": "f", "action": "owner_decides", "value": "v"}) + "\n"

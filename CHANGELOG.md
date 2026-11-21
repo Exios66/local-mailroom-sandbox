@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+- **Stager rc.7 rules: party-role words and merger signing dates.**
+  - `scripts/stage_label_overlay.py` drops party-role words ("the Customer", "Member"),
+    descriptions of a party ("an individual", "your") and alias clauses ("d/b/a X") from
+    `parties`, and trims a role label before a name ("the Supplier: X"). The role and description
+    checks apply only to party, advisor and counsel fields; `sender` and other name fields keep
+    the rc.5 check.
+  - A merger `effective_date` that is only the signing date now follows the owner's answer on
+    the `signing_date_as_effective_date` rows of `data/labels/review/interim_audit.jsonl`:
+    held as `disputed_unresolved` while they say `owner_decides`, a documented absence on `clear`,
+    kept on `keep`. The manifest records `signing_date_policy`. With the audit still pending, the
+    90 generated merger effective dates, all signing dates, are held back with the 23 audited ones.
+  - Tests in `tests/test_stage_label_overlay.py`.
 - **Production slices score against staged overlay `9.3.1-rc.6` (rc.5 review fixes).**
   - `config/staged_overlays.yaml` pins rc.6 (mailroom-issues `c19b48d1`, manifest `28ec2d67…`).
     The seven `config/runs/production/slice-*` configs move from rc.5 to rc.6.

@@ -365,7 +365,12 @@ value whose audit waits for the owner, and the conflicting values of documents w
 text. Both go to `queues/needs_human.csv`. From rc.6 a party, advisor or counsel name loses a
 describing lead-in ("the retention of X", "Subsidiary of Y, and X" become X; the evidence quote is
 kept), and the master summary's `outputs_sha256` hashes the `master/` files, with the builder's
-own digests under `builder_outputs_sha256`.
+own digests under `builder_outputs_sha256`. From rc.7 `parties` also loses party-role words ("the
+Customer", "Member"), descriptions of a party ("an individual", "your") and alias clauses ("d/b/a
+X"), and a role label before a name is trimmed ("the Supplier: X" becomes X). A merger
+`effective_date` that is only the signing date follows the owner's answer in the interim audit
+(`signing_date_policy` in the manifest): held back as disputed while it is pending, cleared or
+kept once it is recorded.
 
 Some correspondence labels quote the original Enron email header (sender, recipients, date,
 subject). The cleaned corpus text dropped that header, so `queues/header_restoration.csv` lists
