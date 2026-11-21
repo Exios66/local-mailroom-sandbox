@@ -83,6 +83,16 @@ def _answers(seq: list[dict[str, Any]], node_names: tuple[str, ...], question: s
             for d in n.get("decisions") or [] if d.get("question") == question]
 
 
+def _recorded_windows(extracted: Any) -> list[tuple[float, int]]:
+    """``(confidence, character length)`` per chunk window HF-008 recorded; windows missing either are skipped."""
+    if not isinstance(extracted, Mapping):
+        return []
+    confidences = extracted.get("_window_confidences") or []
+    lengths = extracted.get("_window_lengths") or []
+    return [(float(c), int(n)) for c, n in zip(confidences, lengths)
+            if _number(c) is not None and _number(n) is not None]
+
+
 def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping[str, Any]],
                  rows: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
     by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -106,6 +116,7 @@ def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping
             "arbiter": [d.get("answer") for d in _answers(seq, ("arbiter",), "arbiter_route")],
             "stage": pred.get("stage"),
             "final_extraction_confidence": pred.get("extraction_confidence"),
+            "windows": _recorded_windows(pred.get("extracted_data")),
             "quality": float(quality) if isinstance(quality, (int, float)) and not isinstance(quality, bool) else None,
         })
     return out
@@ -218,6 +229,34 @@ def compare_window_rules(windows: list[tuple[float, int]]) -> dict[str, Any]:
             "length_weighted": round(weighted, 4), "adopted": "min"}
 
 
+def _auroc(met: list[float], missed: list[float]) -> float | None:
+    """Chance a document that met the target has the higher confidence (ties count half)."""
+    if not met or not missed:
+        return None
+    wins = sum(1.0 if a > b else 0.5 if a == b else 0.0 for a in met for b in missed)
+    return round(wins / (len(met) * len(missed)), 4)
+
+
+def _chunked_and_scored(doc: Mapping[str, Any]) -> bool:
+    return len(doc.get("windows") or []) >= 2 and _number(doc.get("quality")) is not None
+
+
+def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
+    """How well each merge rule's confidence separates documents that met ``target`` from those that did not.
+
+    Only scored documents with two or more recorded windows count. AUROC is 1.0
+    when every met-target document outranks every miss, 0.5 for no separation,
+    and null when one group is empty. The adopted rule stays ``min``; this is
+    the labelled comparison that could replace it.
+    """
+    scored = [(compare_window_rules(d["windows"]), d["quality"]) for d in docs if _chunked_and_scored(d)]
+    met = [rules for rules, quality in scored if quality >= target]
+    missed = [rules for rules, quality in scored if quality < target]
+    auroc = {rule: _auroc([r[rule] for r in met], [r[rule] for r in missed])
+             for rule in ("min", "max", "length_weighted")}
+    return {"n": len(scored), "met_target": len(met), "target": target, "auroc": auroc, "adopted": "min"}
+
+
 def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str, Any], *,
                   model: str | None, target: float) -> dict[str, Any]:
     nodes = Counter(n for d in docs for n in d["nodes"])
@@ -252,6 +291,7 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
         "escalation_input_cost": _escalation_cost(docs, model),
         "judge_band_high": suggest_judge_band_high(docs, target=target),
         "above_band": above_band_quality(docs, thresholds.get("judge_band_high"), target=target),
+        "window_rules": window_rule_separation(docs, target=target),
         "findings": [],
     }
     report["findings"] = _findings(cls, report, thresholds, target)

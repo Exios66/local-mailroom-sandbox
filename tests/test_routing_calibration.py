@@ -215,6 +215,30 @@ def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     assert empty["n"] == 0 and empty["rate"] is None
 
 
+def test_window_rules_rank_each_merge_rule_against_quality():
+    def doc(windows, quality):
+        return {"windows": windows, "quality": quality}
+
+    # A weak populated window marks the failures; max hides it, min and length-weighted see it.
+    docs = [doc([(0.99, 100), (0.30, 4000)], 0.4), doc([(0.98, 200), (0.35, 3000)], 0.5),
+            doc([(0.97, 100), (0.90, 4000)], 0.9), doc([(0.96, 300), (0.92, 3500)], 0.95),
+            doc([(0.9, 100)], 0.2), doc([(0.95, 100), (0.95, 100)], None)]
+    got = routing_audit.window_rule_separation(docs, target=0.7)
+    assert got["n"] == 4 and got["met_target"] == 2 and got["adopted"] == "min"
+    assert got["auroc"]["min"] == 1.0 and got["auroc"]["length_weighted"] == 1.0
+    assert got["auroc"]["max"] == 0.0
+    none = routing_audit.window_rule_separation(docs[:2], target=0.7)
+    assert none["n"] == 2 and none["auroc"] == {"min": None, "max": None, "length_weighted": None}
+
+
+def test_doc_records_read_recorded_windows_from_the_prediction():
+    item = {"pred": {"extracted_data": {"_window_confidences": [0.9, None, 0.4], "_window_lengths": [10, 20, 30]}},
+            "score": {"overall_extraction_score": 0.5}}
+    rows = {"d1": {"expected_doc_class": "contract", "doc_text": "x"}}
+    (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
+    assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+
+
 def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():
     sample = [{"extraction_confidence": [None], "quality": 0.9}] + [
         {"extraction_confidence": [0.96], "quality": 0.9}] * 5
