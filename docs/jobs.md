@@ -389,8 +389,10 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `config/api_prices.yaml`. A Modal or local route has nothing to swap.
    `sandbox run preflight --agent-knob NAME.key=value` sets the same generation
    parameters a run YAML's `agent_knobs` block does, including `max_input_chars`.
-   The check uses the provider and model the fit used, so an OpenRouter route on
-   a local profile is still required to be wide. A new lock freezes that fit
+   The check uses the provider and model recorded for each reader, including when
+   context fit is turned off, so an OpenRouter route on a local profile is still
+   required to be wide. One `--agent-knob` overrides that key only. On a
+   posture-managed run with no YAML knobs, the posture's other budgets stay. A new lock freezes that fit
    (`context_fit.sha256`). Resume returns `drift_refused` when the price sheet
    or overlay would change it; a lock without the key still resumes. Production
    slices set `job.require_expanded_inputs`. Their sorter and intake stay at

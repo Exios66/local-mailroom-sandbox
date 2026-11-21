@@ -3791,6 +3791,13 @@ def _run_load_spec(args) -> tuple[object, Path]:
         except ValueError as exc:
             raise CLIUsageError(str(exc)) from exc
         merged = {name: dict(knobs) for name, knobs in spec.agent_knobs.items()}
+        if not merged:
+            # A posture-managed run has no YAML knobs. One CLI key must not
+            # replace the posture's other budgets.
+            from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+
+            posture = agent_knobs_for_run(getattr(spec, "run_id", None)) or {}
+            merged = {name: dict(knobs) for name, knobs in posture.items() if isinstance(knobs, dict)}
         for name, knobs in parsed.items():
             merged.setdefault(name, {}).update(knobs)
         try:

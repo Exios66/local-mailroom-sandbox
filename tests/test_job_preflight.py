@@ -256,6 +256,32 @@ def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
     assert config_path.is_absolute()
 
 
+def test_cli_knob_keeps_a_posture_runs_other_budgets(tmp_path):
+    from argparse import Namespace
+
+    from mailroom_sandbox.cli import _run_load_spec
+
+    bare = tmp_path / "bare.yaml"
+    bare.write_text(
+        "schema: sandbox.run/v1\nrun_id: run-30-correspondence-specialist\n",
+        encoding="utf-8",
+    )
+    spec, _ = _run_load_spec(Namespace(config=str(bare), agent_knobs=["correspondence_specialist.temperature=0.2"]))
+    knobs = spec.agent_knobs["correspondence_specialist"]
+    assert knobs["temperature"] == 0.2
+    assert knobs["max_tokens"] == 2048 and knobs["max_input_chars"] > 0
+
+    explicit = tmp_path / "explicit.yaml"
+    explicit.write_text(
+        "schema: sandbox.run/v1\nrun_id: run-30-correspondence-specialist\n"
+        "agent_knobs:\n  judge:\n    max_tokens: 128\n",
+        encoding="utf-8",
+    )
+    replaced, _ = _run_load_spec(Namespace(config=str(explicit), agent_knobs=["judge.temperature=0.2"]))
+    assert set(replaced.agent_knobs) == {"judge"}
+    assert replaced.agent_knobs["judge"] == {"max_tokens": 128, "temperature": 0.2}
+
+
 class _FakeResp:
     def __init__(self, status_code, payload=None):
         """Minimal httpx-like response for engine-probe tests."""

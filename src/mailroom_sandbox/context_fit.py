@@ -117,6 +117,22 @@ def _budget(agent: Mapping[str, Any]) -> int:
         return 0
 
 
+def _routes_checked(cfg: Mapping[str, Any], taxonomy: Mapping[str, Any], routes: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    """Provider and model each reader would use. An explicit route wins over the profile."""
+    agents = taxonomy.get("agents") or {}
+    checked: dict[str, dict[str, str]] = {}
+    for name in sorted(_targets(cfg, _specialists(taxonomy))):
+        agent = agents.get(name)
+        if not isinstance(agent, dict):
+            continue
+        route = routes.get(name)
+        checked[name] = {
+            "provider": str(_route_field(route, "provider") or agent.get("provider") or ""),
+            "model": str(_route_field(route, "model") or agent.get("model") or ""),
+        }
+    return checked
+
+
 def apply_context_fit(
     taxonomy: dict,
     *,
@@ -136,24 +152,19 @@ def apply_context_fit(
     cap = int(chunking.get("chunk_chars", _DEFAULT_CHUNK_CHARS))
     record: dict[str, Any] = {**cfg, "applied": {}, "checked": {}, "chunk_chars": {"before": cap, "after": cap}}
     out["context_fit"] = record
+    # Record routes even when fitting is off, so preflight still sees an OpenRouter
+    # override on a local profile and can reject a short reader.
+    record["checked"] = _routes_checked(cfg, out, agent_routes or {})
     if not cfg.get("enabled", True):
         return out
     contexts = api_context_lengths() if contexts is None else contexts
     providers = {str(p) for p in cfg.get("providers") or []}
     specialists = _specialists(out)
-    routes = agent_routes or {}
     agents = out.get("agents") or {}
-    checked: dict[str, dict[str, str]] = {}
-    for name in sorted(_targets(cfg, specialists)):
-        agent = agents.get(name)
-        if not isinstance(agent, dict):
-            continue
-        route = routes.get(name)
-        provider = str(_route_field(route, "provider") or agent.get("provider") or "")
-        model = str(_route_field(route, "model") or agent.get("model") or "")
-        # The profile provider stays on the agent. Preflight must see the route
-        # that the fit actually used, including a Modal profile with an OpenRouter route.
-        checked[name] = {"provider": provider, "model": model}
+    for name, choice in record["checked"].items():
+        agent = agents[name]
+        provider = choice["provider"]
+        model = choice["model"]
         context = contexts.get(model)
         if provider not in providers or not context:
             continue
@@ -163,18 +174,24 @@ def apply_context_fit(
             continue
         agent["max_input_chars"] = after
         record["applied"][name] = {"model": model, "context_length": context, "before": before, "after": after}
-    record["checked"] = checked
-
-    fitted = [record["applied"][s]["after"] for s in specialists if s in record["applied"]]
-    wide_unfitted = sorted(s for s in specialists if s not in record["applied"] and _budget(agents.get(s) or {}) > cap)
-    if fitted and not wide_unfitted:
-        chunking["chunk_chars"] = max(cap, *fitted)
-        record["chunk_chars"]["after"] = chunking["chunk_chars"]
-    elif fitted:
-        _log.warning("chunk cap left at %s: unfitted specialists %s have wider budgets", cap, wide_unfitted)
+    _raise_chunk_cap(chunking, record, specialists, agents, cap)
     if record["applied"]:
         _log.info("context-fit budgets: %s", {k: v["after"] for k, v in record["applied"].items()})
     return out
+
+
+def _raise_chunk_cap(chunking: dict, record: dict, specialists: set[str], agents: Mapping[str, Any], cap: int) -> None:
+    """Raise the chunk cap only when every wide specialist was fitted."""
+    applied = record["applied"]
+    fitted = [applied[name]["after"] for name in specialists if name in applied]
+    wide = sorted(name for name in specialists if name not in applied and _budget(agents.get(name) or {}) > cap)
+    if not fitted:
+        return
+    if wide:
+        _log.warning("chunk cap left at %s: unfitted specialists %s have wider budgets", cap, wide)
+        return
+    chunking["chunk_chars"] = max(cap, *fitted)
+    record["chunk_chars"]["after"] = chunking["chunk_chars"]
 
 
 # Vendored judge/arbiter excerpts. A fitted route must swap these on; a budget

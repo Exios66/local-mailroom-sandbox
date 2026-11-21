@@ -81,6 +81,24 @@ def test_disabled_fit_changes_nothing():
     assert out["context_fit"]["applied"] == {}
 
 
+def test_disabled_fit_still_records_an_openrouter_route():
+    tax = _taxonomy(provider="modal-vllm", context_fit={"enabled": False})
+    out = context_fit.apply_context_fit(
+        tax,
+        agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}},
+        contexts=CONTEXTS,
+    )
+    assert out["agents"]["judge"]["max_input_chars"] == 80000
+    assert out["context_fit"]["applied"] == {}
+    assert out["context_fit"]["checked"]["judge"] == {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}
+    status = context_fit.expansion_status(out)
+    judge = next(row for row in status["agents"] if row["agent"] == "judge")
+    assert judge["provider"] == "openrouter" and judge["expanded"] is False
+    assert any(gap.startswith("judge:") for gap in status["gaps"])
+    sorter = next(row for row in status["agents"] if row["agent"] == "sorter")
+    assert sorter["expanded"] is None
+
+
 def test_price_sheet_lists_the_flash_context():
     assert context_fit.api_context_lengths()["qwen/qwen3.7-flash"] >= 1_000_000
 
