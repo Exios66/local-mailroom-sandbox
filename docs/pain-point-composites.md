@@ -65,6 +65,8 @@ than a fully fabricated extraction, and a needless review costs the most.
   targeted field that score under `scoring.FABRICATION_MAX_FIELD_SCORE` (0.5).
 - A value that scores between 0.5 and 1.0 is a **near miss** (`n_value_partial`). It is wrong
   but not invented, so an extraction with near misses is never called `fabricated`.
+- **Placeholders are blank.** A prediction of `null`, `none`, `n/a`, `nan`, `"[]"` or `"{}"` is a
+  miss, not a stated value, as the Dojo scores it, so it never counts as invented.
 - **Fabricated** means no correct entity, no near miss, and at least one invented value. An
   extraction with one correct entity among nine invented ones is `low_recall`, not
   `fabricated`. Its invented values still show in the run's `extraction_fp`.
