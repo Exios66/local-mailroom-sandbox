@@ -341,22 +341,29 @@ def _field_value_outcomes(expected: Mapping[str, Any], predicted: Mapping[str, A
     that missed is wrong under the bar (``n_value_wrong``) or a near miss (``n_value_partial``); a
     missed field with a blank prediction is neither. The detailed suite path (corporate records,
     any row with a subclass) returns no ``tp`` / ``fn``, so these are the event counts there.
-    Empty when the scorer returned no per-field scores.
+    Empty when the scorer returned no per-field scores. A value is blank when either the
+    sandbox (``is_empty_gt``: lists of blanks) or the Dojo (``is_empty_value``: ``null``,
+    ``n/a``, ``nan``, ``"[]"`` ...) reads it as absence, so a placeholder is a miss, not a value.
     """
+    from llm_dojo_scoring.schemas.gt_metadata import is_empty_value
+
     from mailroom_sandbox.eval.extraction_scope import is_empty_gt
+
+    def blank(value: Any) -> bool:
+        return is_empty_gt(value) or is_empty_value(value)
 
     if not isinstance(per_field, Mapping):
         return {}
     targeted = correct = wrong = partial = 0
     for name, value in expected.items():
         score = per_field.get(name)
-        if is_empty_gt(value) or isinstance(score, bool) or not isinstance(score, (int, float)):
+        if blank(value) or isinstance(score, bool) or not isinstance(score, (int, float)):
             continue
         targeted += 1
         if float(score) >= 1.0:
             correct += 1
             continue
-        if is_empty_gt(predicted.get(name)):
+        if blank(predicted.get(name)):
             continue
         if float(score) < FABRICATION_MAX_FIELD_SCORE:
             wrong += 1

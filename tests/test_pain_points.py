@@ -326,6 +326,18 @@ def test_per_field_counts_stand_in_for_missing_event_counts():
     assert _ext(_row(), _result(), both).reason == "complete"
 
 
+@pytest.mark.parametrize("placeholder", ["n/a", "N/A", "null", "none", "nan", "[]", "{}", "n.a."])
+def test_placeholder_predictions_are_blank_not_wrong(placeholder):
+    """Regression (CodeAnt on #393): the Dojo scores these placeholders as blank, so a field
+    "filled" with one is a plain miss, never an invented value that could make an extraction
+    fabricated."""
+    out = scoring._field_value_outcomes({"a": "x", "b": "y"}, {"a": placeholder, "b": placeholder},
+                                        {"a": 0.0, "b": 0.0})
+    assert out == {"n_targeted": 2, "n_value_correct": 0, "n_value_wrong": 0, "n_value_partial": 0}
+    scored = {"n_targeted": 2, "n_value_correct": 0, "scoring_method": "suite", **out}
+    assert _ext(_row(), _result(), scored).reason == "low_recall"
+
+
 def test_field_value_outcomes_split_wrong_from_near_misses():
     out = scoring._field_value_outcomes(
         {"a": "x", "b": "y", "c": "z", "d": "w", "e": ""},
