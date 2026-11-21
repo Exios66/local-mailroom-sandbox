@@ -1,6 +1,8 @@
 """Context fit: whole-document budgets follow the agent's model window, not the L4 posture."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from mailroom_sandbox import context_fit, source_windows
@@ -73,6 +75,18 @@ def test_chunk_cap_holds_while_an_unfitted_specialist_is_wider():
     out = context_fit.apply_context_fit(tax, contexts=CONTEXTS)
     assert "merger_agreement_specialist" in out["context_fit"]["applied"]
     assert out["chunking"]["chunk_chars"] == 90000
+
+
+def test_identity_changes_when_chunking_is_disabled_or_the_overlap_moves():
+    fitted = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS)
+    base = context_fit.identity(fitted)
+    disabled = json.loads(json.dumps(fitted))
+    disabled["chunking"]["enabled"] = False
+    tighter = json.loads(json.dumps(fitted))
+    tighter["chunking"]["overlap_chars"] = 1000
+    assert context_fit.identity(disabled)["sha256"] != base["sha256"]
+    assert context_fit.identity(tighter)["sha256"] != base["sha256"]
+    assert base["chunking"] == {"enabled": True, "overlap_chars": 8000}
 
 
 def test_disabled_fit_changes_nothing():

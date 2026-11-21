@@ -325,11 +325,26 @@ def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
     return {"agents": rows, "gaps": gaps, "source_windows": windows}
 
 
+def _chunking_stamp(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """The chunking switch and overlap the vendored extractor reads.
+
+    Missing values use the same defaults as ``_run_chunked_extraction``
+    (enabled, 8000). The window size is already in ``chunk_chars``.
+    """
+    chunking = taxonomy.get("chunking") or {}
+    try:
+        overlap = int(chunking.get("overlap_chars", 8_000))
+    except (TypeError, ValueError):
+        overlap = 8_000
+    return {"enabled": bool(chunking.get("enabled", True)), "overlap_chars": overlap}
+
+
 def identity(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
     """Stable digest of the fitted budgets a lock freezes.
 
-    A later price-sheet or overlay edit changes the digest. Locks written before
-    this stamp have no key and still resume.
+    A later price-sheet or overlay edit changes the digest, including turning
+    chunking off or changing its overlap. Locks written before this stamp have
+    no key and still resume.
     """
     fit = taxonomy.get("context_fit") or {}
     applied = {
@@ -340,7 +355,11 @@ def identity(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
         }
         for name, row in sorted((fit.get("applied") or {}).items())
     }
-    body = {"applied": applied, "chunk_chars": (fit.get("chunk_chars") or {}).get("after")}
+    body = {
+        "applied": applied,
+        "chunk_chars": (fit.get("chunk_chars") or {}).get("after"),
+        "chunking": _chunking_stamp(taxonomy),
+    }
     return {
         "sha256": hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest(),
         **body,

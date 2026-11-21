@@ -393,8 +393,10 @@ locked prompts/models/knobs rather than later ambient generation settings.
    context fit is turned off, so an OpenRouter route on a local profile is still
    required to be wide. One `--agent-knob` overrides that key only. On a
    posture-managed run with no YAML knobs, the posture's other budgets stay. A new lock freezes that fit
-   (`context_fit.sha256`). Resume, including `sandbox run resume --run-id`, refuses before
-   any document when the price sheet or overlay would change it. A lock without the key
+   (`context_fit.sha256`). The digest covers the fitted windows, the chunk cap,
+   whether chunking is enabled, and the overlap. Resume, including
+   `sandbox run resume --run-id`, refuses before any document when the price
+   sheet or overlay would change any of those. A lock without the key
    still resumes when its spec hash matches. Re-preflighting a slice whose YAML now sets
    `require_expanded_inputs` changes `spec_hash`, so a `--config` resume returns
    `drift_refused` until `--force` archives that generation and re-locks. Production
