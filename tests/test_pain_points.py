@@ -181,6 +181,10 @@ class TestPenaltyScale:
         {"missed_review": 3.0},  # must stay under a wrong class
         {"pipeline_failure": 5.0},
         {"low_recall_below": 1.0},
+        # Regression (CodeAnt on #393): NaN fails every comparison, so it passed the order checks.
+        {"fabricated": float("nan")},
+        {"wrong_subtype": float("nan")},
+        {"unnecessary_review": float("inf"), "pipeline_failure": 4.0},
     ])
     def test_scale_refuses_an_order_the_client_did_not_ask_for(self, override):
         with pytest.raises(ValueError):

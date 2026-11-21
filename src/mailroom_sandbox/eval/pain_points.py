@@ -68,6 +68,7 @@ other headline (``docs/scoring-hotfixes.md``): the headline uses the hotfixed sc
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -106,6 +107,11 @@ class PenaltyScale:
     low_recall_below: float = 1 / 3
 
     def __post_init__(self) -> None:
+        # NaN fails every comparison below, so it would pass them; infinity breaks the 0-1 score.
+        bad = {k: v for k, v in asdict(self).items() if not math.isfinite(v)}
+        if bad:
+            raise ValueError(f"penalty scale values must be finite numbers: {bad}")
+
         def strictly_falling(*names: str) -> None:
             values = [getattr(self, n) for n in names]
             if any(a <= b for a, b in zip(values, values[1:])):

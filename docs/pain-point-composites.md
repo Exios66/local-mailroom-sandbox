@@ -15,8 +15,10 @@ Every pipeline run (`task: pipeline`) reports both composites. Each document ear
 
 ## Classification composite
 
-When more than one reason applies, the worst one sets the points. Every reason that applied is
-kept in the result.
+When more than one reason applies, the worst one sets the points. The per-document
+`Outcome.reasons` keeps every reason that applied, worst first. Persisted items and the run
+summary record only the worst reason, so a zero `missed_review` count does not prove that no
+review was missed on a document that was also archived under the wrong class.
 
 | Points | Reason | When |
 | --- | --- | --- |
@@ -69,7 +71,8 @@ than a fully fabricated extraction, and a needless review costs the most.
   miss, not a stated value, as the Dojo scores it, so it never counts as invented.
 - **Fabricated** means no correct entity, no near miss, and at least one invented value. An
   extraction with one correct entity among nine invented ones is `low_recall`, not
-  `fabricated`. Its invented values still show in the run's `extraction_fp`.
+  `fabricated`. Its Dojo false positives (`fp`) still show in the run's `extraction_fp`; its
+  `n_value_wrong` values do not, since the Dojo counts a wrong value on a targeted field as `fn`.
 - **Contract (CUAD) and merger (MAUD) rows** are scored on clause labels, not fields. Their
   share is the row's `overall_extraction_score`, and they are never called `fabricated`. A row
   with neither event counts nor per-field counts uses the same share.
