@@ -1343,23 +1343,60 @@ def _drift_refusal(existing, force: bool, spec: RunSpec, store, run_id: str, pro
     return None
 
 
+def _fit_mismatch(locked: Any, taxonomy: Mapping[str, Any]) -> str | None:
+    """Why fitted windows no longer match, or None for a match or a legacy lock."""
+    if not isinstance(locked, dict) or not locked.get("sha256"):
+        return None
+    from mailroom_sandbox.context_fit import identity
+
+    if identity(taxonomy)["sha256"] == locked["sha256"]:
+        return None
+    return (
+        "context fit changed since this run was locked (model window or overlay); "
+        "pass --force to re-lock"
+    )
+
+
+def _lock_spec_view(lock: Mapping[str, Any]):
+    """The profile, model, routes and knobs a lock froze, as ``taxonomy_for_spec`` reads them."""
+    from types import SimpleNamespace
+
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    return SimpleNamespace(
+        profile=lock.get("profile") or "modal-vllm",
+        engine=SimpleNamespace(model=engine.get("model")),
+        agent_models=lock.get("agent_models") or {},
+        agent_knobs=lock.get("agent_knobs") or {},
+        agent_routes=lock.get("agent_routes") or {},
+        confidence=lock.get("confidence") or {},
+        run_id=lock.get("run_id"),
+    )
+
+
+def context_fit_resume_detail(lock: Mapping[str, Any]) -> str | None:
+    """Refuse execution when this checkout would fit different windows than the lock.
+
+    Run-id resume does not repeat preflight. Locks without ``context_fit.sha256``
+    still run. A matching stamp runs. A mismatch must stop before any document.
+    """
+    if not isinstance(lock, Mapping):
+        return None
+    from mailroom_sandbox.job.context_plan import taxonomy_for_spec
+
+    knobs = lock.get("agent_knobs") or {}
+    return _fit_mismatch(lock.get("context_fit"), taxonomy_for_spec(_lock_spec_view(lock), knobs))
+
+
 def _context_fit_drift(existing, spec: RunSpec) -> str | None:
     """Refuse a lock whose fitted windows no longer match this checkout.
 
     Locks written before the stamp have no ``context_fit`` key and still resume.
     """
-    locked = existing.get("context_fit")
-    if not isinstance(locked, dict) or not locked.get("sha256"):
-        return None
-    from mailroom_sandbox.context_fit import identity
     from mailroom_sandbox.job.context_plan import taxonomy_for_spec
 
-    live = identity(taxonomy_for_spec(spec, existing.get("agent_knobs") or {}))
-    if live["sha256"] == locked["sha256"]:
-        return None
-    return (
-        "context fit changed since this run was locked (model window or overlay); "
-        "pass --force to re-lock"
+    return _fit_mismatch(
+        existing.get("context_fit"),
+        taxonomy_for_spec(spec, existing.get("agent_knobs") or {}),
     )
 
 

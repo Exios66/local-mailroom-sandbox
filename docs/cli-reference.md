@@ -912,8 +912,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -923,6 +921,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run start`
@@ -948,8 +948,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -959,6 +957,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run status`
@@ -984,8 +984,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1019,8 +1017,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1055,8 +1051,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1093,8 +1087,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1104,6 +1096,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 
 ### `sandbox run cancel`
 
@@ -1128,8 +1122,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1163,8 +1155,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1198,8 +1188,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1233,8 +1221,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1268,8 +1254,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1304,8 +1288,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1343,8 +1325,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1378,8 +1358,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |
@@ -1414,8 +1392,6 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--initials` | No | sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters) |
 | `--target` | No | level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim) |
 | `--agent-route` | No | per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings |
-| `--agent-knob` | No | per-agent generation parameter (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key. Example: judge.max_input_chars=800000 |
-| `--require-expanded-inputs` | No | preflight fails unless every long-context reader has its expanded input length swapped on (OpenRouter context fit, or an agent knob above the short budget). job.require_expanded_inputs in the run YAML does the same |
 | `--job-mode` | No | Choices: endpoint, modal. |
 | `--max-items` | No |  |
 | `--prompt-version` | No | Run with an eval-environment prompt version (archived _v0, frozen _v1 or any GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline lacks is an error. Default (no flag) is unchanged. |

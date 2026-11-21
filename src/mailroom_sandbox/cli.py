@@ -1226,6 +1226,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _expanded_input_parser() -> argparse.ArgumentParser:
+    """Flags only preflight, start, and resume read. Resume applies them with ``--config``."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--agent-knob",
+        action="append",
+        dest="agent_knobs",
+        default=[],
+        metavar="NAME.key=value",
+        help=(
+            "per-agent generation parameter for preflight, start, and resume --config "
+            "(repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, "
+            "chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. "
+            "Wins over the YAML for that key and keeps a posture run's other budgets. "
+            "Example: judge.max_input_chars=800000"
+        ),
+    )
+    parser.add_argument(
+        "--require-expanded-inputs",
+        action="store_true",
+        help=(
+            "preflight and start fail unless every long-context reader has its expanded "
+            "input length swapped on. Resume applies this only with --config. "
+            "job.require_expanded_inputs in the run YAML does the same"
+        ),
+    )
+    return parser
+
+
 def _run_parser(sub, shared):
     common = argparse.ArgumentParser(add_help=False, parents=[shared])
     common.add_argument("--config", default=None)
@@ -1238,28 +1267,7 @@ def _run_parser(sub, shared):
     common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
     common.add_argument("--target", default=None, metavar="TARGET", help="level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim)")
     common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
-    common.add_argument(
-        "--agent-knob",
-        action="append",
-        dest="agent_knobs",
-        default=[],
-        metavar="NAME.key=value",
-        help=(
-            "per-agent generation parameter (repeatable): max_input_chars, max_tokens, "
-            "temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, "
-            "presence_penalty, length_retries. Wins over the YAML for that key. "
-            "Example: judge.max_input_chars=800000"
-        ),
-    )
-    common.add_argument(
-        "--require-expanded-inputs",
-        action="store_true",
-        help=(
-            "preflight fails unless every long-context reader has its expanded input "
-            "length swapped on (OpenRouter context fit, or an agent knob above the short budget). "
-            "job.require_expanded_inputs in the run YAML does the same"
-        ),
-    )
+    expanded = _expanded_input_parser()
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=_positive_int, default=None)
     common.add_argument(
@@ -1303,10 +1311,10 @@ def _run_parser(sub, shared):
 
     run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
     run_sub = run.add_subparsers(dest="run_cmd")
-    pre = run_sub.add_parser("preflight", parents=[common], help="validate a run config and print its lock report; no inference")
+    pre = run_sub.add_parser("preflight", parents=[common, expanded], help="validate a run config and print its lock report; no inference")
     pre.add_argument("--dry-run", action="store_true")
     pre.set_defaults(handler=_cmd_run_preflight)
-    start = run_sub.add_parser("start", parents=[common], help="start a locked run (spend gates and initials apply)")
+    start = run_sub.add_parser("start", parents=[common, expanded], help="start a locked run (spend gates and initials apply)")
     start.add_argument("--dry-run", action="store_true")
     start.set_defaults(handler=_cmd_run_start)
     status = run_sub.add_parser("status", parents=[common], help="progress, errors and spend for a run")
@@ -1328,7 +1336,7 @@ def _run_parser(sub, shared):
     gate_p.add_argument("--thresholds", action="store_true",
                         help="add the offline judge-threshold evidence table (an upper bound)")
     gate_p.set_defaults(handler=_cmd_run_gate)
-    resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
+    resume = run_sub.add_parser("resume", parents=[common, expanded], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
     cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
     cancel.set_defaults(handler=_cmd_run_cancel)
