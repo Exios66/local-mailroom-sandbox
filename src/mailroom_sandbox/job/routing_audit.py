@@ -116,7 +116,8 @@ def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping
             "arbiter": [d.get("answer") for d in _answers(seq, ("arbiter",), "arbiter_route")],
             "stage": pred.get("stage"),
             "final_extraction_confidence": pred.get("extraction_confidence"),
-            "windows": _recorded_windows(pred.get("extracted_data")),
+            # A pipeline item nests the extraction; an isolated specialist item is the extraction.
+            "windows": _recorded_windows(pred.get("extracted_data", pred)),
             "quality": float(quality) if isinstance(quality, (int, float)) and not isinstance(quality, bool) else None,
         })
     return out
