@@ -1,4 +1,4 @@
-# #214 window-merge run: every contract at mailroom-dataset ed7576b6 whose doc_text fits one
+# #214 window-merge run: every contract at mailroom-dataset ff4ca546 whose doc_text fits one
 # 43,000-char window, dropped before the draw so each drawn contract is chunked.
 # Built from the pinned revision by length alone (no labels or scores read). 375 ids.
 DOC-0013d87aa1e620a3
