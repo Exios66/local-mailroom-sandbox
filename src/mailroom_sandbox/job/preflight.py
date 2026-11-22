@@ -797,10 +797,15 @@ def _extracts(spec: RunSpec) -> bool:
 
 def _run_knobs(spec: RunSpec, run_id: str | None) -> dict[str, Any]:
     """The run ``agent_knobs`` snapshot: one resolution shared by the plan and the lock."""
+    from mailroom_sandbox.job.length_fix import with_length_fix_defaults
     from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
     from mailroom_sandbox.runtime import resolve_agent_knobs
 
-    return resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    knobs = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    # #214: a pipeline run on self-hosted Qwen3 vLLM defaults the length-fix
+    # sampling for the chunked specialists it configured nothing for. Explicit
+    # or posture knobs always win; the merged map freezes into the lock.
+    return with_length_fix_defaults(knobs, spec)
 
 
 def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore, knobs: dict[str, Any]) -> None:
