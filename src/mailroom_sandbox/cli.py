@@ -1219,6 +1219,9 @@ def build_parser() -> argparse.ArgumentParser:
     from mailroom_sandbox import rescore
 
     rescore.register(sub, leaf)
+    from mailroom_sandbox import pain_points_report
+
+    pain_points_report.register(sub, leaf)
     from mailroom_sandbox.autoresearch import cli as autoresearch_cli
 
     autoresearch_cli.register(sub, leaf)
