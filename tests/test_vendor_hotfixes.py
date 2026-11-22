@@ -239,6 +239,24 @@ def test_hf009_treats_openrouter_as_api_and_vllm_as_local(monkeypatch):
         assert vh._api_route("contracts_specialist") is api, provider
 
 
+def test_hf009_an_unresolvable_route_keeps_the_vendored_path(monkeypatch):
+    # A --mock run has no OpenRouter key: resolution raises before any client exists. The
+    # route check must not turn that into a parse failure ahead of the stubbed extract.
+    import graph.build_graph as bg
+    import llm.client as client
+
+    assert vh.apply_hotfixes()["HF-009"] == "applied"
+
+    def no_key(*a, **kw):
+        raise ValueError("OPENROUTER_API_KEY is missing or the mock-key placeholder")
+
+    monkeypatch.setattr(client, "resolve_agent_model", no_key)
+    assert vh._api_route("contracts_specialist") is False
+    _FakeSpecialist.calls = []
+    bg._run_chunked_extraction(_FakeSpecialist, "x" * 5000, None, None)
+    assert _FakeSpecialist.calls == ["chunked:5000"]
+
+
 class _FakeReader:
     agent_name = "sorter"
 

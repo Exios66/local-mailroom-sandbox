@@ -364,8 +364,12 @@ locked prompts/models/knobs rather than later ambient generation settings.
    lock freezes) over the rows the runner executes (`target` applied), and
    reports three things. First, specialist chunk windows per extraction pass,
    counted with the vendored paragraph-aware splitter; an isolated specialist
-   run chunks only when it has a `chunk_chars` knob, otherwise it is one
-   truncated pass. Second, for `pipeline` runs, how much of each class's longest
+   run on Modal, vLLM or another self-hosted route chunks only when it has a
+   `chunk_chars` knob, otherwise it is one truncated pass. On an API route
+   (OpenRouter or any hosted provider) a specialist never chunks (HF-009): it
+   ignores `chunk_chars`, reads the whole document in one `extract` call, and
+   a document over its input budget fails with `WholeDocumentTooLong` and goes
+   to review. Second, for `pipeline` runs, how much of each class's longest
    document the judge and the arbiter each see on their own windows: the
    vendored `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`. Without context fit,
    `agents.judge.max_input_chars` does not change them. On a context-fitted
@@ -378,8 +382,10 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
    on an `openrouter` route to the model's `context_length` from
    `config/api_prices.yaml`. It also raises the chunk cap and the judge/arbiter
-   source windows, so a document is chunked only when it exceeds the model's
-   real window. Modal, vLLM, Ollama and LM Studio routes keep the 16k posture.
+   source windows. On that route a document over the fitted window is refused
+   (`WholeDocumentTooLong`, HF-009/HF-010), never chunked or truncated. Modal,
+   vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
+   chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
    still win. Preflight also records `expanded_inputs`: each context-fit reader,
    its live `max_input_chars`, and whether that length was swapped on. The check

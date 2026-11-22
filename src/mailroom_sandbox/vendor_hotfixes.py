@@ -280,11 +280,21 @@ class WholeDocumentTooLong(ValueError):
 
 
 def _api_route(agent_name: str) -> bool:
-    """True when ``agent_name`` calls a hosted API, not Modal/vLLM or another self-hosted server."""
+    """True when ``agent_name`` calls a hosted API, not Modal/vLLM or another self-hosted server.
+
+    A route that cannot be resolved (no or a mock OpenRouter key, an unknown provider or tier)
+    is not treated as an API route: the vendored path runs and resolves its client lazily, so a
+    ``--mock`` run that stubs the call still extracts, and a real call there fails the same way
+    it would have without this fix. Nothing is chunked against a hosted API this way, because no
+    client for it can exist.
+    """
     from llm.client import is_free_only_exempt, resolve_agent_model  # type: ignore
     from pipeline.config import get_agent_config  # type: ignore
 
-    resolved = resolve_agent_model(agent_name, get_agent_config(agent_name))
+    try:
+        resolved = resolve_agent_model(agent_name, get_agent_config(agent_name))
+    except (KeyError, ValueError):
+        return False
     return not (resolved.served_by_vllm or is_free_only_exempt(resolved.provider.name))
 
 
