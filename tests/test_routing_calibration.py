@@ -255,6 +255,28 @@ def test_doc_records_read_recorded_windows_from_the_prediction():
     assert rec["windows"] == [(0.9, 10), (0.4, 30)]
 
 
+def test_an_isolated_specialist_run_is_audited_on_its_windows_alone(tmp_path, monkeypatch):
+    from mailroom_sandbox.cli import main
+    from mailroom_sandbox.job import spec
+
+    root = _store(tmp_path, [])
+    (root / "nodes.jsonl").unlink()
+    windows = {"_window_confidences": [0.9, 0.3], "_window_lengths": [100, 100], "_failed_chunks": 0}
+    with open(root / "dataset.jsonl", "w") as ds, open(root / "items.jsonl", "w") as it:
+        for i, quality in enumerate((0.2, 0.9)):
+            ds.write(json.dumps({"id": f"c{i}", "expected_doc_class": "contract", "doc_text": "x"}) + "\n")
+            it.write(json.dumps({"item_id": f"c{i}", "pred": windows,
+                                 "score": {"overall_extraction_score": quality}}) + "\n")
+    report = routing_audit.audit(root)
+    assert report["classes"]["contract"]["window_rules"]["n"] == 2
+    assert any("isolated specialist run" in n for n in report["notes"])
+    assert not any("no extraction_confidence" in n for n in report["notes"])
+    monkeypatch.setattr(spec, "run_dir", lambda run_id: root)
+    assert main(["run", "routing", "--run-id", "r-audit"]) == 0
+    (root / "items.jsonl").unlink()
+    assert main(["run", "routing", "--run-id", "r-audit"]) == 1
+
+
 def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():
     sample = [{"extraction_confidence": [None], "quality": 0.9}] + [
         {"extraction_confidence": [0.96], "quality": 0.9}] * 5

@@ -366,7 +366,10 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
                for cls, group in sorted(by_class.items())}
     recorded = sum(1 for d in docs if d["extraction_confidence"])
     notes = []
-    if docs and not recorded:
+    if not (root / "nodes.jsonl").is_file():
+        notes.append("isolated specialist run (no nodes.jsonl): routing fires, verdicts and judge bands do not "
+                     "apply; window_rules reads the chunk windows on each prediction")
+    elif docs and not recorded:
         notes.append("no extraction_confidence was recorded (runs before the routing audit); judge_band_high "
                      "suggestions need a run that records it")
     if docs and len(docs) < 50:

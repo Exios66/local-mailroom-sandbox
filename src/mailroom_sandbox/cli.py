@@ -4127,8 +4127,10 @@ def _cmd_run_routing(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     root = run_dir(_run_id_required(args))
-    if not (root / "nodes.jsonl").is_file():
-        _print({"status": "failed", "detail": f"no nodes.jsonl under {root}"})
+    # A pipeline run writes nodes.jsonl; an isolated specialist run writes only items.jsonl, whose
+    # predictions carry the chunk windows the window-rule comparison reads.
+    if not any((root / name).is_file() for name in ("nodes.jsonl", "items.jsonl")):
+        _print({"status": "failed", "detail": f"no nodes.jsonl or items.jsonl under {root}"})
         return 1
     _print(audit(root, target=float(args.quality_target)))
     return 0
