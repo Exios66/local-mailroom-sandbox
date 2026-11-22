@@ -417,8 +417,54 @@ python {BUILDER} --version X.Y.P-rc.N --check
 """
 
 
+def _check_output_owner(out: Path) -> None:
+    """Refuse a populated foreign directory before any cache publication can replace it."""
+    if out.is_symlink():
+        raise CacheError(f"cache output must not be a symlink: {out}")
+    if not out.exists():
+        return
+    if not out.is_dir():
+        raise CacheError(f"cache output is not a directory: {out}")
+    if not any(out.iterdir()):
+        return
+    try:
+        registry = json.loads((out / "REGISTRY.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CacheError(f"refusing to replace a directory without a valid cache registry: {out}") from exc
+    if not isinstance(registry, dict) or registry.get("schema") != SCHEMA or registry.get("dataset") != HF_DEFAULT_REPO:
+        raise CacheError(f"refusing to replace a foreign cache directory: {out}")
+
+
+def _publish_cache(stage: Path, out: Path) -> None:
+    """Prepare the replacement before renaming the current cache; roll back a failed swap."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=".mailroom-cache-", dir=out.parent))
+    new, backup = work / "new", work / "previous"
+    preserve = False
+    try:
+        shutil.copytree(stage, new)
+        _check_output_owner(out)
+        if out.exists():
+            out.rename(backup)
+        try:
+            new.rename(out)
+        except BaseException:
+            if backup.exists():
+                try:
+                    backup.rename(out)
+                except BaseException as exc:
+                    preserve = True
+                    exc.add_note(f"Previous cache retained for recovery at {backup}")
+                    raise
+            raise
+    finally:
+        if not preserve:
+            shutil.rmtree(work)
+
+
 def export(out: Path, version: str, full_labels: Path | None, *, check: bool) -> list[str]:
     """Write (or, with ``check``, compare) the cache. Returns the list of stale paths."""
+    _check_output_owner(out)
     major, minor, _patch, _pre = parse_version(version)
     version = version.removeprefix("v")
     pre_rel = Path(f"v{major}.{minor}.0") / "pre-release" / f"v{version}"
@@ -458,13 +504,14 @@ def export(out: Path, version: str, full_labels: Path | None, *, check: bool) ->
                 stale.append(rel)
         if check:
             return stale
+        foreign = sorted(old_files - new_files)
+        if foreign:
+            raise CacheError(f"refusing to remove unmanaged cache files: {foreign[:3]}")
         frozen = [r for r in stale if r.startswith(pre_rel.as_posix() + "/") and (out / r).exists()]
         if frozen:
             raise CacheError(f"v{version} is already cached with different bytes ({len(frozen)} files, "
                              f"e.g. {frozen[0]}); pre-releases are immutable, cut the next rc instead")
-        if out.exists():
-            shutil.rmtree(out)
-        shutil.copytree(stage, out)
+        _publish_cache(stage, out)
     return stale
 
 

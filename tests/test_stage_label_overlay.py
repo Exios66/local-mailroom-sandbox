@@ -235,7 +235,7 @@ def test_validate_repairs_strips_hub_keywords_as_an_override(mod):
     assert counts == {"keyword_metadata_stripped": 1}
 
 
-def test_corrections_must_quote_the_text_and_match_a_cell(mod, tmp_path):
+def test_populated_corrections_must_quote_the_text_and_match_a_cell(mod, tmp_path):
     bad = tmp_path / "c.jsonl"
     bad.write_text(json.dumps({"doc_id": "D", "field": "f", "presence": "populated", "value": "v", "note": "n"}) + "\n")
     with pytest.raises(mod.CacheError, match="needs a value and a quote"):

@@ -91,3 +91,101 @@ def test_export_layout_check_and_immutability(mod, small):
     csv_path.write_bytes(csv_path.read_bytes().replace(b"DOC-0000", b"DOC-9999"))
     with pytest.raises(mod.CacheError, match="immutable"):
         mod.export(out, version, src, check=False)
+
+
+def test_foreign_output_is_preserved(mod, small):
+    out = small / "foreign"
+    out.mkdir()
+    foreign = out / "important.txt"
+    foreign.write_text("keep")
+    with pytest.raises(mod.CacheError, match="valid cache registry"):
+        mod.export(out, "9.3.1-rc.1", None, check=False)
+    assert foreign.read_text() == "keep"
+
+
+def test_export_refuses_unmanaged_files_in_an_owned_cache(mod, small):
+    source = _csv(small / "labels.csv", mod)
+    out = small / "mailroom_cache"
+    version = mod.FAMILY_HF_TAG.removeprefix("v") + ".1-rc.1"
+    mod.export(out, version, source, check=False)
+    extra = out / "operator-note.txt"
+    extra.write_text("keep")
+    with pytest.raises(mod.CacheError, match="unmanaged"):
+        mod.export(out, version, None, check=False)
+    assert extra.read_text() == "keep"
+
+
+def test_export_copy_failure_preserves_the_cache(mod, small, monkeypatch):
+    source = _csv(small / "labels.csv", mod)
+    out = small / "mailroom_cache"
+    version = mod.FAMILY_HF_TAG.removeprefix("v") + ".1-rc.1"
+    mod.export(out, version, source, check=False)
+    before = {p.relative_to(out): p.read_bytes() for p in out.rglob("*") if p.is_file()}
+    copytree = mod.shutil.copytree
+
+    def fail_replacement(src, dest, *args, **kwargs):
+        if Path(dest).name == "new":
+            raise OSError("disk full during publication")
+        return copytree(src, dest, *args, **kwargs)
+
+    monkeypatch.setattr(mod.shutil, "copytree", fail_replacement)
+    with pytest.raises(OSError, match="disk full"):
+        mod.export(out, version, None, check=False)
+    assert {p.relative_to(out): p.read_bytes() for p in out.rglob("*") if p.is_file()} == before
+
+
+def test_cache_copy_failure_preserves_previous_generation(mod, small, monkeypatch):
+    out, stage = small / "mailroom_cache", small / "stage"
+    out.mkdir()
+    stage.mkdir()
+    (out / "REGISTRY.json").write_text(json.dumps({"schema": mod.SCHEMA, "dataset": mod.HF_DEFAULT_REPO}))
+    previous = out / "important.txt"
+    previous.write_text("previous generation")
+
+    def fail_copy(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(mod.shutil, "copytree", fail_copy)
+    with pytest.raises(OSError, match="disk full"):
+        mod._publish_cache(stage, out)
+    assert previous.read_text() == "previous generation"
+
+
+def test_cache_swap_failure_restores_previous_generation(mod, small, monkeypatch):
+    out, stage = small / "mailroom_cache", small / "stage"
+    out.mkdir()
+    stage.mkdir()
+    (out / "REGISTRY.json").write_text(json.dumps({"schema": mod.SCHEMA, "dataset": mod.HF_DEFAULT_REPO}))
+    (out / "previous.txt").write_text("keep")
+    rename = Path.rename
+
+    def fail_new(self, target):
+        if self.name == "new":
+            raise OSError("publication failed")
+        return rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", fail_new)
+    with pytest.raises(OSError, match="publication failed"):
+        mod._publish_cache(stage, out)
+    assert (out / "previous.txt").read_text() == "keep"
+
+
+def test_failed_rollback_retains_recovery_directory(mod, small, monkeypatch):
+    out, stage = small / "mailroom_cache", small / "stage"
+    out.mkdir()
+    stage.mkdir()
+    (out / "REGISTRY.json").write_text(json.dumps({"schema": mod.SCHEMA, "dataset": mod.HF_DEFAULT_REPO}))
+    (out / "previous.txt").write_text("keep")
+    rename = Path.rename
+
+    def fail_publication_and_rollback(self, target):
+        if self.name in {"new", "previous"}:
+            raise OSError("rename failed")
+        return rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", fail_publication_and_rollback)
+    with pytest.raises(OSError, match="rename failed") as failure:
+        mod._publish_cache(stage, out)
+    (recovery,) = small.glob(".mailroom-cache-*/previous/previous.txt")
+    assert recovery.read_text() == "keep"
+    assert "retained for recovery" in " ".join(failure.value.__notes__)

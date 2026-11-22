@@ -234,3 +234,39 @@ def test_execute_without_teardown_leaves_the_app_alone(monkeypatch):
     monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
     monkeypatch.setattr(sp, "run", lambda *a, **kw: pytest.fail("teardown without --teardown"))
     assert main(["run", "suite", "--suite", "sand214-windows", "--execute"]) == 0
+
+
+@pytest.mark.parametrize("flag", ["--mock", "--offline", "--dry-run"])
+def test_offline_suite_never_tears_down_a_live_app(monkeypatch, capsys, flag):
+    from mailroom_sandbox import cli
+
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
+    monkeypatch.setattr(cli, "_suite_teardown", lambda suite: pytest.fail("offline suite reached Modal teardown"))
+    assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown", flag]) == 0
+    assert "teardown with" not in capsys.readouterr().out
+
+
+def test_mock_suite_specs_do_not_stop_live_apps(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job import spec
+
+    mock_spec = SimpleNamespace(job=SimpleNamespace(mock=True),
+                                engine=SimpleNamespace(modal=SimpleNamespace(app="sandbox-vllm")))
+    monkeypatch.setattr(spec, "load_run_spec", lambda path: mock_spec)
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("mock spec reached a remote stop"))
+    assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"]) == 0
+
+
+def test_failed_teardown_is_not_reported_as_success(monkeypatch, capsys):
+    from mailroom_sandbox import cli
+
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
+    monkeypatch.setattr(cli, "_suite_teardown", lambda suite: 7)
+    assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"]) == 7
+    output = capsys.readouterr()
+    assert "app torn down" not in output.out
+    assert "teardown failed" in output.err

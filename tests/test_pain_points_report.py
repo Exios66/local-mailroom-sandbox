@@ -7,6 +7,7 @@ extraction composite runs through the real scorer.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -41,8 +42,10 @@ def _run(root: Path, run_id: str, rows: list[dict], items: list[dict], *, task: 
     path.mkdir(parents=True)
     lock = {"run_id": run_id, "task": task, "profile": "modal", "engine": {"model": model},
             "prompt": {"default": {"name": "deploy_v1", "version": "3"}}, "job": {"mock": mock}}
-    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     (path / "dataset.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    lock["dataset"] = {"sha256": hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest(), "rows": len(rows)}
+    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": run_id, "state": "done"}), encoding="utf-8")
     (path / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
     return path
 
@@ -190,6 +193,8 @@ def test_line_separators_inside_json_strings_survive(tmp_path, case):
     lock = {"run_id": "r", "task": "pipeline", "engine": {"model": "m"}, "job": {"mock": False}}
     (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     (path / "dataset.jsonl").write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    lock["dataset"] = {"sha256": hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest()}
+    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     item = _item("d1", data=case["expected"])
     item["pred"]["note"] = "a b"
     (path / "items.jsonl").write_text(json.dumps(item, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -206,3 +211,53 @@ def test_experiment_labels_are_normalised_before_the_uniqueness_check(two_runs):
         ppr.report([(str(base), "  ")])
     rep = ppr.report([(str(base), " A "), (str(cand), "B")], baseline=" A ", n_boot=50)
     assert rep["compare"]["baseline"] == "A" and [p["label"] for p in rep["runs"]] == ["A", "B"]
+
+
+@pytest.mark.parametrize("mutation", ["changed", "missing_hash", "duplicate_id"])
+def test_locked_truth_integrity_is_required(tmp_path, case, mutation):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    lock = json.loads((path / "spec.lock.json").read_text())
+    if mutation == "missing_hash":
+        lock["dataset"].pop("sha256")
+    elif mutation == "changed":
+        (path / "dataset.jsonl").write_text(json.dumps(_row("changed", case)) + "\n")
+    else:
+        with (path / "dataset.jsonl").open("a") as handle:
+            handle.write(json.dumps(_row("d1", case)) + "\n")
+        lock["dataset"]["sha256"] = hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest()
+    (path / "spec.lock.json").write_text(json.dumps(lock))
+    with pytest.raises(ppr.PainPointsError, match="sha256|duplicate"):
+        ppr.documents_for_run(path)
+
+
+@pytest.mark.parametrize("state", ["prepared", "running", "paused", "unknown", None])
+def test_unfinished_runs_are_refused(tmp_path, case, state):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": "r", "state": state}))
+    with pytest.raises(ppr.PainPointsError, match="finished pipeline run"):
+        ppr.documents_for_run(path)
+
+
+def test_foreign_checkpoint_is_refused(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": "other", "state": "done"}))
+    with pytest.raises(ppr.PainPointsError, match="locked generation"):
+        ppr.documents_for_run(path)
+
+
+def test_bundle_without_checkpoint_is_explicitly_unverified(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").unlink()
+    rep = ppr.report([(str(path), None)], n_boot=10)
+    assert rep["runs"][0]["state"] == "unverified (no checkpoint)"
+    assert "unverified (no checkpoint)" in ppr.render(rep)
+    assert rep["runs"][0]["truth"]["sha256"]
+
+
+def test_explicit_truth_override_keeps_its_own_provenance(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "dataset.jsonl").write_text("changed original dataset")
+    override = tmp_path / "new-truth.jsonl"
+    override.write_text(json.dumps(_row("d1", case)) + "\n")
+    rep = ppr.report([(str(path), None)], dataset_file=override, n_boot=10)
+    assert rep["runs"][0]["truth"]["sha256"] == hashlib.sha256(override.read_bytes()).hexdigest()

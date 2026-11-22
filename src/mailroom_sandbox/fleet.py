@@ -48,8 +48,8 @@ class FleetPlan:
     def rate_concurrency(self) -> int:
         """In-flight documents that fill the rate-matching fleet.
 
-        ``machines_for_specialist_rate`` slots stay idle unless the run admits
-        this many documents at once. That is ``document_concurrency`` times
+        The rate fleet's full sequence capacity needs this many documents
+        in flight. That is ``document_concurrency`` times
         ``gpu_stages`` under the equal-stage-time assumption.
         """
         return self.document_concurrency * self.gpu_stages
@@ -96,8 +96,8 @@ def pipeline_fleet(
     by about that factor. ``machines_for_specialist_rate`` is the fleet that
     buys the rate back, on the assumption that each stage lasts about as long
     as one specialist call. The run then has to admit ``rate_concurrency``
-    documents (``document_concurrency * gpu_stages``) or the extra machines
-    have nothing to run.
+    documents (``document_concurrency * gpu_stages``) to use that sequence
+    capacity; fewer documents leave slots idle across the load-balanced fleet.
     """
     if document_concurrency < 1:
         raise ValueError("document_concurrency must be >= 1")

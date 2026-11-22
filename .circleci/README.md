@@ -2,12 +2,12 @@
 
 [`config.yml`](config.yml) runs one workflow on `cimg/python:3.11-node`: `lint`
 (`small`), `checks` (`small`), `test` (`medium`, 4 parallel containers),
-`coverage` (`small`, runs after `test`) and `no-session-links` (`small`; fails
+`notebook-regressions` (`small`), `coverage` (`small`, runs after `test`) and `no-session-links` (`small`; fails
 on claude.ai links, Claude-Session trailers or Claude Code footers in commits or
-the PR description). `lint`, `checks`, `test` and `no-session-links` start
+the PR description). `lint`, `checks`, `test`, `notebook-regressions` and `no-session-links` start
 together. This repository's CI configuration is CircleCI. GitHub branch
 protection must require `ci/circleci: lint`, `ci/circleci: checks`,
-`ci/circleci: test`, `ci/circleci: coverage` and `ci/circleci: no-session-links`
+`ci/circleci: test`, `ci/circleci: notebook-regressions`, `ci/circleci: coverage` and `ci/circleci: no-session-links`
 to enforce every gate on `main`; configuration comments alone do not enable
 branch protection.
 
@@ -17,6 +17,7 @@ branch protection.
 | --- | --- |
 | `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint CLI2 0.18.1. Tool versions are pinned in [`lint-requirements.txt`](lint-requirements.txt); rule exclusions live in the repository config files (`pyproject.toml`, `.yamllint.yaml`, `.shellcheckrc`, `.markdownlint-cli2.yaml`). |
 | `checks` | Committed generated files match their generators: the reports-hub snapshot (`build_hub.py --check`), the requirements mirrors (`sync_requirements.py --check`), the CLI reference (`check_cli_surface.py --check`) and the runbook catalog pins plus generated `docs/runbooks/` (`sandbox runbook check`), and the campaign report indexes (`sandbox report build --campaign rb1 --check`). Network-free; it needs the dev virtualenv but waits for no other job. |
+| `notebook-regressions` | Dedicated offline execution and bootstrap checks in `tests/test_notebook.py`, `tests/test_notebooks.py` and `tests/test_prep.py`, with the notebook dependencies installed. This complements the full-suite and coverage gates. |
 | `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. JUnit results are stored even when a shard fails, so the timing split keeps its data. |
 | `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total and stores coverage XML. |
 

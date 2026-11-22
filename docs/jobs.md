@@ -368,8 +368,9 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `chunk_chars` knob, otherwise it is one truncated pass. On an API route
    (OpenRouter or any hosted provider) a specialist never chunks (HF-009): it
    ignores `chunk_chars`, reads the whole document in one `extract` call, and
-   a document over its input budget fails with `WholeDocumentTooLong` and goes
-   to review. Second, for `pipeline` runs, how much of each class's longest
+   a document over its input budget fails with `WholeDocumentTooLong`. The
+   pipeline sends that failure to review; an isolated evaluation records an
+   item error. Second, for `pipeline` runs, how much of each class's longest
    document the judge and the arbiter each see on their own windows: the
    vendored `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`. Without context fit,
    `agents.judge.max_input_chars` does not change them. On a context-fitted
@@ -382,8 +383,10 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
    on an `openrouter` route to the model's `context_length` from
    `config/api_prices.yaml`. It also raises the chunk cap and the judge/arbiter
-   source windows. On that route a document over the fitted window is refused
-   (`WholeDocumentTooLong`, HF-009/HF-010), never chunked or truncated. Modal,
+   source windows. API specialists, sorter and intake refuse input beyond
+   their budgets (`WholeDocumentTooLong`, HF-009/HF-010). Judge and arbiter
+   source excerpts are outside those hotfixes and can still truncate long
+   input to their fitted windows; intake failures keep the clerk output. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`

@@ -659,7 +659,8 @@ def validate_repairs(prov: list[dict[str, str]], rows: list[dict[str, str]], tex
                      ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], dict[str, int]]:
     """The validation pass over the merged cells (inputs are not mutated).
 
-    - a hand-read correction (``CORRECTIONS_FILE``) replaces the cell; its quote must be in the text;
+    - a hand-read correction (``CORRECTIONS_FILE``) replaces the cell; a populated correction's
+      quote must be in the text; an unlabeled correction instead requires a review note;
     - Hub ``keywords``: maildir folders, the mailbox owner and timestamps are dropped (a Hub override);
     - staged (non-Hub) cells: a ``date`` that is not a whole calendar date becomes unlabeled and is
       queued; ``cuad_family`` takes Dojo's canonical key; a ``governing_law`` clause becomes the

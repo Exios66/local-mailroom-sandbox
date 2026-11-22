@@ -18,6 +18,26 @@ NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
 
 
+def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
+    """Replace machine paths in executed output, leaving source and binary image data intact."""
+    ordered = sorted(replacements.items(), key=lambda item: -len(item[0]))
+
+    def clean(value):
+        if isinstance(value, str):
+            for source, portable in ordered:
+                value = value.replace(source, portable)
+            return value
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        if isinstance(value, dict):
+            return {key: clean(item) for key, item in value.items()}
+        return value
+
+    for cell in nb["cells"]:
+        if cell.get("outputs"):
+            cell["outputs"] = clean(cell["outputs"])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEMOS, help="directory for executed demos")
@@ -49,6 +69,8 @@ def main() -> int:
                 resources={"metadata": {"path": str(path.parent)}},
             )
             client.execute()
+            sanitize_demo_outputs(nb, {str(ROOT): "/demo/checkout", str(tmp_path): "/demo/runtime",
+                                       str(Path.home()): "/demo/home", sys.executable: "/demo/python"})
             dest = out / path.name
             nbformat.write(nb, dest)
             code = [c for c in nb.cells if c.cell_type == "code"]
