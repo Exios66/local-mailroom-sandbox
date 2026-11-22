@@ -92,3 +92,30 @@ G0 and the live/human gates in the campaign contract remain separate acceptance
 work. Existing measurements and experiment locks retain their original basis.
 Visualizer recovery directories deliberately consume disk until an operator
 has closed old writers and inspected them; they are not deleted automatically.
+
+## Follow-up: PR 399
+
+PR 399 (`987145da18c7d26778bcdb73998aa0ebcd8ea3d1`, 2026-11-22 18:41 UTC) landed
+after this audit closed. It was verified separately, with the same standard:
+
+- All six CircleCI gates passed on the PR head (`84aca2b5`, workflow
+  `67922a02-87bf-47a6-94cf-1832a26f1f00`), plus CodeFactor, GitGuardian and the
+  Cursor approval agent. CodeRabbit's check is neutral.
+- The merge tree is byte-identical to the tested head, and local `main` matches
+  `origin/main` cleanly at the merge commit.
+- Its only review thread (CodeAnt: colliding dated-report stems for rerun arms)
+  is resolved and verified in `0b8c443d` and `51e51b28`, squashed into the
+  merge; the PR body describes both fixes.
+- Focused single-worker, no-coverage local reruns pass: dated reports, #214
+  window configs, scoring hotfixes and routing calibration, 180 passed.
+- The shipped artifacts are on main: `reports/SAND-214/2026-11-21/`,
+  `reports/serving/SAND-214/`, the run-ledger start rows, both new window-arm
+  configs, the 150-document confidence-cutoff config and the exclude lists.
+- No paid work was launched by this audit. No #214 follow-up run has completed:
+  the ledger's three starts for the 28k window arm stopped at the Modal engine
+  probe (app not deployed, no GPU billed, no documents processed) and the
+  150-document confidence-cutoff run has not been started; both remain gated on
+  the owner's go-ahead and, for the arms, a deployed Modal app. Merger quality
+  (0.091, run README finding) limits merger results only — the window-length
+  suite's arms are contracts-only, so the contracts comparison is not blocked;
+  the cutoff run's merger class carries the same limitation.
