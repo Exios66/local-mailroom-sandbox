@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch a pinned staged label overlay from mailroom-issues into the local label cache.
 
-    python scripts/pull_staged_overlay.py --version 9.3.1-rc.7 [--root DIR]
+    python scripts/pull_staged_overlay.py --version 9.3.1-rc.8 [--root DIR]
 
 Reads the pin in ``config/staged_overlays.yaml`` (repository, commit, MANIFEST.json sha256),
 fetches only that cut at that commit, and refuses bytes that differ from the pin. The cache

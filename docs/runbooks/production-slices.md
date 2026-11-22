@@ -11,9 +11,17 @@ This page is hand-written. It is not generated from `config/runbooks/catalog.yam
 
 ## Slices
 
-All slices share r3's settings except the label source:
+All slices keep r3's (`config/runs/pipeline-qwen-flash-25-fit-r3.yaml`) agent routes and knobs, confidence block and other prompts. They differ from r3 in:
 
-- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.7`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.7`, see [the staged overlay guide](../staged-label-overlay.md));
+- the label source: the pinned staged overlay instead of `interim_labels: true` (below);
+- the dataset revision: `ff4ca546` (Hub `v9.3`, which the overlay is built on) instead of r3's `bc9eab28`;
+- the correspondence prompt: `correspondence_specialist_condensed_v3` instead of r3's `condensed_v2`;
+- `job.require_expanded_inputs: true`: preflight fails if a long-context reader is still on the short input budget;
+- the draw (size, `sample_seed: 3302`, `draw: ranked`, the exclude list) and the caps.
+
+The settings the slices run with:
+
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.8`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.8`, see [the staged overlay guide](../staged-label-overlay.md));
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;

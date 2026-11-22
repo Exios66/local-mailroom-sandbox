@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### Changed: production slices score from staged overlay `9.3.1-rc.8`
+
+- `config/staged_overlays.yaml` pins `9.3.1-rc.8` (`LLM-Mailroom-Services/mailroom-issues#251`, commit `83e52bd1`). Its
+  overlay, queues, labels and provenance are byte-identical to rc.7, so scores do not move; only
+  the field completeness report is recomputed from the validated provenance (rc.7 had 10 of 74
+  rows wrong, e.g. merger `effective_date` shown 75.7% complete with 113 cells disputed).
+- `scripts/stage_label_overlay.py` builds that report from the validated provenance and refuses
+  to stage a cut whose report disagrees with it.
+- The seven `config/runs/production/slice-*.yaml`, `spec.py`, the pull and stage scripts,
+  `AGENTS.md`, `docs/staged-label-overlay.md` and `docs/runbooks/production-slices.md` move to
+  rc.8. The runbook and slice headers now list every difference from r3 (dataset revision,
+  correspondence prompt, `require_expanded_inputs`, draw and caps), not only the label source.
+
 - **OpenRouter preflight can require every reader's expanded input length.** Context fit already widens intake, sorter, sorter reviewer, specialists, judge and arbiter on an OpenRouter route, and swaps the judge and arbiter source windows on with that budget. `job.require_expanded_inputs` (set on OpenRouter experiments) and `sandbox run preflight --require-expanded-inputs` now fail the run when one of those readers is still on the short budget, or its model has no `context_length`. The check is recorded either way and stays ok for Modal and local routes. `sandbox run preflight --agent-knob NAME.key=value` and `experiment create --set agent_knobs.AGENT.KNOB=VALUE` apply the role parameters, including `max_input_chars` and the sampling knobs, on a live agent the template did not already list. Existing run hashes are unchanged unless the requirement is turned on. A new lock freezes `context_fit.sha256`; resume refuses when the price sheet or overlay would change the fitted windows, the chunking switch, or the overlap, and a lock without that key still resumes. The check follows the recorded route even when context fit is off, so an OpenRouter route on a local profile is not treated as local. One `--agent-knob` on a posture-managed run with no YAML knobs overrides that key and keeps the posture's other budgets. `sandbox run resume --run-id` refuses before any document when the frozen windows, the chunking switch, or the overlap would change; a lock without the digest still resumes when its spec hash matches. Re-preflighting a slice that now sets `require_expanded_inputs` changes that hash, so `--force` is required and archives the previous generation. Production slices and the mailroom-v1 and mailroom-v2 study bases set the requirement. Their API caps stay the chunked-posture estimates and should be re-measured before a paid whole-document slice. No paid run.
 
 - **A 4.2.0 reviewer lock refuses resume when its routing code changed.** The question-set SHA-256 covers YAML only. A set that uses the draft routing rules also locks `reviewer.routing_sha256`. Resume returns `drift_refused` (`run_id` and `detail`) when that digest differs. Published sets and older locks without the key resume as before. `--force` archives the previous generation and re-locks. The set stays draft ([design](docs/decision-model-input-design.md)).

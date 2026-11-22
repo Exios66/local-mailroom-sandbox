@@ -38,7 +38,7 @@ Outputs, under ``<out>/v9.3.0/pre-release/v<version>/`` (immutable once written)
 - ``queues/needs_human.csv`` (unresolved disputes plus queued join cells) and
   ``queues/gold_override_signoff.csv`` (Hub overrides, ``decided_by`` left blank).
 
-    python scripts/stage_label_overlay.py --version 9.3.1-rc.7 \\
+    python scripts/stage_label_overlay.py --version 9.3.1-rc.8 \\
         --builder-dir reports/datasets/mailroom-dataset-v9.3-label-repaired \\
         --builder-commit <sha> --builder-script <dir>/build_label_repaired.py \\
         --assist mailroom_dataset_v9.3_label_repaired_copy.csv \\
