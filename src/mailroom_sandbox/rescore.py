@@ -19,7 +19,8 @@ and the gold audit read:
   ``score_original``;
 * ``scores.json``: run-level means of every numeric per-item score, overall and by class;
 * ``rescore.json``: the provenance and the before/after digest that the CLI prints;
-* ``events.jsonl``, ``checkpoint.json`` and ``prompt.lock.json`` copied when present.
+* ``events.jsonl`` and ``prompt.lock.json`` copied when present; ``checkpoint.json`` uses the
+  derived lock's identity and retains the original checkpoint under ``source_checkpoint``.
 
 Truth sources: the lock's own revision (default; isolates scorer drift while the run's overlays
 are unchanged, since they apply at their current content), ``--revision`` (a tag
@@ -450,14 +451,27 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
                                          encoding="utf-8")
     (dest / "dataset.jsonl").write_text(dataset_payload, encoding="utf-8")
     (dest / "items.jsonl").write_text(_dump_jsonl(out_items), encoding="utf-8")
-    for name in _COPIED:
-        if files.get(name) is not None:
-            shutil.copyfile(files.files[name], dest / name)
+    _copy_run_artifacts(files, dest, new_lock)
     (dest / "scores.json").write_text(json.dumps(report["scores"], indent=2, ensure_ascii=False) + "\n",
                                       encoding="utf-8")
     (dest / "rescore.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str) + "\n",
                                        encoding="utf-8")
     return {**report, "out": str(dest)}
+
+
+def _copy_run_artifacts(files: RunFiles, dest: Path, new_lock: Mapping[str, Any]) -> None:
+    for name in _COPIED:
+        if files.get(name) is not None:
+            if name == "checkpoint.json":
+                original = json.loads(files.files[name].read_text(encoding="utf-8"))
+                checkpoint = {**original, "source_checkpoint": original}
+                for key in ("run_id", "spec_hash", "generation_id"):
+                    checkpoint.pop(key, None)
+                    if new_lock.get(key):
+                        checkpoint[key] = new_lock[key]
+                (dest / name).write_text(json.dumps(checkpoint, indent=2) + "\n", encoding="utf-8")
+            else:
+                shutil.copyfile(files.files[name], dest / name)
 
 
 def _with_row_revision(meta: Mapping[str, Any], rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:

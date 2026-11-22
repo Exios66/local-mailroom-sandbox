@@ -152,6 +152,8 @@ Truth rows come from the run's `dataset.jsonl`, whose exact bytes must match the
 `dataset.sha256`. A missing hash or changed dataset is refused; use `--dataset-file` explicitly
 to select new truth, whose provenance is recorded separately. Duplicate truth IDs are refused,
 including normalized IDs in replacement files and rebuilt Hub truth before source rows are indexed.
+Derived rescore runs use their derived checkpoint identity; legacy copied checkpoints are
+validated against the source run and spec identity recorded in `rescore.lock`.
 Prepared, running and paused checkpoints are refused. Terminal checkpoint state and locked
 row count are shown beside the scored document count, so a failed partial run stays visible.
 A bundle without a checkpoint is labeled `unverified (no checkpoint)`.

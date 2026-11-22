@@ -450,9 +450,9 @@ def _publish_cache(stage: Path, out: Path) -> None:
     try:
         shutil.copytree(stage, new)
         _check_output_owner(out)
-        if out.exists():
-            out.rename(backup)
         try:
+            if out.exists():
+                out.rename(backup)
             new.rename(out)
         except BaseException:
             if backup.exists():

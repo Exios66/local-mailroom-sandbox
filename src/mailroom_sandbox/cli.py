@@ -1463,7 +1463,7 @@ def _run_parser(sub, shared):
         "--teardown",
         action="store_true",
         help="with --execute: stop and verify every distinct Modal app referenced by the suite's "
-             "non-mock configs (deploy/teardown_vllm.sh) "
+             "effective non-mock configs, including --local overrides (deploy/teardown_vllm.sh) "
              "when the chain ends: finished, failed or interrupted (Ctrl+C), so no container "
              "idles out its scaledown window or a min_containers floor. A killed process "
              "(SIGKILL) cannot clean up; run the script by hand then. Ignored with --mock, "
@@ -1474,13 +1474,15 @@ def _run_parser(sub, shared):
     return common
 
 
-def _suite_teardown(suite: Any) -> int:
+def _suite_teardown(suite: Any, *, local: bool = False) -> int:
     """Stop and verify every Modal app the suite's configs serve from (deploy/teardown_vllm.sh)."""
     from mailroom_sandbox.job.spec import load_run_spec
     from mailroom_sandbox.paths import repo_root
 
     apps = sorted({spec.engine.modal.app for spec in map(load_run_spec, suite.configs)
-                   if spec.engine.modal is not None and not spec.job.mock})
+                   if spec.engine.modal is not None and (local or not spec.job.mock)})
+    if not apps:
+        print("no live Modal apps targeted; no teardown performed")
     rc = 0
     for app in apps:
         proc = subprocess.run(["bash", str(repo_root() / "deploy" / "teardown_vllm.sh"), app],
@@ -3665,14 +3667,14 @@ def _cmd_run_suite(args) -> int:
             raise
         finally:
             if teardown:
-                torn = _suite_teardown(suite)
+                torn = _suite_teardown(suite, local=bool(getattr(args, "local", False)))
                 rc = rc or torn
         if getattr(args, "dry_run", False):
             print(f"suite {suite.suite_id} planned — no jobs executed")
         elif getattr(args, "mock", False) or getattr(args, "offline", False):
             print(f"suite {suite.suite_id} complete — offline/mock mode; no app teardown performed")
         elif teardown and rc == 0:
-            print(f"suite {suite.suite_id} complete — app torn down")
+            print(f"suite {suite.suite_id} complete — teardown checks finished")
         elif teardown:
             print(f"suite {suite.suite_id} complete — teardown failed; stop the app by hand", file=sys.stderr)
         else:

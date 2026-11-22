@@ -289,3 +289,25 @@ def test_reconstructed_truth_refuses_duplicate_source_ids(tmp_path, case, monkey
         monkeypatch.setattr(corpus, "load_hf_rows", load_pinned)
     with pytest.raises(ValueError, match="duplicate document id"):
         ppr.documents_for_run(path, **kwargs)
+
+
+def test_rescore_output_and_legacy_source_checkpoints_are_reportable(tmp_path, case):
+    from mailroom_sandbox import rescore
+
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1", data=case["expected"])])
+    replacement = tmp_path / "truth.jsonl"
+    replacement.write_text(json.dumps(_row("d1", case)) + "\n")
+    result = rescore.rescore(path, dataset_file=replacement, out=tmp_path / "derived")
+    derived = Path(result["out"])
+    checkpoint = json.loads((derived / "checkpoint.json").read_text())
+    assert checkpoint["run_id"] == "derived"
+    assert checkpoint["source_checkpoint"]["run_id"] == "r"
+    assert ppr.documents_for_run(derived)[1]["state"] == "done"
+    second = rescore.rescore(derived, dataset_file=replacement, out=tmp_path / "second")
+    assert ppr.documents_for_run(second["out"])[1]["state"] == "done"
+    # Previously written rescore bundles carry the source checkpoint unchanged.
+    (derived / "checkpoint.json").write_bytes((path / "checkpoint.json").read_bytes())
+    assert ppr.documents_for_run(derived)[1]["state"] == "done"
+    (derived / "checkpoint.json").write_text(json.dumps({"run_id": "foreign", "state": "done"}))
+    with pytest.raises(ppr.PainPointsError, match="locked generation"):
+        ppr.documents_for_run(derived)

@@ -50,7 +50,9 @@ the gold audit read that layout.
   plain means. A task runner's own run summary can hold other statistics (macro-F1, intervals),
   which a rescore does not recompute.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores.
-- `events.jsonl`, `checkpoint.json` and `prompt.lock.json`, copied when present.
+- `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
+  derived lock's run, spec and generation identity, retaining its original content under
+  `source_checkpoint`. Its terminal state is preserved.
 
 ## Reading the digest
 

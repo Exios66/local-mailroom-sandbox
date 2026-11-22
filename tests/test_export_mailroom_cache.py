@@ -194,6 +194,27 @@ def test_cache_swap_failure_restores_previous_generation(mod, small, monkeypatch
     assert (out / "previous.txt").read_text() == "keep"
 
 
+def test_interrupt_after_initial_rename_restores_previous_generation(mod, small, monkeypatch):
+    out, stage = small / "mailroom_cache", small / "stage"
+    out.mkdir()
+    stage.mkdir()
+    (out / "REGISTRY.json").write_text(json.dumps({"schema": mod.SCHEMA, "dataset": mod.HF_DEFAULT_REPO}))
+    (out / "previous.txt").write_text("keep")
+    rename = Path.rename
+
+    def interrupt_after_move(self, target):
+        result = rename(self, target)
+        if self == out:
+            raise KeyboardInterrupt("interrupted after moving previous cache")
+        return result
+
+    monkeypatch.setattr(Path, "rename", interrupt_after_move)
+    with pytest.raises(KeyboardInterrupt):
+        mod._publish_cache(stage, out)
+    assert (out / "previous.txt").read_text() == "keep"
+    assert not list(small.glob(".mailroom-cache-*"))
+
+
 def test_failed_rollback_retains_recovery_directory(mod, small, monkeypatch):
     out, stage = small / "mailroom_cache", small / "stage"
     out.mkdir()

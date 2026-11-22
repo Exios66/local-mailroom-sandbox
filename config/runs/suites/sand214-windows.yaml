@@ -12,7 +12,7 @@
 #           not a leg: it re-runs the contracts draw with the length fix on the same serving
 #           block. To run it while merger holds the fleet warm, OMIT --teardown from the chain:
 #             sandbox run start --config config/runs/sand214-30-contracts-specialist-awq-1l4-windows-r2.yaml --initials <XX>
-#           Run ./deploy/teardown_vllm.sh manually ONLY after BOTH the suite and r2 have ended.
+#           Run ./deploy/teardown_vllm.sh sandbox-vllm ONLY after BOTH the suite and r2 have ended.
 schema: sandbox.suite/v1
 suite_id: sand214-windows
 track: a

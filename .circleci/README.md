@@ -1,10 +1,11 @@
 # CI checks and runtime verification
 
-[`config.yml`](config.yml) runs one workflow on `cimg/python:3.11-node`: `lint`
+[`config.yml`](config.yml) runs one workflow: `lint`
 (`small`), `checks` (`small`), `test` (`medium`, 4 parallel containers),
 `notebook-regressions` (`small`), `coverage` (`small`, runs after `test`) and `no-session-links` (`small`; fails
 on claude.ai links, Claude-Session trailers or Claude Code footers in commits or
-the PR description). `lint`, `checks`, `test`, `notebook-regressions` and `no-session-links` start
+the PR description). The jobs use `cimg/python:3.11-node` except `no-session-links`,
+which uses `cimg/python:3.11`. `lint`, `checks`, `test`, `notebook-regressions` and `no-session-links` start
 together. This repository's CI configuration is CircleCI. GitHub branch
 protection must require `ci/circleci: lint`, `ci/circleci: checks`,
 `ci/circleci: test`, `ci/circleci: notebook-regressions`, `ci/circleci: coverage` and `ci/circleci: no-session-links`

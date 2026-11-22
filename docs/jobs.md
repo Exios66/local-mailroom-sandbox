@@ -383,8 +383,9 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
    on an `openrouter` route to the model's `context_length` from
    `config/api_prices.yaml`. It also raises the chunk cap and the judge/arbiter
-   source windows. API specialists, sorter and intake refuse input beyond
-   their budgets (`WholeDocumentTooLong`, HF-009/HF-010). Judge and arbiter
+   source windows. API specialists refuse input beyond their budgets
+   (`WholeDocumentTooLong`, HF-009). On an API route, sorter and intake refuse
+   input that needs more than one window (HF-010). Judge and arbiter
    source excerpts are outside those hotfixes and can still truncate long
    input to their fitted windows; intake failures keep the clerk output. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored

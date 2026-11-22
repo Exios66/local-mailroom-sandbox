@@ -56,10 +56,23 @@ def _finished_lock(files) -> tuple[dict[str, Any], str]:
     state = cp.get("state")
     if state not in TERMINAL_STATES:
         raise PainPointsError(f"{files.path}: checkpoint is {state!r}; score a finished pipeline run")
+    expected = _checkpoint_identity(lock, cp, files.path)
     for key in ("run_id", "spec_hash", "generation_id"):
-        if lock.get(key) and cp.get(key) != lock[key]:
+        if expected.get(key) and cp.get(key) != expected[key]:
             raise PainPointsError(f"{files.path}: checkpoint {key} differs from the locked generation")
     return lock, state
+
+
+def _checkpoint_identity(lock: dict[str, Any], cp: dict[str, Any], path: Path) -> dict[str, Any]:
+    expected = lock
+    if lock.get("lock_kind") == "rescore.lock" and cp.get("run_id") != lock.get("run_id"):
+        # Legacy derived runs copied their source checkpoint; validate its recorded source identity.
+        source = lock.get("rescore") or {}
+        expected = {"run_id": source.get("source_run"), "spec_hash": source.get("source_spec_hash"),
+                    "generation_id": lock.get("generation_id")}
+        if not expected["run_id"]:
+            raise PainPointsError(f"{path}: derived checkpoint has no recorded source identity")
+    return expected
 
 
 def _truth_by_id(rows: Iterable[dict[str, Any]]) -> dict[str, dict]:

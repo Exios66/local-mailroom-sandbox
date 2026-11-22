@@ -241,12 +241,12 @@ def test_offline_suite_never_tears_down_a_live_app(monkeypatch, capsys, flag):
     from mailroom_sandbox import cli
 
     monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
-    monkeypatch.setattr(cli, "_suite_teardown", lambda suite: pytest.fail("offline suite reached Modal teardown"))
+    monkeypatch.setattr(cli, "_suite_teardown", lambda suite, **kw: pytest.fail("offline suite reached Modal teardown"))
     assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown", flag]) == 0
     assert "teardown with" not in capsys.readouterr().out
 
 
-def test_mock_suite_specs_do_not_stop_live_apps(monkeypatch):
+def test_mock_suite_specs_do_not_stop_live_apps(monkeypatch, capsys):
     import subprocess
     from types import SimpleNamespace
 
@@ -259,14 +259,34 @@ def test_mock_suite_specs_do_not_stop_live_apps(monkeypatch):
     monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("mock spec reached a remote stop"))
     assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"]) == 0
+    assert "no live Modal apps targeted; no teardown performed" in capsys.readouterr().out
+
+
+def test_local_override_includes_mock_yaml_apps_in_teardown(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job import spec
+
+    mock_spec = SimpleNamespace(job=SimpleNamespace(mock=True),
+                                engine=SimpleNamespace(modal=SimpleNamespace(app="test-local-app")))
+    stopped = []
+    monkeypatch.setattr(spec, "load_run_spec", lambda path: mock_spec)
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: stopped.append(cmd[-1])
+                        or subprocess.CompletedProcess(cmd, 0))
+    assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--local", "--teardown"]) == 0
+    assert stopped == ["test-local-app"]
 
 
 def test_failed_teardown_is_not_reported_as_success(monkeypatch, capsys):
     from mailroom_sandbox import cli
 
     monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
-    monkeypatch.setattr(cli, "_suite_teardown", lambda suite: 7)
+    monkeypatch.setattr(cli, "_suite_teardown", lambda suite, **kw: 7)
     assert cli.main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"]) == 7
     output = capsys.readouterr()
     assert "app torn down" not in output.out
+    assert "teardown checks finished" not in output.out
     assert "teardown failed" in output.err

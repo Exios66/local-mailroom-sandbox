@@ -3,7 +3,9 @@
 import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -65,3 +67,49 @@ def test_demo_sanitizer_handles_resolved_symlink_paths(tmp_path):
     nb = {"cells": [{"outputs": [{"text": f"{target.resolve()}/log"}]}]}
     module.sanitize_demo_outputs(nb, {str(alias): "/demo/runtime"})
     assert nb["cells"][0]["outputs"][0]["text"] == "/demo/runtime/log"
+
+
+def test_demo_sanitizer_preserves_binary_mime_payloads():
+    spec = importlib.util.spec_from_file_location("render_demos", ROOT / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    nb = {"cells": [{"outputs": [{"data": {"image/png": "/rootAAA", "application/pdf": "/rootAAA",
+                    "image/svg+xml": "<svg>/root/file</svg>", "application/json": {"file": "/root/file"}},
+                    "metadata": {"label": "/root/file"}}]}]}
+    module.sanitize_demo_outputs(nb, {"/root": "/demo/home"})
+    output = nb["cells"][0]["outputs"][0]
+    assert output["data"]["image/png"] == output["data"]["application/pdf"] == "/rootAAA"
+    assert output["data"]["image/svg+xml"] == "<svg>/demo/home/file</svg>"
+    assert output["data"]["application/json"]["file"] == output["metadata"]["label"] == "/demo/home/file"
+
+
+def test_renderer_sanitizes_the_selected_kernel_interpreter(monkeypatch, tmp_path):
+    spec = importlib.util.spec_from_file_location("render_demos", ROOT / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module.os, "environ", dict(module.os.environ))
+    kernel_python = str(tmp_path / "other-environment" / "bin" / "python")
+
+    class AttrDict(dict):
+        __getattr__ = dict.__getitem__
+
+    notebook = AttrDict(cells=[AttrDict(cell_type="code", source="print(sys.executable)", outputs=[])])
+
+    class Client:
+        def __init__(self, nb, **kwargs):
+            self.nb = nb
+
+        def create_kernel_manager(self):
+            return SimpleNamespace(format_kernel_cmd=lambda: [kernel_python, "-m", "ipykernel_launcher"])
+
+        def execute(self):
+            self.nb.cells[0]["outputs"] = [{"text": kernel_python}]
+
+    written = []
+    monkeypatch.setitem(sys.modules, "nbclient", SimpleNamespace(NotebookClient=Client))
+    monkeypatch.setitem(sys.modules, "nbformat", SimpleNamespace(read=lambda *a, **kw: notebook,
+                                                               write=lambda nb, dest: written.append(nb)))
+    monkeypatch.setattr(module, "NOTEBOOKS", [tmp_path / "source.ipynb"])
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "out")])
+    assert module.main() == 0
+    assert written[0].cells[0]["outputs"][0]["text"] == "/demo/python"

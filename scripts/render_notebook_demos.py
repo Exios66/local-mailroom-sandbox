@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
+BINARY_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif",
+                "image/bmp", "image/tiff", "application/pdf", "application/octet-stream"}
 
 
 def _path_aliases(source: str) -> set[Path]:
@@ -44,7 +46,8 @@ def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
         if isinstance(value, list):
             return [clean(item) for item in value]
         if isinstance(value, dict):
-            return {key: clean(item) for key, item in value.items()}
+            return {key: item if key in BINARY_MIMES or key.startswith(("audio/", "video/")) else clean(item)
+                    for key, item in value.items()}
         return value
 
     for cell in nb["cells"]:
@@ -82,9 +85,12 @@ def main() -> int:
                 kernel_name="python3",
                 resources={"metadata": {"path": str(path.parent)}},
             )
+            client.km = client.create_kernel_manager()
+            kernel_executable = client.km.format_kernel_cmd()[0]
             client.execute()
             sanitize_demo_outputs(nb, {str(ROOT): "/demo/checkout", str(tmp_path): "/demo/runtime",
-                                       str(Path.home()): "/demo/home", sys.executable: "/demo/python"})
+                                       str(Path.home()): "/demo/home", sys.executable: "/demo/python",
+                                       kernel_executable: "/demo/python"})
             dest = out / path.name
             nbformat.write(nb, dest)
             code = [c for c in nb.cells if c.cell_type == "code"]
