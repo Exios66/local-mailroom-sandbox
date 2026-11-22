@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+### Changed: production slices score from staged overlay `9.3.1-rc.9`
+
+- `config/staged_overlays.yaml` pins `9.3.1-rc.9` (`LLM-Mailroom-Services/mailroom-issues#252`,
+  commit `0288f619`): rc.8 plus six reviewed corrections in
+  `data/labels/review/validation_corrections.jsonl`. Three merger `effective_time` cells labeled
+  absent although the agreement defines the Effective Time, two incomplete ones, and one
+  correspondence `recipient` that named the quoted message's sender (now unlabeled). Scores move
+  only on those six cells.
+
+### Changed: staged overlay `9.3.1-rc.8` pinned (field completeness report fixed)
+
+- `config/staged_overlays.yaml` pins `9.3.1-rc.8` (`LLM-Mailroom-Services/mailroom-issues#251`, commit `83e52bd1`). Its
+  overlay, queues, labels and provenance are byte-identical to rc.7, so scores do not move; only
+  the field completeness report is recomputed from the validated provenance (rc.7 had 10 of 74
+  rows wrong, e.g. merger `effective_date` shown 75.7% complete with 113 cells disputed).
+- `scripts/stage_label_overlay.py` builds that report from the validated provenance and refuses
+  to stage a cut whose report disagrees with it.
+- The seven `config/runs/production/slice-*.yaml`, `spec.py`, the pull and stage scripts,
+  `AGENTS.md`, `docs/staged-label-overlay.md` and `docs/runbooks/production-slices.md` move to
+  rc.8. The runbook and slice headers now list every difference from r3 (dataset revision,
+  correspondence prompt, `require_expanded_inputs`, draw and caps), not only the label source.
+
 - **OpenRouter preflight can require every reader's expanded input length.** Context fit already widens intake, sorter, sorter reviewer, specialists, judge and arbiter on an OpenRouter route, and swaps the judge and arbiter source windows on with that budget. `job.require_expanded_inputs` (set on OpenRouter experiments) and `sandbox run preflight --require-expanded-inputs` now fail the run when one of those readers is still on the short budget, or its model has no `context_length`. The check is recorded either way and stays ok for Modal and local routes. `sandbox run preflight --agent-knob NAME.key=value` and `experiment create --set agent_knobs.AGENT.KNOB=VALUE` apply the role parameters, including `max_input_chars` and the sampling knobs, on a live agent the template did not already list. Existing run hashes are unchanged unless the requirement is turned on. A new lock freezes `context_fit.sha256`; resume refuses when the price sheet or overlay would change the fitted windows, the chunking switch, or the overlap, and a lock without that key still resumes. The check follows the recorded route even when context fit is off, so an OpenRouter route on a local profile is not treated as local. One `--agent-knob` on a posture-managed run with no YAML knobs overrides that key and keeps the posture's other budgets. `sandbox run resume --run-id` refuses before any document when the frozen windows, the chunking switch, or the overlap would change; a lock without the digest still resumes when its spec hash matches. Re-preflighting a slice that now sets `require_expanded_inputs` changes that hash, so `--force` is required and archives the previous generation. Production slices and the mailroom-v1 and mailroom-v2 study bases set the requirement. Their API caps stay the chunked-posture estimates and should be re-measured before a paid whole-document slice. No paid run.
 
 - **A 4.2.0 reviewer lock refuses resume when its routing code changed.** The question-set SHA-256 covers YAML only. A set that uses the draft routing rules also locks `reviewer.routing_sha256`. Resume returns `drift_refused` (`run_id` and `detail`) when that digest differs. Published sets and older locks without the key resume as before. `--force` archives the previous generation and re-locks. The set stays draft ([design](docs/decision-model-input-design.md)).
@@ -11,6 +33,96 @@
 - **High extraction confidence no longer skips the judge (HF-007).** `judge_gate` treated a self-reported confidence at or above `judge_band_high` (default 0.85) as clean, so most wrong archives never saw an independent check (#215, llm-mailroom#278). Until that upstream change ships, confidence at or above the class `low` band reaches the judge. `MAILROOM_JUDGE_VERIFY=off` still disables the lane, and `MAILROOM_JUDGE_HIGH_BAND=off` restores the vendored band. Spend stays inside `job.api_cost_cap_usd`. A lock that recorded the previous hotfix set refuses resume until `--force`.
 
 - **Chunk merges record every window's confidence (HF-008).** The vendored merge already keeps the weakest window, not the highest. It did not keep the per-window values (#214). `merge_chunk_windows` now writes them on `_window_confidences` and does not change the merged confidence. Scoring ignores that key.
+- **Production slices score against staged overlay `9.3.1-rc.7` (role words, signing dates).**
+  - `config/staged_overlays.yaml` pins rc.7 (mailroom-issues `bb721a67`, manifest `438ce30a…`).
+    The seven `config/runs/production/slice-*` configs move from rc.6 to rc.7.
+  - Against rc.6: 180 `parties` cells lose role words, descriptions or alias clauses, one
+    `parties` cell leaves the overlay, and 90 merger `effective_date` signing dates are held as
+    disputed until the owner answers the interim audit.
+  - Scores are not comparable to rc.6 on contract and merger `parties` and merger
+    `effective_date`. Re-baseline before a paired re-run.
+- **Stager rc.7 rules: party-role words and merger signing dates.**
+  - `scripts/stage_label_overlay.py` drops party-role words ("the Customer", "Member"),
+    descriptions of a party ("an individual", "your") and alias clauses ("d/b/a X") from
+    `parties`, and trims a role label before a name ("the Supplier: X"). The role and description
+    checks apply only to party, advisor and counsel fields; `sender` and other name fields keep
+    the rc.5 check.
+  - A merger `effective_date` that is only the signing date now follows the owner's answer on
+    the `signing_date_as_effective_date` rows of `data/labels/review/interim_audit.jsonl`:
+    held as `disputed_unresolved` while they say `owner_decides`, a documented absence on `clear`,
+    kept on `keep`. The manifest records `signing_date_policy`. With the audit still pending, the
+    90 generated merger effective dates, all signing dates, are held back with the 23 audited ones.
+  - Tests in `tests/test_stage_label_overlay.py`.
+- **Production slices score against staged overlay `9.3.1-rc.6` (rc.5 review fixes).**
+  - `config/staged_overlays.yaml` pins rc.6 (mailroom-issues `c19b48d1`, manifest `28ec2d67…`).
+    The seven `config/runs/production/slice-*` configs move from rc.5 to rc.6.
+  - rc.6 trims describing lead-ins from party, advisor and counsel names ("the retention of X",
+    "Subsidiary of Y, and X" become X). Only 3 overlay cells differ from rc.5, all on merger
+    `financial_advisors`, `merger_sub` and `parties`.
+  - The master summary's `outputs_sha256` now hashes the `master/` files. The builder's digests
+    are kept as `builder_outputs_sha256`.
+  - Scores differ from rc.5 only on those merger fields. Re-baseline before a paired re-run.
+- **Production slices score against staged overlay `9.3.1-rc.5` (review fixes).**
+  - `config/staged_overlays.yaml` pins rc.5 (mailroom-issues `d4e92a68`, manifest `27d0bb37…`).
+    The seven `config/runs/production/slice-*` configs move from rc.4 to rc.5.
+  - rc.5 holds back the following as `disputed_unresolved`: 23 interim merger effective dates
+    whose audit awaits the owner, and conflicting labels on two pairs of identical-text
+    documents. It also removes suffix-only and defined-term name captures.
+  - Scores are not comparable to rc.4 on those fields. Establish a new baseline before a
+    paired re-run.
+- **Production slices now score against the validated staged overlay `9.3.1-rc.4`.**
+  - `config/staged_overlays.yaml` pins rc.4 (mailroom-issues `3dd4e402`, manifest
+    `3a6efaed…`). The seven `config/runs/production/slice-*` configs move from rc.3 to rc.4.
+  - `scripts/stage_label_overlay.py` validates the merged labels before staging:
+    - whole ISO dates only; canonical `cuad_family` keys;
+    - governing-law jurisdictions taken from whole clauses;
+    - `parties` without aliases or clause fragments, and de-duplicated entity lists;
+    - Hub correspondence `keywords` stripped of maildir metadata (queued as overrides).
+  - The stager also applies the reviewed, quote-checked corrections in
+    `data/labels/review/validation_corrections.jsonl`.
+  - It writes `queues/header_restoration.csv`, which lists the correspondence whose
+    header-sourced labels need the Enron header text restored in the next release. Those labels
+    stay as truth.
+  - Docs: `docs/staged-label-overlay.md` and `scripts/export_mailroom_cache.py` (the cache
+    README).
+- **Production slice configs score against staged overlay `9.3.1-rc.3`.** The seven
+  `config/runs/production/slice-*` configs (local and Modal-host twins) set
+  `dataset.staged_overlay: 9.3.1-rc.3` in place of `interim_labels` / `near_gold_labels`.
+  Pull the cut before preflight. `judge-audit-0026` keeps its earlier labels on purpose.
+- **Production scoring reads the staged label overlay, pinned and hash-checked.**
+  - New `dataset.staged_overlay: <version>` (`mailroom_sandbox.staged_overlay`). A run applies
+    a mailroom-issues `production-overlay` cut over the Hub labels, instead of the interim and
+    near-gold overlays. Setting it together with either of them fails at parse.
+  - Only versions pinned in `config/staged_overlays.yaml` are accepted: the mailroom-issues
+    commit plus the `MANIFEST.json` sha256, which pins every overlay file. A cache that differs
+    from the pin, a Hub source on another revision, or an unpinned version is refused when
+    the labels are applied, right after the draw and before any document is scored. A record applies only to the document with its `content_sha256`.
+  - The spec hash records the version and manifest sha256. The run lock records the overlay
+    provenance. Each row names the fields it took and keeps each replaced Hub value under
+    `staged_overlay.overrides`.
+  - `sandbox rescore` re-applies the locked cut. The gold audit and subclass schema tallies
+    attribute those fields to `staged`.
+  - `scripts/pull_staged_overlay.py` fetches only the pinned cut, sparse and shallow, for
+    deploy images and job workers. Guide: [`docs/staged-label-overlay.md`](docs/staged-label-overlay.md).
+  - Pinned: `9.3.1-rc.3` (mailroom-issues `838ca211`, manifest `2c2b9f12`). Pulled from GitHub
+    and applied to the v9.3 corpus: 3,297 of 3,302 documents take 18,439 staged fields (99 Hub
+    overrides), none stale.
+  - Tests: `tests/test_staged_overlay.py`.
+- **Staged overlay cut `v9.3.1-rc.3`: self-contained, cut-off magnitudes repaired.**
+  - `stage_label_overlay.py` now verifies that the builder outputs and `build_label_repaired.py`
+    are byte-identical to the named builder commit (PR #384 head `f0951873`). It caches the
+    outputs under `builder/` in the cut, so restaging no longer needs that unmerged branch. The
+    script's sha256 and commit are recorded; mailroom-issues holds no code.
+  - The builder's period grammar keeps one number word, cutting "one hundred eighty (180)
+    days" to "eighty (180) days". Staged values are now rewritten with the document's own
+    spelling: 12 `termination_notice_period` cells. One that cannot be grounded is queued.
+    Hub values are never rewritten.
+  - rc.3 otherwise equals rc.2: 43,154 of 48,688 cells, 101 Hub overrides, 84 queued cells.
+    rc.1 and rc.2 are unchanged.
+
+- **Staged production-scoring overlay for the planned v10 labels.** `scripts/stage_label_overlay.py` merges the repaired-label builder output (`build_label_repaired.py`, PR #384 head `f0951873`) with an earlier repaired CSV that kept different `termination_notice_period` labels, and stages the result as `mailroom_cache/v9.3.0/pre-release/v9.3.1-rc.2/` in mailroom-issues. It adds an assist term only when it reads as a notice period, is not a cure or breach period, has a magnitude the builder lacks, and occurs verbatim in the Hub v9.3 text (13 terms in 13 cells, 4 of them new fills; 43,154 of 48,688 cells labeled). `overlay/<class>.jsonl` holds the 18,441 labels that differ from Hub v9.3 (101 Hub overrides, `override: true`), and `queues/` lists 84 cells for a person and the 101 overrides for sign-off (`decided_by` blank). `export_mailroom_cache.py` finds the labels commit by content, refuses a too-shallow clone, and indexes both pre-release kinds. Tests: `tests/test_stage_label_overlay.py`.
+
+- **SemVer label cache export for mailroom-issues.** `scripts/export_mailroom_cache.py` writes `mailroom_cache/` in LLM-Mailroom-Services/mailroom-issues: one folder per dataset release (`vX.Y.0`, from `FAMILY_HF_TAG` and `LEGACY_FAMILY_HF_REVISIONS`) with an `hf-revision/` pin manifest, and unpublished label work as an immutable pre-release under it (`v9.3.0/pre-release/v9.3.1-rc.1/`): the full repaired label set CSV plus `data/labels/review` under `repairs/`, and `gold`, `gold-overlay`, `gold-supplementary` and `interim` under `enhancements/`. The CSV must hold the full corpus and its subclass repairs must equal the accepted `subclass_corrections.jsonl` lines exactly; a cut pre-release is never rewritten; `--check` exits 1 when the cache is stale. Tests: `tests/test_export_mailroom_cache.py`.
 
 - **`sandbox rescore`: re-score a finished run against other ground truth, with no model call.** It scores a run's stored answers against the run's own revision, another revision (`--revision v9.3`; the run's documents are read from that revision's full corpus, not re-drawn) or a local truth file. Label overlays are applied as the run used them, dropped or all applied (`--overlays`). It writes a derived run directory in the runtime layout and never modifies the source run: the new truth, the re-scored items with each item's first score in `score_original`, a lock marked `rescore.lock` that names the source run, `scores.json` with run-level means overall and by class, and `rescore.json` with the before/after digest. A rescore to another revision leaves the source's split file out of the derived lock, so the gold audit and `compare_sorter_arms` resolve the new revision's split and apply its held-out checks (a runbook-v1 dev document can be runbook-v2 held-out). It reads committed report bundles too. An `--out` that is, contains or lies inside the source run is refused even with `--force`; a derived run records the overlays its truth was built with; agent tasks keep truth keys outside the corpus row shape (`expected_snippet`); a local truth file takes the one revision its rows carry. A document the new truth lacks stops the rescore unless `--allow-missing`. Pipeline per-document scoring moves to `eval.runners.pipeline_item_score`, and label overlays to `corpus.apply_label_overlays`, shared with `prepare_subset`; neither change alters a run's scores (`docs/rescore.md`).
 

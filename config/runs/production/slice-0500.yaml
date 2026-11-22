@@ -13,9 +13,12 @@
 # routing before the draw, so those are never re-drawn. Sorter prompt tuning drew from the
 # sorter handoff's train split, so sorter results on this slice are in-sample for the sorter.
 #
-# Everything but the draw size, caps and run_id is r3's (pipeline-qwen-flash-25-fit-r3):
-# prompts, agent routes and knobs, confidence block, decision reviewer, blind routing and
-# interim labels, so the gate measures the adopted configuration. Spans mirror locally to
+# Agent routes and knobs, confidence block, decision reviewer, blind routing and the other
+# prompts are r3's (pipeline-qwen-flash-25-fit-r3), so the gate measures the adopted
+# configuration. It differs from r3 in the draw (size, seed 3302, ranked, exclude list), caps,
+# run_id, the label source (staged overlay, not interim labels), the dataset revision
+# (ff4ca546, Hub v9.3, not bc9eab28), the correspondence prompt (condensed_v3, not v2) and
+# require_expanded_inputs (docs/runbooks/production-slices.md). Spans mirror locally to
 # data/traces/<run_id>.spans.jsonl.gz (trace.sink none), which the gate audit reads.
 # api_cost_cap_usd 10: about 2x E3's measured 76k prompt tokens per document.
 #
@@ -51,8 +54,10 @@ dataset:
       - {doc_class: merger_agreement, count: 23}
   sample_seed: 3302          # one seed for every slice, so the draws nest
   require_task_gt: true     # every document can be scored
-  interim_labels: true      # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
-  near_gold_labels: true  # fill fields still unlabelled with Claude near-gold labels (data/labels/gold-overlay; status near_gold)
+  # Staged v10 label repairs from mailroom-issues mailroom_cache (pinned in config/staged_overlays.yaml):
+  # the merged Hub + interim + near-gold + reviewed master, so it replaces interim_labels / near_gold_labels.
+  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.9 (docs/staged-label-overlay.md).
+  staged_overlay: 9.3.1-rc.9
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
   draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 

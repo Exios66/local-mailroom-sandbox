@@ -11,9 +11,17 @@ This page is hand-written. It is not generated from `config/runbooks/catalog.yam
 
 ## Slices
 
-All slices share r3's settings:
+All slices keep r3's (`config/runs/pipeline-qwen-flash-25-fit-r3.yaml`) agent routes and knobs, confidence block and other prompts. They differ from r3 in:
 
-- blind routing and interim labels;
+- the label source: the pinned staged overlay instead of `interim_labels: true` (below);
+- the dataset revision: `ff4ca546` (Hub `v9.3`, which the overlay is built on) instead of r3's `bc9eab28`;
+- the correspondence prompt: `correspondence_specialist_condensed_v3` instead of r3's `condensed_v2`;
+- `job.require_expanded_inputs: true`: preflight fails if a long-context reader is still on the short input budget;
+- the draw (size, `sample_seed: 3302`, `draw: ranked`, the exclude list) and the caps.
+
+The settings the slices run with:
+
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.9`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.9`, see [the staged overlay guide](../staged-label-overlay.md));
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;
@@ -104,7 +112,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
    A missing or unreadable link fails the gate. `gate.md` lists every document in its **Documents** table, with class, outcome, score, labelled units, cause, archive link and span id.
 5. **Fix the largest fixable bucket.** See "Where a fix lands" below. Record each fix on #306.
-6. **Re-run the same slice and compare.** Give the re-run a new `run_id`, then gate it with the earlier run as its pair:
+6. **Re-run the same slice and compare.** The paired check fails a re-run whose labels differ from the earlier run's (`re-run labels differ`). Pulling a new overlay does not change the labels an earlier run locked. So an earlier run scored on other labels (interim and near-gold, or an older overlay cut) is not a valid pair: first run the slice once on the current overlay as the baseline, then pair re-runs against that run. Give the re-run a new `run_id`, then gate it with the earlier run as its pair:
 
    ```bash
    sandbox run gate --run-id <rerun> --prev-run-id <earlier>
