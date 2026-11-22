@@ -237,6 +237,9 @@ def test_doc_records_read_recorded_windows_from_the_prediction():
     rows = {"d1": {"expected_doc_class": "contract", "doc_text": "x"}}
     (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
     assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+    isolated = {"pred": item["pred"]["extracted_data"], "score": item["score"]}
+    (rec,) = routing_audit._doc_records([], {"d1": isolated}, rows)
+    assert rec["windows"] == [(0.9, 10), (0.4, 30)]
 
 
 def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():
