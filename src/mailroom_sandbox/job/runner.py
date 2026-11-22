@@ -1187,6 +1187,10 @@ def _run_job(
     total = len(rows)
     store.resume_cursor()
     pending = [i for i in range(len(rows)) if i not in completed]
+    if _task_defaults(store).get("longest_first"):
+        # Longest-processing-time-first: the long tail of a chunked run is its longest document
+        # running alone. Stable sort, so equal lengths keep the drawn order.
+        pending.sort(key=lambda i: -len(str(rows[i].get("doc_text") or "")))
     if max_items is not None:
         pending = pending[:max_items]
 

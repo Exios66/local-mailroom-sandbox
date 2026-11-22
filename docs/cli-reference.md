@@ -1399,7 +1399,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--list` | No | list suite ids under config/runs/suites/ |
 | `--check` | No | run benchmark-check on every config in the suite |
 | `--print-loop` | No | print bash preflight+start loop only |
-| `--execute` | No | chain preflight+start --watch for each config (no teardown) |
+| `--execute` | No | chain preflight+start --watch for each config (no teardown unless --teardown) |
+| `--teardown` | No | with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) when the chain ends, whether it finished or stopped, so no container idles out its scaledown window or a min_containers floor |
 
 ### `sandbox watch`
 

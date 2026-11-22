@@ -1424,11 +1424,36 @@ def _run_parser(sub, shared):
     suite_p.add_argument(
         "--execute",
         action="store_true",
-        help="chain preflight+start --watch for each config (no teardown)",
+        help="chain preflight+start --watch for each config (no teardown unless --teardown)",
+    )
+    suite_p.add_argument(
+        "--teardown",
+        action="store_true",
+        help="with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) "
+             "when the chain ends, whether it finished or stopped, so no container idles out "
+             "its scaledown window or a min_containers floor",
     )
     suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
     return common
+
+
+def _suite_teardown(suite: Any) -> int:
+    """Stop and verify every Modal app the suite's configs serve from (deploy/teardown_vllm.sh)."""
+    from mailroom_sandbox.job.spec import load_run_spec
+    from mailroom_sandbox.paths import repo_root
+
+    apps = sorted({spec.engine.modal.app for spec in map(load_run_spec, suite.configs)
+                   if spec.engine.modal is not None})
+    rc = 0
+    for app in apps:
+        proc = subprocess.run(["bash", str(repo_root() / "deploy" / "teardown_vllm.sh"), app],
+                              cwd=repo_root(), check=False)
+        if proc.returncode != 0:
+            print(f"error: teardown of {app} failed (rc={proc.returncode}); stop it by hand",
+                  file=sys.stderr)
+            rc = proc.returncode
+    return rc
 
 
 def _agent_models(args: argparse.Namespace) -> dict[str, str]:
@@ -3586,6 +3611,11 @@ def _cmd_run_suite(args) -> int:
                 ns.live = True
             rc = _cmd_run_start(ns)
             if rc != 0:
+                if getattr(args, "teardown", False) and not getattr(args, "dry_run", False):
+                    print(f"error: suite stopped after {cfg} (rc={rc}); tearing the app down",
+                          file=sys.stderr)
+                    _suite_teardown(suite)
+                    return rc
                 print(
                     f"error: suite stopped after {cfg} (rc={rc}); "
                     "app left warm — fix and resume, or teardown manually",
@@ -3594,6 +3624,9 @@ def _cmd_run_suite(args) -> int:
                 return rc
         if getattr(args, "dry_run", False):
             print(f"suite {suite.suite_id} planned — no jobs executed")
+        elif getattr(args, "teardown", False):
+            print(f"suite {suite.suite_id} complete — tearing the app down")
+            return _suite_teardown(suite)
         else:
             print(f"suite {suite.suite_id} complete — teardown with ./deploy/teardown_vllm.sh (do not teardown between configs)")
         return 0

@@ -9,11 +9,11 @@ from mailroom_sandbox.job import runner
 from mailroom_sandbox.job.spec import DatasetSpec, RunSpec
 
 
-def _prepped_store(tmp_path, rows=4, run_id="run-r1", job=None):
+def _prepped_store(tmp_path, rows=4, run_id="run-r1", job=None, texts=None):
     path = tmp_path / "f.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(rows):
-            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": f"t{i}", "expected": "contract" if i % 2 else "insurance_claim", "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
+            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": texts[i] if texts else f"t{i}", "expected": "contract" if i % 2 else "insurance_claim", "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
     spec = RunSpec(
         run_id=run_id,
         task="sorter",
@@ -327,6 +327,33 @@ def test_run_job_concurrent_completes_all_rows_once(tmp_path):
     items = store.load_items()
     assert sorted(i["index"] for i in items) == list(range(8))
     assert summary["scores"]["exact_match"] == 1.0
+
+
+@pytest.mark.parametrize(("longest_first", "order"), [(False, ["d0", "d1", "d2", "d3"]),
+                                                     (True, ["d2", "d0", "d3", "d1"])])
+def test_longest_first_changes_only_the_dispatch_order(tmp_path, monkeypatch, longest_first, order):
+    texts = ["x" * 30, "x" * 5, "x" * 90, "x" * 30]
+    store = _prepped_store(tmp_path, rows=4, texts=texts,
+                           job={"mock": True, "concurrency": 1, "longest_first": longest_first})
+    seen = []
+    real = runner._predict_row
+
+    def _spy(task, row, **kwargs):
+        seen.append(row["id"])
+        return real(task, row, **kwargs)
+
+    monkeypatch.setattr(runner, "_predict_row", _spy)
+    assert runner.run_job(store, mock=None)["state"] == "done"
+    assert seen == order  # equal lengths (d0, d3) keep the drawn order
+    assert {i["item_id"]: i["index"] for i in store.load_items()} == {"d0": 0, "d1": 1, "d2": 2, "d3": 3}
+
+
+def test_longest_first_is_hashed_only_when_set():
+    base = dict(run_id="h", task="sorter", dataset=DatasetSpec(local_path="file:///x.jsonl"),
+                engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"})
+    off = RunSpec(**base, job={"mock": True}).spec_hash()
+    assert RunSpec(**base, job={"mock": True, "longest_first": False}).spec_hash() == off
+    assert RunSpec(**base, job={"mock": True, "longest_first": True}).spec_hash() != off
 
 
 def test_run_job_concurrent_max_items_leaves_running_and_resumes(tmp_path):
