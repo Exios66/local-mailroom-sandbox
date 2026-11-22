@@ -164,11 +164,12 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
     """Lowest first-pass confidence above which every scored document met ``target``.
 
     Documents at or above the suggestion could skip the judge without archiving
-    a below-target extraction in this sample. Fewer than ``MIN_DOCS`` scored
+    a below-target extraction in this sample. A retried extraction is left out: its
+    score is the retry's, not the first pass's. Fewer than ``MIN_DOCS`` scored
     documents with a recorded confidence gives no suggestion.
     """
-    pairs = sorted((conf, d["quality"]) for d in docs
-                   if (conf := _first_confidence(d)) is not None and d["quality"] is not None)
+    pairs = sorted((conf, quality) for d in docs
+                   if (conf := _first_confidence(d)) is not None and (quality := _first_pass_quality(d)) is not None)
     if len(pairs) < MIN_DOCS:
         return {"suggestion": None, "basis": f"{len(pairs)} scored document(s) with a recorded extraction_confidence; need {MIN_DOCS}"}
     for i, (conf, _) in enumerate(pairs):
@@ -190,8 +191,17 @@ def _first_confidence(doc: Mapping[str, Any]) -> float | None:
     return _number(confidences[0]) if confidences else None
 
 
+def _first_pass_quality(doc: Mapping[str, Any]) -> float | None:
+    """Quality of the first extraction, or None when a retry replaced it.
+
+    A retried document's score belongs to the retry. Pairing it with the first
+    confidence would credit a skipped judge with a retry that would never have run.
+    """
+    return None if len(doc.get("extraction_confidence") or []) > 1 else _number(doc.get("quality"))
+
+
 def _quality_above(doc: Mapping[str, Any], threshold: float) -> float | None:
-    confidence, quality = _first_confidence(doc), _number(doc.get("quality"))
+    confidence, quality = _first_confidence(doc), _first_pass_quality(doc)
     if confidence is None or quality is None or confidence < threshold:
         return None
     return quality

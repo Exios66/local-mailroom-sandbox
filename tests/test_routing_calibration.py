@@ -215,6 +215,15 @@ def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     assert empty["n"] == 0 and empty["rate"] is None
 
 
+def test_a_retried_extraction_never_vouches_for_its_first_confidence():
+    # First pass 0.95 confident, judged partial, retried to 0.9 quality. Skipping the judge at
+    # 0.95 would have archived the first pass, so the retry's score cannot count for it.
+    clean = [{"extraction_confidence": [c], "quality": 0.9} for c in (0.91, 0.92, 0.93, 0.94, 0.96)]
+    retried = {"extraction_confidence": [0.95, 0.6], "quality": 0.9}
+    assert routing_audit.above_band_quality([*clean, retried], 0.9, target=0.7)["n"] == 5
+    assert routing_audit.suggest_judge_band_high([*clean, retried], target=0.7)["of"] == 5
+
+
 def test_window_rules_rank_each_merge_rule_against_quality():
     def doc(windows, quality):
         return {"windows": windows, "quality": quality}

@@ -1,8 +1,8 @@
 # #214 merge-rule comparison — contracts · n=30 · 1×L4 · client concurrency 16.
 # Question: which chunk-merge confidence (weakest window, strongest window, length-weighted)
 # best separates contracts that met the quality target from those that missed it. HF-008
-# records each window's confidence and length; `sandbox run routing-audit` reports the
-# per-rule AUROC under window_rules. The adopted rule stays the weakest window either way.
+# records each window's confidence and length; `sandbox run routing --run-id <run_id>`
+# reports the per-rule AUROC under window_rules. The adopted rule stays the weakest window either way.
 # Chunking runs only here, on Modal vLLM: Qwen3-8B-AWQ's 32k-token L4 window cannot hold a
 # long contract. OpenRouter routes never chunk (HF-009/HF-010).
 #   engine  = SAND-042 1×L4 engine with scale-to-zero (min_containers 0) and client concurrency

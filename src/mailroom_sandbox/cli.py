@@ -1460,8 +1460,9 @@ def _run_parser(sub, shared):
         "--teardown",
         action="store_true",
         help="with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) "
-             "when the chain ends, whether it finished or stopped, so no container idles out "
-             "its scaledown window or a min_containers floor",
+             "when the chain ends: finished, failed or interrupted (Ctrl+C), so no container "
+             "idles out its scaledown window or a min_containers floor. A killed process "
+             "(SIGKILL) cannot clean up; run the script by hand then",
     )
     suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
@@ -3626,40 +3627,47 @@ def _cmd_run_suite(args) -> int:
         return 0
 
     if getattr(args, "execute", False):
-        # Chain each config via the existing start path (no teardown).
+        # Chain each config via the existing start path; with --teardown the app is stopped
+        # from a finally block, so an error or Ctrl+C mid-chain still tears it down.
         mode = getattr(args, "mode", None) or "endpoint"
-        for cfg in suite.configs:
-            print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
-            ns = argparse.Namespace(**vars(args))
-            ns.config = str(cfg)
-            ns.suite = None
-            ns.mode = mode
-            ns.watch = True
-            ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
-            # Prefer live when execute unless mock/offline explicitly set.
-            if not getattr(args, "mock", None) and not getattr(args, "offline", False):
-                ns.live = True
-            rc = _cmd_run_start(ns)
-            if rc != 0:
-                if getattr(args, "teardown", False) and not getattr(args, "dry_run", False):
-                    print(f"error: suite stopped after {cfg} (rc={rc}); tearing the app down",
-                          file=sys.stderr)
-                    _suite_teardown(suite)
+        teardown = getattr(args, "teardown", False) and not getattr(args, "dry_run", False)
+        rc = 0
+        try:
+            for cfg in suite.configs:
+                print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
+                ns = argparse.Namespace(**vars(args))
+                ns.config = str(cfg)
+                ns.suite = None
+                ns.mode = mode
+                ns.watch = True
+                ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
+                # Prefer live when execute unless mock/offline explicitly set.
+                if not getattr(args, "mock", None) and not getattr(args, "offline", False):
+                    ns.live = True
+                rc = _cmd_run_start(ns)
+                if rc != 0:
+                    print(
+                        f"error: suite stopped after {cfg} (rc={rc}); "
+                        + ("tearing the app down" if teardown
+                           else "app left warm — fix and resume, or teardown manually"),
+                        file=sys.stderr,
+                    )
                     return rc
-                print(
-                    f"error: suite stopped after {cfg} (rc={rc}); "
-                    "app left warm — fix and resume, or teardown manually",
-                    file=sys.stderr,
-                )
-                return rc
+        except BaseException:
+            if teardown:
+                print(f"error: suite {suite.suite_id} interrupted; tearing the app down", file=sys.stderr)
+            raise
+        finally:
+            if teardown:
+                torn = _suite_teardown(suite)
+                rc = rc or torn
         if getattr(args, "dry_run", False):
             print(f"suite {suite.suite_id} planned — no jobs executed")
-        elif getattr(args, "teardown", False):
-            print(f"suite {suite.suite_id} complete — tearing the app down")
-            return _suite_teardown(suite)
+        elif teardown:
+            print(f"suite {suite.suite_id} complete — app torn down")
         else:
             print(f"suite {suite.suite_id} complete — teardown with ./deploy/teardown_vllm.sh (do not teardown between configs)")
-        return 0
+        return rc
 
     if getattr(args, "json", False):
         _print(

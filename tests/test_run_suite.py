@@ -208,6 +208,23 @@ def test_execute_with_teardown_stops_the_app_whether_the_chain_finished_or_stopp
     assert stopped == ["sandbox-vllm"]  # exactly one teardown of the shared app
 
 
+def test_execute_with_teardown_stops_the_app_when_the_operator_interrupts(monkeypatch):
+    import subprocess as sp
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.cli import main
+
+    def interrupted(ns):
+        raise KeyboardInterrupt  # Ctrl+C while _watch_remote follows a remote leg
+
+    stopped = []
+    monkeypatch.setattr(cli, "_cmd_run_start", interrupted)
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: stopped.append(cmd[-1]) or sp.CompletedProcess(cmd, 0))
+    with pytest.raises(KeyboardInterrupt):
+        main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"])
+    assert stopped == ["sandbox-vllm"]  # torn down, then the interrupt still propagates
+
+
 def test_execute_without_teardown_leaves_the_app_alone(monkeypatch):
     import subprocess as sp
 

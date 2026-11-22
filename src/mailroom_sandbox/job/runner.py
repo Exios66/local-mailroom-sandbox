@@ -260,6 +260,7 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     api_budget = _api_budget(store)
+    longest_first = bool(_task_defaults(store).get("longest_first"))
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
     gpu_fleet = _lock_fleet(store)
@@ -318,6 +319,7 @@ def _run_whole_run(
             rows=rows,
             cold_boot_seconds=cold_boot_seconds,
             concurrency=concurrency,
+            longest_first=longest_first,
             max_wall_seconds=max_wall,
             cost_cap_usd=cost_cap,
             api_budget=api_budget,
@@ -394,6 +396,7 @@ def _run_whole_run(
                 rows=locked_rows,
                 cold_boot_seconds=cold_boot_seconds,
                 concurrency=concurrency,
+                longest_first=longest_first,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 api_budget=api_budget,
@@ -413,6 +416,7 @@ def _run_whole_run(
                 rows=locked_rows,
                 cold_boot_seconds=cold_boot_seconds,
                 concurrency=concurrency,
+                longest_first=longest_first,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 api_budget=api_budget,
