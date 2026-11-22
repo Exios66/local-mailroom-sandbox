@@ -88,7 +88,7 @@ def test_posture_context_fit_and_invariants():
             or run_id in GRID_RUNS
             or run_id.startswith("sand40-")
             or run_id in SAND42_RUNS
-            or run_id.startswith("sand42-")
+            or run_id.startswith(("sand42-", "sand214-"))
         ):
             # SAND-032 / grid / SAND-040 / SAND-042 rows scale the band per replica /
             # max_num_seqs (SAND-042 runs C8 and C16 on 1 and 2 GPUs); validate_mapping
@@ -284,6 +284,8 @@ def test_run_yamls_match_posture(monkeypatch):
             continue  # SAND-037 grid and SAND-040 cells have their own engine gates
         if run_id in SAND42_RUNS or run_id.startswith("sand42-"):
             continue  # SAND-042 cells: tests/test_sand42_grid.py pins every one
+        if run_id.startswith("sand214-"):
+            continue  # #214 calibration runs: tests/test_sand214_windows.py pins both
         if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
             # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
             spec = load_run_spec(_cfg(run_id))

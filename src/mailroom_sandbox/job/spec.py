@@ -727,6 +727,11 @@ class JobSpec(BaseModel):
     # the repaired (interim / near-gold) labels score (mailroom_sandbox.schema_guide). Off by
     # default, so a baseline keeps the vendored descriptions; hashed only when set.
     schema_guide: bool = False
+    # Dispatch the longest documents first (by doc_text length). Rows are still recorded and
+    # scored by their drawn index, so only the request order changes: a chunked long document
+    # no longer starts last and runs alone while the rest of the batch sits idle on the GPU.
+    # Off by default; hashed only when set.
+    longest_first: bool = False
     # Preflight fails when a long-context reader is still on the short input budget.
     # Off by default, so a Modal run and every existing YAML keep their spec_hash.
     # OpenRouter experiment create turns it on. Hashed only when set.
@@ -1345,11 +1350,12 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide and
+        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first and
         # require_expanded_inputs are hashed only when set, so older YAMLs keep their hash.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
-                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "require_expanded_inputs") and value is False)
+                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
+                                    "require_expanded_inputs") and value is False)
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}

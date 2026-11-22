@@ -260,6 +260,7 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     api_budget = _api_budget(store)
+    longest_first = bool(_task_defaults(store).get("longest_first"))
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
     gpu_fleet = _lock_fleet(store)
@@ -318,6 +319,7 @@ def _run_whole_run(
             rows=rows,
             cold_boot_seconds=cold_boot_seconds,
             concurrency=concurrency,
+            longest_first=longest_first,
             max_wall_seconds=max_wall,
             cost_cap_usd=cost_cap,
             api_budget=api_budget,
@@ -394,6 +396,7 @@ def _run_whole_run(
                 rows=locked_rows,
                 cold_boot_seconds=cold_boot_seconds,
                 concurrency=concurrency,
+                longest_first=longest_first,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 api_budget=api_budget,
@@ -413,6 +416,7 @@ def _run_whole_run(
                 rows=locked_rows,
                 cold_boot_seconds=cold_boot_seconds,
                 concurrency=concurrency,
+                longest_first=longest_first,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 api_budget=api_budget,
@@ -1194,6 +1198,10 @@ def _run_job(
     total = len(rows)
     store.resume_cursor()
     pending = [i for i in range(len(rows)) if i not in completed]
+    if _task_defaults(store).get("longest_first"):
+        # Longest-processing-time-first: the long tail of a chunked run is its longest document
+        # running alone. Stable sort, so equal lengths keep the drawn order.
+        pending.sort(key=lambda i: -len(str(rows[i].get("doc_text") or "")))
     if max_items is not None:
         pending = pending[:max_items]
 

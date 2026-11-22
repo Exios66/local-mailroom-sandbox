@@ -9,14 +9,14 @@ from mailroom_sandbox.job import runner
 from mailroom_sandbox.job.spec import DatasetSpec, RunSpec
 
 
-def _prepped_store(tmp_path, rows=4, run_id="run-r1", job=None):
+def _prepped_store(tmp_path, rows=4, run_id="run-r1", job=None, texts=None, task="sorter"):
     path = tmp_path / "f.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(rows):
-            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": f"t{i}", "expected": "contract" if i % 2 else "insurance_claim", "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
+            fh.write(json.dumps({"id": f"d{i}", "filename": f"{i}.txt", "doc_text": texts[i] if texts else f"t{i}", "expected": "contract" if i % 2 else "insurance_claim", "expected_subclass": "service" if i % 2 else "auto"}) + "\n")
     spec = RunSpec(
         run_id=run_id,
-        task="sorter",
+        task=task,
         dataset=DatasetSpec(local_path=f"file://{path}", limit=rows),
         engine={"kind": "vllm-local", "modal": None},
         trace={"sink": "none"},
@@ -327,6 +327,85 @@ def test_run_job_concurrent_completes_all_rows_once(tmp_path):
     items = store.load_items()
     assert sorted(i["index"] for i in items) == list(range(8))
     assert summary["scores"]["exact_match"] == 1.0
+
+
+@pytest.mark.parametrize(("longest_first", "order"), [(False, ["d0", "d1", "d2", "d3"]),
+                                                     (True, ["d2", "d0", "d3", "d1"])])
+def test_longest_first_changes_only_the_dispatch_order(tmp_path, monkeypatch, longest_first, order):
+    texts = ["x" * 30, "x" * 5, "x" * 90, "x" * 30]
+    store = _prepped_store(tmp_path, rows=4, texts=texts,
+                           job={"mock": True, "concurrency": 1, "longest_first": longest_first})
+    seen = []
+    real = runner._predict_row
+
+    def _spy(task, row, **kwargs):
+        seen.append(row["id"])
+        return real(task, row, **kwargs)
+
+    monkeypatch.setattr(runner, "_predict_row", _spy)
+    assert runner.run_job(store, mock=None)["state"] == "done"
+    assert seen == order  # equal lengths (d0, d3) keep the drawn order
+    assert {i["item_id"]: i["index"] for i in store.load_items()} == {"d0": 0, "d1": 1, "d2": 2, "d3": 3}
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_bounded_scheduler_starts_rows_in_the_given_order(workers):
+    from mailroom_sandbox.eval.runners import _run_rows_bounded
+
+    started, recorded = [], {}
+    _run_rows_bounded(["a", "b", "c"], workers=workers, guard=lambda in_flight: None, order=[2, 0, 1],
+                      run_one=lambda i, row: started.append(i) or row,
+                      on_result=lambda i, out: recorded.__setitem__(i, out))
+    assert started[0] == 2 and sorted(started) == [0, 1, 2]
+    assert recorded == {0: "a", 1: "b", 2: "c"}  # results stay on their drawn index
+    with pytest.raises(ValueError):
+        _run_rows_bounded(["a"], workers=1, guard=lambda n: None, order=[0, 0],
+                          run_one=lambda i, row: row, on_result=lambda i, out: None)
+
+
+def test_isolated_eval_dispatches_the_longest_document_first(monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    seen = {}
+    real = eval_runners._run_rows_bounded
+
+    def _spy(rows, **kwargs):
+        seen["order"] = kwargs.get("order")
+        return real(rows, **kwargs)
+
+    monkeypatch.setattr(eval_runners, "_run_rows_bounded", _spy)
+    rows = [{"id": f"d{i}", "doc_text": "x" * n, "expected": "contract"} for i, n in enumerate((5, 90, 30))]
+    eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, longest_first=True)
+    assert seen["order"] == [1, 2, 0]
+    eval_runners.run_isolated_eval("sorter", rows=rows, mock=True)
+    assert seen["order"] is None
+
+
+@pytest.mark.parametrize("longest_first", [False, True])
+def test_a_whole_run_task_passes_longest_first_to_the_isolated_runner(tmp_path, monkeypatch, longest_first):
+    # Specialist tasks (the #214 merger and contracts runs) take the whole-run path, not the
+    # per-item scheduler; longest_first must reach it too.
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=2, task="isolated",
+                           job={"mock": True, "concurrency": 2, "longest_first": longest_first})
+    seen = {}
+
+    def _capture(agent, **kwargs):
+        seen.update(kwargs)
+        raise RuntimeError("stop after dispatch")
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", _capture)
+    runner.run_job(store, mock=None)  # the stub's error ends the run as failed, after dispatch
+    assert seen["longest_first"] is longest_first
+
+
+def test_longest_first_is_hashed_only_when_set():
+    base = dict(run_id="h", task="sorter", dataset=DatasetSpec(local_path="file:///x.jsonl"),
+                engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"})
+    off = RunSpec(**base, job={"mock": True}).spec_hash()
+    assert RunSpec(**base, job={"mock": True, "longest_first": False}).spec_hash() == off
+    assert RunSpec(**base, job={"mock": True, "longest_first": True}).spec_hash() != off
 
 
 def test_run_job_concurrent_max_items_leaves_running_and_resumes(tmp_path):

@@ -252,7 +252,7 @@ def _install_judge_above_band(module: Any, original: Callable[..., Any]) -> Call
 
 
 def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """Record each surviving window's confidence. The merged value stays the vendor's minimum."""
+    """Record each surviving window's confidence and character length. The merged value stays the vendor's minimum."""
 
     @functools.wraps(original)
     def merge_chunk_windows(windows: list[tuple[dict, str | None]], *, agent_name: str) -> dict | None:
@@ -260,13 +260,16 @@ def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> C
         if not isinstance(merged, dict):
             return merged
         recorded: list[float | None] = []
-        for result, _text in windows:
+        lengths: list[int | None] = []
+        for result, text in windows:
             value = result.get("confidence") if isinstance(result, dict) else None
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 recorded.append(None)
             else:
                 recorded.append(float(value))
+            lengths.append(len(text) if isinstance(text, str) else None)
         merged["_window_confidences"] = recorded
+        merged["_window_lengths"] = lengths
         return merged
 
     return merge_chunk_windows
@@ -351,8 +354,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="merge_chunk_windows",
         source_sha256="016b350d7e462b8e032fb17cbeb2a5c0b62825ff583bc09cd7045fe56fc14234",
         upstream="https://github.com/Exios66/llm-mailroom/issues/255",
-        summary="a chunked merge records each surviving window's confidence under "
-                "_window_confidences; the merged confidence stays the weakest window (#214)",
+        summary="a chunked merge records each surviving window's confidence and length under "
+                "_window_confidences and _window_lengths; the merged confidence stays the weakest window (#214)",
         install=_install_window_confidences,
     ),
 )

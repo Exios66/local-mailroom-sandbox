@@ -103,6 +103,15 @@ specialist evals inject this text (not vendor `SYSTEM_PROMPT` / Langfuse
 without a sanctioned eval-environment re-freeze (eval-environment issue #19
 tracks cross-repo alignment).
 
+The live production pins are separate from these frozen stems. `slice-0100`
+pins `corporate_records_specialist_condensed_v1`,
+`correspondence_specialist_condensed_v3`, and
+`insurance_claims_specialist_condensed_v3`, and each asks for confidence as the
+share of fields found. The frozen corporate simplified stem still says
+confidence is not a registered field. That sentence stays in the frozen file.
+Contracts and merger stay on the code-default schema, which registers
+`confidence`.
+
 **Re-freeze (dojo #30):** `correspondence_specialist_simplified` and
 `corporate_records_specialist_simplified` carry the corrected text the dojo shipped
 as `production_prompts` at the v0.22.0-era snapshot (eval-environment mutations

@@ -130,8 +130,12 @@ def _run_rows_bounded(
     run_one,
     on_result,
     guard,
+    order: list[int] | None = None,
 ) -> None:
     """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
+
+    ``order`` is the submission order of row indices (default: drawn order). It only
+    changes when each row starts; results are still recorded by their drawn index.
 
     Guards *before every new submission*: a tripped wall/cost cap must stop
     starting work immediately. An eager submit-all pool would keep burning GPU
@@ -143,8 +147,11 @@ def _run_rows_bounded(
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     n = len(rows)
+    queue = list(range(n)) if order is None else list(order)
+    if sorted(queue) != list(range(n)):
+        raise ValueError("order must be a permutation of the row indices")
     if workers <= 1:
-        for index in range(n):
+        for index in queue:
             guard(0)
             on_result(index, run_one(index, rows[index]))
         return
@@ -158,7 +165,7 @@ def _run_rows_bounded(
                 while nxt < n and len(futures) < workers:
                     if futures:
                         guard(len(futures))
-                    futures[pool.submit(run_one, nxt, rows[nxt])] = nxt
+                    futures[pool.submit(run_one, queue[nxt], rows[queue[nxt]])] = queue[nxt]
                     nxt += 1
                 if not futures:
                     break
@@ -287,8 +294,12 @@ def run_isolated_eval(
     gpu_fleet: list[tuple[str, int]] | None = None,
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
+    longest_first: bool = False,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``longest_first`` (``job.longest_first``) starts the longest ``doc_text`` first, so a
+    many-window document does not decode alone at the end; rows keep their drawn index.
 
     ``rows`` (DMR-056): when the caller passes the locked live dataset rows
     (the ``sandbox run`` whole-run path), score THOSE rows; otherwise fall
@@ -471,7 +482,9 @@ def run_isolated_eval(
             except Exception as exc:  # noqa: BLE001 — progress must never break a run
                 _log.warning("progress_cb raised — live progress may stall: %s", exc)
 
-    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard)
+    order = (sorted(range(len(rows)), key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
+             if longest_first else None)
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order)
 
     if rows and errors == len(rows):
         last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)

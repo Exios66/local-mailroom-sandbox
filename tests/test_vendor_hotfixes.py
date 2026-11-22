@@ -179,4 +179,5 @@ def test_hf008_records_each_window_and_keeps_the_weakest_confidence():
     merged = merge_chunk_windows(windows, agent_name="corporate_records_specialist")
     assert merged["confidence"] == 0.2
     assert merged["_window_confidences"] == [0.99, 0.2]
+    assert merged["_window_lengths"] == [5, 6]
     assert merged["entity_name"] == "First"
