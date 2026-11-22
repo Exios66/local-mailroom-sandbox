@@ -53,6 +53,9 @@ Built with `python -m mailroom_sandbox.window_figures` (house style, linted); ev
 
 ## Next experiments (configs committed, not started)
 
+Interpretation and the pipeline application of these results are recorded in
+[docs/sand214-window-learnings.md](../../../docs/sand214-window-learnings.md).
+
 1. **Window length on Modal**, suite `sand214-window-length`: r2's posture and documents with
    `chunk_chars` 28,000 and 16,000 at r2's overlap share. r2 is the 43,000 arm. That gives
    95, 139 and 235 windows reading about 3.75M characters in each arm. Compare paired scores,
