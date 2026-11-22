@@ -1,16 +1,21 @@
-# #214 merge-rule comparison — contracts · n=30 · 1×L4 · client concurrency 4.
+# #214 merge-rule comparison — contracts · n=30 · 1×L4 · client concurrency 16.
 # Question: which chunk-merge confidence (weakest window, strongest window, length-weighted)
 # best separates contracts that met the quality target from those that missed it. HF-008
 # records each window's confidence and length; `sandbox run routing-audit` reports the
 # per-rule AUROC under window_rules. The adopted rule stays the weakest window either way.
 # Chunking runs only here, on Modal vLLM: Qwen3-8B-AWQ's 32k-token L4 window cannot hold a
 # long contract. OpenRouter routes never chunk (HF-009/HF-010).
-#   engine  = SAND-042 1×L4 cell (sand42-50-contracts-specialist-awq-1l4-c8) with scale-to-zero
-#             (min_containers 0) and client concurrency 4, per `sandbox run benchmark-check`
-#   data    = 30 contracts longer than one window (one-window contracts excluded by id),
-#             ground truth required, seed 214 (not a SAND-042 or ladder seed)
+#   engine  = SAND-042 1×L4 engine with scale-to-zero (min_containers 0) and client concurrency
+#             16, the SAND-042 1L4-c16 cell: +23% contracts docs/min/GPU over c8, quality
+#             +0.005 [-0.024, 0.038]. Posture row SAND214_RUNS in job/specialist_posture.py.
+#   data    = runbook-v2 CALIBRATION split only (thresholds are fitted there, never on dev or
+#             held-out): 30 of its 43 scoreable contracts longer than one window, seed 214,
+#             mailroom-dataset ff4ca546 + interim and near-gold label overlays
+#   prompt  = contracts_specialist_v33_simplified, the deployed frontrunner (9.9k chars, the
+#             condensed form of v33's 32.8k); condensed_v1 is an unvalidated dev candidate
 #   posture = contract specialist posture: 43,000-char windows, 6,000 overlap
-#   spend   = cost_cap_usd 1.50 and 1 hour wall, inside the SAND-032 $5 budget (exios66)
+#   spend   = cost_cap_usd 1.00 and 1 hour wall (exios66). Rides one warm fleet with the merger
+#             run: config/runs/suites/sand214-windows.yaml, then ./deploy/teardown_vllm.sh
 schema: sandbox.run/v1
 run_id: sand214-30-contracts-specialist-awq-1l4-windows
 task: contracts_specialist
@@ -29,8 +34,8 @@ dataset:
   config: ground_truth
   split: all
   revision: ff4ca546d4346991628c2616ae014afc15e9fe04
-  # Only contracts longer than one 43,000-char window (225 of 600 at this revision).
-  exclude_ids_file: config/runs/sand214-one-window-contracts.txt
+  # Calibration-split contracts longer than one 43,000-char window (43 of the split's 105).
+  exclude_ids_file: config/runs/sand214-contracts-calibration.exclude.ids
   strata:
     buckets:
       - doc_class: contract
@@ -42,6 +47,9 @@ dataset:
   require_task_gt: true
   limit: 30
   sample_seed: 214
+  # Repaired labels the next dataset revision publishes (lock records both overlay sha256s).
+  interim_labels: true
+  near_gold_labels: true
 
 engine:
   kind: modal-vllm
@@ -77,8 +85,8 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 4
-  cost_cap_usd: 1.50
+  concurrency: 16
+  cost_cap_usd: 1.00
   max_wall_seconds: 3600
 
 trace:

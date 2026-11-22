@@ -1,0 +1,98 @@
+# #214 merge-rule comparison — merger agreements · n=30 · 1×L4 · client concurrency 16.
+# Same question as the contracts run (sand214-30-contracts-specialist-awq-1l4-windows): which
+# chunk-merge confidence (weakest window, strongest window, length-weighted) best separates
+# agreements that met the quality target from those that missed it. HF-008 records each
+# window's confidence and length; `sandbox run routing` reports the AUROC under window_rules.
+# Chunking runs only here, on Modal vLLM: a 268k-437k-char agreement cannot fit Qwen3-8B-AWQ's
+# 32k-token L4 window. OpenRouter routes never chunk (HF-009/HF-010).
+#   engine  = SAND-042 1×L4 engine, scale-to-zero, client concurrency 16 (SAND-042 1L4-c16:
+#             +14% merger docs/min/GPU over c8, MAUD accuracy +0.000 [-0.015, 0.015]).
+#             Posture row SAND214_RUNS in job/specialist_posture.py.
+#   data    = the 30 LONGEST of the 34 scoreable merger agreements in the runbook-v2
+#             CALIBRATION split (267,869-436,607 chars, mean 335,979; about 7 windows each),
+#             mailroom-dataset ff4ca546 + interim and near-gold label overlays
+#   prompt  = merger_agreement_specialist_maud_v2, the merger frontrunner: its answer catalog is
+#             generated from the scorer's own MAUD classes. The shorter simplified stem lists no
+#             answers and scored MAUD accuracy 0.027 on SAND-042 (docs/SAND42-SCHEMA-ADHERENCE-RCA.md),
+#             so it would make every agreement miss the target and the AUROC meaningless.
+#   posture = SAND-040/042 merger posture: 47,000-char windows, 6,500 overlap, 6,144 output cap,
+#             Qwen3 sampling (0.7 / 0.8 / 20 / presence 1.0), one length re-sample.
+#             Fit: a 53,500-char window at the measured 5.0 chars/token is ~10.7k tokens; plus
+#             the ~8-12k-token maud_v2 prompt and 6,144 output it stays under 32,768.
+#   spend   = cost_cap_usd 1.70 and 2 hour wall (the SAND-042 merger caps), exios66. Rides one
+#             warm fleet with the contracts run: config/runs/suites/sand214-windows.yaml.
+schema: sandbox.run/v1
+run_id: sand214-30-merger-specialist-awq-1l4-windows
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_maud_v2
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # Every merger agreement except the 30 longest scoreable calibration-split ones.
+  exclude_ids_file: config/runs/sand214-merger-calibration.exclude.ids
+  strata:
+    buckets:
+      - doc_class: merger_agreement
+        count: 30
+  require_task_gt: true
+  limit: 30
+  sample_seed: 214
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+# No agent_knobs block: like the SAND-042 merger cells, the generation knobs come from the
+# posture row (job/specialist_posture.py SAND214_RUNS), because a run spec cannot carry the
+# Qwen3 sampling keys (top_p / top_k / presence_penalty / length_retries).
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  # Longest documents first: the tail of a chunked run is no longer one long document
+  # decoding alone on a 16-slot engine. Results are still recorded by drawn index.
+  longest_first: true
+  cost_cap_usd: 1.70
+  max_wall_seconds: 7200
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand214
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, issue-214, window-merge-rules, merger]
