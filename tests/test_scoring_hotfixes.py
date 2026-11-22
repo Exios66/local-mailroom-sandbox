@@ -752,3 +752,11 @@ def test_decide_records_document_form_probabilities_without_changing_routing(mon
     assert out["abstained"] and "document_form:fragment_or_excerpt" in out["abstain_reasons"]  # still parks
     bare = _decide(monkeypatch, _v4_answers())  # no probabilities on the answer: nothing recorded
     assert "document_form_probabilities" not in bare and "document_form_human_mass" not in bare
+
+
+def test_changed_keys_names_every_moved_headline_including_the_field_f1_mean():
+    # An isolated specialist run merges aggregate_extraction raw and hotfixed by hand; a moved
+    # extraction_f1_mean must be listed as changed, or consumers miss the score change.
+    raw = {"extraction_f1_mean": 0.5556, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
+    fixed = {"extraction_f1_mean": 0.3333, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
+    assert sh.changed_keys(raw, fixed, fixed) == ["extraction_f1_mean"]

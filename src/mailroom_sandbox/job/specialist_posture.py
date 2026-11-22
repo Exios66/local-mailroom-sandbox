@@ -1356,14 +1356,27 @@ SAND214_RUNS: dict[str, tuple[str, str, float, int]] = {
         "merger_agreement", "merger_agreement_specialist_maud_v2", 1.70, 7200),
     "sand214-30-contracts-specialist-awq-1l4-windows-r2": (
         "contract", "contracts_specialist_v33_simplified", 1.00, 3600),
+    # Window-length arms: r2's draw and posture, smaller windows (suite sand214-window-length).
+    "sand214-30-contracts-specialist-awq-1l4-windows-c28k": (
+        "contract", "contracts_specialist_v33_simplified", 1.00, 3600),
+    "sand214-30-contracts-specialist-awq-1l4-windows-c16k": (
+        "contract", "contracts_specialist_v33_simplified", 1.00, 3600),
 }
 # r1 contracts lost a window on 5 of 30 documents to a decode that ran to the 8,192 cap
 # (chunk_call_failed). r2 adds the Qwen3 sampling and one length re-sample merger runs with;
 # decode stays 8,192 so a long but legitimate window is not cut.
 SAND214_LENGTH_FIX: dict[str, Any] = {k: SAND40_OPTIMIZED_KNOBS[k] for k in
                                       ("top_p", "top_k", "presence_penalty", "length_retries")}
+# Window length: r2 runs 43,000-char windows with a 6,000-char overlap (14%). The arms keep
+# that overlap share so only the window length moves; r2 is the 43k arm. Shorter windows
+# mean more calls per document, each with less text to read and a shorter decode.
+SAND214_WINDOW_ARMS: dict[str, dict[str, int]] = {
+    "sand214-30-contracts-specialist-awq-1l4-windows-c28k": {"chunk_chars": 28000, "overlap_chars": 3900},
+    "sand214-30-contracts-specialist-awq-1l4-windows-c16k": {"chunk_chars": 16000, "overlap_chars": 2200},
+}
 SAND214_EXTRA_KNOBS: dict[str, dict[str, Any]] = {
     "sand214-30-contracts-specialist-awq-1l4-windows-r2": SAND214_LENGTH_FIX,
+    **{rid: {**SAND214_LENGTH_FIX, **arm} for rid, arm in SAND214_WINDOW_ARMS.items()},
 }
 for _rid, (_cls, _prompt, _cap, _wall) in SAND214_RUNS.items():
     SPECIALIST_POSTURE[_rid] = {
@@ -1376,6 +1389,8 @@ for _rid, (_cls, _prompt, _cap, _wall) in SAND214_RUNS.items():
             "#214 window merge-rule calibration: SAND-042 1L4-c16 posture, n=30 "
             "multi-window documents from the runbook-v2 calibration split"
             + (" — r2: Qwen3 sampling + one length re-sample" if _rid in SAND214_EXTRA_KNOBS else "")
+            + (f" — window-length arm: {SAND214_WINDOW_ARMS[_rid]['chunk_chars']:,}-char windows"
+               if _rid in SAND214_WINDOW_ARMS else "")
         ),
     }
     SPECIALIST_LIMIT_BY_RUN[_rid] = 30

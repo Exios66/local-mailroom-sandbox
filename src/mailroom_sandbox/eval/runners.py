@@ -509,6 +509,8 @@ def run_isolated_eval(
         raw_extraction = sh.aggregate_extraction(sh.raw_rows(fixed_rows))
         scores.update(extraction)
         scores["raw_dojo"].update({k: raw_extraction.get(k) for k in extraction})
+        scores["scoring_hotfixes_changed"] = sorted({*scores.get("scoring_hotfixes_changed", []),
+                                                     *sh.changed_keys(raw_extraction, extraction, extraction)})
     if task in scoring.SORTER_SUBCLASS_TASKS:
         _merge_subclass_headline(scores, scoring.sorter_subclass_scores(list(zip(rows, per_row))))
     schema_rows = [

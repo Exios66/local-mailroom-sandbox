@@ -69,3 +69,9 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-17T16:52:26Z | JJB | start | ar-mailroom-v2-r06-ins-prompt-v4 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r06-ins-prompt-v4.yaml | eae22df4913b | 75 | 3.0 | ✓ |
 | 2026-11-17T16:54:03Z | JJB | start | ar-mailroom-v2-r07-extraction-gate-v1.3.0 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r07-extraction-gate-v1.3.0.yaml | 3626a56387a3 | 75 | 3.0 | ✗ |
 | 2026-11-19T04:59:13Z | JJB | start | rb1-r01-smoke-qwen3.7-flash | config/runs/rb1-r01-smoke-qwen3.7-flash.yaml | 8ba05f572500 | 10 | 0.09 | ✗ |
+| 2026-11-22T03:46:07Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows | config/runs/sand214-30-contracts-specialist-awq-1l4-windows.yaml | 38603971f1e3 | 30 | - | ✓ |
+| 2026-11-22T04:10:57Z | JJB | start | sand214-30-merger-specialist-awq-1l4-windows | config/runs/sand214-30-merger-specialist-awq-1l4-windows.yaml | 3bad2758de0c | 30 | - | ✓ |
+| 2026-11-22T04:51:44Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-r2 | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-r2.yaml | c75f8e4e2793 | 30 | - | ✓ |
+| 2026-11-22T18:12:57Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |
+| 2026-11-22T18:13:27Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |
+| 2026-11-22T18:14:26Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |

@@ -1,0 +1,24 @@
+# #214 window length — two contracts arms (28k, 16k chars) on ONE warm 1×L4 fleet. r2
+# (43k) is the third arm and is not re-run. Both configs carry r2's serving block, so the
+# pair shares one deploy and one cold boot as long as the 16k leg starts within the 120 s
+# scaledown window (min_containers 0); a longer gap re-boots once, never re-deploys. The
+# 28k arm goes first: it is the cheaper of the two.
+#
+# Activate: modal profile activate exios66
+# Check:    sandbox run benchmark-check --suite sand214-window-length --modal-profile exios66
+# Chain:    sandbox run suite --suite sand214-window-length --execute --teardown --initials <XX>
+#           (--teardown stops the app when the chain finishes, fails or is interrupted)
+schema: sandbox.suite/v1
+suite_id: sand214-window-length
+track: a
+title: "#214 window length — contracts 28k and 16k windows vs r2's 43k, calibration split (1×L4, c16)"
+rationale: |
+  Fixes the Modal/vLLM chunk window on paired documents: r2 is the 43k arm, these are
+  28k and 16k with the same overlap share. Scale-to-zero bounds idle spend if a leg stops.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+modal_profile_default: exios66
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml
+  - config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c16k.yaml

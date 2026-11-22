@@ -14,6 +14,7 @@ readable by the scorecard command.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -86,6 +87,15 @@ def _dated_reports_root(store: RunStore, root: Path) -> Path:
     return root / "reports" / report_folder(prefix) if prefix else root / "reports"
 
 
+_RERUN = re.compile(r"(?:-(?:retry|r\d+|c\d+k))+$")
+
+
+def _rerun_suffix(run_id: str) -> str:
+    """``-RETRY`` / ``-R2`` / ``-C16K`` for a rerun or arm of the same cell (every trailing tag, so ``-c28k-r2`` is ``-C28K-R2``), so it never overwrites the first run's report."""
+    match = _RERUN.search(run_id)
+    return match.group(0).upper() if match else ""
+
+
 def cell_stem(store: RunStore, *, lock: Mapping[str, Any] | None = None) -> tuple[str, str] | None:
     """Return ``(specialist_dir, filename_stem)`` or None if not a specialist cell."""
     lock = lock if lock is not None else (store.read_lock() or {})
@@ -103,7 +113,7 @@ def cell_stem(store: RunStore, *, lock: Mapping[str, Any] | None = None) -> tupl
     model = str((engine or {}).get("model") or "")
     short = _STEM_SHORT[folder]
     run_id = str(lock.get("run_id") or getattr(store, "run_id", "") or "")
-    suffix = "-RETRY" if run_id.endswith("-retry") else ""
+    suffix = _rerun_suffix(run_id)
     stem = f"RUN-{n}-{short}-{_quant_tag(model)}-{replicas}L4-C{conc}{suffix}"
     return folder, stem
 

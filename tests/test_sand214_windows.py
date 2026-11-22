@@ -22,6 +22,8 @@ RUNS = {
     "sand214-30-contracts-specialist-awq-1l4-windows": "contract",
     "sand214-30-merger-specialist-awq-1l4-windows": "merger_agreement",
     "sand214-30-contracts-specialist-awq-1l4-windows-r2": "contract",
+    "sand214-30-contracts-specialist-awq-1l4-windows-c28k": "contract",
+    "sand214-30-contracts-specialist-awq-1l4-windows-c16k": "contract",
 }
 SUITE = ["sand214-30-contracts-specialist-awq-1l4-windows", "sand214-30-merger-specialist-awq-1l4-windows"]
 
@@ -108,3 +110,48 @@ def test_contracts_r2_pairs_with_r1_and_carries_the_length_fix():
     assert {k: v for k, v in knobs.items() if k not in posture.SAND214_LENGTH_FIX} == r1.agent_knobs[
         "contracts_specialist"]
     assert r2.job.longest_first and not benchmark_check.chunked_window_warnings(r2)
+
+
+@pytest.mark.parametrize(("arm", "chunk"), [("c28k", 28000), ("c16k", 16000)])
+def test_a_window_length_arm_pairs_with_r2_and_moves_only_the_window(arm, chunk):
+    r2 = _spec("sand214-30-contracts-specialist-awq-1l4-windows-r2")
+    spec = _spec(f"sand214-30-contracts-specialist-awq-1l4-windows-{arm}")
+    for key in ("revision", "exclude_ids_file", "strata", "sample_seed", "limit", "require_task_gt",
+                "interim_labels", "near_gold_labels"):
+        assert getattr(r2.dataset, key) == getattr(spec.dataset, key), key
+    assert r2.prompt == spec.prompt and deploy_env.spec_env(r2) == deploy_env.spec_env(spec)
+    base = posture.agent_knobs_for_run(r2.run_id)["contracts_specialist"]
+    knobs = posture.agent_knobs_for_run(spec.run_id)["contracts_specialist"]
+    assert {k for k in knobs if knobs[k] != base.get(k)} == {"chunk_chars", "overlap_chars"}
+    assert knobs["chunk_chars"] == chunk
+    # Same overlap share as r2 (6,000 / 43,000), within a percentage point.
+    assert abs(knobs["overlap_chars"] / chunk - base["overlap_chars"] / base["chunk_chars"]) < 0.01
+    assert spec.job.longest_first and not benchmark_check.chunked_window_warnings(spec)
+
+
+def test_window_length_suite_serves_both_arms_from_one_deploy():
+    suite = load_suite("sand214-window-length")
+    specs = [load_run_spec(p) for p in suite.configs]
+    assert [s.run_id.rsplit("-", 1)[1] for s in specs] == ["c28k", "c16k"]
+    assert deploy_env.spec_env(specs[0]) == deploy_env.spec_env(specs[1])
+
+
+def test_threshold_calibration_runs_production_on_the_calibration_split_and_judges_every_class():
+    spec = load_run_spec(repo_root() / "config/runs/sand214-pipeline-150-calibration-judge-all.yaml")
+    prod = load_run_spec(repo_root() / "config/runs/production/slice-0100.yaml")
+    excluded = {s.strip() for s in spec.dataset.exclude_ids_path().read_text().splitlines()
+                if s.strip() and not s.startswith("#")}
+    rows = [json.loads(line) for line in
+            (repo_root() / "config/splits/runbook-v2/assignments.jsonl").read_text().splitlines()]
+    assert excluded == {r["id"] for r in rows if r["set"] != "calibration"}
+    counts = {b["doc_class"]: b["count"] for b in spec.dataset.strata["buckets"]}
+    assert counts == dict.fromkeys(("contract", "corporate_record", "correspondence", "insurance_claim",
+                                    "merger_agreement"), 30)
+    by_class = spec.confidence["by_class"]
+    assert set(by_class) == set(counts) and all(b["judge_band_high"] == 1.01 for b in by_class.values())
+    assert all("low" not in b for b in by_class.values())  # low also gates the sorter
+    # Everything else is the production gate's adopted configuration.
+    assert (spec.prompt, spec.engine, spec.agent_routes, spec.agent_knobs, spec.reviewer) == (
+        prod.prompt, prod.engine, prod.agent_routes, prod.agent_knobs, prod.reviewer)
+    assert spec.dataset.staged_overlay == prod.dataset.staged_overlay and spec.job.blind_routing
+    assert spec.job.api_cost_cap_usd and spec.job.max_wall_seconds
