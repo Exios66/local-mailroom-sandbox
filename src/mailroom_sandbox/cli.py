@@ -1462,11 +1462,12 @@ def _run_parser(sub, shared):
     suite_p.add_argument(
         "--teardown",
         action="store_true",
-        help="with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) "
+        help="with --execute: stop and verify every distinct Modal app referenced by the suite's "
+             "non-mock configs (deploy/teardown_vllm.sh) "
              "when the chain ends: finished, failed or interrupted (Ctrl+C), so no container "
              "idles out its scaledown window or a min_containers floor. A killed process "
              "(SIGKILL) cannot clean up; run the script by hand then. Ignored with --mock, "
-             "--offline or --dry-run. Use only when no other run shares the app",
+             "--offline or --dry-run. Use only when no other run shares any targeted app",
     )
     suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)

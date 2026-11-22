@@ -1406,7 +1406,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--check` | No | run benchmark-check on every config in the suite |
 | `--print-loop` | No | print bash preflight+start loop only |
 | `--execute` | No | chain preflight+start --watch for each config (no teardown unless --teardown) |
-| `--teardown` | No | with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) when the chain ends: finished, failed or interrupted (Ctrl+C), so no container idles out its scaledown window or a min_containers floor. A killed process (SIGKILL) cannot clean up; run the script by hand then. Ignored with --mock, --offline or --dry-run. Use only when no other run shares the app |
+| `--teardown` | No | with --execute: stop and verify every distinct Modal app referenced by the suite's non-mock configs (deploy/teardown_vllm.sh) when the chain ends: finished, failed or interrupted (Ctrl+C), so no container idles out its scaledown window or a min_containers floor. A killed process (SIGKILL) cannot clean up; run the script by hand then. Ignored with --mock, --offline or --dry-run. Use only when no other run shares any targeted app |
 
 ### `sandbox watch`
 
