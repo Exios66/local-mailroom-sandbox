@@ -48,6 +48,31 @@ def test_a_ranking_with_too_few_misses_says_so():
     assert _title(figs["window-rules"]).startswith("Too few documents")
 
 
+def test_an_agreement_best_title_names_agreement_not_a_merge_rule():
+    # Agreement is the unique top AUROC (1.0) while all three confidence merge
+    # rules sit at chance: the title must name agreement, never RULE_LABELS
+    # (CodeAnt + CodeRabbit, #402 — the KeyError regression).
+    cand = [_doc(i, 0.9, confidence=0.8) for i in range(6)] + [_doc(i, 0.2, confidence=0.8) for i in range(6, 12)]
+    for i, d in enumerate(cand):
+        d["window_agreement"] = 1.0 if d["quality"] >= 0.7 else 0.2
+    figs, _ = wf.build([("A", cand), ("B", cand)], base="A", cand="B", source="Source: fixture")
+    assert _title(figs["window-rules"]) == (
+        "Cross-window agreement separates good from poor documents best (AUROC 1.00)")
+
+
+def test_an_agreement_row_plots_only_when_recorded():
+    # Without a recorded agreement the figure keeps its three merge-rule rows;
+    # with one, a fourth row appears and every label resolves.
+    cand = [_doc(i, 0.9 if i < 6 else 0.2) for i in range(12)]
+    base_figs, _ = wf.build([("A", cand), ("B", cand)], base="A", cand="B", source="Source: fixture")
+    assert "Cross-window agreement" not in base_figs["window-rules"]
+    for d in cand:
+        d["window_agreement"] = 0.9
+    ag_figs, _ = wf.build([("A", cand), ("B", cand)], base="A", cand="B", source="Source: fixture")
+    assert "Cross-window agreement" in ag_figs["window-rules"]
+    assert all(fs.lint_svg(svg) == [] for svg in ag_figs.values())
+
+
 def test_load_run_reads_quality_confidence_and_windows_from_an_isolated_run(tmp_path):
     (tmp_path / "dataset.jsonl").write_text(json.dumps({"id": "d1", "expected_doc_class": "contract",
                                                          "doc_text": "x" * 10}) + "\n")

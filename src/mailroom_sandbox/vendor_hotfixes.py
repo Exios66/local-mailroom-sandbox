@@ -331,20 +331,23 @@ def cross_window_agreement(windows: list[tuple[dict, str | None]]) -> dict[str, 
     results = [result for result, _text in windows if isinstance(result, dict)]
     if len(results) < 2:
         return {"agreement": None, "fields": 0, "conflicts": 0}
-    keys = set(results[0])
-    for result in results[1:]:
-        keys &= set(result)
+    # Per-key presence, not the all-window key intersection: a field asserted by
+    # two of three windows is comparable even when a third window lacks the key
+    # entirely (CodeRabbit, #402). With normalize fills every window carries
+    # every key, so `_asserts` decides comparability either way.
+    candidate = set()
+    for result in results:
+        candidate |= {k for k in result
+                      if not str(k).startswith("_") and k not in ("confidence", "reasoning")}
     # Underscore keys are merge bookkeeping; `confidence` is the per-window
     # self-report and `reasoning` the per-field trace this measure replaces —
     # none is asserted content.
-    comparable = sorted(k for k in keys
-                        if not str(k).startswith("_") and k not in ("confidence", "reasoning"))
-    if not comparable:
+    if not candidate:
         return {"agreement": None, "fields": 0, "conflicts": 0}
     scores: list[float] = []
     conflicts = 0
-    for key in comparable:
-        values = [result.get(key) for result in results]
+    for key in sorted(candidate):
+        values = [result[key] for result in results if key in result]
         pairwise = [_pair_agreement(a, b) for i, a in enumerate(values) for b in values[i + 1:]
                     if _asserts(a) and _asserts(b)]
         if not pairwise:

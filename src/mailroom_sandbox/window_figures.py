@@ -34,6 +34,11 @@ from mailroom_sandbox.job import routing_audit as ra
 TARGET = ra.DEFAULT_TARGET
 FEW = 5  # below this many documents on either side of the target, a ranking is too few to judge
 RULE_LABELS = {"min": "Weakest window (adopted)", "max": "Strongest window", "length_weighted": "Length-weighted mean"}
+# Doc-level cross-window agreement (HF-008 `_window_agreement`) is not a
+# confidence merge rule: it gets its own plotted row and title label, so a
+# best-AUROC selection that lands on it never indexes RULE_LABELS.
+AGREEMENT_KEY = "agreement"
+AGREEMENT_LABEL = "Cross-window agreement"
 CONFIDENCE_SPLIT = 0.85
 FOLD_WINDOWS = 5  # documents needing this many windows or more share a row
 
@@ -118,16 +123,26 @@ def _window_rules(f: fs.Fig, runs: Sequence[tuple[str, list[dict[str, Any]], str
     values = [v for _, sep, _ in seps for v in sep["auroc"].values() if v is not None]
     best = max(values)
     few = any(min(sep["met_target"], sep["n"] - sep["met_target"]) < FEW for _, sep, _ in seps)
+    rule_best = max(v for _, sep, _ in seps for r, v in sep["auroc"].items()
+                    if v is not None and r in RULE_LABELS)
     if few:
         title = "Too few documents on one side of the target to judge the merge rules"
+    elif best >= 0.7 and best > rule_best:
+        # Agreement is doc-level self-consistency, not a merge rule: when it is
+        # the unique best signal it names itself, never a merge-rule label.
+        title = f"{AGREEMENT_LABEL} separates good from poor documents best (AUROC {best:.2f})"
     elif best < 0.7:
         title = f"No window merge rule separates good from poor documents (best AUROC {best:.2f})"
     else:
-        rule = next(RULE_LABELS[r] for _, sep, _ in seps for r, v in sep["auroc"].items() if v == best)
+        rule = next(RULE_LABELS[r] for _, sep, _ in seps for r, v in sep["auroc"].items()
+                    if v == best and r in RULE_LABELS)
         title = f"{rule} separates good from poor documents best (AUROC {best:.2f})"
     counts = " · ".join(f"{label} n = {sep['n']} ({sep['met_target']} met)" for label, sep, _ in seps)
     sub = f"AUROC, documents at or above {TARGET:g} vs below · {counts} · 0.5 is chance"
     rules = list(RULE_LABELS)
+    recorded_agreement = any(sep["auroc"].get(AGREEMENT_KEY) is not None for _, sep, _ in seps)
+    if recorded_agreement:
+        rules.append(AGREEMENT_KEY)
     fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 0.55 * len(rules) + 1.6))
     y_of = {r: i for i, r in enumerate(rules[::-1])}
     offsets = [(i - (len(seps) - 1) / 2) * 0.22 for i in range(len(seps))]
@@ -140,7 +155,8 @@ def _window_rules(f: fs.Fig, runs: Sequence[tuple[str, list[dict[str, Any]], str
             ax.text(x + (0.018 if right else -0.018), y, f"{x:.2f}", ha="left" if right else "right",
                     va="center", fontsize=fs.SIZE["annotation"], color=fs.INK_2)
     ax.axvline(0.5, color=fs.INK_2, linewidth=1, linestyle=(0, (4, 2)), zorder=2)
-    ax.set_yticks(list(y_of.values()), list(RULE_LABELS[r] for r in y_of))
+    row_labels = {**RULE_LABELS, AGREEMENT_KEY: AGREEMENT_LABEL}
+    ax.set_yticks(list(y_of.values()), list(row_labels[r] for r in y_of))
     ax.set_xlim(0, 1)
     ax.set_ylim(-0.6, len(rules) - 0.4)
     fs.value_axis(ax, "x")

@@ -56,9 +56,11 @@ token and latency tables):
 | Completion tokens / char | 0.578 | 0.493 |
 
 Self-reported confidence is not merely uninformative — it ranks **below
-chance** on r1. The other aggregates hover at noise level and flip direction
-between runs, so none is a routing basis. (Merger met the target on 0 of 30
-documents, so nothing is measurable there until its extraction is fixed.)
+chance** on r1. The other aggregates hover at noise level (0.45–0.61), and
+several flip direction between runs (window count and completion tokens stay
+above 0.5 in both, but never clear the noise band), so none is a routing
+basis. (Merger met the target on 0 of 30 documents, so nothing is measurable
+there until its extraction is fixed.)
 
 ## The measure with a basis in model behavior: cross-window agreement
 
@@ -76,9 +78,16 @@ agreement either; and `reasoning` (the per-field trace contracts and merger
 emit) plus the per-window `confidence` are excluded, because a trace and a
 self-report are not asserted content. A field only one window asserts is
 skipped, not scored as a conflict. The routing audit's `window_rules` block
-ranks it (`auroc.agreement`) beside min/max/length-weighted, so the
-150-document confidence-cutoff run — which judges every first pass — measures
-whether agreement predicts judged quality where confidence does not.
+ranks it (`auroc.agreement`) beside min/max/length-weighted.
+
+One scope correction this review round made explicit: the 150-document
+confidence-cutoff run routes its specialists on OpenRouter, which reads whole
+documents and never chunks — so **that run records no agreement values** and
+cannot test the signal against judged outcomes. Agreement is recorded on
+chunked self-hosted runs; a labelled agreement-vs-judged-quality comparison
+would need a self-hosted (Modal vLLM) judged pipeline configuration, which
+does not exist yet and would be new paid, gated work. Until then agreement is
+a recorded, audited signal without a labelled measurement.
 
 Deliberate scope: agreement is only recorded where windows exist (a
 single-window extraction takes the plain path and records nothing), and it is

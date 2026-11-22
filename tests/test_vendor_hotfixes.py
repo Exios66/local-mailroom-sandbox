@@ -245,6 +245,15 @@ def test_hf008_cross_window_agreement_conflicting_pairs_still_score():
     assert got["agreement"] == round((1 / 3 + 0.0) / 2, 4)
 
 
+def test_hf008_cross_window_agreement_compares_fields_two_of_three_windows_assert():
+    # Per-key presence, not the all-window key intersection: `name` is asserted
+    # by two windows and missing from the third, so it scores as the conflict it
+    # is instead of vanishing (CodeRabbit, #402).
+    windows = [({"name": "A"}, "x"), ({"name": "B"}, "y"), ({"date": "2026-01-01"}, "z")]
+    got = vh.cross_window_agreement(windows)
+    assert got == {"agreement": 0.0, "fields": 1, "conflicts": 1}
+
+
 def test_hf008_cross_window_agreement_is_none_without_comparable_content():
     assert vh.cross_window_agreement([({"confidence": 0.9}, "x")]) == {
         "agreement": None, "fields": 0, "conflicts": 0}

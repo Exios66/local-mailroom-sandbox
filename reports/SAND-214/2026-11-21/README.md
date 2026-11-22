@@ -26,9 +26,11 @@ time included. r2 started while the merger leg held the fleet, so its 2,794 s wa
   The r1 documents that had dropped a window gained the most (0.296→0.625, 0.400→0.778,
   0.471→0.800).
 - **No merge rule separates quality yet.** On r2, `window_rules` (n=30, 17 met the 0.7
-  target) gives AUROC 0.47 for min, 0.59 for max and 0.61 for length-weighted. On r1 (n=25
-  after the six dropped windows were excluded) the AUROCs are 0.40, 0.34 and 0.44. The adopted
-  rule stays the weakest window. n=30 is too small to switch on.
+  target) gives AUROC 0.47 for min, 0.59 for max and 0.61 for length-weighted. On r1 the
+  sample is n=25: the five documents with a dropped window are excluded by document (the
+  routing audit's `partial_excluded`), matching the six dropped windows. The AUROCs there
+  are 0.40, 0.34 and 0.44. The adopted rule stays the weakest window. n=30 is too small to
+  switch on.
 - **Specialist self-confidence does not predict quality.** Documents at final confidence
   ≥ 0.85 scored 0.584 (r1) and 0.665 (r2), against 0.644 below 0.85. r2 also stated `0.0`
   confidence on two documents that scored 0.714 and 0.482. A judge band cannot be
