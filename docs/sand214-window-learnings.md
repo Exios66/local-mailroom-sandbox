@@ -68,13 +68,17 @@ clauses and assert the same values are evidence about the extraction that no
 single-call number carries. The HF-008 merge wrapper now computes and records
 it at merge time (`_window_agreement`: mean pairwise agreement over the fields
 two or more windows both assert — Jaccard for list fields, exact on a
-whitespace/casefolded comparable form for scalars, stated nulls agreeing with
-stated nulls; a field only one window asserts is skipped, not scored as a
-conflict; the per-window `confidence` key is excluded, because that is the
-self-report being replaced). The routing audit's `window_rules` block ranks it
-(`auroc.agreement`) beside min/max/length-weighted, so the 150-document
-confidence-cutoff run — which judges every first pass — measures whether
-agreement predicts judged quality where confidence does not.
+whitespace/casefolded comparable form for scalars). Two normalization facts
+shape it, both caught in review: the vendored `normalize_extraction` fills
+every schema key, so `None`/`[]`/`{}` mean "not seen in this window" — a value
+is never scored against a window's fill, and two fills are not scored as
+agreement either; and `reasoning` (the per-field trace contracts and merger
+emit) plus the per-window `confidence` are excluded, because a trace and a
+self-report are not asserted content. A field only one window asserts is
+skipped, not scored as a conflict. The routing audit's `window_rules` block
+ranks it (`auroc.agreement`) beside min/max/length-weighted, so the
+150-document confidence-cutoff run — which judges every first pass — measures
+whether agreement predicts judged quality where confidence does not.
 
 Deliberate scope: agreement is only recorded where windows exist (a
 single-window extraction takes the plain path and records nothing), and it is

@@ -285,20 +285,48 @@ def _pair_agreement(a: Any, b: Any) -> float:
     return 1.0 if _agreement_norm(a) == _agreement_norm(b) else 0.0
 
 
+def _asserts(value: Any) -> bool:
+    """True when a window actually asserts content for a field.
+
+    Every surviving window passes the vendored ``normalize_extraction``, which
+    fills EVERY schema key — ``None`` for nullable scalars, ``[]`` for arrays —
+    so a field one window never saw is not missing, it is a fill. A fill is
+    "not seen here", not a conflicting assertion: only a pair where both
+    windows assert content is comparable (Bugbot, #402).
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return len(value) > 0
+    return True
+
+
 def cross_window_agreement(windows: list[tuple[dict, str | None]]) -> dict[str, Any]:
     """Self-consistency across a document's chunk windows (SAND-214).
 
     For every field key two or more windows assert, compare the asserted values
     pairwise (Jaccard for lists, exact on the comparable form otherwise) and
-    average. Windows that never saw the same content cannot agree on it, so a
-    key only one window asserts is skipped rather than scored as a conflict.
+    average. Two normalization facts shape this (Bugbot, #402):
+
+    - ``normalize_extraction`` fills every schema key, so ``None``/``[]``/``{}``
+      mean "not seen in this window". A pair counts only when BOTH windows
+      assert content; a value is never scored against a window's fill, and
+      two fills are not scored as agreement either.
+    - ``reasoning`` (the per-field trace contracts and merger emit on every
+      window) and the per-window ``confidence`` describe the scan or the
+      self-report, not asserted content; both are excluded, as are underscore
+      bookkeeping keys.
+
     Returns ``{"agreement": float | None, "fields": int, "conflicts": int}`` —
-    ``agreement`` is None when no field was comparable (fewer than two windows,
-    or every shared key holds an incomparable type). Self-consistency over
-    shared content is the measure the #214 runs left untested: the specialist's
-    single self-reported confidence does not predict quality (AUROC 0.36-0.47),
-    while agreement between independent reads of overlapping text is a
-    model-behavior signal the merge wrapper already has in hand.
+    ``agreement`` averages only the keys with at least one comparable pair and
+    is None when none exist (fewer than two windows, or no shared asserted
+    content). Self-consistency over shared content is the measure the #214
+    runs left untested: the specialist's single self-reported confidence does
+    not predict quality (AUROC 0.36-0.47), while agreement between independent
+    reads of overlapping text is a model-behavior signal the merge wrapper
+    already has in hand.
     """
     results = [result for result, _text in windows if isinstance(result, dict)]
     if len(results) < 2:
@@ -306,23 +334,29 @@ def cross_window_agreement(windows: list[tuple[dict, str | None]]) -> dict[str, 
     keys = set(results[0])
     for result in results[1:]:
         keys &= set(result)
-    # Underscore keys are merge bookkeeping, and `confidence` is the per-window
-    # self-report this measure exists to replace — neither is asserted content.
-    comparable = sorted(k for k in keys if not str(k).startswith("_") and k != "confidence")
+    # Underscore keys are merge bookkeeping; `confidence` is the per-window
+    # self-report and `reasoning` the per-field trace this measure replaces —
+    # none is asserted content.
+    comparable = sorted(k for k in keys
+                        if not str(k).startswith("_") and k not in ("confidence", "reasoning"))
     if not comparable:
         return {"agreement": None, "fields": 0, "conflicts": 0}
     scores: list[float] = []
     conflicts = 0
     for key in comparable:
         values = [result.get(key) for result in results]
-        pairwise = [_pair_agreement(a, b)
-                    for i, a in enumerate(values) for b in values[i + 1:]]
+        pairwise = [_pair_agreement(a, b) for i, a in enumerate(values) for b in values[i + 1:]
+                    if _asserts(a) and _asserts(b)]
+        if not pairwise:
+            continue  # no window pair both asserted this field: nothing comparable
         mean = sum(pairwise) / len(pairwise)
         scores.append(mean)
         if mean < 1.0:
             conflicts += 1
+    if not scores:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
     return {"agreement": round(sum(scores) / len(scores), 4),
-            "fields": len(comparable), "conflicts": conflicts}
+            "fields": len(scores), "conflicts": conflicts}
 
 
 def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:

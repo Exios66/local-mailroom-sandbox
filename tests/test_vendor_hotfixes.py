@@ -204,11 +204,45 @@ def test_hf008_cross_window_agreement_scores_list_jaccard_and_none_pairs():
     assert got["agreement"] == round((1 / 3 + 0.0 + 1.0) / 3, 4)
 
 
-def test_hf008_cross_window_agreement_skips_underscore_keys_and_solitary_fields():
-    windows = [({"entity_name": "A", "_raw": "x", "confidence": 0.9}, "x"),
-               ({"entity_name": "A", "_raw": "y", "confidence": 0.9}, "y")]
+def test_hf008_cross_window_agreement_never_scores_a_normalize_fill():
+    # normalize_extraction fills EVERY schema key, so a field one window never
+    # saw arrives as None/[] rather than missing. A value is never scored
+    # against a fill, and two fills are not scored as agreement either
+    # (Bugbot #402: unique-window fields are not conflicts).
+    windows = [({"entity_name": "Acme", "keywords": [], "filing_number": None,
+                 "reasoning": {"summary": "w1", "entries": []}, "confidence": 0.9}, "x"),
+               ({"entity_name": "Acme", "keywords": [], "filing_number": None,
+                 "reasoning": {"summary": "w2", "entries": []}, "confidence": 0.9}, "y"),
+               ({"entity_name": "Acme", "keywords": ["sub"], "filing_number": None,
+                 "reasoning": {"summary": "w3", "entries": []}, "confidence": 0.9}, "z")]
+    got = vh.cross_window_agreement(windows)
+    # filing_number: all fills -> nothing comparable. keywords: only one window
+    # asserts -> no comparable pair. reasoning: the trace is excluded.
+    assert got == {"agreement": 1.0, "fields": 1, "conflicts": 0}
+
+
+def test_hf008_cross_window_agreement_excludes_the_reasoning_trace():
+    # Contracts and merger emit a per-field reasoning trace on every window;
+    # per-chunk summaries and quotes almost never match, so scoring it would
+    # pull agreement down on exactly the classes this signal must rank
+    # (Bugbot #402).
+    windows = [({"entity_name": "A", "reasoning": {"summary": "scan one", "entries": []},
+                 "confidence": 0.9}, "x"),
+               ({"entity_name": "A", "reasoning": {"summary": "scan two", "entries": []},
+                 "confidence": 0.9}, "y")]
     got = vh.cross_window_agreement(windows)
     assert got == {"agreement": 1.0, "fields": 1, "conflicts": 0}
+
+
+def test_hf008_cross_window_agreement_conflicting_pairs_still_score():
+    windows = [({"entity_name": "Acme", "filing_number": "123", "confidence": 0.9}, "x"),
+               ({"entity_name": "Beta", "filing_number": None, "confidence": 0.9}, "y"),
+               ({"entity_name": "Acme", "filing_number": "456", "confidence": 0.9}, "z")]
+    got = vh.cross_window_agreement(windows)
+    # entity_name: Acme/Beta 0.0, Acme/Acme 1.0, Beta/Acme 0.0 -> 1/3.
+    # filing_number: only w1 and w3 assert -> 0.0. No fill ever scores.
+    assert got["fields"] == 2 and got["conflicts"] == 2
+    assert got["agreement"] == round((1 / 3 + 0.0) / 2, 4)
 
 
 def test_hf008_cross_window_agreement_is_none_without_comparable_content():
@@ -218,12 +252,10 @@ def test_hf008_cross_window_agreement_is_none_without_comparable_content():
         "agreement": None, "fields": 0, "conflicts": 0}
     assert vh.cross_window_agreement([("not a dict", "x"), ({"entity_name": "A"}, "y")]) == {
         "agreement": None, "fields": 0, "conflicts": 0}
-
-
-def test_hf008_cross_window_agreement_records_stated_nulls_as_agreeing():
-    windows = [({"filing_number": None, "confidence": 0.9}, "x"),
-               ({"filing_number": None, "confidence": 0.9}, "y")]
-    assert vh.cross_window_agreement(windows)["agreement"] == 1.0
+    # Two normalize fills of the same field are "not seen", not agreement.
+    assert vh.cross_window_agreement([({"filing_number": None}, "x"),
+                                      ({"filing_number": None}, "y")]) == {
+        "agreement": None, "fields": 0, "conflicts": 0}
 
 
 class _FakeSpecialist:
