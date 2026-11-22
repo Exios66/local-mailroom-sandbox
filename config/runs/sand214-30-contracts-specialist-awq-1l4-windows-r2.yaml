@@ -1,0 +1,92 @@
+# #214 contracts r2 — the same 30 calibration-split contracts as
+# sand214-30-contracts-specialist-awq-1l4-windows (same seed, exclude file, revision and
+# overlays, so the two runs pair document for document), with the length fix applied.
+# r1 lost a window on 5 of 30 documents: a window's decode ran to the 8,192-token cap
+# (LengthFinishReasonError -> chunk_call_failed) and was dropped from the merge. Those 5
+# scored 0.467 against 0.616 overall, and window_rules had to leave them out.
+#   fix     = the Qwen3 non-thinking sampling the merger posture already runs (temperature
+#             0.7, top_p 0.8, top_k 20, presence_penalty 1.0) to suppress runaway repetition,
+#             plus ONE re-sample on a length-capped window. Decode stays 8,192
+#             (49000/2.4 + 8192 + 4000 = 32609 <= 32768), so a legitimately long window
+#             is not truncated. Posture row SAND214_RUNS in job/specialist_posture.py.
+#   order   = longest_first: the 6-window contracts no longer decode alone at the tail.
+#   compare = r1 vs r2 on the same documents: failed windows, mean score, window_rules AUROC.
+#   spend   = cost_cap_usd 1.00 and 1 hour wall (exios66), on the warm 1×L4 fleet after the
+#             merger leg; ./deploy/teardown_vllm.sh after it.
+schema: sandbox.run/v1
+run_id: sand214-30-contracts-specialist-awq-1l4-windows-r2
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # Calibration-split contracts longer than one 43,000-char window (43 of the split's 105).
+  exclude_ids_file: config/runs/sand214-contracts-calibration.exclude.ids
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 30
+  # 91 of the corpus's 600 contracts carry an EMPTY cuad_clause_labels, so a
+  # plain draw silently shrinks the contracts clause column (5/50 in the first
+  # grid). Drop unscoreable documents BEFORE the draw: every subclass's annotated
+  # supply still covers its requested count, so the strata block is unchanged.
+  require_task_gt: true
+  limit: 30
+  sample_seed: 214
+  # Repaired labels the next dataset revision publishes (lock records both overlay sha256s).
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+# No agent_knobs block: the generation knobs, sampling and length re-sample included, come
+# from the posture row; a run spec cannot carry top_p / top_k / presence_penalty / length_retries.
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  longest_first: true
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand214
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, issue-214, window-merge-rules, length-fix]

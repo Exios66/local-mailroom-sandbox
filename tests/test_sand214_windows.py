@@ -21,7 +21,9 @@ from mailroom_sandbox.paths import repo_root
 RUNS = {
     "sand214-30-contracts-specialist-awq-1l4-windows": "contract",
     "sand214-30-merger-specialist-awq-1l4-windows": "merger_agreement",
+    "sand214-30-contracts-specialist-awq-1l4-windows-r2": "contract",
 }
+SUITE = ["sand214-30-contracts-specialist-awq-1l4-windows", "sand214-30-merger-specialist-awq-1l4-windows"]
 
 
 def _spec(run_id: str):
@@ -71,7 +73,7 @@ def test_the_draw_never_reaches_dev_or_heldout(run_id):
 def test_suite_serves_both_runs_from_one_deploy():
     suite = load_suite("sand214-windows")
     ids = [load_run_spec(p).run_id for p in suite.configs]
-    assert ids == sorted(RUNS)  # contracts first: the cheaper leg fails first
+    assert ids == SUITE  # contracts first: the cheaper leg fails first
     envs = [deploy_env.spec_env(load_run_spec(p)) for p in suite.configs]
     assert envs[0] == envs[1]
 
@@ -91,3 +93,18 @@ def test_preflight_names_a_chunked_agent_that_would_drop_a_capped_window():
     warned = benchmark_check.chunked_window_warnings(_spec("sand214-30-contracts-specialist-awq-1l4-windows"))
     assert len(warned) == 1 and "contracts_specialist" in warned[0] and "length_retries" in warned[0]
     assert not benchmark_check.chunked_window_warnings(_spec("sand214-30-merger-specialist-awq-1l4-windows"))
+
+
+def test_contracts_r2_pairs_with_r1_and_carries_the_length_fix():
+    r1, r2 = _spec(SUITE[0]), _spec("sand214-30-contracts-specialist-awq-1l4-windows-r2")
+    # Same documents: everything that decides the draw is identical.
+    for key in ("revision", "exclude_ids_file", "strata", "sample_seed", "limit", "require_task_gt",
+                "interim_labels", "near_gold_labels"):
+        assert getattr(r1.dataset, key) == getattr(r2.dataset, key), key
+    assert r1.prompt == r2.prompt and deploy_env.spec_env(r1) == deploy_env.spec_env(r2)
+    knobs = posture.agent_knobs_for_run(r2.run_id)["contracts_specialist"]
+    assert knobs["length_retries"] == 1 and knobs["presence_penalty"] == 1.0
+    assert knobs["top_p"] == 0.8 and knobs["top_k"] == 20 and knobs["max_tokens"] == 8192
+    assert {k: v for k, v in knobs.items() if k not in posture.SAND214_LENGTH_FIX} == r1.agent_knobs[
+        "contracts_specialist"]
+    assert r2.job.longest_first and not benchmark_check.chunked_window_warnings(r2)
