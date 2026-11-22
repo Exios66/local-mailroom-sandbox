@@ -1,6 +1,8 @@
 # #214 window length — two contracts arms (28k, 16k chars) on ONE warm 1×L4 fleet. r2
 # (43k) is the third arm and is not re-run. Both configs carry r2's serving block, so the
-# pair pays one cold boot. The 28k arm goes first: it is the cheaper of the two.
+# pair shares one deploy and one cold boot as long as the 16k leg starts within the 120 s
+# scaledown window (min_containers 0); a longer gap re-boots once, never re-deploys. The
+# 28k arm goes first: it is the cheaper of the two.
 #
 # Activate: modal profile activate exios66
 # Check:    sandbox run benchmark-check --suite sand214-window-length --modal-profile exios66
