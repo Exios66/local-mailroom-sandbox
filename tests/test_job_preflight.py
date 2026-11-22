@@ -256,6 +256,32 @@ def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
     assert config_path.is_absolute()
 
 
+def test_cli_knob_keeps_a_posture_runs_other_budgets(tmp_path):
+    from argparse import Namespace
+
+    from mailroom_sandbox.cli import _run_load_spec
+
+    bare = tmp_path / "bare.yaml"
+    bare.write_text(
+        "schema: sandbox.run/v1\nrun_id: run-30-correspondence-specialist\n",
+        encoding="utf-8",
+    )
+    spec, _ = _run_load_spec(Namespace(config=str(bare), agent_knobs=["correspondence_specialist.temperature=0.2"]))
+    knobs = spec.agent_knobs["correspondence_specialist"]
+    assert knobs["temperature"] == 0.2
+    assert knobs["max_tokens"] == 2048 and knobs["max_input_chars"] > 0
+
+    explicit = tmp_path / "explicit.yaml"
+    explicit.write_text(
+        "schema: sandbox.run/v1\nrun_id: run-30-correspondence-specialist\n"
+        "agent_knobs:\n  judge:\n    max_tokens: 128\n",
+        encoding="utf-8",
+    )
+    replaced, _ = _run_load_spec(Namespace(config=str(explicit), agent_knobs=["judge.temperature=0.2"]))
+    assert set(replaced.agent_knobs) == {"judge"}
+    assert replaced.agent_knobs["judge"] == {"max_tokens": 128, "temperature": 0.2}
+
+
 class _FakeResp:
     def __init__(self, status_code, payload=None):
         """Minimal httpx-like response for engine-probe tests."""
@@ -457,6 +483,43 @@ def test_preflight_prepares_and_locks(tmp_path):
     assert store.dataset_path.is_file()
     assert len(store.dataset_rows()) == 2
     assert store.spec_hash() == spec.spec_hash()
+    store.verify_generation()
+
+
+def test_checkpoint_is_written_before_the_lock(tmp_path, job_data_dir, monkeypatch):
+    """A failed lock publish leaves no commit point for the next preflight."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = _run_spec(tmp_path, run_id="pf-commit")
+    real_checkpoint = RunStore.write_checkpoint
+    real_lock = RunStore.write_lock
+    order: list[str] = []
+
+    def checkpoint(self, **kwargs):
+        order.append("checkpoint")
+        return real_checkpoint(self, **kwargs)
+
+    def lock(self, payload):
+        order.append("lock")
+        written = self.read_checkpoint()
+        assert written["spec_hash"] == payload["spec_hash"]
+        assert written["generation_id"] == payload["generation_id"]
+        raise OSError("lock publish failed")
+
+    monkeypatch.setattr(RunStore, "write_checkpoint", checkpoint)
+    monkeypatch.setattr(RunStore, "write_lock", lock)
+    with pytest.raises(OSError, match="lock publish failed"):
+        preflight.preflight(spec, offline=True)
+    assert order == ["checkpoint", "lock"]
+    store = RunStore(run_dir(spec.run_id))
+    assert not store.lock_path.is_file()
+    assert store.read_checkpoint()["state"] == "prepared"
+
+    monkeypatch.setattr(RunStore, "write_checkpoint", real_checkpoint)
+    monkeypatch.setattr(RunStore, "write_lock", real_lock)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared"
+    store.verify_generation()
 
 
 def test_preflight_corrupt_lock_refuses_loud(tmp_path, job_data_dir):

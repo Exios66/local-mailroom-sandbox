@@ -31,7 +31,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 _log = logging.getLogger("mailroom_sandbox.vendor_hotfixes")
 
@@ -224,6 +224,54 @@ def _install_explicit_zero_confidence(_module: Any, original: Callable[..., Any]
     return confidence_missing
 
 
+_SWITCH_OFF = ("off", "false", "0", "no")
+
+
+def _install_judge_above_band(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """High self-reported confidence no longer skips the judge (#215, llm-mailroom#278).
+
+    ``MAILROOM_JUDGE_VERIFY=off`` still disables the lane. ``MAILROOM_JUDGE_HIGH_BAND=off``
+    restores the vendored band (low <= confidence < judge_band_high).
+    """
+
+    @functools.wraps(original)
+    def judge_gate(state: Mapping[str, Any]) -> bool:
+        import os
+
+        if os.environ.get("MAILROOM_JUDGE_VERIFY", "on").lower() in _SWITCH_OFF:
+            return False
+        if os.environ.get("MAILROOM_JUDGE_HIGH_BAND", "on").lower() in _SWITCH_OFF:
+            return original(state)
+        confidence = state.get("extraction_confidence")
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            return False
+        low = float(module._thresholds_for(state).get("low", 0.70))
+        return float(confidence) >= low
+
+    return judge_gate
+
+
+def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Record each surviving window's confidence. The merged value stays the vendor's minimum."""
+
+    @functools.wraps(original)
+    def merge_chunk_windows(windows: list[tuple[dict, str | None]], *, agent_name: str) -> dict | None:
+        merged = original(windows, agent_name=agent_name)
+        if not isinstance(merged, dict):
+            return merged
+        recorded: list[float | None] = []
+        for result, _text in windows:
+            value = result.get("confidence") if isinstance(result, dict) else None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                recorded.append(None)
+            else:
+                recorded.append(float(value))
+        merged["_window_confidences"] = recorded
+        return merged
+
+    return merge_chunk_windows
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -286,6 +334,26 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="an explicit numeric confidence of zero remains zero on single and chunked "
                 "extractions instead of being replaced by field-presence confidence",
         install=_install_explicit_zero_confidence,
+    ),
+    Hotfix(
+        id="HF-007",
+        module="graph.routing",
+        attr="judge_gate",
+        source_sha256="2ad6b396fa388c9ed478139a9460b3cf6a3e9b5b85b67a0f64670b81e8797e4b",
+        upstream="https://github.com/Exios66/llm-mailroom/issues/278",
+        summary="extraction confidence at or above judge_band_high still reaches the judge; "
+                "MAILROOM_JUDGE_HIGH_BAND=off restores the vendored band (#215)",
+        install=_install_judge_above_band,
+    ),
+    Hotfix(
+        id="HF-008",
+        module="langchain_agents.specialist_agents",
+        attr="merge_chunk_windows",
+        source_sha256="016b350d7e462b8e032fb17cbeb2a5c0b62825ff583bc09cd7045fe56fc14234",
+        upstream="https://github.com/Exios66/llm-mailroom/issues/255",
+        summary="a chunked merge records each surviving window's confidence under "
+                "_window_confidences; the merged confidence stays the weakest window (#214)",
+        install=_install_window_confidences,
     ),
 )
 

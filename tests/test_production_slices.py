@@ -96,6 +96,7 @@ def test_slices_validate_and_share_settings():
         assert spec.agent_knobs == r3.agent_knobs
         assert spec.engine.kind == "openrouter" and spec.engine.model == r3.engine.model
         assert (spec.trace.sink, spec.trace.environment) == (r3.trace.sink, r3.trace.environment)
+        assert spec.job.require_expanded_inputs is True
         assert spec.job.api_cost_cap_usd == CAPS[size]
         assert spec.job.max_wall_seconds == WALL[size]
         assert spec.job.cost_cap_usd is not None

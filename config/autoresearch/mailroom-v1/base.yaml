@@ -28,6 +28,7 @@
 #   job.fail_fast / concurrency    false / 10                                   slice-0100.yaml
 #   job.cost_cap_usd               0.50 (GPU cap field, required by validation) slice-0100.yaml
 #   job.blind_routing              true (no labels in the graph state)          slice-0100.yaml
+#   job.require_expanded_inputs    true (preflight fails a short long-context reader) slice-0100.yaml
 #   trace                          sink none, environment pilot                 slice-0100.yaml
 #   quality bars                   config/production/bars.yaml                  read by `sandbox run gate`, not by the spec
 #   pipeline and Dojo sources      vendor/llm-mailroom, vendor/llm-dojo-scoring the vendored snapshots (VENDOR.md commits)
@@ -112,6 +113,7 @@ job:
   max_wall_seconds: 3600
   api_cost_cap_usd: 1
   blind_routing: true
+  require_expanded_inputs: true
 
 trace:
   sink: none

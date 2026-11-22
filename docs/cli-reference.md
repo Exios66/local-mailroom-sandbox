@@ -57,7 +57,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
+| `--compose-profile` | No | Compose profile to start. Repeat for more than one. When omitted, up uses the active provider profile's compose profiles Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter, pipeline. |
 | `-d, --detach` | No |  |
 
 ### `sandbox down`
@@ -73,7 +73,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
+| `--compose-profile` | No | Compose profile to stop. Repeat for more than one. When omitted, down uses the active provider profile's compose profiles Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter, pipeline. |
 
 ### `sandbox health`
 
@@ -921,6 +921,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run start`
@@ -955,6 +957,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run status`
@@ -1092,6 +1096,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 
 ### `sandbox run cancel`
 

@@ -118,13 +118,16 @@ def scenarios():
               "reviewer_doc_type": "corporate_record", "reviewer_causes": ["reviewer_low_confidence"],
               "transient_error": False}
     return {
-        "happy_path": ({"classify": [sorted_as(HIGH)], "extract": [extracted()]}, "archived"),
+        # HF-007: a confidence at or above the class low threshold reaches the judge.
+        "happy_path": ({"classify": [sorted_as(HIGH)], "extract": [extracted()],
+                        "judge_verify": [judge("complete")]}, "archived"),
         "unknown_class": ({"classify": [sorted_as(HIGH, doc_type="unknown")]}, "review"),
         "low_confidence": ({"classify": [sorted_as(LOW)], "retry_classify": [sorted_as(LOW, attempt=2)]}, "review"),
         "low_then_recovered": ({"classify": [sorted_as(LOW)], "retry_classify": [sorted_as(HIGH, attempt=2)],
-                                "extract": [extracted()]}, "archived"),
+                                "extract": [extracted()], "judge_verify": [judge("complete")]}, "archived"),
         "reviewer_accepts": ({"classify": [sorted_as(medium_sort)], "retry_classify": [sorted_as(medium_sort, attempt=2)],
-                              "review_classify": [accept], "extract": [extracted()]}, "archived"),
+                              "review_classify": [accept], "extract": [extracted()],
+                              "judge_verify": [judge("complete")]}, "archived"),
         "reviewer_rejects": ({"classify": [sorted_as(medium_sort)], "retry_classify": [sorted_as(medium_sort, attempt=2)],
                               "review_classify": [{"review_verdict": "reviewer_disagrees", "reviewer_confidence": 0.5,
                                                    "transient_error": False}]}, "review"),
@@ -142,7 +145,8 @@ def scenarios():
                                  "judge_verify": [{**judge("complete"), "judge_source_verified": True}]}, "archived"),  # a0ed476: a full-source check clears it
         "extraction_empty": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, data={}, attempt=3)]}, "review"),
         "retry_extract_recovers": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
-                                    "retry_extract": [extracted(attempt=2)]}, "archived"),
+                                    "retry_extract": [extracted(attempt=2)],
+                                    "judge_verify": [judge("complete")]}, "archived"),
         "retry_extract_exhausted": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
                                      "retry_extract": [extracted(LOW, attempt=3)],
                                      "judge_verify": [judge("complete")]}, "review"),
@@ -160,7 +164,7 @@ def scenarios():
         "judge_error": ({"classify": [sorted_as(HIGH)], "extract": [extracted(band)],
                          "judge_verify": [judge("judge_error")]}, "review"),
         "arbiter_retries": ({"classify": [sorted_as(HIGH)], "extract": [extracted(band)],
-                             "judge_verify": [judge("partial")], "arbiter": [arbiter_retry],
+                             "judge_verify": [judge("partial"), judge("complete")], "arbiter": [arbiter_retry],
                              "retry_extract": [extracted(attempt=2)]}, "archived"),
         # Decision review parks below its cutoff -> classification arbiter -> extract / a person.
         "classification_arbiter_accepts": ({"classify": [sorted_as(medium_sort)],
@@ -169,7 +173,8 @@ def scenarios():
                                             "classification_arbiter": [{"classification_arbiter_decision": "accept_sorter",
                                                                         "classification_arbiter_confidence": 0.99,
                                                                         "transient_error": False}],
-                                            "extract": [extracted()]}, "archived"),
+                                            "extract": [extracted()],
+                                            "judge_verify": [judge("complete")]}, "archived"),
         "classification_arbiter_escalates": ({"classify": [sorted_as(medium_sort)],
                                               "retry_classify": [sorted_as(medium_sort, attempt=2)],
                                               "review_classify": [parked],
@@ -210,6 +215,7 @@ def test_without_oracle_routing_a_ground_truth_class_miss_is_not_routed_on(graph
     """llm-mailroom #264: with oracle routing off, routing ignores the label it is passed."""
     result, visited = walk(graph, monkeypatch, tmp_path, {
         "classify": [sorted_as(HIGH)], "extract": [extracted()],
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}],
     }, ground_truth={"expected_doc_class": "contract"}, oracle=False)
     record(visited)
     assert "review_classify" not in visited
@@ -221,7 +227,9 @@ def test_failed_report_is_withheld_from_the_catalog(graph, monkeypatch, tmp_path
         return {"report_error": True, "extracted_data": {**state["extracted_data"], "_report": {"error": True}}}
 
     result, visited = walk(graph, monkeypatch, tmp_path, {
-        "classify": [sorted_as(HIGH)], "extract": [extracted()], "compile_report": [broken]})
+        "classify": [sorted_as(HIGH)], "extract": [extracted()],
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}],
+        "compile_report": [broken]})
     record(visited)
     assert result["stage"] == "review"
     assert visited[-2:] == ["compile_report", "human_review"]
@@ -242,7 +250,9 @@ def test_human_decision_resumes_the_parked_graph(decision, stage, graph, monkeyp
 
     result, visited = walk(graph, monkeypatch, tmp_path, {
         "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()],
-        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}]})
+        # The spent low-confidence extract takes the first verdict. The approved
+        # re-extract is at 0.99, so HF-007 sends it to the judge again.
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}] * 2})
     config = {"configurable": {"thread_id": result["checkpoint_thread_id"]}}
     outcome = graph.get_compiled_graph().invoke(Command(resume={"decision": decision}), config)
     record(visited, stop=None if decision == "approved" else "__end__")
@@ -254,7 +264,7 @@ def test_stateless_resume_enters_at_extract_after_the_checkpoint_is_gone(graph, 
 
     result, visited = walk(graph, monkeypatch, tmp_path, {
         "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()],
-        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}]})
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}] * 2})
     manifest = load_manifest(result["doc_id"])
     monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
     graph.reset_compiled_graph()  # a restart without the durable checkpoint
@@ -303,6 +313,22 @@ def test_stateless_reviewer_fields_enter_at_the_report(graph, monkeypatch, tmp_p
     assert outcome["extracted_data"]["record_type"] == FIXED["record_type"]  # the correction, not DATA
     WALKED.add(("__start__", "compile_report"))
     record(visited)
+
+
+def test_judge_kill_switch_keeps_a_confident_extract_off_the_judge(graph, monkeypatch, tmp_path):
+    """The extract and retry edges into compile_report stay live when the judge lane is off."""
+    monkeypatch.setenv("MAILROOM_JUDGE_VERIFY", "off")
+    direct, direct_nodes = walk(graph, monkeypatch, tmp_path, {
+        "classify": [sorted_as(HIGH)], "extract": [extracted()],
+    })
+    record(direct_nodes, stop="__end__")
+    assert "judge_verify" not in direct_nodes and direct["stage"] == "archived"
+    recovered, recovered_nodes = walk(graph, monkeypatch, tmp_path, {
+        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
+        "retry_extract": [extracted(attempt=2)],
+    })
+    record(recovered_nodes, stop="__end__")
+    assert "judge_verify" not in recovered_nodes and recovered["stage"] == "archived"
 
 
 def test_every_graph_edge_was_walked(graph):

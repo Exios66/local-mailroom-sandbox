@@ -79,8 +79,10 @@ pinned to `Qwen/Qwen3-8B` and must be verified before any sorter rerun. Estimate
 **Runbook findings:**
 
 1. **Set `max_inputs` = `max_num_seqs` per container.** Modal's router fills one container up to
-   `max_inputs` before routing to the next. With max_inputs 64, it sent 97/100 requests to one L4 (3.2× slower).
-   At 32 it split 51/49. This is the single largest serving lever found.
+   `max_inputs` before routing to the next. With max_inputs 64, it sent 97/100 requests to one L4.
+   Against the admission-32 run at the same sequence cap and concurrency (149.4 s versus 39.0 s) that is 3.8×.
+   The 3.2× figure is 149.4 s versus the earlier 46.1 s run, which also changed sequence cap and concurrency.
+   At admission 32 the requests split 51/49. This is the single largest serving lever found.
 2. **Doubling admission (seqs 16→32, c32→c64) buys only 7–17% wall** on a balanced 2×L4 fleet, while p50
    latency rises (queuing). One L4 saturates at around 16 concurrent sequences for these prompts.
    - **Batch/offline:** seqs32 + max_inputs 32 + c64.

@@ -381,7 +381,31 @@ locked prompts/models/knobs rather than later ambient generation settings.
    source windows, so a document is chunked only when it exceeds the model's
    real window. Modal, vLLM, Ollama and LM Studio routes keep the 16k posture.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
-   still win. See
+   still win. Preflight also records `expanded_inputs`: each context-fit reader,
+   its live `max_input_chars`, and whether that length was swapped on. The check
+   stays ok unless `job.require_expanded_inputs` is true or the command passes
+   `--require-expanded-inputs`. Either one fails the run when a long-context
+   reader is still on the short budget, or its model has no `context_length` in
+   `config/api_prices.yaml`. A Modal or local route has nothing to swap.
+   `sandbox run preflight --agent-knob NAME.key=value` sets the same generation
+   parameters a run YAML's `agent_knobs` block does, including `max_input_chars`.
+   The check uses the provider and model recorded for each reader, including when
+   context fit is turned off, so an OpenRouter route on a local profile is still
+   required to be wide. One `--agent-knob` overrides that key only. On a
+   posture-managed run with no YAML knobs, the posture's other budgets stay. A new lock freezes that fit
+   (`context_fit.sha256`). The digest covers the fitted windows, the chunk cap,
+   whether chunking is enabled, and the overlap. Resume, including
+   `sandbox run resume --run-id`, refuses before any document when the price
+   sheet or overlay would change any of those. A lock without the key
+   still resumes when its spec hash matches. Re-preflighting a slice whose YAML now sets
+   `require_expanded_inputs` changes `spec_hash`, so a `--config` resume returns
+   `drift_refused` until `--force` archives that generation and re-locks. Production
+   slices set `job.require_expanded_inputs`. Their sorter and intake stay at
+   600000 characters on purpose; the other readers use the fitted room. The
+   published API caps were estimated on the older chunked posture, so a
+   whole-document reader can spend more than `api_cost_cap_usd` and should be
+   re-measured before a paid slice.
+   See
    [the Qwen-25 failure-mode audit](audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.

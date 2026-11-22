@@ -168,6 +168,22 @@ def test_unknown_setting_is_refused_without_writing(design):
         design('--set', 'engine.vllm.typo=1')
 
 
+def test_set_can_add_an_expanded_input_length(design):
+    config = design('--provider', 'openrouter', '--mock', '--set', 'agent_knobs.judge.max_input_chars=800000')
+    spec = ex._load(config)[2][0][1]
+    assert spec.job.require_expanded_inputs is True
+    assert spec.agent_knobs['judge']['max_input_chars'] == 800000
+
+
+def test_set_accepts_sampling_knobs_and_refuses_an_unknown_agent(design):
+    config = design('--mock', '--set', 'agent_knobs.correspondence_specialist.top_p=0.8',
+                    '--set', 'agent_knobs.correspondence_specialist.length_retries=1')
+    knobs = ex._load(config)[2][0][1].agent_knobs['correspondence_specialist']
+    assert knobs['top_p'] == 0.8 and knobs['length_retries'] == 1
+    with pytest.raises(AssertionError):
+        design('--set', 'agent_knobs.not_an_agent.max_input_chars=800000')
+
+
 def test_unavailable_sample_refuses_before_spend(design, monkeypatch):
     config = design('--mock')
     run_path = ex._load(config)[2][0][0]
