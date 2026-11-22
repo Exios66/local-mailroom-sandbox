@@ -261,3 +261,31 @@ def test_explicit_truth_override_keeps_its_own_provenance(tmp_path, case):
     override.write_text(json.dumps(_row("d1", case)) + "\n")
     rep = ppr.report([(str(path), None)], dataset_file=override, n_boot=10)
     assert rep["runs"][0]["truth"]["sha256"] == hashlib.sha256(override.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("source", ["explicit_file", "locked_revision"])
+def test_reconstructed_truth_refuses_duplicate_source_ids(tmp_path, case, monkeypatch, source):
+    from mailroom_sandbox import corpus
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    rows = [_row("d1", case), _row("d1", case, stage="review")]
+    kwargs = {}
+    if source == "explicit_file":
+        override = tmp_path / "new-truth.jsonl"
+        override.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        kwargs["dataset_file"] = override
+    else:
+        (path / "dataset.jsonl").unlink()
+        lock_file = path / "spec.lock.json"
+        lock = json.loads(lock_file.read_text())
+        lock["dataset"]["revision"] = FAMILY_HF_REVISION
+        lock_file.write_text(json.dumps(lock))
+
+        def load_pinned(spec):
+            assert spec.revision == FAMILY_HF_REVISION
+            return rows
+
+        monkeypatch.setattr(corpus, "load_hf_rows", load_pinned)
+    with pytest.raises(ValueError, match="duplicate document id"):
+        ppr.documents_for_run(path, **kwargs)

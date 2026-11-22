@@ -9,7 +9,7 @@ ownership, artifact integrity, and matching hosted gate evidence.
 
 | Area | Correction | Guard |
 | --- | --- | --- |
-| Pain-point report truth | Hash the exact prepared dataset bytes parsed; refuse missing/mismatched hashes and duplicate truth IDs. Explicit replacement truth keeps its own provenance. | `tests/test_pain_points_report.py` |
+| Pain-point report truth | Hash the exact prepared dataset bytes parsed; refuse missing/mismatched hashes and duplicate truth IDs. Shared truth loading rejects duplicates before indexing local or rebuilt Hub truth, protecting rescore too. Explicit replacement truth keeps its own provenance. | `tests/test_pain_points_report.py`, `tests/test_corpus.py`, `tests/test_rescore.py` |
 | Report completeness | Refuse prepared, running, paused and foreign checkpoints. Display terminal state and locked row count; a bundle without a checkpoint is visibly unverified. | `tests/test_pain_points_report.py` |
 | Suite teardown | Mock, offline and dry-run execution never reaches live cleanup. A failed cleanup returns its error and no longer prints success. | `tests/test_run_suite.py` |
 | Notebook state | Scope warning filters and restore the prior logging-disable level on success and failure. | `test_quiet_pipeline_logs_restores_kernel_state` |

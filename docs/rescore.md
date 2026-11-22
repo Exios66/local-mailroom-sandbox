@@ -77,6 +77,7 @@ A rescore stops and writes nothing if any of these hold:
 - `--out` already exists (`--force` replaces it), or `--out` is the source run, contains it or lies
   inside it;
 - the run read a local dataset file and neither `--dataset-file` nor `--revision` is given;
+- the new truth source has duplicate normalized document IDs, even if only one is requested;
 - the task has no per-document scorer.
 
 Supported tasks are `pipeline`, `specialist`, `isolated` (the sorter) and every registered agent
