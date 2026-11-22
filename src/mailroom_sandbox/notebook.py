@@ -510,6 +510,25 @@ def show_figure(fig: Any) -> None:
     display(Image(data=buf.getvalue()))
 
 
+@contextmanager
+def quiet_pipeline_logs():
+    """Buffer demo stdout and scope expected warnings, restoring kernel state even on failure."""
+    import io
+    import logging
+    import warnings
+    from contextlib import redirect_stdout
+
+    previous = logging.root.manager.disable
+    buffer = io.StringIO()
+    try:
+        with warnings.catch_warnings(), redirect_stdout(buffer):
+            logging.disable(logging.WARNING)
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*relations.*")
+            yield buffer
+    finally:
+        logging.disable(previous)
+
+
 def probe_refusal(profile: str) -> str | None:
     """Why notebook 01 must not probe ``profile`` (None when its endpoint is local).
 

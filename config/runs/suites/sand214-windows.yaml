@@ -6,12 +6,13 @@
 # Activate: modal profile activate exios66
 # Check:    sandbox run benchmark-check --suite sand214-windows --modal-profile exios66
 # Chain:    sandbox run suite --suite sand214-windows --execute --initials <XX>
-# Teardown: add --teardown to the chain (stops the app when it finishes, fails or is
-#           interrupted), or ./deploy/teardown_vllm.sh ONLY after the last config below.
+# Teardown: add --teardown ONLY when the two suite legs are the app's only consumers.
+#           It stops the app on completion, failure or interruption, regardless of other runs.
 # r2:       config/runs/sand214-30-contracts-specialist-awq-1l4-windows-r2.yaml is a follow-up,
 #           not a leg: it re-runs the contracts draw with the length fix on the same serving
-#           block. Start it by hand while the merger leg holds the fleet warm, then tear down:
-#             sandbox run start --config <r2 config> --initials <XX>
+#           block. To run it while merger holds the fleet warm, OMIT --teardown from the chain:
+#             sandbox run start --config config/runs/sand214-30-contracts-specialist-awq-1l4-windows-r2.yaml --initials <XX>
+#           Run ./deploy/teardown_vllm.sh sandbox-vllm ONLY after BOTH the suite and r2 have ended.
 schema: sandbox.suite/v1
 suite_id: sand214-windows
 track: a

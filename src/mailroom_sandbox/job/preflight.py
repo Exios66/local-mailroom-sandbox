@@ -507,7 +507,7 @@ def _reviewer_class_errors(spec: RunSpec) -> list[str]:
 
 
 def _jev_backend_errors(spec: RunSpec) -> list[str]:
-    """One Jev refusal. Mock, Modal, and a missing key cannot apply together."""
+    """Return the first Jev refusal in priority order; its conditions can coexist."""
     reviewer = spec.reviewer
     if reviewer is None or reviewer.backend != "jev":
         return []
@@ -1102,8 +1102,8 @@ def preflight(
     the preflight report, or ``busy_refused`` when the writer lock is held.
     ``force`` requests archival and a new generation but refuses possibly
     active writers; ``offline`` avoids remote prompt/tracing requirements.
-    ``live`` probes the engine for a new generation. ``dry_run`` only checks
-    lock readability and returns without resolving or preparing artifacts;
+    ``live`` probes the engine for a new generation. ``dry_run`` checks
+    lock readability and replay ownership without resolving or preparing artifacts;
     the run directory and lock files may still be created.
     ``require_expanded_inputs`` fails the run when a long-context reader is
     still on the short budget. The run's ``job.require_expanded_inputs`` does
@@ -1774,8 +1774,8 @@ def _preflight(
     """Validate an existing generation or prepare artifacts and write a new lock.
 
     Return ``prepared``, ``failed``, ``drift_refused``, ``busy_refused``, or
-    ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
-    existing lock readability, without validating domains or writing artifacts.
+    ``foreign_store_refused`` in the report's status. ``dry_run`` checks
+    existing lock readability and replay ownership, without validating domains or writing artifacts.
     ``force`` archives an eligible existing generation before preparing its
     replacement. A legacy lock that cannot prove task-GT selection is refused.
     New local dataset identity uses the prepared source hash when available.

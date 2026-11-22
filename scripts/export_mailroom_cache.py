@@ -30,20 +30,26 @@ Usage (``local-mailroom-sandbox`` and ``mailroom-issues`` checked out side by si
 A written pre-release is immutable: writing the same version with different bytes is refused
 (cut ``rc.2`` instead). ``--check`` rebuilds in memory from the committed labels and the cached
 CSV and exits 1 if anything under ``--out`` is stale.
+Exports and checks hold a nonblocking sibling ``.<output-name>.export.lock`` across
+the entire cache transaction. Keep that lock file in place; concurrent attempts
+are refused and can be retried after the active export finishes.
 """
 from __future__ import annotations
 
 import argparse
 import collections
 import csv
+import fcntl
 import filecmp
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -417,8 +423,82 @@ python {BUILDER} --version X.Y.P-rc.N --check
 """
 
 
+def _check_output_owner(out: Path) -> None:
+    """Refuse a populated foreign directory before any cache publication can replace it."""
+    if out.is_symlink():
+        raise CacheError(f"cache output must not be a symlink: {out}")
+    if not out.exists():
+        return
+    if not out.is_dir():
+        raise CacheError(f"cache output is not a directory: {out}")
+    if not any(out.iterdir()):
+        return
+    try:
+        registry = json.loads((out / "REGISTRY.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CacheError(f"refusing to replace a directory without a valid cache registry: {out}") from exc
+    if not isinstance(registry, dict) or registry.get("schema") != SCHEMA or registry.get("dataset") != HF_DEFAULT_REPO:
+        raise CacheError(f"refusing to replace a foreign cache directory: {out}")
+
+
+def _publish_cache(stage: Path, out: Path) -> None:
+    """Prepare the replacement before renaming the current cache; roll back a failed swap."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=".mailroom-cache-", dir=out.parent))
+    new, backup = work / "new", work / "previous"
+    preserve = False
+    try:
+        shutil.copytree(stage, new)
+        _check_output_owner(out)
+        try:
+            if out.exists():
+                out.rename(backup)
+            new.rename(out)
+        except BaseException:
+            if backup.exists():
+                try:
+                    backup.rename(out)
+                except BaseException as exc:
+                    preserve = True
+                    exc.add_note(f"Previous cache retained for recovery at {backup}")
+                    raise
+            raise
+    finally:
+        if not preserve:
+            shutil.rmtree(work)
+
+
+@contextmanager
+def _cache_lock(out: Path):
+    """Hold a stable sibling lock across the read, build and publication transaction."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    lock = out.parent / f".{out.name}.export.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError as exc:
+        raise CacheError(f"cannot open cache export lock: {lock}") from exc
+    with os.fdopen(fd, "a") as guard:
+        try:
+            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise CacheError(f"cache export already in progress: {out}") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(guard, fcntl.LOCK_UN)
+
+
 def export(out: Path, version: str, full_labels: Path | None, *, check: bool) -> list[str]:
     """Write (or, with ``check``, compare) the cache. Returns the list of stale paths."""
+    if out.is_symlink():
+        raise CacheError(f"cache output must not be a symlink: {out}")
+    out = out.parent.resolve() / out.name
+    with _cache_lock(out):
+        return _export_locked(out, version, full_labels, check=check)
+
+
+def _export_locked(out: Path, version: str, full_labels: Path | None, *, check: bool) -> list[str]:
+    _check_output_owner(out)
     major, minor, _patch, _pre = parse_version(version)
     version = version.removeprefix("v")
     pre_rel = Path(f"v{major}.{minor}.0") / "pre-release" / f"v{version}"
@@ -458,13 +538,14 @@ def export(out: Path, version: str, full_labels: Path | None, *, check: bool) ->
                 stale.append(rel)
         if check:
             return stale
+        foreign = sorted(old_files - new_files)
+        if foreign:
+            raise CacheError(f"refusing to remove unmanaged cache files: {foreign[:3]}")
         frozen = [r for r in stale if r.startswith(pre_rel.as_posix() + "/") and (out / r).exists()]
         if frozen:
             raise CacheError(f"v{version} is already cached with different bytes ({len(frozen)} files, "
                              f"e.g. {frozen[0]}); pre-releases are immutable, cut the next rc instead")
-        if out.exists():
-            shutil.rmtree(out)
-        shutil.copytree(stage, out)
+        _publish_cache(stage, out)
     return stale
 
 

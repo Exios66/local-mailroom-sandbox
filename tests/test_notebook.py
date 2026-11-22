@@ -888,6 +888,29 @@ def test_notebook_local_probe_timeout_never_lists_modal_apps(monkeypatch):
     assert "ReadTimeout" in result["models"]["detail"]
 
 
+@pytest.mark.parametrize("fail", [False, True])
+def test_quiet_pipeline_logs_restores_kernel_state(fail):
+    import logging
+    import warnings
+
+    previous = logging.root.manager.disable
+    filters = warnings.filters[:]
+    logging.disable(logging.INFO)
+    try:
+        try:
+            with notebook.quiet_pipeline_logs() as output:
+                print("buffered pipeline output")
+                if fail:
+                    raise RuntimeError("pipeline failed")
+        except RuntimeError:
+            assert fail
+        assert logging.root.manager.disable == logging.INFO
+        assert warnings.filters == filters
+        assert output.getvalue() == "buffered pipeline output\n"
+    finally:
+        logging.disable(previous)
+
+
 def test_show_figure_embeds_png(monkeypatch):
     """Unit-test without requiring IPython (main CI test job has no notebook extra)."""
     matplotlib = pytest.importorskip("matplotlib")

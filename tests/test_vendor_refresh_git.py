@@ -311,6 +311,23 @@ def test_visualizer_updates_clean_older_reviewed_checkout(source, vendor):
     assert (dest / "index.html").read_text() == "new\n"
 
 
+def test_visualizer_retains_writes_through_an_old_open_descriptor(source, vendor, capsys):
+    old = commit(source, {"index.html": "old\n"})
+    new = commit(source, {"index.html": "new\n"})
+    assert cli._refresh_visualizer(old, str(source), old) == 0
+    dest = vendor / "The-Mailroom"
+    with (dest / "index.html").open("r+") as editor:
+        assert cli._refresh_visualizer(new, str(source), new) == 0
+        editor.seek(0)
+        editor.write("late editor change\n")
+        editor.truncate()
+        editor.flush()
+    (previous,) = (vendor / ".refresh").glob("visualizer-recovery-*/The-Mailroom/index.html")
+    assert previous.read_text() == "late editor change\n"
+    assert (dest / "index.html").read_text() == "new\n"
+    assert str(previous.parent) in capsys.readouterr().err
+
+
 def test_visualizer_existing_checkout_survives_remote_failure(source, vendor):
     reviewed = commit(source, {"index.html": "reviewed\n"})
     assert cli._refresh_visualizer(reviewed, str(source), reviewed) == 0

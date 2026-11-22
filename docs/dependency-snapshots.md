@@ -121,6 +121,12 @@ paid runs retain their existing human spend gates.
 
 ## Verification and failure recovery
 
+Refreshing The-Mailroom retains the previous clean checkout under
+`vendor/.refresh/visualizer-recovery-*/The-Mailroom/` and prints its path.
+An editor can still write to that directory through a file descriptor opened
+before refresh. Close old writers and inspect the retained checkout before
+removing it manually; refresh never deletes these recovery copies automatically.
+
 For Dojo, fetch requires the owner's `release-manifest.json`, `SHA256SUMS`, and
 manifest-named wheel or sdist. The manifest's package, tag and commit must match
 the peeled GitHub tag. Both checksum listings and the artifact size/digest are

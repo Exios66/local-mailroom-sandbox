@@ -11,8 +11,8 @@
 #             is not truncated. Posture row SAND214_RUNS in job/specialist_posture.py.
 #   order   = longest_first: the 6-window contracts no longer decode alone at the tail.
 #   compare = r1 vs r2 on the same documents: failed windows, mean score, window_rules AUROC.
-#   spend   = cost_cap_usd 1.00 and 1 hour wall (exios66), on the warm 1×L4 fleet after the
-#             merger leg; ./deploy/teardown_vllm.sh after it.
+#   spend   = cost_cap_usd 1.00 and 1 hour wall (exios66), alongside the merger leg on its
+#             warm 1×L4 fleet. Omit suite --teardown; tear down manually after BOTH runs end.
 schema: sandbox.run/v1
 run_id: sand214-30-contracts-specialist-awq-1l4-windows-r2
 task: contracts_specialist
@@ -73,7 +73,7 @@ engine:
     prewarm: true
 
 # No agent_knobs block: the generation knobs, sampling and length re-sample included, come
-# from the posture row; a run spec cannot carry top_p / top_k / presence_penalty / length_retries.
+# from the posture row. Explicit agent_knobs overrides are supported but are not needed here.
 
 job:
   mode: endpoint

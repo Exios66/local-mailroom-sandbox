@@ -7,6 +7,7 @@ extraction composite runs through the real scorer.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -41,8 +42,10 @@ def _run(root: Path, run_id: str, rows: list[dict], items: list[dict], *, task: 
     path.mkdir(parents=True)
     lock = {"run_id": run_id, "task": task, "profile": "modal", "engine": {"model": model},
             "prompt": {"default": {"name": "deploy_v1", "version": "3"}}, "job": {"mock": mock}}
-    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     (path / "dataset.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    lock["dataset"] = {"sha256": hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest(), "rows": len(rows)}
+    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": run_id, "state": "done"}), encoding="utf-8")
     (path / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
     return path
 
@@ -190,6 +193,8 @@ def test_line_separators_inside_json_strings_survive(tmp_path, case):
     lock = {"run_id": "r", "task": "pipeline", "engine": {"model": "m"}, "job": {"mock": False}}
     (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     (path / "dataset.jsonl").write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    lock["dataset"] = {"sha256": hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest()}
+    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
     item = _item("d1", data=case["expected"])
     item["pred"]["note"] = "a b"
     (path / "items.jsonl").write_text(json.dumps(item, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -206,3 +211,160 @@ def test_experiment_labels_are_normalised_before_the_uniqueness_check(two_runs):
         ppr.report([(str(base), "  ")])
     rep = ppr.report([(str(base), " A "), (str(cand), "B")], baseline=" A ", n_boot=50)
     assert rep["compare"]["baseline"] == "A" and [p["label"] for p in rep["runs"]] == ["A", "B"]
+
+
+@pytest.mark.parametrize("mutation", ["changed", "missing_hash", "duplicate_id"])
+def test_locked_truth_integrity_is_required(tmp_path, case, mutation):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    lock = json.loads((path / "spec.lock.json").read_text())
+    if mutation == "missing_hash":
+        lock["dataset"].pop("sha256")
+    elif mutation == "changed":
+        (path / "dataset.jsonl").write_text(json.dumps(_row("changed", case)) + "\n")
+    else:
+        with (path / "dataset.jsonl").open("a") as handle:
+            handle.write(json.dumps(_row("d1", case)) + "\n")
+        lock["dataset"]["sha256"] = hashlib.sha256((path / "dataset.jsonl").read_bytes()).hexdigest()
+    (path / "spec.lock.json").write_text(json.dumps(lock))
+    with pytest.raises(ppr.PainPointsError, match="sha256|duplicate"):
+        ppr.documents_for_run(path)
+
+
+@pytest.mark.parametrize("state", ["prepared", "running", "paused", "unknown", None])
+def test_unfinished_runs_are_refused(tmp_path, case, state):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": "r", "state": state}))
+    with pytest.raises(ppr.PainPointsError, match="finished pipeline run"):
+        ppr.documents_for_run(path)
+
+
+def test_foreign_checkpoint_is_refused(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").write_text(json.dumps({"run_id": "other", "state": "done"}))
+    with pytest.raises(ppr.PainPointsError, match="locked generation"):
+        ppr.documents_for_run(path)
+
+
+def test_bundle_without_checkpoint_is_explicitly_unverified(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "checkpoint.json").unlink()
+    rep = ppr.report([(str(path), None)], n_boot=10)
+    assert rep["runs"][0]["state"] == "unverified (no checkpoint)"
+    assert "unverified (no checkpoint)" in ppr.render(rep)
+    assert rep["runs"][0]["truth"]["sha256"]
+
+
+def test_explicit_truth_override_keeps_its_own_provenance(tmp_path, case):
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    (path / "dataset.jsonl").write_text("changed original dataset")
+    override = tmp_path / "new-truth.jsonl"
+    override.write_text(json.dumps(_row("d1", case)) + "\n")
+    rep = ppr.report([(str(path), None)], dataset_file=override, n_boot=10)
+    assert rep["runs"][0]["truth"]["sha256"] == hashlib.sha256(override.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("source", ["explicit_file", "locked_revision"])
+def test_reconstructed_truth_refuses_duplicate_source_ids(tmp_path, case, monkeypatch, source):
+    from mailroom_sandbox import corpus
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1")])
+    rows = [_row("d1", case), _row("d1", case, stage="review")]
+    kwargs = {}
+    if source == "explicit_file":
+        override = tmp_path / "new-truth.jsonl"
+        override.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        kwargs["dataset_file"] = override
+    else:
+        (path / "dataset.jsonl").unlink()
+        lock_file = path / "spec.lock.json"
+        lock = json.loads(lock_file.read_text())
+        lock["dataset"]["revision"] = FAMILY_HF_REVISION
+        lock_file.write_text(json.dumps(lock))
+
+        def load_pinned(spec):
+            assert spec.revision == FAMILY_HF_REVISION
+            return rows
+
+        monkeypatch.setattr(corpus, "load_hf_rows", load_pinned)
+    with pytest.raises(ValueError, match="duplicate document id"):
+        ppr.documents_for_run(path, **kwargs)
+
+
+def test_rescore_output_and_legacy_source_checkpoints_are_reportable(tmp_path, case):
+    from mailroom_sandbox import rescore
+
+    path = _run(tmp_path, "r", [_row("d1", case)], [_item("d1", data=case["expected"])])
+    replacement = tmp_path / "truth.jsonl"
+    replacement.write_text(json.dumps(_row("d1", case)) + "\n")
+    result = rescore.rescore(path, dataset_file=replacement, out=tmp_path / "derived")
+    derived = Path(result["out"])
+    checkpoint = json.loads((derived / "checkpoint.json").read_text())
+    assert checkpoint["run_id"] == "derived"
+    assert checkpoint["source_checkpoint"]["run_id"] == "r"
+    assert ppr.documents_for_run(derived)[1]["state"] == "done"
+    second = rescore.rescore(derived, dataset_file=replacement, out=tmp_path / "second")
+    assert ppr.documents_for_run(second["out"])[1]["state"] == "done"
+    # Previously written rescore bundles carry the source checkpoint unchanged.
+    (derived / "checkpoint.json").write_bytes((path / "checkpoint.json").read_bytes())
+    assert ppr.documents_for_run(derived)[1]["state"] == "done"
+    (derived / "checkpoint.json").write_text(json.dumps({"run_id": "foreign", "state": "done"}))
+    with pytest.raises(ppr.PainPointsError, match="locked generation"):
+        ppr.documents_for_run(derived)
+
+
+@pytest.fixture
+def legacy_rescore_chain(tmp_path, case):
+    from mailroom_sandbox import rescore
+
+    original = _run(tmp_path, "original", [_row("d1", case)], [_item("d1", data=case["expected"])])
+    lock = json.loads((original / "spec.lock.json").read_text())
+    lock.update(spec_hash="source-spec", generation_id="source-generation")
+    (original / "spec.lock.json").write_text(json.dumps(lock))
+    checkpoint = {"run_id": "original", "spec_hash": "source-spec", "generation_id": "source-generation",
+                  "state": "done"}
+    (original / "checkpoint.json").write_text(json.dumps(checkpoint))
+    truth = original / "dataset.jsonl"
+    middle = Path(rescore.rescore(original, dataset_file=truth, out=tmp_path / "middle")["out"])
+    final = Path(rescore.rescore(middle, dataset_file=truth, out=tmp_path / "elsewhere" / "final")["out"])
+    for path in (middle, final):
+        # Reproduce the pre-fix producer: every generation copied the original checkpoint verbatim.
+        (path / "checkpoint.json").write_text(json.dumps(checkpoint))
+    return original, middle, final
+
+
+def test_multistep_legacy_rescore_follows_verified_recorded_source_paths(legacy_rescore_chain):
+    _, _, final = legacy_rescore_chain
+    docs, meta = ppr.documents_for_run(final)
+    assert [d.doc_id for d in docs] == ["d1"] and meta["state"] == "done"
+
+
+@pytest.mark.parametrize("problem", ["foreign_checkpoint", "foreign_ancestor", "missing_ancestor", "cycle"])
+def test_multistep_legacy_rescore_refuses_unverified_ancestry(legacy_rescore_chain, problem):
+    _, middle, final = legacy_rescore_chain
+    expected = "locked generation"
+    if problem == "foreign_checkpoint":
+        path = final / "checkpoint.json"
+        checkpoint = json.loads(path.read_text())
+        checkpoint["run_id"] = "unrelated-run"
+        path.write_text(json.dumps(checkpoint))
+    elif problem == "foreign_ancestor":
+        path = middle / "spec.lock.json"
+        lock = json.loads(path.read_text())
+        lock["spec_hash"] = "another-spec"
+        path.write_text(json.dumps(lock))
+    elif problem == "missing_ancestor":
+        (middle / "spec.lock.json").unlink()
+        expected = "cannot verify legacy rescore ancestry"
+    else:
+        path = middle / "spec.lock.json"
+        lock = json.loads(path.read_text())
+        lock["rescore"]["source_run"] = "final"
+        path.write_text(json.dumps(lock))
+        report = middle / "rescore.json"
+        data = json.loads(report.read_text())
+        data.update(source_run="final", source_path=str(final))
+        report.write_text(json.dumps(data))
+        expected = "cyclic or excessive"
+    with pytest.raises(ppr.PainPointsError, match=expected):
+        ppr.documents_for_run(final)

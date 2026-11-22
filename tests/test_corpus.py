@@ -99,6 +99,22 @@ def test_content_sha_mismatch_raises(tmp_path):
         prepare_subset(DatasetSpec(local_path=src), tmp_path / "x.jsonl")
 
 
+@pytest.mark.parametrize("provider", ["file", "huggingface"])
+@pytest.mark.parametrize("keep_raw", [False, True])
+def test_truth_rows_refuses_duplicate_normalized_ids(tmp_path, monkeypatch, provider, keep_raw):
+    from mailroom_sandbox import corpus
+
+    rows = [{"id": "d1", "doc_text": "one", "expected": "contract"},
+            {"document_id": "d1", "doc_text": "two", "expected": "correspondence"}]
+    if provider == "file":
+        spec = DatasetSpec(local_path=_write_fixture(tmp_path, rows))
+    else:
+        spec = DatasetSpec(revision=FAMILY_HF_REVISION)
+        monkeypatch.setattr(corpus, "load_hf_rows", lambda spec: rows)
+    with pytest.raises(ValueError, match="duplicate document id: 'd1'"):
+        corpus.truth_rows(spec, ["d1"], keep_raw=keep_raw)
+
+
 def test_select_rows_buckets_deterministic():
     rows = normalize_rows(_rows(12))
     strata = {"buckets": [{"doc_class": "contract", "count": 2}]}

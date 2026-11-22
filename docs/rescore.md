@@ -50,7 +50,9 @@ the gold audit read that layout.
   plain means. A task runner's own run summary can hold other statistics (macro-F1, intervals),
   which a rescore does not recompute.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores.
-- `events.jsonl`, `checkpoint.json` and `prompt.lock.json`, copied when present.
+- `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
+  derived lock's run, spec and generation identity, retaining its original content under
+  `source_checkpoint`. Its terminal state is preserved.
 
 ## Reading the digest
 
@@ -77,6 +79,7 @@ A rescore stops and writes nothing if any of these hold:
 - `--out` already exists (`--force` replaces it), or `--out` is the source run, contains it or lies
   inside it;
 - the run read a local dataset file and neither `--dataset-file` nor `--revision` is given;
+- the new truth source has duplicate normalized document IDs, even if only one is requested;
 - the task has no per-document scorer.
 
 Supported tasks are `pipeline`, `specialist`, `isolated` (the sorter) and every registered agent

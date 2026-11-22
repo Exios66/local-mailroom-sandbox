@@ -18,6 +18,24 @@ def mod():
     return m
 
 
+def test_overlay_staging_and_cache_export_share_one_lock(mod, tmp_path, monkeypatch):
+    out = tmp_path / "cache"
+    inputs = tmp_path / "unused-input"
+
+    def staging(*args, **kwargs):
+        with pytest.raises(mod.CacheError, match="already in progress"):
+            mod.emc.export(out, "9.3.1-rc.1", None, check=False)
+        return {"locked": True}
+
+    monkeypatch.setattr(mod, "_stage_locked", staging)
+    assert mod.stage(out, "9.3.1-rc.1", inputs, inputs, inputs,
+                     builder_commit="fixture", builder_script=inputs) == {"locked": True}
+    with mod.emc._cache_lock(out):
+        with pytest.raises(mod.CacheError, match="already in progress"):
+            mod.stage(out, "9.3.1-rc.2", inputs, inputs, inputs,
+                      builder_commit="fixture", builder_script=inputs)
+
+
 TEXT = ("This Agreement renews for one (1) year periods unless either Party notifies the other Party "
         "not less than six (6) months before the end of the term. Either party may terminate upon "
         "ninety (90) days' prior written notice. For material breach, written notice and at least "
@@ -235,7 +253,7 @@ def test_validate_repairs_strips_hub_keywords_as_an_override(mod):
     assert counts == {"keyword_metadata_stripped": 1}
 
 
-def test_corrections_must_quote_the_text_and_match_a_cell(mod, tmp_path):
+def test_populated_corrections_must_quote_the_text_and_match_a_cell(mod, tmp_path):
     bad = tmp_path / "c.jsonl"
     bad.write_text(json.dumps({"doc_id": "D", "field": "f", "presence": "populated", "value": "v", "note": "n"}) + "\n")
     with pytest.raises(mod.CacheError, match="needs a value and a quote"):
