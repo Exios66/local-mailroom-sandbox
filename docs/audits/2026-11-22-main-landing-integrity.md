@@ -111,7 +111,9 @@ after this audit closed. It was verified separately, with the same standard:
 - The shipped artifacts are on main: `reports/SAND-214/2026-11-21/`,
   `reports/serving/SAND-214/`, the run-ledger start rows, both new window-arm
   configs, the 150-document confidence-cutoff config and the exclude lists.
-- No paid work was launched by this audit. The window-length suite and the
-  confidence-cutoff run remain unexecuted and gated on the owner's go-ahead;
-  merger quality (0.091) is an open extraction problem before either result is
-  usable.
+- No paid work was launched by this audit. No #214 follow-up run has completed:
+  the ledger's three starts for the 28k window arm stopped at the Modal engine
+  probe (app not deployed, no GPU billed, no documents processed) and the
+  150-document confidence-cutoff run has not been started; both remain gated on
+  the owner's go-ahead and, for the arms, a deployed Modal app. Merger quality
+  (0.091) is an open extraction problem before either result is usable.
