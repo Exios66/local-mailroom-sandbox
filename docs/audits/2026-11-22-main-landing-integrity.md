@@ -20,6 +20,8 @@ ownership, artifact integrity, and matching hosted gate evidence.
 
 ## Review reconciliation
 
+- PR #398 implements the repairs. Its 15 review threads were verified and resolved,
+  including the subsequent multi-step legacy rescore objection.
 - #384's two open notebook findings are covered by the notebook and demo fixes.
 - #395's disabled-fit route findings already have their fix on main:
   `apply_context_fit` records explicit routes before the disabled-fit return.
@@ -49,6 +51,13 @@ CP-14 and CP-16 identify the related campaign boundaries. No guard was loosened.
 
 ## Verification evidence
 
+- Repair code revision `25f5d5d1c1df887ffc7c7e7b36377920e41ad957` passed all six
+  CircleCI gates in workflow `6793d073-c38b-4f04-aef1-b8131f2ffb43` on 2026-11-22:
+  lint, generated files, no-session-links, full tests, notebook execution and coverage.
+  Job #3109's four shards total 5,288 passed and 42 skipped; notebook job #3107
+  passed 101 tests, including the actual demo-renderer kernel integration.
+  Coverage job #3110 reports 89% (rounded display), above the unchanged 84% floor.
+  This closeout documentation still requires the final PR head's hosted gates.
 - All six CircleCI gates passed on the nine merged PR heads and on the starting
   main revision. These are prior hosted results, not certification of the new
   repair commit; its own hosted gates remain required before merge.
@@ -58,6 +67,10 @@ CP-14 and CP-16 identify the related campaign boundaries. No guard was loosened.
 - Subsequent focused repair checks passed 66 tests; maintenance/fleet checks
   passed 46 tests. These overlapping invocations are reported separately and
   must not be summed as unique tests. Final-head results belong in the PR.
+- Review repairs passed 204 focused tests; the NotebookNode fix passed 9 renderer
+  tests, and legacy-chain verification passed 54 report/rescore tests. The first
+  hosted renderer regression exposed a dict-subclass conversion defect; preserving
+  output node types fixed it, confirmed by the hosted notebook result above.
 - The hotfix checker reports HF-001–010 applied and SHF-001–014 current.
 - Three committed label-release output digests match their summary. The release
   has 3,302 unique document IDs and 48,688 unique document/field provenance cells.
