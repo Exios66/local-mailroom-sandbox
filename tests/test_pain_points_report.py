@@ -311,3 +311,60 @@ def test_rescore_output_and_legacy_source_checkpoints_are_reportable(tmp_path, c
     (derived / "checkpoint.json").write_text(json.dumps({"run_id": "foreign", "state": "done"}))
     with pytest.raises(ppr.PainPointsError, match="locked generation"):
         ppr.documents_for_run(derived)
+
+
+@pytest.fixture
+def legacy_rescore_chain(tmp_path, case):
+    from mailroom_sandbox import rescore
+
+    original = _run(tmp_path, "original", [_row("d1", case)], [_item("d1", data=case["expected"])])
+    lock = json.loads((original / "spec.lock.json").read_text())
+    lock.update(spec_hash="source-spec", generation_id="source-generation")
+    (original / "spec.lock.json").write_text(json.dumps(lock))
+    checkpoint = {"run_id": "original", "spec_hash": "source-spec", "generation_id": "source-generation",
+                  "state": "done"}
+    (original / "checkpoint.json").write_text(json.dumps(checkpoint))
+    truth = original / "dataset.jsonl"
+    middle = Path(rescore.rescore(original, dataset_file=truth, out=tmp_path / "middle")["out"])
+    final = Path(rescore.rescore(middle, dataset_file=truth, out=tmp_path / "elsewhere" / "final")["out"])
+    for path in (middle, final):
+        # Reproduce the pre-fix producer: every generation copied the original checkpoint verbatim.
+        (path / "checkpoint.json").write_text(json.dumps(checkpoint))
+    return original, middle, final
+
+
+def test_multistep_legacy_rescore_follows_verified_recorded_source_paths(legacy_rescore_chain):
+    _, _, final = legacy_rescore_chain
+    docs, meta = ppr.documents_for_run(final)
+    assert [d.doc_id for d in docs] == ["d1"] and meta["state"] == "done"
+
+
+@pytest.mark.parametrize("problem", ["foreign_checkpoint", "foreign_ancestor", "missing_ancestor", "cycle"])
+def test_multistep_legacy_rescore_refuses_unverified_ancestry(legacy_rescore_chain, problem):
+    _, middle, final = legacy_rescore_chain
+    expected = "locked generation"
+    if problem == "foreign_checkpoint":
+        path = final / "checkpoint.json"
+        checkpoint = json.loads(path.read_text())
+        checkpoint["run_id"] = "unrelated-run"
+        path.write_text(json.dumps(checkpoint))
+    elif problem == "foreign_ancestor":
+        path = middle / "spec.lock.json"
+        lock = json.loads(path.read_text())
+        lock["spec_hash"] = "another-spec"
+        path.write_text(json.dumps(lock))
+    elif problem == "missing_ancestor":
+        (middle / "spec.lock.json").unlink()
+        expected = "cannot verify legacy rescore ancestry"
+    else:
+        path = middle / "spec.lock.json"
+        lock = json.loads(path.read_text())
+        lock["rescore"]["source_run"] = "final"
+        path.write_text(json.dumps(lock))
+        report = middle / "rescore.json"
+        data = json.loads(report.read_text())
+        data.update(source_run="final", source_path=str(final))
+        report.write_text(json.dumps(data))
+        expected = "cyclic or excessive"
+    with pytest.raises(ppr.PainPointsError, match=expected):
+        ppr.documents_for_run(final)

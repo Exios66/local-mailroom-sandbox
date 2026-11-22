@@ -64,15 +64,45 @@ def _finished_lock(files) -> tuple[dict[str, Any], str]:
 
 
 def _checkpoint_identity(lock: dict[str, Any], cp: dict[str, Any], path: Path) -> dict[str, Any]:
-    expected = lock
-    if lock.get("lock_kind") == "rescore.lock" and cp.get("run_id") != lock.get("run_id"):
-        # Legacy derived runs copied their source checkpoint; validate its recorded source identity.
+    seen: set[Path] = set()
+    while lock.get("lock_kind") == "rescore.lock" and cp.get("run_id") != lock.get("run_id"):
+        path = path.resolve()
+        if path in seen or len(seen) >= 64:
+            raise PainPointsError(f"{path}: cyclic or excessive legacy rescore ancestry")
+        seen.add(path)
+        # Old A -> B -> C rescores copied A's checkpoint through every derived run.
         source = lock.get("rescore") or {}
         expected = {"run_id": source.get("source_run"), "spec_hash": source.get("source_spec_hash"),
                     "generation_id": lock.get("generation_id")}
         if not expected["run_id"]:
             raise PainPointsError(f"{path}: derived checkpoint has no recorded source identity")
-    return expected
+        if cp.get("run_id") == expected["run_id"]:
+            return expected
+        path, lock = _rescore_source_lock(path, expected)
+    return lock
+
+
+def _rescore_source_lock(path: Path, expected: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
+    """Follow only a recorded source whose available lock matches the child link."""
+    source_id = str(expected["run_id"])
+    if Path(source_id).name != source_id or source_id in (".", ".."):
+        raise PainPointsError(f"{path}: invalid legacy rescore source id")
+    candidates = [path.parent / source_id]
+    report_path = path / "rescore.json"
+    if report_path.is_file():
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        if isinstance(report, dict) and report.get("source_run") == source_id and report.get("source_path"):
+            candidates.append(Path(report["source_path"]))
+    for candidate in candidates:
+        lock_path = candidate / "spec.lock.json"
+        if not lock_path.is_file():
+            continue
+        ancestor = json.loads(lock_path.read_text(encoding="utf-8"))
+        if not isinstance(ancestor, dict) or any(expected.get(k) and ancestor.get(k) != expected[k]
+                                               for k in ("run_id", "spec_hash", "generation_id")):
+            raise PainPointsError(f"{path}: legacy source differs from the locked generation")
+        return candidate, ancestor
+    raise PainPointsError(f"{path}: cannot verify legacy rescore ancestry; restore source run {source_id!r}")
 
 
 def _truth_by_id(rows: Iterable[dict[str, Any]]) -> dict[str, dict]:

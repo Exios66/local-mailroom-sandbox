@@ -154,6 +154,9 @@ to select new truth, whose provenance is recorded separately. Duplicate truth ID
 including normalized IDs in replacement files and rebuilt Hub truth before source rows are indexed.
 Derived rescore runs use their derived checkpoint identity; legacy copied checkpoints are
 validated against the source run and spec identity recorded in `rescore.lock`.
+For multi-step legacy chains, reporting follows available sibling source locks or the source
+paths recorded in `rescore.json`, verifying every run, spec and generation link. Missing,
+foreign, cyclic or excessive ancestry is refused; restore the source runs to verify such a bundle.
 Prepared, running and paused checkpoints are refused. Terminal checkpoint state and locked
 row count are shown beside the scored document count, so a failed partial run stays visible.
 A bundle without a checkpoint is labeled `unverified (no checkpoint)`.
