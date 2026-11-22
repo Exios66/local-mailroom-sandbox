@@ -4,7 +4,16 @@
 
 ## [Unreleased]
 
-### Changed: production slices score from staged overlay `9.3.1-rc.8`
+### Changed: production slices score from staged overlay `9.3.1-rc.9`
+
+- `config/staged_overlays.yaml` pins `9.3.1-rc.9` (`LLM-Mailroom-Services/mailroom-issues#252`,
+  commit `0288f619`): rc.8 plus six reviewed corrections in
+  `data/labels/review/validation_corrections.jsonl`. Three merger `effective_time` cells labeled
+  absent although the agreement defines the Effective Time, two incomplete ones, and one
+  correspondence `recipient` that named the quoted message's sender (now unlabeled). Scores move
+  only on those six cells.
+
+### Changed: staged overlay `9.3.1-rc.8` pinned (field completeness report fixed)
 
 - `config/staged_overlays.yaml` pins `9.3.1-rc.8` (`LLM-Mailroom-Services/mailroom-issues#251`, commit `83e52bd1`). Its
   overlay, queues, labels and provenance are byte-identical to rc.7, so scores do not move; only

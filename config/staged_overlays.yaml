@@ -63,3 +63,11 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.8
     manifest_sha256: d343bb03aceba518d668828ed32ebdd72eeb828880bcb1777f5b7d53bb44e0d5
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.9: rc.8 plus six reviewed corrections (five merger Effective Times, one correspondence
+  # recipient) from data/labels/review/validation_corrections.jsonl (mailroom-issues #252).
+  9.3.1-rc.9:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: 0288f6197c553f8f96b37a128dbce19ad5bc8b86
+    path: v9.3.0/pre-release/v9.3.1-rc.9
+    manifest_sha256: a639ffbd368d85086ad7b1ccf3cc6322bd28631a6bc41ae9fca9eaefecfb9070
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
