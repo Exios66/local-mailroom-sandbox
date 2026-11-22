@@ -86,6 +86,47 @@ def test_compose_vllm_has_gpu_reservation():
     assert devices[0]["capabilities"] == ["gpu"]
 
 
+def test_pipeline_profile_is_the_control_machine():
+    """The CPU runner and the vLLM front door publish nothing except localhost:8000."""
+    data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
+    front = data["services"]["vllm-front"]
+    runner = data["services"]["pipeline"]
+    assert front["profiles"] == ["pipeline"]
+    assert runner["profiles"] == ["pipeline"]
+    assert front["ports"] == ["127.0.0.1:8000:8000"]
+    assert "ports" not in runner
+    assert "container_name" not in runner
+    assert runner["command"] == ["sleep", "infinity"]
+    assert runner["environment"]["VLLM_BASE_URL"] == "http://vllm-front:8000/v1"
+    assert front["image"] == "nginx:1.27.4-alpine"
+    assert runner["depends_on"]["vllm-front"]["condition"] == "service_healthy"
+    assert "pipeline" in VALID_PROFILES
+
+
+def test_compose_profiles_env_joins_the_port_guard(monkeypatch):
+    """Compose also enables COMPOSE_PROFILES, which the CLI list does not include."""
+    monkeypatch.setenv("COMPOSE_PROFILES", "vllm")
+    try:
+        compose_argv(["pipeline"], "up", "-d")
+    except ValueError as exc:
+        assert "127.0.0.1:8000" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+    monkeypatch.setenv("COMPOSE_PROFILES", "langfuse")
+    cmd = compose_argv(["pipeline"], "config")
+    assert cmd.count("--profile") == 1
+    assert cmd[cmd.index("--profile") + 1] == "pipeline"
+
+
+def test_vllm_and_pipeline_profiles_cannot_share_a_machine():
+    try:
+        compose_argv(["vllm", "pipeline"], "up", "-d")
+    except ValueError as exc:
+        assert "127.0.0.1:8000" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
 def test_compose_argv_profiles():
     cmd = compose_argv(["phoenix", "ollama"], "up", "-d")
     assert cmd[1:3] == ["compose", "-f"]

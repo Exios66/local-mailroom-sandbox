@@ -41,8 +41,13 @@ sandbox experiment create sand42-next \
 By default this writes `config/experiments/sand42-next/experiment.yaml` and its
 run YAMLs. `--output DIR` chooses another new directory. Existing directories
 are never overwritten. `--set PATH=YAML_VALUE` changes existing nested fields,
-including vLLM options, prompts, job settings, and per-agent generation knobs;
-unknown paths fail. `--design single` also accepts `--replicas` and `--concurrency`.
+including vLLM options, prompts, job settings, and per-agent generation knobs.
+`agent_knobs.<agent>.<knob>`, `agent_models.<agent>` and `agent_routes.<agent>.<field>`
+may be created for a live agent, so a preset can set `max_input_chars` (and the
+other generation knobs) on a role the template did not list. Unknown paths fail.
+An OpenRouter design sets `job.require_expanded_inputs`, so its preflight fails
+when a long-context reader is still on the short budget. `--design single` also
+accepts `--replicas` and `--concurrency`.
 `--gpu H100` selects another GPU class; `--gpu A100-80GB:2` requests tensor parallel
 GPUs within each container, while `--replicas 2` means independent containers.
 

@@ -76,6 +76,28 @@ def apply_source_windows(windows: Mapping[str, int] | None) -> dict[str, int]:
     return effective
 
 
+def unavailable_targets() -> list[str]:
+    """``module.attr`` keys whose vendored window cannot be widened.
+
+    Empty when the pipeline extra is installed and the attributes are present.
+    Activation still continues if this is non-empty; preflight does not, once a
+    judge or arbiter was context-fitted.
+    """
+    missing: list[str] = []
+    for targets in TARGETS.values():
+        for module_name, attr in targets:
+            key = f"{module_name}.{attr}"
+            try:
+                module = importlib.import_module(module_name)
+            except Exception as exc:  # noqa: BLE001 — optional extra
+                _log.debug("%s unavailable: %s", module_name, exc)
+                missing.append(key)
+                continue
+            if not hasattr(module, attr):
+                missing.append(key)
+    return missing
+
+
 def vendored_windows() -> dict[str, int]:
     """The vendored values captured before any override (empty until first apply)."""
     return dict(_ORIGINAL)
