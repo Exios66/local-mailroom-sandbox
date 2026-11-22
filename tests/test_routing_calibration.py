@@ -244,8 +244,27 @@ def test_window_rules_rank_each_merge_rule_against_quality():
     assert got["n"] == 4 and got["met_target"] == 2 and got["adopted"] == "min"
     assert got["auroc"]["min"] == 1.0 and got["auroc"]["length_weighted"] == 1.0
     assert got["auroc"]["max"] == 0.0
+    assert got["auroc"]["agreement"] is None  # the docs record no cross-window agreement
     none = routing_audit.window_rule_separation(docs[:2], target=0.7)
-    assert none["n"] == 2 and none["auroc"] == {"min": None, "max": None, "length_weighted": None}
+    assert none["n"] == 2 and none["auroc"] == {
+        "min": None, "max": None, "length_weighted": None, "agreement": None}
+
+
+def test_cross_window_agreement_ranks_separation_when_recorded():
+    # Agreement between independent reads separates perfectly where the
+    # self-reported confidence (min window) does not: both met-target documents
+    # agree, both misses conflict.
+    docs = [{"windows": [(0.99, 100), (0.99, 100)], "quality": 0.9, "window_agreement": 1.0},
+            {"windows": [(0.95, 100), (0.95, 100)], "quality": 0.8, "window_agreement": 0.92},
+            {"windows": [(0.30, 100), (0.30, 100)], "quality": 0.4, "window_agreement": 0.5},
+            {"windows": [(0.35, 100), (0.35, 100)], "quality": 0.5, "window_agreement": 0.4}]
+    got = routing_audit.window_rule_separation(docs, target=0.7)
+    assert got["auroc"]["min"] == 1.0  # the self-report happens to separate here...
+    assert got["auroc"]["agreement"] == 1.0  # ...and the behavior signal separates too
+    mixed = [{"windows": [(0.9, 100), (0.9, 100)], "quality": 0.9, "window_agreement": 1.0},
+             {"windows": [(0.9, 100), (0.9, 100)], "quality": 0.4, "window_agreement": None}]
+    got = routing_audit.window_rule_separation(mixed, target=0.7)
+    assert got["auroc"]["agreement"] is None  # the only comparable doc has no group
 
 
 def test_a_document_that_lost_a_window_never_ranks_the_merge_rules():
@@ -264,12 +283,16 @@ def test_doc_records_read_recorded_windows_from_the_prediction():
     rows = {"d1": {"expected_doc_class": "contract", "doc_text": "x"}}
     (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
     assert rec["windows"] == [(0.9, 10), (0.4, 30)] and rec["failed_windows"] == 0
+    assert rec["window_agreement"] is None
     item["pred"]["extracted_data"]["_failed_chunks"] = 1
     (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
     assert rec["failed_windows"] == 1
+    item["pred"]["extracted_data"]["_window_agreement"] = {"agreement": 0.75, "fields": 3, "conflicts": 1}
+    (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
+    assert rec["window_agreement"] == 0.75
     isolated = {"pred": item["pred"]["extracted_data"], "score": item["score"]}
     (rec,) = routing_audit._doc_records([], {"d1": isolated}, rows)
-    assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+    assert rec["windows"] == [(0.9, 10), (0.4, 30)] and rec["window_agreement"] == 0.75
 
 
 def test_an_isolated_specialist_run_is_audited_on_its_windows_alone(tmp_path, monkeypatch):

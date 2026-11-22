@@ -93,6 +93,17 @@ def _recorded_windows(extracted: Any) -> list[tuple[float, int]]:
             if _number(c) is not None and _number(n) is not None]
 
 
+def _window_agreement(extracted: Any) -> float | None:
+    """The HF-008 cross-window agreement of a chunked extraction, when recorded."""
+    if not isinstance(extracted, Mapping):
+        return None
+    block = extracted.get("_window_agreement")
+    if not isinstance(block, Mapping):
+        return None
+    value = _number(block.get("agreement"))
+    return float(value) if value is not None else None
+
+
 def _failed_windows(extracted: Any) -> int:
     """Chunk windows whose call failed (``_failed_chunks``); their confidence was never recorded."""
     n = _number(extracted.get("_failed_chunks")) if isinstance(extracted, Mapping) else None
@@ -125,6 +136,7 @@ def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping
             # A pipeline item nests the extraction; an isolated specialist item is the extraction.
             "windows": _recorded_windows(pred.get("extracted_data", pred)),
             "failed_windows": _failed_windows(pred.get("extracted_data", pred)),
+            "window_agreement": _window_agreement(pred.get("extracted_data", pred)),
             "quality": float(quality) if isinstance(quality, (int, float)) and not isinstance(quality, bool) else None,
         })
     return out
@@ -277,6 +289,13 @@ def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAUL
     missed = [rules for rules, quality in scored if quality < target]
     auroc = {rule: _auroc([r[rule] for r in met], [r[rule] for r in missed])
              for rule in ("min", "max", "length_weighted")}
+    # The HF-008 cross-window agreement is doc-level, not a per-window rule: it
+    # ranks only the chunked-and-scored documents that recorded one. Self-reported
+    # confidence is not in this table (#214: AUROC 0.36-0.47, no signal).
+    agreed = [(d["window_agreement"], d["quality"]) for d in docs
+              if _chunked_and_scored(d) and d.get("window_agreement") is not None]
+    auroc["agreement"] = _auroc([a for a, q in agreed if q >= target],
+                                [a for a, q in agreed if q < target])
     partial = sum(1 for d in docs if d.get("failed_windows") and _number(d.get("quality")) is not None)
     return {"n": len(scored), "met_target": len(met), "target": target, "auroc": auroc, "adopted": "min",
             "partial_excluded": partial}

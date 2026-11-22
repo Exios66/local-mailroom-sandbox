@@ -29,14 +29,71 @@ Every headline number re-derives from the committed per-document data
 | window_rules AUROC (r2) | min 0.47, max 0.59, length-weighted 0.61; adopted rule unchanged (`min`) |
 | GPU cost | r1 $0.331 (393 s idle), r2 $0.621 (1,930 s idle), merger $0.840 |
 
-Two refinements beyond the run README:
+Two refinements beyond the run README (now corrected in the README itself):
 
-- r1 dropped **six** windows across the five affected documents; the README's
-  "5 documents" counts documents.
+- r1 dropped **six** windows across the five affected documents (one document
+  dropped two); the README originally counted documents.
 - r2 recorded a stated confidence of `0.0` on two documents that scored 0.714
   and 0.482, and merger's 13 zero-confidence documents (mean 0.081) do not
   separate from its 17 confident ones (0.099). Self-reported confidence has no
   usable signal in either direction.
+
+## No aggregate per-document signal works either
+
+Every per-document signal recorded by the executed runs was scored against the
+0.7 quality target (AUROC, committed figure data plus the reports' per-document
+token and latency tables):
+
+| Signal | r1 | r2 |
+| --- | --- | --- |
+| Self-reported confidence | 0.357 | 0.471 |
+| Document characters | 0.447 | 0.543 |
+| Window count | 0.534 | 0.613 |
+| Failed windows | 0.503 | 0.500 |
+| Latency | 0.478 | 0.611 |
+| Completion tokens | 0.565 | 0.606 |
+| Prompt tokens | 0.491 | 0.548 |
+| Completion tokens / char | 0.578 | 0.493 |
+
+Self-reported confidence is not merely uninformative — it ranks **below
+chance** on r1. The other aggregates hover at noise level (0.45–0.61), and
+several flip direction between runs (window count and completion tokens stay
+above 0.5 in both, but never clear the noise band), so none is a routing
+basis. (Merger met the target on 0 of 30 documents, so nothing is measurable
+there until its extraction is fixed.)
+
+## The measure with a basis in model behavior: cross-window agreement
+
+Self-consistency between independent reads of overlapping text is the one
+signal class none of these aggregates captures: two windows that read the same
+clauses and assert the same values are evidence about the extraction that no
+single-call number carries. The HF-008 merge wrapper now computes and records
+it at merge time (`_window_agreement`: mean pairwise agreement over the fields
+two or more windows both assert — Jaccard for list fields, exact on a
+whitespace/casefolded comparable form for scalars). Two normalization facts
+shape it, both caught in review: the vendored `normalize_extraction` fills
+every schema key, so `None`/`[]`/`{}` mean "not seen in this window" — a value
+is never scored against a window's fill, and two fills are not scored as
+agreement either; and `reasoning` (the per-field trace contracts and merger
+emit) plus the per-window `confidence` are excluded, because a trace and a
+self-report are not asserted content. A field only one window asserts is
+skipped, not scored as a conflict. The routing audit's `window_rules` block
+ranks it (`auroc.agreement`) beside min/max/length-weighted.
+
+One scope correction this review round made explicit: the 150-document
+confidence-cutoff run routes its specialists on OpenRouter, which reads whole
+documents and never chunks — so **that run records no agreement values** and
+cannot test the signal against judged outcomes. Agreement is recorded on
+chunked self-hosted runs; a labelled agreement-vs-judged-quality comparison
+would need a self-hosted (Modal vLLM) judged pipeline configuration, which
+does not exist yet and would be new paid, gated work. Until then agreement is
+a recorded, audited signal without a labelled measurement.
+
+Deliberate scope: agreement is only recorded where windows exist (a
+single-window extraction takes the plain path and records nothing), and it is
+a routing input under test, not yet a gate — no band, cutoff or archive
+decision reads it until a labelled comparison on a chunked self-hosted run
+justifies one.
 
 ## Interpretation
 

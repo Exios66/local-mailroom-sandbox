@@ -251,8 +251,126 @@ def _install_judge_above_band(module: Any, original: Callable[..., Any]) -> Call
     return judge_gate
 
 
+def _agreement_norm(value: Any) -> str:
+    """Comparable form of one extracted value: numbers by value, text folded, structure sorted.
+
+    Mirrors the tolerance of the vendored chunk dedupe (whitespace collapse +
+    casefold) so a window that re-quotes a value with different spacing or case
+    still agrees with itself across the overlap.
+    """
+    if value is None:
+        return "\u2205"  # ∅ — a stated null agrees with another stated null, not with a value
+    if isinstance(value, bool):
+        return f"bool:{value}"
+    if isinstance(value, (int, float)):
+        return f"num:{float(value)!r}"
+    if isinstance(value, str):
+        return " ".join(str(value).split()).casefold()
+    if isinstance(value, dict):
+        return "{" + ";".join(
+            f"{_agreement_norm(k)}={_agreement_norm(v)}" for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))
+        ) + "}"
+    if isinstance(value, (list, tuple)):
+        return "[" + ";".join(sorted(_agreement_norm(item) for item in value)) + "]"
+    return " ".join(str(value).split()).casefold()
+
+
+def _pair_agreement(a: Any, b: Any) -> float:
+    """One pair's agreement: exact on the comparable form, Jaccard on list-shaped values."""
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) and not isinstance(a, str) and not isinstance(b, str):
+        sa = {_agreement_norm(item) for item in a}
+        sb = {_agreement_norm(item) for item in b}
+        union = sa | sb
+        return 1.0 if not union else len(sa & sb) / len(union)
+    return 1.0 if _agreement_norm(a) == _agreement_norm(b) else 0.0
+
+
+def _asserts(value: Any) -> bool:
+    """True when a window actually asserts content for a field.
+
+    Every surviving window passes the vendored ``normalize_extraction``, which
+    fills EVERY schema key — ``None`` for nullable scalars, ``[]`` for arrays —
+    so a field one window never saw is not missing, it is a fill. A fill is
+    "not seen here", not a conflicting assertion: only a pair where both
+    windows assert content is comparable (Bugbot, #402).
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return len(value) > 0
+    return True
+
+
+def cross_window_agreement(windows: list[tuple[dict, str | None]]) -> dict[str, Any]:
+    """Self-consistency across a document's chunk windows (SAND-214).
+
+    For every field key two or more windows assert, compare the asserted values
+    pairwise (Jaccard for lists, exact on the comparable form otherwise) and
+    average. Two normalization facts shape this (Bugbot, #402):
+
+    - ``normalize_extraction`` fills every schema key, so ``None``/``[]``/``{}``
+      mean "not seen in this window". A pair counts only when BOTH windows
+      assert content; a value is never scored against a window's fill, and
+      two fills are not scored as agreement either.
+    - ``reasoning`` (the per-field trace contracts and merger emit on every
+      window) and the per-window ``confidence`` describe the scan or the
+      self-report, not asserted content; both are excluded, as are underscore
+      bookkeeping keys.
+
+    Returns ``{"agreement": float | None, "fields": int, "conflicts": int}`` —
+    ``agreement`` averages only the keys with at least one comparable pair and
+    is None when none exist (fewer than two windows, or no shared asserted
+    content). Self-consistency over shared content is the measure the #214
+    runs left untested: the specialist's single self-reported confidence does
+    not predict quality (AUROC 0.36-0.47), while agreement between independent
+    reads of overlapping text is a model-behavior signal the merge wrapper
+    already has in hand.
+    """
+    results = [result for result, _text in windows if isinstance(result, dict)]
+    if len(results) < 2:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
+    # Per-key presence, not the all-window key intersection: a field asserted by
+    # two of three windows is comparable even when a third window lacks the key
+    # entirely (CodeRabbit, #402). With normalize fills every window carries
+    # every key, so `_asserts` decides comparability either way.
+    candidate = set()
+    for result in results:
+        candidate |= {k for k in result
+                      if not str(k).startswith("_") and k not in ("confidence", "reasoning")}
+    # Underscore keys are merge bookkeeping; `confidence` is the per-window
+    # self-report and `reasoning` the per-field trace this measure replaces —
+    # none is asserted content.
+    if not candidate:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
+    scores: list[float] = []
+    conflicts = 0
+    for key in sorted(candidate):
+        values = [result[key] for result in results if key in result]
+        pairwise = [_pair_agreement(a, b) for i, a in enumerate(values) for b in values[i + 1:]
+                    if _asserts(a) and _asserts(b)]
+        if not pairwise:
+            continue  # no window pair both asserted this field: nothing comparable
+        mean = sum(pairwise) / len(pairwise)
+        scores.append(mean)
+        if mean < 1.0:
+            conflicts += 1
+    if not scores:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
+    return {"agreement": round(sum(scores) / len(scores), 4),
+            "fields": len(scores), "conflicts": conflicts}
+
+
 def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """Record each surviving window's confidence and character length. The merged value stays the vendor's minimum."""
+    """Record each surviving window's confidence and character length. The merged value stays the vendor's minimum.
+
+    Also records the cross-window agreement the #214 runs did not measure
+    (``_window_agreement`` + compared/conflicting field counts): the
+    specialist's self-reported confidence does not predict quality, so the
+    routing audit needs a behavior-based signal to test against judged
+    outcomes.
+    """
 
     @functools.wraps(original)
     def merge_chunk_windows(windows: list[tuple[dict, str | None]], *, agent_name: str) -> dict | None:
@@ -270,6 +388,7 @@ def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> C
             lengths.append(len(text) if isinstance(text, str) else None)
         merged["_window_confidences"] = recorded
         merged["_window_lengths"] = lengths
+        merged["_window_agreement"] = cross_window_agreement(windows)
         return merged
 
     return merge_chunk_windows
@@ -443,7 +562,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         source_sha256="016b350d7e462b8e032fb17cbeb2a5c0b62825ff583bc09cd7045fe56fc14234",
         upstream="https://github.com/Exios66/llm-mailroom/issues/255",
         summary="a chunked merge records each surviving window's confidence and length under "
-                "_window_confidences and _window_lengths; the merged confidence stays the weakest window (#214)",
+                "_window_confidences and _window_lengths, plus the cross-window agreement under "
+                "_window_agreement; the merged confidence stays the weakest window (#214)",
         install=_install_window_confidences,
     ),
     Hotfix(
