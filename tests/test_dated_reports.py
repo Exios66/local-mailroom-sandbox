@@ -173,6 +173,9 @@ def test_cell_stem_retry_suffix_does_not_clobber(tmp_path):
     ("sand214-30-contracts-specialist-awq-1l4-windows-r12", "-R12"),
     ("grid-20-contracts-specialist-awq-1l4-retry", "-RETRY"),
     ("sand214-30-contracts-specialist-awq-1l4-windows-c16k", "-C16K"),
+    ("sand214-30-contracts-specialist-awq-1l4-windows-c28k-r2", "-C28K-R2"),
+    ("sand214-30-contracts-specialist-awq-1l4-windows-c16k-r2", "-C16K-R2"),
+    ("grid-20-contracts-specialist-awq-1l4-r2-retry", "-R2-RETRY"),
     ("grid-20-contracts-specialist-awq-1l4-mirror", ""),
 ])
 def test_a_numbered_rerun_keeps_its_own_dated_report(tmp_path, run_id, suffix):

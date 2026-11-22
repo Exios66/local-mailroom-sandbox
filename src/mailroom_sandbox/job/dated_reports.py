@@ -87,13 +87,13 @@ def _dated_reports_root(store: RunStore, root: Path) -> Path:
     return root / "reports" / report_folder(prefix) if prefix else root / "reports"
 
 
-_RERUN = re.compile(r"-(retry|r\d+|c\d+k)$")
+_RERUN = re.compile(r"(?:-(?:retry|r\d+|c\d+k))+$")
 
 
 def _rerun_suffix(run_id: str) -> str:
-    """``-RETRY`` / ``-R2`` / ``-C16K`` for a rerun or arm of the same cell, so it never overwrites the first run's report."""
+    """``-RETRY`` / ``-R2`` / ``-C16K`` for a rerun or arm of the same cell (every trailing tag, so ``-c28k-r2`` is ``-C28K-R2``), so it never overwrites the first run's report."""
     match = _RERUN.search(run_id)
-    return f"-{match.group(1).upper()}" if match else ""
+    return match.group(0).upper() if match else ""
 
 
 def cell_stem(store: RunStore, *, lock: Mapping[str, Any] | None = None) -> tuple[str, str] | None:
