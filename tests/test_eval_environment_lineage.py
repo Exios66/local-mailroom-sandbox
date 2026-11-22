@@ -71,6 +71,8 @@ def test_specialist_posture_pins_catalog_stems():
         "sand40-50-merger-specialist-awq-2l4",
         "sand40-check-5-merger-specialist-awq-2l4",
         "sand40-probe-20-merger-specialist-awq-2l4-64k",
+        # #214: the merger frontrunner maud_v2 (the simplified stem lists no MAUD answers).
+        "sand214-30-merger-specialist-awq-1l4-windows",
         # SAND-032 Stage 10: eval-environment v2 prompt A/B (the prompt IS the variable).
         *(r for r in SAND032_RUNS if r.startswith("sand032-s10-")),
     }

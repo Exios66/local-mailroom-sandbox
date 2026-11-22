@@ -17,6 +17,8 @@ reports:
 * **threshold suggestions**: from the recorded gate inputs (sorter
   ``classification_confidence``, specialist ``extraction_confidence``) against
   each document's score.
+* **above-band quality**: for each class, how many scored documents at or
+  above ``judge_band_high`` met the target, with a 95% exact interval.
 
 Suggestions are evidence, not settings. A run's thresholds change only through
 its own ``confidence`` block, which is locked and hashed. Small samples are
@@ -81,6 +83,22 @@ def _answers(seq: list[dict[str, Any]], node_names: tuple[str, ...], question: s
             for d in n.get("decisions") or [] if d.get("question") == question]
 
 
+def _recorded_windows(extracted: Any) -> list[tuple[float, int]]:
+    """``(confidence, character length)`` per chunk window HF-008 recorded; windows missing either are skipped."""
+    if not isinstance(extracted, Mapping):
+        return []
+    confidences = extracted.get("_window_confidences") or []
+    lengths = extracted.get("_window_lengths") or []
+    return [(float(c), int(n)) for c, n in zip(confidences, lengths)
+            if _number(c) is not None and _number(n) is not None]
+
+
+def _failed_windows(extracted: Any) -> int:
+    """Chunk windows whose call failed (``_failed_chunks``); their confidence was never recorded."""
+    n = _number(extracted.get("_failed_chunks")) if isinstance(extracted, Mapping) else None
+    return int(n) if n is not None else 0
+
+
 def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping[str, Any]],
                  rows: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
     by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -104,6 +122,9 @@ def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping
             "arbiter": [d.get("answer") for d in _answers(seq, ("arbiter",), "arbiter_route")],
             "stage": pred.get("stage"),
             "final_extraction_confidence": pred.get("extraction_confidence"),
+            # A pipeline item nests the extraction; an isolated specialist item is the extraction.
+            "windows": _recorded_windows(pred.get("extracted_data", pred)),
+            "failed_windows": _failed_windows(pred.get("extracted_data", pred)),
             "quality": float(quality) if isinstance(quality, (int, float)) and not isinstance(quality, bool) else None,
         })
     return out
@@ -143,11 +164,12 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
     """Lowest first-pass confidence above which every scored document met ``target``.
 
     Documents at or above the suggestion could skip the judge without archiving
-    a below-target extraction in this sample. Fewer than ``MIN_DOCS`` scored
+    a below-target extraction in this sample. A retried extraction is left out: its
+    score is the retry's, not the first pass's. Fewer than ``MIN_DOCS`` scored
     documents with a recorded confidence gives no suggestion.
     """
-    pairs = sorted((d["extraction_confidence"][0], d["quality"]) for d in docs
-                   if d["extraction_confidence"] and d["quality"] is not None)
+    pairs = sorted((conf, quality) for d in docs
+                   if (conf := _first_confidence(d)) is not None and (quality := _first_pass_quality(d)) is not None)
     if len(pairs) < MIN_DOCS:
         return {"suggestion": None, "basis": f"{len(pairs)} scored document(s) with a recorded extraction_confidence; need {MIN_DOCS}"}
     for i, (conf, _) in enumerate(pairs):
@@ -155,6 +177,109 @@ def suggest_judge_band_high(docs: list[dict[str, Any]], *, target: float = DEFAU
             return {"suggestion": round(conf, 4), "would_judge": i, "of": len(pairs),
                     "basis": f"every document at confidence >= {conf:.3f} scored >= {target}"}
     return {"suggestion": None, "basis": f"the most confident document scored below {target}: confidence does not separate quality"}
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _first_confidence(doc: Mapping[str, Any]) -> float | None:
+    """First-pass extraction confidence, or None when the decision recorded no number."""
+    confidences = doc.get("extraction_confidence") or []
+    return _number(confidences[0]) if confidences else None
+
+
+def _first_pass_quality(doc: Mapping[str, Any]) -> float | None:
+    """Quality of the first extraction, or None when a retry replaced it.
+
+    A retried document's score belongs to the retry. Pairing it with the first
+    confidence would credit a skipped judge with a retry that would never have run.
+    """
+    return None if len(doc.get("extraction_confidence") or []) > 1 else _number(doc.get("quality"))
+
+
+def _quality_above(doc: Mapping[str, Any], threshold: float) -> float | None:
+    confidence, quality = _first_confidence(doc), _first_pass_quality(doc)
+    if confidence is None or quality is None or confidence < threshold:
+        return None
+    return quality
+
+
+def above_band_quality(docs: list[dict[str, Any]], band: Any, *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
+    """Accuracy of scored documents whose first extraction confidence is at or above ``band``.
+
+    The interval is the same two-sided exact interval the gold audit uses. A
+    class with no scored document above the band, or a run with no numeric
+    ``judge_band_high``, returns a null rate. This is the table a labelled run
+    records; it does not choose the band.
+    """
+    from mailroom_sandbox.gold_audit import clopper_pearson_interval
+
+    threshold = _number(band)
+    if threshold is None:
+        return {"band": None, "target": target, "n": 0, "met_target": 0, "rate": None, "ci95": None}
+    qualities = [quality for doc in docs if (quality := _quality_above(doc, threshold)) is not None]
+    met = sum(quality >= target for quality in qualities)
+    n = len(qualities)
+    if n == 0:
+        return {"band": threshold, "target": target, "n": 0, "met_target": 0, "rate": None, "ci95": None}
+    lower, upper = clopper_pearson_interval(met, n)
+    return {"band": threshold, "target": target, "n": n, "met_target": met,
+            "rate": round(met / n, 4), "ci95": [round(lower, 4), round(upper, 4)]}
+
+
+def compare_window_rules(windows: list[tuple[float, int]]) -> dict[str, Any]:
+    """Compare the three recorded-window merge rules. The adopted rule stays the weakest window.
+
+    ``windows`` is ``(confidence, character length)`` for each surviving window.
+    Length-weighted uses those lengths. A labelled long-document comparison is
+    what can replace ``adopted``; this checkout does not contain one.
+    """
+    if not windows:
+        raise ValueError("no windows")
+    confidences = [float(confidence) for confidence, _length in windows]
+    weights = [max(int(length), 0) for _confidence, length in windows]
+    total = sum(weights)
+    weighted = sum(c * w for c, w in zip(confidences, weights, strict=True)) / total if total else sum(confidences) / len(confidences)
+    return {"min": min(confidences), "max": max(confidences),
+            "length_weighted": round(weighted, 4), "adopted": "min"}
+
+
+def _auroc(met: list[float], missed: list[float]) -> float | None:
+    """Chance a document that met the target has the higher confidence (ties count half)."""
+    if not met or not missed:
+        return None
+    wins = sum(1.0 if a > b else 0.5 if a == b else 0.0 for a in met for b in missed)
+    return round(wins / (len(met) * len(missed)), 4)
+
+
+def _chunked_and_scored(doc: Mapping[str, Any]) -> bool:
+    # A document that lost a window ranks the rules on the surviving windows only: its min
+    # and length-weighted confidence describe a merge the scorer never saw, so it is left out.
+    return (len(doc.get("windows") or []) >= 2 and _number(doc.get("quality")) is not None
+            and not doc.get("failed_windows"))
+
+
+def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
+    """How well each merge rule's confidence separates documents that met ``target`` from those that did not.
+
+    Only scored documents with two or more recorded windows and no failed window
+    count; ``partial_excluded`` counts the scored documents left out for a failed
+    window. AUROC is 1.0
+    when every met-target document outranks every miss, 0.5 for no separation,
+    and null when one group is empty. The adopted rule stays ``min``; this is
+    the labelled comparison that could replace it.
+    """
+    scored = [(compare_window_rules(d["windows"]), d["quality"]) for d in docs if _chunked_and_scored(d)]
+    met = [rules for rules, quality in scored if quality >= target]
+    missed = [rules for rules, quality in scored if quality < target]
+    auroc = {rule: _auroc([r[rule] for r in met], [r[rule] for r in missed])
+             for rule in ("min", "max", "length_weighted")}
+    partial = sum(1 for d in docs if d.get("failed_windows") and _number(d.get("quality")) is not None)
+    return {"n": len(scored), "met_target": len(met), "target": target, "auroc": auroc, "adopted": "min",
+            "partial_excluded": partial}
 
 
 def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str, Any], *,
@@ -190,6 +315,8 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
                     "archived": q([d for d in docs if d["stage"] == "archived"])},
         "escalation_input_cost": _escalation_cost(docs, model),
         "judge_band_high": suggest_judge_band_high(docs, target=target),
+        "above_band": above_band_quality(docs, thresholds.get("judge_band_high"), target=target),
+        "window_rules": window_rule_separation(docs, target=target),
         "findings": [],
     }
     report["findings"] = _findings(cls, report, thresholds, target)
@@ -249,7 +376,10 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
                for cls, group in sorted(by_class.items())}
     recorded = sum(1 for d in docs if d["extraction_confidence"])
     notes = []
-    if docs and not recorded:
+    if not (root / "nodes.jsonl").is_file():
+        notes.append("isolated specialist run (no nodes.jsonl): routing fires, verdicts and judge bands do not "
+                     "apply; window_rules reads the chunk windows on each prediction")
+    elif docs and not recorded:
         notes.append("no extraction_confidence was recorded (runs before the routing audit); judge_band_high "
                      "suggestions need a run that records it")
     if docs and len(docs) < 50:

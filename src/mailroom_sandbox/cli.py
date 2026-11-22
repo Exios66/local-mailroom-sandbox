@@ -1457,11 +1457,37 @@ def _run_parser(sub, shared):
     suite_p.add_argument(
         "--execute",
         action="store_true",
-        help="chain preflight+start --watch for each config (no teardown)",
+        help="chain preflight+start --watch for each config (no teardown unless --teardown)",
+    )
+    suite_p.add_argument(
+        "--teardown",
+        action="store_true",
+        help="with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) "
+             "when the chain ends: finished, failed or interrupted (Ctrl+C), so no container "
+             "idles out its scaledown window or a min_containers floor. A killed process "
+             "(SIGKILL) cannot clean up; run the script by hand then",
     )
     suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
     return common
+
+
+def _suite_teardown(suite: Any) -> int:
+    """Stop and verify every Modal app the suite's configs serve from (deploy/teardown_vllm.sh)."""
+    from mailroom_sandbox.job.spec import load_run_spec
+    from mailroom_sandbox.paths import repo_root
+
+    apps = sorted({spec.engine.modal.app for spec in map(load_run_spec, suite.configs)
+                   if spec.engine.modal is not None})
+    rc = 0
+    for app in apps:
+        proc = subprocess.run(["bash", str(repo_root() / "deploy" / "teardown_vllm.sh"), app],
+                              cwd=repo_root(), check=False)
+        if proc.returncode != 0:
+            print(f"error: teardown of {app} failed (rc={proc.returncode}); stop it by hand",
+                  file=sys.stderr)
+            rc = proc.returncode
+    return rc
 
 
 def _agent_models(args: argparse.Namespace) -> dict[str, str]:
@@ -3604,32 +3630,47 @@ def _cmd_run_suite(args) -> int:
         return 0
 
     if getattr(args, "execute", False):
-        # Chain each config via the existing start path (no teardown).
+        # Chain each config via the existing start path; with --teardown the app is stopped
+        # from a finally block, so an error or Ctrl+C mid-chain still tears it down.
         mode = getattr(args, "mode", None) or "endpoint"
-        for cfg in suite.configs:
-            print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
-            ns = argparse.Namespace(**vars(args))
-            ns.config = str(cfg)
-            ns.suite = None
-            ns.mode = mode
-            ns.watch = True
-            ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
-            # Prefer live when execute unless mock/offline explicitly set.
-            if not getattr(args, "mock", None) and not getattr(args, "offline", False):
-                ns.live = True
-            rc = _cmd_run_start(ns)
-            if rc != 0:
-                print(
-                    f"error: suite stopped after {cfg} (rc={rc}); "
-                    "app left warm — fix and resume, or teardown manually",
-                    file=sys.stderr,
-                )
-                return rc
+        teardown = getattr(args, "teardown", False) and not getattr(args, "dry_run", False)
+        rc = 0
+        try:
+            for cfg in suite.configs:
+                print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
+                ns = argparse.Namespace(**vars(args))
+                ns.config = str(cfg)
+                ns.suite = None
+                ns.mode = mode
+                ns.watch = True
+                ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
+                # Prefer live when execute unless mock/offline explicitly set.
+                if not getattr(args, "mock", None) and not getattr(args, "offline", False):
+                    ns.live = True
+                rc = _cmd_run_start(ns)
+                if rc != 0:
+                    print(
+                        f"error: suite stopped after {cfg} (rc={rc}); "
+                        + ("tearing the app down" if teardown
+                           else "app left warm — fix and resume, or teardown manually"),
+                        file=sys.stderr,
+                    )
+                    return rc
+        except BaseException:
+            if teardown:
+                print(f"error: suite {suite.suite_id} interrupted; tearing the app down", file=sys.stderr)
+            raise
+        finally:
+            if teardown:
+                torn = _suite_teardown(suite)
+                rc = rc or torn
         if getattr(args, "dry_run", False):
             print(f"suite {suite.suite_id} planned — no jobs executed")
+        elif teardown:
+            print(f"suite {suite.suite_id} complete — app torn down")
         else:
             print(f"suite {suite.suite_id} complete — teardown with ./deploy/teardown_vllm.sh (do not teardown between configs)")
-        return 0
+        return rc
 
     if getattr(args, "json", False):
         _print(
@@ -4160,8 +4201,10 @@ def _cmd_run_routing(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     root = run_dir(_run_id_required(args))
-    if not (root / "nodes.jsonl").is_file():
-        _print({"status": "failed", "detail": f"no nodes.jsonl under {root}"})
+    # A pipeline run writes nodes.jsonl; an isolated specialist run writes only items.jsonl, whose
+    # predictions carry the chunk windows the window-rule comparison reads.
+    if not any((root / name).is_file() for name in ("nodes.jsonl", "items.jsonl")):
+        _print({"status": "failed", "detail": f"no nodes.jsonl or items.jsonl under {root}"})
         return 1
     _print(audit(root, target=float(args.quality_target)))
     return 0

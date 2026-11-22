@@ -1,0 +1,28 @@
+# #214 window merge-rule calibration — contracts then merger agreements on ONE warm 1×L4 fleet.
+# Both configs carry the identical SAND-042 serving block, so the second run reuses the first
+# run's container: one cold boot for the pair instead of two. Contracts go first (shorter and
+# cheaper), so a failure surfaces before the two-hour merger leg starts.
+#
+# Activate: modal profile activate exios66
+# Check:    sandbox run benchmark-check --suite sand214-windows --modal-profile exios66
+# Chain:    sandbox run suite --suite sand214-windows --execute --initials <XX>
+# Teardown: add --teardown to the chain (stops the app when it finishes, fails or is
+#           interrupted), or ./deploy/teardown_vllm.sh ONLY after the last config below.
+# r2:       config/runs/sand214-30-contracts-specialist-awq-1l4-windows-r2.yaml is a follow-up,
+#           not a leg: it re-runs the contracts draw with the length fix on the same serving
+#           block. Start it by hand while the merger leg holds the fleet warm, then tear down:
+#             sandbox run start --config <r2 config> --initials <XX>
+schema: sandbox.suite/v1
+suite_id: sand214-windows
+track: a
+title: "#214 window merge rules — contracts + merger agreements, calibration split (1×L4, c16)"
+rationale: |
+  Thresholds are fitted on the runbook-v2 calibration split only. One deploy serves both
+  classes; scale-to-zero (min_containers 0, scaledown 120) bounds idle spend if a leg stops.
+modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
+modal_profile_default: exios66
+scaledown_seconds: 120
+warm_once: true
+configs:
+  - config/runs/sand214-30-contracts-specialist-awq-1l4-windows.yaml
+  - config/runs/sand214-30-merger-specialist-awq-1l4-windows.yaml

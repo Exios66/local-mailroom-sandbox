@@ -1,0 +1,26 @@
+[
+  {
+    "notebook": "01_offline_environment_setup.ipynb",
+    "code_cells": 6,
+    "empty_output_ids": [],
+    "errors": []
+  },
+  {
+    "notebook": "02_load_clean_prepare_data.ipynb",
+    "code_cells": 14,
+    "empty_output_ids": [],
+    "errors": []
+  },
+  {
+    "notebook": "03_offline_sandbox_smoke.ipynb",
+    "code_cells": 8,
+    "empty_output_ids": [],
+    "errors": []
+  },
+  {
+    "notebook": "04_experiment_log_explorer.ipynb",
+    "code_cells": 6,
+    "empty_output_ids": [],
+    "errors": []
+  }
+]
