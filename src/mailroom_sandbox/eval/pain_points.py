@@ -1,317 +1,127 @@
-"""Pain-point composites: two penalty scores built around a client's stated operating costs.
+"""Pain-point composites for sandbox pipeline runs: the adapter over the Dojo scorer.
 
-A client's document-intelligence team said what hurts most in production: the volume of
-documents a person has to review, errors, and misarchived documents. The composites turn a
-pipeline run into two numbers on that scale, one for classification and one for entity
-extraction. Each document earns **penalty points** from 0 (correct and complete) to 4 (sent
-to a person when the pipeline could have finished it); lower is better. Profile
-``amfam-v1`` (the American Family Insurance pain points) sets the default scale below.
+Two penalty scores built around a client's stated production costs (profile ``amfam-v1``): the
+volume of documents a person has to review, errors, and misarchived documents. Each document
+earns 0 (correct and complete) to 4 (sent to a person when the pipeline could have finished it)
+penalty points for classification and for entity extraction; lower is better. The ladders, the
+definitions and the outputs are in ``docs/pain-point-composites.md``.
 
-Classification (``pain_points_classification``), worst reason wins:
+The scoring itself lives in the Dojo (``llm_dojo_scoring.pipeline.pain_points``, contract
+``docs/contracts/PAIN_POINT_SCORING.md`` there). Until the vendored Dojo pin ships that module, the
+sandbox serves a byte-identical copy of it (``eval/_dojo_pain_points.py``) as scoring hotfix
+``SHF-014`` (``docs/scoring-hotfixes.md``): fingerprinted, recorded in every run lock, and not
+applied when stale (the composites are then left out and ``sandbox run preflight`` fails). Once a
+vendor refresh brings the Dojo module, it is used instead and ``SHF-014`` is retired; every output
+names its ``source``.
 
-====  =====================  ==============================================================
- pts  reason                 when
-====  =====================  ==============================================================
-  4   unnecessary_review     routed to review although the row's expected stage is archived
-  4   pipeline_failure       the document errored or ended in no final stage
-  3   wrong_doc_type         archived under another class (a misarchive)
-  2   missed_review          archived although the row's expected stage is review
-  1   wrong_subtype          archived under the right class with the wrong subclass
-  0   necessary_review       routed to review, and the expected stage is review
-  0   correct                archived under the right class (and subclass, when labelled)
-====  =====================  ==============================================================
-
-Entity extraction (``pain_points_extraction``), over documents with field ground truth:
-
-====  =====================  ==============================================================
- pts  reason                 when
-====  =====================  ==============================================================
-  4   unnecessary_review     as above: the extraction never had to reach a person
-  4   pipeline_failure       as above
-  3   fabricated             values were stated but none is supported by the truth (no
-                             exact field, no near miss, at least one wrong or invented one)
-  2   low_recall             under a third of the targeted entities reported correctly,
-                             including an extraction that stated nothing
-  1   partial                some targeted entities right, but not all, or extra values
-                             were stated on fields the truth leaves empty
-  0   necessary_review       as above: a person had to see it anyway
-  0   complete               every targeted entity right and nothing invented
-====  =====================  ==============================================================
-
-Definitions, so a number can be traced back:
-
-- *Targeted entities* are the expected fields with a value (the Dojo's ``tp + fn`` events);
-  *reported correctly* is a field the Dojo scores 1.0 (``tp``). The share is ``tp / (tp + fn)``.
-  The detailed suite path (corporate records, any row with a subclass) returns no ``tp`` /
-  ``fn``; there the scorer's per-field ``n_value_correct`` / ``n_targeted`` are used, and
-  without ``fp`` the documented-absence hallucinations (``n_hallucinated``) stand in for it.
-- *Invented values* are the Dojo's false positives (``fp``: a value on a field the truth
-  leaves empty, including a documented absence under SHF-001, or an unmatched list item) plus
-  ``n_value_wrong`` (a value stated on a targeted field that scores under
-  ``scoring.FABRICATION_MAX_FIELD_SCORE``). A value between that bar and 1.0 is a near miss
-  (``n_value_partial``): wrong, but not invented.
-- Contract (CUAD) and merger (MAUD) rows are scored on clause labels, not fields, so their
-  share is the row's ``overall_extraction_score`` and they are never called fabricated.
-- *Unnecessary review* uses the row's ``expected_stage`` (default ``archived``) as the truth
-  that the pipeline could have finished the document. A run without expected stages cannot
-  separate needed from needless reviews, so every review counts as needless; read the
-  ``necessary_review`` count before comparing such runs.
-
-Rows without an expected class are left out of both composites, and rows without field
-truth out of the extraction composite (``*_excluded``): a missing label is never scored as
-correct (``docs/critical-regressions.md`` row 1). Each composite reports its scored ``n``,
-the total and mean points, a 0-1 ``score`` (``1 - mean / max points``, higher is better),
-the count per reason and a per-class table. Both composites are dual reported like every
-other headline (``docs/scoring-hotfixes.md``): the headline uses the hotfixed scores and
-``raw_dojo`` the vendored Dojo pin's. See ``docs/pain-point-composites.md``.
+This module maps sandbox rows and pipeline results onto the Dojo's ``PainPointDocument`` and keeps
+the run-level block dual reported like every other headline: the headline uses the hotfixed
+extraction scores and ``raw_dojo`` the vendored Dojo pin's.
 """
 
 from __future__ import annotations
 
-import math
-from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+import logging
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from typing import Any
 
-PROFILE = "amfam-v1"
+from mailroom_sandbox.eval import _dojo_pain_points as _interim
+
+_log = logging.getLogger("mailroom_sandbox.eval.pain_points")
+
+HOTFIX_ID = "SHF-014"
 KEY = "pain_points"
-CLASSIFICATION = "classification"
-EXTRACTION = "extraction"
-
-CLASSIFICATION_REASONS = (
-    "unnecessary_review", "pipeline_failure", "wrong_doc_type", "missed_review", "wrong_subtype",
-    "necessary_review", "correct",
-)
-EXTRACTION_REASONS = (
-    "unnecessary_review", "pipeline_failure", "fabricated", "low_recall", "partial",
-    "necessary_review", "complete",
-)
-
-_FINAL_STAGES = ("archived", "review")
 
 
-@dataclass(frozen=True)
-class PenaltyScale:
-    """Points per reason. The defaults are profile ``amfam-v1``; the order is enforced."""
-
-    unnecessary_review: float = 4.0
-    pipeline_failure: float = 4.0
-    wrong_doc_type: float = 3.0
-    missed_review: float = 2.0
-    wrong_subtype: float = 1.0
-    fabricated: float = 3.0
-    low_recall: float = 2.0
-    partial: float = 1.0
-    #: Under this share of targeted entities reported correctly, an extraction is ``low_recall``.
-    low_recall_below: float = 1 / 3
-
-    def __post_init__(self) -> None:
-        # NaN fails every comparison below, so it would pass them; infinity breaks the 0-1 score.
-        bad = {k: v for k, v in asdict(self).items() if not math.isfinite(v)}
-        if bad:
-            raise ValueError(f"penalty scale values must be finite numbers: {bad}")
-
-        def strictly_falling(*names: str) -> None:
-            values = [getattr(self, n) for n in names]
-            if any(a <= b for a, b in zip(values, values[1:])):
-                raise ValueError(f"penalty scale must fall strictly along {' > '.join(names)}: {values}")
-
-        # The client's ordering: a needless review is the worst outcome on both composites.
-        strictly_falling("unnecessary_review", "wrong_doc_type", "wrong_subtype")
-        strictly_falling("unnecessary_review", "fabricated", "low_recall", "partial")
-        if not self.wrong_doc_type > self.missed_review > 0 or self.wrong_subtype <= 0:
-            raise ValueError("penalty scale: wrong_doc_type > missed_review > 0 and wrong_subtype > 0")
-        if not 0 < self.pipeline_failure <= self.unnecessary_review:
-            raise ValueError("penalty scale: 0 < pipeline_failure <= unnecessary_review")
-        if not 0 < self.low_recall_below < 1:
-            raise ValueError("penalty scale: low_recall_below must lie in (0, 1)")
-
-    @property
-    def max_points(self) -> float:
-        return max(self.unnecessary_review, self.pipeline_failure)
+def _load_core() -> tuple[Any, str]:
+    """The Dojo module when the vendored pin ships it, else the SHF-014 copy."""
+    try:
+        from llm_dojo_scoring.pipeline import pain_points as native
+    except ImportError:
+        return _interim, f"sandbox hotfix {HOTFIX_ID} (copy of llm_dojo_scoring.pipeline.pain_points)"
+    return native, "dojo"
 
 
-DEFAULT_SCALE = PenaltyScale()
+_CORE, SOURCE = _load_core()
+
+PainPointDocument = _CORE.PainPointDocument
+PenaltyScale = _CORE.PenaltyScale
+Outcome = _CORE.Outcome
+DEFAULT_SCALE = _CORE.DEFAULT_SCALE
+PROFILE = _CORE.PROFILE
+CLASSIFICATION = _CORE.CLASSIFICATION
+EXTRACTION = _CORE.EXTRACTION
+CLASSIFICATION_REASONS = _CORE.CLASSIFICATION_REASONS
+EXTRACTION_REASONS = _CORE.EXTRACTION_REASONS
+FABRICATION_MAX_FIELD_SCORE = _CORE.FABRICATION_MAX_FIELD_SCORE
+field_value_outcomes = _CORE.field_value_outcomes
+summarize = _CORE.summarize
 
 
-@dataclass(frozen=True)
-class Outcome:
-    """One document's penalty: its points and every reason that applied, worst first."""
-
-    points: float
-    reasons: tuple[str, ...]
-
-    @property
-    def reason(self) -> str:
-        return self.reasons[0]
+class PainPointsUnavailable(RuntimeError):
+    """The composites cannot be served: the vendored Dojo lacks them and SHF-014 is not current."""
 
 
-def _num(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
+def available() -> bool:
+    """True when the Dojo serves the composites, or the SHF-014 copy is current."""
+    if SOURCE == "dojo":
+        return True
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    return sh.enabled(HOTFIX_ID)
 
 
-def _label(value: Any) -> str:
-    return str(value or "").strip().lower()
+def core() -> tuple[Any, str]:
+    """``(scorer module, source)``; raises :class:`PainPointsUnavailable` when not :func:`available`."""
+    if not available():
+        raise PainPointsUnavailable(
+            f"{HOTFIX_ID} is not current (its copy of the Dojo module changed since it was validated) "
+            "and the vendored Dojo has no pipeline.pain_points: re-validate or retire it "
+            "(docs/scoring-hotfixes.md)")
+    return _CORE, SOURCE
 
 
-def _routing(row: Mapping[str, Any], result: Mapping[str, Any], scale: PenaltyScale) -> Outcome | None:
-    """The outcome shared by both composites for a document that did not archive, else None."""
-    stage = str(result.get("stage") or "")
-    if result.get("error") or stage not in _FINAL_STAGES:
-        return Outcome(scale.pipeline_failure, ("pipeline_failure",))
-    if stage == "review":
-        if str(row.get("expected_stage") or "archived") == "review":
-            return Outcome(0.0, ("necessary_review",))
-        return Outcome(scale.unnecessary_review, ("unnecessary_review",))
-    return None
-
-
-def _worst(found: list[tuple[float, str]], clean: str) -> Outcome:
-    if not found:
-        return Outcome(0.0, (clean,))
-    found.sort(key=lambda item: -item[0])
-    return Outcome(found[0][0], tuple(reason for _, reason in found))
-
-
-def classification_outcome(
-    row: Mapping[str, Any],
-    result: Mapping[str, Any],
-    *,
-    subclass_ok: bool | None = None,
-    scale: PenaltyScale = DEFAULT_SCALE,
-) -> Outcome | None:
-    """One document's classification penalty; None when the row has no expected class.
-
-    ``subclass_ok`` is the document's subclass correctness (``scoring.subclass_correct``), None
-    when the row has no subclass truth. An archive without a class name is a wrong class here:
-    the document is filed nowhere a person would look for it.
-    """
-    expected = _label(row.get("expected_doc_class"))
-    if not expected:
-        return None
-    routed = _routing(row, result, scale)
-    if routed is not None:
-        return routed
-    found: list[tuple[float, str]] = []
-    if _label(result.get("doc_type")) != expected:
-        found.append((scale.wrong_doc_type, "wrong_doc_type"))
-    if str(row.get("expected_stage") or "archived") == "review":
-        found.append((scale.missed_review, "missed_review"))
-    if subclass_ok is False and not any(r == "wrong_doc_type" for _, r in found):
-        found.append((scale.wrong_subtype, "wrong_subtype"))
-    return _worst(found, "correct")
-
-
-def extraction_outcome(
-    row: Mapping[str, Any],
-    result: Mapping[str, Any],
-    scored: Mapping[str, Any] | None,
-    *,
-    scale: PenaltyScale = DEFAULT_SCALE,
-) -> Outcome | None:
-    """One document's extraction penalty; None without an expected class or field truth.
+def document(row: Mapping[str, Any], result: Mapping[str, Any], scored: Mapping[str, Any] | None = None, *,
+             subclass_ok: bool | None = None, doc_id: str | None = None,
+             groups: Mapping[str, str] | None = None) -> Any:
+    """One sandbox row and pipeline result as the Dojo's ``PainPointDocument``.
 
     ``scored`` is the document's scored extraction row (``eval/runners.py``
-    ``_score_pipeline_extraction``; None when the row has no field truth). A row the scorer
-    gave no usable figure is left out too, never scored as complete.
+    ``_score_pipeline_extraction``; None without field truth). A result with an ``error`` failed.
     """
-    if scored is None or not _label(row.get("expected_doc_class")):
-        return None
-    routed = _routing(row, result, scale)
-    if routed is not None:
-        return routed
-    method = str(scored.get("scoring_method") or "")
-    clause_labels = "+maud" in method or "+cuad" in method
-    correct, targeted, invented = _field_counts(scored)
-    if clause_labels or correct is None or targeted is None:
-        share = _num(scored.get("overall_extraction_score"))
-        if share is None:
-            return None
-        if share >= 1.0:
-            return Outcome(0.0, ("complete",))
-        if share < scale.low_recall_below:
-            return Outcome(scale.low_recall, ("low_recall",))
-        return Outcome(scale.partial, ("partial",))
-    near_miss = _num(scored.get("n_value_partial")) or 0.0
-    if targeted <= 0:
-        # The truth holds only empty fields: anything stated was invented.
-        return Outcome(scale.fabricated, ("fabricated",)) if invented > 0 else Outcome(0.0, ("complete",))
-    share = correct / targeted
-    if correct == 0 and near_miss == 0 and invented > 0:
-        return Outcome(scale.fabricated, ("fabricated",))
-    if share < scale.low_recall_below:
-        return Outcome(scale.low_recall, ("low_recall",))
-    if share < 1.0 or invented > 0:
-        return Outcome(scale.partial, ("partial",))
-    return Outcome(0.0, ("complete",))
+    stage = result.get("stage")
+    row_id = row.get("id")
+    return PainPointDocument(
+        doc_id=doc_id if doc_id is not None else (None if row_id is None else str(row_id)),
+        expected_class=row.get("expected_doc_class"),
+        predicted_class=result.get("doc_type"),
+        stage=None if stage is None else str(stage),
+        expected_stage=row.get("expected_stage"),
+        failed=bool(result.get("error")),
+        subclass_correct=subclass_ok,
+        extraction=scored,
+        groups=dict(groups or {}),
+    )
 
 
-def _field_counts(scored: Mapping[str, Any]) -> tuple[float | None, float | None, float]:
-    """``(correct, targeted, invented)`` of one scored row.
-
-    The Dojo event counts (``tp``, ``tp + fn``, ``fp``) when the row has them; otherwise the
-    scorer's per-field counts (``n_value_correct``, ``n_targeted``), which the detailed suite
-    path (corporate records, rows with a subclass) needs because it returns no ``tp`` / ``fn``.
-    Without ``fp`` the documented-absence hallucinations (``n_hallucinated``) stand in for the
-    values stated on empty truth. ``n_value_wrong`` is always added.
-    """
-    tp, fn, fp = (_num(scored.get(k)) for k in ("tp", "fn", "fp"))
-    if tp is not None and fn is not None:
-        correct, targeted = tp, tp + fn
-    else:
-        correct, targeted = _num(scored.get("n_value_correct")), _num(scored.get("n_targeted"))
-    empty_truth = fp if fp is not None else (_num(scored.get("n_hallucinated")) or 0.0)
-    return correct, targeted, empty_truth + (_num(scored.get("n_value_wrong")) or 0.0)
+def classification_outcome(row: Mapping[str, Any], result: Mapping[str, Any], *,
+                           subclass_ok: bool | None = None, scale: Any = DEFAULT_SCALE) -> Any:
+    """One document's classification penalty; None when the row has no expected class."""
+    return _CORE.classification_outcome(document(row, result, subclass_ok=subclass_ok), scale)
 
 
-def summarize(
-    outcomes: Iterable[tuple[Outcome | None, str | None]],
-    reasons: Sequence[str],
-    scale: PenaltyScale = DEFAULT_SCALE,
-) -> dict[str, Any]:
-    """``(outcome, class)`` pairs -> n, excluded, points, mean, 0-1 score, reasons and classes."""
-    points: Counter[str] = Counter()
-    count: Counter[str] = Counter()
-    tiers: Counter[str] = Counter({name: 0 for name in reasons})
-    excluded = 0
-    for outcome, cls in outcomes:
-        if outcome is None:
-            excluded += 1
-            continue
-        name = _label(cls) or "unknown"
-        count[name] += 1
-        points[name] += outcome.points
-        tiers[outcome.reason] += 1
-    n = sum(count.values())
-    total = sum(points.values())
-    mean = total / n if n else None
-    return {
-        "n": n,
-        "excluded": excluded,
-        "points": round(total, 6),
-        "mean": round(mean, 6) if mean is not None else None,
-        "score": round(1 - mean / scale.max_points, 6) if mean is not None else None,
-        "reasons": dict(tiers),
-        "by_class": {
-            name: {"n": count[name], "points": round(points[name], 6),
-                   "mean": round(points[name] / count[name], 6)}
-            for name in sorted(count)
-        },
-    }
+def extraction_outcome(row: Mapping[str, Any], result: Mapping[str, Any], scored: Mapping[str, Any] | None, *,
+                       scale: Any = DEFAULT_SCALE) -> Any:
+    """One document's extraction penalty; None without an expected class or field truth."""
+    return _CORE.extraction_outcome(document(row, result, scored), scale)
 
 
 def _composites(rows, results, extraction_rows, subclass, scale) -> dict[str, Any]:
-    classification = []
-    extraction = []
-    for row, result, scored, sub in zip(rows, results, extraction_rows, subclass):
-        cls = row.get("expected_doc_class")
-        classification.append((classification_outcome(row, result, subclass_ok=sub, scale=scale), cls))
-        extraction.append((extraction_outcome(row, result, scored, scale=scale), cls))
-    return {CLASSIFICATION: summarize(classification, CLASSIFICATION_REASONS, scale),
-            EXTRACTION: summarize(extraction, EXTRACTION_REASONS, scale)}
+    docs = [document(row, result, scored, subclass_ok=sub)
+            for row, result, scored, sub in zip(rows, results, extraction_rows, subclass)]
+    run = _CORE.score_run(docs, scale)
+    return {CLASSIFICATION: run[CLASSIFICATION], EXTRACTION: run[EXTRACTION]}
 
 
 def subclass_flags(rows: Sequence[Mapping[str, Any]], results: Sequence[Mapping[str, Any]],
@@ -332,13 +142,15 @@ def for_pipeline(
     results: Sequence[Mapping[str, Any]],
     extraction_rows: Sequence[Mapping[str, Any] | None] | None = None,
     *,
-    scale: PenaltyScale = DEFAULT_SCALE,
+    scale: Any = DEFAULT_SCALE,
 ) -> dict[str, Any]:
     """Both composites for a pipeline run, dual reported, under ``pain_points``.
 
-    Also returns flat ``pain_points_classification_mean`` / ``pain_points_extraction_mean`` so
-    a run card or comparison can read the headline without opening the block. Rows, results and
-    scored rows must line up one to one; a length mismatch raises.
+    Also returns the Dojo's registry-named flat headlines (``pain_points_{classification,extraction}_mean``,
+    lower is better, and ``..._score``, 0-1, higher is better) so a run card or comparison can read
+    them without opening the block. Rows, results and
+    scored rows must line up one to one; a length mismatch raises. Empty (and logged) when the
+    composites are not :func:`available`.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -348,34 +160,39 @@ def for_pipeline(
         raise ValueError(
             f"pain points need one result and one scored row per row: {len(rows)} rows, "
             f"{len(results)} results, {len(extraction_rows)} scored rows")
+    if not available():
+        _log.warning("pain-point composites left out: %s is not current (docs/scoring-hotfixes.md)", HOTFIX_ID)
+        return {}
     fixed = _composites(rows, results, extraction_rows, subclass_flags(rows, results, 1), scale)
     raw = _composites(rows, results, sh.raw_rows(extraction_rows), subclass_flags(rows, results, 0), scale)
     used = sorted({i for r in extraction_rows if r for i in r.get("scoring_hotfixes") or []}
-                  | ({"SHF-012"} if sh.enabled("SHF-012") else set()))
+                  | ({"SHF-012"} if sh.enabled("SHF-012") else set())
+                  | ({HOTFIX_ID} if SOURCE != "dojo" else set()))
     block = {
-        "profile": PROFILE,
+        "profile": scale.profile,
         "scale": asdict(scale),
+        "source": SOURCE,
         **fixed,
         "raw_dojo": raw,
         "scoring_hotfixes": used,
         "scoring_hotfixes_changed": sorted(k for k in (CLASSIFICATION, EXTRACTION) if raw[k] != fixed[k]),
     }
-    return {
-        KEY: block,
-        f"{KEY}_classification_mean": fixed[CLASSIFICATION]["mean"],
-        f"{KEY}_extraction_mean": fixed[EXTRACTION]["mean"],
-    }
+    # The Dojo's registry-named run headlines: pain_points_{classification,extraction}_{mean,score}.
+    return {KEY: block, **_CORE.headline_scores(fixed)}
 
 
 def item_points(row: Mapping[str, Any], result: Mapping[str, Any], scored: Mapping[str, Any] | None,
-                *, subclass_ok: bool | None = None, scale: PenaltyScale = DEFAULT_SCALE) -> dict[str, Any]:
+                *, subclass_ok: bool | None = None, scale: Any = DEFAULT_SCALE) -> dict[str, Any]:
     """The per-document points a pipeline item persists (absent when the document is not scored)."""
+    if not available():
+        return {}
+    doc = document(row, result, scored, subclass_ok=subclass_ok)
     out: dict[str, Any] = {}
-    cls = classification_outcome(row, result, subclass_ok=subclass_ok, scale=scale)
+    cls = _CORE.classification_outcome(doc, scale)
     if cls is not None:
         out[f"{KEY}_classification_points"] = cls.points
         out[f"{KEY}_classification_reason"] = cls.reason
-    ext = extraction_outcome(row, result, scored, scale=scale)
+    ext = _CORE.extraction_outcome(doc, scale)
     if ext is not None:
         out[f"{KEY}_extraction_points"] = ext.points
         out[f"{KEY}_extraction_reason"] = ext.reason
@@ -383,7 +200,8 @@ def item_points(row: Mapping[str, Any], result: Mapping[str, Any], scored: Mappi
 
 
 __all__ = [
-    "CLASSIFICATION_REASONS", "DEFAULT_SCALE", "EXTRACTION_REASONS", "KEY", "Outcome", "PROFILE",
-    "PenaltyScale", "classification_outcome", "extraction_outcome", "for_pipeline", "item_points",
+    "CLASSIFICATION_REASONS", "DEFAULT_SCALE", "EXTRACTION_REASONS", "HOTFIX_ID", "KEY", "Outcome", "PROFILE",
+    "PainPointDocument", "PainPointsUnavailable", "PenaltyScale", "SOURCE", "available", "classification_outcome",
+    "core", "document", "extraction_outcome", "field_value_outcomes", "for_pipeline", "item_points",
     "subclass_flags", "summarize",
 ]

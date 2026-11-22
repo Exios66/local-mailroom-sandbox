@@ -209,6 +209,19 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
     ),
+    ScoringHotfix(
+        id="SHF-014",
+        layer="dojo",
+        # A byte-identical copy of the Dojo module the vendored pin does not ship yet.
+        targets=(("file:src/mailroom_sandbox/eval/_dojo_pain_points.py",
+                  "80c15528c475665034def4dda5a0c9ccd2b05b569682ec3e8a0344a950e25f1a"),),
+        upstream="llm-dojo-scoring llm_dojo_scoring/pipeline/pain_points.py (branch "
+                 "claude/composite-scores-afi-gwpaai); retire on the vendor refresh that ships it",
+        summary="pipeline runs report the pain-point composites (profile amfam-v1: classification and "
+                "extraction penalty points per document, 0 correct and complete to 4 a needless human "
+                "review) per item and per run, and sandbox pain-points breaks them down per experiment, "
+                "ahead of the Dojo pin",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}

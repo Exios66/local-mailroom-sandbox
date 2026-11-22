@@ -191,8 +191,15 @@ class TestPenaltyScale:
             pp.PenaltyScale(**override)
 
     def test_custom_scale_flows_through(self):
-        scale = pp.PenaltyScale(unnecessary_review=10.0, pipeline_failure=10.0)
+        scale = pp.PenaltyScale(profile="test-scale", unnecessary_review=10.0, pipeline_failure=10.0)
         assert _cls(_row(), _result(stage="review"), scale=scale).points == 10.0
+        block = pp.for_pipeline([_row()], [_result()], scale=scale)["pain_points"]
+        assert block["profile"] == "test-scale"
+
+    def test_custom_scale_needs_its_own_profile(self):
+        # Regression (CodeAnt on #393): a custom scale was still labelled amfam-v1.
+        with pytest.raises(ValueError, match="own profile id"):
+            pp.PenaltyScale(unnecessary_review=10.0, pipeline_failure=10.0)
 
 
 class TestRunSummary:
@@ -372,3 +379,54 @@ def test_pipeline_run_reports_pain_points(monkeypatch):
     by_id = {item["id"]: item["score"] for item in items}
     assert by_id["0"]["pain_points_classification_points"] == 0.0
     assert by_id["1"]["pain_points_classification_reason"] == "unnecessary_review"
+
+
+class TestHotfixSource:
+    """SHF-014: the sandbox serves a byte-identical copy of the Dojo module until the pin ships it."""
+
+    def test_the_copy_is_served_as_shf_014_while_the_pin_lacks_the_module(self):
+        assert pp.SOURCE.startswith("sandbox hotfix SHF-014") or pp.SOURCE == "dojo"
+        block = pp.for_pipeline([_row()], [_result()])["pain_points"]
+        assert block["source"] == pp.SOURCE
+        if pp.SOURCE != "dojo":
+            assert "SHF-014" in block["scoring_hotfixes"]
+
+    def test_the_copy_matches_the_dojo_module_once_vendored(self):
+        import importlib.util
+
+        spec = importlib.util.find_spec("llm_dojo_scoring.pipeline.pain_points")
+        if spec is None:
+            pytest.skip("the vendored Dojo pin does not ship pipeline.pain_points yet (SHF-014 serves it)")
+        copy = Path(pp._interim.__file__).read_bytes()
+        assert Path(spec.origin).read_bytes() == copy, (
+            "the vendored Dojo pain_points differs from the SHF-014 copy: retire SHF-014 and its copy")
+
+    def test_a_stale_hotfix_leaves_the_composites_out(self, monkeypatch):
+        if pp.SOURCE == "dojo":
+            pytest.skip("the Dojo serves the composites; SHF-014 is retired")
+        from mailroom_sandbox import scoring_hotfixes as sh
+
+        monkeypatch.setattr(sh, "enabled", lambda fix_id: fix_id != "SHF-014")
+        assert pp.available() is False
+        assert pp.for_pipeline([_row()], [_result()]) == {}
+        assert pp.item_points(_row(), _result(), None) == {}
+        with pytest.raises(pp.PainPointsUnavailable, match="SHF-014"):
+            pp.core()
+
+    def test_the_hotfix_is_fingerprinted_to_the_copy(self):
+        import hashlib
+
+        from mailroom_sandbox import scoring_hotfixes as sh
+
+        (fix,) = [f for f in sh.HOTFIXES if f.id == "SHF-014"]
+        ((target, sha),) = fix.targets
+        assert target == "file:src/mailroom_sandbox/eval/_dojo_pain_points.py"
+        assert hashlib.sha256(Path(pp._interim.__file__).read_bytes()).hexdigest() == sha
+        assert sh.status(refresh=True)["SHF-014"] == "current"
+
+    def test_document_maps_sandbox_rows(self):
+        doc = pp.document({"id": 7, "expected_doc_class": "contract", "expected_stage": "review"},
+                          {"stage": "archived", "doc_type": "contract", "error": "boom"}, {"tp": 1, "fn": 0},
+                          subclass_ok=False, groups={"experiment": "A"})
+        assert (doc.doc_id, doc.expected_class, doc.predicted_class, doc.stage) == ("7", "contract", "contract", "archived")
+        assert (doc.expected_stage, doc.failed, doc.subclass_correct, doc.groups) == ("review", True, False, {"experiment": "A"})
