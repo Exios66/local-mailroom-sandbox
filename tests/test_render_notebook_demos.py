@@ -8,17 +8,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_demo_output_sanitizer_preserves_source_and_images():
+def test_demo_output_sanitizer_preserves_source_and_images(tmp_path):
     spec = importlib.util.spec_from_file_location("render_demos", ROOT / "scripts/render_notebook_demos.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    runtime = str(tmp_path / "demo-runtime")
     source = "print('/Users/example/project')"
     nb = {"cells": [{"source": source, "outputs": [
-        {"text": ["root=/Users/example/project\n", "runtime=/tmp/demo-123/data\n"]},
+        {"text": ["root=/Users/example/project\n", f"runtime={runtime}/data\n"]},
         {"data": {"text/html": "<td>/Users/example/project/vendor</td>", "image/png": "iVBORw0KGgo="}},
     ]}]}
     module.sanitize_demo_outputs(nb, {"/Users/example": "/demo/home", "/Users/example/project": "/demo/checkout",
-                                      "/tmp/demo-123": "/demo/runtime"})
+                                      runtime: "/demo/runtime"})
     assert nb["cells"][0]["source"] == source
     output = nb["cells"][0]["outputs"]
     assert output[0]["text"] == ["root=/demo/checkout\n", "runtime=/demo/runtime/data\n"]
