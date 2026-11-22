@@ -968,7 +968,14 @@ def stage(out: Path, version: str, builder_dir: Path, assist: Path, corpus: Path
         name = f"mailroom_dataset_v{version}"
         (dest / "master" / f"{name}_labels.csv").write_text(_csv_text(columns, rows), encoding="utf-8")
         (dest / "master" / f"{name}_label_provenance.csv").write_text(_csv_text(pcols, prov), encoding="utf-8")
-        comp_rows = joined["completeness"]
+        # Recomputed from the validated provenance: validation can unlabel or dispute a cell the
+        # join counted as labeled, and the report must agree with the provenance and summary.
+        comp_rows = completeness_table(prov, builder["completeness"][1])
+        listed = {(r["doc_class"], r["field"]) for r in comp_rows}
+        reported = [r for r in prov if (r["doc_class"], r["field"]) in listed]
+        if sum(int(r["disputed_unresolved"]) for r in comp_rows) != sum(r["presence"] == DISPUTED for r in reported) \
+                or sum(int(r["labeled_repaired"]) for r in comp_rows) != sum(r["presence"] in LABELED for r in reported):
+            raise CacheError("field completeness disagrees with the validated provenance; refusing to stage")
         (dest / "master" / f"{name}_field_completeness.csv").write_text(_csv_text(comp_rows[0].keys(), comp_rows),
                                                                          encoding="utf-8")
         new_summary = dict(summary, label_cells_targeted=targeted, label_cells_labeled_repaired=labeled,

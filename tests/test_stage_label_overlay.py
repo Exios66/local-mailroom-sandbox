@@ -409,6 +409,20 @@ def test_merger_signing_dates_follow_the_owner_policy(mod, policy, value, presen
     assert len(queue) == (policy == "pending")
 
 
+def test_completeness_counts_cells_validation_disputed(mod):
+    """The field report is recomputed after validation, so a held cell is disputed, not labeled."""
+    cell = _cell(field="effective_date", doc_class="merger_agreement", value="2021-05-10",
+                 chosen_source="generated_rule", agreeing_sources="generated_rule")
+    base = [{"doc_class": "merger_agreement", "field": "effective_date", "documents": "1", "labeled_hub_v9_3": "0",
+             "labeled_repaired": "1", "populated": "1", "documented_absence": "0", "unlabeled": "0",
+             "disputed_unresolved": "0", "completeness_hub_v9_3": "0.0", "completeness_repaired": "1.0",
+             "conflicts": "0", "needs_human": "0", "top_source": "generated_rule"}]
+    assert mod.completeness_table([cell], base)[0]["labeled_repaired"] == 1
+    new, _, _, _ = mod.validate_repairs([cell], [_row()], {"DOC-1": SIGNED}, {}, signing_policy="pending")
+    row = mod.completeness_table(new, base)[0]
+    assert (row["labeled_repaired"], row["disputed_unresolved"], row["completeness_repaired"]) == (0, 1, 0.0)
+
+
 def test_open_decisions_reads_only_owner_decides_rows(mod, tmp_path):
     p = tmp_path / "audit.jsonl"
     p.write_text(json.dumps({"doc_id": "D", "field": "f", "action": "owner_decides", "value": "v"}) + "\n"
