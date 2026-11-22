@@ -36,7 +36,8 @@ class PainPointsError(ValueError):
 
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    # Split on "\n" only: splitlines() also breaks on U+2028 / U+2029 inside JSON strings (rescore._jsonl).
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 def run_groups(lock: Mapping[str, Any], label: str) -> dict[str, str]:
@@ -93,7 +94,11 @@ def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file
         raise PainPointsError(f"{run}: task {lock.get('task')!r}; the composites score pipeline runs only "
                               "(they need the final stage: archived or review)")
     run_id = str(lock.get("run_id") or files.path.name)
-    groups = run_groups(lock, label or run_id)
+    # The Dojo strips group labels, so the label is stripped here too: "A" and " A " are one experiment.
+    label = (label if label is not None else run_id).strip()
+    if not label:
+        raise PainPointsError(f"{run}: blank experiment label")
+    groups = run_groups(lock, label)
     # A retried item appears more than once: the last line is the one the run kept (job/pair_report.py).
     latest = {str(it.get("item_id")): it for it in _jsonl(files.files["items.jsonl"])}
     order = list(latest)
@@ -152,6 +157,7 @@ def report(runs: Sequence[tuple[str, str | None]], *, by: Sequence[str] = ("expe
         docs.extend(run_docs)
         provenance.append(meta)
     labels = [p["label"] for p in provenance]
+    baseline = baseline.strip() if baseline is not None else None
     if baseline is not None and baseline not in labels:
         raise PainPointsError(f"--baseline {baseline!r}: not one of the experiments {labels}")
     per_run = {p["label"]: core.score_run([d for d in docs if d.groups["experiment"] == p["label"]])

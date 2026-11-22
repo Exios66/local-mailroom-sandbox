@@ -180,3 +180,29 @@ def test_cli_reports_errors_with_exit_2(tmp_path, capsys):
     args = cli.build_parser().parse_args(["pain-points", str(tmp_path / "nope")])
     assert args.handler(args) == 2
     assert "sandbox pain-points:" in capsys.readouterr().err
+
+
+def test_line_separators_inside_json_strings_survive(tmp_path, case):
+    """Regression (CodeRabbit on #393): U+2028 / U+2029 inside a JSON string are not line breaks."""
+    row = {**_row("d1", case), "doc_text": "clause one clause two end"}
+    path = tmp_path / "r"
+    path.mkdir()
+    lock = {"run_id": "r", "task": "pipeline", "engine": {"model": "m"}, "job": {"mock": False}}
+    (path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
+    (path / "dataset.jsonl").write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    item = _item("d1", data=case["expected"])
+    item["pred"]["note"] = "a b"
+    (path / "items.jsonl").write_text(json.dumps(item, ensure_ascii=False) + "\n", encoding="utf-8")
+    docs, _ = ppr.documents_for_run(path)
+    assert [d.doc_id for d in docs] == ["d1"]
+
+
+def test_experiment_labels_are_normalised_before_the_uniqueness_check(two_runs):
+    """Regression (CodeRabbit on #393): ``A`` and `` A `` are one label; a blank label is refused."""
+    base, cand = two_runs
+    with pytest.raises(ppr.PainPointsError, match="share the experiment label"):
+        ppr.report([(str(base), "A"), (str(cand), " A ")])
+    with pytest.raises(ppr.PainPointsError, match="blank"):
+        ppr.report([(str(base), "  ")])
+    rep = ppr.report([(str(base), " A "), (str(cand), "B")], baseline=" A ", n_boot=50)
+    assert rep["compare"]["baseline"] == "A" and [p["label"] for p in rep["runs"]] == ["A", "B"]

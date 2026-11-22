@@ -151,8 +151,12 @@ Each argument is a run id under `data/runtime/runs`, a run or report-bundle dire
 Truth rows come from the run's `dataset.jsonl`. A report bundle keeps none: its truth is rebuilt
 from the locked dataset revision, or read from `--dataset-file`. A document the truth lacks is
 listed under `missing_truth` and left out; only `task: pipeline` runs are accepted. Mock runs are
-listed under `simulated` and never count as model evidence. `--json` prints the whole report;
-the default is Markdown tables. No model call, nothing written unless `--documents` or `--out`.
+listed under `simulated` and never count as model evidence. Experiment labels are stripped, may not
+be blank and may not repeat. `--json` prints the whole report; the default is Markdown tables. There
+is no model call, and the command writes report files only with `--documents` or `--out`.
+Rebuilding a report bundle's truth from the locked revision can read the Hugging Face Hub and fill
+the local dataset cache (as `sandbox rescore` does); use `--dataset-file` when the truth must stay
+local.
 
 Rows without an expected class are left out of both composites, and rows without field truth
 are left out of the extraction composite. A missing label is never scored as correct
