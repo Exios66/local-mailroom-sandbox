@@ -296,18 +296,13 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
             "basis": "input-only upper bound; excludes output tokens, intake, classification and transport retries"}
 
 
-def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:
-    """The plan under the taxonomy this run would activate (overlay + run ``agent_knobs``).
-
-    ``knobs`` should be the snapshot preflight locks (``resolve_agent_knobs`` with the
-    posture and ``SANDBOX_AGENT_KNOBS`` fallbacks); it defaults to resolving the same way.
-    """
+def taxonomy_for_spec(spec: Any, knobs: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The taxonomy this run would activate (overlay, routes, and the locked knobs)."""
     from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
 
-    knobs = kwargs.pop("knobs", None)
     if knobs is None:
         knobs = effective_knobs(spec)
-    taxonomy = build_merged_taxonomy(
+    return build_merged_taxonomy(
         load_profile(spec.profile),
         model_override=spec.engine.model,
         agent_models=spec.agent_models,
@@ -315,6 +310,18 @@ def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -
         agent_routes=spec.agent_routes,
         extra_overlay={"confidence": spec.confidence} if getattr(spec, "confidence", None) else None,
     )
+
+
+def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    """The plan under the taxonomy this run would activate (overlay + run ``agent_knobs``).
+
+    ``knobs`` should be the snapshot preflight locks (``resolve_agent_knobs`` with the
+    posture and ``SANDBOX_AGENT_KNOBS`` fallbacks); it defaults to resolving the same way.
+    """
+    knobs = kwargs.pop("knobs", None)
+    if knobs is None:
+        knobs = effective_knobs(spec)
+    taxonomy = taxonomy_for_spec(spec, knobs)
     if "models" not in kwargs:
         models: dict[str, Any] = {name: {"provider": route.provider, "model": route.model}
                                   for name, route in (spec.agent_routes or {}).items()}

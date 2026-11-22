@@ -143,8 +143,8 @@ def _norm_subclass(doc_class: str, value: Any) -> str:
 
 
 def label_source(row: Mapping[str, Any], name: str) -> str:
-    """``interim`` / ``near_gold`` when that overlay filled ``name`` on this row, else ``hub``."""
-    for key, source in (("interim_labels", "interim"), ("near_gold_labels", "near_gold")):
+    """``interim`` / ``near_gold`` / ``staged`` when that overlay filled ``name`` on this row, else ``hub``."""
+    for key, source in (("interim_labels", "interim"), ("near_gold_labels", "near_gold"), ("staged_overlay", "staged")):
         marker = row.get(key) or {}
         if isinstance(marker, Mapping) and name in (marker.get("fields") or ()):
             return source

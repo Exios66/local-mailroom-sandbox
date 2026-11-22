@@ -76,6 +76,8 @@ def _spec(**job):
 def test_schema_guide_is_hashed_only_when_set():
     assert "schema_guide" not in spec_core(_spec(), source_sha256="0" * 64)["job"]
     assert spec_core(_spec(schema_guide=True), source_sha256="0" * 64)["job"]["schema_guide"] is True
+    assert "require_expanded_inputs" not in spec_core(_spec(), source_sha256="0" * 64)["job"]
+    assert spec_core(_spec(require_expanded_inputs=True), source_sha256="0" * 64)["job"]["require_expanded_inputs"] is True
 
 
 def test_activation_restores_the_vendored_text(schemas, monkeypatch):

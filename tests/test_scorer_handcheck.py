@@ -248,8 +248,12 @@ def test_build_and_check_scripts_round_trip(tmp_path, capsys):
     blank = [r for r in values.values() if not r["hand_score"]]
     assert not blank, "the fixture rows are all settled by the documented rules"
     _write(sheet_path, sheet)
-    assert check.main(check_args) == 0
-    assert check.main([*common, "--sheet-dir", str(paths["out"])]) == 5  # 5 documents, the gate needs 20
+    ok_json = tmp_path / "ok.json"
+    assert check.main([*check_args, "--json", str(ok_json)]) == 0
+    assert json.loads(ok_json.read_text())["exit_code"] == 0
+    short_json = tmp_path / "short.json"
+    assert check.main([*common, "--sheet-dir", str(paths["out"]), "--json", str(short_json)]) == 5
+    assert json.loads(short_json.read_text())["exit_code"] == 5  # 5 documents, the gate needs 20
 
     flipped = [dict(r) for r in sheet]
     target = next(r for r in flipped if r["check"] == "class")

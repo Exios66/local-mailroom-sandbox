@@ -91,6 +91,12 @@ committed overlay after `scripts/gold_labels.py review` (2026-11-18).
 | Contract labels in the overlay (not reviewed here) | 900 | 900 | 900 |
 | Reviewed labels left unused as single-pass candidates | 2,652 | 1 | 0 |
 
+Reconciliation note (added 2026-11-20): only the "Applied" column sums from its class rows
+(6,994 + 1,207 + 900 = 9,101). The "Before" and "With the decisions" totals (5,843 and 9,041)
+come from that run's overall counter, and their three class rows leave 612 and 1,089 labels
+unattributed. That run did not keep per-class counters for the remainder, so the gap cannot be
+recomputed now. Treat those two class breakdowns as partial and the totals as the run's figures.
+
 Every correspondence and corporate-record catalog record is now `near_gold`. Four catalog
 values differ from their verdict: the split held label DOC-6e5eb0c3089badbc `action_items`,
 and three reply-rule labels whose accepted value is the header reading while the verdict's
@@ -129,7 +135,9 @@ instead:
 - A bare forward falls through to the quoted header.
 
 The result is 23 stated values and 98 empty values, all with quotes or an absent reason that
-the gate accepts. Of the 23 stated values:
+the gate accepts. These 121 are the lines in `decisions.jsonl` whose note records the reply rule
+("reply typed above quoted mail"). The other 8 of the 129 are not recorded under that note, so
+this report cannot attribute them (checked 2026-11-20). Of the 23 stated values:
 
 - 15 are signatures or salutations ("Jim", "Kay", "Anita", "mhc").
 - 8 come from the reply's own forward stamp ("Sally Beck", 2000-01-28).

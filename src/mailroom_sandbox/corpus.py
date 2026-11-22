@@ -775,8 +775,20 @@ def _apply_near_gold_overlay(chosen: list[dict[str, Any]], interim: dict[str, An
 
 
 def apply_label_overlays(chosen: list[dict[str, Any]], source_meta: dict[str, Any], *, interim: bool,
-                         near_gold: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Merge the interim and near-gold label overlays into drawn rows; record each one's sha256."""
+                         near_gold: bool, staged: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Merge the label overlays into drawn rows; record each one's sha256.
+
+    ``staged`` (a pinned staged-overlay version) is the merged master of the other two, so it is
+    applied alone (``DatasetSpec`` refuses the combination).
+    """
+    if staged:
+        if interim or near_gold:
+            raise ValueError("the staged overlay already contains the interim and near-gold labels")
+        from mailroom_sandbox import staged_overlay as so
+
+        revision = source_meta.get("revision_resolved") if source_meta.get("source") != "local" else None
+        chosen, meta = so.apply_rows(chosen, staged, source_revision=revision)
+        return chosen, {**source_meta, "staged_overlay": meta}
     interim_overlay = None
     if interim:
         from mailroom_sandbox import interim_labels as il
@@ -832,7 +844,8 @@ def truth_rows(spec: DatasetSpec, ids: Iterable[str], *, keep_raw: bool = False,
         row["expected_fields"] = row.get("expected_fields") or _derive_expected_fields(row)
         chosen.append(row)
     chosen, source_meta = apply_label_overlays(chosen, source_meta, interim=bool(spec.interim_labels),
-                                               near_gold=bool(spec.near_gold_labels))
+                                               near_gold=bool(spec.near_gold_labels),
+                                               staged=getattr(spec, "staged_overlay", None))
     found = {str(r["id"]) for r in chosen}
     return chosen, {**source_meta, "rows": len(chosen), "missing": [i for i in wanted if i not in found]}
 
@@ -913,7 +926,8 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
     chosen, source_meta = apply_label_overlays(chosen, source_meta, interim=bool(getattr(spec, "interim_labels", False)),
-                                               near_gold=bool(getattr(spec, "near_gold_labels", False)))
+                                               near_gold=bool(getattr(spec, "near_gold_labels", False)),
+                                               staged=getattr(spec, "staged_overlay", None))
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")

@@ -1229,6 +1229,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _expanded_input_parser() -> argparse.ArgumentParser:
+    """Flags only preflight, start, and resume read. Resume applies them with ``--config``."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--agent-knob",
+        action="append",
+        dest="agent_knobs",
+        default=[],
+        metavar="NAME.key=value",
+        help=(
+            "per-agent generation parameter for preflight, start, and resume --config "
+            "(repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, "
+            "chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. "
+            "Wins over the YAML for that key and keeps a posture run's other budgets. "
+            "Example: judge.max_input_chars=800000"
+        ),
+    )
+    parser.add_argument(
+        "--require-expanded-inputs",
+        action="store_true",
+        help=(
+            "preflight and start fail unless every long-context reader has its expanded "
+            "input length swapped on. Resume applies this only with --config. "
+            "job.require_expanded_inputs in the run YAML does the same"
+        ),
+    )
+    return parser
+
+
 def _run_parser(sub, shared):
     common = argparse.ArgumentParser(add_help=False, parents=[shared])
     common.add_argument("--config", default=None)
@@ -1241,6 +1270,7 @@ def _run_parser(sub, shared):
     common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
     common.add_argument("--target", default=None, metavar="TARGET", help="level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim)")
     common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
+    expanded = _expanded_input_parser()
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=_positive_int, default=None)
     common.add_argument(
@@ -1284,10 +1314,10 @@ def _run_parser(sub, shared):
 
     run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
     run_sub = run.add_subparsers(dest="run_cmd")
-    pre = run_sub.add_parser("preflight", parents=[common], help="validate a run config and print its lock report; no inference")
+    pre = run_sub.add_parser("preflight", parents=[common, expanded], help="validate a run config and print its lock report; no inference")
     pre.add_argument("--dry-run", action="store_true")
     pre.set_defaults(handler=_cmd_run_preflight)
-    start = run_sub.add_parser("start", parents=[common], help="start a locked run (spend gates and initials apply)")
+    start = run_sub.add_parser("start", parents=[common, expanded], help="start a locked run (spend gates and initials apply)")
     start.add_argument("--dry-run", action="store_true")
     start.set_defaults(handler=_cmd_run_start)
     status = run_sub.add_parser("status", parents=[common], help="progress, errors and spend for a run")
@@ -1309,7 +1339,7 @@ def _run_parser(sub, shared):
     gate_p.add_argument("--thresholds", action="store_true",
                         help="add the offline judge-threshold evidence table (an upper bound)")
     gate_p.set_defaults(handler=_cmd_run_gate)
-    resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
+    resume = run_sub.add_parser("resume", parents=[common, expanded], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
     cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
     cancel.set_defaults(handler=_cmd_run_cancel)
@@ -1860,48 +1890,151 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
         return 1
 
 
-def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
-    """Retrieve the reviewed visualizer without discarding local work.
+def _visualizer_clean_head(dest: Path, *, announce: bool = True) -> str | None:
+    """HEAD when the checkout is clean. None leaves a dirty checkout untouched."""
+    status = subprocess.run(
+        ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
+         "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
+         "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
+        capture_output=True, text=True, check=False,
+    )
+    current = subprocess.run(
+        ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
+        capture_output=True, text=True, check=False,
+    )
+    if status.returncode or status.stdout or current.returncode:
+        if announce:
+            print("!! visualizer has local files; left untouched", file=sys.stderr)
+        return None
+    return current.stdout.strip()
 
-    Dirty or divergent checkouts are preserved. A clean checkout whose HEAD
-    matches the reviewed-head marker written by an earlier refresh is an older
-    reviewed snapshot and is replaced atomically; local commits and unrelated
-    HEADs are never reset.
+
+def _visualizer_still_replaceable(dest: Path, existing_head: str | None) -> bool:
+    """The tree is still the clean snapshot observed before the fetch.
+
+    The fetch is slow enough for edits, a new commit, or a newly created
+    checkout to land. Those must not be moved into recovery and deleted.
+    """
+    if existing_head is None:
+        return False
+    return _visualizer_clean_head(dest, announce=False) == existing_head
+
+
+def _visualizer_existing_head(dest: Path, sha: str) -> tuple[int | None, str | None]:
+    """``(stop code, HEAD)``. A stop code means the checkout was left untouched."""
+    if not dest.exists() and not dest.is_symlink():
+        return None, None
+    if dest.is_symlink() or not (dest / ".git").exists():
+        print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
+        return 1, None
+    existing_head = _visualizer_clean_head(dest)
+    if existing_head is None:
+        return 1, None
+    marker = dest / ".git" / "mailroom-reviewed-head"
+    try:
+        reviewed_head = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        reviewed_head = None
+    if existing_head != sha and reviewed_head != existing_head:
+        print("!! visualizer HEAD is not a previously reviewed snapshot; left untouched", file=sys.stderr)
+        return 1, None
+    return None, existing_head
+
+
+def _restore_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
+    """Put a moved checkout back. The recovery copy stays if the restore fails."""
+    import shutil
+
+    try:
+        backup.rename(dest)
+    except OSError as restore_error:
+        print(
+            "!! visualizer changed during refresh; original snapshot preserved "
+            f"at {backup} ({restore_error})",
+            file=sys.stderr,
+        )
+        return 1
+    shutil.rmtree(recovery)
+    print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+    return 1
+
+
+def _restore_installed_visualizer(backup: Path, dest: Path, recovery: Path) -> int:
+    """The aside copy changed after install. Put it back and drop the new tree."""
+    installed = recovery / "installed"
+    try:
+        dest.rename(installed)
+    except OSError as hold_error:
+        print(
+            "!! visualizer changed during refresh; original snapshot preserved "
+            f"at {backup} ({hold_error})",
+            file=sys.stderr,
+        )
+        return 1
+    return _restore_visualizer(backup, dest, recovery)
+
+
+def _commit_visualizer_install(backup: Path, dest: Path, recovery: Path, existing_head: str) -> int | None:
+    """Delete the aside copy only when it is still the clean reviewed HEAD."""
+    import shutil
+
+    if not _visualizer_still_replaceable(backup, existing_head):
+        return _restore_installed_visualizer(backup, dest, recovery)
+    shutil.rmtree(recovery)
+    return None
+
+
+def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refresh_root: Path) -> int | None:
+    """Install ``work`` over a clean reviewed checkout. None means it is in place.
+
+    The live tree is moved aside and checked again. An edit that lands after the
+    fetch, including one that lands after the first clean check, is put back.
+    The aside copy is checked once more immediately before it is deleted.
     """
     import shutil
     import tempfile
 
-    dest = vendor_dir() / "The-Mailroom"
-    existing_head = None
-    if dest.exists() or dest.is_symlink():
-        if dest.is_symlink() or not (dest / ".git").exists():
-            print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
-            return 1
-        status = subprocess.run(
-            ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
-             "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
-             "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
-            capture_output=True, text=True, check=False,
-        )
-        current = subprocess.run(
-            ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
-            capture_output=True, text=True, check=False,
-        )
-        if status.returncode or status.stdout or current.returncode:
-            print("!! visualizer has local files; left untouched", file=sys.stderr)
-            return 1
-        existing_head = current.stdout.strip()
-        marker = dest / ".git" / "mailroom-reviewed-head"
+    if not _visualizer_still_replaceable(dest, existing_head):
+        print("!! visualizer changed during refresh; left untouched", file=sys.stderr)
+        return 1
+    recovery = Path(tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root))
+    backup = recovery / "The-Mailroom"
+    dest.rename(backup)
+    if not _visualizer_still_replaceable(backup, existing_head):
+        return _restore_visualizer(backup, dest, recovery)
+    try:
+        work.rename(dest)
+    except OSError as install_error:
         try:
-            reviewed_head = marker.read_text(encoding="utf-8").strip()
-        except OSError:
-            reviewed_head = None
-        if existing_head != sha and reviewed_head != existing_head:
+            backup.rename(dest)
+        except OSError as restore_error:
             print(
-                "!! visualizer HEAD is not a previously reviewed snapshot; left untouched",
+                f"!! visualizer install failed ({install_error}); rollback failed "
+                f"({restore_error}). Original snapshot preserved at {backup}",
                 file=sys.stderr,
             )
             return 1
+        shutil.rmtree(recovery)
+        raise
+    return _commit_visualizer_install(backup, dest, recovery, existing_head)
+
+
+def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
+    """Retrieve the reviewed visualizer without discarding local work.
+
+    Dirty or divergent checkouts are preserved, including edits that land while
+    the reviewed snapshot is fetched, after that check, or after the moved
+    checkout is judged clean. A clean checkout whose
+    HEAD matches the reviewed-head marker written by an earlier refresh is an
+    older reviewed snapshot and is replaced atomically; local commits and
+    unrelated HEADs are never reset.
+    """
+    import tempfile
+
+    dest = vendor_dir() / "The-Mailroom"
+    stopped, existing_head = _visualizer_existing_head(dest, sha)
+    if stopped:
+        return stopped
     refresh_root = vendor_dir() / ".refresh"
     try:
         refresh_root.mkdir(parents=True, exist_ok=True)
@@ -1912,26 +2045,9 @@ def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
             if not dest.exists():
                 work.rename(dest)
             elif existing_head != sha:
-                recovery = Path(
-                    tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
-                )
-                backup = recovery / "The-Mailroom"
-                dest.rename(backup)
-                try:
-                    work.rename(dest)
-                except OSError as install_error:
-                    try:
-                        backup.rename(dest)
-                    except OSError as restore_error:
-                        print(
-                            f"!! visualizer install failed ({install_error}); rollback failed "
-                            f"({restore_error}). Original snapshot preserved at {backup}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    shutil.rmtree(recovery)
-                    raise
-                shutil.rmtree(recovery)
+                replaced = _replace_clean_visualizer(dest, work, existing_head or "", refresh_root)
+                if replaced:
+                    return replaced
             marker = dest / ".git" / "mailroom-reviewed-head"
             try:
                 marker.write_text(f"{sha}\n", encoding="utf-8")
@@ -3678,6 +3794,29 @@ def _run_load_spec(args) -> tuple[object, Path]:
     if getattr(args, "agent_routes", None):
         from mailroom_sandbox.agent_routes import parse_routes
         spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
+    if getattr(args, "agent_knobs", None):
+        from mailroom_sandbox.job.spec import parse_agent_knob_assignments
+
+        try:
+            parsed = parse_agent_knob_assignments(args.agent_knobs)
+        except ValueError as exc:
+            raise CLIUsageError(str(exc)) from exc
+        merged = {name: dict(knobs) for name, knobs in spec.agent_knobs.items()}
+        if not merged:
+            # A posture-managed run has no YAML knobs. One CLI key must not
+            # replace the posture's other budgets.
+            from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+
+            posture = agent_knobs_for_run(getattr(spec, "run_id", None)) or {}
+            merged = {name: dict(knobs) for name, knobs in posture.items() if isinstance(knobs, dict)}
+        for name, knobs in parsed.items():
+            merged.setdefault(name, {}).update(knobs)
+        try:
+            spec = type(spec).model_validate({**spec.model_dump(by_alias=True), "agent_knobs": merged})
+        except ValueError as exc:
+            errors = getattr(exc, "errors", None)
+            message = errors()[0]["msg"].removeprefix("Value error, ") if callable(errors) else str(exc)
+            raise CLIUsageError(f"--agent-knob: {message}") from exc
     if getattr(args, "target", None):
         # Re-validate so the CLI target gets the same task check and normalization as the YAML.
         try:
@@ -3713,6 +3852,14 @@ def _run_id_required(args) -> str:
 _REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused", "busy_refused"}
 
 
+def _require_expanded_inputs(args, spec) -> bool:
+    """True when the CLI flag or the run YAML asks preflight to verify expanded inputs."""
+    return bool(
+        getattr(args, "require_expanded_inputs", False)
+        or getattr(getattr(spec, "job", None), "require_expanded_inputs", False)
+    )
+
+
 def _cmd_run_preflight(args) -> int:
     """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
@@ -3726,6 +3873,7 @@ def _cmd_run_preflight(args) -> int:
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
         live=False,
+        require_expanded_inputs=_require_expanded_inputs(args, spec),
     )
     if report.get("status") == "prepared" and getattr(args, "live", False) and not getattr(args, "dry_run", False):
         from mailroom_sandbox.job.checkpoint import RunStore
@@ -3787,6 +3935,7 @@ def _cmd_run_start(args) -> int:
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
         live=False,
+        require_expanded_inputs=_require_expanded_inputs(args, spec),
     )
     if report.get("status") != "prepared":
         _print(report)
@@ -4151,6 +4300,7 @@ def _cmd_run_resume(args) -> int:
             config_path=config_path,
             offline=bool(getattr(args, "offline", False)),
             force=bool(getattr(args, "force", False)),
+            require_expanded_inputs=_require_expanded_inputs(args, spec),
         )
         if report.get("status") != "prepared":
             _print(report)

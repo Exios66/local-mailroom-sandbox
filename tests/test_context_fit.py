@@ -1,6 +1,8 @@
 """Context fit: whole-document budgets follow the agent's model window, not the L4 posture."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from mailroom_sandbox import context_fit, source_windows
@@ -75,10 +77,40 @@ def test_chunk_cap_holds_while_an_unfitted_specialist_is_wider():
     assert out["chunking"]["chunk_chars"] == 90000
 
 
+def test_identity_changes_when_chunking_is_disabled_or_the_overlap_moves():
+    fitted = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS)
+    base = context_fit.identity(fitted)
+    disabled = json.loads(json.dumps(fitted))
+    disabled["chunking"]["enabled"] = False
+    tighter = json.loads(json.dumps(fitted))
+    tighter["chunking"]["overlap_chars"] = 1000
+    assert context_fit.identity(disabled)["sha256"] != base["sha256"]
+    assert context_fit.identity(tighter)["sha256"] != base["sha256"]
+    assert base["chunking"] == {"enabled": True, "overlap_chars": 8000}
+
+
 def test_disabled_fit_changes_nothing():
     out = context_fit.apply_context_fit(_taxonomy(context_fit={"enabled": False}), contexts=CONTEXTS)
     assert out["agents"]["merger_agreement_specialist"]["max_input_chars"] == 36008
     assert out["context_fit"]["applied"] == {}
+
+
+def test_disabled_fit_still_records_an_openrouter_route():
+    tax = _taxonomy(provider="modal-vllm", context_fit={"enabled": False})
+    out = context_fit.apply_context_fit(
+        tax,
+        agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}},
+        contexts=CONTEXTS,
+    )
+    assert out["agents"]["judge"]["max_input_chars"] == 80000
+    assert out["context_fit"]["applied"] == {}
+    assert out["context_fit"]["checked"]["judge"] == {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}
+    status = context_fit.expansion_status(out)
+    judge = next(row for row in status["agents"] if row["agent"] == "judge")
+    assert judge["provider"] == "openrouter" and judge["expanded"] is False
+    assert any(gap.startswith("judge:") for gap in status["gaps"])
+    sorter = next(row for row in status["agents"] if row["agent"] == "sorter")
+    assert sorter["expanded"] is None
 
 
 def test_price_sheet_lists_the_flash_context():
@@ -180,6 +212,57 @@ def test_activation_widens_for_openrouter_and_restores_for_modal(monkeypatch, ju
         assert get_agent_config("merger_agreement_specialist")["max_input_chars"] == 36008
     finally:
         source_windows.apply_source_windows({})
+
+
+def test_expansion_status_follows_an_openrouter_route_on_a_local_profile():
+    tax = build_merged_taxonomy(
+        load_profile("modal-vllm"),
+        agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}},
+    )
+    judge = next(row for row in context_fit.expansion_status(tax)["agents"] if row["agent"] == "judge")
+    assert judge["provider"] == "openrouter"
+    assert judge["expanded"] is True and judge["source_window"] > 16_000
+    sorter = next(row for row in context_fit.expansion_status(tax)["agents"] if row["agent"] == "sorter")
+    assert sorter["expanded"] is None
+
+
+def test_expansion_status_swaps_openrouter_readers_and_leaves_modal():
+    fitted = context_fit.expansion_status(
+        build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")
+    )
+    assert fitted["gaps"] == []
+    by_name = {row["agent"]: row for row in fitted["agents"]}
+    assert by_name["judge"]["expanded"] is True
+    assert by_name["judge"]["source_window"] > 16_000
+    assert by_name["arbiter"]["source_window"] > 16_000
+    assert by_name["sorter"]["expanded"] is True and by_name["intake"]["expanded"] is True
+    modal = context_fit.expansion_status(build_merged_taxonomy(load_profile("modal-vllm")))
+    assert modal["gaps"] == []
+    assert all(row["expanded"] is None for row in modal["agents"])
+
+
+def test_expansion_status_flags_a_model_without_a_context_length():
+    status = context_fit.expansion_status(
+        build_merged_taxonomy(load_profile("openrouter"), model_override="nobody/knows")
+    )
+    assert any("nobody/knows" in gap for gap in status["gaps"])
+
+
+def test_expansion_status_flags_a_knob_that_restores_the_short_budget():
+    tax = build_merged_taxonomy(
+        load_profile("openrouter"),
+        model_override="qwen/qwen3.7-flash",
+        agent_knobs={"judge": {"max_input_chars": 80000}},
+    )
+    status = context_fit.expansion_status(tax)
+    assert any(gap.startswith("judge:") for gap in status["gaps"])
+    kept = context_fit.expansion_status(build_merged_taxonomy(
+        load_profile("openrouter"),
+        model_override="qwen/qwen3.7-flash",
+        agent_knobs={"judge": {"max_input_chars": 200000}},
+    ))
+    judge = next(row for row in kept["agents"] if row["agent"] == "judge")
+    assert judge["expanded"] is True and judge["source_window"] == 200000
 
 
 def test_the_overlay_fits_every_whole_document_reader():

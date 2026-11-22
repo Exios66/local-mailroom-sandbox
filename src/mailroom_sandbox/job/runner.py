@@ -1065,6 +1065,13 @@ def run_job(
         from mailroom_sandbox.dependency_sources import verify_locked
 
         verify_locked(lock)
+        from mailroom_sandbox.job.preflight import context_fit_resume_detail
+
+        # Run-id resume skips preflight. A price-sheet or overlay edit must not
+        # change the windows a stamped run already froze. Legacy locks have no stamp.
+        fit_detail = context_fit_resume_detail(lock)
+        if fit_detail:
+            raise RuntimeError(fit_detail)
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             verify_locked_hotfixes(lock)

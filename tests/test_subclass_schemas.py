@@ -154,3 +154,10 @@ def test_cli_build_refuses_an_unreadable_corpus(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(ss, "load_corpus_rows", boom)
     assert main(["schemas", "build", "--out", str(tmp_path / "x.json")]) == 2
     assert "datasets pull" in capsys.readouterr().err
+
+
+def test_record_type_problem_names_the_staged_overlay_as_its_source():
+    row = _row(1, "corporate_record", "bylaws", record_type="rights_instrument", entity_name="X Corp")
+    row["staged_overlay"] = {"fields": ["record_type"]}
+    (p,) = [p for p in _build([row])["problems"] if p["kind"] == "record_type_contradicts_subclass"]
+    assert p["source"] == "staged"

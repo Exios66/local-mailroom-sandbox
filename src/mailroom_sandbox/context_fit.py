@@ -29,6 +29,8 @@ The judge and arbiter source windows are vendored literals; see
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from copy import deepcopy
 from functools import lru_cache
@@ -115,6 +117,22 @@ def _budget(agent: Mapping[str, Any]) -> int:
         return 0
 
 
+def _routes_checked(cfg: Mapping[str, Any], taxonomy: Mapping[str, Any], routes: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    """Provider and model each reader would use. An explicit route wins over the profile."""
+    agents = taxonomy.get("agents") or {}
+    checked: dict[str, dict[str, str]] = {}
+    for name in sorted(_targets(cfg, _specialists(taxonomy))):
+        agent = agents.get(name)
+        if not isinstance(agent, dict):
+            continue
+        route = routes.get(name)
+        checked[name] = {
+            "provider": str(_route_field(route, "provider") or agent.get("provider") or ""),
+            "model": str(_route_field(route, "model") or agent.get("model") or ""),
+        }
+    return checked
+
+
 def apply_context_fit(
     taxonomy: dict,
     *,
@@ -128,25 +146,25 @@ def apply_context_fit(
     """
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)
+    cfg.pop("checked", None)
     out = deepcopy(taxonomy)
     chunking = out.setdefault("chunking", {})
     cap = int(chunking.get("chunk_chars", _DEFAULT_CHUNK_CHARS))
-    record: dict[str, Any] = {**cfg, "applied": {}, "chunk_chars": {"before": cap, "after": cap}}
+    record: dict[str, Any] = {**cfg, "applied": {}, "checked": {}, "chunk_chars": {"before": cap, "after": cap}}
     out["context_fit"] = record
+    # Record routes even when fitting is off, so preflight still sees an OpenRouter
+    # override on a local profile and can reject a short reader.
+    record["checked"] = _routes_checked(cfg, out, agent_routes or {})
     if not cfg.get("enabled", True):
         return out
     contexts = api_context_lengths() if contexts is None else contexts
     providers = {str(p) for p in cfg.get("providers") or []}
     specialists = _specialists(out)
-    routes = agent_routes or {}
     agents = out.get("agents") or {}
-    for name in sorted(_targets(cfg, specialists)):
-        agent = agents.get(name)
-        if not isinstance(agent, dict):
-            continue
-        route = routes.get(name)
-        provider = str(_route_field(route, "provider") or agent.get("provider") or "")
-        model = str(_route_field(route, "model") or agent.get("model") or "")
+    for name, choice in record["checked"].items():
+        agent = agents[name]
+        provider = choice["provider"]
+        model = choice["model"]
         context = contexts.get(model)
         if provider not in providers or not context:
             continue
@@ -156,17 +174,196 @@ def apply_context_fit(
             continue
         agent["max_input_chars"] = after
         record["applied"][name] = {"model": model, "context_length": context, "before": before, "after": after}
-
-    fitted = [record["applied"][s]["after"] for s in specialists if s in record["applied"]]
-    wide_unfitted = sorted(s for s in specialists if s not in record["applied"] and _budget(agents.get(s) or {}) > cap)
-    if fitted and not wide_unfitted:
-        chunking["chunk_chars"] = max(cap, *fitted)
-        record["chunk_chars"]["after"] = chunking["chunk_chars"]
-    elif fitted:
-        _log.warning("chunk cap left at %s: unfitted specialists %s have wider budgets", cap, wide_unfitted)
+    _raise_chunk_cap(chunking, record, specialists, agents, cap)
     if record["applied"]:
         _log.info("context-fit budgets: %s", {k: v["after"] for k, v in record["applied"].items()})
     return out
+
+
+def _raise_chunk_cap(chunking: dict, record: dict, specialists: set[str], agents: Mapping[str, Any], cap: int) -> None:
+    """Raise the chunk cap only when every wide specialist was fitted."""
+    applied = record["applied"]
+    fitted = [applied[name]["after"] for name in specialists if name in applied]
+    wide = sorted(name for name in specialists if name not in applied and _budget(agents.get(name) or {}) > cap)
+    if not fitted:
+        return
+    if wide:
+        _log.warning("chunk cap left at %s: unfitted specialists %s have wider budgets", cap, wide)
+        return
+    chunking["chunk_chars"] = max(cap, *fitted)
+    record["chunk_chars"]["after"] = chunking["chunk_chars"]
+
+
+# Vendored judge/arbiter excerpts. A fitted route must swap these on; a budget
+# that is already wide does not, because the literals ignore max_input_chars.
+_VENDORED_SOURCE_CHARS = 16_000
+_SOURCE_AGENTS = ("judge", "arbiter")
+
+
+def _checked_route(taxonomy: Mapping[str, Any], name: str, agent: Mapping[str, Any]) -> tuple[str, str]:
+    choice = ((taxonomy.get("context_fit") or {}).get("checked") or {}).get(name) or {}
+    provider = str(choice.get("provider") or agent.get("provider") or "")
+    model = str(choice.get("model") or agent.get("model") or "")
+    return provider, model
+
+
+def _fitted_room(agent: Mapping[str, Any], model: str, on_route: bool, contexts: Mapping[str, int], cfg: Mapping[str, Any]) -> tuple[int | None, int | None]:
+    context = contexts.get(model) if on_route else None
+    room = fit_chars(context, int(agent.get("max_tokens") or 4096), cfg) if context else None
+    return context, room
+
+
+def _above_pre_fit(budget: int, before: int | None, in_applied: bool) -> bool:
+    return in_applied and before is not None and budget > before
+
+
+def _covers_fitted_room(name: str, budget: int, room: int | None, in_applied: bool) -> bool:
+    covers = room is not None and budget >= room
+    window_ok = name not in _SOURCE_AGENTS or in_applied
+    return covers and window_ok
+
+
+def _window_not_swapped(name: str, room: int | None, in_applied: bool) -> bool:
+    return name in _SOURCE_AGENTS and room is not None and room > _VENDORED_SOURCE_CHARS and not in_applied
+
+
+def _expansion_gap(name: str, model: str, budget: int, context: int | None, room: int | None, before: int | None, *, on_route: bool, in_applied: bool) -> tuple[bool | None, str | None]:
+    """Whether one reader is expanded, and the gap text when a long-context route is still short."""
+    if not on_route:
+        return None, None
+    if not context:
+        return False, (
+            f"{name}: model {model} has no context_length in config/api_prices.yaml, "
+            f"so its input length stays {budget}"
+        )
+    if _above_pre_fit(budget, before, in_applied):
+        return True, None
+    if _covers_fitted_room(name, budget, room, in_applied):
+        return True, None
+    if _window_not_swapped(name, room, in_applied):
+        return False, (
+            f"{name}: source window stays at {_VENDORED_SOURCE_CHARS} chars; "
+            "the expanded length was not swapped on"
+        )
+    return False, f"{name}: max_input_chars={budget} was not expanded (fitted room {room})"
+
+
+def _reader_status(taxonomy: Mapping[str, Any], name: str, agent: Mapping[str, Any], providers: set[str], contexts: Mapping[str, int], applied: Mapping[str, Any], cfg: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
+    provider, model = _checked_route(taxonomy, name, agent)
+    budget = _budget(agent)
+    context, room = _fitted_room(agent, model, provider in providers, contexts, cfg)
+    before = int(applied[name]["before"]) if name in applied else None
+    expanded, gap = _expansion_gap(
+        name, model, budget, context, room, before, on_route=provider in providers, in_applied=name in applied,
+    )
+    return {
+        "agent": name,
+        "provider": provider,
+        "model": model,
+        "max_input_chars": budget,
+        "context_length": context,
+        "before": before,
+        "expanded": expanded,
+    }, gap
+
+
+def _missing_window_attrs(agent: str, missing: set[str]) -> list[str]:
+    from mailroom_sandbox.source_windows import TARGETS
+
+    return [
+        f"{module}.{attr}"
+        for module, attr in TARGETS.get(agent, ())
+        if f"{module}.{attr}" in missing
+    ]
+
+
+def _record_source_windows(rows: list[dict[str, Any]], gaps: list[str], windows: Mapping[str, int], missing: set[str]) -> None:
+    for row in rows:
+        if row["agent"] in windows:
+            row["source_window"] = windows[row["agent"]]
+        if not row["expanded"] or row["agent"] not in _SOURCE_AGENTS:
+            continue
+        absent = _missing_window_attrs(row["agent"], missing)
+        if not absent:
+            continue
+        row["expanded"] = False
+        gaps.append(
+            f"{row['agent']}: source window cannot be swapped on ({', '.join(absent)}); "
+            "the vendored 16k excerpt would stand"
+        )
+
+
+def expansion_status(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """Whether each context-fit reader is on its expanded input length.
+
+    ``expanded`` is true when the live budget is above the pre-fit budget, or
+    already covers the model's fitted room. It is null when the agent's provider
+    is outside ``context_fit.providers`` (Modal and local routes keep the short
+    budget on purpose). ``gaps`` names every long-context reader still short,
+    including a judge or arbiter whose source window was not swapped on.
+    """
+    cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
+    cfg.pop("applied", None)
+    applied = (taxonomy.get("context_fit") or {}).get("applied") or {}
+    providers = {str(item) for item in cfg.get("providers") or []}
+    agents = taxonomy.get("agents") or {}
+    contexts = api_context_lengths()
+    rows: list[dict[str, Any]] = []
+    gaps: list[str] = []
+    for name in sorted(_targets(cfg, _specialists(taxonomy))):
+        agent = agents.get(name)
+        if not isinstance(agent, dict):
+            continue
+        row, gap = _reader_status(taxonomy, name, agent, providers, contexts, applied, cfg)
+        rows.append(row)
+        if gap:
+            gaps.append(gap)
+    from mailroom_sandbox.source_windows import unavailable_targets, windows_for
+
+    windows = windows_for(taxonomy)
+    _record_source_windows(rows, gaps, windows, set(unavailable_targets()))
+    return {"agents": rows, "gaps": gaps, "source_windows": windows}
+
+
+def _chunking_stamp(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """The chunking switch and overlap the vendored extractor reads.
+
+    Missing values use the same defaults as ``_run_chunked_extraction``
+    (enabled, 8000). The window size is already in ``chunk_chars``.
+    """
+    chunking = taxonomy.get("chunking") or {}
+    try:
+        overlap = int(chunking.get("overlap_chars", 8_000))
+    except (TypeError, ValueError):
+        overlap = 8_000
+    return {"enabled": bool(chunking.get("enabled", True)), "overlap_chars": overlap}
+
+
+def identity(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
+    """Stable digest of the fitted budgets a lock freezes.
+
+    A later price-sheet or overlay edit changes the digest, including turning
+    chunking off or changing its overlap. Locks written before this stamp have
+    no key and still resume.
+    """
+    fit = taxonomy.get("context_fit") or {}
+    applied = {
+        name: {
+            "model": row.get("model"),
+            "context_length": row.get("context_length"),
+            "after": row.get("after"),
+        }
+        for name, row in sorted((fit.get("applied") or {}).items())
+    }
+    body = {
+        "applied": applied,
+        "chunk_chars": (fit.get("chunk_chars") or {}).get("after"),
+        "chunking": _chunking_stamp(taxonomy),
+    }
+    return {
+        "sha256": hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest(),
+        **body,
+    }
 
 
 def fitted_budget(taxonomy: Mapping[str, Any], agent: str) -> int | None:

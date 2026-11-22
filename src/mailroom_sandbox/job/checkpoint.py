@@ -418,20 +418,28 @@ class RunStore:
         remote: dict[str, Any] | None = None,
         last_error: dict[str, Any] | None = None,
         reconcile: tuple[int, int] | None = None,
+        spec_hash: str | None = None,
+        generation_id: str | None = None,
     ) -> Path:
         """Atomically replace the progress mirror and return its path.
 
-        Stamp the current run/spec/generation identity. ``cursor`` and ``total``
-        are item counts; optional ``reconcile`` holds old and new cursor counts
-        and adds a reconciliation event. Raise ValueError for an unknown state;
-        lock-reading, count-conversion, and file-access errors propagate.
+        Stamp the current run/spec/generation identity. Pass ``spec_hash`` and
+        ``generation_id`` when the checkpoint is written before the lock is
+        published; otherwise the current lock supplies them. ``cursor`` and
+        ``total`` are item counts; optional ``reconcile`` holds old and new
+        cursor counts and adds a reconciliation event. Raise ValueError for an
+        unknown state; lock-reading, count-conversion, and file-access errors
+        propagate.
         """
         if state not in STATES:
             raise ValueError(f"state {state!r} not in {STATES}")
+        locked = self.read_lock() or {}
+        recorded_hash = locked.get("spec_hash") if spec_hash is None else spec_hash
+        recorded_generation = locked.get("generation_id") if generation_id is None else generation_id
         cp = {
             "schema_version": 1,
             "run_id": self.run_id,
-            "spec_hash": self.spec_hash(),
+            "spec_hash": recorded_hash,
             "state": state,
             "cursor": int(cursor),
             "total": int(total),
@@ -439,9 +447,8 @@ class RunStore:
             "remote": remote,
             "last_error": last_error,
         }
-        generation = (self.read_lock() or {}).get("generation_id")
-        if generation:
-            cp["generation_id"] = generation
+        if recorded_generation:
+            cp["generation_id"] = recorded_generation
         _atomic_write(self.checkpoint_path, json.dumps(cp, indent=2, sort_keys=True, default=str))
         if state in TERMINAL_STATES:
             from mailroom_sandbox.job import ledger
