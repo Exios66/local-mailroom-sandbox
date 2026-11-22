@@ -51,6 +51,10 @@ Reviewed gold outranks a gate label. At run time the interim overlay is merged b
 
 ## Updates
 
+These commands run from the root of a `local-mailroom-sandbox` checkout, where
+`scripts/interim_labels.py` lives. A copy of this file in the `mailroom-issues` label cache
+documents the cut; the scripts are not in that repository.
+
 ```bash
 python scripts/interim_labels.py build --add-run <new gate run>   # after every gate run
 python scripts/interim_labels.py build                            # rebuild from the listed runs

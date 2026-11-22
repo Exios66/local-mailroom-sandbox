@@ -170,9 +170,15 @@ def truth_spec(lock: Mapping[str, Any], *, revision: str | None = None, dataset_
     used = used if isinstance(used, Mapping) else core
     interim = overlays == "all" or (overlays == "lock" and bool(used.get("interim_labels")))
     near_gold = overlays == "all" or (overlays == "lock" and bool(used.get("near_gold_labels")))
+    # A staged overlay is the merged master of the other two: a run that used one re-scores
+    # with that same pinned cut ("lock" or "all"), never with the layers stacked again.
+    staged = used.get("staged_overlay") if overlays != "none" else None
+    staged = (staged.get("version") if isinstance(staged, Mapping) else staged) or None
+    if staged:
+        interim = near_gold = False
     if dataset_file:
         return DatasetSpec(provider="file", local_path=str(dataset_file), interim_labels=interim,
-                           near_gold_labels=near_gold)
+                           near_gold_labels=near_gold, staged_overlay=staged)
     if locked.get("metadata", {}).get("source") == "local" or core.get("provider") == "file":
         if not revision:
             raise RescoreError("the run read a local dataset file; give --dataset-file (or --revision for the Hub)")
@@ -181,7 +187,7 @@ def truth_spec(lock: Mapping[str, Any], *, revision: str | None = None, dataset_
                        config=core.get("config") or locked.get("config") or "ground_truth",
                        # The run's documents may come from any split: read them all, draw nothing.
                        split="all", revision=family_tag_commit(str(target)) if target else "",
-                       interim_labels=interim, near_gold_labels=near_gold)
+                       interim_labels=interim, near_gold_labels=near_gold, staged_overlay=staged)
 
 
 # --------------------------------------------------------------------------- digest
@@ -435,7 +441,10 @@ def rescore(run: str | Path, *, revision: str | None = None, dataset_file: str |
     new_lock["rescore"] = {"source_run": run_id, "source_dataset": lock.get("dataset"),
                            "source_spec_hash": lock.get("spec_hash"), "overlays": overlays,
                            "overlays_effective": {"interim_labels": bool(spec.interim_labels),
-                                                  "near_gold_labels": bool(spec.near_gold_labels)},
+                                                  "near_gold_labels": bool(spec.near_gold_labels),
+                                                  # only when set, so locks without one keep their bytes
+                                                  **({"staged_overlay": spec.staged_overlay}
+                                                     if spec.staged_overlay else {})},
                            "created_at": report["created_at"], "missing": missing}
     (dest / "spec.lock.json").write_text(json.dumps(new_lock, indent=2, ensure_ascii=False, default=str) + "\n",
                                          encoding="utf-8")

@@ -1186,6 +1186,24 @@ def test_run_job_refuses_hotfix_code_other_than_the_locked_set(tmp_path, key):
     assert not store.load_items()
 
 
+def test_run_job_refuses_a_changed_context_fit_before_any_document(tmp_path):
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["context_fit"]["sha256"] = "0" * 64
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="context fit"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()
+
+
+def test_run_job_accepts_a_lock_from_before_the_context_fit_stamp(tmp_path):
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock.pop("context_fit")
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    assert runner.run_job(store, mock=None)["state"] == "done"
+
+
 def test_run_job_accepts_a_lock_from_before_the_hotfix_layer(tmp_path):
     store = _prepped_store(tmp_path, rows=2)
     lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
