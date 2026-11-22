@@ -57,6 +57,7 @@ _EXTRACT_PRF_KEYS = (
     "extraction_f2",
     "entity_list_f1",
 )
+_FIELD_OUTCOME_KEYS = ("n_targeted", "n_value_correct", "n_value_wrong", "n_value_partial")
 
 
 def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
@@ -138,7 +139,7 @@ def score_extraction_row(
         fixed_expected = expected if "SHF-010" in on else raw_expected
         fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
                                            expected_subclass, field_scores=field_scores)
-    out = sh.merge_dual(raw_payload, fixed, on)
+    out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")
     return out
@@ -275,6 +276,7 @@ def _score_extraction_row_once(
     if field_scores:
         per_field = getattr(extraction_obj, "field_scores", None)
         payload["field_scores"] = dict(per_field) if isinstance(per_field, Mapping) else {}
+    payload.update(_field_value_outcomes(expected, predicted, getattr(extraction_obj, "field_scores", None)))
     if hasattr(result, "__dict__"):
         try:
             prf = extraction_binary_metrics(
@@ -324,6 +326,20 @@ def _score_extraction_row_once(
         payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
         payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
+
+
+def _field_value_outcomes(expected: Mapping[str, Any], predicted: Mapping[str, Any],
+                          per_field: Any) -> dict[str, int]:
+    """Per-field outcomes on the targeted fields (``n_targeted``, ``n_value_correct``,
+    ``n_value_wrong``, ``n_value_partial``): the Dojo's ``field_value_outcomes``, served by the
+    pain-point adapter (``eval/pain_points.py``; SHF-014 until the vendored Dojo ships it). The
+    detailed suite path (corporate records, any row with a subclass) returns no ``tp`` / ``fn``,
+    so these are the event counts there. Empty when the scorer returned no per-field scores, or when
+    the adapter is not available (SHF-014 stale or unavailable), like the composites.
+    """
+    from mailroom_sandbox.eval.pain_points import available, field_value_outcomes
+
+    return field_value_outcomes(expected, predicted, per_field) if available() else {}
 
 
 def _norm_label(value: Any) -> str:

@@ -209,6 +209,19 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
     ),
+    ScoringHotfix(
+        id="SHF-014",
+        layer="dojo",
+        # A byte-identical copy of the Dojo module the vendored pin does not ship yet.
+        targets=(("file:src/mailroom_sandbox/eval/_dojo_pain_points.py",
+                  "700020613399bf5471dd589e73f876e0edb20b64e9d675573c22c008272703a3"),),
+        upstream="llm-dojo-scoring llm_dojo_scoring/pipeline/pain_points.py (branch "
+                 "claude/composite-scores-afi-gwpaai); retire on the vendor refresh that ships it",
+        summary="pipeline runs report the pain-point composites (profile amfam-v1: classification and "
+                "extraction penalty points per document, 0 correct and complete to 4 a needless human "
+                "review) per item and per run, and sandbox pain-points breaks them down per experiment, "
+                "ahead of the Dojo pin",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
@@ -271,21 +284,24 @@ def _file_source(target: str) -> str | None:
 
 
 FILE_TARGET = "file:"
+_PACKAGE_PREFIX = "src/mailroom_sandbox/"
 
 
 def data_path(rel: str) -> Path | None:
     """A repository data file a fix reads (``file:`` targets): the source checkout, else ``SANDBOX_ROOT``.
 
     The checkout copy is found next to this package (``src/mailroom_sandbox``); the Modal job worker
-    bundles the file under its ``SANDBOX_ROOT`` (``deploy/modal_job.py``).
+    bundles the file under its ``SANDBOX_ROOT`` (``deploy/modal_job.py``). A target inside the package
+    itself (``src/mailroom_sandbox/...``) is also looked up relative to the imported package, because
+    the worker image and a wheel install ship the package with no ``src/`` directory around it.
     """
     from mailroom_sandbox.paths import repo_root
 
-    for root in (Path(__file__).resolve().parents[2], repo_root()):
-        path = root / rel
-        if path.is_file():
-            return path
-    return None
+    package = Path(__file__).resolve().parent
+    candidates = [package.parents[1] / rel, repo_root() / rel]
+    if rel.startswith(_PACKAGE_PREFIX):
+        candidates.append(package / rel[len(_PACKAGE_PREFIX):])
+    return next((path for path in candidates if path.is_file()), None)
 
 
 def target_sha(target: str) -> str:

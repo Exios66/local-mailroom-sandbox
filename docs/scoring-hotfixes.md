@@ -23,10 +23,11 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 
 Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
-the Dojo pin's behaviour unchanged. Three fixes act outside a `hotfixed()` block and are on whenever
+the Dojo pin's behaviour unchanged. Four fixes act outside a `hotfixed()` block and are on whenever
 they are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`), SHF-009 in the
-Decisions routing contract (`decision_backends`), and SHF-013 in the isolated sorter and
-`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`. SHF-013 always
+Decisions routing contract (`decision_backends`), SHF-013 in the isolated sorter and
+`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`, and SHF-014
+in the pain-point composites (`eval/pain_points.py`, `sandbox pain-points`). SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
 still match the pinned fingerprint when it is read, or scoring stops. SHF-009's `forced_choice` is the forced-choice
 answer from the same question-set response, not a second request.
@@ -48,6 +49,7 @@ answer from the same question-set response, not a second request.
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 |
 | SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
+| SHF-014 | dojo | Pipeline runs report the pain-point composites (profile `amfam-v1`: classification and extraction penalty points per document, 0 correct and complete to 4 a needless human review) per item and per run, and `sandbox pain-points` scores finished runs per document and breaks them down per experiment. The scorer is `eval/_dojo_pain_points.py`, a byte-identical copy of the Dojo's `pipeline/pain_points.py`, which the vendored pin does not ship yet; the target fingerprint is that file. Not dual reported against the pin (the pin has no composite); the block's `raw_dojo` holds the composites on the raw extraction scores. Retire it on the vendor refresh that ships the module ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring `pipeline/pain_points.py` |
 
 ## Truth evidence check
 
