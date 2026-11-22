@@ -214,7 +214,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="dojo",
         # A byte-identical copy of the Dojo module the vendored pin does not ship yet.
         targets=(("file:src/mailroom_sandbox/eval/_dojo_pain_points.py",
-                  "80c15528c475665034def4dda5a0c9ccd2b05b569682ec3e8a0344a950e25f1a"),),
+                  "1c654828d7de01afc937f7cc45f7341ced3fbf97dae4a77321a4b04f13f8dfff"),),
         upstream="llm-dojo-scoring llm_dojo_scoring/pipeline/pain_points.py (branch "
                  "claude/composite-scores-afi-gwpaai); retire on the vendor refresh that ships it",
         summary="pipeline runs report the pain-point composites (profile amfam-v1: classification and "
