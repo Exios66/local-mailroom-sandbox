@@ -1,0 +1,83 @@
+{
+  "run_id": "sand214-30-contracts-specialist-awq-1l4-windows",
+  "target_quality": 0.7,
+  "judge_model": "Qwen/Qwen3-8B-AWQ",
+  "thresholds_source": "locked",
+  "docs": 30,
+  "classes": {
+    "contract": {
+      "docs": 30,
+      "thresholds": {
+        "high": 0.98,
+        "low": 0.9,
+        "judge_band_high": 0.97,
+        "arbiter_retry_max": 2,
+        "judge_max_passes": 3,
+        "judge_rejudge_retry": false
+      },
+      "fires": {
+        "retry_classify": 0,
+        "judge_verify": 0,
+        "arbiter": 0,
+        "retry_extract": 0
+      },
+      "judged_docs": 0,
+      "review_docs": 0,
+      "verdicts": {},
+      "arbiter_decisions": {},
+      "retry_yield": {
+        "retries_rejudged": 0,
+        "verdict_improved": 0
+      },
+      "retry_classify_yield": {
+        "retries": 0,
+        "changed": 0
+      },
+      "sorter_confidence_max": null,
+      "quality": {
+        "judged": null,
+        "unjudged": 0.6158,
+        "parked": null,
+        "archived": null
+      },
+      "escalation_input_cost": {
+        "at_vendored_16k_usd": 0.0,
+        "at_full_document_usd": 0.0
+      },
+      "judge_band_high": {
+        "suggestion": null,
+        "basis": "0 scored document(s) with a recorded extraction_confidence; need 5"
+      },
+      "above_band": {
+        "band": 0.97,
+        "target": 0.7,
+        "n": 0,
+        "met_target": 0,
+        "rate": null,
+        "ci95": null
+      },
+      "window_rules": {
+        "n": 25,
+        "met_target": 6,
+        "target": 0.7,
+        "auroc": {
+          "min": 0.4035,
+          "max": 0.3377,
+          "length_weighted": 0.4386
+        },
+        "adopted": "min",
+        "partial_excluded": 5
+      },
+      "findings": [
+        "contract: no document was judged, yet mean quality is 0.6158 (< 0.7); the self-reported confidence cleared judge_band_high without tracking quality"
+      ]
+    }
+  },
+  "findings": [
+    "contract: no document was judged, yet mean quality is 0.6158 (< 0.7); the self-reported confidence cleared judge_band_high without tracking quality"
+  ],
+  "notes": [
+    "isolated specialist run (no nodes.jsonl): routing fires, verdicts and judge bands do not apply; window_rules reads the chunk windows on each prediction",
+    "30 documents: treat fire rates and suggestions as directional, not calibrated"
+  ]
+}

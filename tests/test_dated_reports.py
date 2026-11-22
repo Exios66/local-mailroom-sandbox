@@ -167,6 +167,23 @@ def test_cell_stem_retry_suffix_does_not_clobber(tmp_path):
     assert stem == "RUN-20-MERGER-AWQ-1L4-C8-RETRY"
 
 
+@pytest.mark.parametrize(("run_id", "suffix"), [
+    ("sand214-30-contracts-specialist-awq-1l4-windows", ""),
+    ("sand214-30-contracts-specialist-awq-1l4-windows-r2", "-R2"),
+    ("sand214-30-contracts-specialist-awq-1l4-windows-r12", "-R12"),
+    ("grid-20-contracts-specialist-awq-1l4-retry", "-RETRY"),
+    ("sand214-30-contracts-specialist-awq-1l4-windows-c16k", "-C16K"),
+    ("grid-20-contracts-specialist-awq-1l4-mirror", ""),
+])
+def test_a_numbered_rerun_keeps_its_own_dated_report(tmp_path, run_id, suffix):
+    # #214 r2 shared r1's cell and overwrote its dated REPORT/SERVING files.
+    store = RunStore(tmp_path / run_id)
+    store.write_lock({"run_id": run_id, "task": "contracts_specialist",
+                      "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {"max_containers": 1}},
+                      "job": {"concurrency": 16}, "dataset": {"limit": 30}})
+    assert dated_reports.cell_stem(store)[1] == f"RUN-30-CONTRACTS-AWQ-1L4-C16{suffix}"
+
+
 def test_write_run_reports_lands_under_local_date(tmp_path):
     store = _specialist_store(tmp_path)
     now = datetime(2026, 9, 29, 23, 58)
