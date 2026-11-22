@@ -43,7 +43,7 @@ import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 _log = logging.getLogger("mailroom_sandbox.scoring_hotfixes")
 
@@ -410,6 +410,12 @@ def _same(a: Any, b: Any) -> bool:
     return a == b
 
 
+def changed_keys(raw_payload: Mapping[str, Any], fixed_payload: Mapping[str, Any],
+                 keys: Iterable[str]) -> list[str]:
+    """The ``keys`` whose hotfixed value differs from the raw Dojo-pin value (NaN equals NaN)."""
+    return sorted(k for k in keys if not _same(raw_payload.get(k), fixed_payload.get(k)))
+
+
 def merge_dual(raw_payload: Mapping[str, Any], fixed_payload: Mapping[str, Any], active: Sequence[str],
                *, keys: Sequence[str] = HEADLINE_KEYS) -> dict[str, Any]:
     """The hotfixed payload with ``raw_dojo``, ``scoring_hotfixes`` and ``scoring_hotfixes_changed``."""
@@ -417,8 +423,7 @@ def merge_dual(raw_payload: Mapping[str, Any], fixed_payload: Mapping[str, Any],
     present = [k for k in keys if k in raw_payload or k in fixed_payload]
     out["raw_dojo"] = {k: raw_payload.get(k) for k in present}
     out["scoring_hotfixes"] = sorted(active)
-    out["scoring_hotfixes_changed"] = sorted(
-        k for k in present if not _same(raw_payload.get(k), fixed_payload.get(k)))
+    out["scoring_hotfixes_changed"] = changed_keys(raw_payload, fixed_payload, present)
     return out
 
 

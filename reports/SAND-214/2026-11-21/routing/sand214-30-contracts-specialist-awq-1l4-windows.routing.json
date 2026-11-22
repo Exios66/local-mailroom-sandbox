@@ -68,14 +68,10 @@
         "adopted": "min",
         "partial_excluded": 5
       },
-      "findings": [
-        "contract: no document was judged, yet mean quality is 0.6158 (< 0.7); the self-reported confidence cleared judge_band_high without tracking quality"
-      ]
+      "findings": []
     }
   },
-  "findings": [
-    "contract: no document was judged, yet mean quality is 0.6158 (< 0.7); the self-reported confidence cleared judge_band_high without tracking quality"
-  ],
+  "findings": [],
   "notes": [
     "isolated specialist run (no nodes.jsonl): routing fires, verdicts and judge bands do not apply; window_rules reads the chunk windows on each prediction",
     "30 documents: treat fire rates and suggestions as directional, not calibrated"

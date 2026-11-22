@@ -197,6 +197,14 @@ def test_audit_flags_a_skipped_judge_on_low_quality_documents(tmp_path):
     assert "no document was judged, yet mean quality is 0.3" in text
 
 
+def test_an_isolated_specialist_run_is_not_told_its_judge_band_was_cleared(tmp_path):
+    # No nodes.jsonl: no judge ran, so the skipped-judge finding would misstate the run.
+    root = _store(tmp_path, [(f"r{i}", "contract", 5_000, "archived", 0.3, []) for i in range(2)])
+    (root / "nodes.jsonl").unlink()
+    report = routing_audit.audit(root)
+    assert not report["findings"] and any("isolated specialist run" in n for n in report["notes"])
+
+
 def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     def doc(conf, quality):
         return {"extraction_confidence": [conf], "quality": quality}

@@ -283,7 +283,7 @@ def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAUL
 
 
 def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str, Any], *,
-                  model: str | None, target: float) -> dict[str, Any]:
+                  model: str | None, target: float, pipeline: bool = True) -> dict[str, Any]:
     nodes = Counter(n for d in docs for n in d["nodes"])
     verdicts = Counter(v for d in docs for v in d["verdicts"])
     arbiter = Counter(a for d in docs for a in d["arbiter"])
@@ -319,11 +319,12 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
         "window_rules": window_rule_separation(docs, target=target),
         "findings": [],
     }
-    report["findings"] = _findings(cls, report, thresholds, target)
+    report["findings"] = _findings(cls, report, thresholds, target, pipeline=pipeline)
     return report
 
 
-def _findings(cls: str, r: Mapping[str, Any], th: Mapping[str, Any], target: float) -> list[str]:
+def _findings(cls: str, r: Mapping[str, Any], th: Mapping[str, Any], target: float, *,
+              pipeline: bool = True) -> list[str]:
     out: list[str] = []
     judge_calls = r["fires"]["judge_verify"]
     if judge_calls >= 3 and r["verdicts"].get("complete", 0) / judge_calls < 0.1:
@@ -341,7 +342,8 @@ def _findings(cls: str, r: Mapping[str, Any], th: Mapping[str, Any], target: flo
                    f"confidence ({top}) sits below high ({high}), so every document retries. Set "
                    f"confidence.by_class.{cls}.high <= {top} for this model if the reviewer lane stays on")
     qual = r["quality"]
-    if r["judged_docs"] == 0 and qual["unjudged"] is not None and qual["unjudged"] < target:
+    # An isolated specialist run has no judge, so an unjudged low mean says nothing about the band.
+    if pipeline and r["judged_docs"] == 0 and qual["unjudged"] is not None and qual["unjudged"] < target:
         out.append(f"{cls}: no document was judged, yet mean quality is {qual['unjudged']} (< {target}); the "
                    "self-reported confidence cleared judge_band_high without tracking quality")
     if r["review_docs"] and qual["parked"] is not None and qual["archived"] is not None and qual["parked"] >= qual["archived"]:
@@ -372,11 +374,13 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for d in docs:
         by_class[d["class"]].append(d)
-    classes = {cls: _class_report(cls, group, thresholds_for(block, cls), model=model, target=target)
+    pipeline = (root / "nodes.jsonl").is_file()
+    classes = {cls: _class_report(cls, group, thresholds_for(block, cls), model=model, target=target,
+                                  pipeline=pipeline)
                for cls, group in sorted(by_class.items())}
     recorded = sum(1 for d in docs if d["extraction_confidence"])
     notes = []
-    if not (root / "nodes.jsonl").is_file():
+    if not pipeline:
         notes.append("isolated specialist run (no nodes.jsonl): routing fires, verdicts and judge bands do not "
                      "apply; window_rules reads the chunk windows on each prediction")
     elif docs and not recorded:
