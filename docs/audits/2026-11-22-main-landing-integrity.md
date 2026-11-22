@@ -116,4 +116,6 @@ after this audit closed. It was verified separately, with the same standard:
   probe (app not deployed, no GPU billed, no documents processed) and the
   150-document confidence-cutoff run has not been started; both remain gated on
   the owner's go-ahead and, for the arms, a deployed Modal app. Merger quality
-  (0.091) is an open extraction problem before either result is usable.
+  (0.091, run README finding) limits merger results only — the window-length
+  suite's arms are contracts-only, so the contracts comparison is not blocked;
+  the cutoff run's merger class carries the same limitation.
