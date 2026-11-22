@@ -231,12 +231,25 @@ def test_window_rules_rank_each_merge_rule_against_quality():
     assert none["n"] == 2 and none["auroc"] == {"min": None, "max": None, "length_weighted": None}
 
 
+def test_a_document_that_lost_a_window_never_ranks_the_merge_rules():
+    # Four windows, one failed at the output cap: the three survivors look confident, the
+    # merge the scorer saw was missing a window. Counting it would inflate min's AUROC.
+    docs = [{"windows": [(0.9, 100), (0.9, 100), (0.9, 100)], "quality": 0.2, "failed_windows": 1},
+            {"windows": [(0.9, 100), (0.3, 100)], "quality": 0.3, "failed_windows": 0},
+            {"windows": [(0.95, 100), (0.9, 100)], "quality": 0.9}]
+    got = routing_audit.window_rule_separation(docs, target=0.7)
+    assert got["n"] == 2 and got["partial_excluded"] == 1 and got["auroc"]["min"] == 1.0
+
+
 def test_doc_records_read_recorded_windows_from_the_prediction():
     item = {"pred": {"extracted_data": {"_window_confidences": [0.9, None, 0.4], "_window_lengths": [10, 20, 30]}},
             "score": {"overall_extraction_score": 0.5}}
     rows = {"d1": {"expected_doc_class": "contract", "doc_text": "x"}}
     (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
-    assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+    assert rec["windows"] == [(0.9, 10), (0.4, 30)] and rec["failed_windows"] == 0
+    item["pred"]["extracted_data"]["_failed_chunks"] = 1
+    (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
+    assert rec["failed_windows"] == 1
     isolated = {"pred": item["pred"]["extracted_data"], "score": item["score"]}
     (rec,) = routing_audit._doc_records([], {"d1": isolated}, rows)
     assert rec["windows"] == [(0.9, 10), (0.4, 30)]

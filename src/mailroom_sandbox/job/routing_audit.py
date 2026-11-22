@@ -93,6 +93,12 @@ def _recorded_windows(extracted: Any) -> list[tuple[float, int]]:
             if _number(c) is not None and _number(n) is not None]
 
 
+def _failed_windows(extracted: Any) -> int:
+    """Chunk windows whose call failed (``_failed_chunks``); their confidence was never recorded."""
+    n = _number(extracted.get("_failed_chunks")) if isinstance(extracted, Mapping) else None
+    return int(n) if n is not None else 0
+
+
 def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping[str, Any]],
                  rows: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
     by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -118,6 +124,7 @@ def _doc_records(nodes: Iterable[Mapping[str, Any]], items: Mapping[str, Mapping
             "final_extraction_confidence": pred.get("extraction_confidence"),
             # A pipeline item nests the extraction; an isolated specialist item is the extraction.
             "windows": _recorded_windows(pred.get("extracted_data", pred)),
+            "failed_windows": _failed_windows(pred.get("extracted_data", pred)),
             "quality": float(quality) if isinstance(quality, (int, float)) and not isinstance(quality, bool) else None,
         })
     return out
@@ -239,13 +246,18 @@ def _auroc(met: list[float], missed: list[float]) -> float | None:
 
 
 def _chunked_and_scored(doc: Mapping[str, Any]) -> bool:
-    return len(doc.get("windows") or []) >= 2 and _number(doc.get("quality")) is not None
+    # A document that lost a window ranks the rules on the surviving windows only: its min
+    # and length-weighted confidence describe a merge the scorer never saw, so it is left out.
+    return (len(doc.get("windows") or []) >= 2 and _number(doc.get("quality")) is not None
+            and not doc.get("failed_windows"))
 
 
 def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAULT_TARGET) -> dict[str, Any]:
     """How well each merge rule's confidence separates documents that met ``target`` from those that did not.
 
-    Only scored documents with two or more recorded windows count. AUROC is 1.0
+    Only scored documents with two or more recorded windows and no failed window
+    count; ``partial_excluded`` counts the scored documents left out for a failed
+    window. AUROC is 1.0
     when every met-target document outranks every miss, 0.5 for no separation,
     and null when one group is empty. The adopted rule stays ``min``; this is
     the labelled comparison that could replace it.
@@ -255,7 +267,9 @@ def window_rule_separation(docs: list[dict[str, Any]], *, target: float = DEFAUL
     missed = [rules for rules, quality in scored if quality < target]
     auroc = {rule: _auroc([r[rule] for r in met], [r[rule] for r in missed])
              for rule in ("min", "max", "length_weighted")}
-    return {"n": len(scored), "met_target": len(met), "target": target, "auroc": auroc, "adopted": "min"}
+    partial = sum(1 for d in docs if d.get("failed_windows") and _number(d.get("quality")) is not None)
+    return {"n": len(scored), "met_target": len(met), "target": target, "auroc": auroc, "adopted": "min",
+            "partial_excluded": partial}
 
 
 def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str, Any], *,

@@ -83,3 +83,11 @@ def test_benchmark_check_passes_on_the_study_profile(monkeypatch, run_id):
     report = benchmark_check.check_benchmark_posture(
         spec=_spec(run_id), require_hermes=False, expected_modal_profile="exios66")
     assert report["ok"], report["errors"]
+
+
+def test_preflight_names_a_chunked_agent_that_would_drop_a_capped_window():
+    # The contracts leg ran without length_retries and lost 3 windows to chunk_call_failed;
+    # merger re-samples once and runs the Qwen3 anti-repetition sampling, so it is clean.
+    warned = benchmark_check.chunked_window_warnings(_spec("sand214-30-contracts-specialist-awq-1l4-windows"))
+    assert len(warned) == 1 and "contracts_specialist" in warned[0] and "length_retries" in warned[0]
+    assert not benchmark_check.chunked_window_warnings(_spec("sand214-30-merger-specialist-awq-1l4-windows"))
