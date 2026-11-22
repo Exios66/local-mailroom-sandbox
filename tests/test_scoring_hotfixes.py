@@ -72,6 +72,25 @@ def test_an_unresolvable_target_is_not_applied_and_fails_preflight(monkeypatch):
     monkeypatch.setattr(sh, "_STATUS", {})
 
 
+def test_a_package_file_target_resolves_in_the_modal_worker_layout(monkeypatch, tmp_path):
+    # The job image ships the package via add_local_python_source: /root/mailroom_sandbox/...,
+    # no src/ around it, and SANDBOX_ROOT holds only the bundled data files.
+    import shutil
+
+    package = tmp_path / "root" / "mailroom_sandbox"
+    (package / "eval").mkdir(parents=True)
+    shutil.copy(sh.data_path("src/mailroom_sandbox/eval/_dojo_pain_points.py"), package / "eval")
+    sandbox_root = tmp_path / "sandbox_root"
+    sandbox_root.mkdir()
+    monkeypatch.setattr(sh, "__file__", str(package / "scoring_hotfixes.py"))
+    monkeypatch.setenv("SANDBOX_ROOT", str(sandbox_root))
+    shf014 = [f for f in sh.HOTFIXES if f.id == "SHF-014"]
+    assert sh.data_path("src/mailroom_sandbox/eval/_dojo_pain_points.py") == package / "eval" / "_dojo_pain_points.py"
+    assert sh.status(shf014, refresh=True) == {"SHF-014": "current"}
+    assert sh.data_path("src/mailroom_sandbox/eval/no_such_file.py") is None
+    monkeypatch.setattr(sh, "_STATUS", {})
+
+
 def test_preflight_check_and_lock_identity():
     from mailroom_sandbox.job.preflight import _scoring_hotfix_check, _scoring_hotfix_identity
 

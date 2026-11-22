@@ -284,21 +284,24 @@ def _file_source(target: str) -> str | None:
 
 
 FILE_TARGET = "file:"
+_PACKAGE_PREFIX = "src/mailroom_sandbox/"
 
 
 def data_path(rel: str) -> Path | None:
     """A repository data file a fix reads (``file:`` targets): the source checkout, else ``SANDBOX_ROOT``.
 
     The checkout copy is found next to this package (``src/mailroom_sandbox``); the Modal job worker
-    bundles the file under its ``SANDBOX_ROOT`` (``deploy/modal_job.py``).
+    bundles the file under its ``SANDBOX_ROOT`` (``deploy/modal_job.py``). A target inside the package
+    itself (``src/mailroom_sandbox/...``) is also looked up relative to the imported package, because
+    the worker image and a wheel install ship the package with no ``src/`` directory around it.
     """
     from mailroom_sandbox.paths import repo_root
 
-    for root in (Path(__file__).resolve().parents[2], repo_root()):
-        path = root / rel
-        if path.is_file():
-            return path
-    return None
+    package = Path(__file__).resolve().parent
+    candidates = [package.parents[1] / rel, repo_root() / rel]
+    if rel.startswith(_PACKAGE_PREFIX):
+        candidates.append(package / rel[len(_PACKAGE_PREFIX):])
+    return next((path for path in candidates if path.is_file()), None)
 
 
 def target_sha(target: str) -> str:
