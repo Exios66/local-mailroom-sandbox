@@ -1,0 +1,89 @@
+# #214 window-length arm — 28,000-char windows on the same 30 calibration-split contracts as
+# sand214-30-contracts-specialist-awq-1l4-windows-r2 (same seed, exclude file, revision and
+# overlays: the runs pair document for document). r2 is the 43,000-char arm.
+# Question: what window length should Modal/vLLM chunking use on a 32k-token L4 window?
+# Shorter windows mean more calls per document, each reading less text with a shorter decode.
+#   knobs   = r2's posture (Qwen3 sampling top_p 0.8 / top_k 20 / presence_penalty 1.0, one
+#             length re-sample, max_tokens 8192, max_input_chars 49000) with chunk_chars 28000
+#             and overlap_chars 3900 (r2's 14% overlap share). Posture row SAND214_WINDOW_ARMS
+#             in job/specialist_posture.py; this spec carries no agent_knobs.
+#   compare = paired per-document overall score against r2, window_rules AUROC
+#             (`sandbox run routing --run-id sand214-30-contracts-specialist-awq-1l4-windows-c28k`), failed windows, GPU-seconds/doc.
+#   serving = identical to r2: suite sand214-window-length serves both arms from one deploy.
+schema: sandbox.run/v1
+run_id: sand214-30-contracts-specialist-awq-1l4-windows-c28k
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # Calibration-split contracts longer than one 43,000-char window (43 of the split's 105).
+  exclude_ids_file: config/runs/sand214-contracts-calibration.exclude.ids
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 30
+  # 91 of the corpus's 600 contracts carry an EMPTY cuad_clause_labels, so a
+  # plain draw silently shrinks the contracts clause column (5/50 in the first
+  # grid). Drop unscoreable documents BEFORE the draw: every subclass's annotated
+  # supply still covers its requested count, so the strata block is unchanged.
+  require_task_gt: true
+  limit: 30
+  sample_seed: 214
+  # Repaired labels the next dataset revision publishes (lock records both overlay sha256s).
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+# No agent_knobs block: the generation knobs, sampling and length re-sample included, come
+# from the posture row; a run spec cannot carry top_p / top_k / presence_penalty / length_retries.
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 16
+  longest_first: true
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand214
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, issue-214, window-length, chunk-c28k]
