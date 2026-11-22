@@ -46,8 +46,11 @@ def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
         if isinstance(value, list):
             return [clean(item) for item in value]
         if isinstance(value, dict):
-            return {key: item if key in BINARY_MIMES or key.startswith(("audio/", "video/")) else clean(item)
-                    for key, item in value.items()}
+            # NotebookNode is a dict subclass required by nbformat's writer; retain it.
+            for key, item in value.items():
+                if key not in BINARY_MIMES and not key.startswith(("audio/", "video/")):
+                    value[key] = clean(item)
+            return value
         return value
 
     for cell in nb["cells"]:

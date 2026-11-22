@@ -103,12 +103,18 @@ def test_renderer_sanitizes_the_selected_kernel_interpreter(monkeypatch, tmp_pat
             return SimpleNamespace(format_kernel_cmd=lambda: [kernel_python, "-m", "ipykernel_launcher"])
 
         def execute(self):
-            self.nb.cells[0]["outputs"] = [{"text": kernel_python}]
+            self.nb.cells[0]["outputs"] = [AttrDict(output_type="stream", text=kernel_python)]
 
     written = []
+
+    def write(nb, dest):
+        # nbformat's writer requires attribute access on its dict-subclass output nodes.
+        assert nb.cells[0].outputs[0].output_type == "stream"
+        written.append(nb)
+
     monkeypatch.setitem(sys.modules, "nbclient", SimpleNamespace(NotebookClient=Client))
     monkeypatch.setitem(sys.modules, "nbformat", SimpleNamespace(read=lambda *a, **kw: notebook,
-                                                               write=lambda nb, dest: written.append(nb)))
+                                                               write=write))
     monkeypatch.setattr(module, "NOTEBOOKS", [tmp_path / "source.ipynb"])
     monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "out")])
     assert module.main() == 0
