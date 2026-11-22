@@ -317,6 +317,42 @@ def _install_api_whole_document(module: Any, original: Callable[..., Any]) -> Ca
     return _run_chunked_extraction
 
 
+def _calling_reader() -> str:
+    """``agent_name`` of the agent method that called ``sliding_windows`` (sorter or intake), else ``""``."""
+    frame = inspect.currentframe()
+    try:
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        reader = caller.f_locals.get("self") if caller else None
+        return str(getattr(reader, "agent_name", "") or "")
+    finally:
+        del frame
+
+
+def _install_api_single_window(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """On an API route the sorter and intake read the whole document in one window.
+
+    Both readers slide windows through ``agents.intake.sliding_windows`` when a document is
+    longer than their budget. When the calling agent is API-routed and the text needs more
+    than one window, the read fails with :class:`WholeDocumentTooLong` instead. Intake fails
+    soft (the deterministic clerk output stays); the sorter's failure takes the graph's error
+    path. Calls from no agent, or from a Modal/vLLM or self-hosted route, keep the windows.
+    """
+
+    @functools.wraps(original)
+    def sliding_windows(text: str, budget: int, overlap_chars: int) -> list[tuple[str, int]]:
+        windows = original(text, budget, overlap_chars)
+        if len(windows) <= 1:
+            return windows
+        name = _calling_reader()
+        if name and _api_route(name):
+            raise WholeDocumentTooLong(
+                f"{name}: {len(text)} chars exceed the {budget}-char input budget on an API "
+                "route, which never slides windows; route this reader to Modal/vLLM to window it")
+        return windows
+
+    return sliding_windows
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -409,6 +445,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="an API-routed specialist reads the whole document in one call and refuses a "
                 "document over its budget; only Modal/vLLM and self-hosted routes chunk",
         install=_install_api_whole_document,
+    ),
+    Hotfix(
+        id="HF-010",
+        module="agents.intake",
+        attr="sliding_windows",
+        source_sha256="f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4",
+        upstream="draft J-5 below (not filed)",
+        summary="an API-routed sorter or intake refuses a document that needs more than one "
+                "window; only Modal/vLLM and self-hosted routes slide windows",
+        install=_install_api_single_window,
     ),
 )
 

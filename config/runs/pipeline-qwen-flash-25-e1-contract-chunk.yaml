@@ -1,3 +1,6 @@
+# OBSOLETE PLAN — do not launch. OpenRouter routes never chunk (HF-009): a contract longer than the
+# 18,000-char cap below now fails to review instead of being windowed. This file is kept because the
+# 2026-11-16 E1 runs locked it (reports/run-ledger.md). A chunked arm runs on Modal/vLLM only.
 # Ladder E1 treatment. Contract recall: whole-document (control) vs 15,750-char chunked extraction (treatment).
 # Sample: 20 CUAD contracts, 2 from each of the 10 largest subtypes; about 3/4 of the pool is longer
 # than one chunk, so most documents exercise chunking. Tuning seed 1115.

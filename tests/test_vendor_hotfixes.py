@@ -237,3 +237,32 @@ def test_hf009_treats_openrouter_as_api_and_vllm_as_local(monkeypatch):
                                ("ollama", False, False), ("gateway", True, False)):
         monkeypatch.setattr(client, "resolve_agent_model", lambda *a, p=provider, g=gpu: resolved(p, g))
         assert vh._api_route("contracts_specialist") is api, provider
+
+
+class _FakeReader:
+    agent_name = "sorter"
+
+    def read(self, text, budget):
+        import agents.intake as intake
+
+        return intake.sliding_windows(text, budget, 10)
+
+
+def test_hf010_api_reader_never_slides_windows(monkeypatch):
+    assert vh.apply_hotfixes()["HF-010"] == "applied"
+    seen: list[str] = []
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: seen.append(agent_name) or True)
+    assert len(_FakeReader().read("x" * 100, 100)) == 1
+    with pytest.raises(vh.WholeDocumentTooLong, match="sorter.*101.*100.*Modal"):
+        _FakeReader().read("x" * 101, 100)
+    assert seen == ["sorter"]
+
+
+def test_hf010_local_reader_and_plain_calls_keep_windows(monkeypatch):
+    assert vh.apply_hotfixes()["HF-010"] == "applied"
+    import agents.intake as intake
+
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: False)
+    assert len(_FakeReader().read("x" * 500, 100)) > 1
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: True)
+    assert len(intake.sliding_windows("x" * 500, 100, 10)) > 1

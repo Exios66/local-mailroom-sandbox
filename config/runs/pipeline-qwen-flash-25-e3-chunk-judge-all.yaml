@@ -1,3 +1,4 @@
+# OpenRouter routes also never chunk now (HF-009), so the contract chunking line below cannot run here.
 # OBSOLETE PLAN — do not launch. Under the ladder rule the E1 treatment (contract chunking) and the
 # E2 treatment (judge every corporate extraction) both dropped out, so this arm was never run and
 # its contract chunking and corporate judge-all lines are rejected treatments

@@ -42,6 +42,7 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-007 | `graph.routing.judge_gate` | A confidence at or above `judge_band_high` still reaches the judge. `MAILROOM_JUDGE_VERIFY=off` still disables the lane. `MAILROOM_JUDGE_HIGH_BAND=off` restores the vendored band. The API cap still bounds spend. | [Exios66/llm-mailroom#278](https://github.com/Exios66/llm-mailroom/issues/278) |
 | HF-008 | `langchain_agents.specialist_agents.merge_chunk_windows` | Records each surviving window's confidence on `_window_confidences` and its character length on `_window_lengths`. The merged confidence stays the vendored minimum (the old max-confidence merge is already gone). Scoring ignores the underscore key. | [Exios66/llm-mailroom#255](https://github.com/Exios66/llm-mailroom/issues/255) |
 | HF-009 | `graph.build_graph._run_chunked_extraction` | An API-routed specialist (OpenRouter or any hosted provider) reads the whole document in one `extract` call and never chunks. A document longer than its input budget fails with `WholeDocumentTooLong`, which the extract node records as a parse failure and sends to review, so it is never chunked or silently truncated. Context fit sizes that budget to the model's context. Modal, vLLM and other self-hosted routes keep the vendored chunking for models whose context cannot hold the document. | draft J-5 below (not filed) |
+| HF-010 | `agents.intake.sliding_windows` | When an API-routed sorter or intake would need more than one window for a document, the read fails with `WholeDocumentTooLong` instead. The sorter failure takes the graph's review path; intake fails soft and the deterministic clerk output stays. Calls from Modal, vLLM or other self-hosted routes, and calls from no agent, keep the vendored windows. | draft J-5 below (not filed) |
 
 ### Confidence decisions
 
@@ -62,7 +63,8 @@ pipeline/scoring check, and run execution still verifies the locked identities.
   needs a maximum depth, with intake held (never dropped) at the limit.
 - **J-5** `_run_chunked_extraction` windows any document longer than the specialist's budget whatever the
   provider, so a hosted API route pays one call per window. Chunking should be limited to self-hosted serving
-  with a small context, and an API route should refuse an oversize document.
+  with a small context, and an API route should refuse an oversize document. The sorter and intake
+  `sliding_windows` reads have the same gap.
 
 Filing these upstream is an owner decision.
 
