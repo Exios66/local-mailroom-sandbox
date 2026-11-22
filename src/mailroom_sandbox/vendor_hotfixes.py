@@ -251,8 +251,89 @@ def _install_judge_above_band(module: Any, original: Callable[..., Any]) -> Call
     return judge_gate
 
 
+def _agreement_norm(value: Any) -> str:
+    """Comparable form of one extracted value: numbers by value, text folded, structure sorted.
+
+    Mirrors the tolerance of the vendored chunk dedupe (whitespace collapse +
+    casefold) so a window that re-quotes a value with different spacing or case
+    still agrees with itself across the overlap.
+    """
+    if value is None:
+        return "\u2205"  # ∅ — a stated null agrees with another stated null, not with a value
+    if isinstance(value, bool):
+        return f"bool:{value}"
+    if isinstance(value, (int, float)):
+        return f"num:{float(value)!r}"
+    if isinstance(value, str):
+        return " ".join(str(value).split()).casefold()
+    if isinstance(value, dict):
+        return "{" + ";".join(
+            f"{_agreement_norm(k)}={_agreement_norm(v)}" for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))
+        ) + "}"
+    if isinstance(value, (list, tuple)):
+        return "[" + ";".join(sorted(_agreement_norm(item) for item in value)) + "]"
+    return " ".join(str(value).split()).casefold()
+
+
+def _pair_agreement(a: Any, b: Any) -> float:
+    """One pair's agreement: exact on the comparable form, Jaccard on list-shaped values."""
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) and not isinstance(a, str) and not isinstance(b, str):
+        sa = {_agreement_norm(item) for item in a}
+        sb = {_agreement_norm(item) for item in b}
+        union = sa | sb
+        return 1.0 if not union else len(sa & sb) / len(union)
+    return 1.0 if _agreement_norm(a) == _agreement_norm(b) else 0.0
+
+
+def cross_window_agreement(windows: list[tuple[dict, str | None]]) -> dict[str, Any]:
+    """Self-consistency across a document's chunk windows (SAND-214).
+
+    For every field key two or more windows assert, compare the asserted values
+    pairwise (Jaccard for lists, exact on the comparable form otherwise) and
+    average. Windows that never saw the same content cannot agree on it, so a
+    key only one window asserts is skipped rather than scored as a conflict.
+    Returns ``{"agreement": float | None, "fields": int, "conflicts": int}`` —
+    ``agreement`` is None when no field was comparable (fewer than two windows,
+    or every shared key holds an incomparable type). Self-consistency over
+    shared content is the measure the #214 runs left untested: the specialist's
+    single self-reported confidence does not predict quality (AUROC 0.36-0.47),
+    while agreement between independent reads of overlapping text is a
+    model-behavior signal the merge wrapper already has in hand.
+    """
+    results = [result for result, _text in windows if isinstance(result, dict)]
+    if len(results) < 2:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
+    keys = set(results[0])
+    for result in results[1:]:
+        keys &= set(result)
+    # Underscore keys are merge bookkeeping, and `confidence` is the per-window
+    # self-report this measure exists to replace — neither is asserted content.
+    comparable = sorted(k for k in keys if not str(k).startswith("_") and k != "confidence")
+    if not comparable:
+        return {"agreement": None, "fields": 0, "conflicts": 0}
+    scores: list[float] = []
+    conflicts = 0
+    for key in comparable:
+        values = [result.get(key) for result in results]
+        pairwise = [_pair_agreement(a, b)
+                    for i, a in enumerate(values) for b in values[i + 1:]]
+        mean = sum(pairwise) / len(pairwise)
+        scores.append(mean)
+        if mean < 1.0:
+            conflicts += 1
+    return {"agreement": round(sum(scores) / len(scores), 4),
+            "fields": len(comparable), "conflicts": conflicts}
+
+
 def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """Record each surviving window's confidence and character length. The merged value stays the vendor's minimum."""
+    """Record each surviving window's confidence and character length. The merged value stays the vendor's minimum.
+
+    Also records the cross-window agreement the #214 runs did not measure
+    (``_window_agreement`` + compared/conflicting field counts): the
+    specialist's self-reported confidence does not predict quality, so the
+    routing audit needs a behavior-based signal to test against judged
+    outcomes.
+    """
 
     @functools.wraps(original)
     def merge_chunk_windows(windows: list[tuple[dict, str | None]], *, agent_name: str) -> dict | None:
@@ -270,6 +351,7 @@ def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> C
             lengths.append(len(text) if isinstance(text, str) else None)
         merged["_window_confidences"] = recorded
         merged["_window_lengths"] = lengths
+        merged["_window_agreement"] = cross_window_agreement(windows)
         return merged
 
     return merge_chunk_windows
@@ -443,7 +525,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         source_sha256="016b350d7e462b8e032fb17cbeb2a5c0b62825ff583bc09cd7045fe56fc14234",
         upstream="https://github.com/Exios66/llm-mailroom/issues/255",
         summary="a chunked merge records each surviving window's confidence and length under "
-                "_window_confidences and _window_lengths; the merged confidence stays the weakest window (#214)",
+                "_window_confidences and _window_lengths, plus the cross-window agreement under "
+                "_window_agreement; the merged confidence stays the weakest window (#214)",
         install=_install_window_confidences,
     ),
     Hotfix(

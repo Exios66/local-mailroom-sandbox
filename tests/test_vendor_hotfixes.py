@@ -181,6 +181,49 @@ def test_hf008_records_each_window_and_keeps_the_weakest_confidence():
     assert merged["_window_confidences"] == [0.99, 0.2]
     assert merged["_window_lengths"] == [5, 6]
     assert merged["entity_name"] == "First"
+    # Only asserted content counts; the per-window self-report is not compared.
+    assert merged["_window_agreement"] == {"agreement": 0.0, "fields": 1, "conflicts": 1}
+
+
+def test_hf008_cross_window_agreement_agrees_on_shared_content():
+    # Two windows that read the same fields and disagree on none score 1.0; a
+    # key only one window asserts is skipped, not scored as a conflict.
+    windows = [({"entity_name": "Acme  Corp", "clause": ["a", "b"], "confidence": 0.9}, "x"),
+               ({"entity_name": "acme corp", "clause": ["a", "b"], "confidence": 0.8,
+                 "filing_number": "123"}, "y")]
+    got = vh.cross_window_agreement(windows)
+    assert got == {"agreement": 1.0, "fields": 2, "conflicts": 0}
+
+
+def test_hf008_cross_window_agreement_scores_list_jaccard_and_none_pairs():
+    windows = [({"clause": ["a", "b"], "date": "2026-01-01", "amount": 1000, "confidence": 0.9}, "x"),
+               ({"clause": ["b", "c"], "date": "2026-01-02", "amount": 1000.0, "confidence": 0.8}, "y")]
+    got = vh.cross_window_agreement(windows)
+    # clause 1/3 (shared b, union a/b/c), date 0.0, amount 1.0 (1000 == 1000.0 numerically).
+    assert got["fields"] == 3 and got["conflicts"] == 2
+    assert got["agreement"] == round((1 / 3 + 0.0 + 1.0) / 3, 4)
+
+
+def test_hf008_cross_window_agreement_skips_underscore_keys_and_solitary_fields():
+    windows = [({"entity_name": "A", "_raw": "x", "confidence": 0.9}, "x"),
+               ({"entity_name": "A", "_raw": "y", "confidence": 0.9}, "y")]
+    got = vh.cross_window_agreement(windows)
+    assert got == {"agreement": 1.0, "fields": 1, "conflicts": 0}
+
+
+def test_hf008_cross_window_agreement_is_none_without_comparable_content():
+    assert vh.cross_window_agreement([({"confidence": 0.9}, "x")]) == {
+        "agreement": None, "fields": 0, "conflicts": 0}
+    assert vh.cross_window_agreement([({"entity_name": "A"}, "x"), ({"filing_number": "1"}, "y")]) == {
+        "agreement": None, "fields": 0, "conflicts": 0}
+    assert vh.cross_window_agreement([("not a dict", "x"), ({"entity_name": "A"}, "y")]) == {
+        "agreement": None, "fields": 0, "conflicts": 0}
+
+
+def test_hf008_cross_window_agreement_records_stated_nulls_as_agreeing():
+    windows = [({"filing_number": None, "confidence": 0.9}, "x"),
+               ({"filing_number": None, "confidence": 0.9}, "y")]
+    assert vh.cross_window_agreement(windows)["agreement"] == 1.0
 
 
 class _FakeSpecialist:
