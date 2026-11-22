@@ -92,7 +92,8 @@ a recorded, audited signal without a labelled measurement.
 Deliberate scope: agreement is only recorded where windows exist (a
 single-window extraction takes the plain path and records nothing), and it is
 a routing input under test, not yet a gate — no band, cutoff or archive
-decision reads it until the cutoff run's labelled comparison justifies one.
+decision reads it until a labelled comparison on a chunked self-hosted run
+justifies one.
 
 ## Interpretation
 
