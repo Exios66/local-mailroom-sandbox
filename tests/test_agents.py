@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox.cli import main
 from mailroom_sandbox.eval import agents, experiment_log, runners, tracing
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
@@ -313,3 +315,48 @@ def test_isolated_record_bills_no_gpu_when_none_was_ran(tmp_path, monkeypatch):
     # An explicitly declared engine GPU still bills (the job/runner sweep path).
     rec = runners.run_isolated_eval("compile_report", mock=False, gpu="L4", replicas=1)["record"]
     assert rec["gpu_seconds"] > 0 and rec["estimated_gpu_cost_usd"] == 0.0
+
+
+class _ApiSpecialist:
+    agent_name = "contracts_specialist"
+    _max_input_chars = 100
+    calls: list[str] = []
+
+    def extract(self, text, handoff_context=None):
+        self.calls.append(f"extract:{len(text)}")
+        return {"confidence": 0.9}
+
+    def extract_chunked(self, text, **kwargs):
+        self.calls.append(f"chunked:{len(text)}")
+        return {"confidence": 0.5}
+
+
+def _patch_live(monkeypatch, api: bool):
+    import types
+
+    from mailroom_sandbox import runtime, vendor_hotfixes as vh
+    from mailroom_sandbox.eval import agents as ea
+
+    module = types.SimpleNamespace(ContractsSpecialist=_ApiSpecialist)
+    monkeypatch.setattr("importlib.import_module", lambda name: module)
+    monkeypatch.setattr(runtime, "agent_knobs_for", lambda agent: {"chunk_chars": 50, "max_input_chars": 100})
+    monkeypatch.setattr(vh, "_api_route", lambda name: api)
+    _ApiSpecialist.calls = []
+    return ea
+
+
+def test_api_specialist_eval_ignores_the_chunk_knob_and_refuses_an_oversize_document(monkeypatch):
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    ea = _patch_live(monkeypatch, api=True)
+    ea._extract_live("contracts_specialist", {"doc_text": "x" * 100}, None)
+    assert _ApiSpecialist.calls == ["extract:100"]
+    with pytest.raises(vh.WholeDocumentTooLong, match="contracts_specialist.*101.*100"):
+        ea._extract_live("contracts_specialist", {"doc_text": "x" * 101}, None)
+    assert _ApiSpecialist.calls == ["extract:100"]
+
+
+def test_local_specialist_eval_keeps_the_chunk_knob(monkeypatch):
+    ea = _patch_live(monkeypatch, api=False)
+    ea._extract_live("contracts_specialist", {"doc_text": "x" * 500}, None)
+    assert _ApiSpecialist.calls == ["chunked:500"]

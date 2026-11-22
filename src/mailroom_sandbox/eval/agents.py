@@ -12,7 +12,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from mailroom_sandbox.components import is_enabled
 from mailroom_sandbox.datasets import (
@@ -281,6 +281,25 @@ def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
     return _enrich_contract_result(_extract_live(agent, row, _build_handoff_context(state)), state)
 
 
+def _api_whole_document(specialist: Any, text: str, knobs: Mapping[str, Any]) -> bool:
+    """True when ``specialist`` is API-routed, so it reads ``text`` in one call (HF-009).
+
+    An API route never chunks, whatever ``chunk_chars`` says, and a document longer than
+    the input budget raises instead of being truncated by the single-pass read.
+    """
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    name = str(getattr(specialist, "agent_name", "") or "")
+    if not name or not vh._api_route(name):
+        return False
+    budget = int(knobs.get("max_input_chars") or getattr(specialist, "_max_input_chars", 90_000))
+    if len(text) > budget:
+        raise vh.WholeDocumentTooLong(
+            f"{name}: {len(text)} chars exceed the {budget}-char input budget on an API route, "
+            "which never chunks; route this class to Modal/vLLM to window it")
+    return True
+
+
 def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) -> dict[str, Any]:
     module_name, cls_name = LIVE_CLASS_MAP[agent]
     import importlib
@@ -294,7 +313,8 @@ def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) 
     from mailroom_sandbox.runtime import agent_knobs_for
 
     knobs = agent_knobs_for(agent)
-    if knobs.get("chunk_chars") and hasattr(specialist, "extract_chunked"):
+    whole = _api_whole_document(specialist, _doc_text(row), knobs)
+    if knobs.get("chunk_chars") and not whole and hasattr(specialist, "extract_chunked"):
         budget = int(knobs.get("max_input_chars") or getattr(specialist, "_max_input_chars", 90_000))
         window, overlap = chunk_window(budget, int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000))
         return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap,
