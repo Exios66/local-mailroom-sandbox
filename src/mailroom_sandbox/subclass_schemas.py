@@ -221,10 +221,12 @@ class _Subclass:
             exp = il._expected(r)
             interim = set((r.get("interim_labels") or {}).get("fields") or [])
             near = set((r.get("near_gold_labels") or {}).get("fields") or [])
+            staged = set((r.get("staged_overlay") or {}).get("fields") or [])
             for name in names:
                 if not gl.hub_labels(name, exp):
                     continue
-                src = "interim" if name in interim else "near_gold" if name in near else "hub"
+                src = ("interim" if name in interim else "near_gold" if name in near
+                       else "staged" if name in staged else "hub")
                 self.labeled[name][src] += 1
                 self.by_set[name][self.sets.get(str(r.get("id")), "unassigned")] += 1
                 val = _value(exp.get(name))
@@ -234,7 +236,8 @@ class _Subclass:
             if corp and exp.get("record_type") and str(_value(exp["record_type"])) != corp.record_type:
                 self._problem("record_type_contradicts_subclass", "record_type", r.get("id"),
                               [_value(exp["record_type"]), corp.record_type],
-                              "interim" if "record_type" in interim else "hub")
+                              "interim" if "record_type" in interim else "near_gold" if "record_type" in near
+                              else "staged" if "record_type" in staged else "hub")
 
     def field_entry(self, name: str, guide: Mapping[str, str], crs: Any) -> dict[str, Any]:
         entities, sets, docs = self.entities, self.sets, self.docs

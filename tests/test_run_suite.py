@@ -189,3 +189,48 @@ def test_check_suite_benchmark_posture_lists_configs(monkeypatch):
     assert all(row["run_id"].startswith("run-30-") for row in report["configs"])
     # Spec pins should pass; env may still warn — ok depends on env posture.
     assert "markdown" in report
+
+
+@pytest.mark.parametrize(("start_rc", "want_rc"), [(0, 0), (3, 3)])
+def test_execute_with_teardown_stops_the_app_whether_the_chain_finished_or_stopped(
+        monkeypatch, start_rc, want_rc):
+    import subprocess as sp
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.cli import main
+
+    started, stopped = [], []
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: started.append(ns.config) or start_rc)
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: stopped.append(cmd[-1]) or sp.CompletedProcess(cmd, 0))
+    rc = main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"])
+    assert rc == want_rc
+    assert len(started) == (2 if start_rc == 0 else 1)  # a failed leg stops the chain
+    assert stopped == ["sandbox-vllm"]  # exactly one teardown of the shared app
+
+
+def test_execute_with_teardown_stops_the_app_when_the_operator_interrupts(monkeypatch):
+    import subprocess as sp
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.cli import main
+
+    def interrupted(ns):
+        raise KeyboardInterrupt  # Ctrl+C while _watch_remote follows a remote leg
+
+    stopped = []
+    monkeypatch.setattr(cli, "_cmd_run_start", interrupted)
+    monkeypatch.setattr(sp, "run", lambda cmd, **kw: stopped.append(cmd[-1]) or sp.CompletedProcess(cmd, 0))
+    with pytest.raises(KeyboardInterrupt):
+        main(["run", "suite", "--suite", "sand214-windows", "--execute", "--teardown"])
+    assert stopped == ["sandbox-vllm"]  # torn down, then the interrupt still propagates
+
+
+def test_execute_without_teardown_leaves_the_app_alone(monkeypatch):
+    import subprocess as sp
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.cli import main
+
+    monkeypatch.setattr(cli, "_cmd_run_start", lambda ns: 0)
+    monkeypatch.setattr(sp, "run", lambda *a, **kw: pytest.fail("teardown without --teardown"))
+    assert main(["run", "suite", "--suite", "sand214-windows", "--execute"]) == 0

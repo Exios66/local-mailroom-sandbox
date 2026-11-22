@@ -215,6 +215,15 @@ def test_judge_band_suggestion_needs_recorded_confidence_and_enough_documents():
     assert empty["n"] == 0 and empty["rate"] is None
 
 
+def test_a_retried_extraction_never_vouches_for_its_first_confidence():
+    # First pass 0.95 confident, judged partial, retried to 0.9 quality. Skipping the judge at
+    # 0.95 would have archived the first pass, so the retry's score cannot count for it.
+    clean = [{"extraction_confidence": [c], "quality": 0.9} for c in (0.91, 0.92, 0.93, 0.94, 0.96)]
+    retried = {"extraction_confidence": [0.95, 0.6], "quality": 0.9}
+    assert routing_audit.above_band_quality([*clean, retried], 0.9, target=0.7)["n"] == 5
+    assert routing_audit.suggest_judge_band_high([*clean, retried], target=0.7)["of"] == 5
+
+
 def test_window_rules_rank_each_merge_rule_against_quality():
     def doc(windows, quality):
         return {"windows": windows, "quality": quality}
@@ -231,15 +240,50 @@ def test_window_rules_rank_each_merge_rule_against_quality():
     assert none["n"] == 2 and none["auroc"] == {"min": None, "max": None, "length_weighted": None}
 
 
+def test_a_document_that_lost_a_window_never_ranks_the_merge_rules():
+    # Four windows, one failed at the output cap: the three survivors look confident, the
+    # merge the scorer saw was missing a window. Counting it would inflate min's AUROC.
+    docs = [{"windows": [(0.9, 100), (0.9, 100), (0.9, 100)], "quality": 0.2, "failed_windows": 1},
+            {"windows": [(0.9, 100), (0.3, 100)], "quality": 0.3, "failed_windows": 0},
+            {"windows": [(0.95, 100), (0.9, 100)], "quality": 0.9}]
+    got = routing_audit.window_rule_separation(docs, target=0.7)
+    assert got["n"] == 2 and got["partial_excluded"] == 1 and got["auroc"]["min"] == 1.0
+
+
 def test_doc_records_read_recorded_windows_from_the_prediction():
     item = {"pred": {"extracted_data": {"_window_confidences": [0.9, None, 0.4], "_window_lengths": [10, 20, 30]}},
             "score": {"overall_extraction_score": 0.5}}
     rows = {"d1": {"expected_doc_class": "contract", "doc_text": "x"}}
     (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
-    assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+    assert rec["windows"] == [(0.9, 10), (0.4, 30)] and rec["failed_windows"] == 0
+    item["pred"]["extracted_data"]["_failed_chunks"] = 1
+    (rec,) = routing_audit._doc_records([], {"d1": item}, rows)
+    assert rec["failed_windows"] == 1
     isolated = {"pred": item["pred"]["extracted_data"], "score": item["score"]}
     (rec,) = routing_audit._doc_records([], {"d1": isolated}, rows)
     assert rec["windows"] == [(0.9, 10), (0.4, 30)]
+
+
+def test_an_isolated_specialist_run_is_audited_on_its_windows_alone(tmp_path, monkeypatch):
+    from mailroom_sandbox.cli import main
+    from mailroom_sandbox.job import spec
+
+    root = _store(tmp_path, [])
+    (root / "nodes.jsonl").unlink()
+    windows = {"_window_confidences": [0.9, 0.3], "_window_lengths": [100, 100], "_failed_chunks": 0}
+    with open(root / "dataset.jsonl", "w") as ds, open(root / "items.jsonl", "w") as it:
+        for i, quality in enumerate((0.2, 0.9)):
+            ds.write(json.dumps({"id": f"c{i}", "expected_doc_class": "contract", "doc_text": "x"}) + "\n")
+            it.write(json.dumps({"item_id": f"c{i}", "pred": windows,
+                                 "score": {"overall_extraction_score": quality}}) + "\n")
+    report = routing_audit.audit(root)
+    assert report["classes"]["contract"]["window_rules"]["n"] == 2
+    assert any("isolated specialist run" in n for n in report["notes"])
+    assert not any("no extraction_confidence" in n for n in report["notes"])
+    monkeypatch.setattr(spec, "run_dir", lambda run_id: root)
+    assert main(["run", "routing", "--run-id", "r-audit"]) == 0
+    (root / "items.jsonl").unlink()
+    assert main(["run", "routing", "--run-id", "r-audit"]) == 1
 
 
 def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():

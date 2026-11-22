@@ -340,6 +340,7 @@ def check_benchmark_posture(
         spec_errs = _check_spec_pins(spec)
         errors.extend(spec_errs["errors"])
         warnings.extend(spec_errs["warnings"])
+        warnings.extend(chunked_window_warnings(spec))
         checks["spec"] = {
             "run_id": spec.run_id,
             "task": spec.task,
@@ -388,6 +389,32 @@ def check_benchmark_posture(
         "checks": checks,
         "markdown": _format_md(ok, errors, warnings, checks),
     }
+
+
+def chunked_window_warnings(spec: RunSpec) -> list[str]:
+    """Chunked agents that drop a length-capped window instead of re-sampling it.
+
+    A window whose decode reaches ``max_tokens`` raises LengthFinishReasonError;
+    with no ``length_retries`` the chunked extract logs ``chunk_call_failed`` and
+    merges the surviving windows (``_failed_chunks``). #214 contracts lost 3 of 30
+    documents' windows this way at decode 8192 without the Qwen3 anti-repetition
+    sampling merger runs with (top_p 0.8, top_k 20, presence_penalty 1.0, one
+    re-sample).
+    """
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+
+    knobs = spec.agent_knobs or agent_knobs_for_run(spec.run_id) or {}
+    out = []
+    for agent, k in sorted(knobs.items()):
+        if not isinstance(k, Mapping) or not k.get("chunk_chars") or k.get("length_retries"):
+            continue
+        missing = [key for key in ("presence_penalty", "top_p", "top_k") if k.get(key) is None]
+        out.append(
+            f"{agent}: chunked (chunk_chars {k['chunk_chars']}) with no length_retries — a window that "
+            "reaches max_tokens is dropped from the merge (chunk_call_failed)"
+            + (f"; also unset: {', '.join(missing)}" if missing else "")
+        )
+    return out
 
 
 def _prompt_agent_map(spec: RunSpec) -> dict[str, str]:

@@ -181,6 +181,12 @@ class DatasetSpec(BaseModel):
     # Opus review, still near_gold (not gold) until EDA releases them. Off by default; the lock
     # records the overlay's sha256 and each row names the fields it filled.
     near_gold_labels: bool = False
+    # Score against a staged production label overlay from the mailroom-issues mailroom_cache
+    # (mailroom_sandbox.staged_overlay): a version pinned in config/staged_overlays.yaml, e.g.
+    # "9.3.1-rc.9". It is the merged master of the Hub, interim and near-gold layers, so it
+    # replaces interim_labels / near_gold_labels (never both). The pinned MANIFEST.json sha256 is
+    # hashed into the spec and each row names the fields and Hub overrides it took.
+    staged_overlay: str | None = None
     # Repo-relative path to a text file of document ids (one per line; blank lines and `#`
     # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
     # The file's sha256 is hashed into the spec; a missing file is a preflight error.
@@ -214,6 +220,18 @@ class DatasetSpec(BaseModel):
             where = f"dataset {(data.get('name') or 'local_path')!r}"
             data = {**data, "local_path": dataset_registry.expand_env(local, where=where)}
         return data
+
+    @model_validator(mode="after")
+    def _one_label_overlay_source(self) -> "DatasetSpec":
+        """The staged overlay already merges the interim and near-gold layers: never stack them."""
+        if self.staged_overlay and (self.interim_labels or self.near_gold_labels):
+            raise ValueError("dataset.staged_overlay already contains the interim and near-gold labels; "
+                             "drop interim_labels / near_gold_labels")
+        if self.staged_overlay:
+            from mailroom_sandbox.staged_overlay import pin
+
+            pin(self.staged_overlay)  # an unpinned version fails at parse, not after the draw
+        return self
 
     @field_validator("source_sha256")
     @classmethod
@@ -350,6 +368,11 @@ class DatasetSpec(BaseModel):
             from mailroom_sandbox.gold_labels import near_gold_fingerprint
 
             core["near_gold_labels"] = near_gold_sha256 or near_gold_fingerprint()
+        if self.staged_overlay:
+            from mailroom_sandbox.staged_overlay import fingerprint
+
+            core["staged_overlay"] = {"version": self.staged_overlay.removeprefix("v"),
+                                      "manifest_sha256": fingerprint(self.staged_overlay)}
         return core
 
     def _request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
@@ -704,6 +727,15 @@ class JobSpec(BaseModel):
     # the repaired (interim / near-gold) labels score (mailroom_sandbox.schema_guide). Off by
     # default, so a baseline keeps the vendored descriptions; hashed only when set.
     schema_guide: bool = False
+    # Dispatch the longest documents first (by doc_text length). Rows are still recorded and
+    # scored by their drawn index, so only the request order changes: a chunked long document
+    # no longer starts last and runs alone while the rest of the batch sits idle on the GPU.
+    # Off by default; hashed only when set.
+    longest_first: bool = False
+    # Preflight fails when a long-context reader is still on the short input budget.
+    # Off by default, so a Modal run and every existing YAML keep their spec_hash.
+    # OpenRouter experiment create turns it on. Hashed only when set.
+    require_expanded_inputs: bool = False
 
     @field_validator("task")
     @classmethod
@@ -979,6 +1011,99 @@ def _check_thresholds(where: str, block: dict[str, Any]) -> None:
         raise ValueError(f"{where}: low must not exceed high")
 
 
+# Run-scoped generation parameters. Sampling keys match specialist_posture and
+# sampling.extra_overrides, so a YAML preset can carry the same role parameters
+# the posture table applies. Transports stay on agent_routes.
+GENERATION_KNOBS = frozenset({
+    "max_tokens", "temperature", "max_input_chars", "reasoning_effort",
+    "chunk_chars", "overlap_chars", "top_p", "top_k", "presence_penalty", "length_retries",
+})
+
+
+def _finite_number(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def _reject_range(value: Any, low: float, high: float, message: str, *, low_open: bool = False) -> None:
+    above = value > low if low_open else value >= low
+    if not _finite_number(value) or not above or value > high:
+        raise ValueError(message)
+
+
+def _reject_count(value: Any, minimum: int, message: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(message)
+
+
+def _check_reasoning(value: Any) -> None:
+    if value is not None and not isinstance(value, str):
+        raise ValueError("reasoning_effort must be a string")
+
+
+def _check_temperature(value: Any) -> None:
+    _reject_range(value, 0, 2, "temperature must be finite in [0, 2]")
+
+
+def _check_top_p(value: Any) -> None:
+    _reject_range(value, 0, 1, "top_p must be finite in (0, 1]", low_open=True)
+
+
+def _check_presence(value: Any) -> None:
+    _reject_range(value, -2, 2, "presence_penalty must be finite in [-2, 2]")
+
+
+def _check_length_retries(value: Any) -> None:
+    _reject_count(value, 0, "length_retries must be an integer >= 0")
+
+
+def _check_count_knob(key: str, value: Any) -> None:
+    minimum = 0 if key == "overlap_chars" else 1
+    _reject_count(value, minimum, f"{key} must be a positive integer (overlap may be zero)")
+
+
+_KNOB_CHECKS = {
+    "reasoning_effort": _check_reasoning,
+    "temperature": _check_temperature,
+    "top_p": _check_top_p,
+    "presence_penalty": _check_presence,
+    "length_retries": _check_length_retries,
+}
+
+
+def _check_knob(key: str, value: Any) -> None:
+    """Reject a generation knob the runtime would misread."""
+    check = _KNOB_CHECKS.get(key)
+    if check is None:
+        _check_count_knob(key, value)
+        return
+    check(value)
+
+
+def parse_agent_knob_assignments(items: list[str] | None) -> dict[str, dict[str, Any]]:
+    """Parse ``NAME.key=value`` assignments into an agent-knob map.
+
+    ``value`` is YAML, so ``800000`` is an int and ``0.1`` is a float. Unknown
+    keys and a missing ``=`` raise ``ValueError``.
+    """
+    import yaml
+
+    out: dict[str, dict[str, Any]] = {}
+    for item in items or []:
+        agent, dot, rest = str(item).partition(".")
+        key, eq, raw = rest.partition("=")
+        if not dot or not eq or not agent.strip() or key not in GENERATION_KNOBS:
+            raise ValueError(
+                f"--agent-knob needs NAME.key=value (key one of {sorted(GENERATION_KNOBS)}), got {item!r}"
+            )
+        try:
+            value = yaml.safe_load(raw)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"--agent-knob {item!r}: {exc}") from exc
+        _check_knob(key, value)
+        out.setdefault(agent.strip(), {})[key] = value
+    return out
+
+
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
@@ -1023,19 +1148,14 @@ class RunSpec(BaseModel):
     @field_validator("agent_knobs")
     @classmethod
     def _knobs(cls, values: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-        allowed = {"max_tokens", "temperature", "max_input_chars", "reasoning_effort", "chunk_chars", "overlap_chars"}
         for name, knobs in values.items():
-            if set(knobs) - allowed:
-                raise ValueError(f"{name}: unsupported generation knobs {sorted(set(knobs) - allowed)}; configure transports with agent_routes")
+            if set(knobs) - GENERATION_KNOBS:
+                raise ValueError(
+                    f"{name}: unsupported generation knobs {sorted(set(knobs) - GENERATION_KNOBS)}; "
+                    "configure transports with agent_routes"
+                )
             for key, value in knobs.items():
-                if key == "reasoning_effort":
-                    if value is not None and not isinstance(value, str):
-                        raise ValueError("reasoning_effort must be a string")
-                elif key == "temperature":
-                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 2:
-                        raise ValueError("temperature must be finite in [0, 2]")
-                elif isinstance(value, bool) or not isinstance(value, int) or value < (0 if key == "overlap_chars" else 1):
-                    raise ValueError(f"{key} must be a positive integer (overlap may be zero)")
+                _check_knob(key, value)
         return values
 
     @field_validator("task")
@@ -1230,11 +1350,12 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd, blind_routing, pipeline_handoff and schema_guide are hashed only when
-        # set, so older YAMLs keep their hash.
+        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first and
+        # require_expanded_inputs are hashed only when set, so older YAMLs keep their hash.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
-                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide") and value is False)
+                   and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
+                                    "require_expanded_inputs") and value is False)
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}

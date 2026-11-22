@@ -921,6 +921,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run start`
@@ -955,6 +957,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 | `--dry-run` | No |  |
 
 ### `sandbox run status`
@@ -1092,6 +1096,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
+| `--agent-knob` | No | per-agent generation parameter for preflight, start, and resume --config (repeatable): max_input_chars, max_tokens, temperature, reasoning_effort, chunk_chars, overlap_chars, top_p, top_k, presence_penalty, length_retries. Wins over the YAML for that key and keeps a posture run's other budgets. Example: judge.max_input_chars=800000 |
+| `--require-expanded-inputs` | No | preflight and start fail unless every long-context reader has its expanded input length swapped on. Resume applies this only with --config. job.require_expanded_inputs in the run YAML does the same |
 
 ### `sandbox run cancel`
 
@@ -1399,7 +1405,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--list` | No | list suite ids under config/runs/suites/ |
 | `--check` | No | run benchmark-check on every config in the suite |
 | `--print-loop` | No | print bash preflight+start loop only |
-| `--execute` | No | chain preflight+start --watch for each config (no teardown) |
+| `--execute` | No | chain preflight+start --watch for each config (no teardown unless --teardown) |
+| `--teardown` | No | with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) when the chain ends: finished, failed or interrupted (Ctrl+C), so no container idles out its scaledown window or a min_containers floor. A killed process (SIGKILL) cannot clean up; run the script by hand then |
 
 ### `sandbox watch`
 
