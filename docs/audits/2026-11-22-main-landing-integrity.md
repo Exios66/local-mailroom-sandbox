@@ -13,9 +13,9 @@ ownership, artifact integrity, and matching hosted gate evidence.
 | Report completeness | Refuse prepared, running, paused and foreign checkpoints. Display terminal state and locked row count; a bundle without a checkpoint is visibly unverified. | `tests/test_pain_points_report.py` |
 | Suite teardown | Mock, offline and dry-run execution never reaches live cleanup. A failed cleanup returns its error and no longer prints success. | `tests/test_run_suite.py` |
 | Notebook state | Scope warning filters and restore the prior logging-disable level on success and failure. | `test_quiet_pipeline_logs_restores_kernel_state` |
-| Portable demos | Sanitize published output paths after execution and remove machine paths from existing demo displays. Recorded mock results and embedded PNGs remain unchanged. | `tests/test_render_notebook_demos.py` |
+| Portable demos | Sanitize published output paths, including resolved symlinks and both macOS temporary-path aliases, and remove machine paths from existing displays. Recorded mock results and embedded PNGs remain unchanged. | `tests/test_render_notebook_demos.py` |
 | Visualizer refresh | Retain the replaced checkout after the final clean check, preserving later writes through existing file descriptors. Print the recovery path for manual inspection. | `test_visualizer_retains_writes_through_an_old_open_descriptor` |
-| Label-cache publication | Refuse foreign directories and unmanaged deletions; prepare the replacement before swapping and retain recoverable bytes if rollback fails. | `tests/test_export_mailroom_cache.py` |
+| Label-cache publication | Hold a stable sibling lock from initial read through publication, refusing concurrent exports. Refuse foreign directories and unmanaged deletions; prepare the replacement before swapping and retain recoverable bytes if rollback fails. | `tests/test_export_mailroom_cache.py` |
 | Operator guidance | Narrow whole-document refusal to the protected readers; distinguish isolated item errors from pipeline review. Document manual teardown after both concurrent calibration runs. Correct remaining refusal, fleet-capacity and label-admission wording. | Focused source comparison, CLI-reference generator and Markdown lint |
 
 ## Review reconciliation

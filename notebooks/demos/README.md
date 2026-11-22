@@ -6,4 +6,5 @@ Open these when you want to see every cell's display; edit the parent notebooks 
 
 Published outputs replace checkout, runtime, home and interpreter paths with portable
 `/demo/` paths after execution. Existing displays retain their recorded mock results;
-path sanitization does not rerun an experiment.
+path sanitization covers resolved symlinks and macOS temporary-path aliases and does
+not rerun an experiment.

@@ -115,6 +115,30 @@ def test_export_refuses_unmanaged_files_in_an_owned_cache(mod, small):
     assert extra.read_text() == "keep"
 
 
+def test_concurrent_export_is_refused_without_losing_prereleases(mod, small, monkeypatch):
+    source = _csv(small / "labels.csv", mod)
+    out = small / "mailroom_cache"
+    base = mod.FAMILY_HF_TAG.removeprefix("v") + ".1-rc."
+    build = mod.build_prerelease
+
+    def build_while_another_export_attempts(*args):
+        with pytest.raises(mod.CacheError, match="already in progress"):
+            mod.export(out, base + "2", source, check=False)
+        return build(*args)
+
+    monkeypatch.setattr(mod, "build_prerelease", build_while_another_export_attempts)
+    mod.export(out, base + "1", source, check=False)
+    first = out / f"{mod.FAMILY_HF_TAG}.0" / "pre-release" / f"v{base}1"
+    before = {p.relative_to(first): p.read_bytes() for p in first.rglob("*") if p.is_file()}
+    monkeypatch.setattr(mod, "build_prerelease", build)
+    mod.export(out, base + "2", source, check=False)
+    assert {p.relative_to(first): p.read_bytes() for p in first.rglob("*") if p.is_file()} == before
+    registry = json.loads((out / "REGISTRY.json").read_text())
+    assert {v["version"] for v in registry["versions"] if v["channel"] == "pre-release"} == {
+        base + "1", base + "2",
+    }
+
+
 def test_export_copy_failure_preserves_the_cache(mod, small, monkeypatch):
     source = _csv(small / "labels.csv", mod)
     out = small / "mailroom_cache"

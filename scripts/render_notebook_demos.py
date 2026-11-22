@@ -18,9 +18,23 @@ NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
 
 
+def _path_aliases(source: str) -> set[Path]:
+    paths = {Path(source), Path(source).resolve()}
+    if sys.platform == "darwin":
+        for name in ("tmp", "var"):
+            short = Path("/") / name
+            canonical = Path("/") / "private" / name
+            for path in tuple(paths):
+                for prefix, alternate in ((short, canonical), (canonical, short)):
+                    if path.is_relative_to(prefix):
+                        paths.add(alternate / path.relative_to(prefix))
+    return paths
+
+
 def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
     """Replace machine paths in executed output, leaving source and binary image data intact."""
-    ordered = sorted(replacements.items(), key=lambda item: -len(item[0]))
+    aliases = {str(path): portable for source, portable in replacements.items() for path in _path_aliases(source)}
+    ordered = sorted(aliases.items(), key=lambda item: -len(item[0]))
 
     def clean(value):
         if isinstance(value, str):

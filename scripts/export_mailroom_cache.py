@@ -30,20 +30,26 @@ Usage (``local-mailroom-sandbox`` and ``mailroom-issues`` checked out side by si
 A written pre-release is immutable: writing the same version with different bytes is refused
 (cut ``rc.2`` instead). ``--check`` rebuilds in memory from the committed labels and the cached
 CSV and exits 1 if anything under ``--out`` is stale.
+Exports and checks hold a nonblocking sibling ``.<output-name>.export.lock`` across
+the entire cache transaction. Keep that lock file in place; concurrent attempts
+are refused and can be retried after the active export finishes.
 """
 from __future__ import annotations
 
 import argparse
 import collections
 import csv
+import fcntl
 import filecmp
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -462,8 +468,36 @@ def _publish_cache(stage: Path, out: Path) -> None:
             shutil.rmtree(work)
 
 
+@contextmanager
+def _cache_lock(out: Path):
+    """Hold a stable sibling lock across the read, build and publication transaction."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    lock = out.parent / f".{out.name}.export.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError as exc:
+        raise CacheError(f"cannot open cache export lock: {lock}") from exc
+    with os.fdopen(fd, "a") as guard:
+        try:
+            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise CacheError(f"cache export already in progress: {out}") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(guard, fcntl.LOCK_UN)
+
+
 def export(out: Path, version: str, full_labels: Path | None, *, check: bool) -> list[str]:
     """Write (or, with ``check``, compare) the cache. Returns the list of stale paths."""
+    if out.is_symlink():
+        raise CacheError(f"cache output must not be a symlink: {out}")
+    out = out.parent.resolve() / out.name
+    with _cache_lock(out):
+        return _export_locked(out, version, full_labels, check=check)
+
+
+def _export_locked(out: Path, version: str, full_labels: Path | None, *, check: bool) -> list[str]:
     _check_output_owner(out)
     major, minor, _patch, _pre = parse_version(version)
     version = version.removeprefix("v")
