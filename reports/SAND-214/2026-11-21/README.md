@@ -36,6 +36,21 @@ time included. r2 started while the merger leg held the fleet, so its 2,794 s wa
 - **Window count barely moves contracts quality.** Mean score by window count on r2: 2
   windows 0.636 (13 docs), 3 windows 0.638 (7), 4 windows 0.694 (7).
 
+## Figures
+
+Built with `python -m mailroom_sandbox.window_figures` (house style, linted); every number is in
+`figures/sand214-windows.figure-data.csv`.
+
+![Per-document score of each run against the 0.7 target](figures/sand214-windows.runs.svg)
+
+![Paired contracts scores, r1 against r2, lost-window documents in red](figures/sand214-windows.paired.svg)
+
+![AUROC of each window merge rule, r1 and r2](figures/sand214-windows.window-rules.svg)
+
+![Final specialist confidence against score, contracts r2](figures/sand214-windows.confidence.svg)
+
+![Contracts r2 score by number of windows read](figures/sand214-windows.window-count.svg)
+
 ## Next experiments (configs committed, not started)
 
 1. **Window length on Modal**, suite `sand214-window-length`: r2's posture and documents with

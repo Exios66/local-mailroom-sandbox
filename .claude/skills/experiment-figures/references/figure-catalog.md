@@ -38,6 +38,21 @@ concurrency differs. Cost is only comparable on the same basis and at scale: the
 comparison of at least 1,000 billed, paired documents. Refresh the sheet with
 `scripts/refresh_api_prices.py --check` before quoting a price.
 
+## Chunk windows on isolated specialist runs (#214)
+
+Built by `window_figures.build`; written by `python -m mailroom_sandbox.window_figures --run
+"<label>=<run dir>" ... --base <label> --cand <label> --stem <stem> --out <dir>`, with a
+`<stem>.figure-data.csv` table. Specialists use the third-system colour (aqua); the paired
+reference run is neutral grey.
+
+| Figure | Question | Form |
+| --- | --- | --- |
+| `runs` | How close is each run to the quality target? | Dot strip of per-document score per run, mean bar, n, dashed target |
+| `paired` | Did a change (length fix, window length) move quality on the same documents, and stop losing windows? | Paired scatter, diagonal "no change", lost-window documents in red |
+| `window-rules` | Does any window merge rule separate documents that met the target? | Dot plot of AUROC per rule and run, dashed chance line; too few on one side says so |
+| `confidence` | Does the specialist's final confidence rank document quality? | Scatter of confidence (jittered) against score, dashed target, AUROC in the title |
+| `window-count` | Does quality move with the number of windows read? | Dot strip by window count (5 or more folded), mean bar, n |
+
 ## Form-floor calibration (question set A vs B)
 
 `decision_figures.paired_svg(stem, compare_result, base, cand)`: two panels, defects passed and
