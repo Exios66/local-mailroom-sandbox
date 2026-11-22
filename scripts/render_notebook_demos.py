@@ -16,6 +16,46 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
+BINARY_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif",
+                "image/bmp", "image/tiff", "application/pdf", "application/octet-stream"}
+
+
+def _path_aliases(source: str) -> set[Path]:
+    paths = {Path(source), Path(source).resolve()}
+    if sys.platform == "darwin":
+        for name in ("tmp", "var"):
+            short = Path("/") / name
+            canonical = Path("/") / "private" / name
+            for path in tuple(paths):
+                for prefix, alternate in ((short, canonical), (canonical, short)):
+                    if path.is_relative_to(prefix):
+                        paths.add(alternate / path.relative_to(prefix))
+    return paths
+
+
+def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
+    """Replace machine paths in executed output, leaving source and binary image data intact."""
+    aliases = {str(path): portable for source, portable in replacements.items() for path in _path_aliases(source)}
+    ordered = sorted(aliases.items(), key=lambda item: -len(item[0]))
+
+    def clean(value):
+        if isinstance(value, str):
+            for source, portable in ordered:
+                value = value.replace(source, portable)
+            return value
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        if isinstance(value, dict):
+            # NotebookNode is a dict subclass required by nbformat's writer; retain it.
+            for key, item in value.items():
+                if key not in BINARY_MIMES and not key.startswith(("audio/", "video/")):
+                    value[key] = clean(item)
+            return value
+        return value
+
+    for cell in nb["cells"]:
+        if cell.get("outputs"):
+            cell["outputs"] = clean(cell["outputs"])
 
 
 def main() -> int:
@@ -48,7 +88,12 @@ def main() -> int:
                 kernel_name="python3",
                 resources={"metadata": {"path": str(path.parent)}},
             )
+            client.km = client.create_kernel_manager()
+            kernel_executable = client.km.format_kernel_cmd()[0]
             client.execute()
+            sanitize_demo_outputs(nb, {str(ROOT): "/demo/checkout", str(tmp_path): "/demo/runtime",
+                                       str(Path.home()): "/demo/home", sys.executable: "/demo/python",
+                                       kernel_executable: "/demo/python"})
             dest = out / path.name
             nbformat.write(nb, dest)
             code = [c for c in nb.cells if c.cell_type == "code"]

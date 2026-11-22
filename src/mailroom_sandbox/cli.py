@@ -1462,23 +1462,27 @@ def _run_parser(sub, shared):
     suite_p.add_argument(
         "--teardown",
         action="store_true",
-        help="with --execute: stop and verify the suite's Modal app (deploy/teardown_vllm.sh) "
+        help="with --execute: stop and verify every distinct Modal app referenced by the suite's "
+             "effective non-mock configs, including --local overrides (deploy/teardown_vllm.sh) "
              "when the chain ends: finished, failed or interrupted (Ctrl+C), so no container "
              "idles out its scaledown window or a min_containers floor. A killed process "
-             "(SIGKILL) cannot clean up; run the script by hand then",
+             "(SIGKILL) cannot clean up; run the script by hand then. Ignored with --mock, "
+             "--offline or --dry-run. Use only when no other run shares any targeted app",
     )
     suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
     return common
 
 
-def _suite_teardown(suite: Any) -> int:
+def _suite_teardown(suite: Any, *, local: bool = False) -> int:
     """Stop and verify every Modal app the suite's configs serve from (deploy/teardown_vllm.sh)."""
     from mailroom_sandbox.job.spec import load_run_spec
     from mailroom_sandbox.paths import repo_root
 
     apps = sorted({spec.engine.modal.app for spec in map(load_run_spec, suite.configs)
-                   if spec.engine.modal is not None})
+                   if spec.engine.modal is not None and (local or not spec.job.mock)})
+    if not apps:
+        print("no live Modal apps targeted; no teardown performed")
     rc = 0
     for app in apps:
         proc = subprocess.run(["bash", str(repo_root() / "deploy" / "teardown_vllm.sh"), app],
@@ -2001,12 +2005,11 @@ def _restore_installed_visualizer(backup: Path, dest: Path, recovery: Path) -> i
 
 
 def _commit_visualizer_install(backup: Path, dest: Path, recovery: Path, existing_head: str) -> int | None:
-    """Delete the aside copy only when it is still the clean reviewed HEAD."""
-    import shutil
-
+    """Retain the aside copy: an editor can still write through an open descriptor after this check."""
     if not _visualizer_still_replaceable(backup, existing_head):
         return _restore_installed_visualizer(backup, dest, recovery)
-    shutil.rmtree(recovery)
+    print(f"== previous visualizer retained at {backup}; inspect and remove only after all old writers close",
+          file=sys.stderr)
     return None
 
 
@@ -2015,7 +2018,8 @@ def _replace_clean_visualizer(dest: Path, work: Path, existing_head: str, refres
 
     The live tree is moved aside and checked again. An edit that lands after the
     fetch, including one that lands after the first clean check, is put back.
-    The aside copy is checked once more immediately before it is deleted.
+    The aside copy is checked once more and retained for late writes through
+    already-open file descriptors. Cleanup is an explicit operator action.
     """
     import shutil
     import tempfile
@@ -3633,7 +3637,8 @@ def _cmd_run_suite(args) -> int:
         # Chain each config via the existing start path; with --teardown the app is stopped
         # from a finally block, so an error or Ctrl+C mid-chain still tears it down.
         mode = getattr(args, "mode", None) or "endpoint"
-        teardown = getattr(args, "teardown", False) and not getattr(args, "dry_run", False)
+        teardown = (getattr(args, "teardown", False)
+                    and not any(getattr(args, flag, False) for flag in ("dry_run", "mock", "offline")))
         rc = 0
         try:
             for cfg in suite.configs:
@@ -3662,12 +3667,16 @@ def _cmd_run_suite(args) -> int:
             raise
         finally:
             if teardown:
-                torn = _suite_teardown(suite)
+                torn = _suite_teardown(suite, local=bool(getattr(args, "local", False)))
                 rc = rc or torn
         if getattr(args, "dry_run", False):
             print(f"suite {suite.suite_id} planned — no jobs executed")
+        elif getattr(args, "mock", False) or getattr(args, "offline", False):
+            print(f"suite {suite.suite_id} complete — offline/mock mode; no app teardown performed")
+        elif teardown and rc == 0:
+            print(f"suite {suite.suite_id} complete — teardown checks finished")
         elif teardown:
-            print(f"suite {suite.suite_id} complete — app torn down")
+            print(f"suite {suite.suite_id} complete — teardown failed; stop the app by hand", file=sys.stderr)
         else:
             print(f"suite {suite.suite_id} complete — teardown with ./deploy/teardown_vllm.sh (do not teardown between configs)")
         return rc

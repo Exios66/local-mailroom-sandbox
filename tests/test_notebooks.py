@@ -68,6 +68,28 @@ def test_readme_lists_every_notebook():
         assert path.name in readme, f"notebooks/README.md does not link {path.name}"
 
 
+def test_demo_renderer_executes_and_sanitizes_a_real_kernel(tmp_path, monkeypatch):
+    """Hosted notebook CI verifies the renderer's actual kernel-manager integration."""
+    import importlib.util
+    import os
+    import sys
+
+    nbformat = pytest.importorskip("nbformat")
+    pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "kernel-smoke.ipynb"
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell("import sys; print(sys.executable)")]), source)
+    monkeypatch.setattr(module, "NOTEBOOKS", [source])
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "demos")])
+    assert module.main() == 0
+    result = nbformat.read(tmp_path / "demos" / source.name, as_version=4)
+    assert result.cells[0].outputs[0].text == "/demo/python\n"
+
+
 def test_notebooks_execute(tmp_path, monkeypatch):
     """Run all notebooks in order from notebooks/, as Jupyter would, with writes under tmp_path."""
     nbformat = pytest.importorskip("nbformat")

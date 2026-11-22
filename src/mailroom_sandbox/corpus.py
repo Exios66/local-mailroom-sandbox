@@ -817,7 +817,8 @@ def truth_rows(spec: DatasetSpec, ids: Iterable[str], *, keep_raw: bool = False,
     document the source lacks is reported in ``missing`` rather than raising, so a revision that
     drops a document still re-scores the rest. ``keep_raw`` keeps each source row's other keys
     under the normalized ones, for agent scorers that read truth outside the corpus row shape
-    (``expected_snippet``, ``required_keys``, ...).
+    (``expected_snippet``, ``required_keys``, ...). Duplicate normalized document IDs are
+    refused before lookup, so conflicting source rows cannot silently replace one another.
     """
     wanted = [str(i) for i in ids]
     if spec.is_local():
@@ -833,8 +834,12 @@ def truth_rows(spec: DatasetSpec, ids: Iterable[str], *, keep_raw: bool = False,
         resolved = str(rows[0].get("source_revision") or "") if rows else ""
         source_meta = {"source": "huggingface", "repo": spec.repo, "config": spec.config, "split": spec.split,
                        "revision": spec.revision or FAMILY_HF_REVISION, "revision_resolved": resolved or None}
-    by_id = {str(r.get("id") or ""): ({**raw, **r} if keep_raw else r)
-             for raw, r in zip(rows, normalize_rows(rows))}
+    by_id = {}
+    for raw, row in zip(rows, normalize_rows(rows), strict=True):
+        doc_id = str(row.get("id") or "")
+        if doc_id in by_id:
+            raise ValueError(f"truth source has a duplicate document id: {doc_id!r}")
+        by_id[doc_id] = {**raw, **row} if keep_raw else row
     chosen = []
     for doc_id in wanted:
         row = by_id.get(doc_id)

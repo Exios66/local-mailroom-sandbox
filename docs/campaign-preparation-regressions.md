@@ -26,7 +26,7 @@ pending fix. Tests named for an unmerged patch live in that PR.
   [#367](https://github.com/Exios66/local-mailroom-sandbox/pull/367)
   (confidence, patch readiness, cost and campaign contract). Full hosted tests and
   the unchanged 84% coverage gate passed on each merged head.
-- Prepared, unmerged: [#368](https://github.com/Exios66/local-mailroom-sandbox/pull/368)
+- Landed on 2026-11-19: [#368](https://github.com/Exios66/local-mailroom-sandbox/pull/368)
   (offline hotfix-wiring audit and three guard corrections) and
   [#369](https://github.com/Exios66/local-mailroom-sandbox/pull/369)
   (spend/reproducibility hardening stacked on it).

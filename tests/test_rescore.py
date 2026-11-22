@@ -81,6 +81,17 @@ def test_a_rescore_of_a_rescore_keeps_the_first_score(tmp_path):
     assert [i["score_original"]["match"] for i in items] == [1.0, 0.0]
 
 
+def test_duplicate_replacement_truth_is_refused_without_writing_a_derived_run(tmp_path):
+    run = _run(tmp_path)
+    truth = _truth_file(tmp_path, [_row("DOC-1", "contract"), _row("DOC-1", "correspondence")])
+    before = {p.name: p.read_bytes() for p in run.iterdir()}
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="duplicate document id"):
+        rs.rescore(run, dataset_file=truth, out=out)
+    assert not out.exists()
+    assert {p.name: p.read_bytes() for p in run.iterdir()} == before
+
+
 def test_errored_items_are_carried_not_scored(tmp_path):
     run = _run(tmp_path, items=[
         {"item_id": "DOC-1", "ok": True, "pred": {"doc_type": "contract"}, "score": {"match": 1.0}},

@@ -148,7 +148,19 @@ Each argument is a run id under `data/runtime/runs`, a run or report-bundle dire
    scored: the paired per-document difference (candidate minus baseline, so positive means more
    penalty, worse), its bootstrap interval, and how many documents only one side scored.
 
-Truth rows come from the run's `dataset.jsonl`. A report bundle keeps none: its truth is rebuilt
+Truth rows come from the run's `dataset.jsonl`, whose exact bytes must match the lock's
+`dataset.sha256`. A missing hash or changed dataset is refused; use `--dataset-file` explicitly
+to select new truth, whose provenance is recorded separately. Duplicate truth IDs are refused,
+including normalized IDs in replacement files and rebuilt Hub truth before source rows are indexed.
+Derived rescore runs use their derived checkpoint identity; legacy copied checkpoints are
+validated against the source run and spec identity recorded in `rescore.lock`.
+For multi-step legacy chains, reporting follows available sibling source locks or the source
+paths recorded in `rescore.json`, verifying every run, spec and generation link. Missing,
+foreign, cyclic or excessive ancestry is refused; restore the source runs to verify such a bundle.
+Prepared, running and paused checkpoints are refused. Terminal checkpoint state and locked
+row count are shown beside the scored document count, so a failed partial run stays visible.
+A bundle without a checkpoint is labeled `unverified (no checkpoint)`.
+A report bundle keeps no dataset: its truth is rebuilt
 from the locked dataset revision, or read from `--dataset-file`. A document the truth lacks is
 listed under `missing_truth` and left out; only `task: pipeline` runs are accepted. Mock runs are
 listed under `simulated` and never count as model evidence. Experiment labels are stripped, may not

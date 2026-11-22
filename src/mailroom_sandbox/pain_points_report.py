@@ -22,6 +22,7 @@ name@version) and ``mock`` (``true`` for a mock run, whose points are never mode
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -38,6 +39,80 @@ class PainPointsError(ValueError):
 def _jsonl(path: Path) -> list[dict[str, Any]]:
     # Split on "\n" only: splitlines() also breaks on U+2028 / U+2029 inside JSON strings (rescore._jsonl).
     return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
+
+
+def _finished_lock(files) -> tuple[dict[str, Any], str]:
+    from mailroom_sandbox.job.checkpoint import TERMINAL_STATES
+
+    lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
+    if not isinstance(lock, dict):
+        raise PainPointsError(f"{files.path}: invalid spec.lock.json object")
+    checkpoint = files.get("checkpoint.json")
+    if checkpoint is None:
+        return lock, "unverified (no checkpoint)"
+    cp = json.loads(checkpoint.read_text(encoding="utf-8"))
+    if not isinstance(cp, dict):
+        raise PainPointsError(f"{files.path}: invalid checkpoint.json object")
+    state = cp.get("state")
+    if state not in TERMINAL_STATES:
+        raise PainPointsError(f"{files.path}: checkpoint is {state!r}; score a finished pipeline run")
+    expected = _checkpoint_identity(lock, cp, files.path)
+    for key in ("run_id", "spec_hash", "generation_id"):
+        if expected.get(key) and cp.get(key) != expected[key]:
+            raise PainPointsError(f"{files.path}: checkpoint {key} differs from the locked generation")
+    return lock, state
+
+
+def _checkpoint_identity(lock: dict[str, Any], cp: dict[str, Any], path: Path) -> dict[str, Any]:
+    seen: set[Path] = set()
+    while lock.get("lock_kind") == "rescore.lock" and cp.get("run_id") != lock.get("run_id"):
+        path = path.resolve()
+        if path in seen or len(seen) >= 64:
+            raise PainPointsError(f"{path}: cyclic or excessive legacy rescore ancestry")
+        seen.add(path)
+        # Old A -> B -> C rescores copied A's checkpoint through every derived run.
+        source = lock.get("rescore") or {}
+        expected = {"run_id": source.get("source_run"), "spec_hash": source.get("source_spec_hash"),
+                    "generation_id": lock.get("generation_id")}
+        if not expected["run_id"]:
+            raise PainPointsError(f"{path}: derived checkpoint has no recorded source identity")
+        if cp.get("run_id") == expected["run_id"]:
+            return expected
+        path, lock = _rescore_source_lock(path, expected)
+    return lock
+
+
+def _rescore_source_lock(path: Path, expected: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
+    """Follow only a recorded source whose available lock matches the child link."""
+    source_id = str(expected["run_id"])
+    if Path(source_id).name != source_id or source_id in (".", ".."):
+        raise PainPointsError(f"{path}: invalid legacy rescore source id")
+    candidates = [path.parent / source_id]
+    report_path = path / "rescore.json"
+    if report_path.is_file():
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        if isinstance(report, dict) and report.get("source_run") == source_id and report.get("source_path"):
+            candidates.append(Path(report["source_path"]))
+    for candidate in candidates:
+        lock_path = candidate / "spec.lock.json"
+        if not lock_path.is_file():
+            continue
+        ancestor = json.loads(lock_path.read_text(encoding="utf-8"))
+        if not isinstance(ancestor, dict) or any(expected.get(k) and ancestor.get(k) != expected[k]
+                                               for k in ("run_id", "spec_hash", "generation_id")):
+            raise PainPointsError(f"{path}: legacy source differs from the locked generation")
+        return candidate, ancestor
+    raise PainPointsError(f"{path}: cannot verify legacy rescore ancestry; restore source run {source_id!r}")
+
+
+def _truth_by_id(rows: Iterable[dict[str, Any]]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for row in rows:
+        doc_id = str(row.get("id") or "")
+        if not doc_id or doc_id in out:
+            raise PainPointsError(f"truth has a missing or duplicate document id: {doc_id!r}")
+        out[doc_id] = row
+    return out
 
 
 def run_groups(lock: Mapping[str, Any], label: str) -> dict[str, str]:
@@ -58,18 +133,26 @@ def run_groups(lock: Mapping[str, Any], label: str) -> dict[str, str]:
 
 
 def _truth(files, lock: Mapping[str, Any], order: Sequence[str], dataset_file: str | Path | None,
-           truth_loader: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]] | None) -> dict[str, dict]:
+           truth_loader: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]] | None,
+           ) -> tuple[dict[str, dict], dict[str, Any]]:
     """``{doc_id: truth row}``: the run's dataset.jsonl, a local file, or the locked revision."""
     from mailroom_sandbox import rescore
 
     if dataset_file is None and files.get("dataset.jsonl"):
-        return {str(r.get("id")): r for r in _jsonl(files.files["dataset.jsonl"])}
+        blob = files.files["dataset.jsonl"].read_bytes()
+        actual = hashlib.sha256(blob).hexdigest()
+        expected = (lock.get("dataset") or {}).get("sha256")
+        if not expected or actual != expected:
+            raise PainPointsError(f"{files.path}: locked dataset sha256 missing or mismatched; "
+                                  "restore dataset.jsonl or explicitly select new truth with --dataset-file")
+        rows = [json.loads(line) for line in blob.decode("utf-8").split("\n") if line.strip()]
+        return _truth_by_id(rows), {"source": "locked dataset.jsonl", "sha256": actual}
     if truth_loader is None:
         from mailroom_sandbox import corpus
 
         truth_loader = corpus.truth_rows
-    rows, _ = truth_loader(rescore.truth_spec(lock, dataset_file=dataset_file), list(order))
-    return {str(r["id"]): r for r in rows}
+    rows, meta = truth_loader(rescore.truth_spec(lock, dataset_file=dataset_file), list(order))
+    return _truth_by_id(rows), meta
 
 
 def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file: str | Path | None = None,
@@ -89,7 +172,7 @@ def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file
         files = rescore.locate(run, runs_root=runs_root)
     except rescore.RescoreError as exc:
         raise PainPointsError(str(exc)) from exc
-    lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
+    lock, state = _finished_lock(files)
     if lock.get("task") != "pipeline":
         raise PainPointsError(f"{run}: task {lock.get('task')!r}; the composites score pipeline runs only "
                               "(they need the final stage: archived or review)")
@@ -102,7 +185,7 @@ def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file
     # A retried item appears more than once: the last line is the one the run kept (job/pair_report.py).
     latest = {str(it.get("item_id")): it for it in _jsonl(files.files["items.jsonl"])}
     order = list(latest)
-    truth = _truth(files, lock, order, dataset_file, truth_loader)
+    truth, truth_meta = _truth(files, lock, order, dataset_file, truth_loader)
     docs: list[Any] = []
     missing: list[str] = []
     for doc_id, item in latest.items():
@@ -121,7 +204,8 @@ def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file
     if not docs:
         raise PainPointsError(f"{run_id}: none of its {len(order)} documents is in the truth")
     return docs, {"run_id": run_id, "label": groups["experiment"], "path": str(files.path),
-                  "documents": len(docs), "missing_truth": missing, "groups": groups}
+                  "documents": len(docs), "missing_truth": missing, "groups": groups,
+                  "state": state, "locked_rows": (lock.get("dataset") or {}).get("rows"), "truth": truth_meta}
 
 
 def parse_run_args(args: Iterable[str]) -> list[tuple[str, str | None]]:
@@ -198,8 +282,11 @@ def render(rep: Mapping[str, Any]) -> str:
              f"Scorer: {rep['source']}."]
     if rep.get("simulated"):
         lines += ["", f"**Simulated (mock) runs, never model evidence:** {', '.join(rep['simulated'])}."]
-    lines += ["", "| Experiment | Run | Documents | Missing truth |", "| --- | --- | --- | --- |"]
-    lines += [f"| {p['label']} | {p['run_id']} | {p['documents']} | {len(p['missing_truth'])} |" for p in rep["runs"]]
+    lines += ["", "| Experiment | Run | State | Documents | Locked rows | Missing truth |",
+              "| --- | --- | --- | --- | --- | --- |"]
+    lines += [f"| {p['label']} | {p['run_id']} | {p['state']} | {p['documents']} | "
+              f"{p['locked_rows'] if p['locked_rows'] is not None else 'unknown'} | {len(p['missing_truth'])} |"
+              for p in rep["runs"]]
     by = rep["breakdown"]["by"]
     for composite in ("classification", "extraction"):
         lines += ["", f"## {composite.capitalize()}", "",
@@ -251,7 +338,7 @@ def _cli(args) -> int:
     try:
         rep = report(parse_run_args(args.runs), by=[k.strip() for k in args.by.split(",") if k.strip()],
                      baseline=args.baseline, dataset_file=args.dataset_file, n_boot=args.n_boot, seed=args.seed)
-    except (PainPointsError, rescore.RescoreError, FileNotFoundError) as exc:
+    except (ValueError, rescore.RescoreError, FileNotFoundError) as exc:
         print(f"sandbox pain-points: {exc}", file=sys.stderr)
         return 2
     if args.documents:
