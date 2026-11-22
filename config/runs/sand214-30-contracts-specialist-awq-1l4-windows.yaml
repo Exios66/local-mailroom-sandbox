@@ -1,0 +1,87 @@
+# #214 merge-rule comparison — contracts · n=30 · 1×L4 · client concurrency 8.
+# Question: which chunk-merge confidence (weakest window, strongest window, length-weighted)
+# best separates contracts that met the quality target from those that missed it. HF-008
+# records each window's confidence and length; `sandbox run routing-audit` reports the
+# per-rule AUROC under window_rules. The adopted rule stays the weakest window either way.
+# Chunking runs only here, on Modal vLLM: Qwen3-8B-AWQ's 32k-token L4 window cannot hold a
+# long contract. OpenRouter routes never chunk (HF-009/HF-010).
+#   engine  = SAND-042 1×L4 cell (sand42-50-contracts-specialist-awq-1l4-c8), unchanged
+#   data    = 30 contracts longer than one window (one-window contracts excluded by id),
+#             ground truth required, seed 214 (not a SAND-042 or ladder seed)
+#   posture = contract specialist posture: 43,000-char windows, 6,000 overlap
+#   spend   = cost_cap_usd 1.50 and 1 hour wall, inside the SAND-032 $5 budget (exios66)
+schema: sandbox.run/v1
+run_id: sand214-30-contracts-specialist-awq-1l4-windows
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  # Only contracts longer than one 43,000-char window (225 of 600 at this revision).
+  exclude_ids_file: config/runs/sand214-one-window-contracts.txt
+  strata:
+    buckets:
+      - doc_class: contract
+        count: 30
+  # 91 of the corpus's 600 contracts carry an EMPTY cuad_clause_labels, so a
+  # plain draw silently shrinks the contracts clause column (5/50 in the first
+  # grid). Drop unscoreable documents BEFORE the draw: every subclass's annotated
+  # supply still covers its requested count, so the strata block is unchanged.
+  require_task_gt: true
+  limit: 30
+  sample_seed: 214
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 1
+    min_containers: 1
+    prewarm: true
+
+agent_knobs:
+  # SAND-042 contract posture (job/specialist_posture.py _SAND42_CHUNKED) and decode.
+  # Fits the 32K window: 49000/2.4 + 8192 + 4000 = 32609 <= 32768.
+  contracts_specialist: {max_input_chars: 49000, chunk_chars: 43000, overlap_chars: 6000, max_tokens: 8192, temperature: 0.7}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 1.50
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: sand214
+  tags: [sandbox, job, specialist, qwen3-8b-awq, l4, issue-214, window-merge-rules]
