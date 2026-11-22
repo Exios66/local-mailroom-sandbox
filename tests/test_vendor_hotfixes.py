@@ -181,3 +181,106 @@ def test_hf008_records_each_window_and_keeps_the_weakest_confidence():
     assert merged["_window_confidences"] == [0.99, 0.2]
     assert merged["_window_lengths"] == [5, 6]
     assert merged["entity_name"] == "First"
+
+
+class _FakeSpecialist:
+    agent_name = "contracts_specialist"
+    calls: list[str] = []
+
+    def __init__(self, handoff_context=None):
+        self.handoff_context = handoff_context
+
+    def _configured_max_input_chars(self):
+        return 100
+
+    def extract(self, doc_text, pages=None, handoff_context=None):
+        self.calls.append(f"extract:{len(doc_text)}")
+        return {"confidence": 0.9}
+
+    def extract_chunked(self, doc_text, **kwargs):
+        self.calls.append(f"chunked:{len(doc_text)}")
+        return {"confidence": 0.5}
+
+
+def test_hf009_api_route_reads_the_whole_document_in_one_call(monkeypatch):
+    assert vh.apply_hotfixes()["HF-009"] == "applied"
+    import graph.build_graph as bg
+
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: True)
+    _FakeSpecialist.calls = []
+    assert bg._run_chunked_extraction(_FakeSpecialist, "x" * 100, None, None) == {"confidence": 0.9}
+    assert _FakeSpecialist.calls == ["extract:100"]
+    with pytest.raises(vh.WholeDocumentTooLong, match="contracts_specialist.*101.*100.*Modal"):
+        bg._run_chunked_extraction(_FakeSpecialist, "x" * 101, None, None)
+    assert _FakeSpecialist.calls == ["extract:100"]
+
+
+def test_hf009_local_serving_keeps_the_vendored_chunking(monkeypatch):
+    assert vh.apply_hotfixes()["HF-009"] == "applied"
+    import graph.build_graph as bg
+
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: False)
+    _FakeSpecialist.calls = []
+    bg._run_chunked_extraction(_FakeSpecialist, "x" * 5000, None, None)
+    assert _FakeSpecialist.calls == ["chunked:5000"]
+
+
+def test_hf009_treats_openrouter_as_api_and_vllm_as_local(monkeypatch):
+    from types import SimpleNamespace
+
+    import llm.client as client
+
+    def resolved(provider, gpu=False):
+        return SimpleNamespace(provider=SimpleNamespace(name=provider), served_by_vllm=provider == "vllm" or gpu)
+
+    for provider, gpu, api in (("openrouter", False, True), ("vllm", False, False),
+                               ("ollama", False, False), ("gateway", True, False)):
+        monkeypatch.setattr(client, "resolve_agent_model", lambda *a, p=provider, g=gpu: resolved(p, g))
+        assert vh._api_route("contracts_specialist") is api, provider
+
+
+def test_hf009_an_unresolvable_route_keeps_the_vendored_path(monkeypatch):
+    # A --mock run has no OpenRouter key: resolution raises before any client exists. The
+    # route check must not turn that into a parse failure ahead of the stubbed extract.
+    import graph.build_graph as bg
+    import llm.client as client
+
+    assert vh.apply_hotfixes()["HF-009"] == "applied"
+
+    def no_key(*a, **kw):
+        raise ValueError("OPENROUTER_API_KEY is missing or the mock-key placeholder")
+
+    monkeypatch.setattr(client, "resolve_agent_model", no_key)
+    assert vh._api_route("contracts_specialist") is False
+    _FakeSpecialist.calls = []
+    bg._run_chunked_extraction(_FakeSpecialist, "x" * 5000, None, None)
+    assert _FakeSpecialist.calls == ["chunked:5000"]
+
+
+class _FakeReader:
+    agent_name = "sorter"
+
+    def read(self, text, budget):
+        import agents.intake as intake
+
+        return intake.sliding_windows(text, budget, 10)
+
+
+def test_hf010_api_reader_never_slides_windows(monkeypatch):
+    assert vh.apply_hotfixes()["HF-010"] == "applied"
+    seen: list[str] = []
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: seen.append(agent_name) or True)
+    assert len(_FakeReader().read("x" * 100, 100)) == 1
+    with pytest.raises(vh.WholeDocumentTooLong, match="sorter.*101.*100.*Modal"):
+        _FakeReader().read("x" * 101, 100)
+    assert seen == ["sorter"]
+
+
+def test_hf010_local_reader_and_plain_calls_keep_windows(monkeypatch):
+    assert vh.apply_hotfixes()["HF-010"] == "applied"
+    import agents.intake as intake
+
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: False)
+    assert len(_FakeReader().read("x" * 500, 100)) > 1
+    monkeypatch.setattr(vh, "_api_route", lambda agent_name: True)
+    assert len(intake.sliding_windows("x" * 500, 100, 10)) > 1

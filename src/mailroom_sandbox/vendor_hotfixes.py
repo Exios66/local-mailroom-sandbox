@@ -275,6 +275,94 @@ def _install_window_confidences(_module: Any, original: Callable[..., Any]) -> C
     return merge_chunk_windows
 
 
+class WholeDocumentTooLong(ValueError):
+    """An API-routed specialist got a document longer than its input budget (HF-009)."""
+
+
+def _api_route(agent_name: str) -> bool:
+    """True when ``agent_name`` calls a hosted API, not Modal/vLLM or another self-hosted server.
+
+    A route that cannot be resolved (no or a mock OpenRouter key, an unknown provider or tier)
+    is not treated as an API route: the vendored path runs and resolves its client lazily, so a
+    ``--mock`` run that stubs the call still extracts, and a real call there fails the same way
+    it would have without this fix. Nothing is chunked against a hosted API this way, because no
+    client for it can exist.
+    """
+    from llm.client import is_free_only_exempt, resolve_agent_model  # type: ignore
+    from pipeline.config import get_agent_config  # type: ignore
+
+    try:
+        resolved = resolve_agent_model(agent_name, get_agent_config(agent_name))
+    except (KeyError, ValueError):
+        return False
+    return not (resolved.served_by_vllm or is_free_only_exempt(resolved.provider.name))
+
+
+def _install_api_whole_document(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """On an API route a specialist reads the whole document in one call; chunking stays local.
+
+    Context fit widens API readers' budgets to the model's context, but the vendored graph
+    still windows any document longer than that budget. On OpenRouter that multiplies calls
+    per document, so it is refused: the document fails with :class:`WholeDocumentTooLong`
+    (the extract node's parse-failure path, then review) instead of being chunked or
+    truncated. Modal, vLLM and other self-hosted routes keep the vendored chunking.
+    """
+
+    @functools.wraps(original)
+    def _run_chunked_extraction(agent_fn, doc_text, pages, handoff_context):
+        name = str(getattr(agent_fn, "agent_name", "") or "")
+        if not name or not _api_route(name):
+            return original(agent_fn, doc_text, pages, handoff_context)
+        agent = module._instantiate_specialist(agent_fn, handoff_context)
+        budget = module._specialist_input_budget(agent)
+        if len(doc_text or "") > budget:
+            raise WholeDocumentTooLong(
+                f"{name}: {len(doc_text)} chars exceed the {budget}-char input budget on an API "
+                "route, which never chunks; route this class to Modal/vLLM to window it")
+        try:
+            return agent.extract(doc_text, pages=pages, handoff_context=handoff_context)
+        except TypeError:
+            return agent.extract(doc_text, pages=pages)
+
+    return _run_chunked_extraction
+
+
+def _calling_reader() -> str:
+    """``agent_name`` of the agent method that called ``sliding_windows`` (sorter or intake), else ``""``."""
+    frame = inspect.currentframe()
+    try:
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        reader = caller.f_locals.get("self") if caller else None
+        return str(getattr(reader, "agent_name", "") or "")
+    finally:
+        del frame
+
+
+def _install_api_single_window(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """On an API route the sorter and intake read the whole document in one window.
+
+    Both readers slide windows through ``agents.intake.sliding_windows`` when a document is
+    longer than their budget. When the calling agent is API-routed and the text needs more
+    than one window, the read fails with :class:`WholeDocumentTooLong` instead. Intake fails
+    soft (the deterministic clerk output stays); the sorter's failure takes the graph's error
+    path. Calls from no agent, or from a Modal/vLLM or self-hosted route, keep the windows.
+    """
+
+    @functools.wraps(original)
+    def sliding_windows(text: str, budget: int, overlap_chars: int) -> list[tuple[str, int]]:
+        windows = original(text, budget, overlap_chars)
+        if len(windows) <= 1:
+            return windows
+        name = _calling_reader()
+        if name and _api_route(name):
+            raise WholeDocumentTooLong(
+                f"{name}: {len(text)} chars exceed the {budget}-char input budget on an API "
+                "route, which never slides windows; route this reader to Modal/vLLM to window it")
+        return windows
+
+    return sliding_windows
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -357,6 +445,26 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="a chunked merge records each surviving window's confidence and length under "
                 "_window_confidences and _window_lengths; the merged confidence stays the weakest window (#214)",
         install=_install_window_confidences,
+    ),
+    Hotfix(
+        id="HF-009",
+        module="graph.build_graph",
+        attr="_run_chunked_extraction",
+        source_sha256="4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f",
+        upstream="draft J-5 below (not filed)",
+        summary="an API-routed specialist reads the whole document in one call and refuses a "
+                "document over its budget; only Modal/vLLM and self-hosted routes chunk",
+        install=_install_api_whole_document,
+    ),
+    Hotfix(
+        id="HF-010",
+        module="agents.intake",
+        attr="sliding_windows",
+        source_sha256="f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4",
+        upstream="draft J-5 below (not filed)",
+        summary="an API-routed sorter or intake refuses a document that needs more than one "
+                "window; only Modal/vLLM and self-hosted routes slide windows",
+        install=_install_api_single_window,
     ),
 )
 
