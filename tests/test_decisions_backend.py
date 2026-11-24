@@ -93,6 +93,18 @@ def test_decisions_model_needs_decisions_backend_and_questions():
         ReviewerSpec(backend="decisions", model=DECISIONS)
     spec = ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1")
     assert spec.classes == {}
+    from mailroom_sandbox.context_fit import decision_document_chars
+    from mailroom_sandbox.decision_backends import classify_window_chars
+
+    room = decision_document_chars(1_050_000)
+    raised = ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v4.1.0",
+                          max_input_chars=room)
+    assert raised.model_dump()["max_input_chars"] == room
+    assert classify_window_chars({"max_input_chars": 1_000_000}, room) == room
+    assert classify_window_chars({"max_input_chars": 1_000_000}, None) == 1_000_000
+    with pytest.raises(ValueError, match="exceeds"):
+        ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v4.1.0",
+                     max_input_chars=room + 1)
     # Old reviewer blocks dump (and hash) exactly as before.
     assert ReviewerSpec(backend="jev", model="jev-1.13.0", classes={"contract": 0.9}).model_dump() == {
         "backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.9}}

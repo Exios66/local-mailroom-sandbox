@@ -357,6 +357,22 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
     return sum(1 for p in _ACTIVE.values() if p["order"])
 
 
+def _stamp_provider_cost(result: Any, cost: Any) -> None:
+    """Put the provider's ``usage.cost`` on the message the agent later records.
+
+    LangChain's ``usage_metadata`` keeps token counts only. The agent passes that
+    mapping to ``record_usage``, so the cost has to be on the mapping itself:
+    a context variable set inside the client call does not survive the call.
+    """
+    if not isinstance(cost, (int, float)) or isinstance(cost, bool):
+        return
+    for gen in getattr(result, "generations", None) or ():
+        message = getattr(gen, "message", None)
+        meta = getattr(message, "usage_metadata", None)
+        if isinstance(meta, dict):
+            meta["cost"] = float(cost)
+
+
 def pinned_chat_openai(parent: type) -> type:
     """A ``ChatOpenAI`` subclass of ``parent`` that pins and records OpenRouter requests.
 
@@ -391,7 +407,20 @@ def pinned_chat_openai(parent: type) -> type:
                     _record(model, response, pins, fallback_models=fallback, call_path="langchain")
                 except Exception as exc:  # noqa: BLE001 — recording never fails a call
                     _log.warning("served-provider record failed: %s", exc)
-            return super()._create_chat_result(response, generation_info)
+                try:
+                    from mailroom_sandbox.job.usage_capture import note_pending_provider_cost
+
+                    # usage_metadata, which the agent later records, has no cost.
+                    note_pending_provider_cost(served_usage(response).get("reported_cost_usd"))
+                except Exception as exc:  # noqa: BLE001 — recording never fails a call
+                    _log.warning("provider-cost note failed: %s", exc)
+            result = super()._create_chat_result(response, generation_info)
+            if pending is not None:
+                try:
+                    _stamp_provider_cost(result, served_usage(response).get("reported_cost_usd"))
+                except Exception as exc:  # noqa: BLE001 — recording never fails a call
+                    _log.warning("provider-cost stamp failed: %s", exc)
+            return result
 
     PinnedChatOpenAI.__name__ = "ChatOpenAI"
     PinnedChatOpenAI.__qualname__ = "ChatOpenAI"

@@ -775,6 +775,82 @@ def test_h5_run_ids_start_with_their_experiment_key():
     assert all(stem.startswith(key + "-") for stem, key in keys.items())
 
 
+def test_class_error_rates_are_one_vs_rest():
+    truth = ["a", "a", "b", "b"]
+    pred = ["a", "b", "b", "a"]
+    rates = sa.class_error_rates(truth, pred, ["a", "b"])
+    assert rates["class_fpr"] == {"a": 0.5, "b": 0.5}
+    assert rates["class_fnr"] == {"a": 0.5, "b": 0.5}
+    assert rates["class_macro_fpr"] == 0.5 and rates["class_macro_fnr"] == 0.5
+    perfect = sa.class_error_rates(truth, truth, ["a", "b"])
+    assert perfect["class_macro_fpr"] == 0.0 and perfect["class_macro_fnr"] == 0.0
+
+
+def test_paired_500_arms_share_one_draw_and_leave_the_classify_window_open():
+    from mailroom_sandbox.context_fit import decision_document_chars
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    llm = load_run_spec(RUNS / "sorter-vs-decision-500-llm-deepseek-v4.1-flash.yaml")
+    dec = load_run_spec(RUNS / "sorter-vs-decision-500-decision-luna.yaml")
+    assert llm.task == "isolated" and llm.engine.model == "deepseek/deepseek-v4.1-flash-1017"
+    assert dec.task == "sorter_reviewer" and dec.engine.model == "openai/gpt-6-luna-decisions"
+    assert dec.reviewer.model == dec.engine.model
+    assert dec.reviewer.questions == "reviewer_decisions_v4.1.0"
+    assert dec.reviewer.max_input_chars == decision_document_chars(1_050_000)
+    assert llm.dataset == dec.dataset
+    assert sum(bucket["count"] for bucket in llm.dataset.strata["buckets"]) == 500
+    assert llm.dataset.sample_seed == 3302 and llm.dataset.draw == "ranked"
+    assert llm.job.require_expanded_inputs is True
+    assert "max_input_chars" not in (llm.agent_knobs.get("sorter") or {})
+    assert llm.job.api_cost_cap_usd and dec.job.api_cost_cap_usd
+    assert "--initials <XX>" in (RUNS / f"{llm.run_id}.yaml").read_text()
+
+
+def test_paired_smoke_is_one_document_per_class_inside_the_500():
+    from mailroom_sandbox.context_fit import decision_document_chars
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    full = load_run_spec(RUNS / "sorter-vs-decision-500-llm-deepseek-v4.1-flash.yaml")
+    full_dec = load_run_spec(RUNS / "sorter-vs-decision-500-decision-luna.yaml")
+    llm = load_run_spec(RUNS / "sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml")
+    dec = load_run_spec(RUNS / "sorter-vs-decision-smoke-decision-luna.yaml")
+    assert llm.task == "isolated" and llm.engine.model == full.engine.model
+    assert dec.task == "sorter_reviewer" and dec.engine.model == full_dec.engine.model
+    assert dec.reviewer.backend == "decisions"
+    assert dec.reviewer.questions == full_dec.reviewer.questions == "reviewer_decisions_v4.1.0"
+    assert dec.reviewer.max_input_chars == full_dec.reviewer.max_input_chars == decision_document_chars(1_050_000)
+    assert llm.dataset == dec.dataset
+    assert llm.dataset.sample_seed == full.dataset.sample_seed == 3302
+    assert llm.dataset.draw == full.dataset.draw == "ranked"
+    assert llm.dataset.revision == full.dataset.revision
+    assert llm.dataset.staged_overlay == full.dataset.staged_overlay
+    assert llm.dataset.exclude_ids_file == full.dataset.exclude_ids_file
+    assert llm.dataset.require_task_gt is True
+    smoke = {b["doc_class"]: b["count"] for b in llm.dataset.strata["buckets"]}
+    paired = {b["doc_class"]: b["count"] for b in full.dataset.strata["buckets"]}
+    assert smoke == {name: 1 for name in paired}
+    assert all(smoke[name] <= paired[name] for name in paired)
+    assert llm.job.require_expanded_inputs is True
+    assert "max_input_chars" not in (llm.agent_knobs.get("sorter") or {})
+    assert llm.job.api_cost_cap_usd <= 3 and dec.job.api_cost_cap_usd <= 2
+    assert not llm.job.mock and not dec.job.mock
+    assert "--initials <XX>" in (RUNS / f"{llm.run_id}.yaml").read_text()
+
+
+def test_qwen_smoke_uses_the_same_five_documents_as_the_decision_arm():
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    qwen = load_run_spec(RUNS / "sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml")
+    dec = load_run_spec(RUNS / "sorter-vs-decision-smoke-decision-luna.yaml")
+    assert qwen.task == "isolated" and qwen.engine.model == "qwen/qwen3.7-flash"
+    assert qwen.dataset == dec.dataset
+    assert qwen.job.require_expanded_inputs is True
+    assert qwen.trace.sink == "none"
+    assert "max_input_chars" not in (qwen.agent_knobs.get("sorter") or {})
+    assert qwen.job.api_cost_cap_usd <= 1 and not qwen.job.mock
+    assert "--initials <XX>" in (RUNS / f"{qwen.run_id}.yaml").read_text()
+
+
 def test_h5_smoke20_arms_draw_the_same_documents_and_are_capped():
     from mailroom_sandbox.job.spec import load_run_spec
 

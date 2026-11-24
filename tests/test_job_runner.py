@@ -1274,10 +1274,13 @@ def test_persist_isolated_items_keeps_the_execution_window_and_per_call_usage(tm
     store = RunStore(tmp_path / "r")
     row = {"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 1000.0, "prompt_tokens": 60_000,
            "completion_tokens": 20, "llm_calls": 2, "call_usage": [[10_000, 10], [50_000, 10]],
+           "cached_tokens": 100, "cache_write_tokens": 0, "reported_cost_usd": 0.0184,
            "started_at_ns": 1_700_000_000_000_000_000, "finished_at_ns": 1_700_000_001_000_000_000}
     _persist_isolated_items(store, [row])
     item = json.loads(store.items_path.read_text().splitlines()[0])
     assert item["call_usage"] == [[10_000, 10], [50_000, 10]]
+    assert item["cached_tokens"] == 100 and item["cache_write_tokens"] == 0
+    assert item["reported_cost_usd"] == pytest.approx(0.0184)
     assert (item["started_at_ns"], item["finished_at_ns"]) == (row["started_at_ns"], row["finished_at_ns"])
 
 

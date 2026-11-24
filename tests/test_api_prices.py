@@ -58,6 +58,41 @@ def test_decisions_id_not_priced_as_chat_model():
     assert metrics.call_price("openai/gpt-6-luna-20261006", 300_000) == (0.20, 0.75)
 
 
+def test_provider_cost_is_kept_only_when_every_call_reports_one():
+    from mailroom_sandbox.job import usage_capture as uc
+
+    uc.reset_usage()
+    uc.note_provider_call({
+        "prompt_tokens": 1000, "completion_tokens": 10, "cost": 0.01,
+        "prompt_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 50},
+    })
+    assert uc.provider_calls()[0]["cached"] == 800 and uc.provider_calls()[0]["cache_write"] == 50
+    assert uc._reported_cost(uc.provider_calls()) == pytest.approx(0.01)
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc._reported_cost(uc.provider_calls()) is None
+    uc.note_provider_call({"prompt_tokens": 1.5, "completion_tokens": 1, "cost": 1})
+    assert len(uc.provider_calls()) == 2  # a non-integer count is not a recorded call
+    uc.reset_usage()
+    assert uc.provider_calls() == []
+    uc.note_pending_provider_cost(0.02)
+    uc.note_provider_call({"prompt_tokens": 100, "completion_tokens": 4})
+    assert uc.provider_calls()[-1]["cost"] == pytest.approx(0.02)
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc.provider_calls()[-1]["cost"] is None  # the held cost is consumed by the matching call
+
+
+def test_call_cost_bills_cached_prompt_tokens_at_the_cache_rate():
+    """Cached tokens sit inside the prompt total and are not billed again at the prompt rate."""
+    model = "deepseek/deepseek-v4.1-flash-1017"
+    full = metrics.call_cost(model, 1_000, 100)
+    cached = metrics.call_cost(model, 1_000, 100, cached_tokens=800)
+    assert full == pytest.approx((1_000 * 0.30 + 100 * 1.20) / 1e6)
+    assert cached == pytest.approx((200 * 0.30 + 800 * 0.006 + 100 * 1.20) / 1e6)
+    assert cached < full
+    item_cost, approx = metrics.item_calls_cost(model, {"call_usage": [[1_000, 100, 800, 0]]})
+    assert item_cost == pytest.approx(cached) and approx is False
+
+
 def test_call_cost_prices_each_call_at_its_tier():
     one_long = metrics.call_cost("qwen/qwen3.7-flash", 100_000, 1_000)
     ten_short = metrics.call_cost("qwen/qwen3.7-flash", 100_000, 1_000, calls=10)

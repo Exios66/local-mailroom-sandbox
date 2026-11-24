@@ -82,6 +82,8 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "openai/gpt-6-luna": (0.10, 0.50),
     "qwen/qwen3.7-flash": (0.03, 0.13),
     "deepseek/deepseek-v4-flash": (0.09, 0.18),  # list price checked 2026-11-18
+    # Peak list price (time-of-day windows fold into the dearest rate). Checked 2026-11-18.
+    "deepseek/deepseek-v4.1-flash-1017": (0.30, 1.20),
 }
 
 # Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
@@ -107,6 +109,9 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     ],
     "deepseek/deepseek-v4-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.09, "completion": 0.18, "cache_read": 0.018},
+    ],
+    "deepseek/deepseek-v4.1-flash-1017": [
+        {"min_prompt_tokens": 0, "prompt": 0.30, "completion": 1.20, "cache_read": 0.006},
     ],
     "qwen/qwen3.5-35b-a3b": [
         {"min_prompt_tokens": 0, "prompt": 0.14, "completion": 1.00, "cache_read": 0.05},
@@ -197,47 +202,88 @@ def price_sheet(model: str | None) -> list[dict[str, float]] | None:
     return sheet
 
 
-def call_price(model: str | None, prompt_tokens: float = 0) -> tuple[float, float] | None:
-    """USD per 1M (input, output) tokens for ONE call of ``prompt_tokens`` (its tier)."""
+def price_tier(model: str | None, prompt_tokens: float = 0) -> dict[str, float] | None:
+    """The price tier for one call of ``prompt_tokens``, including cache rates when the sheet has them."""
     override = _token_price_override()
     if override is not None:
-        return override
+        return {"prompt": float(override[0]), "completion": float(override[1])}
     sheet = price_sheet(model)
     if sheet is None:
-        return token_price(model) if model else None
-    tier = max((t for t in sheet if float(prompt_tokens or 0) >= t.get("min_prompt_tokens", 0)),
+        price = token_price(model) if model else None
+        if price is None:
+            return None
+        return {"prompt": float(price[0]), "completion": float(price[1])}
+    return max((t for t in sheet if float(prompt_tokens or 0) >= t.get("min_prompt_tokens", 0)),
                key=lambda t: t.get("min_prompt_tokens", 0), default=sheet[0])
+
+
+def call_price(model: str | None, prompt_tokens: float = 0) -> tuple[float, float] | None:
+    """USD per 1M (input, output) tokens for ONE call of ``prompt_tokens`` (its tier)."""
+    tier = price_tier(model, prompt_tokens)
+    if tier is None:
+        return None
     return float(tier["prompt"]), float(tier["completion"])
 
 
-def call_cost(model: str | None, prompt_tokens: float, completion_tokens: float, *, calls: int = 1) -> float | None:
-    """USD for ``calls`` calls totalling these tokens, each priced at its own (average) tier."""
+def call_cost(model: str | None, prompt_tokens: float, completion_tokens: float, *, calls: int = 1,
+              cached_tokens: float = 0, cache_write_tokens: float = 0) -> float | None:
+    """USD for ``calls`` calls totalling these tokens, each priced at its own (average) tier.
+
+    ``cached_tokens`` and ``cache_write_tokens`` are subsets of ``prompt_tokens`` (OpenRouter
+    counts them inside the prompt total and bills them at ``cache_read`` / ``cache_write``).
+    The remainder is billed at the prompt rate. With no cache split this is prompt × prompt
+    rate + completion × completion rate, as before.
+    """
     calls = max(1, int(calls or 1))
-    price = call_price(model, float(prompt_tokens or 0) / calls)
-    if price is None:
+    prompt = float(prompt_tokens or 0)
+    completion = float(completion_tokens or 0)
+    tier = price_tier(model, prompt / calls)
+    if tier is None:
         return None
-    return (float(prompt_tokens or 0) * price[0] + float(completion_tokens or 0) * price[1]) / 1_000_000
+    prompt_rate = float(tier["prompt"])
+    completion_rate = float(tier["completion"])
+    read_rate = float(tier["cache_read"]) if "cache_read" in tier else prompt_rate
+    write_rate = float(tier["cache_write"]) if "cache_write" in tier else prompt_rate
+    cached = min(max(0.0, float(cached_tokens or 0)), max(0.0, prompt))
+    written = min(max(0.0, float(cache_write_tokens or 0)), max(0.0, prompt - cached))
+    fresh = prompt - cached - written
+    return (fresh * prompt_rate + cached * read_rate + written * write_rate
+            + completion * completion_rate) / 1_000_000
+
+def _pair_numbers(pair: Sequence[Any]) -> tuple[float, float, float, float]:
+    """``(prompt, completion, cached, cache_write)`` from a call-usage row of 2 or 4 numbers."""
+    prompt = float(pair[0] or 0)
+    completion = float(pair[1] or 0) if len(pair) > 1 else 0.0
+    cached = float(pair[2] or 0) if len(pair) > 2 else 0.0
+    written = float(pair[3] or 0) if len(pair) > 3 else 0.0
+    return prompt, completion, cached, written
+
 
 def item_calls_cost(model: str | None, item: Mapping[str, Any]) -> tuple[float | None, bool]:
     """USD for one item's calls and whether the figure is approximate.
 
-    With ``call_usage`` (``[[prompt, completion], ...]``, one pair per call) each call is priced at
-    its own tier. Otherwise the item's totals are priced at its average call's tier; on a tiered
-    sheet that is approximate when the item has several calls and its prompt total reaches a tier
+    With ``call_usage`` (``[[prompt, completion], ...]`` or
+    ``[[prompt, completion, cached, cache_write], ...]``, one row per call) each call is priced
+    at its own tier, and cached prompt tokens at the cache rate when the row carries them.
+    Otherwise the item's totals are priced at its average call's tier; on a tiered sheet that
+    is approximate when the item has several calls and its prompt total reaches a tier
     threshold, since the calls may straddle it.
     """
     calls_usage = item.get("call_usage")
     if isinstance(calls_usage, list) and calls_usage:
         total = 0.0
         for pair in calls_usage:
-            cost = call_cost(model, float(pair[0] or 0), float(pair[1] or 0))
+            prompt, completion, cached, written = _pair_numbers(pair)
+            cost = call_cost(model, prompt, completion, cached_tokens=cached, cache_write_tokens=written)
             if cost is None:
                 return None, False
             total += cost
         return total, False
     prompt, completion = float(item.get("prompt_tokens") or 0), float(item.get("completion_tokens") or 0)
     calls = max(1, int(item.get("llm_calls") or 1))
-    cost = call_cost(model, prompt, completion, calls=calls)
+    cost = call_cost(model, prompt, completion, calls=calls,
+                     cached_tokens=float(item.get("cached_tokens") or 0),
+                     cache_write_tokens=float(item.get("cache_write_tokens") or 0))
     sheet = price_sheet(model) if _token_price_override() is None else None
     thresholds = [float(t.get("min_prompt_tokens", 0)) for t in sheet or [] if float(t.get("min_prompt_tokens", 0)) > 0]
     approximate = calls > 1 and bool(thresholds) and prompt >= min(thresholds)

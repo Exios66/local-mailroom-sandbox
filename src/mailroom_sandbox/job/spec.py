@@ -801,6 +801,9 @@ class ReviewerSpec(BaseModel):
     # A finished sorter run, a saved pass (data/handoff/<name>/<split>.jsonl), or several of
     # these merged (later entries win on overlap).
     handoff_run: str | list[str] | None = None
+    # Decisions classify only: raise the question set's document window up to the model's
+    # context. Omitted when unset, so older reviewer blocks keep their hash. Never lowers a set.
+    max_input_chars: int | None = None
 
     @field_validator("classes", mode="before")
     @classmethod
@@ -832,6 +835,8 @@ class ReviewerSpec(BaseModel):
             out.pop("allow_chat_model", None)
         if out.get("handoff_run") is None:
             out.pop("handoff_run", None)
+        if out.get("max_input_chars") is None:
+            out.pop("max_input_chars", None)
         return out
 
     @model_validator(mode="after")
@@ -855,6 +860,22 @@ class ReviewerSpec(BaseModel):
                                  "a human verdict gates at 0.0 and a cutoff of 0 would never park it")
         if self.backend != "decisions" and is_decisions_model(self.model):
             raise ValueError(f"{self.model!r} is a Decisions-API model; use reviewer backend decisions, not {self.backend!r}")
+        if self.max_input_chars is not None and (isinstance(self.max_input_chars, bool) or self.max_input_chars < 1):
+            raise ValueError("reviewer.max_input_chars must be a positive character count")
+        if self.max_input_chars is not None and self.backend != "decisions":
+            raise ValueError("reviewer.max_input_chars applies only to reviewer backend decisions")
+        if self.backend == "decisions" and self.max_input_chars is not None:
+            from mailroom_sandbox.context_fit import decision_document_chars
+            from mailroom_sandbox.decision_backends import decision_model
+
+            row = decision_model(self.model) or {}
+            context = int(row.get("context_length") or 0)
+            room = decision_document_chars(context) if context else 0
+            if self.max_input_chars > room:
+                raise ValueError(
+                    f"reviewer.max_input_chars={self.max_input_chars} exceeds the {context}-token "
+                    f"window of {self.model} once the question payload is reserved ({room} characters)"
+                )
         if self.backend == "api" and not self.allow_chat_model:
             raise ValueError(f"reviewer backend api runs the chat model {self.model!r} as the decision reviewer; "
                              "the decision reviewer is a Decisions-API model (backend decisions). "

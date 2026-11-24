@@ -8,9 +8,11 @@
 #
 # Pins chosen by the owner on 2026-11-18: the first-party or full-precision endpoint of each
 # model, no fallbacks. Qwen3.7 Flash and GLM have a single endpoint; Qwen3.5-9B takes DeepInfra's
-# standard bf16 tier (not `flex`, which is cheaper but queues); DeepSeek takes DeepSeek's own
-# serving ($0.30/$1.20 per M, the price config/api_prices.yaml already caps on). A response names
-# the provider for display (DeepInfra, Z.AI), which matches a tag on its provider part.
+# standard bf16 tier (not `flex`, which is cheaper but queues). DeepSeek 4.1 Flash is served by
+# Together at the $0.30/$1.20 per M list price in config/api_prices.yaml. The first-party
+# `deepseek` host is removed by the account guardrail (paid-model training), so a pin that names
+# only that host returns 404. A response names the provider for display (DeepInfra, Z.AI,
+# Together), which matches a tag on its provider part.
 #
 # `order: []` = not pinned (recorded only). Re-list the endpoints with
 #   python scripts/refresh_provider_pins.py            # lists each model's endpoints (public GET, no key)
@@ -26,7 +28,7 @@ models:
     order: [deepinfra/bf16]
     allow_fallbacks: false
   deepseek/deepseek-v4.1-flash-1017:
-    order: [deepseek]
+    order: [together]
     allow_fallbacks: false
   z-ai/glm-5.3-flashx-legal:
     # design pins the dated slug and its reasoning effort

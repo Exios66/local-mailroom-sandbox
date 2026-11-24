@@ -1,0 +1,61 @@
+# Smoke for the LLM sorter arm, before the 500-document run.
+# Paired with config/runs/sorter-vs-decision-smoke-decision-luna.yaml.
+# One document per class, same seed, revision, exclusion list, staged labels and
+# ranked draw as config/runs/sorter-vs-decision-500-llm-deepseek-v4.1-flash.yaml.
+# A ranked prefix nests, so these five documents are inside the 500.
+#
+# Same model and classify window as the 500: no max_input_chars knob, context fit
+# opens the window, and require_expanded_inputs refuses a run that stays at 12k.
+# Cap is $3. Five documents at the 1M-token peak are about $1.50 of input.
+#
+# Launch this arm first. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
+#   sandbox run preflight --config config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml
+#   sandbox run start --config config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: sorter-vs-decision-smoke-llm-deepseek-v4.1-flash
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  strata:
+    buckets:
+      - {doc_class: contract, count: 1}
+      - {doc_class: corporate_record, count: 1}
+      - {doc_class: correspondence, count: 1}
+      - {doc_class: insurance_claim, count: 1}
+      - {doc_class: merger_agreement, count: 1}
+  sample_seed: 3302
+  require_task_gt: true
+  staged_overlay: 9.3.1-rc.9
+  exclude_ids_file: config/production/excluded-ids.txt
+  draw: ranked
+
+engine:
+  kind: openrouter
+  model: deepseek/deepseek-v4.1-flash-1017
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 5
+  cost_cap_usd: 0.50
+  max_wall_seconds: 1200
+  api_cost_cap_usd: 3
+  require_expanded_inputs: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, sorter-vs-decision, llm-sorter, deepseek-v4.1-flash, openrouter, smoke]

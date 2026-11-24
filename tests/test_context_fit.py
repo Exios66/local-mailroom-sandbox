@@ -115,6 +115,17 @@ def test_disabled_fit_still_records_an_openrouter_route():
 
 def test_price_sheet_lists_the_flash_context():
     assert context_fit.api_context_lengths()["qwen/qwen3.7-flash"] >= 1_000_000
+    assert context_fit.api_context_lengths()["deepseek/deepseek-v4.1-flash-1017"] >= 1_000_000
+
+
+def test_deepseek_sorter_budget_uses_the_million_token_window():
+    """The classify node is not left on the 12k overlay cap for a 1M-token OpenRouter model."""
+    tax = build_merged_taxonomy(load_profile("openrouter"), model_override="deepseek/deepseek-v4.1-flash-1017")
+    applied = tax["context_fit"]["applied"]["sorter"]
+    assert applied["context_length"] >= 1_000_000
+    assert applied["before"] == 12000
+    assert tax["agents"]["sorter"]["max_input_chars"] == applied["after"]
+    assert applied["after"] >= context_fit.fit_chars(1_000_000, 2048, context_fit.DEFAULTS)
 
 
 def test_merged_taxonomy_fits_openrouter_but_not_modal():

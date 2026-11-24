@@ -176,7 +176,11 @@ def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[
         # is priced against the run's cap here (job.call_guard; no-op unless a budget is armed).
         if usage is not None:
             from mailroom_sandbox.job import call_guard
+            from mailroom_sandbox.job.usage_capture import note_provider_call
 
+            # The vendored accumulator keeps token counts only. The provider's own
+            # ``usage.cost`` and cache split are what an accurate bill is priced from.
+            note_provider_call(usage)
             call_guard.after_call(usage)
 
     return record_usage

@@ -218,6 +218,25 @@ DECISIONS_DIR_NAME = "decisions"
 DECISIONS_MAX_INPUT_CHARS = 2_000_000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
 
+
+def classify_window_chars(qset: Mapping[str, Any] | None, override: Any = None) -> int:
+    """Document characters sent to one Decisions classify call.
+
+    The question set's ``max_input_chars`` is the floor. A run's ``reviewer.max_input_chars``
+    may raise it so a model with a million-token window is not cut at a million characters.
+    The override never lowers the set.
+    """
+    set_cap = 0
+    if isinstance(qset, Mapping):
+        try:
+            set_cap = int(qset.get("max_input_chars") or 0)
+        except (TypeError, ValueError):
+            set_cap = 0
+    extra = override if isinstance(override, int) and not isinstance(override, bool) and override > 0 else 0
+    if set_cap and extra:
+        return max(set_cap, extra)
+    return extra or set_cap or DECISIONS_MAX_INPUT_CHARS
+
 # A card-shaped number: four groups of four digits with a space or hyphen between groups
 # (plus up to three trailing digits). OpenRouter's Decisions endpoint refuses a document
 # holding one (403 "content filter: [CREDIT_CARD]"), even a synthetic IBAN tail, and the
@@ -1005,10 +1024,16 @@ def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_
     fn = record_usage
     if getattr(fn, "_sandbox_hotfix", None) == "HF-004":
         fn = getattr(fn, "__wrapped__", fn)
+    # The unwrapped accumulator does not see HF-004, so the provider cost is noted here.
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
-    fn({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
-       model=model, agent=agent)
+    from mailroom_sandbox.job.usage_capture import note_provider_call
+
+    counted = {"prompt_tokens": int(usage.get("input_tokens") or 0),
+               "completion_tokens": int(usage.get("output_tokens") or 0),
+               "cost": usage.get("cost")}
+    note_provider_call(counted)
+    fn(counted, model=model, agent=agent)
 
 
 def _record_served(model: str, data: Mapping[str, Any]) -> None:
