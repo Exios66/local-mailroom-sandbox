@@ -1172,10 +1172,15 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
     score.update({k: v for k, v in (scored or {}).items()
                   if isinstance(v, (int, float)) and not isinstance(v, bool)})
     # SHF-012: the document's subclass outcome, hotfixed and raw (docs/scoring-hotfixes.md).
+    # SHF-013: a reviewed subclass correction replaces the Hub subclass on the hotfixed side.
     sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
-                                   result.get("doc_type"), scoring.predicted_subclass(result))
+                                   result.get("doc_type"), scoring.predicted_subclass(result),
+                                   doc_id=row.get("id"))
     if sub is not None:
         score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
+        if scoring.corrected_subclass_truth(row.get("id"), row.get("expected_doc_class"),
+                                            row.get("expected_subclass")) is not None:
+            score["subclass_corrected"] = True
     # The pain-point penalty points of this document (eval/pain_points.py), headline side.
     from mailroom_sandbox.eval import pain_points
 
@@ -1451,7 +1456,7 @@ def run_pipeline_eval(
     extraction = _pipeline_extraction_scores(extraction_rows, [e == p for e, p in zip(expected, predicted)])
     subclass_scores = scoring.score_subclass(
         expected, [r.get("expected_subclass") for r in rows], predicted,
-        [scoring.predicted_subclass(r) for r in results])
+        [scoring.predicted_subclass(r) for r in results], doc_ids=[r.get("id") for r in rows])
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)

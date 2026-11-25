@@ -185,7 +185,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",
-                  "e5bcf80dfa6598718cba4b7fd363f016e21d15cd73d8b5f0d530171824427f59")),
+                  "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed")),
         upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: draft issue D-5)",
         summary="pipeline items record the final sorter/reviewer subclass and score it joint with the "
                 "class on the canonical subclass token (normalize_corpus_subclass), not the Dojo's "
@@ -198,6 +198,10 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                   "37caf94d1d496885350500ac13164b5c94125ceb3eb7df6b626a974c52649ad0"),
                  ("mailroom_sandbox.eval.scoring:sorter_subclass_scores",
                   "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f"),
+                 # the pipeline item and run-level subclass scores take the same corrections
+                 ("mailroom_sandbox.eval.scoring:corrected_subclass_truth", "27cf68dd20c665c87e7f56948570a3748c7b345435a99de0d60e7114c0dc6cfc"),
+                 ("mailroom_sandbox.eval.scoring:subclass_correct", "630d2adcfe049b3b9004dc69854298bfb2415d7a2b4eeedbec21339f40bfbcd5"),
+                 ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
                   "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3")),
@@ -205,8 +209,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
         summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "
                 "canonical subclass token (subclass_scored, subclass_match, subclass_by_class); a reviewed "
-                "subclass correction replaces the Hub truth for subclass and unit scoring, the Hub-truth "
-                "figures stay under raw_dojo and the corrected documents are counted "
+                "subclass correction replaces the Hub truth for subclass and unit scoring, and for the "
+                "pipeline's per-item subclass_correct and run-level subclass scores (SHF-012 side), the "
+                "Hub-truth figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
     ),
     ScoringHotfix(

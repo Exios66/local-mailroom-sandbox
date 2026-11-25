@@ -378,12 +378,27 @@ def _dojo_subclass_match(expected: Any, predicted: Any) -> bool:
     return bool(pipeline_subclass_match(expected, predicted))
 
 
+def corrected_subclass_truth(doc_id: Any, expected_class: Any, expected_subclass: Any) -> str | None:
+    """SHF-013: the reviewed subclass that replaces this document's Hub subclass, or None.
+
+    Only while SHF-013 is current (``scoring_hotfixes.corrected_subclass``: the correction must
+    name the row's class and the Hub value it was reviewed against). Applied on the canonical
+    (SHF-012) side only; the raw Dojo-pin side always keeps the Hub truth.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if doc_id is None or not sh.enabled("SHF-013"):
+        return None
+    return sh.corrected_subclass(doc_id, expected_class, expected_subclass)
+
+
 def subclass_correct(expected_class: Any, expected_subclass: Any, predicted_class: Any,
-                     predicted_subclass: Any) -> tuple[float, float] | None:
+                     predicted_subclass: Any, *, doc_id: Any = None) -> tuple[float, float] | None:
     """``(raw Dojo-pin, hotfixed)`` subclass correctness of one document; None without truth.
 
     Hotfixed (SHF-012): right class and the same canonical subclass token. Raw: the Dojo's
-    class-blind exact string match.
+    class-blind exact string match. With ``doc_id``, SHF-013's reviewed subclass correction
+    replaces the Hub subclass on the hotfixed side, as in isolated sorter scoring.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -392,8 +407,9 @@ def subclass_correct(expected_class: Any, expected_subclass: Any, predicted_clas
     raw = float(_dojo_subclass_match(expected_subclass, predicted_subclass))
     if not sh.enabled("SHF-012"):
         return raw, raw
+    truth = corrected_subclass_truth(doc_id, expected_class, expected_subclass) or expected_subclass
     ok = (_norm_label(expected_class) == _norm_label(predicted_class)
-          and _subclass_token(expected_class, expected_subclass)
+          and _subclass_token(expected_class, truth)
           == _subclass_token(predicted_class, predicted_subclass))
     return raw, float(ok)
 
@@ -403,15 +419,18 @@ def score_subclass(
     expected_subclass: Sequence[Any],
     predicted_class: Sequence[Any],
     predicted_subclass: Sequence[Any],
+    doc_ids: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
-    """Subclass accuracy and macro-F1, joint with the class, dual reported (SHF-012).
+    """Subclass accuracy and macro-F1, joint with the class, dual reported (SHF-012, SHF-013).
 
     Each label is ``class/subclass`` on the canonical subclass token, so a document whose class
     is wrong has a wrong subclass (it stays in the denominator), two classes' ``other``
     subclasses never match, and ``Distributor`` meets ``distributor``. A row without a truth
     subclass is left out and counted (``subclass_n_no_truth``). ``subclass_accuracy_given_class``
     is the conditional figure over class-correct rows, named so it is never read as the joint one.
-    ``raw_dojo`` holds the Dojo pin's class-blind raw-string figures.
+    ``raw_dojo`` holds the Dojo pin's class-blind raw-string figures. With ``doc_ids``, SHF-013's
+    reviewed subclass corrections replace the Hub subclass on the canonical side (counted under
+    ``subclass_corrections_applied``); the raw side keeps the Hub truth.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.experiment_stats import macro_f1
@@ -419,19 +438,25 @@ def score_subclass(
     n = len(expected_class)
     if not (len(expected_subclass) == len(predicted_class) == len(predicted_subclass) == n):
         raise ValueError("subclass vectors differ in length")
+    if doc_ids is not None and len(doc_ids) != n:
+        raise ValueError("subclass vectors differ in length")
     fixed_on = sh.enabled("SHF-012")
+    ids = list(doc_ids) if doc_ids is not None else [None] * n
+    corrected = [corrected_subclass_truth(i, ec, es) if fixed_on and str(es or "").strip() else None
+                 for i, ec, es in zip(ids, expected_class, expected_subclass)]
 
     def compute(canonical: bool) -> dict[str, Any]:
         truth: list[str] = []
         pred: list[str] = []
         given: list[bool] = []
         no_truth = 0
-        for ec, es, pc, ps in zip(expected_class, expected_subclass, predicted_class, predicted_subclass):
+        for ec, es, pc, ps, fix in zip(expected_class, expected_subclass, predicted_class, predicted_subclass,
+                                       corrected):
             if not str(es or "").strip():
                 no_truth += 1
                 continue
             if canonical:
-                truth.append(f"{_norm_label(ec)}/{_subclass_token(ec, es)}")
+                truth.append(f"{_norm_label(ec)}/{_subclass_token(ec, fix or es)}")
                 pred.append(f"{_norm_label(pc)}/{_subclass_token(pc, ps)}")
                 if _norm_label(ec) == _norm_label(pc):
                     given.append(truth[-1] == pred[-1])
@@ -455,8 +480,12 @@ def score_subclass(
 
     raw = compute(False)
     fixed = compute(True) if fixed_on else raw
+    applied = sum(1 for c in corrected if c is not None)
+    if fixed_on and doc_ids is not None:
+        fixed["subclass_corrections_applied"] = applied
     keys = ("subclass_accuracy", "subclass_f1_macro", "subclass_accuracy_given_class", "subclass_n")
-    dual = sh.merge_dual(raw, fixed, ["SHF-012"] if fixed_on else [], keys=keys)
+    used = (["SHF-012"] if fixed_on else []) + (["SHF-013"] if applied else [])
+    dual = sh.merge_dual(raw, fixed, used, keys=keys)
     return {**{k: v for k, v in dual.items() if k not in ("raw_dojo", "scoring_hotfixes",
                                                           "scoring_hotfixes_changed")},
             "subclass_raw_dojo": dual["raw_dojo"], "subclass_scoring_hotfixes": dual["scoring_hotfixes"],

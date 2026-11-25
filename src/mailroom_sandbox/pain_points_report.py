@@ -198,7 +198,8 @@ def documents_for_run(run: str | Path, *, label: str | None = None, dataset_file
         result = {**pred, "error": error} if error else dict(pred)
         scored = runners._score_pipeline_extraction(row, result)
         sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
-                                       result.get("doc_type"), scoring.predicted_subclass(result))
+                                       result.get("doc_type"), scoring.predicted_subclass(result),
+                                       doc_id=row.get("id") or doc_id)
         docs.append(pain_points.document(row, result, scored, subclass_ok=None if sub is None else bool(sub[1]),
                                          doc_id=doc_id, groups=groups))
     if not docs:
