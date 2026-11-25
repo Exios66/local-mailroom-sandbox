@@ -738,15 +738,21 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
     Transport errors and ``_TRANSIENT`` statuses are retried with backoff (``attempts`` in all);
     any other status, or a refusal, raises at once. The timeout covers all attempts and
-    backoff together. An active pipeline run also limits it to the node timeout and run
-    deadline, so an abandoned backend thread cannot start another paid request afterwards.
+    backoff together, starting here after backend preparation. An active pipeline run also
+    caps that allowance at its configured call timeout and checks its absolute run deadline.
+    The caller's earlier node timer is not propagated here; it can expire first.
     """
     import os
     import time
+    import math
 
     import httpx
     from pipeline import limits
 
+    if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+        raise ValueError("Decisions attempts must be a positive integer")
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Decisions timeout must be finite and positive")
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not key:
         raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
@@ -764,7 +770,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
         return room
 
     last: Exception | None = None
-    count = max(1, attempts)
+    count = attempts
     for attempt in range(count):
         # Decisions calls bypass the chat provider wrappers; enforce the same run guard
         # before each HTTP attempt, including retries.

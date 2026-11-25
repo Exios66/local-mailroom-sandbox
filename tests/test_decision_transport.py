@@ -59,13 +59,29 @@ def test_request_budget_covers_retries_and_the_backoff(transport):
     assert len(calls) == 1 and sleeps == [2]
 
 
-def test_parent_node_timeout_also_bounds_transport(monkeypatch, transport):
+def test_configured_call_allowance_caps_the_transport_budget(monkeypatch, transport):
     _, calls, sleeps = transport
     monkeypatch.setattr(limits, "get_run_deadline", lambda: 1000.0)
     monkeypatch.setattr(limits, "get_call_timeout_seconds", lambda: 2)
     with pytest.raises(TimeoutError, match="Decisions.*deadline"):
         db._post_decision({}, timeout=120, attempts=3)
     assert len(calls) == 1 and calls[0]["timeout"] == 2 and sleeps == [2]
+
+
+@pytest.mark.parametrize("attempts", [0, -1, True, 1.5])
+def test_invalid_attempt_counts_never_send_a_request(transport, attempts):
+    _, calls, sleeps = transport
+    with pytest.raises(ValueError, match="attempts must be a positive integer"):
+        db._post_decision({}, timeout=120, attempts=attempts)
+    assert calls == sleeps == []
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, float("nan"), float("inf")])
+def test_invalid_timeouts_never_send_a_request(transport, timeout):
+    _, calls, sleeps = transport
+    with pytest.raises(ValueError, match="timeout must be finite and positive"):
+        db._post_decision({}, timeout=timeout, attempts=3)
+    assert calls == sleeps == []
 
 
 def test_retry_after_is_honored_without_sleeping_after_the_last_attempt(transport):
