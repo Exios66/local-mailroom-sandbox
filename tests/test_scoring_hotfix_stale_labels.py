@@ -111,3 +111,26 @@ def test_a_pipeline_item_keeps_its_raw_side_and_names_its_fixes():
     assert "SHF-015" in item["scoring_hotfixes"]
     plain = runners.pipeline_item_score(row, result, None)
     assert "raw_dojo" not in plain and plain["scoring_hotfixes"] == []
+
+
+def test_a_pipeline_item_records_the_stale_labels_it_dropped():
+    """The item record in items.jsonl names each dropped field and why; a clean row carries no key."""
+    result = {"doc_type": "correspondence", "stage": "archived",
+              "extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}}
+    stale_row = _row(HEURISTIC)
+    stale = runners.pipeline_item_score(stale_row, result, runners._score_pipeline_extraction(stale_row, result))
+    assert stale["stale_hub_labels"] == {"intent": "intent_heuristic"}
+    clean_row = _row({**HEURISTIC, "intent_source": "llm_zero_shot"})
+    clean = runners.pipeline_item_score(clean_row, result, runners._score_pipeline_extraction(clean_row, result))
+    assert "stale_hub_labels" not in clean
+    assert "stale_hub_labels" not in runners.pipeline_item_score(stale_row, result, None)
+
+
+def test_a_rescored_item_carries_the_stale_labels_too():
+    from mailroom_sandbox import rescore
+
+    row = _row(HEURISTIC)
+    pred = {"doc_type": "correspondence", "stage": "archived",
+            "extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}}
+    item = rescore.scorer_for({"task": "pipeline"})(row, pred)
+    assert item["stale_hub_labels"] == {"intent": "intent_heuristic"}

@@ -8,7 +8,7 @@
   - **SHF-015 (new):**
     - Changes: drops the labels the Dojo's `label_policy.stale_hub_labels` names from both sides of the extraction headline, never a value an interim, near-gold or staged overlay supplied (27 correspondence intents are kept that way). The gate no longer counts a dropped label toward `min_labelled`.
     - Paths: `score_extraction_row` (pipeline runs, rescore, pair reports, the gate's document score, `run_extract_eval`, the isolated `extract` scorer), `job/gate.labelled_count` and `scripts/extraction_gate.py` field truth. Not applied in gate cause typing, so `label_suspect` still sees a heuristic `intent`.
-    - Recorded as: `scoring_hotfixes`, `raw_dojo` and the row's `stale_hub_labels`.
+    - Recorded as: `scoring_hotfixes` and `raw_dojo` on the scored row, and `stale_hub_labels` (`{field: reason}`, for example `{"intent": "intent_heuristic"}`) on the item record in `items.jsonl`, present only when a field was dropped. A rescore writes it the same way.
   - **SHF-013 (extended):** reviewed subclass corrections bind in pipeline scoring too: the per-item `subclass_correct` (flagged `subclass_corrected`), the run's `score_subclass` (`subclass_corrections_applied`) and the pain-point subclass outcome. The Hub outcome stays under `raw_dojo`.
   - **SHF-010 (extended):** `run_extract_eval` passes `truth_overrides`, and its run scores carry `raw_dojo`, `scoring_hotfixes`, `scoring_hotfixes_changed` and `headline_basis`.
   - **SHF-005 (extended):**

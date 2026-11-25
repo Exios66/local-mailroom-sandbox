@@ -1203,6 +1203,11 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
             fixes.add("SHF-013")
     # Per-document dual provenance (docs/scoring-hotfixes.md): the raw Dojo-pin extraction values
     # and the fixes that moved this document's scores, so a report can show both sides per item.
+    # SHF-015: the Hub labels dropped as stale, by field and reason, so items.jsonl says which
+    # fields the headline did not score (absent when none were dropped).
+    stale = (scored or {}).get("stale_hub_labels")
+    if stale:
+        score["stale_hub_labels"] = dict(stale)
     raw_side = {k: v for k, v in ((scored or {}).get("raw_dojo") or {}).items()
                 if isinstance(v, (int, float)) and not isinstance(v, bool)}
     if raw_side:

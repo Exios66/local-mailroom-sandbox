@@ -71,9 +71,11 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
   - Also: `job/gate.labelled_count`, and `scripts/extraction_gate.py` `_field_truth`.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
-  - Recorded as: the row's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
-    stale-label score. `stale_hub_labels` names each dropped field and why. The extraction gate
-    calibration reports `field_truth_hotfixes`.
+  - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
+    stale-label score. The item record's `stale_hub_labels` (`{field: reason}`, for example
+    `{"intent": "intent_heuristic"}`) names each dropped field and why; the key is absent when
+    nothing was dropped. `sandbox rescore` writes it the same way, because it builds items with
+    `pipeline_item_score`. The extraction gate calibration reports `field_truth_hotfixes`.
 - **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
   - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
