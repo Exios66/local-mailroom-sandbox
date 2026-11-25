@@ -23,6 +23,13 @@ is context-fitted, the cap rises to the largest fitted budget, so chunking only
 happens when a document is longer than the model can take. Each agent's own
 budget still bounds its windows.
 
+A specialist that now reads a whole document in one call also writes the whole extraction
+in one reply, so its output cap rises with it: ``output_tokens`` (default 16384), never above
+the model's ``max_completion_tokens``, and only when the window still holds the fitted input.
+The L4 posture's 2-4k caps cut a long document's JSON off at ``finish_reason: length``, which
+the graph reads as a schema-invalid extraction and re-runs with the same cap. Explicit run
+``agent_knobs`` ``max_tokens`` still win.
+
 The judge and arbiter source windows are vendored literals; see
 :mod:`mailroom_sandbox.source_windows`. They follow the fitted ``judge`` /
 ``arbiter`` budgets recorded under ``context_fit.applied``.
@@ -53,6 +60,8 @@ DEFAULTS: dict[str, Any] = {
     # 12k/25k budget turns a 380k-char merger into ~100 calls on a 1M-context model:
     # they are fitted too, and read a document that fits in one call.
     "agents": ["specialists", "judge", "arbiter", "sorter", "sorter_reviewer", "intake"],
+    # Output cap for fitted specialists (one reply holds the whole document's extraction).
+    "output_tokens": 16384,
 }
 _DEFAULT_CHUNK_CHARS = 90_000
 
@@ -75,6 +84,42 @@ def _price_sheet_contexts() -> dict[str, int]:
         if length > 0:
             out[str(model)] = length
     return out
+
+
+@lru_cache(maxsize=1)
+def _price_sheet_outputs() -> dict[str, int]:
+    from mailroom_sandbox.paths import config_dir
+
+    try:
+        doc = yaml.safe_load((config_dir() / "api_prices.yaml").read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    out: dict[str, int] = {}
+    for model, row in (doc.get("models") or {}).items():
+        try:
+            length = int((row or {}).get("max_completion_tokens") or 0)
+        except (TypeError, ValueError):
+            continue
+        if length > 0:
+            out[str(model)] = length
+    return out
+
+
+def api_output_limits() -> dict[str, int]:
+    """Model id → largest completion (tokens) from the API price sheet."""
+    return dict(_price_sheet_outputs())
+
+
+def _output_cap(cfg: Mapping[str, Any], model: str, outputs: Mapping[str, int], current: int) -> int:
+    """The fitted specialist output cap: ``output_tokens`` within the model's limit, never lower."""
+    try:
+        wanted = int(cfg.get("output_tokens") or 0)
+    except (TypeError, ValueError):
+        wanted = 0
+    limit = outputs.get(model)
+    if limit:
+        wanted = min(wanted, int(limit))
+    return max(current, wanted)
 
 
 def api_context_lengths() -> dict[str, int]:
@@ -138,11 +183,15 @@ def apply_context_fit(
     *,
     agent_routes: Mapping[str, Any] | None = None,
     contexts: Mapping[str, int] | None = None,
+    outputs: Mapping[str, int] | None = None,
+    pinned_output: set[str] | frozenset[str] = frozenset(),
 ) -> dict:
     """Return a copy of ``taxonomy`` with long-context agents' budgets fitted.
 
     Records what changed under ``taxonomy["context_fit"]["applied"]`` (agent →
-    model, context_length, before, after) and the chunk cap under ``chunk_chars``.
+    model, context_length, before, after, and ``max_tokens`` {before, after} when a
+    specialist's output cap rose) and the chunk cap under ``chunk_chars``. Agents in
+    ``pinned_output`` carry a run ``max_tokens`` knob, which is kept as set.
     """
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)
@@ -158,6 +207,7 @@ def apply_context_fit(
     if not cfg.get("enabled", True):
         return out
     contexts = api_context_lengths() if contexts is None else contexts
+    outputs = api_output_limits() if outputs is None else outputs
     providers = {str(p) for p in cfg.get("providers") or []}
     specialists = _specialists(out)
     agents = out.get("agents") or {}
@@ -169,11 +219,22 @@ def apply_context_fit(
         if provider not in providers or not context:
             continue
         before = _budget(agent)
-        after = fit_chars(context, int(agent.get("max_tokens") or 4096), cfg)
+        max_tokens = int(agent.get("max_tokens") or 4096)
+        # A raised output cap must still leave the window wider than the posture's input
+        # budget; otherwise both stay as they were (a small model is never squeezed).
+        raise_output = name in specialists and name not in pinned_output
+        cap = _output_cap(cfg, model, outputs, max_tokens) if raise_output else max_tokens
+        after = fit_chars(context, cap, cfg)
+        if after <= before:
+            cap, after = max_tokens, fit_chars(context, max_tokens, cfg)
         if after <= before:
             continue
         agent["max_input_chars"] = after
-        record["applied"][name] = {"model": model, "context_length": context, "before": before, "after": after}
+        row: dict[str, Any] = {"model": model, "context_length": context, "before": before, "after": after}
+        if cap != max_tokens:
+            agent["max_tokens"] = cap
+            row["max_tokens"] = {"before": max_tokens, "after": cap}
+        record["applied"][name] = row
     _raise_chunk_cap(chunking, record, specialists, agents, cap)
     if record["applied"]:
         _log.info("context-fit budgets: %s", {k: v["after"] for k, v in record["applied"].items()})
@@ -352,6 +413,8 @@ def identity(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
             "model": row.get("model"),
             "context_length": row.get("context_length"),
             "after": row.get("after"),
+            # Only when the output cap rose, so locks of runs it never touched keep their digest.
+            **({"max_tokens": (row.get("max_tokens") or {}).get("after")} if row.get("max_tokens") else {}),
         }
         for name, row in sorted((fit.get("applied") or {}).items())
     }

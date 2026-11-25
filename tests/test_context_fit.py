@@ -9,6 +9,7 @@ from mailroom_sandbox import context_fit, source_windows
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
 
 CONTEXTS = {"qwen/qwen3.7-flash": 1_000_000, "small/api-model": 16_384}
+OUTPUTS = {"qwen/qwen3.7-flash": 65_536}
 
 
 def _taxonomy(provider="openrouter", model="qwen/qwen3.7-flash", **extra):
@@ -31,19 +32,66 @@ def _taxonomy(provider="openrouter", model="qwen/qwen3.7-flash", **extra):
 
 
 def test_long_context_api_agents_get_their_model_window():
-    out = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS)
+    out = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS)
     expected = int((1_000_000 - 4096 - 8000) * 2.4)
+    # A specialist also writes the whole extraction in one reply: its output cap rises.
+    specialist = int((1_000_000 - 16384 - 8000) * 2.4)
     agents = out["agents"]
-    assert agents["merger_agreement_specialist"]["max_input_chars"] == expected
+    assert agents["merger_agreement_specialist"]["max_input_chars"] == specialist
+    assert agents["merger_agreement_specialist"]["max_tokens"] == 16384
     assert agents["judge"]["max_input_chars"] == expected
+    assert agents["judge"]["max_tokens"] == 4096
     # The vendored sorter windows the whole document at its budget: fitted, it reads one window.
     assert agents["sorter"]["max_input_chars"] == expected
     assert out["context_fit"]["applied"]["sorter"]["before"] == 12000
-    assert out["chunking"]["chunk_chars"] == expected  # 418k-char mergers now fit one window
+    assert out["chunking"]["chunk_chars"] == specialist  # 418k-char mergers now fit one window
     applied = out["context_fit"]["applied"]
     assert applied["merger_agreement_specialist"] == {
-        "model": "qwen/qwen3.7-flash", "context_length": 1_000_000, "before": 36008, "after": expected}
-    assert out["context_fit"]["chunk_chars"] == {"before": 90000, "after": expected}
+        "model": "qwen/qwen3.7-flash", "context_length": 1_000_000, "before": 36008, "after": specialist,
+        "max_tokens": {"before": 4096, "after": 16384}}
+    assert "max_tokens" not in applied["judge"]
+    assert out["context_fit"]["chunk_chars"] == {"before": 90000, "after": specialist}
+
+
+def test_specialist_output_cap_respects_the_model_limit_and_a_small_window():
+    limited = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS,
+                                            outputs={"qwen/qwen3.7-flash": 8192})
+    assert limited["agents"]["contracts_specialist"]["max_tokens"] == 8192
+    # A window that cannot hold the raised cap beside the posture's input keeps both as they were.
+    small = context_fit.apply_context_fit(_taxonomy(model="small/api-model"), contexts=CONTEXTS, outputs=OUTPUTS)
+    assert small["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert small["context_fit"]["applied"] == {}
+    # A pinned run max_tokens is never raised; Modal and local routes keep the posture cap.
+    pinned = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS,
+                                           pinned_output={"contracts_specialist"})
+    assert pinned["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert "max_tokens" not in pinned["context_fit"]["applied"]["contracts_specialist"]
+    modal = context_fit.apply_context_fit(_taxonomy(provider="modal-vllm"), contexts=CONTEXTS, outputs=OUTPUTS)
+    assert modal["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    off = context_fit.apply_context_fit(_taxonomy(context_fit={"output_tokens": 0}), contexts=CONTEXTS,
+                                        outputs=OUTPUTS)
+    assert off["agents"]["contracts_specialist"]["max_tokens"] == 4096
+
+
+def test_identity_records_a_raised_output_cap():
+    raised = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS)
+    kept = context_fit.apply_context_fit(_taxonomy(context_fit={"output_tokens": 0}), contexts=CONTEXTS,
+                                         outputs=OUTPUTS)
+    assert context_fit.identity(raised)["applied"]["contracts_specialist"]["max_tokens"] == 16384
+    assert "max_tokens" not in context_fit.identity(kept)["applied"]["contracts_specialist"]
+    assert context_fit.identity(raised)["sha256"] != context_fit.identity(kept)["sha256"]
+
+
+def test_merged_taxonomy_raises_openrouter_specialist_output_but_keeps_a_run_knob():
+    fitted = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")
+    assert fitted["agents"]["correspondence_specialist"]["max_tokens"] == 16384
+    assert fitted["agents"]["judge"]["max_tokens"] == 4096
+    knob = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash",
+                                 agent_knobs={"correspondence_specialist": {"max_tokens": 3000}})
+    assert knob["agents"]["correspondence_specialist"]["max_tokens"] == 3000
+    assert "max_tokens" not in knob["context_fit"]["applied"]["correspondence_specialist"]
+    modal = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert modal["agents"]["correspondence_specialist"]["max_tokens"] == 2048
 
 
 @pytest.mark.parametrize("provider", ["modal-vllm", "vllm", "ollama", "lmstudio"])

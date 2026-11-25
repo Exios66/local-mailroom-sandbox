@@ -43,6 +43,8 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-008 | `langchain_agents.specialist_agents.merge_chunk_windows` | Records each surviving window's confidence on `_window_confidences` and its character length on `_window_lengths`. The merged confidence stays the vendored minimum (the old max-confidence merge is already gone). Scoring ignores the underscore key. | [Exios66/llm-mailroom#255](https://github.com/Exios66/llm-mailroom/issues/255) |
 | HF-009 | `graph.build_graph._run_chunked_extraction` | An API-routed specialist (OpenRouter or any hosted provider) reads the whole document in one `extract` call and never chunks. A document longer than its input budget fails with `WholeDocumentTooLong`, which the extract node records as a parse failure and sends to review, so it is never chunked or silently truncated. Context fit sizes that budget to the model's context. Modal, vLLM and other self-hosted routes keep the vendored chunking for models whose context cannot hold the document. | draft J-5 below (not filed) |
 | HF-010 | `agents.intake.sliding_windows` | When an API-routed sorter or intake would need more than one window for a document, the read fails with `WholeDocumentTooLong` instead. The sorter failure takes the graph's review path; intake fails soft and the deterministic clerk output stays. Calls from Modal, vLLM or other self-hosted routes, and calls from no agent, keep the vendored windows. | draft J-5 below (not filed) |
+| HF-011 | `graph.routing.after_judge` (also bound to `after_arbiter`) | With `confidence.judge_exhausted_to_arbiter: true` (the overlay default), two `graph.route_spec` rules: a `partial` verdict on the last judge pass goes to the arbiter for a final ruling instead of straight to a person, unless `after_arbiter` would park it anyway (extraction still unsure, or an unadjudicated conflict), so no call is spent on a foregone park; and the arbiter cannot order a re-extraction once the judge passes are spent, because that retry could not be judged. `accept_with_caveats` archives through the vendored checks; anything else parks with the `judge_partial` cause. `incomplete`, judge errors and transient errors keep the vendored routes. The router itself is unchanged: `route_spec` binds routers at import, so its rule registry is the hook. Without the key both rules are inert. | draft J-6 below (not filed) |
+| HF-012 | `graph.routing._transient_decision` | `confidence.transient_retry_max`, when set, is the number of times a node re-runs after a transient provider error (overlay: 1). `retry_chat_completion` already retries inside each call (5 attempts plus the SDK's own), so the vendored two node-level re-runs repeated whole extractions and judge passes. Unset keeps the vendored budget; counters and the `transient_exhausted` cause are unchanged. | draft J-6 below (not filed) |
 
 ### Confidence decisions
 
@@ -65,6 +67,12 @@ pipeline/scoring check, and run execution still verifies the locked identities.
   provider, so a hosted API route pays one call per window. Chunking should be limited to self-hosted serving
   with a small context, and an API route should refuse an oversize document. The sorter and intake
   `sliding_windows` reads have the same gap.
+- **J-6** The judge/arbiter lane has no shared loop budget. With the defaults (`retry_max` 2,
+  `arbiter_retry_max` 2, `judge_max_passes` 3, two transient node re-runs) one unsure document can make
+  five extractions, three judge passes and two arbiter calls and still park, because confidence retries
+  and arbiter retries share `extraction_attempts` and interleave. A `partial` verdict on the last pass
+  parks without the arbiter's ruling, and the transient node budget sits on top of the call-level retry
+  ladder. Budgets should be per lane and a last-pass `partial` should reach the arbiter once.
 
 Filing these upstream is an owner decision.
 

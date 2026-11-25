@@ -315,7 +315,10 @@ def build_merged_taxonomy(
     # alone. Run knobs below still win. A run ``max_tokens`` goes in first so the
     # fit reserves that output allowance instead of the overlay's.
     merged = apply_agent_overrides(merged, agent_knobs, keys=("max_tokens",))
-    merged = apply_context_fit(merged, agent_routes=_fit_routes(agent_routes, agent_models))
+    pinned = {str(name) for name, knob in (agent_knobs or {}).items()
+              if isinstance(knob, dict) and knob.get("max_tokens") is not None}
+    merged = apply_context_fit(merged, agent_routes=_fit_routes(agent_routes, agent_models),
+                               pinned_output=pinned)
     # SAND-019: run-scoped generation-budget knobs (e.g. a 32768-window AWQ run
     # that needs more decode tokens than the bf16-safe 16384 overlay allows) win
     # last, after the profile's global overlay. Keeps the default overlay

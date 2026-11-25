@@ -239,9 +239,27 @@ def test_judge_pass_budget_escalates(graph, monkeypatch, tmp_path):
     passes = int(thresholds().get("judge_max_passes") or 3)
     result, visited = walk(graph, monkeypatch, tmp_path, {
         "classify": [sorted_as(HIGH)], "extract": [extracted(judged())],
-        "judge_verify": [{"judge_verdict": "partial", "judge_pass_count": passes, "transient_error": False}]})
+        "judge_verify": [{"judge_verdict": "incomplete", "judge_pass_count": passes, "transient_error": False}]})
     record(visited)
     assert result["stage"] == "review"
+    assert "arbiter" not in visited  # an incomplete last pass still parks without the arbiter
+
+
+@pytest.mark.parametrize(("decision", "stage"), [("accept_with_caveats", "archived"),
+                                                 ("retry_extraction", "review")])
+def test_a_partial_last_pass_gets_the_arbiters_final_ruling(decision, stage, graph, monkeypatch, tmp_path):
+    """HF-011 (overlay judge_exhausted_to_arbiter): one arbiter call instead of a straight park;
+    a re-extraction it orders there could not be judged again, so that goes to a person."""
+    passes = int(thresholds().get("judge_max_passes") or 3)
+    assert thresholds().get("judge_exhausted_to_arbiter") is True
+    result, visited = walk(graph, monkeypatch, tmp_path, {
+        "classify": [sorted_as(HIGH)], "extract": [extracted(judged())],
+        "judge_verify": [{"judge_verdict": "partial", "judge_pass_count": passes, "transient_error": False}],
+        "arbiter": [{"arbiter_decision": decision, "arbiter_retry_count": 1 if decision == "retry_extraction" else 0,
+                     "transient_error": False}]})
+    record(visited)
+    assert result["stage"] == stage
+    assert visited.count("arbiter") == 1 and "retry_extract" not in visited
 
 
 @pytest.mark.parametrize("decision,stage", [("approved", "archived"), ("rejected", "failed")])

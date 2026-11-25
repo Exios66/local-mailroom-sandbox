@@ -59,6 +59,23 @@ context_fit:
   reserve_tokens: 8000
   providers: [openrouter]
   agents: [specialists, judge, arbiter, sorter, sorter_reviewer, intake]
+  # A fitted specialist writes the whole document's extraction in one reply, so its output cap
+  # rises too (within the model's max_completion_tokens; never on Modal/local routes, never over
+  # a run max_tokens knob). The 2-4k L4 caps below cut long JSON off and forced re-extractions.
+  output_tokens: 16384
+
+# Retry budgets (one retry per lane, not two). The vendored defaults let one document run up
+# to five extractions, three judge passes and two arbiter calls before parking it for a
+# person (retry_max 2 + arbiter_retry_max 2, judge_max_passes 3, two node-level transient
+# re-runs on top of retry_chat_completion's own five attempts). A run's `confidence`
+# block and a locked run's frozen block still win; a lock written before these keys keeps
+# the vendored routing (HF-011 and HF-012 are inert without them).
+confidence:
+  retry_max: 1                    # one confidence/schema re-extraction (classify retries once anyway)
+  arbiter_retry_max: 1            # one arbiter fix-list re-extraction
+  judge_max_passes: 2             # = 1 + arbiter_retry_max: every arbiter retry is judged once
+  transient_retry_max: 1          # HF-012: node re-runs after a transient provider error
+  judge_exhausted_to_arbiter: true  # HF-011: a partial last pass gets the arbiter's final ruling
 
 # DMR-072: run-level limits — 900s was too high for idle; 600s holds L4
 # saturation bursts (queue + decode under concurrency 4–5). The vendored
