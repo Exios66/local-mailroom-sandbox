@@ -87,6 +87,15 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     `{"intent": "intent_heuristic"}`) names each dropped field and why; the key is absent when
     nothing was dropped. `sandbox rescore` writes it the same way, because it builds items with
     `pipeline_item_score`. The extraction gate calibration reports `field_truth_hotfixes`.
+  - Known limits:
+    1. Gate-cause typing (`job/gate_causes`) does not apply the SHF-015 drop, so `label_suspect`
+       can still see a heuristic `intent`; a document failing on another field could be typed
+       `label_suspect`. Follow-up.
+    2. There is no near-gold refill after a drop. If a future overlay supplies a gap fill for a
+       field whose Hub label is stale, the overlay skips it (the Hub field is populated) and
+       SHF-015 then drops it. Today zero cached rows are affected.
+    3. `scripts/sand032/rescore.py` passes no `overlay_fields`, so SHF-015 is off there by
+       design and its output is not comparable to the hotfixed headline.
 - **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
   - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
