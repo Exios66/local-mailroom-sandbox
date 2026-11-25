@@ -21,6 +21,25 @@ def prepared(tmp_path, source_root):
     return store
 
 
+def test_modal_dispatch_refuses_a_rescore_lock_before_spawn(tmp_path, source_root, modal_fs):
+    """A copied remote call id must not attach or spawn, and the checkpoint stays paused."""
+    store = prepared(tmp_path, source_root)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["lock_kind"] = "rescore.lock"
+    lock["rescore"] = {"source_run": "source-run"}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    store.write_checkpoint(state="paused", cursor=0, total=1, remote={"call_id": "fc-LIVE"})
+    modal_fs.calls["fc-LIVE"] = "RUNNING"
+    before = store.checkpoint_path.read_bytes()
+    with pytest.raises(RuntimeError, match="rescore lock"):
+        remote.ensure_running(store)
+    with pytest.raises(RuntimeError, match="rescore lock"):
+        remote.fire(store)
+    assert modal_fs.spawned == []
+    assert store.checkpoint_path.read_bytes() == before
+    assert store.read_checkpoint()["state"] == "paused"
+
+
 def test_fire_persists_call_id(tmp_path, source_root, modal_fs):
     store = prepared(tmp_path, source_root)
     result = remote.fire(store)

@@ -17,7 +17,7 @@ from typing import Any
 from mailroom_sandbox import console_log
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
-from mailroom_sandbox.job.checkpoint import RunStore, utc_now
+from mailroom_sandbox.job.checkpoint import RunStore, refuse_rescore_execution, utc_now
 from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run, routed_gpu_fleet
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
@@ -1045,6 +1045,7 @@ def run_job(
     if not dry_run:
         store.verify_generation()
         _refuse_mock_override(store, mock)
+        refuse_rescore_execution(store)
     if dry_run:
         return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
                         max_items=max_items, tracer=tracer, on_event=on_event)
