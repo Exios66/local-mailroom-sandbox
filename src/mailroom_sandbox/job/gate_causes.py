@@ -206,9 +206,9 @@ def label_suspect(row: Mapping[str, Any], pred: Mapping[str, Any], field: str | 
     are scored on CUAD/MAUD labels, never on that intent, so they never qualify. An ``intent`` that an
     overlay supplied (``_overlay_supplied``) never qualifies either: an interim correction or the
     staged overlay leaves ``intent_source`` as ``heuristic`` while replacing the value, so the
-    marker, not the source tag, says the label was reviewed. The predicted value must be in the intent vocabulary, must not be
-    ``other`` (a catch-all, too common to be evidence), and must appear in the text as whole words
-    (underscores read as spaces).
+    marker, not the source tag, says the label was reviewed. The predicted value must be in the
+    intent vocabulary, must not be ``other`` (a catch-all, too common to be evidence), and must
+    appear in the text as whole words (underscores read as spaces).
     """
     if field != "intent" or str(row.get("expected_doc_class")) in _UNIT_FIELD:
         return False
