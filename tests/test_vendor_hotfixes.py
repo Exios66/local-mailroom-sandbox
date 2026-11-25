@@ -727,3 +727,27 @@ def test_a_fresh_run_lock_lists_the_intake_hotfixes_and_a_lock_without_them_refu
                                         if f["id"] not in {"HF-014", "HF-015"}]
     store.lock_path.write_text(json.dumps(lock))
     assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+
+
+def test_hf014_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_document(monkeypatch):
+    """The 2k-output failure: a model asked to re-emit the text is cut off; asked for triage only, it is not."""
+    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    import agents.intake as intake
+
+    def model(user, schema, system_prompt=None, **_kw):
+        if "Return the FULL repaired text" in (system_prompt or ""):
+            return {"_raw": '{"triage": {"primary_doc_', "_parse_error": True}  # cut off at the cap
+        assert "cleaned_text" not in schema["properties"]
+        return {"triage": _INTAKE_TRIAGE, "sections": []}
+
+    agent = _intake_agent()
+    monkeypatch.setattr(agent, "_call_structured", model, raising=False)
+    monkeypatch.setattr(agent, "_configured_max_input_chars", lambda: 10_000_000, raising=False)
+    doc = "Section 4.2 The Purchase Price is payable on\nthe Closing Date.\n\n\n\n" * 400
+    prep = agent.intake_run(doc, "messy.txt")
+    assert prep["triage"]["primary_doc_class"] == "contract" and "cleaned" not in prep
+    assert intake.format_intake_prior(prep).startswith("[intake prior")
+    # The same agent under the vendored prompt loses the read, and HF-015 then sends no prior.
+    monkeypatch.setattr(agent, "system_prompt", lambda: intake.INTAKE_SYSTEM_PROMPT)
+    lost = agent.intake_run(doc, "messy.txt")
+    assert lost["triage"] == {} and intake.format_intake_prior(lost) == ""
