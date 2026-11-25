@@ -909,94 +909,374 @@ def _error_slug(note: str | None) -> str:
     return _mode_token(word)
 
 
+# Appended to every lever. The recorded run is not rewritten.
+_PAST_RUN_UNCHANGED = " The past run is left unchanged."
+
+
+def _pack_mode(mode_id: str, label: str, lever: str) -> dict:
+    """A mode id, a short label, and a next-run lever, each clipped for the digest."""
+    return {"id": mode_id, "label": _clip(label, 180), "lever": _clip(lever, 360)}
+
+
+def _class_disagreement(gt: str | None, pred: str | None) -> bool:
+    """True when both classes were stored and they differ."""
+    return bool(gt and pred and gt != pred)
+
+
+def _class_note(gt: str | None, pred: str | None) -> str:
+    """A label suffix for a stored class disagreement, or empty."""
+    if not _class_disagreement(gt, pred):
+        return ""
+    return f" · class {gt} recorded as {pred}"
+
+
+def _stop_node(stopped: str | None, last: dict | None) -> str:
+    """The node a trace stopped on, else the last visit, else ``unknown``."""
+    if stopped:
+        return stopped
+    if last:
+        return last["node"]
+    return "unknown"
+
+
+def _loop_at(loops: list[dict], node: str) -> dict | None:
+    """The repeat on ``node``, else the first repeat, else None."""
+    for row in loops:
+        if row["node"] == node:
+            return row
+    if loops:
+        return loops[0]
+    return None
+
+
+def _stuck_mode(loop: dict | None, miss_bit: str) -> dict | None:
+    """The still-open repeat, or None when this document has no repeat row."""
+    if not loop:
+        return None
+    return _pack_mode(
+        f"stuck:{_mode_token(loop['node'])}:{loop['kind']}",
+        f"{loop['node']} repeated ({loop['kind']}) and is still open{miss_bit}",
+        f"Next run: {loop['node']} is still repeating. Use the decisions stored on those "
+        f"visits. A missing decision was not recorded, so do not guess a cutoff from this view."
+        + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _failed_mode(node: str, note: str | None, miss_bit: str) -> dict:
+    """A technical failure, grouped by the node and the error token."""
+    slug = _error_slug(note)
+    shown = _clip(note, 120) if note else "no error text"
+    return _pack_mode(
+        f"failed:{_mode_token(node)}:{slug}",
+        f"Failed at {node} · {slug}{miss_bit}",
+        f"Next run: this is a technical failure at {node}, not a route. "
+        f"The recorded error ({shown}) is the defect. "
+        f"Fix that failure before rerunning the same documents." + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _cause_stages(causes: list[str]) -> list[str]:
+    """Known review-cause stages, in first-seen order."""
+    stages: list[str] = []
+    for cause in causes:
+        stage = CAUSE_TRIGGER_STAGE.get(cause)
+        if stage and stage not in stages:
+            stages.append(stage)
+    return stages
+
+
+def _held_lever(node: str, causes: list[str], review: str | None,
+                gt: str | None, pred: str | None) -> str:
+    """Where a later run should look for a document parked in review."""
+    stages = _cause_stages(causes)
+    if causes and stages:
+        lever = (f"Next run: recorded cause {', '.join(causes)}. "
+                 f"That points at the {' and '.join(stages)} stage, not at a later node. "
+                 f"Read the stored decision there before changing that prompt or band.")
+    elif causes:
+        lever = (f"Next run: recorded cause {', '.join(causes)} is not in the known "
+                 f"cause list. Leave it as recorded and inspect the hop into {node}.")
+    else:
+        lever = (f"Next run: no review cause was stored. The park is attributed to "
+                 f"{review or 'no stage'}. Inspect the hop into {node} before changing a prompt.")
+    if _class_disagreement(gt, pred):
+        lever += f" Ground truth is {gt}; the run recorded {pred}."
+    return lever + _PAST_RUN_UNCHANGED
+
+
+def _held_mode(node: str, causes: list[str], review: str | None,
+               gt: str | None, pred: str | None, miss_bit: str) -> dict:
+    """A review park, grouped by the stop node and the recorded causes."""
+    if causes:
+        key = "+".join(causes)
+    else:
+        key = review or "unattributed"
+    return _pack_mode(
+        f"held:{_mode_token(node)}:{_mode_token(key)}",
+        f"Held at {node} · {key}{miss_bit}",
+        _held_lever(node, causes, review, gt, pred),
+    )
+
+
+def _archived_miss_mode(gt: str, pred: str) -> dict:
+    """A class miss that still recorded archive."""
+    return _pack_mode(
+        f"miss:archived:{_mode_token(gt)}>{_mode_token(pred)}",
+        f"Archived under the wrong class · {gt} recorded as {pred}",
+        f"Next run: the document reached archive with ground truth {gt} and recorded class {pred}. "
+        f"The classify decision is the disagreement. Do not treat that archive as a correct route."
+        + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _open_mode(node: str, miss_bit: str) -> dict:
+    """A trace that is still open and did not repeat its last node."""
+    return _pack_mode(
+        f"open:{_mode_token(node)}",
+        f"Still open at {node}{miss_bit}",
+        f"Next run: the trace is still open at {node}. Resume or read that visit before "
+        f"changing a prompt. This is not a completed routing decision." + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _diverted_mode(node: str, miss_bit: str) -> dict:
+    """A trace that stopped without recording archive."""
+    return _pack_mode(
+        f"diverted:{_mode_token(node)}",
+        f"Stopped at {node} without archive{miss_bit}",
+        f"Next run: the trace stopped at {node} and never recorded archive. "
+        f"Use the hop into that node. Do not invent a router input that was not stored."
+        + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _recovered_loop_mode(loop: dict | None) -> dict | None:
+    """A repeat that later recorded archive, or None when there is no repeat."""
+    if not loop:
+        return None
+    return _pack_mode(
+        f"loop:{_mode_token(loop['node'])}:{loop['kind']}",
+        f"{loop['node']} repeated ({loop['kind']}) and then reached archive",
+        f"This repeat reached archive, so it is not an open failure. A later run that stops "
+        f"on {loop['node']} the same way is the same mode." + _PAST_RUN_UNCHANGED,
+    )
+
+
+def _first_mode(modes: list[dict | None]) -> dict | None:
+    """The first mode that applied, in the fixed ranking."""
+    for mode in modes:
+        if mode:
+            return mode
+    return None
+
+
+def _early_modes(issues: list[str], loop: dict | None, miss_bit: str, node: str,
+                 note: str | None, causes: list[str], review: str | None,
+                 gt: str | None, pred: str | None) -> list[dict | None]:
+    """Stuck, then a technical failure, then a review park."""
+    modes: list[dict | None] = []
+    if "stuck" in issues:
+        modes.append(_stuck_mode(loop, miss_bit))
+    if "failed" in issues:
+        modes.append(_failed_mode(node, note, miss_bit))
+    if "held" in issues:
+        modes.append(_held_mode(node, causes, review, gt, pred, miss_bit))
+    return modes
+
+
+def _archived_if(reached: bool, gt: str | None, pred: str | None) -> dict | None:
+    """A class miss that reached archive, else None."""
+    if not reached or not _class_disagreement(gt, pred):
+        return None
+    return _archived_miss_mode(str(gt), str(pred))
+
+
+def _late_modes(issues: list[str], node: str, miss_bit: str, loop: dict | None) -> list[dict | None]:
+    """An open trace, a missed archive, then a repeat that did reach archive."""
+    modes: list[dict | None] = []
+    if "open" in issues:
+        modes.append(_open_mode(node, miss_bit))
+    if "diverted" in issues:
+        modes.append(_diverted_mode(node, miss_bit))
+    modes.append(_recovered_loop_mode(loop))
+    return modes
+
+
 def _failure_mode(issues: list[str], loops: list[dict], last: dict | None, stopped: str | None,
                   reached: bool, causes: list[str], review: str | None,
                   note: str | None, pred: str | None, gt: str | None) -> dict | None:
     """One stable failure mode for a document, or None when nothing went wrong.
 
     The id groups documents that failed the same way. The lever names the stage
-    a later run should inspect. It does not rewrite this run.
+    a later run should inspect. It does not rewrite this run. Ranking is stuck,
+    failed, held, an archived class miss, open, diverted, then a recovered loop.
     """
     if not issues:
         return None
-    miss = bool(gt and pred and gt != pred)
-    miss_bit = f" · class {gt} recorded as {pred}" if miss else ""
-    node = stopped or (last["node"] if last else None) or "unknown"
-    loop = next((row for row in loops if row["node"] == node), None) or (loops[0] if loops else None)
+    miss_bit = _class_note(gt, pred)
+    node = _stop_node(stopped, last)
+    loop = _loop_at(loops, node)
+    modes = _early_modes(issues, loop, miss_bit, node, note, causes, review, gt, pred)
+    modes.append(_archived_if(reached, gt, pred))
+    modes.extend(_late_modes(issues, node, miss_bit, loop))
+    return _first_mode(modes)
 
-    def pack(mode_id: str, label: str, lever: str) -> dict:
-        return {"id": mode_id, "label": _clip(label, 180), "lever": _clip(lever, 360)}
 
-    unchanged = " The past run is left unchanged."
-    if "stuck" in issues and loop:
-        return pack(
-            f"stuck:{_mode_token(loop['node'])}:{loop['kind']}",
-            f"{loop['node']} repeated ({loop['kind']}) and is still open{miss_bit}",
-            f"Next run: {loop['node']} is still repeating. Use the decisions stored on those "
-            f"visits. A missing decision was not recorded, so do not guess a cutoff from this view."
-            + unchanged,
-        )
-    if "failed" in issues:
-        slug = _error_slug(note)
-        return pack(
-            f"failed:{_mode_token(node)}:{slug}",
-            f"Failed at {node} · {slug}{miss_bit}",
-            f"Next run: this is a technical failure at {node}, not a route. "
-            f"The recorded error ({_clip(note, 120) if note else 'no error text'}) is the defect. "
-            f"Fix that failure before rerunning the same documents." + unchanged,
-        )
-    if "held" in issues:
-        key = "+".join(causes) if causes else (review or "unattributed")
-        stages = []
-        for cause in causes:
-            stage = CAUSE_TRIGGER_STAGE.get(cause)
-            if stage and stage not in stages:
-                stages.append(stage)
-        if causes and stages:
-            lever = (f"Next run: recorded cause {', '.join(causes)}. "
-                     f"That points at the {' and '.join(stages)} stage, not at a later node. "
-                     f"Read the stored decision there before changing that prompt or band.")
-        elif causes:
-            lever = (f"Next run: recorded cause {', '.join(causes)} is not in the known "
-                     f"cause list. Leave it as recorded and inspect the hop into {node}.")
-        else:
-            lever = (f"Next run: no review cause was stored. The park is attributed to "
-                     f"{review or 'no stage'}. Inspect the hop into {node} before changing a prompt.")
-        if miss:
-            lever += f" Ground truth is {gt}; the run recorded {pred}."
-        return pack(f"held:{_mode_token(node)}:{_mode_token(key)}",
-                    f"Held at {node} · {key}{miss_bit}", lever + unchanged)
-    if miss and reached:
-        return pack(
-            f"miss:archived:{_mode_token(gt)}>{_mode_token(pred)}",
-            f"Archived under the wrong class · {gt} recorded as {pred}",
-            f"Next run: the document reached archive with ground truth {gt} and recorded class {pred}. "
-            f"The classify decision is the disagreement. Do not treat that archive as a correct route."
-            + unchanged,
-        )
-    if "open" in issues:
-        return pack(
-            f"open:{_mode_token(node)}",
-            f"Still open at {node}{miss_bit}",
-            f"Next run: the trace is still open at {node}. Resume or read that visit before "
-            f"changing a prompt. This is not a completed routing decision." + unchanged,
-        )
-    if "diverted" in issues:
-        return pack(
-            f"diverted:{_mode_token(node)}",
-            f"Stopped at {node} without archive{miss_bit}",
-            f"Next run: the trace stopped at {node} and never recorded archive. "
-            f"Use the hop into that node. Do not invent a router input that was not stored."
-            + unchanged,
-        )
-    if loop:
-        return pack(
-            f"loop:{_mode_token(loop['node'])}:{loop['kind']}",
-            f"{loop['node']} repeated ({loop['kind']}) and then reached archive",
-            f"This repeat reached archive, so it is not an open failure. A later run that stops "
-            f"on {loop['node']} the same way is the same mode." + unchanged,
-        )
+def _hop_list(visits: list[dict], causes: list[str],
+              plain: set[tuple[str, str]]) -> tuple[list[dict], int]:
+    """Collapsed hops, and how many were dropped past the digest cap."""
+    collapsed = [0]
+    for index in range(1, len(visits)):
+        if visits[index]["node"] != visits[index - 1]["node"]:
+            collapsed.append(index)
+    hops = []
+    for index in range(len(collapsed) - 1):
+        source = visits[collapsed[index + 1] - 1]
+        dest = visits[collapsed[index + 1]]["node"]
+        hops.append({"from": source["node"], "to": dest, "why": _hop_why(source, dest, causes, plain)})
+    omitted = 0
+    if len(hops) > _DEBUG_HOP_CAP:
+        omitted = len(hops) - _DEBUG_HOP_CAP
+        hops = hops[:8] + hops[-8:]
+    return hops, omitted
+
+
+def _repeat_clause(loops: list[dict]) -> str:
+    """The 'earlier repeats' sentence, or empty when the trace did not repeat."""
+    if not loops:
+        return ""
+    body = ", ".join(f"{row['node']} ×{row['visits']} ({row['kind']})" for row in loops)
+    return " Earlier repeats: " + body + "."
+
+
+def _why_untraced(outcome: str, stage: str | None, note: str | None) -> str:
+    """Archive cannot be confirmed because no node visit was stored."""
+    text = f"No node trace was recorded. Outcome is {outcome}"
+    if stage:
+        text += f", stage {stage}"
+    if note:
+        text += f". {note}"
+    else:
+        text += "."
+    return text + " Archive cannot be confirmed from visits."
+
+
+def _why_ship_gap(stage: str | None) -> str:
+    """A shipped item whose trace never recorded the archive node."""
+    shown = stage or "archived"
+    return (f"Item stage is {shown} but the node trace never recorded archive. "
+            "Paths rebuilt from stage audits omit nodes that write no audit entry, "
+            "including catalog_write and archive.")
+
+
+def _review_handoff(hops: list[dict]) -> str:
+    """The recorded reason for the hop into human review, or empty."""
+    for hop in hops:
+        if hop["to"] == "human_review":
+            return hop["why"]
+    return ""
+
+
+def _why_held(stopped: str | None, stage: str | None, review: str | None,
+              causes: list[str], hops: list[dict], repeat: str) -> str:
+    """Why a parked document never recorded archive."""
+    text = f"Held at {stopped or 'unknown'}"
+    if stage:
+        text += f" (stage {stage})"
+    trigger = review or "unattributed"
+    if causes:
+        cause_text = ", ".join(causes)
+    else:
+        cause_text = "none recorded"
+    text += f". Review trigger: {trigger}. Causes: {cause_text}. Archive was not visited."
+    handoff = _review_handoff(hops)
+    if handoff:
+        text += f" {handoff}"
+    return text + repeat
+
+
+def _why_failed(stopped: str | None, stage: str | None, note: str | None) -> str:
+    """Why a technical failure stopped before archive."""
+    text = f"Failed at {stopped or 'unknown'}"
+    if stage:
+        text += f" (stage {stage})"
+    detail = note or "No error text recorded."
+    return text + f". {detail} The trace stops before archive."
+
+
+def _open_loop(last: dict | None, loops: list[dict]) -> dict | None:
+    """The repeat on the last visit, when the trace is still there."""
+    if not last:
+        return None
+    for row in loops:
+        if row["node"] == last["node"]:
+            return row
     return None
+
+
+def _why_open(stopped: str | None, last: dict | None, loops: list[dict]) -> str:
+    """Why an unfinished trace has not recorded archive."""
+    status = last["status"] if last else "unknown"
+    text = (f"Still open at {stopped or 'unknown'} (last visit status {status}). "
+            "Archive has not been recorded.")
+    looping = _open_loop(last, loops)
+    if looping:
+        text += f" {looping['why']}"
+    return text
+
+
+def _archive_why(visits: list[dict], outcome: str, stage: str | None, review: str | None,
+                 note: str | None, causes: list[str], hops: list[dict], loops: list[dict],
+                 last: dict | None, stopped: str | None, reached: bool) -> str:
+    """One sentence for whether archive was recorded."""
+    repeat = _repeat_clause(loops)
+    if not visits:
+        return _why_untraced(outcome, stage, note)
+    if reached:
+        return "Reached archive." + repeat
+    if outcome == "ship":
+        return _why_ship_gap(stage)
+    if outcome == "held":
+        return _why_held(stopped, stage, review, causes, hops, repeat)
+    if outcome == "failed":
+        return _why_failed(stopped, stage, note)
+    if outcome == "open":
+        return _why_open(stopped, last, loops)
+    return (f"Stopped at {stopped or 'unknown'} with outcome {outcome}. "
+            f"Archive was not visited.{repeat}")
+
+
+def _stuck_open(outcome: str, last: dict | None, loops: list[dict]) -> bool:
+    """An open document whose last visit is also a repeat."""
+    if outcome != "open" or not last:
+        return False
+    return _open_loop(last, loops) is not None
+
+
+def _diverted_from_archive(reached: bool, outcome: str) -> bool:
+    """The trace never recorded archive, and the item is not a ship outcome."""
+    return not reached and outcome != "ship"
+
+
+def _issue_tags(loops: list[dict], outcome: str, last: dict | None, reached: bool,
+                gt: str | None, pred: str | None) -> list[str]:
+    """Issue tags derived from the trace. Order is part of the digest contract."""
+    issues: list[str] = []
+    if loops:
+        issues.append("loop")
+    if _stuck_open(outcome, last, loops):
+        issues.append("stuck")
+    if outcome == "held":
+        issues.append("held")
+    if outcome == "failed":
+        issues.append("failed")
+    if outcome == "open":
+        issues.append("open")
+    if _class_disagreement(gt, pred):
+        issues.append("miss")
+    if _diverted_from_archive(reached, outcome):
+        issues.append("diverted")
+    return issues
 
 
 def _diagnose(item: dict, records: list[dict], outcome: str, stage: str | None,
@@ -1011,74 +1291,17 @@ def _diagnose(item: dict, records: list[dict], outcome: str, stage: str | None,
     visits = _closed_visits(records)
     causes = _review_causes(item)
     loops = _loop_rows(visits)
-    collapsed = [0]
-    for index in range(1, len(visits)):
-        if visits[index]["node"] != visits[index - 1]["node"]:
-            collapsed.append(index)
-    hops = []
-    for index in range(len(collapsed) - 1):
-        source = visits[collapsed[index + 1] - 1]
-        dest = visits[collapsed[index + 1]]["node"]
-        hops.append({"from": source["node"], "to": dest, "why": _hop_why(source, dest, causes, plain)})
-    omitted = 0
-    if len(hops) > _DEBUG_HOP_CAP:
-        omitted = len(hops) - _DEBUG_HOP_CAP
-        hops = hops[:8] + hops[-8:]
+    hops, omitted = _hop_list(visits, causes, plain)
     last = visits[-1] if visits else None
     reached = any(visit["node"] == "archive" for visit in visits)
-    stopped = None if reached else (last["node"] if last else None)
-    repeat = ""
-    if loops:
-        repeat = " Earlier repeats: " + ", ".join(
-            f"{row['node']} ×{row['visits']} ({row['kind']})" for row in loops
-        ) + "."
-    if not visits:
-        why = (f"No node trace was recorded. Outcome is {outcome}"
-               + (f", stage {stage}" if stage else "")
-               + (f". {note}" if note else ".")
-               + " Archive cannot be confirmed from visits.")
-    elif reached:
-        why = "Reached archive." + repeat
-    elif outcome == "ship":
-        why = (f"Item stage is {stage or 'archived'} but the node trace never recorded archive. "
-               "Paths rebuilt from stage audits omit nodes that write no audit entry, "
-               "including catalog_write and archive.")
-    elif outcome == "held":
-        handoff = next((hop["why"] for hop in hops if hop["to"] == "human_review"), "")
-        why = (f"Held at {stopped or 'unknown'}"
-               + (f" (stage {stage})" if stage else "")
-               + f". Review trigger: {review or 'unattributed'}. "
-               + f"Causes: {', '.join(causes) if causes else 'none recorded'}. "
-               + "Archive was not visited."
-               + (f" {handoff}" if handoff else "")
-               + repeat)
-    elif outcome == "failed":
-        why = (f"Failed at {stopped or 'unknown'}"
-               + (f" (stage {stage})" if stage else "")
-               + f". {note or 'No error text recorded.'} The trace stops before archive.")
-    elif outcome == "open":
-        status = last["status"] if last else "unknown"
-        looping = next((row for row in loops if last and row["node"] == last["node"]), None)
-        why = (f"Still open at {stopped or 'unknown'} (last visit status {status}). "
-               "Archive has not been recorded."
-               + (f" {looping['why']}" if looping else ""))
+    if reached:
+        stopped = None
+    elif last:
+        stopped = last["node"]
     else:
-        why = f"Stopped at {stopped or 'unknown'} with outcome {outcome}. Archive was not visited.{repeat}"
-    issues: list[str] = []
-    if loops:
-        issues.append("loop")
-    if outcome == "open" and last and any(row["node"] == last["node"] for row in loops):
-        issues.append("stuck")
-    if outcome == "held":
-        issues.append("held")
-    if outcome == "failed":
-        issues.append("failed")
-    if outcome == "open":
-        issues.append("open")
-    if gt and pred and gt != pred:
-        issues.append("miss")
-    if not reached and outcome != "ship":
-        issues.append("diverted")
+        stopped = None
+    why = _archive_why(visits, outcome, stage, review, note, causes, hops, loops, last, stopped, reached)
+    issues = _issue_tags(loops, outcome, last, reached, gt, pred)
     return {
         "issues": issues,
         "loops": loops,
