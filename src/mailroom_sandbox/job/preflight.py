@@ -834,15 +834,45 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore,
     report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
 
 
+#: Decision-model tasks: the engine is the reviewer itself (see the engine/reviewer check above).
+_DECISION_MODEL_TASKS = ("sorter_reviewer", "extraction_gate")
+
+
+def _blocking_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
+    """Gaps that fail preflight without ``require``: an API reader this run calls, left short.
+
+    A decision-model task on a non-chat backend (Decisions, Jev) calls no pipeline reader,
+    so the readers' unfitted budgets cannot truncate anything there.
+    """
+    reviewer = getattr(spec, "reviewer", None)
+    if spec.task in _DECISION_MODEL_TASKS and reviewer is not None and reviewer.backend != "api":
+        return []
+    excused = _explicit_input_knobs(spec)
+    return [gap for gap in gaps if gap.split(":", 1)[0] not in excused]
+
+
+def _explicit_input_knobs(spec: RunSpec) -> set[str]:
+    """Agents whose ``max_input_chars`` the run YAML sets in ``agent_knobs`` (not a posture default)."""
+    return {
+        str(name) for name, knob in (spec.agent_knobs or {}).items()
+        if isinstance(knob, dict) and knob.get("max_input_chars") is not None
+    }
+
+
 def _record_expanded_inputs(
     report: dict[str, Any], spec: RunSpec, knobs: dict[str, Any], *, require: bool,
 ) -> bool:
     """Record each reader's expanded input length. Return whether preflight may continue.
 
-    The check is informational unless ``require`` is set (``job.require_expanded_inputs``
-    or ``sandbox run preflight --require-expanded-inputs``). A long-context reader that
-    is still on the short budget then fails the run before a lock is written. A Modal
-    or local route has nothing to swap and stays ok.
+    A long-context API reader (OpenRouter) still on the short Modal/L4 budget fails the
+    run before a lock is written: HF-009 reads whole documents on API routes, so an
+    unfitted budget (say a model with no ``context_length`` on the price sheet) would
+    reject every longer document mid-run instead of reading it. The one exception is a
+    reader whose ``max_input_chars`` the run YAML sets in ``agent_knobs`` on purpose;
+    that gap is recorded and fails only under ``require`` (``job.require_expanded_inputs``
+    or ``sandbox run preflight --require-expanded-inputs``). A posture default is not a
+    run choice and is never excused. A Modal or local route has nothing to swap and
+    stays ok.
     """
     from mailroom_sandbox.context_fit import expansion_status
     from mailroom_sandbox.job.context_plan import taxonomy_for_spec
@@ -863,8 +893,15 @@ def _record_expanded_inputs(
         detail, ok = "no long-context route; input lengths stay on the local budget", True
     elif gaps and require:
         detail, ok = "; ".join(gaps), False
+    elif blocking := _blocking_gaps(spec, gaps):
+        detail = (
+            "API reader(s) would run on the short Modal/L4 budget (set the model's "
+            "context_length in config/api_prices.yaml, or an explicit agent_knobs "
+            "max_input_chars): " + "; ".join(blocking)
+        )
+        ok = False
     elif gaps:
-        detail = f"not required; {len(gaps)} reader(s) still on the short budget: " + "; ".join(gaps)
+        detail = f"not required; {len(gaps)} reader(s) on a run-set short budget: " + "; ".join(gaps)
         ok = True
     else:
         shown = ", ".join(f"{row['agent']}={row['max_input_chars']}" for row in applicable if row["expanded"])

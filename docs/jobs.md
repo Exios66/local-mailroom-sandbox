@@ -392,11 +392,15 @@ locked prompts/models/knobs rather than later ambient generation settings.
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
    still win. Preflight also records `expanded_inputs`: each context-fit reader,
-   its live `max_input_chars`, and whether that length was swapped on. The check
-   stays ok unless `job.require_expanded_inputs` is true or the command passes
-   `--require-expanded-inputs`. Either one fails the run when a long-context
-   reader is still on the short budget, or its model has no `context_length` in
-   `config/api_prices.yaml`. A Modal or local route has nothing to swap.
+   its live `max_input_chars`, and whether that length was swapped on. An API
+   reader the run calls that is still on the short Modal/L4 budget, or whose
+   model has no `context_length` in `config/api_prices.yaml`, fails preflight
+   by default: HF-009 would otherwise reject every longer document mid-run.
+   Two cases stay ok: a reader whose `max_input_chars` the run YAML sets in
+   `agent_knobs` (a posture default does not count), and a decision-model task
+   (`sorter_reviewer`, `extraction_gate`) on a non-chat reviewer backend, which
+   calls no reader. `job.require_expanded_inputs` or `--require-expanded-inputs`
+   fails the first case too. A Modal or local route has nothing to swap.
    `sandbox run preflight --agent-knob NAME.key=value` sets the same generation
    parameters a run YAML's `agent_knobs` block does, including `max_input_chars`.
    The check uses the provider and model recorded for each reader, including when

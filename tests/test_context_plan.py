@@ -285,3 +285,49 @@ def test_plan_and_lock_share_one_knob_snapshot(tmp_path, monkeypatch):
     lock = RunStore(run_dir(report["run_id"])).read_lock()
     assert report["context_plan"]["classes"]["merger_agreement"]["input_budget"] \
         == lock["agent_knobs"]["merger_agreement_specialist"]["max_input_chars"] == 98_000
+
+
+def _short_judge(_taxonomy):
+    return {"agents": [{"agent": "judge", "provider": "openrouter", "expanded": False, "max_input_chars": 80000}],
+            "gaps": ["judge: model x/y has no context_length in config/api_prices.yaml, so its input length stays 80000"],
+            "source_windows": {}}
+
+
+def test_an_api_reader_on_the_short_budget_fails_preflight_without_require(tmp_path, monkeypatch):
+    # HF-009 reads whole documents on API routes: an unfitted L4 budget would reject every
+    # longer document mid-run, so an OpenRouter reader may never silently stay short.
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_judge)
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch), offline=True)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is False
+    assert "short Modal/L4 budget" in check["detail"] and "judge:" in check["detail"]
+
+
+def test_a_run_set_short_budget_is_recorded_but_not_blocking(tmp_path, monkeypatch):
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_judge)
+    spec = _pipeline_spec(tmp_path, monkeypatch)
+    spec = RunSpec.model_validate({**spec.model_dump(), "agent_knobs": {"judge": {"max_input_chars": 80000}}})
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is True and "run-set short budget" in check["detail"]
+    required = preflight.preflight(spec, offline=True, force=True, require_expanded_inputs=True)
+    assert required["status"] == "failed"
+
+
+def test_explicit_input_knobs_ignore_other_keys():
+    spec = RunSpec.model_construct(agent_knobs={"judge": {"max_tokens": 4096}, "arbiter": {"max_input_chars": 1}})
+    assert preflight._explicit_input_knobs(spec) == {"arbiter"}
+
+
+def test_a_decisions_backed_reviewer_task_is_not_blocked_by_reader_gaps():
+    from types import SimpleNamespace
+
+    gaps = ["contracts_specialist: model typesafe/jev-1.14 has no context_length in config/api_prices.yaml"]
+    decisions = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
+    assert preflight._blocking_gaps(decisions, gaps) == []
+    chat = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="api"), agent_knobs={})
+    assert preflight._blocking_gaps(chat, gaps) == gaps
+    pipeline = SimpleNamespace(task="pipeline", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
+    assert preflight._blocking_gaps(pipeline, gaps) == gaps
