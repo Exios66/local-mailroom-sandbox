@@ -965,7 +965,8 @@ def lane_question_chars(lane: str, qset: Mapping[str, Any]) -> int:
 
     Preflight sizes each Decisions window with it, the way execution does. The run's handoff
     (sorter answer, extraction, closed-field card) is not known before the run, so it is not
-    counted: the window preflight reports can exceed the one execution uses by its size.
+    counted: the window preflight reports can exceed the one execution uses by its size. The
+    resolver's figure is a floor: its labels arrive with the handoff, so one minimal field is sized.
     """
     def size(questions: Mapping[str, Any]) -> int:
         return len(json.dumps(dict(questions), default=str))

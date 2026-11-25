@@ -386,3 +386,16 @@ def test_only_the_readers_a_task_calls_block_preflight():
     assert preflight._blocking_gaps(spec("judge"), gaps) == [judge]         # an agent task calls only its own agent
     for task in ("pipeline", "chained", "isolated", "specialist", "extract", "local_vs_api", "no-such-task"):
         assert preflight._blocking_gaps(spec(task), gaps) == gaps, task    # may call any reader: every gap blocks
+
+
+def test_require_counts_only_the_readers_a_task_calls(monkeypatch):
+    from types import SimpleNamespace
+
+    gap = "judge: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    status = {"gaps": [gap], "agents": [{"agent": "judge", "expanded": False, "max_input_chars": 80000}]}
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", lambda tax: status)
+    monkeypatch.setattr("mailroom_sandbox.job.context_plan.taxonomy_for_spec", lambda spec, knobs: {})
+    for task, ok in (("sorter", True), ("pipeline", False)):
+        report = {"checks": []}
+        spec = SimpleNamespace(task=task, reviewer=None, agent_knobs={})
+        assert preflight._record_expanded_inputs(report, spec, {}, require=True) is ok, task

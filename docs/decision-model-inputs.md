@@ -101,7 +101,8 @@ Preflight records every Decisions lane's model and window under `decision_window
 window cuts a set's cap, and fails a lane that cannot hold the minimum. It sizes the reserve with
 the lane's largest serialized questions, as execution does; the run's handoff (sorter answer,
 extraction, closed-field card) is not known before the run, so each recorded `window_chars` is an
-estimate that execution can lower by the handoff's size. A swapped reviewer keeps the
+estimate that execution can lower by the handoff's size. The closed-field resolver's question size
+is a floor (one minimal field), because its allowed labels also arrive with the handoff. A swapped reviewer keeps the
 run's `reviewer.classes` cutoffs, which were tuned on Luna. The window
 follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
 `context_length` changes the window of a resumed run. No model other than Luna has a calibration.

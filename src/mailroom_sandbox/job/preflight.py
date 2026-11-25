@@ -850,9 +850,13 @@ def _blocking_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
     if spec.task in _DECISION_MODEL_TASKS and reviewer is not None and reviewer.backend != "api":
         return []
     excused = _explicit_input_knobs(spec)
+    return [gap for gap in _called_gaps(spec, gaps) if not _knob_excuses(gap, excused)]
+
+
+def _called_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
+    """The gaps of readers ``spec.task`` calls (every gap when it may call any reader)."""
     called = _task_readers(spec.task)
-    return [gap for gap in gaps
-            if (called is None or gap.split(":", 1)[0] in called) and not _knob_excuses(gap, excused)]
+    return [gap for gap in gaps if called is None or gap.split(":", 1)[0] in called]
 
 
 #: Readers an isolated task calls. A task not listed (pipeline, chained, isolated,
@@ -947,10 +951,13 @@ def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> bool:
     for lane, model, stem in blocks:
         try:
             qset = load_question_set(str(stem))
-            question_chars = lane_question_chars(lane, qset)
         except Exception as exc:  # noqa: BLE001 - advisory: the lock step reports a bad stem
             rows.append({"lane": lane, "model": model, "questions": stem, "error": str(exc)})
             continue
+        try:
+            question_chars = lane_question_chars(lane, qset)
+        except Exception:  # noqa: BLE001 - questions that do not build: the default reserve still checks the window
+            question_chars = 0
         caps = [qset.get("max_input_chars"), *((qset.get("max_input_chars_by_class") or {}).values())]
         wanted = max(int(c) for c in caps if c) if any(caps) else None
         try:
@@ -1013,8 +1020,8 @@ def _record_expanded_inputs(
     applicable = [row for row in status["agents"] if row["expanded"] is not None]
     if not applicable:
         detail, ok = "no long-context route; input lengths stay on the local budget", True
-    elif gaps and require:
-        detail, ok = "; ".join(gaps), False
+    elif require and (called := _called_gaps(spec, gaps)):
+        detail, ok = "; ".join(called), False
     elif blocking := _blocking_gaps(spec, gaps):
         detail = (
             "API reader(s) would run on the short Modal/L4 budget (set the model's "

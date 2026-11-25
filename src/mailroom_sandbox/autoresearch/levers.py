@@ -599,7 +599,7 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
             continue
         try:
             questions = lane_question_chars(label, qset)
-        except (KeyError, TypeError, ValueError):  # a set too partial to build questions: the default reserve
+        except Exception:  # noqa: BLE001 - a set too partial to build questions: the default reserve
             questions = 0
         need, window = reviewer_request_tokens(chars, questions), row.get("context_length") or 0
         if window and need > window:
