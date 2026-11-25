@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox.job import grid_cards, sand42_cards
 from mailroom_sandbox.job.checkpoint import RunStore
 
@@ -304,3 +306,13 @@ def test_intake_summary_sees_a_call_that_raised_inside_the_node(monkeypatch):
     monkeypatch.setenv("MAILROOM_LLM_INTAKE", "0")
     assert runners.intake_summary({"intake_prep": None, "intake_messy": True, "doc_text": "x"}) == _NO_INTAKE
     assert intake.should_llm_intake("x", {"messy": True})  # the gate itself is unchanged
+
+
+@pytest.mark.parametrize("windows", [[1], "x", {"n": 1}, float("inf"), float("nan")])
+def test_intake_summary_never_raises_on_a_malformed_window_count(windows):
+    from mailroom_sandbox.eval import runners
+
+    prep = {"triage": {"primary_doc_class": "contract", "confidence": 0.8, "gist": "g"}, "windows": windows}
+    out = runners.intake_summary({"intake_prep": prep})
+    assert out["windows"] is None and out["gate_fired"] is True and out["triage_class"] == "contract"
+    assert runners.intake_summary({"intake_prep": {**prep, "windows": "3"}})["windows"] == 3

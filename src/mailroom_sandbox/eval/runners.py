@@ -1633,7 +1633,7 @@ def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     fired although the call raised and the node left no prep; that case is ``read_failed`` too.
     ``read_failed`` means it ran and yielded no triage, so no
     prior reached the sorter. ``prior_sent`` is whether the intake prior block is non-empty (the
-    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's refusal.
+    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's or HF-016's refusal. ``windows`` is None when the prep's count is malformed.
     """
     prep = result.get("intake_prep")
     if not isinstance(prep, Mapping) and _gate_fired_without_prep(result):
@@ -1651,9 +1651,13 @@ def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         prior_sent = bool(format_intake_prior(dict(prep)))
     except Exception:  # noqa: BLE001 — a summary never fails a document
         prior_sent = bool(triage)
+    try:
+        windows: int | None = int(prep.get("windows") or 0)
+    except (TypeError, ValueError, OverflowError):  # a summary never fails a document
+        windows = None
     return {
         "gate_fired": True,
-        "windows": int(prep.get("windows") or 0),
+        "windows": windows,
         "triage_class": (str(triage["primary_doc_class"]) if triage.get("primary_doc_class") else None),
         "triage_confidence": (float(confidence) if isinstance(confidence, (int, float))
                               and not isinstance(confidence, bool) else None),
