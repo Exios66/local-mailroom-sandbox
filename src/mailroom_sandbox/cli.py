@@ -1677,13 +1677,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The fallback rejects moved refs before replacing any tracked vendor file.
 # llm-mailroom: main at 8cebcd8 (llm-mailroom #287, the v0.30.0 release line squashed into main; package 0.9.3)
 # until the next llm-mailroom release tag is cut; untagged, so its ref is its exact commit.
-# llm-dojo-scoring: the v0.30.0 branch at 025400f (after llm-dojo-scoring #173 and #174; package 0.30.1;
-# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom 8cebcd8 declares.
+# llm-dojo-scoring: main at 7d69bbd (llm-dojo-scoring #185, the pain-point composites, on top of the
+# #181 0.30.2 scoring fixes; package 0.30.1; untagged, so its ref is its exact commit). llm-mailroom
+# 8cebcd8 still declares Dojo 025400f; the sandbox scores with the newer Dojo.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "8cebcd86521755a8b77502f7c1e22609ef19ae21",
      "https://github.com/Exios66/llm-mailroom.git", "8cebcd86521755a8b77502f7c1e22609ef19ae21"),
-    ("llm-dojo-scoring", "025400f3d703531c5e1a76093e4b803ccc6fb576",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "025400f3d703531c5e1a76093e4b803ccc6fb576"),
+    ("llm-dojo-scoring", "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e"),
 )
 
 

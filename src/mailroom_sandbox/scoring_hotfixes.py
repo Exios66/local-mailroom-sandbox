@@ -68,7 +68,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields",
              "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
             ("llm_dojo_scoring.scoring.extraction_metrics:extraction_binary_metrics",
-             "a5003c2a8b7137457848b0fa5c9c662d1e048b7623d856874c94acb8bc537015"),
+             "a5b4378e11861c07c7218913056f7120c280b7a51f985a27669ab68de76fbd1c"),
         ),
         upstream="sandbox (extraction_scope); Dojo draft issue D-1 in docs/scoring-hotfixes.md",
         summary="a value predicted on a field the truth documents as absent (gt_presence "
@@ -208,19 +208,6 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "subclass correction replaces the Hub truth for subclass and unit scoring, the Hub-truth "
                 "figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
-    ),
-    ScoringHotfix(
-        id="SHF-014",
-        layer="dojo",
-        # A byte-identical copy of the Dojo module the vendored pin does not ship yet.
-        targets=(("file:src/mailroom_sandbox/eval/_dojo_pain_points.py",
-                  "700020613399bf5471dd589e73f876e0edb20b64e9d675573c22c008272703a3"),),
-        upstream="llm-dojo-scoring llm_dojo_scoring/pipeline/pain_points.py (branch "
-                 "claude/composite-scores-afi-gwpaai); retire on the vendor refresh that ships it",
-        summary="pipeline runs report the pain-point composites (profile amfam-v1: classification and "
-                "extraction penalty points per document, 0 correct and complete to 4 a needless human "
-                "review) per item and per run, and sandbox pain-points breaks them down per experiment, "
-                "ahead of the Dojo pin",
     ),
 )
 

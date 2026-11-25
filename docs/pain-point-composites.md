@@ -6,9 +6,7 @@ documents. Profile `amfam-v1` (the American Family Insurance pain points) sets t
 scale.
 
 The scoring belongs to the Dojo (`llm_dojo_scoring.pipeline.pain_points`, contract
-`docs/contracts/PAIN_POINT_SCORING.md` in llm-dojo-scoring). Until the vendored Dojo pin ships it,
-the sandbox serves a byte-identical copy, [`eval/_dojo_pain_points.py`](../src/mailroom_sandbox/eval/_dojo_pain_points.py),
-as scoring hotfix **SHF-014** ([scoring hotfixes](scoring-hotfixes.md)). See
+`docs/contracts/PAIN_POINT_SCORING.md` in llm-dojo-scoring), and the vendored Dojo pin serves it. See
 [Where the scoring comes from](#where-the-scoring-comes-from). Sandbox adapter:
 [`eval/pain_points.py`](../src/mailroom_sandbox/eval/pain_points.py); report command:
 [`pain_points_report.py`](../src/mailroom_sandbox/pain_points_report.py); tests:
@@ -109,7 +107,7 @@ pain_points_classification_score  1 - mean / 4 (0-1, higher is better)
 pain_points_extraction_score      same, extraction composite
 pain_points:
   profile, scale                  the profile id and every point value used
-  source                          "dojo", or the SHF-014 copy while the pin lacks the module
+  source                          "dojo" (runs before the 7d69bbd refresh name the SHF-014 copy)
   classification / extraction:
     n, excluded                   scored documents; rows left out (no class / no field truth)
     points, mean                  total and mean penalty points
@@ -192,16 +190,14 @@ after the change stop being comparable.
 
 ## Where the scoring comes from
 
-| Vendored Dojo pin | Served by | `source` | SHF-014 |
-| --- | --- | --- | --- |
-| lacks `pipeline.pain_points` (0.30.1 today) | `eval/_dojo_pain_points.py`, a byte-identical copy of the Dojo module | `sandbox hotfix SHF-014 (...)` | current; recorded in every run lock |
-| ships it | the Dojo module | `dojo` | retire it and delete the copy |
+The vendored Dojo (`7d69bbd`, llm-dojo-scoring main after #185) ships
+`llm_dojo_scoring.pipeline.pain_points`, and the adapter imports it directly (`source: dojo`).
 
-While SHF-014 serves the composites, the copy is fingerprinted like every scoring hotfix: if the
-file changes, the fix is stale, pipeline runs leave the composites out, `sandbox pain-points`
-stops with an error, and `sandbox run preflight` fails on `scoring_hotfixes` until it is
-re-validated. After the vendor refresh, `tests/test_pain_points.py` checks that the vendored
-module is byte-identical to the copy before SHF-014 is retired, so no score moves silently.
+Before that refresh, scoring hotfix **SHF-014** served a byte-identical copy of the module
+(`eval/_dojo_pain_points.py`), fingerprinted and recorded in every run lock like every scoring
+hotfix. The refresh checked that the vendored module was byte-identical to the copy, then retired
+SHF-014 and deleted the copy, so no composite moved. A run made under SHF-014 names it in its
+lock and in the block's `source`; its points equal the Dojo's on the same extraction scores.
 
 ## Scope and limits
 
