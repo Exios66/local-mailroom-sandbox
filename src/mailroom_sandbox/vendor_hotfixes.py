@@ -544,15 +544,29 @@ def arbiter_final_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str |
 
 
 def _register_judge_exhausted_rules(module: Any) -> None:
-    """(Re)register the HF-011 rules first on their nodes; idempotent."""
+    """(Re)register the HF-011 rules first on their nodes; idempotent.
+
+    ``apply_hotfixes`` runs on every runtime activation, possibly while another thread is
+    routing a document. A rule already registered first for this ``module`` is left in
+    place, so a concurrent route decision never sees it missing. Only a registry clear
+    (the rule is absent: added, nothing removed) or a reloaded routing module (the rule
+    points at the old one: swapped) changes the registry.
+    """
     from graph import route_spec
 
-    rules = (("judge_verify", "judge_exhausted_to_arbiter", judge_exhausted_rule(module)),
-             ("arbiter", "arbiter_final_after_last_pass", arbiter_final_rule(module)))
-    for node, name, decide in rules:
-        route_spec.remove_route_rule(node, JUDGE_EXHAUSTED_RULES + name)
-        route_spec.add_route_rule(node, route_spec.RouteRule(JUDGE_EXHAUSTED_RULES + name, decide),
-                                  position="first")
+    rules = (("judge_verify", "judge_exhausted_to_arbiter", judge_exhausted_rule),
+             ("arbiter", "arbiter_final_after_last_pass", arbiter_final_rule))
+    for node, name, build in rules:
+        full = JUDGE_EXHAUSTED_RULES + name
+        current = route_spec.route_rules(node)
+        mine = next((r for r in current if r.name == full), None)
+        if mine is not None and current[0] is mine and getattr(mine.decide, "_hf011_module", None) is module:
+            continue
+        decide = build(module)
+        decide._hf011_module = module  # type: ignore[attr-defined]
+        if mine is not None:
+            route_spec.remove_route_rule(node, full)
+        route_spec.add_route_rule(node, route_spec.RouteRule(full, decide), position="first")
 
 
 def _install_judge_exhausted_to_arbiter(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:

@@ -185,13 +185,17 @@ def apply_context_fit(
     contexts: Mapping[str, int] | None = None,
     outputs: Mapping[str, int] | None = None,
     pinned_output: set[str] | frozenset[str] = frozenset(),
+    run_inputs: Mapping[str, int] | None = None,
 ) -> dict:
     """Return a copy of ``taxonomy`` with long-context agents' budgets fitted.
 
     Records what changed under ``taxonomy["context_fit"]["applied"]`` (agent →
     model, context_length, before, after, and ``max_tokens`` {before, after} when a
     specialist's output cap rose) and the chunk cap under ``chunk_chars``. Agents in
-    ``pinned_output`` carry a run ``max_tokens`` knob, which is kept as set.
+    ``pinned_output`` carry a run ``max_tokens`` knob, which is kept as set. ``run_inputs``
+    maps an agent to the run's own ``max_input_chars`` knob, which the caller applies after
+    the fit: a specialist's output cap is raised only when the window still holds that input
+    beside it, so the final ``max_tokens`` / ``max_input_chars`` pair fits the model.
     """
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)
@@ -223,17 +227,21 @@ def apply_context_fit(
         # A raised output cap must still leave the window wider than the posture's input
         # budget; otherwise both stay as they were (a small model is never squeezed).
         raise_output = name in specialists and name not in pinned_output
-        cap = _output_cap(cfg, model, outputs, max_tokens) if raise_output else max_tokens
-        after = fit_chars(context, cap, cfg)
+        # ``out_cap`` is in tokens; ``cap`` stays the chunk cap in characters.
+        out_cap = _output_cap(cfg, model, outputs, max_tokens) if raise_output else max_tokens
+        wanted_input = int((run_inputs or {}).get(name) or 0)
+        if wanted_input and fit_chars(context, out_cap, cfg) < wanted_input:
+            out_cap = max_tokens  # the run's own input budget would no longer fit beside the raised cap
+        after = fit_chars(context, out_cap, cfg)
         if after <= before:
-            cap, after = max_tokens, fit_chars(context, max_tokens, cfg)
+            out_cap, after = max_tokens, fit_chars(context, max_tokens, cfg)
         if after <= before:
             continue
         agent["max_input_chars"] = after
         row: dict[str, Any] = {"model": model, "context_length": context, "before": before, "after": after}
-        if cap != max_tokens:
-            agent["max_tokens"] = cap
-            row["max_tokens"] = {"before": max_tokens, "after": cap}
+        if out_cap != max_tokens:
+            agent["max_tokens"] = out_cap
+            row["max_tokens"] = {"before": max_tokens, "after": out_cap}
         record["applied"][name] = row
     _raise_chunk_cap(chunking, record, specialists, agents, cap)
     if record["applied"]:

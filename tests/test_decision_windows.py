@@ -147,3 +147,18 @@ def test_preflight_fails_a_lane_whose_model_cannot_hold_the_minimum_window(monke
     assert preflight._record_decision_windows(report, _spec(JEV)) is False
     assert report["status"] == "failed" and report["checks"][-1]["ok"] is False
     assert "room for only 100" in report["checks"][-1]["detail"]
+
+
+def test_preflight_sizes_the_window_with_the_lanes_own_questions():
+    tiny = "jaredpalmer/kev-4b"  # 8,192 tokens: the v4.2.0 questions take more than the default reserve
+    report = {"checks": []}
+    assert preflight._record_decision_windows(report, _spec(tiny, "reviewer_decisions_v4.2.0")) is True
+    (row,) = report["decision_windows"]
+    sent = db.lane_question_chars("reviewer", db.load_question_set("reviewer_decisions_v4.2.0"))
+    assert row["question_chars"] == sent
+    assert int(sent * db.DECISIONS_TOKENS_PER_CHAR) + 1000 > db.DECISIONS_QUESTION_TOKENS
+    assert row["window_chars"] == db.decision_window_chars(tiny, question_chars=sent) < db.decision_window_chars(tiny)
+    gate = db.load_question_set("extraction_gate_v1.3.0")
+    assert db.lane_question_chars("extraction_gate", gate) == max(
+        len(__import__("json").dumps(db.gate_questions(gate, cls, sub), default=str))
+        for cls in gate["fields"] for sub in [None, *((gate.get("subclass_fields") or {}).get(cls) or {})])

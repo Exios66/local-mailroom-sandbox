@@ -322,3 +322,46 @@ def test_the_overlay_fits_every_whole_document_reader():
     listed = set(yaml.safe_load((config_dir() / "taxonomy.overlay.yaml").read_text())["context_fit"]["agents"])
     assert {"specialists", "judge", "arbiter", "sorter", "sorter_reviewer", "intake"} <= listed
     assert set(context_fit.DEFAULTS["agents"]) == listed
+
+
+def test_the_output_cap_never_becomes_the_chunk_cap():
+    # A mid-size API model fits the specialists below the 90k chunk cap: the cap must stay.
+    contexts = {"mid/api-model": 40_000}
+    mid = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={})
+    fitted = mid["context_fit"]["applied"]["merger_agreement_specialist"]["after"]
+    assert 36008 < fitted < 90000
+    assert mid["chunking"]["chunk_chars"] == 90000
+    # An unfitted specialist whose budget is under the chunk cap does not block the raise.
+    tax = _taxonomy()
+    tax["agents"]["contracts_specialist"] = {"provider": "modal-vllm", "model": "local/l4", "max_tokens": 4096,
+                                             "max_input_chars": 18000}
+    mixed = context_fit.apply_context_fit(tax, contexts=CONTEXTS, outputs=OUTPUTS)
+    raised = mixed["context_fit"]["applied"]["merger_agreement_specialist"]["after"]
+    assert "contracts_specialist" not in mixed["context_fit"]["applied"]
+    assert mixed["chunking"]["chunk_chars"] == raised > 90000
+
+
+def test_a_run_input_budget_keeps_room_beside_the_output_cap(monkeypatch):
+    contexts = {"mid/api-model": 40_000}
+    cfg = {**context_fit.DEFAULTS}
+    run_input = 60_000  # fits beside the 4,096 posture cap, not beside 16,384
+    assert context_fit.fit_chars(40_000, 16384, cfg) < run_input <= context_fit.fit_chars(40_000, 4096, cfg)
+    raised = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={})
+    assert raised["agents"]["merger_agreement_specialist"]["max_tokens"] == 16384
+    kept = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={},
+                                         run_inputs={"merger_agreement_specialist": run_input})
+    agent = kept["agents"]["merger_agreement_specialist"]
+    assert agent["max_tokens"] == 4096 and context_fit.fit_chars(40_000, agent["max_tokens"], cfg) >= run_input
+    assert kept["agents"]["contracts_specialist"]["max_tokens"] == 16384  # other specialists are unaffected
+    # The merged taxonomy hands the run's input knobs to the fit.
+    seen = {}
+    real = context_fit.apply_context_fit
+
+    def spy(tax, **kw):
+        seen.update(kw)
+        return real(tax, **kw)
+
+    monkeypatch.setattr(context_fit, "apply_context_fit", spy)
+    build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash",
+                          agent_knobs={"merger_agreement_specialist": {"max_input_chars": 98000}})
+    assert seen["run_inputs"] == {"merger_agreement_specialist": 98000}

@@ -81,9 +81,11 @@ from `config/decision_models.yaml`; a moving alias or a chat model is refused.
 Each request reads at most the chosen model's own window: `decision_input_cap` takes the
 smaller of the question set's `max_input_chars` and
 `(context_length - reserve) / 0.25` characters, where the reserve is 4,000 tokens or the
-questions and handoff actually sent, whichever is larger (0.25 tokens per character is
-conservative: the measured fit is 0.2073). With the default reserve, on the current catalog (a set whose
-questions run past 4,000 tokens leaves slightly less: `liquid/d1.2` reads 244,524 chars on v4.2.0):
+questions and handoff actually sent, whichever is larger. 0.25 tokens per character is an
+estimate measured on Luna only (fit 0.2073); it is unverified for the other models' tokenizers,
+so a model whose tokenizer yields more tokens per character can still exceed its context near
+the window edge. With the default reserve, on the current catalog (a set whose
+questions run past 4,000 tokens leaves slightly less: `liquid/d1.2` reads at most 239,552 chars with the v4.2.0 reviewer questions, less the handoff):
 
 | Model | Context (tokens) | Window (chars) | 1,000,000-char sets |
 | --- | ---: | ---: | --- |
@@ -96,7 +98,10 @@ The `sorter_reviewer` task and the extraction gate report a cut document as `tru
 reviewer answer does not carry that flag. A model whose window would hold fewer than 8,000 document
 characters next to its questions is refused before any request (`DECISIONS_MIN_WINDOW_CHARS`).
 Preflight records every Decisions lane's model and window under `decision_windows`, says where a
-window cuts a set's cap, and fails a lane that cannot hold the minimum. A swapped reviewer keeps the
+window cuts a set's cap, and fails a lane that cannot hold the minimum. It sizes the reserve with
+the lane's largest serialized questions, as execution does; the run's handoff (sorter answer,
+extraction, closed-field card) is not known before the run, so each recorded `window_chars` is an
+estimate that execution can lower by the handoff's size. A swapped reviewer keeps the
 run's `reviewer.classes` cutoffs, which were tuned on Luna. The window
 follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
 `context_length` changes the window of a resumed run. No model other than Luna has a calibration.

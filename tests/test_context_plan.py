@@ -339,7 +339,8 @@ def test_a_decisions_backed_reviewer_task_is_not_blocked_by_reader_gaps():
     decisions = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
     assert preflight._blocking_gaps(decisions, gaps) == []
     chat = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="api"), agent_knobs={})
-    assert preflight._blocking_gaps(chat, gaps) == gaps
+    own = ["sorter_reviewer: model acme/unpriced has no context_length in config/api_prices.yaml"]
+    assert preflight._blocking_gaps(chat, own + gaps) == own  # the task never calls the specialist
     pipeline = SimpleNamespace(task="pipeline", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
     assert preflight._blocking_gaps(pipeline, gaps) == gaps
 
@@ -369,3 +370,19 @@ def test_an_input_knob_never_excuses_an_unpriced_judge_or_arbiter(agent):
     specialist = gap.replace(agent, "contracts_specialist", 1)
     knob = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"contracts_specialist": {"max_input_chars": 1}})
     assert preflight._blocking_gaps(knob, [specialist]) == []
+
+
+def test_only_the_readers_a_task_calls_block_preflight():
+    from types import SimpleNamespace
+
+    judge = "judge: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    sorter = judge.replace("judge", "sorter", 1)
+    gaps = [judge, sorter]
+
+    def spec(task):
+        return SimpleNamespace(task=task, reviewer=None, agent_knobs={})
+
+    assert preflight._blocking_gaps(spec("sorter"), gaps) == [sorter]       # an isolated sorter never calls the judge
+    assert preflight._blocking_gaps(spec("judge"), gaps) == [judge]         # an agent task calls only its own agent
+    for task in ("pipeline", "chained", "isolated", "specialist", "extract", "local_vs_api", "no-such-task"):
+        assert preflight._blocking_gaps(spec(task), gaps) == gaps, task    # may call any reader: every gap blocks

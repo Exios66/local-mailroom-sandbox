@@ -557,9 +557,14 @@ TOKENS_PER_CHAR = DECISIONS_TOKENS_PER_CHAR
 QUESTION_TOKENS = DECISIONS_QUESTION_TOKENS
 
 
-def reviewer_request_tokens(max_input_chars: int) -> int:
-    """Upper estimate of one Decisions request: the document capped at ``max_input_chars`` plus the questions."""
-    return int(max_input_chars * TOKENS_PER_CHAR) + QUESTION_TOKENS
+def reviewer_request_tokens(max_input_chars: int, question_chars: int = 0) -> int:
+    """Upper estimate of one Decisions request: the document capped at ``max_input_chars`` plus the questions.
+
+    The question reserve is the one execution uses: the larger of ``QUESTION_TOKENS`` and the
+    serialized questions (``question_chars``) plus 1,000 tokens. The run's handoff is not known here.
+    """
+    reserve = max(QUESTION_TOKENS, int(question_chars * TOKENS_PER_CHAR) + 1000)
+    return int(max_input_chars * TOKENS_PER_CHAR) + reserve
 
 
 def context_errors(spec: Mapping[str, Any]) -> list[str]:
@@ -569,7 +574,12 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
     set omits it, as at execution): the spec has no per-run override, so a model with a small window needs a
     question set that caps lower.
     """
-    from mailroom_sandbox.decision_backends import DECISIONS_MAX_INPUT_CHARS, decision_model, load_question_set
+    from mailroom_sandbox.decision_backends import (
+        DECISIONS_MAX_INPUT_CHARS,
+        decision_model,
+        lane_question_chars,
+        load_question_set,
+    )
 
     errors: list[str] = []
     for block, label in ((spec.get("reviewer") or {}, "reviewer"), (spec.get("extraction_gate") or {}, "extraction_gate")):
@@ -587,7 +597,11 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
         except Exception as exc:  # noqa: BLE001 - reported, not raised: the catalog check lists every problem
             errors.append(f"{label} question set {stem!r}: {exc}")
             continue
-        need, window = reviewer_request_tokens(chars), row.get("context_length") or 0
+        try:
+            questions = lane_question_chars(label, qset)
+        except (KeyError, TypeError, ValueError):  # a set too partial to build questions: the default reserve
+            questions = 0
+        need, window = reviewer_request_tokens(chars, questions), row.get("context_length") or 0
         if window and need > window:
             errors.append(f"{label} {model}: question set {stem} sends up to ~{need:,} tokens "
                           f"(max_input_chars {chars:,}), over its {window:,}-token context")

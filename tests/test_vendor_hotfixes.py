@@ -505,3 +505,17 @@ def test_hf012_transient_budget_follows_the_threshold(monkeypatch):
     for bad in (True, -1, "1"):
         monkeypatch.setattr(routing, "_thresholds_for", lambda _s, b=bad: {"transient_retry_max": b})
         assert routing._transient_decision({"transient_retries_x": 2}, retry_target="x") == "retry"
+
+
+def test_hf011_refresh_never_drops_a_registered_rule(monkeypatch):
+    """apply_hotfixes runs on every activation; a concurrent route decision must never find
+    the HF-011 rules missing, so a refresh leaves registered rules in place."""
+    from graph import route_spec
+
+    vh.apply_hotfixes()
+    before = {node: route_spec.route_rules(node)[0] for node in ("judge_verify", "arbiter")}
+    monkeypatch.setattr(route_spec, "remove_route_rule",
+                        lambda *a, **k: pytest.fail("a refresh removed a live HF-011 rule"))
+    vh.apply_hotfixes()
+    for node, rule in before.items():
+        assert route_spec.route_rules(node)[0] is rule

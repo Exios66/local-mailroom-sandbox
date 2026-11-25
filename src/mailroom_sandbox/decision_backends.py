@@ -216,9 +216,10 @@ DECISIONS_DIR_NAME = "decisions"
 # Full documents fit: the largest train document is about 1.0M characters (~250k tokens),
 # inside Luna Decisions' 1.05M-token context. The cap only guards against a runaway input.
 DECISIONS_MAX_INPUT_CHARS = 2_000_000
-# Conservative sizing of one Decisions request: 0.25 tokens per character (the measured fit is
-# 0.2073) plus room for the question text (the largest reviewer set is ~3k tokens). The
-# autoresearch context check (autoresearch/levers.py) sizes requests with the same numbers.
+# Sizing of one Decisions request: 0.25 tokens per character, an estimate measured on Luna only
+# (fit 0.2073; unverified for other tokenizers), plus a question reserve of at least 4k tokens
+# (larger when the serialized questions are: reviewer v4.2.0 is ~4.6k tokens). Preflight and the
+# autoresearch context check (autoresearch/levers.py) size requests with the same numbers.
 DECISIONS_TOKENS_PER_CHAR = 0.25
 DECISIONS_QUESTION_TOKENS = 4000
 # Below this many document characters a request answers on a sliver of the document: refuse it.
@@ -957,6 +958,27 @@ def run_session_id(qset: Mapping[str, Any] | None) -> str | None:
     except Exception:  # noqa: BLE001 - no run context: no session id
         return None
     return f"sandbox-{run_id}"[:256] if run_id else None
+
+
+def lane_question_chars(lane: str, qset: Mapping[str, Any]) -> int:
+    """Serialized size of the largest ``questions`` payload a lane sends with this set.
+
+    Preflight sizes each Decisions window with it, the way execution does. The run's handoff
+    (sorter answer, extraction, closed-field card) is not known before the run, so it is not
+    counted: the window preflight reports can exceed the one execution uses by its size.
+    """
+    def size(questions: Mapping[str, Any]) -> int:
+        return len(json.dumps(dict(questions), default=str))
+
+    if lane == "extraction_gate":
+        sizes = [0]
+        for doc_type in (qset.get("fields") or {}):
+            subclasses = [None, *(((qset.get("subclass_fields") or {}).get(doc_type) or {}).keys())]
+            sizes.extend(size(gate_questions(qset, doc_type, sub)) for sub in subclasses)
+        return max(sizes)
+    if lane == CLOSED_FIELD_RESOLVER:  # one field's labels: the vocabulary arrives with the handoff
+        return size(resolver_question(qset, {"doc_type": "contract", "field": "f", "value": "v", "allowed": ["a"]}))
+    return size(decision_questions(qset))
 
 
 def refused_questions(questions: Mapping[str, Any], answers: Mapping[str, Any]) -> list[str]:
