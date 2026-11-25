@@ -15,6 +15,7 @@ import pytest
 
 from mailroom_sandbox import decision_backends as db
 from mailroom_sandbox.job import preflight
+from mailroom_sandbox.job.spec import ReviewerSpec
 
 LUNA = "openai/gpt-6-luna-decisions"
 JEV = "typesafe/jev-1.14"
@@ -30,6 +31,32 @@ def test_every_supported_decisions_model_has_a_catalog_window_and_price():
         row = db.decision_model(model)
         assert row and row["context_length"] > 0 and row.get("prompt") is not None, model
         assert db.decision_window_chars(model) == _window(row["context_length"])
+
+
+@pytest.mark.parametrize("model", [JEV, f"{JEV}:nitro", SMALL])
+@pytest.mark.parametrize("stem", ["reviewer_decisions_v4.0.0", "reviewer_decisions_v4.2.0"])
+def test_real_reviewer_spec_uses_the_same_window_as_runtime_and_preflight(model, stem):
+    qset = db.load_question_set(stem)
+    question_chars = db.lane_question_chars("reviewer", qset)
+    room = db.decision_window_chars(model, question_chars=question_chars)
+    spec = ReviewerSpec(backend="decisions", model=model, questions=stem,
+                        classes={"contract": 0.9}, max_input_chars=room)
+    report = {"checks": []}
+    shaped = SimpleNamespace(reviewer=spec, extraction_gate=None, decision_slots=None)
+    assert preflight._record_decision_windows(report, shaped)
+    assert report["decision_windows"][0]["window_chars"] == room
+    assert db.decision_input_cap(model, db.classify_window_chars(qset, spec.max_input_chars),
+                                 question_chars=question_chars) == room
+    with pytest.raises(ValueError, match="exceeds"):
+        ReviewerSpec(backend="decisions", model=model, questions=stem,
+                     classes={"contract": 0.9}, max_input_chars=db.decision_window_chars(model) + 1)
+
+
+def test_override_validation_does_not_reload_a_locked_question_file(monkeypatch):
+    monkeypatch.setattr(db, "load_question_set", lambda *a: pytest.fail("the lock owns its question bytes"))
+    spec = ReviewerSpec(backend="decisions", model=JEV, questions="locked-only-set",
+                        classes={"contract": 0.9}, max_input_chars=800_000)
+    assert spec.max_input_chars == 800_000
 
 
 def test_luna_keeps_the_question_set_cap_and_jev_gets_its_own_window():

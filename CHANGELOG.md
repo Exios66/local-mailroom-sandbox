@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **Reviewer input overrides validate against the Decisions window.** Real run specs now use the shared model-window estimate and default question reserve, replacing the separate chat-reader ratio and fixed 80k-token reserve. Preflight and execution reserve the actual questions and handoff. Valid Jev and Liquid overrides no longer fail schema validation; an override above the estimated room is still refused. Existing run values and locks are unchanged.
+
 - **Decisions retries share one transport time budget.** The HTTP loop checks the absolute pipeline run deadline before each attempt, limits request timeouts and backoff to its remaining transport/run budget, respects `Retry-After`, and skips sleep after the final failure. The transport timer starts after backend preparation and is capped by the configured call allowance when a run deadline is active; the caller's earlier node timer can expire first. Invalid retry counts and timeouts are refused before any request. An already in-flight provider request can still complete.
 
 - **GLM 5.3 FlashX Legal can be swapped in as a pipeline worker, like DeepSeek V4.1 Flash.** `z-ai/glm-5.3-flashx-legal` was already priced (`config/api_prices.yaml`, matching OpenRouter on 2026-11-25: $0.37 in, $1.25 out, $0.075 cache read per 1M tokens; 1,048,576-token context, 131,072 max completion), on the OpenRouter profile, provider-pinned (`z-ai/fp8`, dated slug `-20261102`) and a supervisor lever. Autoresearch now has its six worker levers too (sorter and each specialist via `agent_models`), appended last so a running study tries its earlier levers first. OpenRouter lists no model named "GLM 5.3 Flash Legal"; FlashX Legal is the only legal GLM. No paid run.

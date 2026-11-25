@@ -103,7 +103,12 @@ the lane's largest serialized questions, as execution does; the run's handoff (s
 extraction, closed-field card) is not known before the run, so each recorded `window_chars` is an
 estimate that execution can lower by the handoff's size. The closed-field resolver's question size
 is a floor (one minimal field), because its allowed labels also arrive with the handoff. Where a run spec
-sets `reviewer.max_input_chars`, preflight and the autoresearch context check use it as execution does:
+sets `reviewer.max_input_chars`, schema validation uses the shared Decisions model-window estimate
+with its default question reserve. It refuses an override above that estimated room without reloading
+mutable question files during locked activation. Preflight reserves the actual reviewer questions;
+execution also reserves the handoff and may shorten the document further. The previous
+schema used the chat-reader ratio and an 80,000-token reserve, incorrectly rejecting valid Jev
+overrides and every positive override for Liquid's 65k window. Preflight and the autoresearch context check use the override as execution does:
 it raises the set's cap and never lowers it. A swapped reviewer keeps the
 run's `reviewer.classes` cutoffs, which were tuned on Luna. The window
 follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
