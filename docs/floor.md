@@ -68,6 +68,23 @@ last data. Use the digest's `generated_utc` to assess its age. A later rebuild
 failure logs the error and keeps the previous good digest available for a
 retry; a failed initial build prevents startup.
 
+## Sharing a digest
+
+EXPORT downloads one JSON file of the digest on screen. IMPORT loads that
+file, or a bare `floor_digest.json` from the builder, on another machine.
+The file is the viewer contract: runs, scores, paths, debug traces, and the
+graph reference. It is not `items.jsonl`, `nodes.jsonl`, or the other raw
+run logs, and document text is not in it. The page reads the file with
+`JSON.parse` and does not write the run store.
+
+The file has `mailroom_floor_export` set to `1`, `exported_utc`, `focus`
+(the run, class, debug filter, mode, document, and node on screen), and
+`digest` (the same object as `floor_digest.json`). A different export number, or a file that is not a digest, is refused
+and the current view stays. The ribbon keeps SNAPSHOT beside the refusal. After import the ribbon says
+SNAPSHOT and live polling pauses. LIVE returns to the digest this page
+opened with: the server digest over HTTP, or the `floor_digest.js` beside
+the page for `file://`. A replay digest stays labelled replay.
+
 ## Reading the figures
 
 | Display | Meaning |

@@ -53,7 +53,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .state{display:flex;justify-content:space-between;padding:4px 6px;border:1px solid #1c2530;border-radius:4px;margin-bottom:3px;font-size:10px}
 .state .n{color:#5d6c80;margin-left:6px;font-size:9px}
 .note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
-.run:focus-visible,.cls:focus-visible,.issue:focus-visible,.node:focus-visible,#zoomctl div:focus-visible,#dbg:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
+.run:focus-visible,.cls:focus-visible,.issue:focus-visible,.node:focus-visible,#zoomctl div:focus-visible,#dbg:focus-visible,#exp:focus-visible,#imp:focus-visible,#live:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
 .node.dim:focus-visible{opacity:1}
 .rnb{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#05130c;border:1.5px solid #41d98f;color:#41d98f;border-radius:10px;font-size:8.5px;font-weight:bold;letter-spacing:1px;padding:2px 9px;white-space:nowrap;box-shadow:0 0 10px #41d98f50;animation:pulse 1.6s infinite;pointer-events:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -72,8 +72,9 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .tabs{display:flex;align-items:center;gap:2px;padding:4px 8px 0;border-bottom:1px solid #1c2530;flex:none}
 .tab{font:inherit;font-size:10px;letter-spacing:1px;color:#7e8ca0;background:none;border:1px solid transparent;border-bottom:none;border-radius:4px 4px 0 0;padding:4px 10px;cursor:pointer}
 .tab.sel{color:#e6f0e9;background:#0d141d;border-color:#1c2530}
-#dbg{font:inherit;font-size:9px;letter-spacing:1px;color:#7e8ca0;background:#0d141d;border:1px solid #2e4256;border-radius:4px;padding:2px 8px;cursor:pointer}
-#dbg.on{color:#e8b93f;border-color:#e8b93f;background:#1a1408}
+#dbg,#exp,#imp,#live{font:inherit;font-size:9px;letter-spacing:1px;color:#7e8ca0;background:#0d141d;border:1px solid #2e4256;border-radius:4px;padding:2px 8px;cursor:pointer;flex:none}
+#dbg.on,#live.on{color:#e8b93f;border-color:#e8b93f;background:#1a1408}
+#share{color:#e8b93f;flex:none;margin-right:10px}
 .diag{font-size:10px;color:#c5d0dc;line-height:1.45;margin:4px 0 8px}
 .diag b{display:block;font-size:9px;letter-spacing:1px;color:#4d5c6e;font-weight:normal;margin-top:6px}
 .diag .why{color:#9fc6e8}
@@ -104,7 +105,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 @media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px auto auto auto;height:auto}.ribbon{grid-column:1}.center{order:1}#viewport{height:70vh}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
 </style></head><body>
 <div class="app">
-<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v11</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><button type="button" id="dbg" aria-pressed="false">DEBUG</button><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
+<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v11</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><button type="button" id="dbg" aria-pressed="false">DEBUG</button><button type="button" id="exp">EXPORT</button><button type="button" id="imp">IMPORT</button><button type="button" id="live" hidden>LIVE</button><input id="impFile" type="file" accept="application/json,.json" hidden><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="share"></span><span id="gen"></span><span id="upd"></span></span></div>
 <div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><div id="issueBox" hidden><h3>DEBUG — click = isolate</h3><div id="issues"></div><h3 id="modeHead">FAILURE MODES — click = isolate</h3><div id="modes"></div></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
 <div class="center"><div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
@@ -124,6 +125,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 <script>
 let D=window.DIGEST;
 if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
+const bootDigest=D;let holdLive=false;
 /** Show the digest's generated time (ribbon and right rail); called at load and after each live refresh. */
 function setGen(){
  document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
@@ -615,6 +617,15 @@ function renderPane(){
  if(fo)fo.onchange=()=>{DF.outcome=fo.value;renderPane()};
  if(fm)fm.onchange=()=>{DF.miss=fm.checked;renderPane()};
  if(fq){fq.oninput=()=>{DF.q=fq.value;renderPane()};if(f==="fQ"){fq.focus();fq.setSelectionRange(fq.value.length,fq.value.length)}}}
+document.getElementById("exp").onclick=floorDownload;
+document.getElementById("imp").onclick=()=>document.getElementById("impFile").click();
+document.getElementById("impFile").onchange=()=>{
+ const input=document.getElementById("impFile"),f=input.files&&input.files[0];input.value="";if(!f)return;
+ const reader=new FileReader();
+ reader.onload=()=>floorShareText(String(reader.result||""));
+ reader.onerror=()=>paintShare("read failed");
+ reader.readAsText(f)};
+document.getElementById("live").onclick=()=>{floorResumeLive()};
 document.getElementById("dbg").onclick=()=>{
  DEBUG=!DEBUG;
  if(DEBUG){TAB="debug";const dr=document.getElementById("drawer");if(!dr.classList.contains("open"))document.getElementById("drawerTog").click()}
@@ -675,6 +686,65 @@ const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;const b=contentB
  tx=(vp.clientWidth-bw*z)/2-b.x0*z;ty=(vp.clientHeight-bh*z)/2-b.y0*z;apply();fitOk=true;userView=false};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
+// ── Shareable digest (the viewer contract, not the raw run logs) ──
+function shareFocus(){return {run:run().name,class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode}}
+function floorExportObject(){
+ return {mailroom_floor_export:1,exported_utc:new Date().toISOString().replace(/\.\d{3}Z$/,"Z"),focus:shareFocus(),digest:D}}
+function usableDigest(d){
+ return !!(d&&typeof d==="object"&&!Array.isArray(d)&&Array.isArray(d.runs)&&d.runs.length
+  &&d.runs.every(r=>r&&typeof r==="object"&&typeof r.name==="string"&&r.name)
+  &&d.graph_reference&&typeof d.graph_reference==="object"&&Array.isArray(d.classes))}
+function readShare(obj){
+ if(!obj||typeof obj!=="object"||Array.isArray(obj))return null;
+ if(Object.prototype.hasOwnProperty.call(obj,"mailroom_floor_export")){
+  if(obj.mailroom_floor_export!==1||!usableDigest(obj.digest))return null;
+  return {digest:obj.digest,focus:obj.focus&&typeof obj.focus==="object"?obj.focus:null}}
+ if(usableDigest(obj))return {digest:obj,focus:null};
+ return null}
+function paintShare(msg){
+ const el=document.getElementById("share"),live=document.getElementById("live");
+ const snap=holdLive?"SNAPSHOT":"";
+ el.textContent=!msg||msg===snap?snap:(snap?msg+" · "+snap:msg);
+ live.hidden=!holdLive;live.classList.toggle("on",holdLive)}
+function applyShareFocus(focus){
+ let i=-1;D.runs.forEach((r,n)=>{if(r.state==="running")i=n});
+ const name=focus&&typeof focus.run==="string"?focus.run:"";
+ const named=name?D.runs.findIndex(r=>r.name===name):-1;
+ runIdx=named>=0?named:(i>=0?i:D.runs.length-1);
+ CLASS=null;selNode=null;selDoc=null;DEBUG=false;ISSUE="problems";MODE=null;TAB="scores";
+ const dr=D.runs[runIdx],c=focus&&focus.class;
+ if(typeof c==="string"&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why)CLASS=c;
+ if(focus&&(focus.debug===1||focus.debug===true)){DEBUG=true;TAB="debug"}
+ if(focus&&ISSUE_IDS.includes(focus.issue))ISSUE=focus.issue;
+ if(focus&&typeof focus.mode==="string"&&focus.mode)MODE=focus.mode;
+ if(focus&&typeof focus.doc==="string"&&(dr.docs||[]).some(d=>d.id===focus.doc))selDoc=focus.doc;
+ if(!selDoc&&focus&&typeof focus.node==="string")selNode=focus.node||null}
+function takeDigest(nd,focus,snapshot){
+ D=nd;window.DIGEST=nd;holdLive=!!snapshot;applyShareFocus(snapshot?focus:null);
+ const bt=document.getElementById("bigTitle");
+ if(CLASS){document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";bt.textContent=CLASS.toUpperCase();bt.classList.add("on")}
+ else{document.getElementById("mode").textContent="ALL CLASSES";bt.textContent="";bt.classList.remove("on")}
+ setGen();menus();render()}
+function floorShareText(text){
+ let obj;try{obj=JSON.parse(String(text||""))}catch(e){paintShare("not json");return "not json"}
+ const pack=readShare(obj);if(!pack){paintShare("not a floor digest");return "not a floor digest"}
+ takeDigest(pack.digest,pack.focus,true);paintShare("SNAPSHOT");return "ok"}
+function floorDownload(){
+ const blob=new Blob([JSON.stringify(floorExportObject())],{type:"application/json"});
+ const a=document.createElement("a"),safe=String(run().name||"runs").replace(/[^A-Za-z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)||"runs";
+ a.download="floor-digest-"+safe+".json";a.href=URL.createObjectURL(blob);document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),1500);if(!holdLive)paintShare("exported")}
+async function floorResumeLive(){
+ if(!LIVE){takeDigest(bootDigest,null,false);paintShare("");return}
+ if(busy)return;busy=true;
+ try{
+  const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+  const nd=res.ok?await res.json():null;
+  if(!usableDigest(nd)){paintShare("live digest unavailable");return}
+  const name=run().name;takeDigest(nd,null,false);
+  const i=D.runs.findIndex(r=>r.name===name);if(i>=0)runIdx=i;menus();render();paintShare("");
+ }catch(e){paintShare("live digest unavailable")}
+ finally{busy=false}}
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 let busy=false,wasLive=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");
@@ -684,7 +754,7 @@ function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t
 if(LIVE){
  setInterval(async()=>{
   const idle=run().state!=="running"&&run().checkpoint_state!=="running";   // a stalled run is still polled: it may resume
-  if(busy||(idle&&!wasLive))return;
+  if(busy||holdLive||(idle&&!wasLive))return;
   busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
