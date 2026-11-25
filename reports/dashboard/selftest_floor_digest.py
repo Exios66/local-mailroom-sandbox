@@ -653,6 +653,11 @@ def per_document_rows_carry_path_classes_outcome_and_note():
                 "No decision, stage, or error was stored on the repeated visits."},
     ], d1["debug"]
     assert "loop" in d1["debug"]["issues"] and "diverted" not in d1["debug"]["issues"]
+    assert d1["debug"]["mode"]["id"] == "loop:classify:self", d1["debug"]["mode"]
+    assert d2["debug"]["mode"]["id"] == "held:human_review:classification"
+    assert "no review cause was stored" in d2["debug"]["mode"]["lever"]
+    assert d3["debug"]["mode"]["id"] == "failed:classify:boom"
+    assert docs["d4"]["debug"]["mode"]["id"] == "open:extract"
     assert any(h["from"] == "intake" and h["to"] == "classify" and h["why"].startswith("Unconditional edge")
                for h in d1["debug"]["hops"])
     assert d2["debug"]["archive"]["reached"] is False and d2["debug"]["archive"]["stopped"] == "human_review"
@@ -716,7 +721,7 @@ def label_tiers_follow_hub_interim_near_gold_precedence():
 def debug_trace_quotes_recorded_decisions_and_reentry():
     """A hop reason names a stored decision; a return to a node is a reentry, not a guessed router."""
     diag = bfd._diagnose(
-        {"review_causes": ["extraction_miss"]},
+        {"review_causes": ["extraction_miss", "judge_miss"]},
         [
             {"doc": "z", "node": "extract", "status": "running"},
             {"doc": "z", "node": "extract", "status": "done",
@@ -741,6 +746,8 @@ def debug_trace_quotes_recorded_decisions_and_reentry():
                and h["why"] == "Recorded arbiter_route=retry_extract at arbiter; the next visit is retry_extract."
                for h in diag["hops"]), diag["hops"]
     assert "extraction_miss" in diag["causes"] and "held" in diag["issues"] and "loop" in diag["issues"]
+    assert diag["mode"]["id"] == "held:human_review:extraction_miss+judge_miss", diag["mode"]
+    assert "extraction stage and judgment stage" in diag["mode"]["lever"] or "extraction and judgment" in diag["mode"]["lever"]
     assert "Archive was not visited" in diag["archive"]["why"]
     stuck = bfd._diagnose(
         {},
@@ -750,6 +757,7 @@ def debug_trace_quotes_recorded_decisions_and_reentry():
         "open", None, None, None, None, "contract", set(),
     )
     assert stuck["issues"] == ["loop", "stuck", "open", "diverted"], stuck["issues"]
+    assert stuck["mode"]["id"] == "stuck:extract:self"
     assert stuck["loops"][0]["kind"] == "self" and "p=0.4" in stuck["loops"][0]["why"]
     assert "Still open at extract" in stuck["archive"]["why"]
 
