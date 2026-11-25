@@ -2,8 +2,10 @@
 
 Luna Decisions (1.05M tokens) is the frontrunner and keeps every question set's cap. Jev 1.14,
 Gemini Decision and the other OpenRouter Decisions models in ``SUPPORTED_DECISION_MODELS`` can
-replace it on the same lane; a smaller window cuts the document to what the model accepts
-(reported as ``truncated``) instead of an oversize request the provider refuses.
+replace it on the same lane; a smaller window cuts the document to what the model should
+accept (reported as ``truncated``) instead of sending the whole document. The cut is sized by
+``DECISIONS_TOKENS_PER_CHAR``, an estimate measured on Luna only and unverified for other
+tokenizers, so these tests check the arithmetic, not that a provider accepts the request.
 """
 from __future__ import annotations
 
