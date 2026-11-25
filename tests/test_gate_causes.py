@@ -150,7 +150,11 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     (["judge_error"], {}, "mechanism:judge_error"),
     (["transient_exhausted"], {}, "mechanism:transient"),
     (["classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
-    (["arbiter_escalated"], {}, "classification:arbiter_escalated"),
+    # the extraction arbiter's escalation is a judge-lane outcome, not a classification one
+    (["arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["judge_partial", "retries_exhausted", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["judge_incomplete", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["arbiter_escalated", "classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
     (["reviewer_disagreement"], {}, "classification:reviewer_disagreement"),
     (["reviewer_ineligible_label"], {}, "classification:reviewer_unknown"),
     (["reviewer_low_confidence"], {}, "classification:reviewer_unknown"),

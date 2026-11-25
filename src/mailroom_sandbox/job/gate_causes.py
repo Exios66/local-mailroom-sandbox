@@ -9,8 +9,11 @@ precedence:
    Enron cover note whose attachment was stripped, for example), so no reviewer can do better than
    abstain. A wrong archive of such a document keeps its classification or extraction cause;
 2. ``classification``: ``wrong_class`` (the archived or reviewed class is not the expected one),
-   ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated``;
-3. ``judge``: ``partial_exhausted`` (partial verdict, retries spent), ``judge_rejected``;
+   ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated`` (the classification
+   arbiter's ``classification_arbiter_escalated``);
+3. ``judge``: ``arbiter_escalated`` (the extraction arbiter's ``arbiter_escalated``: it ruled last on
+   the judge lane, so it wins over the verdict beside it), ``partial_exhausted`` (partial verdict,
+   retries spent), ``judge_rejected``;
 4. ``extraction``: the type of the lowest-scoring labelled field (see ``extraction_miss``), or for
    contracts and mergers, scored on one label field, ``cuad_missed`` / ``cuad_false`` / ``maud_wrong``;
 5. ``label_suspect``: the lowest field is a heuristic ``intent`` label and the document text states
@@ -40,7 +43,9 @@ _MECHANISM = {"judge_error": "judge_error", "transient_exhausted": "transient"}
 # reviewer_doc_type "unknown" or a reviewer that gave no usable answer
 _REVIEWER_UNKNOWN = frozenset({"reviewer_unavailable", "reviewer_no_text", "unknown_class"})
 _REVIEWER_DISAGREEMENT = frozenset({"reviewer_disagreement"})
-_ARBITER = frozenset({"classification_arbiter_escalated", "arbiter_escalated"})
+_ARBITER = frozenset({"classification_arbiter_escalated"})
+# the extraction arbiter (judge lane); the classification arbiter has its own token above
+_EXTRACTION_ARBITER = frozenset({"arbiter_escalated"})
 # the reviewer's own doubt, weaker than an outright disagreement or arbiter escalation
 _REVIEWER_DOUBT = frozenset({"reviewer_ineligible_label", "reviewer_low_confidence"})
 _WRONG_CLASS_TOKENS = frozenset({"class_miss"})
@@ -261,6 +266,8 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "classification:arbiter_escalated"
     if have & _REVIEWER_DOUBT:
         return "classification:reviewer_unknown"
+    if have & _EXTRACTION_ARBITER:
+        return "judge:arbiter_escalated"
     if "judge_partial" in have and "retries_exhausted" in have:
         return "judge:partial_exhausted"
     if have & _JUDGE_REJECTED:

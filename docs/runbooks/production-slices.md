@@ -94,8 +94,8 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    |---|---|---|
    | 1 | mechanism | `judge_error`, `crashed`, `transient` |
    | 2 | input | `input:near_empty` (reviews only: document text under 200 characters) |
-   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` |
-   | 4 | judge | `partial_exhausted`, `judge_rejected` |
+   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` (the classification arbiter) |
+   | 4 | judge | `arbiter_escalated` (the extraction arbiter, which ruled last on the judge lane), `partial_exhausted`, `judge_rejected` |
    | 5 | label | `label_suspect` (a heuristic `intent` label only: never one an interim, staged or near-gold overlay supplied) |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
 
