@@ -45,6 +45,7 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-010 | `agents.intake.sliding_windows` | When an API-routed sorter or intake would need more than one window for a document, the read fails with `WholeDocumentTooLong` instead. The sorter failure takes the graph's review path; intake fails soft and the deterministic clerk output stays. Calls from Modal, vLLM or other self-hosted routes, and calls from no agent, keep the vendored windows. | [Exios66/llm-mailroom#319](https://github.com/Exios66/llm-mailroom/issues/319) |
 | HF-011 | `graph.routing.after_judge` (also bound to `after_arbiter`) | With `confidence.judge_exhausted_to_arbiter: true` (the overlay default), two `graph.route_spec` rules: a `partial` verdict on the last judge pass goes to the arbiter for a final ruling instead of straight to a person, unless `after_arbiter` would park it anyway (extraction still unsure, or an unadjudicated conflict), so no call is spent on a foregone park; and the arbiter cannot order a re-extraction once the judge passes are spent, because that retry could not be judged. `accept_with_caveats` archives through the vendored checks; anything else parks with the `judge_partial` cause. `incomplete`, judge errors and transient errors keep the vendored routes. The router itself is unchanged: `route_spec` binds routers at import, so its rule registry is the hook. Without the key both rules are inert. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
 | HF-012 | `graph.routing._transient_decision` | `confidence.transient_retry_max`, when set, is the number of times a node re-runs after a transient provider error (overlay: 1). `retry_chat_completion` already retries inside each call (5 attempts plus the SDK's own), so the vendored two node-level re-runs repeated whole extractions and judge passes. Unset keeps the vendored budget; counters and the `transient_exhausted` cause are unchanged. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
+| HF-013 | `agents.judge.CompletenessJudge.judge_extraction_correctness` | An accuracy-judge parse failure raises `JudgeParseError` instead of returning "inaccurate 0.0". That answer used to turn a `complete` completeness verdict into `incomplete`, so a judge that never reached a verdict spent an arbiter call, a re-extraction and a second judge pass. The graph now takes the judge-error path HF-002 uses: `judge_verdict` `judge_error`, human review, counted by the gate. A parsed answer, however low, is unchanged. | to file (J-8) |
 
 ### Confidence decisions
 
@@ -77,6 +78,20 @@ pipeline/scoring check, and run execution still verifies the locked identities.
   `max_input_chars` per agent, sized for small self-hosted windows, truncate whole-document JSON on a
   long-context API route, and the judge/arbiter source excerpts are module constants. The sandbox covers
   it with context fit and source windows, not a hotfix.
+- **J-8** (to file) `CompletenessJudge.judge_extraction_correctness` has J-1's defect: a structured-output
+  parse failure returns `inaccurate` 0.0, which `judge_verify` reads as an `incomplete` verdict instead of a
+  judge error. HF-013 covers it.
+
+### What a hotfix change means for run locks
+
+Every hotfix added or changed after a run was locked changes that lock's `vendor_hotfixes` identity:
+
+- **HF-013** (`agents.judge.CompletenessJudge.judge_extraction_correctness`) applies on every route and
+  profile wherever the accuracy judge runs, which is only after a `complete` completeness verdict. A run
+  records it in `run.lock.json` under `vendor_hotfixes.fixes` (id, target, source sha256), and the
+  module sha256 changes with it. A run locked from this checkout records the new hashes automatically.
+  A lock written before the change would need `sandbox run preflight --force` to re-lock before it could
+  resume; no run needs that today.
 
 When llm-mailroom ships one of these and the sandbox vendors it, retire the matching hotfix in the
 same vendor refresh.

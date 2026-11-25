@@ -92,7 +92,7 @@ JUDGE_PARSE_FAILURE = "judge output failed to parse"
 
 
 class JudgeParseError(RuntimeError):
-    """The completeness judge's answer did not parse: no verdict was reached (HF-002)."""
+    """A judge's answer did not parse: no verdict was reached (HF-002 completeness, HF-013 accuracy)."""
 
 
 def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
@@ -108,6 +108,22 @@ def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Ca
         return out
 
     return judge_completeness
+
+
+def _install_judge_correctness_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def judge_extraction_correctness(self: Any, *args: Any, **kwargs: Any) -> dict:
+        out = original(self, *args, **kwargs)
+        # HF-002's gap: the accuracy judge runs after a "complete" completeness verdict, and its
+        # parse failure becomes "inaccurate 0.0", which judge_verify turns into an "incomplete"
+        # verdict that spends an arbiter call and a re-extraction. No verdict was reached, so it
+        # takes the same judge_error path as a completeness parse failure (HF-002).
+        if (str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("extraction_correctness") == 0.0
+                and out.get("extraction_correctness_label") == "inaccurate"):
+            raise JudgeParseError(JUDGE_PARSE_FAILURE)
+        return out
+
+    return judge_extraction_correctness
 
 
 #: The least share of the source a single-window intake ``cleaned_text`` must keep to replace it.
@@ -752,6 +768,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="confidence.transient_retry_max, when set, bounds each node's transient self-loop "
                 "(retry_chat_completion already retries inside the call); unset keeps the vendored 2",
         install=_install_transient_budget,
+    ),
+    Hotfix(
+        id="HF-013",
+        module="agents.judge",
+        attr="CompletenessJudge.judge_extraction_correctness",
+        source_sha256="dd2b8dae82df4c789b9636c694dd35ca1bd16212dbdd14788530d41aad0b4634",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="an accuracy-judge parse failure is a judge error (human review, counted), "
+                "not an 'inaccurate 0.0' answer that reads as an incomplete verdict",
+        install=_install_judge_correctness_parse_error,
     ),
 )
 
