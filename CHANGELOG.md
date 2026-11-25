@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- **A floor confusion-cell selection wins over DEBUG filters.** Graph paths, endpoint/node/edge counts, repeat badges and node arrival/repeat/archive explanations now use the selected pair even when an earlier class or failure-mode isolate is active. Clearing the pair restores the previous DEBUG isolate. The regression test executes the viewer's JavaScript rather than only checking template strings.
+
 - **Reviewer input overrides validate against the Decisions window.** Real run specs now use the shared model-window estimate and default question reserve, replacing the separate chat-reader ratio and fixed 80k-token reserve. Preflight and execution reserve the actual questions and handoff. Valid Jev and Liquid overrides no longer fail schema validation; an override above the estimated room is still refused. Existing run values and locks are unchanged.
 
 - **Decisions retries share one transport time budget.** The HTTP loop checks the absolute pipeline run deadline before each attempt, limits request timeouts and backoff to its remaining transport/run budget, respects `Retry-After`, and skips sleep after the final failure. The transport timer starts after backend preparation and is capped by the configured call allowance when a run deadline is active; the caller's earlier node timer can expire first. Invalid retry counts and timeouts are refused before any request. An already in-flight provider request can still complete.
