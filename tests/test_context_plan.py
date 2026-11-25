@@ -285,3 +285,117 @@ def test_plan_and_lock_share_one_knob_snapshot(tmp_path, monkeypatch):
     lock = RunStore(run_dir(report["run_id"])).read_lock()
     assert report["context_plan"]["classes"]["merger_agreement"]["input_budget"] \
         == lock["agent_knobs"]["merger_agreement_specialist"]["max_input_chars"] == 98_000
+
+
+def _short_judge(_taxonomy):
+    return {"agents": [{"agent": "judge", "provider": "openrouter", "expanded": False, "max_input_chars": 80000}],
+            "gaps": ["judge: model x/y has no context_length in config/api_prices.yaml, so its input length stays 80000"],
+            "source_windows": {}}
+
+
+def test_an_api_reader_on_the_short_budget_fails_preflight_without_require(tmp_path, monkeypatch):
+    # HF-009 reads whole documents on API routes: an unfitted L4 budget would reject every
+    # longer document mid-run, so an OpenRouter reader may never silently stay short.
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_judge)
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch), offline=True)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is False
+    assert "short Modal/L4 budget" in check["detail"] and "judge:" in check["detail"]
+
+
+def _short_specialist(_taxonomy):
+    return {"agents": [{"agent": "contracts_specialist", "provider": "openrouter", "expanded": False,
+                        "max_input_chars": 80000}],
+            "gaps": ["contracts_specialist: model x/y has no context_length in config/api_prices.yaml, "
+                     "so its input length stays 80000"],
+            "source_windows": {}}
+
+
+def test_a_run_set_short_budget_is_recorded_but_not_blocking(tmp_path, monkeypatch):
+    # A specialist reads only its input budget, so a run-set knob is a deliberate choice.
+    # (An unpriced judge or arbiter still blocks: it would also keep the 16k source excerpt.)
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_specialist)
+    spec = _pipeline_spec(tmp_path, monkeypatch)
+    spec = RunSpec.model_validate({**spec.model_dump(),
+                                   "agent_knobs": {"contracts_specialist": {"max_input_chars": 80000}}})
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
+    assert check["ok"] is True and "run-set short budget" in check["detail"]
+    required = preflight.preflight(spec, offline=True, force=True, require_expanded_inputs=True)
+    assert required["status"] == "failed"
+
+
+def test_explicit_input_knobs_ignore_other_keys():
+    spec = RunSpec.model_construct(agent_knobs={"judge": {"max_tokens": 4096}, "arbiter": {"max_input_chars": 1}})
+    assert preflight._explicit_input_knobs(spec) == {"arbiter"}
+
+
+def test_a_decisions_backed_reviewer_task_is_not_blocked_by_reader_gaps():
+    from types import SimpleNamespace
+
+    gaps = ["contracts_specialist: model typesafe/jev-1.14 has no context_length in config/api_prices.yaml"]
+    decisions = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
+    assert preflight._blocking_gaps(decisions, gaps) == []
+    chat = SimpleNamespace(task="sorter_reviewer", reviewer=SimpleNamespace(backend="api"), agent_knobs={})
+    own = ["sorter_reviewer: model acme/unpriced has no context_length in config/api_prices.yaml"]
+    assert preflight._blocking_gaps(chat, own + gaps) == own  # the task never calls the specialist
+    pipeline = SimpleNamespace(task="pipeline", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
+    assert preflight._blocking_gaps(pipeline, gaps) == gaps
+
+
+def test_an_input_knob_never_excuses_a_short_source_window():
+    # A run-set max_input_chars widens the reader's input; the vendored 16k source window
+    # is a separate constant the knob cannot reach, so that gap still blocks.
+    from types import SimpleNamespace
+
+    gaps = [
+        "judge: max_input_chars=80000 was not expanded",
+        "judge: source window stays at 16000 chars; the judge reads a slice of the document",
+    ]
+    spec = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"judge": {"max_input_chars": 80000}})
+    assert preflight._blocking_gaps(spec, gaps) == gaps[1:]
+
+
+@pytest.mark.parametrize("agent", ["judge", "arbiter"])
+def test_an_input_knob_never_excuses_an_unpriced_judge_or_arbiter(agent):
+    # With no context_length the reader is never fitted, so it also keeps the 16k source
+    # excerpt; that gap is not emitted on its own, so the context gap must still block.
+    from types import SimpleNamespace
+
+    gap = f"{agent}: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    spec = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={agent: {"max_input_chars": 80000}})
+    assert preflight._blocking_gaps(spec, [gap]) == [gap]
+    specialist = gap.replace(agent, "contracts_specialist", 1)
+    knob = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"contracts_specialist": {"max_input_chars": 1}})
+    assert preflight._blocking_gaps(knob, [specialist]) == []
+
+
+def test_only_the_readers_a_task_calls_block_preflight():
+    from types import SimpleNamespace
+
+    judge = "judge: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    sorter = judge.replace("judge", "sorter", 1)
+    gaps = [judge, sorter]
+
+    def spec(task):
+        return SimpleNamespace(task=task, reviewer=None, agent_knobs={})
+
+    assert preflight._blocking_gaps(spec("sorter"), gaps) == [sorter]       # an isolated sorter never calls the judge
+    assert preflight._blocking_gaps(spec("judge"), gaps) == [judge]         # an agent task calls only its own agent
+    for task in ("pipeline", "chained", "isolated", "specialist", "extract", "local_vs_api", "no-such-task"):
+        assert preflight._blocking_gaps(spec(task), gaps) == gaps, task    # may call any reader: every gap blocks
+
+
+def test_require_counts_only_the_readers_a_task_calls(monkeypatch):
+    from types import SimpleNamespace
+
+    gap = "judge: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    status = {"gaps": [gap], "agents": [{"agent": "judge", "expanded": False, "max_input_chars": 80000}]}
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", lambda tax: status)
+    monkeypatch.setattr("mailroom_sandbox.job.context_plan.taxonomy_for_spec", lambda spec, knobs: {})
+    for task, ok in (("sorter", True), ("pipeline", False)):
+        report = {"checks": []}
+        spec = SimpleNamespace(task=task, reviewer=None, agent_knobs={})
+        assert preflight._record_expanded_inputs(report, spec, {}, require=True) is ok, task

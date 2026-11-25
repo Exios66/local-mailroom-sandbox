@@ -368,3 +368,154 @@ def test_hf010_local_reader_and_plain_calls_keep_windows(monkeypatch):
     assert len(_FakeReader().read("x" * 500, 100)) > 1
     monkeypatch.setattr(vh, "_api_route", lambda agent_name: True)
     assert len(intake.sliding_windows("x" * 500, 100, 10)) > 1
+
+
+# --- HF-011 / HF-012: bounded judge, arbiter and transient loops ------------------------------
+
+_VENDORED_BUDGETS = {"low": 0.88, "judge_band_high": 0.95, "retry_max": 2, "arbiter_retry_max": 2,
+                     "judge_max_passes": 3}
+_SANDBOX_BUDGETS = {**_VENDORED_BUDGETS, "retry_max": 1, "arbiter_retry_max": 1, "judge_max_passes": 2,
+                    "transient_retry_max": 1, "judge_exhausted_to_arbiter": True}
+
+
+def _walk(monkeypatch, thresholds, *, confidence, arbiter_says, start="extract", **state):
+    """Drive the real route specs with scripted nodes; return (terminal, calls per node, path).
+
+    Nodes: every extraction reports ``confidence``; the judge (when ``judge_should_run``) says
+    ``partial``; the arbiter answers ``arbiter_says``. Schema and coverage checks pass.
+    """
+    from graph import route_spec, routing
+
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _state: dict(thresholds))
+    monkeypatch.setattr(routing, "validate_extraction", lambda *_a, **_k: {"schema_valid": True})
+    specs = {spec.node: spec for spec in route_spec.ROUTE_SPECS}
+    s = {"doc_id": "DOC-1", "doc_type": "correspondence", "extracted_data": {"sender": "A", "recipient": "B"},
+         "extraction_confidence": confidence, "extraction_attempts": 1, "judge_pass_count": 0,
+         "arbiter_retry_count": 0, **state}
+    calls = {"extract": 1, "retry_extract": 0, "judge_verify": 0, "arbiter": 0}
+    node, path = start, [start]
+    for _ in range(40):
+        nxt = route_spec.decide_route(specs[node], s)
+        path.append(nxt)
+        if nxt in ("compile_report", "human_review"):
+            return nxt, calls, path
+        calls[nxt] += 1
+        if nxt == "retry_extract":
+            s["extraction_attempts"] += 1
+        elif nxt == "judge_verify":
+            if routing.judge_should_run(s):
+                s.update(judge_verdict="partial", judge_score=0.8, judge_pass_count=s["judge_pass_count"] + 1)
+            else:
+                s["judge_verdict"] = "skipped"
+        elif nxt == "arbiter":
+            s["arbiter_decision"] = arbiter_says
+            if arbiter_says == "retry_extraction":
+                s["arbiter_retry_count"] += 1
+        node = nxt
+    raise AssertionError(f"no terminal route: {path}")
+
+
+def test_hf011_the_screenshot_loop_is_bounded_without_an_extra_park(monkeypatch):
+    """An unsure extraction the arbiter keeps sending back: 5 extractions before, 3 now."""
+    assert vh.apply_hotfixes()["HF-011"] == "applied"
+    before = _walk(monkeypatch, _VENDORED_BUDGETS, confidence=0.6, arbiter_says="retry_extraction")
+    assert before[0] == "human_review"
+    assert before[1] == {"extract": 1, "retry_extract": 4, "judge_verify": 3, "arbiter": 2}, before[2]
+    after = _walk(monkeypatch, _SANDBOX_BUDGETS, confidence=0.6, arbiter_says="retry_extraction")
+    assert after[0] == "human_review"
+    # The unsure extraction is not sent to the arbiter after the last pass: accepting it would
+    # still park it, so that call would be wasted.
+    assert after[1] == {"extract": 1, "retry_extract": 2, "judge_verify": 2, "arbiter": 1}, after[2]
+
+
+def test_hf011_a_sound_partial_extraction_gets_a_final_ruling_instead_of_a_park(monkeypatch):
+    assert vh.apply_hotfixes()["HF-011"] == "applied"
+    before = _walk(monkeypatch, _VENDORED_BUDGETS, confidence=0.9, arbiter_says="retry_extraction")
+    assert before[0] == "human_review"
+    assert before[1] == {"extract": 1, "retry_extract": 2, "judge_verify": 3, "arbiter": 2}, before[2]
+    accepted = _walk(monkeypatch, _SANDBOX_BUDGETS, confidence=0.9, arbiter_says="accept_with_caveats")
+    assert accepted[0] == "compile_report"
+    assert accepted[1] == {"extract": 1, "retry_extract": 0, "judge_verify": 1, "arbiter": 1}
+    # An arbiter that keeps asking for a retry gets one, then rules finally on the last pass:
+    # a retry it orders there could not be judged, so it goes to a person.
+    retried = _walk(monkeypatch, _SANDBOX_BUDGETS, confidence=0.9, arbiter_says="retry_extraction")
+    assert retried[0] == "human_review"
+    assert retried[1] == {"extract": 1, "retry_extract": 1, "judge_verify": 2, "arbiter": 2}, retried[2]
+    assert retried[2][-2:] == ["arbiter", "human_review"]
+
+
+def test_hf011_is_inert_without_the_flag_and_keeps_incomplete_and_conflict_parks(monkeypatch):
+    from graph import route_spec, routing
+
+    assert vh.apply_hotfixes()["HF-011"] == "applied"
+    specs = {spec.node: spec for spec in route_spec.ROUTE_SPECS}
+    last = {"doc_type": "correspondence", "extraction_confidence": 0.9, "judge_pass_count": 2,
+            "judge_verdict": "partial", "extracted_data": {"sender": "A"}}
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _s: {**_SANDBOX_BUDGETS, "judge_exhausted_to_arbiter": False})
+    assert route_spec.decide_route(specs["judge_verify"], last) == "human_review"
+    assert route_spec.decide_route(specs["arbiter"], {**last, "arbiter_decision": "retry_extraction",
+                                                      "arbiter_retry_count": 1}) == "retry_extract"
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _s: dict(_SANDBOX_BUDGETS))
+    assert route_spec.decide_route(specs["judge_verify"], last) == "arbiter"
+    assert route_spec.decide_route(specs["judge_verify"], {**last, "judge_verdict": "incomplete"}) == "human_review"
+    assert route_spec.decide_route(specs["judge_verify"], {**last, "judge_pass_count": 1}) == "arbiter"  # budget left
+    conflict = {**last, "conflict_detected": True, "conflict_details": ["two parties"], "boss_conflict_fingerprint": None}
+    assert route_spec.decide_route(specs["judge_verify"], conflict) == "human_review"
+    # The refused retry still parks with a cause (route rules must never park a clean document).
+    from pipeline.reconsideration import collect_review_causes
+
+    causes = collect_review_causes({**last, "arbiter_decision": "retry_extraction", "arbiter_retry_count": 1,
+                                    "extraction_attempts": 2})
+    assert "judge_partial" in causes, causes
+
+
+def test_hf011_rules_survive_a_registry_clear_and_never_stack(monkeypatch):
+    from graph import route_spec
+
+    vh.apply_hotfixes()
+    route_spec.clear_route_rules()
+    vh.apply_hotfixes()
+    vh.apply_hotfixes()
+    for node in ("judge_verify", "arbiter"):
+        names = [r.name for r in route_spec.route_rules(node)]
+        assert len([n for n in names if n.startswith(vh.JUDGE_EXHAUSTED_RULES)]) == 1, names
+        assert names[0].startswith(vh.JUDGE_EXHAUSTED_RULES)
+
+
+def test_hf011_is_stale_when_after_arbiter_changes():
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-011")
+    bogus = vh.Hotfix(id="HF-TEST-ALSO", module=fix.module, attr=fix.attr, source_sha256=fix.source_sha256,
+                      upstream="-", summary="-", install=fix.install, also=(("after_arbiter", "0" * 64),))
+    assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-ALSO": "stale"}
+
+
+def test_hf012_transient_budget_follows_the_threshold(monkeypatch):
+    from graph import routing
+
+    assert vh.apply_hotfixes()["HF-012"] == "applied"
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _s: {})
+    # Unset: the vendored two node-level re-runs.
+    assert [routing._transient_decision({"transient_retries_judge_verify": n}, retry_target="judge_verify")
+            for n in (1, 2, 3)] == ["retry", "retry", "human_review"]
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _s: {"transient_retry_max": 1})
+    assert [routing._transient_decision({"transient_retries_extract": n}, retry_target="extract")
+            for n in (1, 2)] == ["retry", "human_review"]
+    monkeypatch.setattr(routing, "_thresholds_for", lambda _s: {"transient_retry_max": 0})
+    assert routing._transient_decision({"transient_retries_arbiter": 1}, retry_target="arbiter") == "human_review"
+    for bad in (True, -1, "1"):
+        monkeypatch.setattr(routing, "_thresholds_for", lambda _s, b=bad: {"transient_retry_max": b})
+        assert routing._transient_decision({"transient_retries_x": 2}, retry_target="x") == "retry"
+
+
+def test_hf011_refresh_never_drops_a_registered_rule(monkeypatch):
+    """apply_hotfixes runs on every activation; a concurrent route decision must never find
+    the HF-011 rules missing, so a refresh leaves registered rules in place."""
+    from graph import route_spec
+
+    vh.apply_hotfixes()
+    before = {node: route_spec.route_rules(node)[0] for node in ("judge_verify", "arbiter")}
+    monkeypatch.setattr(route_spec, "remove_route_rule",
+                        lambda *a, **k: pytest.fail("a refresh removed a live HF-011 rule"))
+    vh.apply_hotfixes()
+    for node, rule in before.items():
+        assert route_spec.route_rules(node)[0] is rule

@@ -1029,15 +1029,17 @@ class DecisionSlotsSpec(BaseModel):
 
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
 _THRESHOLD_UNIT = ("high", "low", "judge_band_high")
-_THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
+# transient_retry_max (HF-012): node-level re-runs after a transient provider error.
+_THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "transient_retry_max")
 # Routing flags. judge_rejudge_retry (llm-mailroom #241, ships false): a retry whose
 # earlier attempt was judged goes back to judge_verify while judge passes remain.
 # Upstream reads it by truthiness, so only a real boolean is accepted here: a quoted
 # "false" would otherwise switch it on. The archive checks (llm-mailroom #309, all ship
 # false, which keeps the checks on): judge_complete_archives, arbiter_accept_archives and
 # judge_clears_low_confidence; true restores the old route, e.g. for a baseline arm.
+# judge_exhausted_to_arbiter (HF-011): a partial verdict on the last judge pass asks the arbiter.
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
-                   "judge_clears_low_confidence")
+                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:

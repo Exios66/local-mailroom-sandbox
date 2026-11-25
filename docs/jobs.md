@@ -392,11 +392,22 @@ locked prompts/models/knobs rather than later ambient generation settings.
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
    still win. Preflight also records `expanded_inputs`: each context-fit reader,
-   its live `max_input_chars`, and whether that length was swapped on. The check
-   stays ok unless `job.require_expanded_inputs` is true or the command passes
-   `--require-expanded-inputs`. Either one fails the run when a long-context
-   reader is still on the short budget, or its model has no `context_length` in
-   `config/api_prices.yaml`. A Modal or local route has nothing to swap.
+   its live `max_input_chars`, and whether that length was swapped on. An API
+   reader the run calls that is still on the short Modal/L4 budget, or whose
+   model has no `context_length` in `config/api_prices.yaml`, fails preflight
+   by default: HF-009 would otherwise reject every longer document mid-run.
+   An isolated task counts only its own readers (`sorter`: intake, sorter and
+   sorter reviewer; an agent task such as `judge`: that agent); `pipeline` and
+   the other multi-agent tasks count every reader.
+   Two cases stay ok. One is a specialist or other reader's input-budget gap when the run YAML sets
+   that reader's `max_input_chars` in `agent_knobs` (a posture default does not
+   count). The knob never excuses a short judge or arbiter source window, nor a
+   judge or arbiter whose model has no `context_length`: that reader would also
+   keep the 16k source excerpt. The other is a decision-model task
+   (`sorter_reviewer`, `extraction_gate`) on a non-chat reviewer backend, which
+   calls no reader. `job.require_expanded_inputs` or `--require-expanded-inputs`
+   fails the first case too. A fitted specialist's output cap is raised only
+   when the model's window still holds the run's own `max_input_chars` beside it. A Modal or local route has nothing to swap.
    `sandbox run preflight --agent-knob NAME.key=value` sets the same generation
    parameters a run YAML's `agent_knobs` block does, including `max_input_chars`.
    The check uses the provider and model recorded for each reader, including when
@@ -406,8 +417,14 @@ locked prompts/models/knobs rather than later ambient generation settings.
    (`context_fit.sha256`). The digest covers the fitted windows, the chunk cap,
    whether chunking is enabled, and the overlap. Resume, including
    `sandbox run resume --run-id`, refuses before any document when the price
-   sheet or overlay would change any of those. A lock without the key
-   still resumes when its spec hash matches. Re-preflighting a slice whose YAML now sets
+   sheet or overlay would change any of those. The digest also covers a fitted
+   specialist's raised output cap (`context_fit.output_tokens`). An OpenRouter
+   lock taken before that cap existed is refused on resume only when its fitted
+   specialist output cap now rises (the digest changes), and then needs `--force`
+   to re-lock; one whose digest still matches resumes as it is. A lock without the key
+   still resumes when its spec hash matches, on the live fit. A lock without a
+   frozen `effective_confidence` resumes on the retry budgets it started with
+   (`routing_audit.legacy_thresholds`), not on keys a later overlay added. Re-preflighting a slice whose YAML now sets
    `require_expanded_inputs` changes `spec_hash`, so a `--config` resume returns
    `drift_refused` until `--force` archives that generation and re-locks. Production
    slices set `job.require_expanded_inputs`. Their sorter and intake stay at

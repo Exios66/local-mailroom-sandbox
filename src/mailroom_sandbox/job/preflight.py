@@ -834,15 +834,189 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore,
     report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
 
 
+#: Decision-model tasks: the engine is the reviewer itself (see the engine/reviewer check above).
+_DECISION_MODEL_TASKS = ("sorter_reviewer", "extraction_gate")
+
+
+def _blocking_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
+    """Gaps that fail preflight without ``require``: an API reader this run calls, left short.
+
+    Only readers the task calls count (:func:`_task_readers`); a pipeline task calls them all.
+
+    A decision-model task on a non-chat backend (Decisions, Jev) calls no pipeline reader,
+    so the readers' unfitted budgets cannot truncate anything there.
+    """
+    reviewer = getattr(spec, "reviewer", None)
+    if spec.task in _DECISION_MODEL_TASKS and reviewer is not None and reviewer.backend != "api":
+        return []
+    excused = _explicit_input_knobs(spec)
+    return [gap for gap in _called_gaps(spec, gaps) if not _knob_excuses(gap, excused)]
+
+
+def _called_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
+    """The gaps of readers ``spec.task`` calls (every gap when it may call any reader)."""
+    called = _task_readers(spec.task)
+    return [gap for gap in gaps if called is None or gap.split(":", 1)[0] in called]
+
+
+#: Readers an isolated task calls. A task not listed (pipeline, chained, isolated,
+#: local_vs_api, specialist, extract, ...) may call any reader, so every gap blocks there.
+_SORTER_READERS = frozenset({"intake", "sorter", "sorter_reviewer"})
+_TASK_READERS: dict[str, frozenset[str]] = {
+    "sorter": _SORTER_READERS,
+    "sorter_vs_modernbert": _SORTER_READERS,
+    "sorter_reviewer": frozenset({"sorter", "sorter_reviewer"}),
+}
+
+
+def _task_readers(task: str) -> frozenset[str] | None:
+    """The readers ``task`` calls, or ``None`` when it may call any of them.
+
+    An agent-registered task (``eval.agents.SPECS``: ``judge``, ``contracts_specialist``, ...)
+    runs that one agent, so only its own gaps can truncate anything.
+    """
+    if task in _TASK_READERS:
+        return _TASK_READERS[task]
+    try:
+        from mailroom_sandbox.eval.agents import SPECS
+    except Exception:  # noqa: BLE001 - unknown: every reader may be called
+        return None
+    return frozenset({task}) if task in SPECS else None
+
+
+_KNOB_FIXABLE_GAPS = ("max_input_chars=", "has no context_length")
+_SOURCE_READERS = ("judge", "arbiter")  # context_fit._SOURCE_AGENTS: they read a source excerpt
+
+
+def _knob_excuses(gap: str, excused: set[str]) -> bool:
+    """An explicit ``max_input_chars`` knob excuses an input-budget gap, never a source window.
+
+    The knob sets the reader's input length; the 16k sliding source window is a separate
+    vendored constant the knob cannot widen, so that gap still blocks.
+    """
+    name = gap.split(":", 1)[0]
+    if name not in excused:
+        return False
+    if name in _SOURCE_READERS and "has no context_length" in gap:
+        # An unfitted judge/arbiter also keeps the 16k source excerpt; that gap is not
+        # emitted separately when the context is unknown, so this one must still block.
+        return False
+    return any(marker in gap for marker in _KNOB_FIXABLE_GAPS)
+
+
+def _explicit_input_knobs(spec: RunSpec) -> set[str]:
+    """Agents whose ``max_input_chars`` the run YAML sets in ``agent_knobs`` (not a posture default)."""
+    return {
+        str(name) for name, knob in (spec.agent_knobs or {}).items()
+        if isinstance(knob, dict) and knob.get("max_input_chars") is not None
+    }
+
+
+def _decision_blocks(spec: RunSpec) -> list[tuple[str, str, str]]:
+    """``(lane, model, question-set stem)`` for every Decisions-API request the run makes."""
+    out: list[tuple[str, str, str]] = []
+    reviewer = getattr(spec, "reviewer", None)
+    if reviewer is not None and reviewer.backend == "decisions" and reviewer.questions:
+        out.append(("reviewer", reviewer.model, reviewer.questions))
+    gate = getattr(spec, "extraction_gate", None)
+    if gate is not None:
+        out.append(("extraction_gate", gate.model, gate.questions))
+    resolver = getattr(getattr(spec, "decision_slots", None), "resolver", None)
+    if resolver is not None:
+        out.append(("closed_field_resolver", resolver.model, resolver.questions))
+    return out
+
+
+def _reviewer_override(spec: RunSpec, wanted: int | None) -> int | None:
+    """The reviewer's requested cap with a run's ``reviewer.max_input_chars`` applied.
+
+    Mirrors ``decision_backends.classify_window_chars`` where a spec carries that field:
+    the run's value raises the question set's cap and never lowers it, and it is the cap
+    when the set has none. A spec without the field keeps the set's cap.
+    """
+    extra = getattr(getattr(spec, "reviewer", None), "max_input_chars", None)
+    if not isinstance(extra, int) or isinstance(extra, bool) or extra < 1:
+        return wanted
+    return max(wanted, extra) if wanted else extra
+
+
+def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> bool:
+    """Record the model and input window of each Decisions lane (advisory).
+
+    A swapped decision model (Jev 1.14, Gemini Decision, ...) reads at most its own context:
+    ``decision_input_cap`` cuts a question set's ``max_input_chars`` to the model's window,
+    and this check says where that happens so a smaller window is never a surprise. The
+    reserve counts the lane's largest serialized questions, as execution does; the run's
+    handoff is unknown here, so each ``window_chars`` is an estimate that execution can
+    lower by the handoff's size.
+    """
+    blocks = _decision_blocks(spec)
+    if not blocks:
+        return True
+    from mailroom_sandbox.decision_backends import (
+        decision_input_cap,
+        decision_model,
+        lane_question_chars,
+        load_question_set,
+    )
+
+    rows, cut, refused = [], [], []
+    for lane, model, stem in blocks:
+        try:
+            qset = load_question_set(str(stem))
+        except Exception as exc:  # noqa: BLE001 - advisory: the lock step reports a bad stem
+            rows.append({"lane": lane, "model": model, "questions": stem, "error": str(exc)})
+            continue
+        try:
+            question_chars = lane_question_chars(lane, qset)
+        except Exception:  # noqa: BLE001 - questions that do not build: the default reserve still checks the window
+            question_chars = 0
+        caps = [qset.get("max_input_chars"), *((qset.get("max_input_chars_by_class") or {}).values())]
+        wanted = max(int(c) for c in caps if c) if any(caps) else None
+        if lane == "reviewer":
+            wanted = _reviewer_override(spec, wanted)
+        try:
+            # Sized like execution: the questions are counted; the run's handoff is not known yet.
+            window = decision_input_cap(model, wanted, question_chars=question_chars)
+        except ValueError as exc:  # a window too small to read the document: no request may go out
+            rows.append({"lane": lane, "model": model, "questions": stem, "question_chars": question_chars,
+                         "error": str(exc)})
+            refused.append(f"{lane}: {exc}")
+            continue
+        row = decision_model(model) or decision_model(str(model).split(":", 1)[0]) or {}
+        rows.append({"lane": lane, "model": model, "questions": stem, "context_length": row.get("context_length"),
+                     "max_input_chars": wanted, "question_chars": question_chars, "window_chars": window,
+                     "window_estimate": "excludes the run's handoff"})
+        if wanted and window < wanted:
+            cut.append(f"{lane} {model}: {stem} max_input_chars {wanted:,} cut to {window:,} "
+                       f"(the model's {row.get('context_length')}-token context)")
+    report["decision_windows"] = rows
+    if refused:
+        report["status"] = "failed"
+        report["checks"].append({"name": "decision_windows", "ok": False, "detail": "; ".join(refused)})
+        return False
+    detail = ("; ".join(cut) + " (longer documents are truncated; answers report truncated)") if cut else \
+        ", ".join(f"{r['lane']}={r['model']} ({r.get('window_chars') or '?'} chars)" for r in rows)
+    report["checks"].append({"name": "decision_windows", "ok": True, "detail": detail})
+    return True
+
+
 def _record_expanded_inputs(
     report: dict[str, Any], spec: RunSpec, knobs: dict[str, Any], *, require: bool,
 ) -> bool:
     """Record each reader's expanded input length. Return whether preflight may continue.
 
-    The check is informational unless ``require`` is set (``job.require_expanded_inputs``
-    or ``sandbox run preflight --require-expanded-inputs``). A long-context reader that
-    is still on the short budget then fails the run before a lock is written. A Modal
-    or local route has nothing to swap and stays ok.
+    A long-context API reader (OpenRouter) still on the short Modal/L4 budget fails the
+    run before a lock is written: HF-009 reads whole documents on API routes, so an
+    unfitted budget (say a model with no ``context_length`` on the price sheet) would
+    reject every longer document mid-run instead of reading it. Only readers the task
+    calls count (:func:`_task_readers`). The one exception is an input-budget gap of a
+    reader whose ``max_input_chars`` the run YAML sets in ``agent_knobs`` on purpose
+    (never a short source window, nor a judge or arbiter with no ``context_length``);
+    that gap is recorded and fails only under ``require`` (``job.require_expanded_inputs``
+    or ``sandbox run preflight --require-expanded-inputs``). A posture default is not a
+    run choice and is never excused. A Modal or local route has nothing to swap and
+    stays ok.
     """
     from mailroom_sandbox.context_fit import expansion_status
     from mailroom_sandbox.job.context_plan import taxonomy_for_spec
@@ -861,10 +1035,17 @@ def _record_expanded_inputs(
     applicable = [row for row in status["agents"] if row["expanded"] is not None]
     if not applicable:
         detail, ok = "no long-context route; input lengths stay on the local budget", True
-    elif gaps and require:
-        detail, ok = "; ".join(gaps), False
+    elif require and (called := _called_gaps(spec, gaps)):
+        detail, ok = "; ".join(called), False
+    elif blocking := _blocking_gaps(spec, gaps):
+        detail = (
+            "API reader(s) would run on the short Modal/L4 budget (set the model's "
+            "context_length in config/api_prices.yaml, or an explicit agent_knobs "
+            "max_input_chars): " + "; ".join(blocking)
+        )
+        ok = False
     elif gaps:
-        detail = f"not required; {len(gaps)} reader(s) still on the short budget: " + "; ".join(gaps)
+        detail = f"not required; {len(gaps)} reader(s) on a run-set short budget: " + "; ".join(gaps)
         ok = True
     else:
         shown = ", ".join(f"{row['agent']}={row['max_input_chars']}" for row in applicable if row["expanded"])
@@ -1470,6 +1651,8 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
     report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
+    if not _record_decision_windows(report, spec):
+        return report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(report, spec, frozen, require=require):
         return report
@@ -1801,6 +1984,8 @@ def _preflight(
         return failed
     run_knobs = _run_knobs(spec, opened.run_id)
     _record_context_plan(opened.report, spec, opened.store, run_knobs)
+    if not _record_decision_windows(opened.report, spec):
+        return opened.report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(opened.report, spec, run_knobs, require=require):
         return opened.report

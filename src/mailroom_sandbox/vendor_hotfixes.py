@@ -47,6 +47,11 @@ class Hotfix:
     upstream: str
     summary: str
     install: Callable[[Any, Callable[..., Any]], Callable[..., Any]]
+    # Other functions of the same module whose behavior the fix relies on: (attr, sha256).
+    # Any mismatch makes the whole fix stale, like a change to the target itself.
+    also: tuple[tuple[str, str], ...] = ()
+    # Re-run on an already-applied fix, for side effects a test or a reload can undo (route rules).
+    refresh: Callable[[Any], None] | None = None
 
 
 def corporate_record_type_for(subclass: Any) -> str | None:
@@ -486,6 +491,141 @@ def _install_api_single_window(module: Any, original: Callable[..., Any]) -> Cal
     return sliding_windows
 
 
+#: Route-rule name prefix of HF-011 (``graph.route_spec`` registry).
+JUDGE_EXHAUSTED_RULES = "HF-011:"
+
+
+def _judge_passes_spent(routing: Any, state: Mapping[str, Any]) -> bool:
+    passes = int(state.get("judge_pass_count") or 0)
+    return passes >= routing._judge_max_passes(routing._thresholds_for(state))
+
+
+def _exhausted_to_arbiter_enabled(routing: Any, state: Mapping[str, Any]) -> bool:
+    return routing._thresholds_for(state).get("judge_exhausted_to_arbiter") is True
+
+
+def judge_exhausted_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
+    """``judge_verify``: a ``partial`` verdict on the last judge pass asks the arbiter, not a person.
+
+    The vendored ``after_judge`` parks a ``partial`` verdict once ``judge_max_passes`` is spent
+    without consulting the arbiter, the fallback that exists to accept a materially sound
+    extraction with caveats. Only that park is redirected: an ``incomplete`` verdict, a judge
+    error, a transient error, or a pass budget not yet spent keep the router's answer, and so
+    does an extraction ``after_arbiter`` would park even on acceptance (still unsure, or an
+    unadjudicated conflict): asking the arbiter there would spend a call for the same park.
+    """
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "human_review" or state.get("transient_error"):
+            return None
+        if state.get("judge_verdict") != "partial" or not _exhausted_to_arbiter_enabled(routing, state):
+            return None
+        if not _judge_passes_spent(routing, state):
+            return None
+        # after_arbiter parks these whatever the arbiter says, so its call would be wasted.
+        if routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state):
+            return None
+        return "arbiter"
+
+    return decide
+
+
+def arbiter_final_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
+    """``arbiter``: no re-extraction once the judge passes are spent.
+
+    A retry there could not be judged again, so the arbiter's ruling on the last pass is
+    final: it accepts with caveats (``after_arbiter`` still parks an unsure extraction or an
+    unadjudicated conflict) or the document goes to a person. The park carries the
+    ``retries_exhausted`` cause the judge's last ``partial`` verdict already earned.
+    """
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "retry_extract" or not _exhausted_to_arbiter_enabled(routing, state):
+            return None
+        return "human_review" if _judge_passes_spent(routing, state) else None
+
+    return decide
+
+
+def _register_judge_exhausted_rules(module: Any) -> None:
+    """(Re)register the HF-011 rules first on their nodes; idempotent.
+
+    ``apply_hotfixes`` runs on every runtime activation, possibly while another thread is
+    routing a document. A rule already registered first for this ``module`` is left in
+    place, so a concurrent route decision never sees it missing. Only a registry clear
+    (the rule is absent: added, nothing removed) or a reloaded routing module (the rule
+    points at the old one: swapped) changes the registry.
+    """
+    from graph import route_spec
+
+    rules = (("judge_verify", "judge_exhausted_to_arbiter", judge_exhausted_rule),
+             ("arbiter", "arbiter_final_after_last_pass", arbiter_final_rule))
+    for node, name, build in rules:
+        full = JUDGE_EXHAUSTED_RULES + name
+        current = route_spec.route_rules(node)
+        mine = next((r for r in current if r.name == full), None)
+        if mine is not None and current[0] is mine and getattr(mine.decide, "_hf011_module", None) is module:
+            continue
+        decide = build(module)
+        decide._hf011_module = module  # type: ignore[attr-defined]
+        if mine is not None:
+            route_spec.remove_route_rule(node, full)
+        route_spec.add_route_rule(node, route_spec.RouteRule(full, decide), position="first")
+
+
+def _install_judge_exhausted_to_arbiter(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Register the HF-011 route rules; the router itself is unchanged.
+
+    ``graph.route_spec`` binds the routers at import, so a wrapper could not change the
+    graph; its rule registry is the sanctioned hook. The rules are placed first so a
+    decision-point rule cannot follow a retry the pass budget no longer covers. Both are
+    off unless the class's ``confidence.judge_exhausted_to_arbiter`` is ``true``, so a run
+    locked without the key routes exactly as the vendored graph does.
+    """
+    _register_judge_exhausted_rules(module)
+
+    @functools.wraps(original)
+    def after_judge(state: dict) -> Any:
+        return original(state)
+
+    return after_judge
+
+
+def _transient_budget(thresholds: Mapping[str, Any]) -> int | None:
+    raw = thresholds.get("transient_retry_max")
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+        return None
+    return raw
+
+
+def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Each node's transient self-loop follows ``confidence.transient_retry_max`` when set.
+
+    ``retry_chat_completion`` already retries a transient provider error up to its own
+    ``max_attempts`` (5) inside one node call, so the vendored two node-level re-runs on
+    top of that repeat whole extractions or judge passes. With the key set, a node re-runs
+    at most that many times (0: straight to review); without it, the vendored budget
+    (``_TRANSIENT_MAX_RETRIES``) stands. The counters and the ``transient_exhausted`` review
+    cause are unchanged.
+    """
+
+    @functools.wraps(original)
+    def _transient_decision(state: dict, *, retry_target: str) -> Any:
+        budget = _transient_budget(module._thresholds_for(state))
+        if budget is None:
+            return original(state, retry_target=retry_target)
+        retries = state.get(f"transient_retries_{retry_target}", 0)
+        if retries <= budget:
+            module.logger.warning("transient_retry", retry_target=retry_target, retries=retries,
+                                  budget=budget, error=state.get("error_message"))
+            return "retry"
+        module.logger.warning("transient_retries_exhausted", retry_target=retry_target, retries=retries,
+                              budget=budget, doc_id=state.get("doc_id"))
+        return "human_review"
+
+    return _transient_decision
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -502,7 +642,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.judge",
         attr="CompletenessJudge.judge_completeness",
         source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
-        upstream="llm-mailroom: draft issue J-1 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#315",
         summary="a completeness-judge parse failure is a judge error (human review, counted), "
                 "not an 'incomplete 0.0' verdict",
         install=_install_judge_parse_error,
@@ -512,7 +652,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.intake",
         attr="IntakeAgent.intake_run",
         source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
-        upstream="llm-mailroom: draft issue J-2 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#316",
         summary="a single-window intake cleaned_text replaces the document only when it keeps "
                 "90% of its length and its words (no dropped run of 8+ words, under 5% lost); "
                 "context fit reads long documents in one window",
@@ -523,7 +663,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="pipeline.limits",
         attr="record_usage",
         source_sha256="f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
-        upstream="llm-mailroom: draft issue J-3 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#317",
         summary="every returned call is priced against the run's API cap as it returns, so a "
                 "document in flight cannot spend past job.api_cost_cap_usd (job.call_guard)",
         install=_install_call_spend,
@@ -533,7 +673,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="pipeline.watcher",
         attr="_DispatchPool.submit",
         source_sha256="be8d41188d093a667196d2c9af16342b0d35a237188660eca75308df0292018c",
-        upstream="llm-mailroom: draft issue J-4 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#318",
         summary="the watcher queues an inbox file only while dispatch, processing (and review, "
                 "when limited) are below MAILROOM_MAX_QUEUE_DEPTH_<STAGE>; a held file stays in "
                 "the inbox for the next rescan, never dropped (mailroom_sandbox.backpressure)",
@@ -575,7 +715,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="graph.build_graph",
         attr="_run_chunked_extraction",
         source_sha256="4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f",
-        upstream="draft J-5 below (not filed)",
+        upstream="Exios66/llm-mailroom#319 (budgets: #321)",
         summary="an API-routed specialist reads the whole document in one call and refuses a "
                 "document over its budget; only Modal/vLLM and self-hosted routes chunk",
         install=_install_api_whole_document,
@@ -585,10 +725,33 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.intake",
         attr="sliding_windows",
         source_sha256="f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4",
-        upstream="draft J-5 below (not filed)",
+        upstream="Exios66/llm-mailroom#319 (budgets: #321)",
         summary="an API-routed sorter or intake refuses a document that needs more than one "
                 "window; only Modal/vLLM and self-hosted routes slide windows",
         install=_install_api_single_window,
+    ),
+    Hotfix(
+        id="HF-011",
+        module="graph.routing",
+        attr="after_judge",
+        source_sha256="f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66",
+        upstream="Exios66/llm-mailroom#320",
+        summary="with confidence.judge_exhausted_to_arbiter, a partial verdict on the last judge "
+                "pass goes to the arbiter (accept with caveats or a person) instead of straight to "
+                "review, and the arbiter cannot order a retry the pass budget no longer covers",
+        install=_install_judge_exhausted_to_arbiter,
+        refresh=_register_judge_exhausted_rules,
+        also=(("after_arbiter", "6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529"),),
+    ),
+    Hotfix(
+        id="HF-012",
+        module="graph.routing",
+        attr="_transient_decision",
+        source_sha256="506a662ea96308180e4c402a8276720698d4bacea01a5762e860eb3b101ca5f2",
+        upstream="Exios66/llm-mailroom#320",
+        summary="confidence.transient_retry_max, when set, bounds each node's transient self-loop "
+                "(retry_chat_completion already retries inside the call); unset keeps the vendored 2",
+        install=_install_transient_budget,
     ),
 )
 
@@ -623,9 +786,12 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
             owner = getattr(owner, part)
         current = getattr(owner, name)
         if getattr(current, _MARK, None) == fix.id:
+            if fix.refresh is not None:
+                fix.refresh(module)
             _STATUS[fix.id] = "applied"
             continue
-        if _source_sha(current) != fix.source_sha256:
+        drifted = [attr for attr, sha in fix.also if _source_sha(getattr(module, attr)) != sha]
+        if _source_sha(current) != fix.source_sha256 or drifted:
             _log.warning("%s not applied: vendored %s.%s changed since the hotfix was written "
                          "(re-validate it or retire it)", fix.id, fix.module, fix.attr)
             _STATUS[fix.id] = "stale"

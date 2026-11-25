@@ -9,6 +9,7 @@ from mailroom_sandbox import context_fit, source_windows
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
 
 CONTEXTS = {"qwen/qwen3.7-flash": 1_000_000, "small/api-model": 16_384}
+OUTPUTS = {"qwen/qwen3.7-flash": 65_536}
 
 
 def _taxonomy(provider="openrouter", model="qwen/qwen3.7-flash", **extra):
@@ -31,19 +32,66 @@ def _taxonomy(provider="openrouter", model="qwen/qwen3.7-flash", **extra):
 
 
 def test_long_context_api_agents_get_their_model_window():
-    out = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS)
+    out = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS)
     expected = int((1_000_000 - 4096 - 8000) * 2.4)
+    # A specialist also writes the whole extraction in one reply: its output cap rises.
+    specialist = int((1_000_000 - 16384 - 8000) * 2.4)
     agents = out["agents"]
-    assert agents["merger_agreement_specialist"]["max_input_chars"] == expected
+    assert agents["merger_agreement_specialist"]["max_input_chars"] == specialist
+    assert agents["merger_agreement_specialist"]["max_tokens"] == 16384
     assert agents["judge"]["max_input_chars"] == expected
+    assert agents["judge"]["max_tokens"] == 4096
     # The vendored sorter windows the whole document at its budget: fitted, it reads one window.
     assert agents["sorter"]["max_input_chars"] == expected
     assert out["context_fit"]["applied"]["sorter"]["before"] == 12000
-    assert out["chunking"]["chunk_chars"] == expected  # 418k-char mergers now fit one window
+    assert out["chunking"]["chunk_chars"] == specialist  # 418k-char mergers now fit one window
     applied = out["context_fit"]["applied"]
     assert applied["merger_agreement_specialist"] == {
-        "model": "qwen/qwen3.7-flash", "context_length": 1_000_000, "before": 36008, "after": expected}
-    assert out["context_fit"]["chunk_chars"] == {"before": 90000, "after": expected}
+        "model": "qwen/qwen3.7-flash", "context_length": 1_000_000, "before": 36008, "after": specialist,
+        "max_tokens": {"before": 4096, "after": 16384}}
+    assert "max_tokens" not in applied["judge"]
+    assert out["context_fit"]["chunk_chars"] == {"before": 90000, "after": specialist}
+
+
+def test_specialist_output_cap_respects_the_model_limit_and_a_small_window():
+    limited = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS,
+                                            outputs={"qwen/qwen3.7-flash": 8192})
+    assert limited["agents"]["contracts_specialist"]["max_tokens"] == 8192
+    # A window that cannot hold the raised cap beside the posture's input keeps both as they were.
+    small = context_fit.apply_context_fit(_taxonomy(model="small/api-model"), contexts=CONTEXTS, outputs=OUTPUTS)
+    assert small["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert small["context_fit"]["applied"] == {}
+    # A pinned run max_tokens is never raised; Modal and local routes keep the posture cap.
+    pinned = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS,
+                                           pinned_output={"contracts_specialist"})
+    assert pinned["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert "max_tokens" not in pinned["context_fit"]["applied"]["contracts_specialist"]
+    modal = context_fit.apply_context_fit(_taxonomy(provider="modal-vllm"), contexts=CONTEXTS, outputs=OUTPUTS)
+    assert modal["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    off = context_fit.apply_context_fit(_taxonomy(context_fit={"output_tokens": 0}), contexts=CONTEXTS,
+                                        outputs=OUTPUTS)
+    assert off["agents"]["contracts_specialist"]["max_tokens"] == 4096
+
+
+def test_identity_records_a_raised_output_cap():
+    raised = context_fit.apply_context_fit(_taxonomy(), contexts=CONTEXTS, outputs=OUTPUTS)
+    kept = context_fit.apply_context_fit(_taxonomy(context_fit={"output_tokens": 0}), contexts=CONTEXTS,
+                                         outputs=OUTPUTS)
+    assert context_fit.identity(raised)["applied"]["contracts_specialist"]["max_tokens"] == 16384
+    assert "max_tokens" not in context_fit.identity(kept)["applied"]["contracts_specialist"]
+    assert context_fit.identity(raised)["sha256"] != context_fit.identity(kept)["sha256"]
+
+
+def test_merged_taxonomy_raises_openrouter_specialist_output_but_keeps_a_run_knob():
+    fitted = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")
+    assert fitted["agents"]["correspondence_specialist"]["max_tokens"] == 16384
+    assert fitted["agents"]["judge"]["max_tokens"] == 4096
+    knob = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash",
+                                 agent_knobs={"correspondence_specialist": {"max_tokens": 3000}})
+    assert knob["agents"]["correspondence_specialist"]["max_tokens"] == 3000
+    assert "max_tokens" not in knob["context_fit"]["applied"]["correspondence_specialist"]
+    modal = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert modal["agents"]["correspondence_specialist"]["max_tokens"] == 2048
 
 
 @pytest.mark.parametrize("provider", ["modal-vllm", "vllm", "ollama", "lmstudio"])
@@ -285,3 +333,46 @@ def test_the_overlay_fits_every_whole_document_reader():
     listed = set(yaml.safe_load((config_dir() / "taxonomy.overlay.yaml").read_text())["context_fit"]["agents"])
     assert {"specialists", "judge", "arbiter", "sorter", "sorter_reviewer", "intake"} <= listed
     assert set(context_fit.DEFAULTS["agents"]) == listed
+
+
+def test_the_output_cap_never_becomes_the_chunk_cap():
+    # A mid-size API model fits the specialists below the 90k chunk cap: the cap must stay.
+    contexts = {"mid/api-model": 40_000}
+    mid = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={})
+    fitted = mid["context_fit"]["applied"]["merger_agreement_specialist"]["after"]
+    assert 36008 < fitted < 90000
+    assert mid["chunking"]["chunk_chars"] == 90000
+    # An unfitted specialist whose budget is under the chunk cap does not block the raise.
+    tax = _taxonomy()
+    tax["agents"]["contracts_specialist"] = {"provider": "modal-vllm", "model": "local/l4", "max_tokens": 4096,
+                                             "max_input_chars": 18000}
+    mixed = context_fit.apply_context_fit(tax, contexts=CONTEXTS, outputs=OUTPUTS)
+    raised = mixed["context_fit"]["applied"]["merger_agreement_specialist"]["after"]
+    assert "contracts_specialist" not in mixed["context_fit"]["applied"]
+    assert mixed["chunking"]["chunk_chars"] == raised > 90000
+
+
+def test_a_run_input_budget_keeps_room_beside_the_output_cap(monkeypatch):
+    contexts = {"mid/api-model": 40_000}
+    cfg = {**context_fit.DEFAULTS}
+    run_input = 60_000  # fits beside the 4,096 posture cap, not beside 16,384
+    assert context_fit.fit_chars(40_000, 16384, cfg) < run_input <= context_fit.fit_chars(40_000, 4096, cfg)
+    raised = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={})
+    assert raised["agents"]["merger_agreement_specialist"]["max_tokens"] == 16384
+    kept = context_fit.apply_context_fit(_taxonomy(model="mid/api-model"), contexts=contexts, outputs={},
+                                         run_inputs={"merger_agreement_specialist": run_input})
+    agent = kept["agents"]["merger_agreement_specialist"]
+    assert agent["max_tokens"] == 4096 and context_fit.fit_chars(40_000, agent["max_tokens"], cfg) >= run_input
+    assert kept["agents"]["contracts_specialist"]["max_tokens"] == 16384  # other specialists are unaffected
+    # The merged taxonomy hands the run's input knobs to the fit.
+    seen = {}
+    real = context_fit.apply_context_fit
+
+    def spy(tax, **kw):
+        seen.update(kw)
+        return real(tax, **kw)
+
+    monkeypatch.setattr(context_fit, "apply_context_fit", spy)
+    build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash",
+                          agent_knobs={"merger_agreement_specialist": {"max_input_chars": 98000}})
+    assert seen["run_inputs"] == {"merger_agreement_specialist": 98000}

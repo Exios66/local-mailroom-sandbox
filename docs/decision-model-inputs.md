@@ -68,6 +68,47 @@ carry from a `noul` to a `choice` or from one model to another.
 One request per document. Document text is truncated to `max_input_chars` (1,000,000 for v4.0.2)
 before sending; text beyond that cap is not sent. API runs do not chunk.
 
+### Swapping the decision model
+
+`openai/gpt-6-luna-decisions` is the frontrunner (1,050,000-token context). Any model in
+`SUPPORTED_DECISION_MODELS["decisions"]` (`src/mailroom_sandbox/decision_backends.py`) can take
+its place on the same lane by changing `model:` in the run YAML's `reviewer`, `extraction_gate` or
+`decision_slots.resolver` block, with `backend: decisions` and the same question set:
+`typesafe/jev-1.14`, `typesafe/jev-1.13`, `google/gemini-decision-1`,
+`perplexity/pplx-decider-v1.2`, `upstage/solar-decide` or `liquid/d1.2`. Price and context come
+from `config/decision_models.yaml`; a moving alias or a chat model is refused.
+
+Each request reads at most the chosen model's own window: `decision_input_cap` takes the
+smaller of the question set's `max_input_chars` and
+`(context_length - reserve) / 0.25` characters, where the reserve is 4,000 tokens or the
+questions and handoff actually sent, whichever is larger. 0.25 tokens per character is an
+estimate measured on Luna only (fit 0.2073); it is unverified for the other models' tokenizers,
+so a model whose tokenizer yields more tokens per character can still exceed its context near
+the window edge. With the default reserve, on the current catalog (a set whose
+questions run past 4,000 tokens leaves slightly less: `liquid/d1.2` reads at most 239,552 chars with the v4.2.0 reviewer questions, less the handoff):
+
+| Model | Context (tokens) | Window (chars) | 1,000,000-char sets |
+| --- | ---: | ---: | --- |
+| `openai/gpt-6-luna-decisions` | 1,050,000 | 4,184,000 | whole set cap |
+| `upstage/solar-decide` | 524,288 | 2,081,152 | whole set cap |
+| `typesafe/jev-1.14`, `typesafe/jev-1.13`, `google/gemini-decision-1`, `perplexity/pplx-decider-v1.2` | 262,144 | 1,032,576 | whole set cap |
+| `liquid/d1.2` | 65,536 | 246,144 | cut to 246,144 |
+
+The `sorter_reviewer` task and the extraction gate report a cut document as `truncated`; the in-pipeline
+reviewer answer does not carry that flag. A model whose window would hold fewer than 8,000 document
+characters next to its questions is refused before any request (`DECISIONS_MIN_WINDOW_CHARS`).
+Preflight records every Decisions lane's model and window under `decision_windows`, says where a
+window cuts a set's cap, and fails a lane that cannot hold the minimum. It sizes the reserve with
+the lane's largest serialized questions, as execution does; the run's handoff (sorter answer,
+extraction, closed-field card) is not known before the run, so each recorded `window_chars` is an
+estimate that execution can lower by the handoff's size. The closed-field resolver's question size
+is a floor (one minimal field), because its allowed labels also arrive with the handoff. Where a run spec
+sets `reviewer.max_input_chars`, preflight and the autoresearch context check use it as execution does:
+it raises the set's cap and never lowers it. A swapped reviewer keeps the
+run's `reviewer.classes` cutoffs, which were tuned on Luna. The window
+follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
+`context_length` changes the window of a resumed run. No model other than Luna has a calibration.
+
 ## Request format: findings and changes
 
 Ordered by expected effect. Each change alters what the model reads, so it belongs in a new question

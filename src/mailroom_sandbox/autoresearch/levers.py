@@ -52,6 +52,8 @@ from typing import Any, Mapping, Sequence
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from mailroom_sandbox.decision_backends import DECISIONS_QUESTION_TOKENS, DECISIONS_TOKENS_PER_CHAR
+
 SCHEMA = "sandbox.autoresearch.levers/v1"
 # A study compares candidates on one frozen draw: a lever may not move the draw, the run id or the
 # mock switch (those belong to the study, which sets them per round).
@@ -549,24 +551,37 @@ def reviewer_errors(spec: Mapping[str, Any]) -> list[str]:
 
 # ---- reviewer input vs the model's context -------------------------------------------------------
 
-# Conservative sizing: 0.25 tokens per character (the measured fit is 0.2073) plus the question text.
-TOKENS_PER_CHAR = 0.25
-QUESTION_TOKENS = 4000
+# Sizing estimate: 0.25 tokens per character (fit 0.2073, measured on Luna only; unverified for other
+# tokenizers) plus the question text.
+# The same numbers bound each request at execution (decision_backends.decision_input_cap).
+TOKENS_PER_CHAR = DECISIONS_TOKENS_PER_CHAR
+QUESTION_TOKENS = DECISIONS_QUESTION_TOKENS
 
 
-def reviewer_request_tokens(max_input_chars: int) -> int:
-    """Upper estimate of one Decisions request: the document capped at ``max_input_chars`` plus the questions."""
-    return int(max_input_chars * TOKENS_PER_CHAR) + QUESTION_TOKENS
+def reviewer_request_tokens(max_input_chars: int, question_chars: int = 0) -> int:
+    """Upper estimate of one Decisions request: the document capped at ``max_input_chars`` plus the questions.
+
+    The question reserve is the one execution uses: the larger of ``QUESTION_TOKENS`` and the
+    serialized questions (``question_chars``) plus 1,000 tokens. The run's handoff is not known here.
+    """
+    reserve = max(QUESTION_TOKENS, int(question_chars * TOKENS_PER_CHAR) + 1000)
+    return int(max_input_chars * TOKENS_PER_CHAR) + reserve
 
 
 def context_errors(spec: Mapping[str, Any]) -> list[str]:
     """Reviewer (and gate) requests that cannot fit the Decisions model's context.
 
     The input cap of a reviewer is its question set's ``max_input_chars`` (``DECISIONS_MAX_INPUT_CHARS`` when the
-    set omits it, as at execution): the spec has no per-run override, so a model with a small window needs a
-    question set that caps lower.
+    set omits it, as at execution). A spec's ``reviewer.max_input_chars``, where the spec carries one, raises
+    that cap and never lowers it, as ``classify_window_chars`` does at execution. A model with a small window
+    needs a question set that caps lower.
     """
-    from mailroom_sandbox.decision_backends import DECISIONS_MAX_INPUT_CHARS, decision_model, load_question_set
+    from mailroom_sandbox.decision_backends import (
+        DECISIONS_MAX_INPUT_CHARS,
+        decision_model,
+        lane_question_chars,
+        load_question_set,
+    )
 
     errors: list[str] = []
     for block, label in ((spec.get("reviewer") or {}, "reviewer"), (spec.get("extraction_gate") or {}, "extraction_gate")):
@@ -578,13 +593,21 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
             qset = load_question_set(str(stem))
             # The cap execution applies: the set's own, else DECISIONS_MAX_INPUT_CHARS (never 0). The gate
             # may cap a class higher (``max_input_chars_by_class``), so its worst case is the largest of them.
-            chars = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
+            set_cap = int(qset.get("max_input_chars") or 0)
+            chars = set_cap or DECISIONS_MAX_INPUT_CHARS
+            extra = block.get("max_input_chars") if label == "reviewer" else None
+            if isinstance(extra, int) and not isinstance(extra, bool) and extra > 0:
+                chars = max(set_cap, extra) if set_cap else extra
             if label == "extraction_gate":
                 chars = max([chars, *(int(v) for v in (qset.get("max_input_chars_by_class") or {}).values() if v)])
         except Exception as exc:  # noqa: BLE001 - reported, not raised: the catalog check lists every problem
             errors.append(f"{label} question set {stem!r}: {exc}")
             continue
-        need, window = reviewer_request_tokens(chars), row.get("context_length") or 0
+        try:
+            questions = lane_question_chars(label, qset)
+        except Exception:  # noqa: BLE001 - a set too partial to build questions: the default reserve
+            questions = 0
+        need, window = reviewer_request_tokens(chars, questions), row.get("context_length") or 0
         if window and need > window:
             errors.append(f"{label} {model}: question set {stem} sends up to ~{need:,} tokens "
                           f"(max_input_chars {chars:,}), over its {window:,}-token context")

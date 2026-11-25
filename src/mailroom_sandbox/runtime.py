@@ -459,6 +459,12 @@ def activate(
         # after preflight must not change a locked run's routing, and the routing audit reports
         # this same block. Older locks only carry the run's own overrides.
         frozen_confidence = deepcopy(lock.get("effective_confidence"))
+        if not frozen_confidence:
+            # An older lock: keep the retry budgets it ran with, not ones a later overlay added
+            # (the HF-011/HF-012 keys would otherwise reach a run that never had them).
+            from mailroom_sandbox.job.routing_audit import legacy_thresholds
+
+            frozen_confidence = legacy_thresholds(lock.get("confidence"))
         confidence = deepcopy(frozen_confidence or lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))

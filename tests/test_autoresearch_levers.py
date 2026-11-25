@@ -595,3 +595,36 @@ def test_the_context_check_prices_an_omitted_input_cap_at_what_execution_falls_b
     monkeypatch.setattr(db, "load_question_set", lambda stem: {"max_input_chars": 40_000, "max_input_chars_by_class": {"contract": 900_000}})
     assert any("max_input_chars 900,000" in e for e in lv.context_errors({"extraction_gate": gate}))      # a class may cap higher
     assert lv.context_errors({"reviewer": block}) == []                                                # the reviewer has no per-class cap
+
+
+def test_the_context_check_reserves_the_questions_execution_sends(monkeypatch):
+    """A set whose questions outgrow the default 4,000-token reserve needs that much more room,
+    as at execution (decision_backends.decision_input_cap); otherwise the cap is silently cut."""
+    from mailroom_sandbox import decision_backends as db
+
+    qset = db.load_question_set("reviewer_decisions_v4.2.0")
+    sent = db.lane_question_chars("reviewer", qset)
+    reserve = int(sent * db.DECISIONS_TOKENS_PER_CHAR) + 1000
+    assert reserve > db.DECISIONS_QUESTION_TOKENS
+    cap = int(qset["max_input_chars"])
+    edge = int(cap * db.DECISIONS_TOKENS_PER_CHAR) + db.DECISIONS_QUESTION_TOKENS + 100  # fits the old reserve only
+    monkeypatch.setattr(db, "decision_model", lambda m: {"context_length": edge} if m == "vendor/dec" else None)
+    block = {"model": "vendor/dec", "questions": "reviewer_decisions_v4.2.0", "backend": "decisions"}
+    errors = lv.context_errors({"reviewer": block})
+    assert len(errors) == 1 and f"~{int(cap * db.DECISIONS_TOKENS_PER_CHAR) + reserve:,} tokens" in errors[0], errors
+
+
+def test_the_context_check_reads_a_reviewer_input_override(monkeypatch):
+    """A spec's ``reviewer.max_input_chars`` raises the set's cap (never lowers it), as at execution,
+    so a raise past the model's window is caught before the lever runs."""
+    from mailroom_sandbox import decision_backends as db
+
+    qset = db.load_question_set("reviewer_decisions_v4.2.0")
+    cap = int(qset["max_input_chars"])
+    window = int(cap * db.DECISIONS_TOKENS_PER_CHAR) + 50_000  # holds the set's own cap
+    monkeypatch.setattr(db, "decision_model", lambda m: {"context_length": window} if m == "vendor/dec" else None)
+    block = {"model": "vendor/dec", "questions": "reviewer_decisions_v4.2.0", "backend": "decisions"}
+    assert lv.context_errors({"reviewer": block}) == []
+    assert lv.context_errors({"reviewer": {**block, "max_input_chars": cap // 2}}) == []
+    (error,) = lv.context_errors({"reviewer": {**block, "max_input_chars": cap * 2}})
+    assert f"max_input_chars {cap * 2:,}" in error
