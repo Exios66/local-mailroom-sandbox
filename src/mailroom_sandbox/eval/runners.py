@@ -716,6 +716,25 @@ def run_sorter_eval(
     return {**plan, "scores": scores, "record": record}
 
 
+def _extract_run_headline(scored_rows: Sequence[Mapping[str, Any]], n: int) -> dict[str, Any]:
+    """Run headline of ``run_extract_eval``, dual reported (``docs/scoring-hotfixes.md``).
+
+    ``overall_extraction_score`` is the mean row score over rows that produced one (0.0 when none),
+    on the hotfixed rows and, under ``raw_dojo``, on each row's raw Dojo-pin value; the fixes that
+    were on for any row are named, with the headline basis.
+    """
+    def mean(rows: Sequence[Mapping[str, Any] | None]) -> float:
+        vals = [float(r["overall_extraction_score"]) for r in rows
+                if r and isinstance(r.get("overall_extraction_score"), (int, float))]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    used = sorted({i for r in scored_rows for i in r.get("scoring_hotfixes") or []})
+    dual = scoring_hotfixes.merge_dual({"overall_extraction_score": mean(scoring_hotfixes.raw_rows(scored_rows))},
+                                       {"overall_extraction_score": mean(scored_rows)}, used,
+                                       keys=("overall_extraction_score",))
+    return {**dual, "n": n, "headline_basis": scoring_hotfixes.headline_basis()}
+
+
 def run_extract_eval(
     *,
     mock: bool = True,
@@ -744,7 +763,6 @@ def run_extract_eval(
         from mailroom_sandbox.prompt_lineage import apply_eval_defaults
 
         apply_eval_defaults("extract")
-    overall: list[float] = []
     schema_rows: list[dict[str, Any]] = []
     for row in rows:
         expected_fields = parse_expected_fields(row) or {}
@@ -762,14 +780,12 @@ def run_extract_eval(
             # Per-subclass scoring (sandbox #145): the row's GT subclass drives
             # the vendored corporate-record alignment (see scoring.py).
             expected_subclass=row.get("expected_subclass"),
+            # SHF-010: the interim truth near-gold replaced is scored as raw, and the fix named.
+            truth_overrides=row.get("truth_overrides"),
             overlay_fields=scoring_hotfixes.overlay_fields(row),
         )
         schema_rows.append(scored)
-        value = scored.get("overall_extraction_score")
-        if isinstance(value, (int, float)):
-            overall.append(float(value))
-    mean = sum(overall) / len(overall) if overall else 0.0
-    scores = {"overall_extraction_score": mean, "n": len(rows)}
+    scores = _extract_run_headline(schema_rows, len(rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
