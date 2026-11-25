@@ -182,8 +182,8 @@ INTAKE_TRIAGE_ONLY_BLOCK = (
     "changes_applied to an empty array; never return any part of the document.\n\n")
 _INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
 #: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
-INTAKE_TRIAGE_ONLY_TAIL = ("\n\nSet cleaned_text to null and changes_applied to an empty array in every "
-                           "answer: the document text is never returned (HF-014).")
+INTAKE_TRIAGE_ONLY_TAIL = ("\n\nIgnore any instruction to return the document text: set cleaned_text to null and "
+                           "changes_applied to an empty array in every answer; the text is never returned (HF-014).")
 
 
 def _intake_triage_only(text: str) -> str:
@@ -192,7 +192,13 @@ def _intake_triage_only(text: str) -> str:
         return text  # already rewritten
     out, n = _INTAKE_CLEAN_BLOCK.subn(lambda _m: INTAKE_TRIAGE_ONLY_BLOCK, text)
     out = out.replace("TRIAGE, CLEAN, and PREPARE", "TRIAGE and PREPARE")
-    return out if n else out.rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+    if n:
+        return out
+    # No CLEAN block (a managed or local variant): drop any line that asks for the whole or repaired
+    # text in cleaned_text, then end with an explicit override of whatever remains.
+    kept = [ln for ln in out.splitlines()
+            if not (re.search(r"cleaned_text", ln, re.I) and re.search(r"\b(full|repaired)\b", ln, re.I))]
+    return "\n".join(kept).rstrip() + INTAKE_TRIAGE_ONLY_TAIL
 
 
 def _swap_intake_schema(module: Any) -> None:
@@ -249,7 +255,8 @@ def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Ca
     advisory read. An empty triage is falsy, ``_merge_triage`` falls back to the first window's
     read and ``format_intake_prior`` returns "". A model that answers ``unknown`` with a gist is a
     real read and keeps its prior. The subclass line is printed only for a token in the sorter's
-    own catalog for that primary class.
+    own catalog for that primary class. ``_merge_triage`` drops empty reads before it merges, so a
+    failed window never hides another window's real read.
     """
 
     @functools.wraps(original)
@@ -258,6 +265,17 @@ def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Ca
         if not isinstance(result, dict) or result.get("_parse_error") or not _usable_triage(result.get("triage")):
             out["triage"] = {}
         return out
+
+    merge = module._merge_triage
+    if getattr(merge, _MARK, None) != "HF-015":
+        @functools.wraps(merge)
+        def _merge_triage(reads: list[dict]) -> dict:
+            # Upstream's all-unknown fallback is reads[0], so a failed (empty) first window hid an
+            # honest ``unknown`` read from a later one. Empty reads are dropped first.
+            return merge([r for r in reads if r] or reads)
+
+        setattr(_merge_triage, _MARK, "HF-015")
+        module._merge_triage = _merge_triage
 
     prior = module.format_intake_prior
     if getattr(prior, _MARK, None) != "HF-015":
@@ -275,8 +293,9 @@ def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Ca
 
 
 def _refresh_empty_intake_prior(module: Any) -> None:
-    """Re-install the ``format_intake_prior`` half if a reload restored the vendored function."""
-    if getattr(module.format_intake_prior, _MARK, None) != "HF-015":
+    """Re-wrap ``format_intake_prior`` and ``_merge_triage`` if a reload restored the vendored functions."""
+    if (getattr(module.format_intake_prior, _MARK, None) != "HF-015"
+            or getattr(module._merge_triage, _MARK, None) != "HF-015"):
         _install_empty_intake_prior(module, module.validate_intake)
 
 
@@ -882,7 +901,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         source_sha256="c6957091af25c45f4af88ce8475349fb64cc3c40b4f2e66756eb5d91a3043df6",
         upstream="upstream issue to be filed (llm-mailroom: a failed intake read becomes an unknown/0.0 prior)",
         summary="a failed intake read (parse error, no triage object) has an empty triage and so no "
-                "sorter prior instead of 'unknown / 0.0'; the prior's subclass line is printed only "
+                "sorter prior instead of 'unknown / 0.0', and a failed window never hides another "
+                "window's read in the merge; the prior's subclass line is printed only "
                 "for a token in the sorter's catalog for that class",
         install=_install_empty_intake_prior,
         refresh=_refresh_empty_intake_prior,

@@ -751,3 +751,32 @@ def test_hf014_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_
     monkeypatch.setattr(agent, "system_prompt", lambda: intake.INTAKE_SYSTEM_PROMPT)
     lost = agent.intake_run(doc, "messy.txt")
     assert lost["triage"] == {} and intake.format_intake_prior(lost) == ""
+
+
+# --- review round 1 -----------------------------------------------------------------------------
+
+@pytest.mark.parametrize("order", ["failed_first", "failed_last"])
+def test_hf015_a_failed_window_never_hides_an_honest_unknown_read(order):
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    unk = intake.validate_intake({"triage": {"primary_doc_class": "unknown", "confidence": 0.2,
+                                             "gist": "A shopping list."}}, "t")["triage"]
+    reads = [{}, unk] if order == "failed_first" else [unk, {}]
+    assert intake._merge_triage(reads)["gist"] == "A shopping list."
+    assert not intake._merge_triage([{}, {}]) and intake._merge_triage([]) == {}
+    assert vh.apply_hotfixes()["HF-015"] == "applied"  # idempotent: no wrapper stacking
+    assert getattr(intake._merge_triage, "_sandbox_hotfix") == "HF-015"
+    assert not hasattr(intake._merge_triage.__wrapped__, "__wrapped__")
+
+
+def test_hf014_the_tail_fallback_removes_a_full_text_instruction_and_overrides_it(monkeypatch):
+    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    import agents.intake as intake
+
+    served = "Return the FULL repaired text in cleaned_text.\nRules: x"
+    monkeypatch.setattr(intake, "get_managed_prompt", lambda name, default: (served, None))
+    text = _intake_agent().system_prompt()
+    assert "FULL repaired text" not in text and "Rules: x" in text
+    assert "Ignore any instruction to return the document text" in text
+    assert "set cleaned_text to null" in text.lower()
