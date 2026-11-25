@@ -201,9 +201,12 @@ lock and in the block's `source`; its points equal the Dojo's on the same extrac
 a run cannot resume on the refreshed tree, because its lock recorded a different scoring hotfix
 set. Re-lock it with `sandbox run preflight --config CONFIG --run-id RUN --force` (a run-id-only
 `--force` does not re-lock), which archives the old generation and re-prepares the run; it can
-still refuse while another writer owns the run's store. Or score it again with `sandbox rescore`
-or `sandbox pain-points`. An installed or cached Dojo without `pipeline.pain_points` (any release before
-llm-dojo-scoring #185, the `v0.30.1` tag included) is not selected: the sandbox falls back to the vendored snapshot.
+still refuse while another writer owns the run's store. Rescoring scores a run again but does not
+finish it: `sandbox rescore` scores only the stored answers, into a derived run, and
+`sandbox pain-points` refuses a run whose checkpoint is not `done` or `failed`. An installed or
+cached Dojo without `pipeline.pain_points` (any release before llm-dojo-scoring #185, the
+`v0.30.1` tag included) is not selected: selection moves on to a cache selected with
+`SANDBOX_DOJO_SNAPSHOT` that ships the module, else to the vendored snapshot.
 
 ## Scope and limits
 

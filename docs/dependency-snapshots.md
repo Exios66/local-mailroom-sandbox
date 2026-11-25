@@ -66,8 +66,9 @@ package bootstrap, before family imports; changing a variable inside an already
 running Python interpreter does not switch its loaded modules. Invalid caches
 fall back with diagnostics. A Dojo layer must also ship every module in
 `dojo_source.REQUIRED_SUBMODULES` (`pipeline.pain_points`), so a cached or installed
-release before llm-dojo-scoring #185 (the `v0.30.1` tag included) falls back to the vendored
-snapshot. `SANDBOX_DOJO_SOURCE=vendored` disables its cache and
+release before llm-dojo-scoring #185 (the `v0.30.1` tag included) is not selected: an installed
+release falls back to the selected cache when that cache ships the module, and otherwise, like
+such a cache, to the vendored snapshot. `SANDBOX_DOJO_SOURCE=vendored` disables its cache and
 installed layers; the existing `installed` mode still explicitly permits an
 off-pin installed Dojo. `DOJO_SRC` remains the highest-priority development escape
 hatch. Pipeline source roots accept either `src/` or a repository containing it.
