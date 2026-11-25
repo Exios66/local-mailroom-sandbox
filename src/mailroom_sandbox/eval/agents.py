@@ -547,7 +547,14 @@ def _score_verdict(row: dict[str, Any], pred: dict[str, Any], key: str, expected
 JUDGE_PARSE_FAILURE = "judge output failed to parse"
 
 
-def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: bool = False) -> dict[str, Any]:
+def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: bool = False,
+                   stale_labels: bool = True) -> dict[str, Any]:
+    """Score one extraction row (the dual-reported headline plus ``raw_dojo``).
+
+    ``stale_labels=False`` leaves SHF-015 off (the Hub's stale labels stay in the truth), so the
+    per-field scores are every field the row's truth names. The R02 scorer hand-check replays on that
+    basis: it verifies the per-field scorer, and SHF-015 is a label-policy layer over the headline.
+    """
     expected = parse_expected_fields(row) or row.get("expected_fields") or {}
     if not isinstance(expected, dict):
         expected = {}
@@ -562,7 +569,7 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: b
         expected_subclass=row.get("expected_subclass"),
         field_scores=field_scores,
         truth_overrides=row.get("truth_overrides"),
-        overlay_fields=scoring_hotfixes.overlay_fields(row),
+        overlay_fields=scoring_hotfixes.overlay_fields(row) if stale_labels else None,
     )
 
 

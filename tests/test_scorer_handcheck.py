@@ -286,3 +286,35 @@ def test_field_scores_are_opt_in_on_the_row_scorer():
     assert "field_scores" not in plain
     scored = score_extraction_row("insurance_claim", {"claim_number": "clm-1"}, dict(expected), field_scores=True)
     assert scored["field_scores"]["claim_number"] == 1.0
+
+
+def _stale_correspondence(doc_id: str) -> dict:
+    # The hub's heuristic intent and templated subject_matter / keywords: SHF-015 drops these from
+    # the headline extraction score (docs/scoring-hotfixes.md), but the R02 sheet still lists them.
+    return _row(doc_id, "correspondence", "email", {
+        "sender": "Acme Corp", "recipient": "Jane Doe", "communication_type": "email",
+        "communication_date": "2001-05-04", "intent": "notice", "intent_source": "heuristic",
+        "subject_matter": "Correspondence concerning Q3 results", "keywords": "results, quarter"})
+
+
+def test_handcheck_scores_the_raw_per_field_basis_not_the_shf015_headline(tmp_path):
+    # R02 verifies the per-field scorer; SHF-015 is a label-policy layer over the headline. A stale
+    # heuristic intent stays on the sheet, so the replay must still report it (no missing_checks).
+    rows = [_stale_correspondence(f"DOC-s{n}") for n in range(4)]
+    sorter = {r["id"]: ("correspondence", "email", 0.9) for r in rows}
+    paths = _setup(tmp_path, rows, sorter)
+    table = es.load_unit_table(paths["split"])
+    bars = load_bars()
+    cases = [hc.perturb(c) for c in hc.select_docs(rows, hc.load_sorter_pass(paths["pass"]), table,
+                                                    classes=("correspondence",))]
+    sheet = hc.sheet_rows(cases, table, draft=True, gated=bars.gated)
+    assert {"field:intent", "field:subject_matter", "field:keywords"} <= {r["check"] for r in sheet}
+    values = _replay(cases, table, bars)
+    cmp = hc.compare(sheet, values)
+    assert not cmp.missing_checks and not cmp.unlisted, (cmp.missing_checks, cmp.unlisted)
+    assert not cmp.mismatched, cmp.mismatched
+    # the headline itself does drop them: the replay deliberately reads the raw side
+    from mailroom_sandbox.eval.agents import _score_extract
+
+    headline = _score_extract(dict(cases[0].row), dict(cases[0].fields), field_scores=True)
+    assert "intent" not in headline["field_scores"] and headline["stale_hub_labels"]
