@@ -15,8 +15,8 @@ precedence:
    contracts and mergers, scored on one label field, ``cuad_missed`` / ``cuad_false`` / ``maud_wrong``;
 5. ``label_suspect``: the lowest field is a heuristic ``intent`` label and the document text states
    the predicted value, so the label is the likelier error. Checked ahead of the extraction type,
-   which it replaces. It never applies to contracts and mergers, nor to an ``intent`` a reviewed
-   overlay supplied (see ``label_suspect``).
+   which it replaces. It never applies to contracts and mergers, nor to an ``intent`` an overlay
+   supplied (see ``label_suspect``).
 
 Review causes are the pipeline's ``review_causes`` tokens (``vendor/llm-mailroom``
 ``pipeline/reconsideration.py``). Tokens this module does not map are never bucketed by guess:
@@ -186,10 +186,11 @@ def _words(text: Any) -> str:
 
 
 def _overlay_supplied(row: Mapping[str, Any], field: str) -> bool:
-    """A reviewed overlay (interim, near-gold or staged) supplied this field's label on this row.
+    """An overlay (interim, staged or near-gold) supplied this field's label on this row.
 
-    The overlays replace the label but leave ``intent_source`` as it was, so the marker each one
-    writes (``interim_labels``, ``near_gold_labels``, ``staged_overlay``, each listing the fields it
+    An interim ``correction`` and the staged overlay replace a Hub label but leave ``intent_source``
+    as it was; near-gold fills only an unlabelled field. The marker each one writes
+    (``interim_labels``, ``near_gold_labels``, ``staged_overlay``, each listing the fields it
     applied) is the provenance. A staged row marked ``stale`` applied nothing and lists no field.
     Reads the row only; it never changes it, so no hash, lock or score depends on it.
     """
@@ -202,10 +203,10 @@ def label_suspect(row: Mapping[str, Any], pred: Mapping[str, Any], field: str | 
     """The lowest field's label is heuristic and the document text states the predicted value.
 
     Only ``intent`` carries a label source (``intent_source == "heuristic"``). Contracts and mergers
-    are scored on CUAD/MAUD labels, never on that intent, so they never qualify. An ``intent`` that a
-    reviewed overlay supplied (``_overlay_supplied``) never qualifies either: the overlays leave
-    ``intent_source`` as ``heuristic`` while replacing the value, so the marker, not the source tag,
-    says the label was reviewed. The predicted value must be in the intent vocabulary, must not be
+    are scored on CUAD/MAUD labels, never on that intent, so they never qualify. An ``intent`` that an
+    overlay supplied (``_overlay_supplied``) never qualifies either: an interim correction or the
+    staged overlay leaves ``intent_source`` as ``heuristic`` while replacing the value, so the
+    marker, not the source tag, says the label was reviewed. The predicted value must be in the intent vocabulary, must not be
     ``other`` (a catch-all, too common to be evidence), and must appear in the text as whole words
     (underscores read as spaces).
     """

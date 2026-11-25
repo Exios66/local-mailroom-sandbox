@@ -96,7 +96,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    | 2 | input | `input:near_empty` (reviews only: document text under 200 characters) |
    | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` |
    | 4 | judge | `partial_exhausted`, `judge_rejected` |
-   | 5 | label | `label_suspect` (a heuristic `intent` label only: never one a reviewed interim, near-gold or staged overlay supplied) |
+   | 5 | label | `label_suspect` (a heuristic `intent` label only: never one an interim, staged or near-gold overlay supplied) |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
 
    Two mechanism buckets sit outside this order:
