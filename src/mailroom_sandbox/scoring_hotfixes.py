@@ -114,7 +114,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
-                  "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0"),
+                  "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0"),
                  ("mailroom_sandbox.rescore:run_scores", "74498e99c35f8e067732a71670c944f22cd291fb2fdf4c2439e9d676ec57c9c6")),
         upstream="sandbox",
         summary="a row that errored (timeout, parse failure, crash) scores 0 in the run "
@@ -126,7 +126,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
-                 ("mailroom_sandbox.job.runner:_scored_pairs", "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0")),
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0")),
         upstream="sandbox",
         summary="a row with no truth to score is left out of the run mean and counted "
                 "(n_no_truth) instead of averaging in as 0 (isolated evals and the job-runner "
@@ -143,7 +143,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.agents:_class_answer",
                   "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984"),
                  # the job-runner sorter scores folded labels and leaves no-truth rows out
-                 ("mailroom_sandbox.job.runner:_scored_pairs", "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0")),
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0")),
         upstream="sandbox",
         summary="class labels compare case-, hyphen- and whitespace-folded; a row without a "
                 "truth class is unscored, not a match; an abstention is its own outcome "

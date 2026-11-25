@@ -16,6 +16,7 @@
     - Recorded as: the scored-only means under `raw_dojo`, plus `failed`, `failed_scored_zero`, `scoring_hotfixes` and `headline_basis`.
   - **SHF-006 / SHF-007 (extended):**
     - Changes: the per-item job runner's sorter scores fold case, hyphens and whitespace, and leave blank-truth rows out.
+    - Coupling: either fix turns on the no-truth drop, and only SHF-007 folds labels, so a stale SHF-007 no longer brings blank-truth rows back into the mean while SHF-006 is current.
     - Recorded as: `n_no_truth`, `scoring_hotfixes`, and the exact-match scores under `raw_dojo`.
     - Not changed: `gate.is_wrong_class` stays exact, because it judges the archived class.
   - **SHF-002 / SHF-003 / SHF-004 (extended paths):** gate cause typing (and `gold_audit`) and extraction-gate field truth score under the hotfixes, so a `CLM12345` the headline scores right is no longer the "lowest field". SHF-003 also reads currencies named in words (`1,000 euros` no longer matches `$1,000.00`); no current label states one.

@@ -786,6 +786,40 @@ def test_shf007_per_item_runner_keeps_a_failed_row_wrong_after_folding():
     assert scores["scoring_hotfixes"] == ["SHF-005", "SHF-006", "SHF-007"]
 
 
+def _without(monkeypatch, *ids):
+    """Run with the current fixes except ``ids`` (as if those were stale)."""
+    remaining = sh.current_ids() - set(ids)
+    monkeypatch.setattr(sh, "current_ids", lambda: remaining)
+
+
+def test_shf006_alone_still_leaves_a_no_truth_row_out_of_the_job_runner_mean(monkeypatch):
+    """SHF-006 (a no-truth row is counted, not averaged as 0) holds without SHF-007's folding."""
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-007")
+    scores = _scored_pairs("sorter", ["contract", "", "insurance_claim"], ["contract", "contract", "insurance-claim"],
+                           {0: True, 1: True, 2: True}, 3)
+    assert scores["n"] == 2 and scores["n_no_truth"] == 1
+    assert scores["accuracy"] == 0.5  # no folding: "insurance-claim" still differs from "insurance_claim"
+    assert scores["scoring_hotfixes"] == ["SHF-006"]
+
+
+def test_shf007_alone_still_leaves_a_no_truth_row_out_and_names_itself(monkeypatch):
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-006")
+    scores = _scored_pairs("sorter", ["contract", ""], ["contract", "contract"], {0: True, 1: True}, 2)
+    assert scores["n"] == 1 and scores["n_no_truth"] == 1 and scores["scoring_hotfixes"] == ["SHF-007"]
+
+
+def test_neither_no_truth_fix_leaves_the_raw_job_runner_scores(monkeypatch):
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-006", "SHF-007")
+    scores = _scored_pairs("sorter", ["contract", ""], ["contract", "contract"], {0: True, 1: True}, 2)
+    assert scores["scoring_hotfixes"] == [] and "n_no_truth" not in scores and scores["accuracy"] == 0.5
+
+
 def test_per_item_runner_without_a_moved_score_names_no_fix():
     from mailroom_sandbox.job.runner import _scored_pairs
 

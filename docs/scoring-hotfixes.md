@@ -104,6 +104,10 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     `scoring_hotfixes_changed` and `headline_basis`.
 - **SHF-006 / SHF-007** (extended). `job/runner._scored_pairs`, the per-item job runner's sorter
   scores, folds labels and leaves blank-truth rows out.
+  - Coupling: both fixes define the no-truth drop for these scores, so the drop is on when
+    either is current; only SHF-007 folds the labels. With SHF-006 current and SHF-007 stale a
+    blank-truth row is still left out and counted, and labels compare exactly. A row left out is
+    named under both fixes that are current (`SHF-006`, `SHF-007`); folding alone names `SHF-007`.
   - Recorded as: `n_no_truth` and `n_errored_scored_wrong`. `scoring_hotfixes` lists each fix
     that moved the score, and the exact-match scores stay under `raw_dojo`.
 - **SHF-002 / SHF-003 / SHF-004** (extended paths). `job/gate_causes._field_scores`, and with it

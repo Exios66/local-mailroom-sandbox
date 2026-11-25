@@ -150,14 +150,21 @@ def _scored_pairs(task: str, expected: list[str], predicted: list[str], ok_by_in
     if "SHF-005" not in on:
         pairs = [(e, p) for e, p in pairs if p != ERRORED_PREDICTION]
     n_no_truth = 0
-    if "SHF-007" in on:
+    # SHF-006 and SHF-007 both define the no-truth drop (a row with no truth class is left out and
+    # counted), so either one turns it on; only SHF-007 folds the labels. Each is named in
+    # ``used`` when it is on and moved the score (docs/scoring-hotfixes.md).
+    drop_no_truth = bool(on & {"SHF-006", "SHF-007"})
+    if drop_no_truth:
         kept = [(e, p) for e, p in pairs if str(e or "").strip()]
         n_no_truth = len(pairs) - len(kept)
-        folded = [(_fold(e), p if p == ERRORED_PREDICTION else _fold(p)) for e, p in kept]
-        if n_no_truth or folded != kept:
-            used.add("SHF-007")
-        if n_no_truth and "SHF-006" in on:
-            used.add("SHF-006")
+        if "SHF-007" in on:
+            folded = [(_fold(e), p if p == ERRORED_PREDICTION else _fold(p)) for e, p in kept]
+            if folded != kept:
+                used.add("SHF-007")
+        else:
+            folded = kept
+        if n_no_truth:
+            used.update(on & {"SHF-006", "SHF-007"})
         pairs = folded
     fixed = _score(task, [e for e, _ in pairs], [p for _, p in pairs]) if pairs else {}
     n_errored = sum(1 for _, p in pairs if p == ERRORED_PREDICTION)
