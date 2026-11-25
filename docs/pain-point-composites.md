@@ -199,8 +199,11 @@ hotfix. The refresh checked that the vendored module was byte-identical to the c
 SHF-014 and deleted the copy, so no composite moved. A run made under SHF-014 names it in its
 lock and in the block's `source`; its points equal the Dojo's on the same extraction scores. Such
 a run cannot resume on the refreshed tree, because its lock recorded a different scoring hotfix
-set: re-lock it with `--force`, or score it again with `sandbox rescore` or
-`sandbox pain-points`.
+set. Re-lock it with `sandbox run preflight --config CONFIG --run-id RUN --force` (a run-id-only
+`--force` does not re-lock), which archives the old generation and re-prepares the run; it can
+still refuse while another writer owns the run's store. Or score it again with `sandbox rescore`
+or `sandbox pain-points`. An installed or cached Dojo without `pipeline.pain_points` (0.30.1 and
+older) is not selected: the sandbox falls back to the vendored snapshot.
 
 ## Scope and limits
 

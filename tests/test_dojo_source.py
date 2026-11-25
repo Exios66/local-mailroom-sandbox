@@ -145,11 +145,24 @@ def _vendored_dojo_all() -> list[str]:
     return []
 
 
-def _fake_lazy_release(root: Path, *, broken: str | None, missing: str | None = None) -> None:
+def _fake_lazy_release(root: Path, *, broken: str | None, missing: str | None = None,
+                       without_submodule: str | None = None) -> None:
     """A fake installed Dojo with a PEP 562 root; ``broken`` names the root name whose module raises,
-    ``missing`` a required name the release no longer exports at all."""
+    ``missing`` a required name the release no longer exports at all, ``without_submodule`` a
+    required submodule the release does not ship."""
     pkg = root / "llm_dojo_scoring"
     pkg.mkdir(parents=True)
+    for dotted in dojo_source.REQUIRED_SUBMODULES:
+        # Parent packages always exist (a 0.30.1 release ships ``pipeline/``); only the leaf is left out.
+        parts = dotted.split(".")
+        folder = pkg.joinpath(*parts[:-1])
+        folder.mkdir(parents=True, exist_ok=True)
+        for depth in range(1, len(parts)):
+            init = pkg.joinpath(*parts[:depth], "__init__.py")
+            if not init.exists():
+                init.write_text("", encoding="utf-8")
+        if dotted != without_submodule:
+            (folder / f"{parts[-1]}.py").write_text("", encoding="utf-8")
     names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES if name != missing}
     # Mirror the real snapshot's public surface: hosted CI tooling walks the real ``__all__``
     # against whatever module is imported, so a fake that lacks those names fails for the
@@ -196,6 +209,25 @@ def test_lazy_release_missing_a_required_name_falls_back(isolated, tmp_path):
     choice = dojo_source.choose()
     assert choice.source == "vendored"
     assert "score_extraction" in choice.reason
+
+
+def test_a_release_without_a_required_submodule_falls_back(isolated, tmp_path):
+    """A release without ``pipeline.pain_points`` (0.30.1 and older) is rejected before scoring starts:
+    ``eval/pain_points.py`` imports it at module load, so accepting it would break extraction scoring."""
+    _fake_lazy_release(tmp_path, broken=None, without_submodule="pipeline.pain_points")
+    isolated.syspath_prepend(str(tmp_path))
+    isolated.setattr(dojo_source, "installed", lambda: {"version": PIN["version"], "commit": PIN["commit"]})
+    isolated.setattr(dojo_source, "_origin_mismatch", lambda: None)
+    choice = dojo_source.choose()
+    assert choice.source == "vendored"
+    assert "pain_points" in choice.reason
+
+
+def test_required_submodules_import_from_the_vendored_snapshot():
+    """Every required submodule ships in the vendored Dojo, so the vendored fallback always passes."""
+    root = vendored_dojo_src() / "llm_dojo_scoring"
+    for dotted in dojo_source.REQUIRED_SUBMODULES:
+        assert root.joinpath(*dotted.split(".")).with_suffix(".py").is_file(), dotted
 
 
 def test_lazy_release_with_all_required_exports_is_accepted(isolated, tmp_path):
