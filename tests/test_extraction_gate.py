@@ -389,8 +389,8 @@ def test_calibration_skips_key_field_score_with_missing_support(monkeypatch):
 
 
 def test_field_truth_scores_fields_as_the_hotfixed_headline():
-    """SHF-004 (an identifier without its hyphen is right) and SHF-015 (a heuristic intent no overlay
-    supplied is no field truth; one an interim correction supplied is)."""
+    """SHF-004 (an identifier without its hyphen is right). SHF-015 is not applied to the calibration's
+    field truth (``SHF015_SCOPE``): a heuristic intent stays scored, whoever supplied it."""
     eg = _script("extraction_gate")
     claim = {"id": "c1", "expected_doc_class": "insurance_claim", "doc_text": "Claim CLM-12345.",
              "expected_fields": json.dumps({"claim_number": "CLM-12345", "policy_number": "POL-9"})}
@@ -401,7 +401,30 @@ def test_field_truth_scores_fields_as_the_hotfixed_headline():
             "expected_fields": json.dumps(fields)}
     answer = {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}
     truth, _ = eg._field_truth("correspondence", mail, answer, 0.8)
-    assert "intent" not in truth and truth["sender"] is True
+    assert truth["intent"] is False and truth["sender"] is True
     reviewed = {**mail, "interim_labels": {"fields": ["intent"], "overlay_sha256": "x"}}
     assert eg._field_truth("correspondence", reviewed, answer, 0.8)[0]["intent"] is False
-    assert "SHF-015" in eg._field_truth_fixes()
+    assert "SHF-015" not in eg._field_truth_fixes()
+
+
+def test_calibration_keeps_a_stale_key_field_on_the_gate_s_basis():
+    """SHF-015 is not applied to the calibration's field truth: the gate asked about ``intent`` (a key
+    field of this question set) and judged it, so the target keeps its truth, ``wanted`` and the
+    per-field entry, as before SHF-015; the report counts the stale label it kept."""
+    eg = _script("extraction_gate")
+    fields = {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "payment_demand", "intent_source": "heuristic"}
+    row = {"id": "m1", "expected_doc_class": "correspondence", "doc_text": "From: Ann Lee\nTo: Bo Chu\nPlease pay.",
+           "expected_fields": json.dumps(fields)}
+    qset = {"fields": {"correspondence": {"intent": "", "sender": ""}}}
+    item = {"item_id": "m1", "ok": True, "pred": {"accept_probability": 0.9, "field_support": {"intent": 0.8, "sender": 0.9}},
+            "score": {"extraction_score": 0.9, "doc_type": "correspondence"}}
+    handoff = {"m1": {"fields": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}}}
+    report = eg.calibrate([item], {"m1": row}, handoff, good=0.8, precision=0.9, qset=qset)
+    assert report["fields"]["correspondence.intent"]["n"] == 1  # the per-field entry stays
+    assert report["fields"]["correspondence.sender"]["n"] == 1
+    key = report["keyfields"]["correspondence"]
+    assert key["n"] == 1 and key["all_right_rate"] == 0.0  # the wrong stale intent still counts against it
+    assert key["mean_fraction_right"] == 0.5  # intent judged with sender: one of two key fields
+    assert report["skipped"] == {"stale_key_field_kept:correspondence:intent": 1}
+    assert "SHF-015" not in report["field_truth_hotfixes"] and "shf015_scope" in report
+    assert "SHF-015" not in "".join(eg._field_truth_fixes())

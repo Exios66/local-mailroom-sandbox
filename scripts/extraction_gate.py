@@ -341,16 +341,41 @@ def _field_truth_fixes() -> list[str]:
     """The scoring hotfixes ``_field_truth`` applies, as a report records them."""
     from mailroom_sandbox import scoring_hotfixes as sh
 
-    return sorted(sh.current_ids() & {"SHF-002", "SHF-003", "SHF-004", "SHF-015"})
+    return sorted(sh.current_ids() & {"SHF-002", "SHF-003", "SHF-004"})
+
+
+#: SHF-015 (stale Hub labels dropped from the headline truth) is not applied to this calibration. The
+#: gate was asked about the question set's fields and judged each, so the target, the key-field set
+#: (``wanted``), the support product and the per-field entries stay on the basis the gate ran on.
+SHF015_SCOPE = ("not applied: calibration keeps every Hub label the dojo scorer names, stale or not, "
+                "so key_truth, wanted and the per-field entries match what the gate was asked "
+                "(docs/scoring-hotfixes.md, Known limits)")
+
+
+def _stale_key_fields(doc_type: str, row: dict, wanted: set[str]) -> list[str]:
+    """The key fields whose Hub label the Dojo's policy calls stale and that no overlay supplied.
+
+    Calibration keeps them (:data:`SHF015_SCOPE`); the report counts them so the choice is visible.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.datasets import parse_expected_fields
+
+    try:
+        _, dropped = sh.drop_stale_hub_truth(doc_type, parse_expected_fields(row) or _expected(row),
+                                             sh.overlay_fields(row))
+    except Exception as exc:  # noqa: BLE001 - a policy gap leaves the counter off, never the calibration
+        print(f"stale key fields {doc_type} {row.get('id')}: {type(exc).__name__}: {exc}")
+        return []
+    return sorted(set(dropped) & wanted)
 
 
 def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[dict[str, bool], str | None]:
     """Per-field correctness of the extraction, from the dojo scorers, and the scorer error if any.
 
     On an error the row's fields are unscored; ``calibrate`` counts it in ``skipped``. Per-field
-    classes are scored as the run headline scores them (``docs/scoring-hotfixes.md``): with the
-    current field-scorer fixes on (SHF-002/003/004), and without the stale Hub labels an overlay
-    did not supply (SHF-015), which are no field truth.
+    classes are scored with the current field-scorer fixes on (SHF-002/003/004), as the run headline
+    scores them (``docs/scoring-hotfixes.md``). SHF-015 is deliberately not applied: see
+    :data:`SHF015_SCOPE`.
     """
     exp = _expected(row)
     out: dict[str, bool] = {}
@@ -382,13 +407,9 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[d
 
         suite = suite_for_doc_type(doc_type)
         kwargs = {"doc_subclass": row.get("expected_subclass")} if doc_type == "corporate_record" and row.get("expected_subclass") else {}
-        expected = parse_expected_fields(row) or exp
-        stale: dict[str, str] = {}
-        if sh.enabled("SHF-015"):
-            expected, stale = sh.drop_stale_hub_truth(doc_type, expected, sh.overlay_fields(row))
         with sh.hotfixed():
-            result = suite.score(expected, {k: v for k, v in fields.items() if k not in stale},
-                                 doc_text=row.get("doc_text"), detailed=True, **kwargs)
+            result = suite.score(parse_expected_fields(row) or exp, fields, doc_text=row.get("doc_text"),
+                                 detailed=True, **kwargs)
         extraction = result["extraction"] if isinstance(result, dict) else result
         unlabeled = set((result.get("unlabeled_fields") or []) if isinstance(result, dict) else [])
         for field, score in (getattr(extraction, "field_scores", None) or {}).items():
@@ -472,6 +493,9 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
         if corrected and doc_id in rows:
             truth = corrected_truth(cls, rows[doc_id], ext, truth)
         wanted = key_fields(qset, cls)
+        if doc_id in rows:
+            for stale_field in _stale_key_fields(cls, rows[doc_id], wanted):
+                skipped[f"stale_key_field_kept:{cls}:{stale_field}"] += 1
         key_truth = [ok for f, ok in truth.items() if f in wanted]
         if key_truth:
             support = pred.get("field_support") or {}
@@ -496,7 +520,7 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
                 fields[(cls, field)]["y"].append(ok)
     report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped),
                               "field_truth": "dojo+gt-corrections" if corrected else "dojo",
-                              "field_truth_hotfixes": _field_truth_fixes(), "classes": {}}
+                              "field_truth_hotfixes": _field_truth_fixes(), "shf015_scope": SHF015_SCOPE, "classes": {}}
     for cls, d in sorted(per.items()):
         n = len(d["y"])
         median = sorted(d["score"])[n // 2]
