@@ -247,6 +247,7 @@ def parse_graph(path: Path) -> dict:
             registered[_sym(c.args[0])] = handler
 
     edges: list[tuple[str, str]] = []
+    plain_edges: list[tuple[str, str]] = []
     lanes: list[str] = []
 
     def add(a: str | None, b: str | None) -> None:
@@ -263,6 +264,8 @@ def parse_graph(path: Path) -> dict:
     def plain(a: str | None, b: str | None) -> None:
         if known_source(a) and (b == "END" or b in registered):
             add(a, b)
+            if a and b and a != b and (a, b) not in plain_edges:
+                plain_edges.append((a, b))
 
     def conditional(src: str | None, pairs: list[tuple[str | None, str | None]]) -> None:
         if not known_source(src):
@@ -328,6 +331,7 @@ def parse_graph(path: Path) -> dict:
                     if (audit_events_event := audits.get(handler))}
     return {
         "edges": [list(e) for e in edges],
+        "plain_edges": [list(e) for e in plain_edges],
         "node_agents": node_agents,
         "audit_events": dict(sorted(audit_events.items())),
         "note": GRAPH_NOTE,
@@ -725,6 +729,261 @@ def _stall_after() -> float:
     return v if math.isfinite(v) and v > 0 else STALL_AFTER_S
 
 
+# A debug hop list stays short enough to ship inside a 5,000-row digest.
+_DEBUG_HOP_CAP = 16
+_DEBUG_WHY = 220
+
+
+def _clip(text: str, limit: int = _DEBUG_WHY) -> str:
+    """Collapse whitespace and cap a diagnosis sentence."""
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _review_causes(item: dict) -> list[str]:
+    """Recorded review-cause tokens on the item, pred, or prediction, in first-seen order."""
+    found: list[str] = []
+    for holder in (item, item.get("pred"), item.get("prediction")):
+        if not isinstance(holder, dict):
+            continue
+        causes = holder.get("review_causes")
+        if not isinstance(causes, (list, tuple)):
+            continue
+        for cause in causes:
+            text = str(cause).strip()[:60]
+            if text and text not in found:
+                found.append(text)
+            if len(found) >= 8:
+                return found
+    return found
+
+
+def _decision_bits(decisions: list) -> str:
+    """One short phrase per recorded decision (question, answer, probability, expected)."""
+    parts: list[str] = []
+    for raw in decisions[:3]:
+        if not isinstance(raw, dict):
+            continue
+        question = str(raw.get("question") or "?")[:40]
+        answer = raw.get("answer")
+        bit = question if answer is None or answer == "" else f"{question}={answer}"
+        p = _num(raw.get("p"))
+        if p is not None:
+            bit += f" p={round(p, 2)}"
+        expected = _num(raw.get("expected"))
+        if expected is not None:
+            bit += f" expected={round(expected, 2)}"
+        parts.append(bit[:90])
+    return "; ".join(parts)
+
+
+def _kept_decisions(record: dict) -> list:
+    """The decision fields a diagnosis is allowed to quote."""
+    raw = record.get("decisions")
+    if not isinstance(raw, list):
+        return []
+    kept = []
+    for item in raw[:4]:
+        if not isinstance(item, dict) or not item.get("question"):
+            continue
+        kept.append({key: item.get(key) for key in ("question", "answer", "p", "expected")
+                     if item.get(key) is not None or key == "question"})
+    return kept
+
+
+def _closed_visits(records: list[dict]) -> list[dict]:
+    """One visit per node entry, closed by the matching done, error, or paused record.
+
+    A ``running`` row opens a visit. The next non-running row for that same node
+    closes it and supplies decisions, stage, and error. A trace with no
+    ``running`` rows treats every row as its own visit. Unclosed visits stay
+    ``running``.
+    """
+    visits: list[dict] = []
+    pending: dict | None = None
+
+    def pack(record: dict, status: str) -> dict:
+        stage = record.get("stage")
+        error = record.get("error")
+        return {
+            "node": str(record.get("node")),
+            "status": status,
+            "stage": stage if isinstance(stage, str) and stage else None,
+            "error": error.strip()[:120] if isinstance(error, str) and error.strip() else None,
+            "decisions": _kept_decisions(record),
+        }
+
+    for record in records:
+        if not record.get("node"):
+            continue
+        status = str(record.get("status") or "done")
+        if status == "running":
+            if pending is not None:
+                visits.append(pending)
+            pending = pack(record, "running")
+            continue
+        if pending is not None and pending["node"] == str(record.get("node")):
+            visits.append(pack(record, status))
+            pending = None
+        else:
+            if pending is not None:
+                visits.append(pending)
+                pending = None
+            visits.append(pack(record, status))
+    if pending is not None:
+        visits.append(pending)
+    return visits[:80]
+
+
+def _loop_rows(visits: list[dict]) -> list[dict]:
+    """Nodes entered more than once, tagged self (consecutive) or reentry (left and returned)."""
+    counts = Counter(visit["node"] for visit in visits)
+    loops = []
+    for node, count in counts.items():
+        if count < 2:
+            continue
+        indexes = [i for i, visit in enumerate(visits) if visit["node"] == node]
+        reentry = any(indexes[i + 1] - indexes[i] > 1 for i in range(len(indexes) - 1))
+        kind = "reentry" if reentry else "self"
+        mine = [visit for visit in visits if visit["node"] == node]
+        evidence = []
+        for visit in mine:
+            phrase = _decision_bits(visit["decisions"])
+            if phrase:
+                evidence.append(phrase)
+            elif visit["error"] or visit["status"] in ("error", "paused"):
+                evidence.append(visit["status"] + (f" {visit['error']}" if visit["error"] else ""))
+        recorded = "; ".join(dict.fromkeys(evidence))
+        if kind == "self":
+            why = f"{node} ran {count} times without a different node between those visits."
+        else:
+            why = f"{node} was left and entered again ({count} visits)."
+        if recorded:
+            why += " Recorded on those visits: " + recorded + "."
+        else:
+            why += " No decision, stage, or error was stored on the repeated visits."
+        loops.append({"node": node, "visits": count, "kind": kind, "why": _clip(why)})
+        if len(loops) >= 8:
+            break
+    return loops
+
+
+def _hop_why(source: dict, dest: str, causes: list[str], plain: set[tuple[str, str]]) -> str:
+    """Why the trace left ``source`` for ``dest``, citing only stored fields and plain edges."""
+    phrase = _decision_bits(source["decisions"])
+    named = next((d for d in source["decisions"]
+                  if isinstance(d.get("answer"), str) and d.get("answer") == dest), None)
+    if named:
+        return _clip(f"Recorded {named.get('question')}={dest} at {source['node']}; the next visit is {dest}.")
+    if dest == "human_review" and causes:
+        extra = (f" Last decision at {source['node']}: {phrase}." if phrase
+                 else f" No decision was recorded at {source['node']}.")
+        return _clip(f"Item review causes {', '.join(causes)}; left {source['node']} for human_review.{extra}")
+    if source["status"] == "error":
+        err = f" ({source['error']})" if source["error"] else ""
+        return _clip(f"{source['node']} ended status=error{err}; the next recorded visit is {dest}.")
+    if source["status"] == "paused" and dest == "human_review":
+        return _clip(f"{source['node']} paused; the next visit is human_review.")
+    if (source["node"], dest) in plain:
+        return _clip(f"Unconditional edge {source['node']} → {dest}; this hop stores no route decision.")
+    stage = f" Stage at {source['node']}: {source['stage']}." if source["stage"] else ""
+    if phrase:
+        return _clip(f"Left {source['node']} for {dest}. Last decision at {source['node']}: {phrase}.{stage}")
+    return _clip(
+        f"Left {source['node']} for {dest}. No decision was recorded at {source['node']}.{stage}"
+    )
+
+
+def _diagnose(item: dict, records: list[dict], outcome: str, stage: str | None,
+              review: str | None, note: str | None, pred: str | None, gt: str | None,
+              plain: set[tuple[str, str]]) -> dict:
+    """Explain a document's visits, repeats, and why it did or did not reach archive.
+
+    Every sentence quotes a stored decision, review cause, status, or an
+    unconditional edge. A missing router input is reported as absent; it is
+    not reconstructed from the graph's conditional maps.
+    """
+    visits = _closed_visits(records)
+    causes = _review_causes(item)
+    loops = _loop_rows(visits)
+    collapsed = [0]
+    for index in range(1, len(visits)):
+        if visits[index]["node"] != visits[index - 1]["node"]:
+            collapsed.append(index)
+    hops = []
+    for index in range(len(collapsed) - 1):
+        source = visits[collapsed[index + 1] - 1]
+        dest = visits[collapsed[index + 1]]["node"]
+        hops.append({"from": source["node"], "to": dest, "why": _hop_why(source, dest, causes, plain)})
+    omitted = 0
+    if len(hops) > _DEBUG_HOP_CAP:
+        omitted = len(hops) - _DEBUG_HOP_CAP
+        hops = hops[:8] + hops[-8:]
+    last = visits[-1] if visits else None
+    reached = any(visit["node"] == "archive" for visit in visits)
+    stopped = None if reached else (last["node"] if last else None)
+    repeat = ""
+    if loops:
+        repeat = " Earlier repeats: " + ", ".join(
+            f"{row['node']} ×{row['visits']} ({row['kind']})" for row in loops
+        ) + "."
+    if not visits:
+        why = (f"No node trace was recorded. Outcome is {outcome}"
+               + (f", stage {stage}" if stage else "")
+               + (f". {note}" if note else ".")
+               + " Archive cannot be confirmed from visits.")
+    elif reached:
+        why = "Reached archive." + repeat
+    elif outcome == "ship":
+        why = (f"Item stage is {stage or 'archived'} but the node trace never recorded archive. "
+               "Paths rebuilt from stage audits omit nodes that write no audit entry, "
+               "including catalog_write and archive.")
+    elif outcome == "held":
+        handoff = next((hop["why"] for hop in hops if hop["to"] == "human_review"), "")
+        why = (f"Held at {stopped or 'unknown'}"
+               + (f" (stage {stage})" if stage else "")
+               + f". Review trigger: {review or 'unattributed'}. "
+               + f"Causes: {', '.join(causes) if causes else 'none recorded'}. "
+               + "Archive was not visited."
+               + (f" {handoff}" if handoff else "")
+               + repeat)
+    elif outcome == "failed":
+        why = (f"Failed at {stopped or 'unknown'}"
+               + (f" (stage {stage})" if stage else "")
+               + f". {note or 'No error text recorded.'} The trace stops before archive.")
+    elif outcome == "open":
+        status = last["status"] if last else "unknown"
+        looping = next((row for row in loops if last and row["node"] == last["node"]), None)
+        why = (f"Still open at {stopped or 'unknown'} (last visit status {status}). "
+               "Archive has not been recorded."
+               + (f" {looping['why']}" if looping else ""))
+    else:
+        why = f"Stopped at {stopped or 'unknown'} with outcome {outcome}. Archive was not visited.{repeat}"
+    issues: list[str] = []
+    if loops:
+        issues.append("loop")
+    if outcome == "open" and last and any(row["node"] == last["node"] for row in loops):
+        issues.append("stuck")
+    if outcome == "held":
+        issues.append("held")
+    if outcome == "failed":
+        issues.append("failed")
+    if outcome == "open":
+        issues.append("open")
+    if gt and pred and gt != pred:
+        issues.append("miss")
+    if not reached and outcome != "ship":
+        issues.append("diverted")
+    return {
+        "issues": issues,
+        "loops": loops,
+        "hops": hops,
+        "hops_omitted": omitted,
+        "causes": causes,
+        "archive": {"reached": reached, "stopped": stopped, "why": _clip(why, 420)},
+    }
+
+
 def _error_text(item: dict) -> str | None:
     """A short error / escalation note for the document table, or None."""
     for holder in (item, item.get("pred")):
@@ -737,16 +996,20 @@ def _error_text(item: dict) -> str | None:
     return None
 
 
-def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[dict, set[str]]:
+def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
+              plain_edges: set[tuple[str, str]] | None = None) -> tuple[dict, set[str]]:
     """Summarize a run's artifacts and return the summary and observed classes.
 
     The last item record for an ID wins. Node counts are distinct documents;
     edge counts are traversals limited to edge_set. Per-class traffic requires
     dataset class labels, and node duration medians are in milliseconds. The summary
-    also includes in-flight documents, mean item latency and routing counts. Missing
-    or invalid artifact data uses the reader fallbacks; errors reading dataset
-    bytes for an absent hash propagate.
+    also includes in-flight documents, mean item latency and routing counts. Each
+    document row carries a ``debug`` trace (visits, repeats, hop reasons, and why
+    archive was or was not reached) built only from stored fields and
+    ``plain_edges``. Missing or invalid artifact data uses the reader fallbacks;
+    errors reading dataset bytes for an absent hash propagate.
     """
+    plain = plain_edges or set()
     items_raw = read_jsonl(path / "items.jsonl")
     nodes = [r for r in read_jsonl(path / "nodes.jsonl") if r.get("node") and r.get("doc") is not None]
     checkpoint = read_json(path / "checkpoint.json")
@@ -837,6 +1100,9 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
             "labels": _label_provenance(ds_by_id.get(item_id)),
             "review": _review_trigger(it, recs),
             "note": _error_text(it),
+            "debug": _diagnose(it, recs, bucket, str(stage) if stage else None,
+                               _review_trigger(it, recs), _error_text(it), _pred_class(it),
+                               None if cls == "?" else cls, plain),
         })
         for table, key in ((outcomes, cls), (class_outcomes, ds_class.get(item_id))):
             if key is None:
@@ -977,13 +1243,14 @@ def build_digest(base: Path, graph_path: Path) -> dict:
             EXIT_NO_RUNS,
         )
     edge_set = {(a, b) for a, b in graph["edges"]}
+    plain_edges = {tuple(pair) for pair in graph.get("plain_edges") or []}
     runs: list[dict] = []
     classes: set[str] = set()
     used: set[str] = set()
     for source, path in runs_found:
         name = path.name if path.name not in used else f"{path.name} ({source})"
         used.add(name)
-        run, run_classes = build_run(name, path, edge_set)
+        run, run_classes = build_run(name, path, edge_set, plain_edges)
         runs.append(run)
         classes |= run_classes
     return {

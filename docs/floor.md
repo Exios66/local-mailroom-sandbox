@@ -110,6 +110,38 @@ selected run and the isolated class.
 | SCORES vs GT | Classification accuracy over documents with a ground-truth class that finished (a finished document with no predicted class counts as a miss, shown as `unknown` in the confusion matrix; an open one is not counted yet); the mean Dojo `overall_extraction_score` over all label tiers, with the Hub-GT-only mean beside it; the near-gold fields used; outcome totals. A per-class table (recall, precision, extraction mean, near-gold documents, archived/review/failed/open; click a row to isolate the class), the label-tier table and a confusion matrix (rows ground truth, columns predicted). |
 | DOCUMENTS | One row per document: GT and predicted class (✗ on a miss), outcome, extraction score, label tier, review trigger, latency and node path. Filter by outcome, by misclassified-or-failed, or by id. Click a row to light only that document's path on the graph and show its details in the right rail. |
 | NODES | Per node: documents in, p50, aborts, where those documents ended up (archived/review/failed/open) and how many were classified right. Click a row to select the node. |
+| DEBUG | Why the filtered documents reached the selected node, which of them repeat a node, and why they never recorded `archive`. Click a row to trace that document. |
+
+## Debug mode
+
+The ribbon **DEBUG** button isolates documents that need a diagnosis and
+explains each hop from the trace that was stored. `?debug=1` opens it;
+`?issue=` selects a filter (`problems`, `loop`, `stuck`, `held`, `failed`,
+`open`, `miss`, `diverted`, `all`). The default filter is problems: still
+open, held, failed, class misses, and any document that never recorded
+`archive`.
+
+The builder adds a `debug` object on each document row:
+
+| Field | Meaning |
+| --- | --- |
+| `issues` | Tags from the trace: `loop`, `stuck` (open on a repeated node), `held`, `failed`, `open`, `miss`, `diverted` (no `archive` visit and not a ship outcome). |
+| `loops` | Nodes entered more than once. `self` means the repeats were consecutive. `reentry` means the document left the node and came back. |
+| `hops` | Each change of node, with a `why` sentence. |
+| `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
+
+A `why` sentence quotes only a stored decision, review cause, status, error,
+or an unconditional edge (`plain_edges`, such as `catalog_write` to
+`archive`). It does not re-run the routers. When the node record has no
+decision, the sentence says so. A self-loop is not drawn; the node badge
+`LOOP ×n` is the repeat count, and the right rail states what was recorded
+on those visits.
+
+Click a node while DEBUG is on for the arrivals into that node and the
+documents that reached it instead of archive. Click a document for the hop
+list. Older digests without `debug` keep the previous panels; rebuild to
+fill the trace. Replay runs stay labelled as replay: the reasons describe
+the scripted trace, not a live model.
 
 **Label tiers.** Ground truth comes from the Hub, then the interim overlay,
 then the near-gold overlay (`interim_labels` / `near_gold_labels` on the run's

@@ -224,6 +224,9 @@ def graph_node_boxes_and_agent_attribution():
 def audit_events_parsed_from_emit_sites_not_hard_coded():
     """Stage-audit arrows mirror _emit_stage_audit call sites (A-1), not invented edges."""
     assert CTX["d"]["graph_reference"]["audit_events"] == {"human_review": "routed_to_review"}
+    assert {tuple(e) for e in CTX["d"]["graph_reference"]["plain_edges"]} == {
+        ("intake", "classify"), ("extract", "archive"), ("archive", "END"),
+    }
 
 
 @test
@@ -351,7 +354,7 @@ def p50_and_tokens():
 def digest_schema_is_frozen():
     d = CTX["d"]
     assert set(d) == {"generated_utc", "classes", "graph_reference", "runs"}
-    assert set(d["graph_reference"]) == {"edges", "node_agents", "audit_events", "note"}
+    assert set(d["graph_reference"]) == {"edges", "node_agents", "audit_events", "note", "plain_edges"}
     assert d["generated_utc"][:16].endswith(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"))
     for r in d["runs"]:
         assert set(r) == RUN_KEYS, set(r) ^ RUN_KEYS
@@ -644,6 +647,19 @@ def per_document_rows_carry_path_classes_outcome_and_note():
     assert d1["labels"] == {"tier": "none", "hub": 0, "interim": [], "near_gold": []}
     b = {d["id"]: d for d in CTX["runs"]["run-b"]["docs"]}
     assert b["b1"]["gt"] is None and b["b1"]["labels"]["tier"] is None, "no dataset row: unknown, not 'none'"
+    assert d1["debug"]["archive"]["reached"] is True and d1["debug"]["loops"] == [
+        {"node": "classify", "visits": 2, "kind": "self",
+         "why": "classify ran 2 times without a different node between those visits. "
+                "No decision, stage, or error was stored on the repeated visits."},
+    ], d1["debug"]
+    assert "loop" in d1["debug"]["issues"] and "diverted" not in d1["debug"]["issues"]
+    assert any(h["from"] == "intake" and h["to"] == "classify" and h["why"].startswith("Unconditional edge")
+               for h in d1["debug"]["hops"])
+    assert d2["debug"]["archive"]["reached"] is False and d2["debug"]["archive"]["stopped"] == "human_review"
+    assert "held" in d2["debug"]["issues"] and "diverted" in d2["debug"]["issues"]
+    assert any("No decision was recorded at classify" in h["why"] for h in d2["debug"]["hops"] if h["to"] == "human_review")
+    assert d3["debug"]["archive"]["reached"] is False and "failed" in d3["debug"]["issues"]
+    assert "boom" in d3["debug"]["archive"]["why"]
 
 
 @test
@@ -694,6 +710,48 @@ def label_tiers_follow_hub_interim_near_gold_precedence():
     assert r["scores"]["extraction"] == {"n": 2, "mean": 0.6, "hub_n": 1, "hub_mean": 0.8}, \
         "the headline keeps a Hub-only mean beside the all-tier one"
     assert lp({"dataset": "sandbox-fixtures", "expected_fields": {"a": 1}})["tier"] == "fixture"
+
+
+@test
+def debug_trace_quotes_recorded_decisions_and_reentry():
+    """A hop reason names a stored decision; a return to a node is a reentry, not a guessed router."""
+    diag = bfd._diagnose(
+        {"review_causes": ["extraction_miss"]},
+        [
+            {"doc": "z", "node": "extract", "status": "running"},
+            {"doc": "z", "node": "extract", "status": "done",
+             "decisions": [{"question": "extraction_confidence", "type": "score", "p": 0.44}]},
+            {"doc": "z", "node": "judge_verify", "status": "running"},
+            {"doc": "z", "node": "judge_verify", "status": "done",
+             "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "fail", "expected": 0.41}]},
+            {"doc": "z", "node": "arbiter", "status": "running"},
+            {"doc": "z", "node": "arbiter", "status": "done",
+             "decisions": [{"question": "arbiter_route", "type": "choice", "answer": "retry_extract"}]},
+            {"doc": "z", "node": "retry_extract", "status": "done"},
+            {"doc": "z", "node": "judge_verify", "status": "done",
+             "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "fail", "expected": 0.2}]},
+            {"doc": "z", "node": "human_review", "status": "paused", "stage": "review"},
+        ],
+        "held", "review", "extraction", None, "contract", "contract", set(),
+    )
+    assert diag["archive"]["reached"] is False and diag["archive"]["stopped"] == "human_review"
+    assert any(row["node"] == "judge_verify" and row["kind"] == "reentry" and row["visits"] == 2
+               for row in diag["loops"]), diag["loops"]
+    assert any(h["from"] == "arbiter" and h["to"] == "retry_extract"
+               and h["why"] == "Recorded arbiter_route=retry_extract at arbiter; the next visit is retry_extract."
+               for h in diag["hops"]), diag["hops"]
+    assert "extraction_miss" in diag["causes"] and "held" in diag["issues"] and "loop" in diag["issues"]
+    assert "Archive was not visited" in diag["archive"]["why"]
+    stuck = bfd._diagnose(
+        {},
+        [{"node": "extract", "status": "running"},
+         {"node": "extract", "status": "done", "decisions": [{"question": "extraction_confidence", "p": 0.4}]},
+         {"node": "extract", "status": "running"}],
+        "open", None, None, None, None, "contract", set(),
+    )
+    assert stuck["issues"] == ["loop", "stuck", "open", "diverted"], stuck["issues"]
+    assert stuck["loops"][0]["kind"] == "self" and "p=0.4" in stuck["loops"][0]["why"]
+    assert "Still open at extract" in stuck["archive"]["why"]
 
 
 @test

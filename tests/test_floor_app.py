@@ -1076,8 +1076,9 @@ def test_template_fits_the_drawn_graph_not_the_fixed_canvas():
 def test_template_has_the_analysis_tabs_and_stalled_state():
     """Scores, documents and nodes tabs exist, and a stalled run is labelled rather than shown as running."""
     html = _template()
-    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"'):
+    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"', 'data-t="debug"'):
         assert tab in html
+    assert 'id="dbg"' in html and "arrivalGroups" in html
     assert 'r.state==="stalled"' in html and "near_gold" in html
 
 
