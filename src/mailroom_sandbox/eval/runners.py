@@ -15,6 +15,7 @@ from mailroom_sandbox.datasets import (
     load_manifest,
     parse_expected_fields,
 )
+from mailroom_sandbox import scoring_hotfixes
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
@@ -761,6 +762,7 @@ def run_extract_eval(
             # Per-subclass scoring (sandbox #145): the row's GT subclass drives
             # the vendored corporate-record alignment (see scoring.py).
             expected_subclass=row.get("expected_subclass"),
+            overlay_fields=scoring_hotfixes.overlay_fields(row),
         )
         schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
@@ -1149,6 +1151,8 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
         # drives the vendored corporate-record alignment.
         expected_subclass=row.get("expected_subclass"),
         truth_overrides=row.get("truth_overrides"),
+        # SHF-015: the overlay markers say which labels are reviewed, never dropped as stale Hub labels.
+        overlay_fields=scoring_hotfixes.overlay_fields(row),
     )
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 
 from llm_dojo_scoring import (
     Emitter,
@@ -114,6 +114,7 @@ def score_extraction_row(
     *,
     field_scores: bool = False,
     truth_overrides: Mapping[str, Any] | None = None,
+    overlay_fields: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Dual-reported row scoring: the hotfixed headline plus the raw Dojo-pin values.
 
@@ -123,6 +124,13 @@ def score_extraction_row(
     ``scoring_hotfixes_changed`` the keys whose value they moved (``docs/scoring-hotfixes.md``).
     ``truth_overrides`` (a prepared row's ``truth_overrides``) restores the truth SHF-010 replaced
     for the raw side.
+
+    ``overlay_fields`` (``scoring_hotfixes.overlay_fields(row)``: the fields a label overlay
+    supplied on the prepared row) turns on SHF-015: the headline drops the Hub labels the Dojo's
+    label policy calls stale (heuristic ``intent``, templated ``subject_matter`` / metadata
+    ``keywords``) from both sides, never a field an overlay supplied, and names them under
+    ``stale_hub_labels``. ``None`` means the caller does not know the row's provenance, so SHF-015
+    stays off rather than risk dropping a reviewed correction.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -134,11 +142,20 @@ def score_extraction_row(
         on = on & sh.EXTRACTION_FIXES
         if not (truth_overrides or {}).get("SHF-010"):
             on = on - {"SHF-010"}
+        if overlay_fields is None:
+            on = on - {"SHF-015"}
         # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
         # the headline scores the restored truth too, so nothing moves without being named.
         fixed_expected = expected if "SHF-010" in on else raw_expected
-        fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
+        fixed_predicted = predicted
+        stale: dict[str, str] = {}
+        if "SHF-015" in on:
+            fixed_expected, stale = sh.drop_stale_hub_truth(doc_type, fixed_expected, overlay_fields or ())
+            fixed_predicted = {k: v for k, v in (predicted or {}).items() if k not in stale}
+        fixed = _score_extraction_row_once(doc_type, fixed_predicted, fixed_expected, doc_text, doc_subclass,
                                            expected_subclass, field_scores=field_scores)
+        if stale:
+            fixed["stale_hub_labels"] = stale
     out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")

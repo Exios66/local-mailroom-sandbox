@@ -209,11 +209,32 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
     ),
+    ScoringHotfix(
+        id="SHF-015",
+        layer="sandbox",
+        targets=(
+            # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
+            ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "71d73e914c9fd31ec17a82313c6819b4b4290df7d0d27dcd64ff00961c2f517f"),
+            # the Dojo's label policy decides which Hub labels are stale; a refresh re-validates
+            ("llm_dojo_scoring.schemas.label_policy:stale_hub_labels", "3e8141ca126dcf8df58defa78e18f0f1a35ee833cfe53c0d9828333b7301fdbd"),
+            ("llm_dojo_scoring.schemas.label_policy:_corporate_stale", "65de264759beb5b282dc79cbe69d2dc1a5c3fdba7a5ae52ca83a1526d7d0fe6c"),
+            ("llm_dojo_scoring.schemas.label_policy:_correspondence_stale", "af434deecfe68e0153549d06011e14220217ea9605f7c7010bac0f7040f92990"),
+            ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
+        ),
+        upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
+                 "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
+        summary="the headline drops the Hub labels the Dojo's label policy calls stale (a heuristic intent; "
+                "templated correspondence and corporate subject_matter / metadata keywords) from both sides, "
+                "so a correct answer is not scored against a template; a value an interim, near-gold or "
+                "staged overlay supplied is never dropped, and the dropped fields are named "
+                "(stale_hub_labels)",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
 #: The fixes a row extraction score can depend on.
-EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010"})
+EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015"})
 _ACTIVE: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "sandbox_scoring_hotfixes_active", default=frozenset())
 _STATUS: dict[str, str] = {}
@@ -597,6 +618,62 @@ def revert_truth_overrides(expected: Mapping[str, Any], overrides: Mapping[str, 
     return out
 
 
+# --- SHF-015: stale Hub labels are not truth ---------------------------------------------------
+
+#: The row markers each label overlay writes, naming the fields it supplied (``interim_labels``,
+#: ``gold_labels.apply_near_gold``, ``staged_overlay``); ``gold_audit.label_source`` reads the same.
+OVERLAY_MARKERS: tuple[str, ...] = ("interim_labels", "near_gold_labels", "staged_overlay")
+_PENDING = "pending_annotation"
+
+
+def overlay_fields(row: Mapping[str, Any] | None) -> frozenset[str]:
+    """The fields a label overlay (interim, near-gold or staged) supplied on this prepared row.
+
+    Read from the markers the overlays write (a mapping, or the JSON string a parquet shard
+    carries). A staged row marked ``stale`` lists no field. Same provenance as
+    ``gold_audit.label_source`` / ``job.gate_causes._overlay_supplied``.
+    """
+    out: set[str] = set()
+    for key in OVERLAY_MARKERS:
+        marker = (row or {}).get(key)
+        if isinstance(marker, str):
+            try:
+                marker = json.loads(marker) if marker.strip() else None
+            except json.JSONDecodeError:
+                marker = None
+        if isinstance(marker, Mapping):
+            out.update(str(f) for f in (marker.get("fields") or ()))
+    return frozenset(out)
+
+
+def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
+                         keep: Iterable[str]) -> tuple[dict[str, Any], dict[str, str]]:
+    """SHF-015: ``(expected, dropped)`` with the Hub labels the Dojo's label policy calls stale removed.
+
+    The policy is the vendored ``llm_dojo_scoring.schemas.label_policy.stale_hub_labels``: a
+    heuristic ``intent`` (``intent_source == "heuristic"``), and the templated ``subject_matter`` /
+    metadata ``keywords`` of corporate records and correspondence. A field in ``keep`` (one an
+    overlay supplied: an interim correction leaves ``intent_source`` as it was) is never dropped.
+    A dropped field's ``gt_presence`` code becomes ``pending_annotation`` (unlabelled), as
+    ``drop_stale_hub_labels`` does, so SHF-001 never restores it as an expected-empty field.
+    """
+    from llm_dojo_scoring.schemas.label_policy import stale_hub_labels
+
+    out = dict(expected or {})
+    kept = set(keep)
+    dropped = {f: why for f, why in stale_hub_labels(doc_type, out).items() if f not in kept}
+    if not dropped:
+        return out, {}
+    for name in dropped:
+        out.pop(name, None)
+    if "gt_presence" in out:
+        original = out["gt_presence"]
+        pres = presence_map(out)
+        pres.update(dict.fromkeys(dropped, _PENDING))
+        out["gt_presence"] = json.dumps(pres, sort_keys=True) if isinstance(original, str) else pres
+    return out, dict(sorted(dropped.items()))
+
+
 # --- SHF-013: reviewed subclass corrections ----------------------------------------------------
 
 SUBCLASS_CORRECTIONS = "data/labels/review/subclass_corrections.jsonl"
@@ -723,7 +800,8 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
 __all__ = [
     "HOTFIXES", "HEADLINE_KEYS", "SUBCLASS_CORRECTIONS", "ScoringHotfix", "aggregate_extraction",
     "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
-    "dual", "enabled", "hallucination_counts", "headline_basis", "subclass_corrections",
-    "hotfixed", "install", "is_active", "merge_dual", "module_sha256", "raw", "raw_rows",
-    "restore_documented_absences", "revert_truth_overrides", "source_sha", "stale", "status",
+    "drop_stale_hub_truth", "dual", "enabled", "hallucination_counts", "headline_basis",
+    "subclass_corrections", "hotfixed", "install", "is_active", "merge_dual", "module_sha256",
+    "overlay_fields", "raw", "raw_rows", "restore_documented_absences", "revert_truth_overrides",
+    "source_sha", "stale", "status",
 ]

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from mailroom_sandbox import scoring_hotfixes
 from mailroom_sandbox.components import is_enabled
 from mailroom_sandbox.datasets import (
     fixture_file,
@@ -561,6 +562,7 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: b
         expected_subclass=row.get("expected_subclass"),
         field_scores=field_scores,
         truth_overrides=row.get("truth_overrides"),
+        overlay_fields=scoring_hotfixes.overlay_fields(row),
     )
 
 
