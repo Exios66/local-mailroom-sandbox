@@ -485,6 +485,46 @@ levers:
   description: Pipeline source with the insurance extraction repairs (llm-mailroom PR 283, commit 090991b3).
   pipeline_source: {env: AUTORESEARCH_PR283_SRC, commit: 090991b34c0e4e56658a1c38f98c9d9fc414b0d4}
 
+  # ---- sorter and specialists: GLM 5.3 FlashX Legal as the worker (as the DeepSeek V4.1 Flash levers above) ----
+  # Appended last on purpose: a study already running on this catalog (mailroom-v2) tries every
+  # lever it had before reaching these (propose() takes the lowest tier, then catalog order).
+  # Priced, profiled and provider-pinned (z-ai/fp8, dated slug z-ai/glm-5.3-flashx-legal-20261102).
+- id: sorter-glm-5.3-flashx-legal
+  node: sorter
+  classes: all
+  description: Sorter on z-ai/glm-5.3-flashx-legal (the champion's sorter runs the engine model, qwen/qwen3.7-flash).
+  patch: {agent_models.sorter: z-ai/glm-5.3-flashx-legal}
+
+- id: contracts-glm-5.3-flashx-legal
+  node: contracts_specialist
+  classes: [contract]
+  description: contracts_specialist on z-ai/glm-5.3-flashx-legal.
+  patch: {agent_models.contracts_specialist: z-ai/glm-5.3-flashx-legal}
+
+- id: merger-agreement-glm-5.3-flashx-legal
+  node: merger_agreement_specialist
+  classes: [merger_agreement]
+  description: merger_agreement_specialist on z-ai/glm-5.3-flashx-legal.
+  patch: {agent_models.merger_agreement_specialist: z-ai/glm-5.3-flashx-legal}
+
+- id: corporate-records-glm-5.3-flashx-legal
+  node: corporate_records_specialist
+  classes: [corporate_record]
+  description: corporate_records_specialist on z-ai/glm-5.3-flashx-legal.
+  patch: {agent_models.corporate_records_specialist: z-ai/glm-5.3-flashx-legal}
+
+- id: correspondence-glm-5.3-flashx-legal
+  node: correspondence_specialist
+  classes: [correspondence]
+  description: correspondence_specialist on z-ai/glm-5.3-flashx-legal.
+  patch: {agent_models.correspondence_specialist: z-ai/glm-5.3-flashx-legal}
+
+- id: insurance-claims-glm-5.3-flashx-legal
+  node: insurance_claims_specialist
+  classes: [insurance_claim]
+  description: insurance_claims_specialist on z-ai/glm-5.3-flashx-legal.
+  patch: {agent_models.insurance_claims_specialist: z-ai/glm-5.3-flashx-legal}
+
 
 # Per-role placement: after a lever of `group` is kept, derive `<winner>@<roles>` cost levers that keep the winner on
 # only those roles and put the others back on the base spec's routing. Judged by `goal: cost` (not worse, and <= 0.9x cost).

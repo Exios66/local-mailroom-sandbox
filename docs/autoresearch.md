@@ -154,7 +154,7 @@ lever against the base before any spend (invalid patched spec, a patch that chan
 | group | what it tries |
 |:---|:---|
 | reviewer | Decisions-API models only, from `config/decision_models.yaml` (Luna with question sets v2, v3.1.0, v3.2.0, v4.0.0; `typesafe/jev-1.14`, `jev-1.13`, `liquid/d1.2`, `perplexity/pplx-decider-v1.2`, `upstage/solar-decide`, `google/gemini-decision-1`). The champion's reviewer is the chat reviewer. |
-| workers | `deepseek/deepseek-v4.1-flash-1017` for the sorter and each specialist; specialist prompts; one narrower merger window |
+| workers | `deepseek/deepseek-v4.1-flash-1017` and `z-ai/glm-5.3-flashx-legal` for the sorter and each specialist (the GLM levers sit last in the catalog, so a running study reaches them after its earlier levers); specialist prompts; one narrower merger window |
 | routing | judge every in-band extraction per class, `judge_rejudge_retry`, `judge_max_passes` (each carries `estimate_safety: 2.0`) |
 | supervisor | tiers 1 to 3 of stronger models routed to judge, arbiter and boss (`classification_arbiter` is a node of the `arbiter` agent); each carries `estimate_safety: 1.5` for a reasoning or verbose model |
 | diagnostic | the Luna extraction gate v1.3.0 (advisory, never changes routing) |
@@ -162,8 +162,11 @@ lever against the base before any spend (invalid patched spec, a patch that chan
 
 **Reviewer cutoffs are uncalibrated.** Every reviewer lever uses `reviewer_decisions_v2`'s per-class cutoffs,
 which were tuned for Luna on question set v2. They are reused for the other question sets and models; the study
-measures them, it does not calibrate them. **Context caps:** a reviewer's input is capped only by its question
-set's `max_input_chars` (no per-run override exists), so the long question sets only fit Luna's context.
+measures them, it does not calibrate them. **Context caps:** a reviewer's input is its question set's
+`max_input_chars` (no per-run override exists), within the model's own window at execution
+(`decision_input_cap`, [decision model inputs](decision-model-inputs.md#swapping-the-decision-model)).
+`validate_catalog` still refuses a lever whose set would be cut: the 1,000,000-char sets fit Luna and the
+262k-token models (Jev, Gemini Decision, pplx-decider), not `liquid/d1.2`'s 65k.
 
 **Input windows.** After `context_fit` the baseline's specialists on the 1M-context `qwen/qwen3.7-flash` read the whole
 document (up to ~2.37M chars) in one window, so no window lever can widen it. The only one left is
