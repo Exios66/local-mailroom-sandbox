@@ -173,7 +173,8 @@ reached archive is its own mode. Click a mode to light only those documents.
 `?mode=` deep-links one id. `?doc=` and `?node=` reopen a document or a node.
 `?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the
 predicted class). Clicking a matrix cell isolates the documents in that pair
-on the graph when debug isolate is off. A selected mode lists its count in
+on the whole run, including while a class is isolated, and only while debug
+isolate is off. START and END use that same pair count. A selected mode lists its count in
 every run of the digest, with the prompt stem stored for `mode.node` when the
 lock has one. Copy note writes that mode, the count, the sample ids, the stem,
 and the lever. It does not rewrite the run. A repeated visit shows stored

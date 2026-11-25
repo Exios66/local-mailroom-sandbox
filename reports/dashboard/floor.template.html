@@ -253,7 +253,13 @@ function parseCell(raw){
 function recordedPred(d){return d.pred||(d.gt&&d.outcome!=="open"?"unknown":"")}
 function cellDocs(){
  if(!DF.cell)return null;
- return runDocs().filter(d=>String(d.gt||"")===DF.cell.gt&&recordedPred(d)===DF.cell.pred)}
+ // The confusion matrix is run-wide, so a cell must not follow the class isolate.
+ return (run().docs||[]).filter(d=>String(d.gt||"")===DF.cell.gt&&recordedPred(d)===DF.cell.pred)}
+function cellEndpoint(id){
+ if(!DF.cell||focusSets())return null;
+ const docs=cellDocs()||[];
+ if(id==="START")return docs.length;
+ return endSources().reduce((t,n)=>t+docs.filter(d=>(d.path||[]).includes(n)).length,0)}
 function cellNodeCount(id){
  if(!DF.cell||focusSets())return null;
  return (cellDocs()||[]).filter(d=>(d.path||[]).includes(id)).length}
@@ -405,7 +411,8 @@ function render(){
      : selNode ? (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))))
      : focus ? (id==="START"?startTargets().some(t=>focus.nodes.has(t)):endSources().some(t=>focus.nodes.has(t)))
      : (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0)));
-   const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${id==="START"?r.items_attempted:endCount()}</div>`,"node"+(lit?"":" dim"));
+   const endN=cellEndpoint(id);
+   const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${endN==null?(id==="START"?r.items_attempted:endCount()):endN}</div>`,"node"+(lit?"":" dim"));
    el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
    el.dataset.k=id;continue;
   }
@@ -634,7 +641,7 @@ function scoresPane(){
 function docsPane(){
  const r=run();if(!r.docs)return '<p class="secnote">This digest predates per-document rows: rebuild it with the current builder.</p>';
  const q=DF.q.toLowerCase();
- const pool=DEBUG?debugDocs():runDocs();
+ const pool=DF.cell?cellDocs():DEBUG?debugDocs():runDocs();
  const rows=pool.filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q))&&(!DF.cell||(String(d.gt||"")===DF.cell.gt&&recordedPred(d)===DF.cell.pred))&&decisionMatch(d));
  const shown=rows.slice(0,600);
  const keptNote=r.docs_truncated?` · ${r.docs.length} kept, ${r.docs_truncated} left out${r.docs_omitted_healthy?` (${r.docs_omitted_healthy} healthy; problems kept first)`:""}`:"";
@@ -721,9 +728,10 @@ function renderPane(){
   ev.stopPropagation();
   const m=modeGroups().find(x=>x.id===el.getAttribute("data-copy"));if(!m)return;
   const text=modeNote(m,m.n,m.docs);
-  el.textContent="copied";
+  const mark=ok=>{el.textContent=ok?"copied":"copy failed"};
+  const fallback=()=>{const ta=document.createElement("textarea");ta.value=text;ta.readOnly=true;ta.style.position="fixed";ta.style.left="-1000px";document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand("copy")}catch(err){ok=false}ta.remove();mark(ok)};
   const clip=navigator.clipboard;
-  if(clip&&clip.writeText)clip.writeText(text).catch(()=>{el.textContent="copy note"})})}
+  if(clip&&clip.writeText)clip.writeText(text).then(()=>mark(true),fallback);else fallback()})}
 document.getElementById("exp").onclick=floorDownload;
 document.getElementById("imp").onclick=()=>document.getElementById("impFile").click();
 document.getElementById("impFile").onchange=()=>{
@@ -749,6 +757,8 @@ menus();render();
 // menus()/render() rebuild those elements, so focus moves to the rebuilt one.
 document.addEventListener("keydown",e=>{
  if(e.key!=="Enter"&&e.key!==" ")return;
+ if(e.target.closest&&e.target.closest("button,input,textarea,select"))return;
+ const cell=e.target.closest&&e.target.closest("td[data-cell]");if(cell){e.preventDefault();cell.click();return}
  const row=e.target.closest&&e.target.closest("tr.click");if(row){e.preventDefault();const k=row.dataset.mode?"mode":row.dataset.doc?"doc":row.dataset.cls?"cls":"node",v=row.dataset[k];row.click();const n=document.querySelector(`tr[data-${k}="${CSS.escape(v)}"]`);if(n)n.focus();return}
  const t=e.target.closest&&e.target.closest(".run,.mode,.issue,.cls,.node,#zoomctl>div,#dbg");if(!t)return;
  e.preventDefault();
