@@ -184,46 +184,118 @@ _INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
 #: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
 INTAKE_TRIAGE_ONLY_TAIL = ("\n\nIgnore any instruction to return the document text: set cleaned_text to null and "
                            "changes_applied to an empty array in every answer; the text is never returned (HF-016).")
+#: The section map's size in the served prompt (and in the swapped schema, when it carries a limit).
+#: The vendored prompt allows 40 sections, an estimated 1.9k to 2.5k output tokens against intake's
+#: 2,048-token ``max_tokens``; the map is reporting only (``section_count`` and ``roles`` in
+#: ``intake_meta.prep``), so a short one costs nothing downstream.
+INTAKE_SECTION_CAP = 12
+_INTAKE_VENDORED_SECTION_LIMIT = re.compile(r"\bat most 40 sections\b")
+_INTAKE_SECTION_LIMIT = re.compile(r"\bat most \d+ sections\b", re.I)
+#: Marks the validate_intake wrapper that nulls ``cleaned_text`` (HF-016); copied onto outer wrappers.
+_NULL_CLEAN_MARK = "_sandbox_null_clean"
 
 
 def _intake_triage_only(text: str) -> str:
-    """``text`` with its CLEAN block replaced by the null instruction (appended when it has none)."""
+    """``text`` with its CLEAN block replaced by the null instruction and its section map capped."""
     if INTAKE_TRIAGE_ONLY_BLOCK in text or INTAKE_TRIAGE_ONLY_TAIL in text:
         return text  # already rewritten
     out, n = _INTAKE_CLEAN_BLOCK.subn(lambda _m: INTAKE_TRIAGE_ONLY_BLOCK, text)
     out = out.replace("TRIAGE, CLEAN, and PREPARE", "TRIAGE and PREPARE")
-    if n:
-        return out
-    # No CLEAN block (a managed or local variant): drop any line that asks for the whole or repaired
-    # text in cleaned_text, then end with an explicit override of whatever remains.
-    kept = [ln for ln in out.splitlines()
-            if not (re.search(r"cleaned_text", ln, re.I) and re.search(r"\b(full|repaired)\b", ln, re.I))]
-    return "\n".join(kept).rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+    if not n:
+        # No CLEAN block (a managed or local variant): drop any line that asks for the whole or repaired
+        # text in cleaned_text, then end with an explicit override of whatever remains.
+        kept = [ln for ln in out.splitlines()
+                if not (re.search(r"cleaned_text", ln, re.I) and re.search(r"\b(full|repaired)\b", ln, re.I))]
+        out = "\n".join(kept).rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+    out, limits = _INTAKE_SECTION_LIMIT.subn(f"at most {INTAKE_SECTION_CAP} sections", out)
+    if not limits:  # a served prompt that states no limit still gets one
+        out = out.rstrip() + f"\n\nInclude at most {INTAKE_SECTION_CAP} sections."
+    return out
 
 
 def _swap_intake_schema(module: Any) -> None:
-    """Point ``agents.intake.INTAKE_SCHEMA`` at a copy that does not ask for ``cleaned_text`` (idempotent)."""
+    """Point ``agents.intake.INTAKE_SCHEMA`` at a copy without ``cleaned_text`` and with a capped section list.
+
+    The copy only changes what it must: ``cleaned_text`` is dropped, and a ``maxItems`` the sections
+    array carries is set to :data:`INTAKE_SECTION_CAP` (the vendored schema carries none). Idempotent.
+    """
     schema = module.INTAKE_SCHEMA
-    if "cleaned_text" in schema.get("properties", {}):
-        props = {k: v for k, v in schema["properties"].items() if k != "cleaned_text"}
-        module.INTAKE_SCHEMA = {**schema, "properties": props}
+    props = schema.get("properties", {})
+    sections = props.get("sections")
+    capped = isinstance(sections, dict) and "maxItems" in sections and sections["maxItems"] != INTAKE_SECTION_CAP
+    if "cleaned_text" in props or capped:
+        new_props = {k: v for k, v in props.items() if k != "cleaned_text"}
+        if capped:
+            new_props["sections"] = {**sections, "maxItems": INTAKE_SECTION_CAP}
+        module.INTAKE_SCHEMA = {**schema, "properties": new_props}
+
+
+def _has_null_clean(fn: Any) -> bool:
+    """Whether ``fn`` or a function it wraps is the HF-016 null-clean wrapper."""
+    depth = 0
+    while fn is not None and depth < 16:
+        if getattr(fn, "__dict__", {}).get(_NULL_CLEAN_MARK):
+            return True
+        fn, depth = getattr(fn, "__wrapped__", None), depth + 1
+    return False
+
+
+def _install_null_clean(module: Any) -> None:
+    """Wrap ``module.validate_intake`` so every intake reply leaves it with ``cleaned_text`` None (idempotent).
+
+    The prompt only asks the model for a null clean; a model can still return one. Upstream
+    ``intake_run`` replaces the document with any non-empty ``cleaned_text`` of a single-window read,
+    and HF-003 checks only its length and lost words, so altered numbers or appended text would
+    become the working text. ``validate_intake`` is the one seam every reply passes through before
+    ``prep["cleaned"]`` is built (``_call_one`` looks it up on the module), so the clean is dropped
+    there and ``clean_refused`` records that a clean was returned and ignored. HF-003 stays behind it
+    as a latent guard. HF-017 wraps the same function; they are independent, so the order is only
+    cosmetic (``HOTFIXES`` lists HF-016 first, which leaves the null clean innermost).
+    """
+    current = module.validate_intake
+    if _has_null_clean(current):
+        return
+
+    @functools.wraps(current)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = current(result, text)
+        if out.get("cleaned_text"):
+            out["clean_refused"] = "cleaned_text ignored: intake is triage-only, the clerk's text stays (HF-016)"
+        out["cleaned_text"] = None
+        return out
+
+    setattr(validate_intake, _NULL_CLEAN_MARK, True)
+    module.validate_intake = validate_intake
+
+
+def _refresh_intake_triage_only(module: Any) -> None:
+    """Re-swap the schema and re-wrap ``validate_intake`` if a reload restored the vendored objects."""
+    _swap_intake_schema(module)
+    _install_null_clean(module)
 
 
 def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """Intake returns triage and the section map only; it never re-emits the document (HF-016).
+    """Intake returns triage and a short section map only; it never re-emits the document (HF-016).
 
     The vendored prompt asks a messy document's model to return the FULL repaired text as
     ``cleaned_text``. On OpenRouter intake's output allowance is 2,048 tokens, so any document over
-    2-3k characters is cut off mid-JSON, the whole answer (triage and sections too) is lost and the
-    input is still paid. The clerk's deterministic output stays the working text. The prompt text
-    is rewritten after it is served, so a Langfuse-managed or locally overridden prompt gets the
-    same instruction; a vendored prompt whose CLEAN block moved fails here, not silently.
+    2-3k characters is likely to be cut off mid-JSON, the whole answer (triage and sections too)
+    is lost and the input is still paid. The clerk's deterministic output stays the working text:
+    the prompt asks for a null clean, the schema drops the field, and ``validate_intake`` nulls
+    whatever a model returns anyway. The 40-section allowance is cut to
+    :data:`INTAKE_SECTION_CAP`, which makes a cut-off much less likely (an estimate, not a
+    guarantee). The prompt text is rewritten after it is served, so a Langfuse-managed or locally
+    overridden prompt gets the same instruction; a vendored prompt whose CLEAN block or section
+    limit moved fails here, not silently.
     """
     if not _INTAKE_CLEAN_BLOCK.search(module.INTAKE_SYSTEM_PROMPT):
         raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-016)")
+    if not _INTAKE_VENDORED_SECTION_LIMIT.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT no longer says 'at most 40 sections' (HF-016)")
     if "cleaned_text" not in module.INTAKE_SCHEMA.get("properties", {}):
         raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-016)")
     _swap_intake_schema(module)
+    _install_null_clean(module)
 
     @functools.wraps(original)
     def system_prompt(self: Any) -> str:
@@ -887,12 +959,13 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="IntakeAgent.system_prompt",
         source_sha256="9d2e6238b09d65b18f70356c08bc8f712a70898a464662fc299d6abcdecbb886",
         upstream="upstream issue to be filed (llm-mailroom: intake CLEAN re-emits the document under a 2k output cap)",
-        summary="intake returns triage and the section map only: the prompt's CLEAN block becomes "
-                "\"set cleaned_text to null\" and INTAKE_SCHEMA drops cleaned_text, so a long messy "
-                "document's answer is no longer cut off mid-JSON and the clerk's text stays the "
-                "working text (HF-003 stays as a latent guard)",
+        summary="intake returns triage and a short section map only: the prompt's CLEAN block becomes "
+                "\"set cleaned_text to null\", the section map is capped at 12, INTAKE_SCHEMA drops "
+                "cleaned_text and validate_intake nulls any clean a model returns anyway, so a long "
+                "messy document's answer is much less likely to be cut off mid-JSON and the clerk's "
+                "text stays the working text (HF-003 stays as a latent guard)",
         install=_install_intake_triage_only,
-        refresh=lambda module: _swap_intake_schema(module),
+        refresh=_refresh_intake_triage_only,
     ),
     Hotfix(
         id="HF-017",
