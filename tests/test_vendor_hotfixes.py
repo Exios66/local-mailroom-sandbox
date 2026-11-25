@@ -521,7 +521,7 @@ def test_hf011_refresh_never_drops_a_registered_rule(monkeypatch):
         assert route_spec.route_rules(node)[0] is rule
 
 
-# --- HF-014 / HF-015: the intake read is triage-only and never feeds the sorter a bogus prior --------
+# --- HF-016 / HF-017: the intake read is triage-only and never feeds the sorter a bogus prior --------
 
 _INTAKE_TRIAGE = {"primary_doc_class": "contract", "confidence": 0.9, "gist": "A services agreement.",
                   "keywords": ["services"]}
@@ -533,8 +533,8 @@ def _intake_agent():
     return object.__new__(IntakeAgent)
 
 
-def test_hf014_the_intake_prompt_asks_for_triage_and_sections_only():
-    assert vh.apply_hotfixes()["HF-014"] == "applied"
+def test_hf016_the_intake_prompt_asks_for_triage_and_sections_only():
+    assert vh.apply_hotfixes()["HF-016"] == "applied"
     text = _intake_agent().system_prompt()
     assert "Return the FULL repaired text" not in text and "CLEAN," not in text and "\nCLEAN " not in text
     assert "cleaned_text" in text and "null" in text  # the model is told to leave it null
@@ -542,8 +542,8 @@ def test_hf014_the_intake_prompt_asks_for_triage_and_sections_only():
     assert "contract" in text  # the live class list is still substituted
 
 
-def test_hf014_the_intake_schema_no_longer_asks_for_cleaned_text(monkeypatch):
-    assert vh.apply_hotfixes()["HF-014"] == "applied"
+def test_hf016_the_intake_schema_no_longer_asks_for_cleaned_text(monkeypatch):
+    assert vh.apply_hotfixes()["HF-016"] == "applied"
     import agents.intake as intake
 
     assert "cleaned_text" not in intake.INTAKE_SCHEMA["properties"]
@@ -557,8 +557,8 @@ def test_hf014_the_intake_schema_no_longer_asks_for_cleaned_text(monkeypatch):
     assert "cleaned_text" not in seen["schema"]["properties"] and prep["cleaned_text"] is None
 
 
-def test_hf014_a_managed_prompt_is_post_processed_and_a_reply_with_a_clean_is_still_guarded(monkeypatch):
-    assert vh.apply_hotfixes()["HF-014"] == "applied"
+def test_hf016_a_managed_prompt_is_post_processed_and_a_reply_with_a_clean_is_still_guarded(monkeypatch):
+    assert vh.apply_hotfixes()["HF-016"] == "applied"
     import agents.intake as intake
 
     served = intake.INTAKE_SYSTEM_PROMPT.replace("Rules:", "Managed extra line.\nRules:")
@@ -570,17 +570,17 @@ def test_hf014_a_managed_prompt_is_post_processed_and_a_reply_with_a_clean_is_st
     assert "set cleaned_text to null" in _intake_agent().system_prompt().lower()
 
 
-def test_hf014_install_refuses_a_prompt_whose_clean_block_moved(monkeypatch):
+def test_hf016_install_refuses_a_prompt_whose_clean_block_moved(monkeypatch):
     import agents.intake as intake
 
     monkeypatch.setattr(intake, "INTAKE_SYSTEM_PROMPT", "TRIAGE only. PREPARE the map.")
-    fix = next(f for f in vh.HOTFIXES if f.id == "HF-014")
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-016")
     with pytest.raises(vh.HotfixDrift):
         fix.install(intake, intake.IntakeAgent.system_prompt)
 
 
-def test_hf014_apply_reports_stale_not_a_crash_when_the_prompt_drifts(monkeypatch):
-    fix = next(f for f in vh.HOTFIXES if f.id == "HF-014")
+def test_hf016_apply_reports_stale_not_a_crash_when_the_prompt_drifts(monkeypatch):
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-016")
 
     def drifted(module, original):
         raise vh.HotfixDrift("CLEAN block not found")
@@ -591,14 +591,14 @@ def test_hf014_apply_reports_stale_not_a_crash_when_the_prompt_drifts(monkeypatc
     assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-DRIFT": "stale"}
 
 
-def test_hf014_both_new_hotfixes_are_in_every_run_lock_identity():
+def test_hf016_both_new_hotfixes_are_in_every_run_lock_identity():
     from mailroom_sandbox.job.preflight import _hotfix_identity
 
     ids = [f["id"] for f in _hotfix_identity()["fixes"]]
-    assert "HF-014" in ids and "HF-015" in ids
+    assert "HF-016" in ids and "HF-017" in ids
     targets = {f["id"]: f["target"] for f in _hotfix_identity()["fixes"]}
-    assert targets["HF-014"] == "agents.intake.IntakeAgent.system_prompt"
-    assert targets["HF-015"] == "agents.intake.validate_intake"
+    assert targets["HF-016"] == "agents.intake.IntakeAgent.system_prompt"
+    assert targets["HF-017"] == "agents.intake.validate_intake"
 
 
 @pytest.mark.parametrize("raw", [
@@ -608,8 +608,8 @@ def test_hf014_both_new_hotfixes_are_in_every_run_lock_identity():
     {"triage": []},
     {"triage": {}},
 ])
-def test_hf015_a_failed_read_has_no_triage_and_so_no_prior(raw):
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_a_failed_read_has_no_triage_and_so_no_prior(raw):
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     out = intake.validate_intake(dict(raw), "some document text")
@@ -619,8 +619,8 @@ def test_hf015_a_failed_read_has_no_triage_and_so_no_prior(raw):
     assert intake.format_intake_prior(out) == ""
 
 
-def test_hf015_a_failed_read_keeps_the_rest_of_the_validation():
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_a_failed_read_keeps_the_rest_of_the_validation():
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     text = "x" * 100
@@ -630,8 +630,8 @@ def test_hf015_a_failed_read_keeps_the_rest_of_the_validation():
     assert out["triage"] == {} and out["changes_applied"] == ["a"] and len(out["sections"]) == 1
 
 
-def test_hf015_an_honest_unknown_with_a_gist_still_produces_a_prior():
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_an_honest_unknown_with_a_gist_still_produces_a_prior():
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     out = intake.validate_intake({"triage": {"primary_doc_class": "unknown", "confidence": 0.2,
@@ -641,8 +641,8 @@ def test_hf015_an_honest_unknown_with_a_gist_still_produces_a_prior():
     assert "primary class: unknown" in prior and "shopping list" in prior
 
 
-def test_hf015_a_good_window_beats_a_failed_one_when_windows_merge():
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_a_good_window_beats_a_failed_one_when_windows_merge():
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     good = intake.validate_intake({"triage": _INTAKE_TRIAGE}, "text")["triage"]
@@ -659,8 +659,8 @@ def test_hf015_a_good_window_beats_a_failed_one_when_windows_merge():
     ("unknown", "bylaws", None),            # no catalog for the class: the line is dropped
     ("memo", "bylaws", None),
 ])
-def test_hf015_the_prior_prints_a_subclass_only_from_the_class_catalog(cls, subclass, printed):
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_the_prior_prints_a_subclass_only_from_the_class_catalog(cls, subclass, printed):
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     prep = {"triage": {"primary_doc_class": cls, "doc_subclass": subclass, "confidence": 0.8, "gist": "g"}}
@@ -671,9 +671,9 @@ def test_hf015_the_prior_prints_a_subclass_only_from_the_class_catalog(cls, subc
     assert f"primary class: {cls}" in prior
 
 
-def test_hf015_both_classify_nodes_hand_the_sorter_the_patched_prior(monkeypatch):
+def test_hf017_both_classify_nodes_hand_the_sorter_the_patched_prior(monkeypatch):
     """The real classify_node / retry_classify_node import format_intake_prior at call time."""
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.sorter as sorter_mod
     import graph.build_graph as G
 
@@ -700,7 +700,7 @@ def test_hf015_both_classify_nodes_hand_the_sorter_the_patched_prior(monkeypatch
 
 
 def test_a_fresh_run_lock_lists_the_intake_hotfixes_and_a_lock_without_them_refuses_resume(tmp_path, monkeypatch):
-    """The lock's ``vendor_hotfixes`` is where HF-014/HF-015 show: the prompt lock hashes no intake text."""
+    """The lock's ``vendor_hotfixes`` is where HF-016/HF-017 show: the prompt lock hashes no intake text."""
     import json
 
     from mailroom_sandbox.job import preflight
@@ -712,26 +712,26 @@ def test_a_fresh_run_lock_lists_the_intake_hotfixes_and_a_lock_without_them_refu
     path.write_text(json.dumps({"id": "p0", "filename": "p0.txt", "doc_text": "agreement " * 50,
                                 "expected_doc_class": "merger_agreement",
                                 "expected": "merger_agreement"}) + "\n", encoding="utf-8")
-    spec = RunSpec(run_id="run-hf014-lock", task="pipeline",
+    spec = RunSpec(run_id="run-hf016-lock", task="pipeline",
                    dataset=DatasetSpec(local_path=f"file://{path}", limit=1),
                    engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"}, job={"mock": True})
     assert preflight.preflight(spec, offline=True)["status"] == "prepared"
     store = RunStore(run_dir(spec.run_id))
     lock = store.read_lock()
     ids = [f["id"] for f in lock["vendor_hotfixes"]["fixes"]]
-    assert "HF-014" in ids and "HF-015" in ids
+    assert "HF-016" in ids and "HF-017" in ids
     # The default intake prompt is locked as code-default: no text, no hash, so no hotfix shows there.
     assert lock["prompt"]["default"]["sha256"] is None and "intake" not in lock["prompt"]["agents"]
-    # A lock written before the intake hotfixes (no HF-014/015) is refused on resume.
+    # A lock written before the intake hotfixes (no HF-016/017) is refused on resume.
     lock["vendor_hotfixes"]["fixes"] = [f for f in lock["vendor_hotfixes"]["fixes"]
-                                        if f["id"] not in {"HF-014", "HF-015"}]
+                                        if f["id"] not in {"HF-016", "HF-017"}]
     store.lock_path.write_text(json.dumps(lock))
     assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
 
 
-def test_hf014_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_document(monkeypatch):
+def test_hf016_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_document(monkeypatch):
     """The 2k-output failure: a model asked to re-emit the text is cut off; asked for triage only, it is not."""
-    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    assert vh.apply_hotfixes()["HF-016"] == "applied"
     import agents.intake as intake
 
     def model(user, schema, system_prompt=None, **_kw):
@@ -747,7 +747,7 @@ def test_hf014_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_
     prep = agent.intake_run(doc, "messy.txt")
     assert prep["triage"]["primary_doc_class"] == "contract" and "cleaned" not in prep
     assert intake.format_intake_prior(prep).startswith("[intake prior")
-    # The same agent under the vendored prompt loses the read, and HF-015 then sends no prior.
+    # The same agent under the vendored prompt loses the read, and HF-017 then sends no prior.
     monkeypatch.setattr(agent, "system_prompt", lambda: intake.INTAKE_SYSTEM_PROMPT)
     lost = agent.intake_run(doc, "messy.txt")
     assert lost["triage"] == {} and intake.format_intake_prior(lost) == ""
@@ -756,8 +756,8 @@ def test_hf014_a_model_that_follows_the_prompt_keeps_its_triage_on_a_long_messy_
 # --- review round 1 -----------------------------------------------------------------------------
 
 @pytest.mark.parametrize("order", ["failed_first", "failed_last"])
-def test_hf015_a_failed_window_never_hides_an_honest_unknown_read(order):
-    assert vh.apply_hotfixes()["HF-015"] == "applied"
+def test_hf017_a_failed_window_never_hides_an_honest_unknown_read(order):
+    assert vh.apply_hotfixes()["HF-017"] == "applied"
     import agents.intake as intake
 
     unk = intake.validate_intake({"triage": {"primary_doc_class": "unknown", "confidence": 0.2,
@@ -765,13 +765,13 @@ def test_hf015_a_failed_window_never_hides_an_honest_unknown_read(order):
     reads = [{}, unk] if order == "failed_first" else [unk, {}]
     assert intake._merge_triage(reads)["gist"] == "A shopping list."
     assert not intake._merge_triage([{}, {}]) and intake._merge_triage([]) == {}
-    assert vh.apply_hotfixes()["HF-015"] == "applied"  # idempotent: no wrapper stacking
-    assert getattr(intake._merge_triage, "_sandbox_hotfix") == "HF-015"
+    assert vh.apply_hotfixes()["HF-017"] == "applied"  # idempotent: no wrapper stacking
+    assert getattr(intake._merge_triage, "_sandbox_hotfix") == "HF-017"
     assert not hasattr(intake._merge_triage.__wrapped__, "__wrapped__")
 
 
-def test_hf014_the_tail_fallback_removes_a_full_text_instruction_and_overrides_it(monkeypatch):
-    assert vh.apply_hotfixes()["HF-014"] == "applied"
+def test_hf016_the_tail_fallback_removes_a_full_text_instruction_and_overrides_it(monkeypatch):
+    assert vh.apply_hotfixes()["HF-016"] == "applied"
     import agents.intake as intake
 
     served = "Return the FULL repaired text in cleaned_text.\nRules: x"

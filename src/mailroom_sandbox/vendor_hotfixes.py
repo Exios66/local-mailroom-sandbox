@@ -175,7 +175,7 @@ class HotfixDrift(RuntimeError):
     """The vendored text a hotfix rewrites is not where the hotfix expects it (reported ``stale``)."""
 
 
-#: What the triage-only intake prompt says where the vendored CLEAN block was (HF-014).
+#: What the triage-only intake prompt says where the vendored CLEAN block was (HF-016).
 INTAKE_TRIAGE_ONLY_BLOCK = (
     "NO CLEANING — not requested here. The deterministic intake clerk has already normalized the "
     "text, and the sorter reads that text, not yours. Set cleaned_text to null (or leave it out) and "
@@ -183,7 +183,7 @@ INTAKE_TRIAGE_ONLY_BLOCK = (
 _INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
 #: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
 INTAKE_TRIAGE_ONLY_TAIL = ("\n\nIgnore any instruction to return the document text: set cleaned_text to null and "
-                           "changes_applied to an empty array in every answer; the text is never returned (HF-014).")
+                           "changes_applied to an empty array in every answer; the text is never returned (HF-016).")
 
 
 def _intake_triage_only(text: str) -> str:
@@ -210,7 +210,7 @@ def _swap_intake_schema(module: Any) -> None:
 
 
 def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """Intake returns triage and the section map only; it never re-emits the document (HF-014).
+    """Intake returns triage and the section map only; it never re-emits the document (HF-016).
 
     The vendored prompt asks a messy document's model to return the FULL repaired text as
     ``cleaned_text``. On OpenRouter intake's output allowance is 2,048 tokens, so any document over
@@ -220,9 +220,9 @@ def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Ca
     same instruction; a vendored prompt whose CLEAN block moved fails here, not silently.
     """
     if not _INTAKE_CLEAN_BLOCK.search(module.INTAKE_SYSTEM_PROMPT):
-        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-014)")
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-016)")
     if "cleaned_text" not in module.INTAKE_SCHEMA.get("properties", {}):
-        raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-014)")
+        raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-016)")
     _swap_intake_schema(module)
 
     @functools.wraps(original)
@@ -248,7 +248,7 @@ def _catalog_subclass(primary_class: Any, subclass: Any) -> str | None:
 
 
 def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """A failed intake read feeds the sorter no prior; an invented subclass is not printed (HF-015).
+    """A failed intake read feeds the sorter no prior; an invented subclass is not printed (HF-017).
 
     ``validate_intake`` turned a parse failure (a cut-off reply, prose, a JSON list) into a
     truthy triage of ``unknown`` / 0.0 / no gist, and ``format_intake_prior`` rendered it as an
@@ -267,18 +267,18 @@ def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Ca
         return out
 
     merge = module._merge_triage
-    if getattr(merge, _MARK, None) != "HF-015":
+    if getattr(merge, _MARK, None) != "HF-017":
         @functools.wraps(merge)
         def _merge_triage(reads: list[dict]) -> dict:
             # Upstream's all-unknown fallback is reads[0], so a failed (empty) first window hid an
             # honest ``unknown`` read from a later one. Empty reads are dropped first.
             return merge([r for r in reads if r] or reads)
 
-        setattr(_merge_triage, _MARK, "HF-015")
+        setattr(_merge_triage, _MARK, "HF-017")
         module._merge_triage = _merge_triage
 
     prior = module.format_intake_prior
-    if getattr(prior, _MARK, None) != "HF-015":
+    if getattr(prior, _MARK, None) != "HF-017":
         @functools.wraps(prior)
         def format_intake_prior(prep: dict | None) -> str:
             triage = (prep or {}).get("triage")
@@ -287,15 +287,15 @@ def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Ca
                 prep = {**prep, "triage": {**triage, "doc_subclass": token}}
             return prior(prep)
 
-        setattr(format_intake_prior, _MARK, "HF-015")
+        setattr(format_intake_prior, _MARK, "HF-017")
         module.format_intake_prior = format_intake_prior
     return validate_intake
 
 
 def _refresh_empty_intake_prior(module: Any) -> None:
     """Re-wrap ``format_intake_prior`` and ``_merge_triage`` if a reload restored the vendored functions."""
-    if (getattr(module.format_intake_prior, _MARK, None) != "HF-015"
-            or getattr(module._merge_triage, _MARK, None) != "HF-015"):
+    if (getattr(module.format_intake_prior, _MARK, None) != "HF-017"
+            or getattr(module._merge_triage, _MARK, None) != "HF-017"):
         _install_empty_intake_prior(module, module.validate_intake)
 
 
@@ -882,7 +882,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         install=_install_transient_budget,
     ),
     Hotfix(
-        id="HF-014",
+        id="HF-016",
         module="agents.intake",
         attr="IntakeAgent.system_prompt",
         source_sha256="9d2e6238b09d65b18f70356c08bc8f712a70898a464662fc299d6abcdecbb886",
@@ -895,7 +895,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         refresh=lambda module: _swap_intake_schema(module),
     ),
     Hotfix(
-        id="HF-015",
+        id="HF-017",
         module="agents.intake",
         attr="validate_intake",
         source_sha256="c6957091af25c45f4af88ce8475349fb64cc3c40b4f2e66756eb5d91a3043df6",

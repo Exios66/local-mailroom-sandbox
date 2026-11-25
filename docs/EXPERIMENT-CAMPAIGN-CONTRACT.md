@@ -54,8 +54,8 @@ The complete implementations and upstream retirement conditions live in
 | HF-004 | Price each returned call once; refuse later calls at spend/call ceilings. Decisions responses are priced in the transport, not again by the usage wrapper. Isolated decision tasks use the per-document ceiling | `test_call_guard.py` |
 | HF-005 | Hold files at saturated filesystem bins without dropping them; bound inbox waits and unfinished uploads | `test_backpressure.py` |
 | HF-006 | Preserve explicit zero confidence in single and chunked specialist extraction | `test_vendor_hotfixes.py` |
-| HF-014 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
-| HF-015 | A failed intake read sends the sorter no prior; an invented subclass is not printed | `test_vendor_hotfixes.py` |
+| HF-016 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
+| HF-017 | A failed intake read sends the sorter no prior; an invented subclass is not printed | `test_vendor_hotfixes.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |
