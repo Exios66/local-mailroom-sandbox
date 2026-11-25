@@ -212,7 +212,7 @@ def test_lazy_release_missing_a_required_name_falls_back(isolated, tmp_path):
 
 
 def test_a_release_without_a_required_submodule_falls_back(isolated, tmp_path):
-    """A release without ``pipeline.pain_points`` (0.30.1 and older) is rejected before scoring starts:
+    """A release without ``pipeline.pain_points`` (the v0.30.1 tag and older) is rejected before scoring starts:
     ``eval/pain_points.py`` imports it at module load, so accepting it would break extraction scoring."""
     _fake_lazy_release(tmp_path, broken=None, without_submodule="pipeline.pain_points")
     isolated.syspath_prepend(str(tmp_path))

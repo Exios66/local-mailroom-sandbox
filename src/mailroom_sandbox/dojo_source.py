@@ -38,7 +38,7 @@ MODES = ("auto", "installed", "vendored")
 # without one imports cleanly at the root, then breaks the importer at use time (extraction
 # scoring imports ``eval/pain_points.py``), so ``_import_ok`` imports each one and a release
 # without it falls back like one missing a root name. ``pipeline.pain_points`` arrived after
-# 0.30.1 (llm-dojo-scoring #185).
+# the v0.30.1 tag (llm-dojo-scoring #185); the version string cannot tell, as 7d69bbd also reports 0.30.1.
 REQUIRED_SUBMODULES = ("pipeline.pain_points",)
 
 REQUIRED_ROOT_NAMES = (
