@@ -1,0 +1,77 @@
+# Decision-model sorter arm of the 500-document sorter comparison.
+# The paired Qwen arm is config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml.
+# Both arms use this dataset block unchanged (seed 3302, ranked draw, the production
+# 500-document strata and exclusion list, staged labels 9.3.1-rc.9), so preflight
+# prepares the same documents.
+#
+# Model: openai/gpt-6-luna-decisions on the OpenRouter Decisions endpoint
+# (POST /api/alpha/decisions, about 1,050,000 input tokens, input-only at $0.10 / 1M).
+# Question set 4.1.0 classifies from the document alone (no sorter handoff) with the
+# classify-node criteria. Its file caps the document at 1,000,000 characters, which
+# clips a document the model can still read. reviewer.max_input_chars raises that
+# window to 2,328,000 characters: (1,050,000 − 80,000 question-reserve tokens) × 2.4.
+# The override cannot exceed that room, and it never lowers the question set.
+#
+# 500 documents at 100k input tokens are about $5. The cap is $5 so it fits the
+# key's spendable balance (remaining limit minus the $3 reserve).
+# The accurate total is the provider usage.cost summed after the run (one charge per
+# document, however many questions the request carries).
+#
+# Launch one arm at a time, after the LLM arm. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
+#   sandbox run preflight --config config/runs/sorter-vs-decision-500-decision-luna.yaml
+#   sandbox run start --config config/runs/sorter-vs-decision-500-decision-luna.yaml --initials <XX>
+# Readout, after both arms finish:
+#   python scripts/compare_sorter_arms.py --a sorter-vs-decision-500-llm-qwen3.7-flash --b sorter-vs-decision-500-decision-luna
+schema: sandbox.run/v1
+run_id: sorter-vs-decision-500-decision-luna
+task: sorter_reviewer
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  strata:
+    buckets:
+      - {doc_class: contract, count: 91}
+      - {doc_class: corporate_record, count: 68}
+      - {doc_class: correspondence, count: 151}
+      - {doc_class: insurance_claim, count: 167}
+      - {doc_class: merger_agreement, count: 23}
+  sample_seed: 3302
+  require_task_gt: true
+  staged_overlay: 9.3.1-rc.9
+  exclude_ids_file: config/production/excluded-ids.txt
+  draw: ranked
+
+engine:
+  kind: openrouter
+  model: openai/gpt-6-luna-decisions
+  modal: null
+
+reviewer:
+  backend: decisions
+  model: openai/gpt-6-luna-decisions
+  questions: reviewer_decisions_v4.1.0
+  max_input_chars: 2328000
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.50
+  max_wall_seconds: 14400
+  api_cost_cap_usd: 5
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, sorter-vs-decision, decision-sorter, luna-decisions, openrouter, n500]

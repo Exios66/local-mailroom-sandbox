@@ -1,0 +1,69 @@
+# LLM sorter arm of the 500-document sorter comparison.
+# The paired decision arm is config/runs/sorter-vs-decision-500-decision-luna.yaml.
+# Both arms use this dataset block unchanged (seed 3302, ranked draw, the production
+# 500-document strata and exclusion list, staged labels 9.3.1-rc.9), so preflight
+# prepares the same documents.
+#
+# Model: deepseek/deepseek-v4.1-flash-1017 on OpenRouter (about 1,048,576 input tokens).
+# No agent_knobs max_input_chars: the 12k overlay budget would window or refuse a long
+# document. Context fit sizes the classify node to the model's window
+# (context − 2048 decode − 8000 reserve) × 2.4 chars/token, about 2.49M characters.
+# job.require_expanded_inputs fails preflight if that expansion does not happen.
+#
+# List price at the peak tier is $0.30 / $1.20 per 1M tokens. A 100k-token document
+# is about $0.03; 500 of them are about $15 before retries. The cap is $40.
+# The accurate total is the provider usage.cost summed after the run, not this estimate.
+#
+# Launch one arm at a time. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
+#   sandbox run preflight --config config/runs/sorter-vs-decision-500-llm-deepseek-v4.1-flash.yaml
+#   sandbox run start --config config/runs/sorter-vs-decision-500-llm-deepseek-v4.1-flash.yaml --initials <XX>
+# Readout, after both arms finish:
+#   python scripts/compare_sorter_arms.py --a sorter-vs-decision-500-llm-deepseek-v4.1-flash --b sorter-vs-decision-500-decision-luna
+schema: sandbox.run/v1
+run_id: sorter-vs-decision-500-llm-deepseek-v4.1-flash
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  strata:
+    buckets:
+      - {doc_class: contract, count: 91}
+      - {doc_class: corporate_record, count: 68}
+      - {doc_class: correspondence, count: 151}
+      - {doc_class: insurance_claim, count: 167}
+      - {doc_class: merger_agreement, count: 23}
+  sample_seed: 3302
+  require_task_gt: true
+  staged_overlay: 9.3.1-rc.9
+  exclude_ids_file: config/production/excluded-ids.txt
+  draw: ranked
+
+engine:
+  kind: openrouter
+  model: deepseek/deepseek-v4.1-flash-1017
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.50
+  max_wall_seconds: 14400
+  api_cost_cap_usd: 40
+  require_expanded_inputs: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, sorter-vs-decision, llm-sorter, deepseek-v4.1-flash, openrouter, n500]

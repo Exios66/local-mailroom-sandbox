@@ -1,0 +1,293 @@
+{
+  "dataset_sha256": "a49f7285d8dabb305786e6bdb5ed66746a804f26949a6fedc5befcf99cc6c38d",
+  "revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "split": "config/splits/runbook-v2",
+  "n": 500,
+  "heldout_in_draw": 168,
+  "labels": [
+    "contract",
+    "corporate_record",
+    "correspondence",
+    "insurance_claim",
+    "merger_agreement"
+  ],
+  "qwen_checkpoint": {
+    "state": "done",
+    "total": 500
+  },
+  "decision_checkpoint": {
+    "state": "done",
+    "total": 500
+  },
+  "qwen_scan": {
+    "errors": 0,
+    "truncated_flags": 0,
+    "error_reasons": {}
+  },
+  "decision_scan": {
+    "errors": 0,
+    "truncated_flags": 0,
+    "error_reasons": {}
+  },
+  "agreement": {
+    "both_correct": 491,
+    "qwen_only": 6,
+    "decision_only": 0,
+    "both_wrong": 3,
+    "same_prediction": 494
+  },
+  "qwen_misses": [
+    {
+      "truth": "correspondence",
+      "pred": "unknown",
+      "n": 2
+    },
+    {
+      "truth": "contract",
+      "pred": "corporate_record",
+      "n": 1
+    }
+  ],
+  "decision_misses": [
+    {
+      "truth": "correspondence",
+      "pred": "unknown",
+      "n": 7
+    },
+    {
+      "truth": "corporate_record",
+      "pred": "unknown",
+      "n": 1
+    },
+    {
+      "truth": "contract",
+      "pred": "corporate_record",
+      "n": 1
+    }
+  ],
+  "qwen": {
+    "model": "qwen/qwen3.7-flash",
+    "n": 500,
+    "failed": 0,
+    "class_accuracy": 0.994,
+    "class_macro_f1": 0.9961018402763775,
+    "class_f1": {
+      "contract": 0.994475138121547,
+      "corporate_record": 0.9927007299270073,
+      "correspondence": 0.9933333333333333,
+      "insurance_claim": 1.0,
+      "merger_agreement": 1.0
+    },
+    "class_macro_fpr": 0.0004629629629629629,
+    "class_macro_fnr": 0.004846808820318754,
+    "class_fpr": {
+      "contract": 0.0,
+      "corporate_record": 0.0023148148148148147,
+      "correspondence": 0.0,
+      "insurance_claim": 0.0,
+      "merger_agreement": 0.0
+    },
+    "class_fnr": {
+      "contract": 0.01098901098901099,
+      "corporate_record": 0.0,
+      "correspondence": 0.013245033112582781,
+      "insurance_claim": 0.0,
+      "merger_agreement": 0.0
+    },
+    "subclass_accuracy": 0.798,
+    "subclass_scored": 500,
+    "unit_accuracy": 0.802,
+    "unit_scored": 500,
+    "routing": {
+      "answered": 500,
+      "abstained": 122,
+      "auto_routed": 378,
+      "abstain_rate": 0.244,
+      "auto_class_accuracy": 0.9973544973544973,
+      "auto_unit_accuracy": 0.8042328042328042,
+      "abstained_class_accuracy": 0.9836065573770492,
+      "abstain_reasons": {
+        "below_high_band": 120,
+        "unknown_class": 2
+      }
+    },
+    "runtime": {
+      "run_wall_seconds": 165.85800004005432,
+      "active_seconds": 165.5541491508484,
+      "docs_per_minute": 181.20959307800146,
+      "concurrency": 8,
+      "timing_basis": "execution",
+      "answered": 500,
+      "failed": 0
+    },
+    "latency_ms": {
+      "n": 500,
+      "p50": 2100.253,
+      "p95": 6501.141
+    },
+    "tokens": {
+      "prompt": 5194340,
+      "completion": 51082
+    },
+    "cost": {
+      "priced": true,
+      "unpriced_docs": 0,
+      "total_usd": 0.34566245,
+      "per_doc_usd": 0.0006913249,
+      "per_1k_docs_usd": 0.6913249,
+      "per_class_correct_usd": 0.0006954978873239437,
+      "per_unit_correct_usd": 0.0008620011221945138,
+      "provider_reported_usd": 0.34251981,
+      "provider_reported_docs": 500,
+      "accurate_total_usd": 0.34251981,
+      "accurate_basis": "provider",
+      "accurate_per_doc_usd": 0.0006850396199999999
+    },
+    "calibration": {
+      "n": 500,
+      "ece": 0.01858,
+      "brier": 0.006815,
+      "auroc": 0.588867
+    }
+  },
+  "decision": {
+    "model": "openai/gpt-6-luna-decisions",
+    "n": 500,
+    "failed": 0,
+    "class_accuracy": 0.982,
+    "class_macro_f1": 0.9912080884418568,
+    "class_f1": {
+      "contract": 0.994475138121547,
+      "corporate_record": 0.9852941176470589,
+      "correspondence": 0.976271186440678,
+      "insurance_claim": 1.0,
+      "merger_agreement": 1.0
+    },
+    "class_macro_fpr": 0.0004629629629629629,
+    "class_macro_fnr": 0.014410501847198382,
+    "class_fpr": {
+      "contract": 0.0,
+      "corporate_record": 0.0023148148148148147,
+      "correspondence": 0.0,
+      "insurance_claim": 0.0,
+      "merger_agreement": 0.0
+    },
+    "class_fnr": {
+      "contract": 0.01098901098901099,
+      "corporate_record": 0.014705882352941176,
+      "correspondence": 0.046357615894039736,
+      "insurance_claim": 0.0,
+      "merger_agreement": 0.0
+    },
+    "subclass_accuracy": 0.834,
+    "subclass_scored": 500,
+    "unit_accuracy": 0.834,
+    "unit_scored": 500,
+    "routing": {
+      "answered": 500,
+      "abstained": 27,
+      "auto_routed": 473,
+      "abstain_rate": 0.054,
+      "auto_class_accuracy": 0.9978858350951374,
+      "auto_unit_accuracy": 0.8520084566596194,
+      "abstained_class_accuracy": 0.7037037037037037,
+      "abstain_reasons": {
+        "doc_type": 8,
+        "document_form": 23,
+        "margin": 1,
+        "subclass_gate": 8,
+        "unknown_max": 9
+      }
+    },
+    "runtime": {
+      "run_wall_seconds": 40.513999938964844,
+      "active_seconds": 40.214938163757324,
+      "docs_per_minute": 745.9914491932932,
+      "concurrency": 8,
+      "timing_basis": "execution",
+      "answered": 500,
+      "failed": 0
+    },
+    "latency_ms": {
+      "n": 500,
+      "p50": 572.684,
+      "p95": 1139.027
+    },
+    "tokens": {
+      "prompt": 5267251,
+      "completion": 0
+    },
+    "cost": {
+      "priced": true,
+      "unpriced_docs": 0,
+      "total_usd": 0.5267251000000001,
+      "per_doc_usd": 0.0010534502000000001,
+      "per_1k_docs_usd": 1.0534502000000001,
+      "per_class_correct_usd": 0.0010727598778004074,
+      "per_unit_correct_usd": 0.0012631297362110314,
+      "provider_reported_usd": 0.5267251,
+      "provider_reported_docs": 500,
+      "accurate_total_usd": 0.5267251,
+      "accurate_basis": "provider",
+      "accurate_per_doc_usd": 0.0010534502
+    },
+    "calibration": {
+      "n": 500,
+      "ece": 0.04522,
+      "brier": 0.021984,
+      "auroc": 0.816701
+    }
+  },
+  "paired_decision_minus_qwen": {
+    "class_accuracy": {
+      "estimate": -0.01200000000000001,
+      "ci95": [
+        -0.02200000000000002,
+        -0.0040000000000000036
+      ]
+    },
+    "class_macro_f1": {
+      "estimate": -0.0048937518345206765,
+      "ci95": [
+        -0.009713355739845997,
+        -0.001315789473684048
+      ]
+    },
+    "unit_accuracy": {
+      "estimate": 0.032,
+      "ci95": [
+        0.0,
+        0.066
+      ]
+    },
+    "mcnemar_class": {
+      "b": 6,
+      "c": 0,
+      "p_value": 0.03125,
+      "gain": -0.012
+    },
+    "mcnemar_unit": {
+      "b": 30,
+      "c": 46,
+      "p_value": 0.08464609267083592,
+      "gain": 0.032
+    }
+  },
+  "scored_with": "mailroom_sandbox.sorter_arms.arm_summary and compare_pair on the finished local items. pair() was not called: 168 of the 500 documents are in the sealed held-out set, and --confirmatory was not used.",
+  "runs": {
+    "qwen": {
+      "run_id": "sorter-vs-decision-500-llm-qwen3.7-flash",
+      "config": "config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml",
+      "spec_hash_prefix": "aed6bd904510",
+      "started_utc": "2026-11-24T01:09:59Z"
+    },
+    "decision": {
+      "run_id": "sorter-vs-decision-500-decision-luna",
+      "config": "config/runs/sorter-vs-decision-500-decision-luna.yaml",
+      "spec_hash_prefix": "911495e1db93",
+      "started_utc": "2026-11-24T01:09:59Z",
+      "questions": "reviewer_decisions_v4.1.0",
+      "max_input_chars": 2328000
+    }
+  }
+}

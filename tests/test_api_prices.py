@@ -58,6 +58,52 @@ def test_decisions_id_not_priced_as_chat_model():
     assert metrics.call_price("openai/gpt-6-luna-20261006", 300_000) == (0.20, 0.75)
 
 
+def test_provider_cost_is_kept_only_when_every_call_reports_one():
+    from mailroom_sandbox.job import usage_capture as uc
+
+    uc.reset_usage()
+    uc.note_provider_call({
+        "prompt_tokens": 1000, "completion_tokens": 10, "cost": 0.01,
+        "prompt_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 50},
+    })
+    assert uc.provider_calls()[0]["cached"] == 800 and uc.provider_calls()[0]["cache_write"] == 50
+    assert uc._reported_cost(uc.provider_calls()) == pytest.approx(0.01)
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc._reported_cost(uc.provider_calls()) is None
+    uc.note_provider_call({"prompt_tokens": 1.5, "completion_tokens": 1, "cost": 1})
+    assert len(uc.provider_calls()) == 2  # a non-integer count is not a recorded call
+    uc.reset_usage()
+    assert uc.provider_calls() == []
+    uc.note_pending_provider_cost(0.02)
+    uc.note_provider_call({"prompt_tokens": 100, "completion_tokens": 4})
+    assert uc.provider_calls()[-1]["cost"] == pytest.approx(0.02)
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc.provider_calls()[-1]["cost"] is None  # the held cost is consumed by the matching call
+    uc.reset_usage()
+    uc.note_pending_provider_cost(0.02)
+    uc.note_provider_call({"prompt_tokens": 1.5, "completion_tokens": 1})  # rejected: not a whole number
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc.provider_calls()[-1]["cost"] is None  # a rejected call does not leave its cost for the next one
+    uc.reset_usage()
+    uc.note_provider_call({
+        "input_tokens": 1000, "output_tokens": 10,
+        "input_token_details": {"cache_read": 800, "cache_creation": 50},
+    })
+    assert uc.provider_calls()[-1]["cached"] == 800 and uc.provider_calls()[-1]["cache_write"] == 50
+
+
+def test_call_cost_bills_cached_prompt_tokens_at_the_cache_rate():
+    """Cached tokens sit inside the prompt total and are not billed again at the prompt rate."""
+    model = "deepseek/deepseek-v4.1-flash-1017"
+    full = metrics.call_cost(model, 1_000, 100)
+    cached = metrics.call_cost(model, 1_000, 100, cached_tokens=800)
+    assert full == pytest.approx((1_000 * 0.30 + 100 * 1.20) / 1e6)
+    assert cached == pytest.approx((200 * 0.30 + 800 * 0.006 + 100 * 1.20) / 1e6)
+    assert cached < full
+    item_cost, approx = metrics.item_calls_cost(model, {"call_usage": [[1_000, 100, 800, 0]]})
+    assert item_cost == pytest.approx(cached) and approx is False
+
+
 def test_call_cost_prices_each_call_at_its_tier():
     one_long = metrics.call_cost("qwen/qwen3.7-flash", 100_000, 1_000)
     ten_short = metrics.call_cost("qwen/qwen3.7-flash", 100_000, 1_000, calls=10)
@@ -113,6 +159,28 @@ def test_time_of_day_windows_are_not_prompt_tiers():
     assert "time_windows" not in out["models"]["x/w"]
 
 
+def test_refresh_prices_an_alias_at_its_canonical_slug_row():
+    """When the dated slug is its own catalog row, that row's price wins over the alias."""
+    alias = {"id": "org/model", "canonical_slug": "org/model-20261101", "context_length": 1000,
+             "top_provider": {}, "pricing": {"prompt": "0.0000001", "completion": "0.0000002"}}
+    slug = {"id": "org/model-20261101", "canonical_slug": "org/model-20261101", "context_length": 2000,
+            "top_provider": {"max_completion_tokens": 50},
+            "pricing": {"prompt": "0.0000003", "completion": "0.0000004"}}
+    catalog = {alias["id"]: alias, slug["id"]: slug}
+    new, changed = refresh_api_prices.refresh({"models": {"org/model": {}}}, catalog, today="2026-11-25")
+    row = new["models"]["org/model"]
+    assert changed == ["org/model"]
+    assert row["canonical_slug"] == "org/model-20261101"
+    assert row["context_length"] == 2000 and row["max_completion_tokens"] == 50
+    assert row["tiers"] == [{"min_prompt_tokens": 0, "prompt": 0.3, "completion": 0.4}]
+    # A slug with no separate row keeps the alias row that declares it.
+    lone = {"id": "org/only", "canonical_slug": "org/only-20260101", "context_length": 8,
+            "top_provider": {}, "pricing": {"prompt": "0.0000005", "completion": "0.0000006"}}
+    new, _ = refresh_api_prices.refresh({"models": {"org/only": {}}}, {"org/only": lone}, today="2026-11-25")
+    assert new["models"]["org/only"]["tiers"][0]["prompt"] == 0.5
+    assert new["models"]["org/only"]["canonical_slug"] == "org/only-20260101"
+
+
 @pytest.mark.parametrize("model,prompt", [("typesafe/jev-1.14", 0.042), ("liquid/d1.2", 0.02), ("upstage/solar-decide", 0.05),
                                           ("google/gemini-decision-1", 0.1), ("perplexity/pplx-decider-v1.2", 0.02)])
 def test_decision_models_price_from_the_catalog_input_only(model, prompt):
@@ -122,7 +190,7 @@ def test_decision_models_price_from_the_catalog_input_only(model, prompt):
 
 
 def test_unknown_decision_sibling_is_not_priced_by_prefix():
-    # liquid/d1 and liquid/d1.2 are catalog ids; a future liquid/d1.9 must stay unpriced.
+    # liquid/d1.2 is a catalog id; a future liquid/d1.9 must stay unpriced.
     assert metrics.price_sheet("liquid/d1.9") is None
 
 

@@ -223,7 +223,7 @@ def test_round_cap_for_uses_the_override_the_derived_cap_or_the_study_cap():
 def test_the_runtime_bound_prices_the_reviewer_and_gate_models_like_the_run_lock_does():
     from mailroom_sandbox.job import api_budget
 
-    cheap = "qwen/qwen3.5-9b"                       # (0.17, 0.25) per 1M tokens: cheaper on input than the reviewer
+    cheap = "qwen/qwen3.5-9b"                       # slug price, cheaper on input than the reviewer
     plain = {"engine": {"kind": "openrouter", "model": cheap}, "job": {"mock": False}}
     dear_reviewer = {**plain, "reviewer": {"backend": "decisions", "model": "cloudflare/clef",
                                            "questions": "reviewer_decisions_v2", "classes": {"contract": 0.5}}}
@@ -243,6 +243,6 @@ def test_the_runtime_bound_prices_the_reviewer_and_gate_models_like_the_run_lock
     out = est.estimate_round_cost(champ, plain, dear_reviewer)
     assert out.runtime_bound_detail["models"] == ["cloudflare/clef", cheap]
     price_in, _ = api_budget.price_bound(models)
-    assert price_in == 0.192 > 0.17                                # the reviewer is the dearest input price
+    assert price_in == 0.192 > api_budget.price_bound([cheap])[0]  # the reviewer is the dearest input price
     assert out.runtime_bound_usd > base_bound
     assert out.runtime_bound_usd == pytest.approx((out.runtime_bound_detail["prompt_tokens"] * price_in) / 1e6, rel=0.01)

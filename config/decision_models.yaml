@@ -3,11 +3,23 @@
 # Pinned ids only: moving aliases (~org/model-latest) are excluded, and chat models never appear here.
 # prompt is USD per 1M input tokens; the Decisions API bills input only (completion is 0).
 source: https://openrouter.ai/api/v1/models?output_modalities=decisions
-checked: '2026-11-18'
+checked: '2026-11-25'
 unit: USD per 1M input tokens
 models:
+  baseten/bison-1:
+    canonical_slug: baseten/bison-1-20261120
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32768
+    prompt: 0.1
   baseten/elephant-1:
     canonical_slug: baseten/elephant-1-20261021
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 16384
+    prompt: 0.035
+  baseten/groundhog-1:
+    canonical_slug: baseten/groundhog-1-20261120
     endpoints:
     - /api/alpha/decisions
     context_length: 16384
@@ -35,7 +47,7 @@ models:
     endpoints:
     - /api/alpha/decisions
     context_length: 24576
-    prompt: 0.019
+    prompt: 0.038
   cloudflare/clef-omni:
     canonical_slug: cloudflare/clef-omni-20261009
     endpoints:
@@ -52,38 +64,26 @@ models:
     canonical_slug: heygen/heygen-decision-1-20261112
     endpoints:
     - /api/alpha/decisions
-    context_length: 131072
-    prompt: 0.14
+    context_length: 262144
+    prompt: 0.07
   heygen/heygen-decision-1-turbo:
     canonical_slug: heygen/heygen-decision-1-turbo-20261112
     endpoints:
     - /api/alpha/decisions
     context_length: 262144
-    prompt: 0.09
+    prompt: 0.042
   jaredpalmer/kev-4b:
     canonical_slug: jaredpalmer/kev-4b-20260924
     endpoints:
     - /api/alpha/decisions
     context_length: 8192
     prompt: 0.042
-  liquid/d1:
-    canonical_slug: liquid/d1-20260930
-    endpoints:
-    - /api/alpha/decisions
-    context_length: 65536
-    prompt: 0.02
   liquid/d1-ultra:
     canonical_slug: liquid/d1-ultra-20261015
     endpoints:
     - /api/alpha/decisions
     context_length: 32768
     prompt: 0.042
-  liquid/d1.1:
-    canonical_slug: liquid/d1.1-20261027
-    endpoints:
-    - /api/alpha/decisions
-    context_length: 65536
-    prompt: 0.02
   liquid/d1.2:
     canonical_slug: liquid/d1.2-20261116
     endpoints:
