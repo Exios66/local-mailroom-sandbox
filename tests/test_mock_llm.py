@@ -153,3 +153,23 @@ def test_mock_contracts_archive_on_a_complete_verdict_without_the_arbiter(tmp_pa
     got, expected, states = _mock_pilot(tmp_path, monkeypatch, rows)
     assert got == expected == {"contract_msa": "archived", "contract_nda": "archived"}
     _assert_clean_archives(got, states)
+
+
+def test_the_mock_pilot_routes_every_fixture_to_its_expected_stage(tmp_path, monkeypatch):
+    """Without ``expected_subclass`` the sorter guardrail (``doc_subclass_missing``) parked 7 of 11 fixtures."""
+    got, expected, states = _mock_pilot(tmp_path, monkeypatch)
+    assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
+    _assert_clean_archives(got, states)
+
+
+def test_every_fixture_subclass_is_in_its_class_catalog():
+    from mailroom_sandbox.datasets import load_manifest
+
+    activate("ollama", load_env_file=False)
+    from langchain_agents.doc_inventories import sorter_subclass_catalog
+
+    for row in load_manifest():
+        sub = row.get("expected_subclass")
+        assert sub is not None, "manifest has no expected_subclass column"
+        if sub:
+            assert sub in sorter_subclass_catalog(row["expected_doc_class"]), (row["id"], sub)
