@@ -9,6 +9,7 @@ idle floor costs one cheap stat sweep per interval.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -21,9 +22,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import ModuleType
 from typing import Any, Callable
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.job.read_ranges import ShingleIndex, match_ranges
 from mailroom_sandbox.paths import data_dir, repo_root
 from mailroom_sandbox.tui.floor_replay import is_replay_run as _is_replay_run
 from mailroom_sandbox.tui.floor_replay import prepare_recorded_replay
@@ -37,10 +39,11 @@ MIN_INTERVAL_S = 0.1
 # changed, so the builder's idle-time "stalled" verdict can flip (a dead run writes nothing).
 STALL_RECHECK_S = 60.0
 PAGE = "floor.template.html"
+DOC_ENDPOINT = "/api/floor/doc"
 REPLAY_RUN_ID = "replay-mailroom-sample"
 REPLAY_DIR = ("data", "fixtures", "floor", "replay")
 # files in a run dir that change as a run progresses (a dir counts as a run once items.jsonl exists)
-RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.json", "prompt.lock.json", "dataset.jsonl")
+RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.json", "prompt.lock.json", "dataset.jsonl", "reads.jsonl")
 
 
 def dashboard_dir() -> Path:
@@ -157,13 +160,128 @@ class DigestRefresher:
             last_reported = self.last_error
 
 
+# ── document inspector endpoint ─────────────────────────────────────────────────
+
+
+def _normalise_text(text: str) -> str:
+    """The trivial normalisation behind ``rewritten``: LF newlines and no outer whitespace."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _index_lists(run_dir: Path, doc: str) -> bool:
+    """True when ``doc_texts/index.jsonl`` lists ``doc``."""
+    index = run_dir / "doc_texts" / "index.jsonl"
+    return any(row.get("doc") == doc for row in load_builder().read_jsonl(index))
+
+
+def _working_text(run_dir: Path, doc: str) -> str | None:
+    """The recorded working text for a ``doc`` the index lists, or None.
+
+    The file name is recomputed (``sha1(doc)[:16].txt``), never taken from the request or
+    from an index line, so no user-supplied string reaches a path. A symlink is not followed.
+    """
+    path = run_dir / "doc_texts" / (hashlib.sha1(doc.encode("utf-8")).hexdigest()[:16] + ".txt")
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _last_row(path: Path, matches: Callable[[dict], bool]) -> dict | None:
+    """The last JSONL object in ``path`` for which ``matches`` holds (a resumed run re-appends)."""
+    found = None
+    for row in load_builder().read_jsonl(path):
+        if matches(row):
+            found = row
+    return found
+
+
+def _verbatim_overlap(original: str, working: str) -> float | None:
+    """Fraction of the working text's characters that appear verbatim in the original, or None."""
+    if not working:
+        return None
+    result = match_ranges(ShingleIndex(original), working)
+    if result["skipped"]:
+        return None
+    return round(min(1.0, result["matched_chars"] / len(working)), 4)
+
+
+def doc_view(runs_root: Path, run: str, doc: str) -> dict | None:
+    """What the viewer's DOCUMENT panel shows for one document, or None when run or doc is unknown.
+
+    ``run`` must be a name the digest builder's run scan produced under ``runs_root``; ``doc``
+    is matched against the dataset row, the stored item and the working-text index, never
+    joined to a path. ``rewritten`` compares the working text with the row's ``doc_text`` after
+    ``_normalise_text``; ``overlap`` is the verbatim coverage of the working text in that
+    original. Both stay false and null when either text is missing.
+    """
+    builder = load_builder()
+    run_dir = dict(builder.named_runs(builder.discover_runs(Path(runs_root)))).get(run)
+    if run_dir is None:
+        return None
+    row = _last_row(run_dir / "dataset.jsonl", lambda r: str(r.get("id") or r.get("filename")) == doc)
+    item = _last_row(run_dir / "items.jsonl", lambda r: str(r.get("item_id", r.get("id"))) == doc)
+    listed = _index_lists(run_dir, doc)
+    if row is None and item is None and not listed:
+        return None
+    working = _working_text(run_dir, doc) if listed else None
+    row, item = row or {}, item or {}
+    original = row.get("doc_text") if isinstance(row.get("doc_text"), str) else None
+    both = working is not None and original is not None
+    gt = row.get("expected_doc_class") or item.get("expected_doc_class") or item.get("expected")
+    return {
+        "working": working,
+        "original": original,
+        "expected": builder._expected_fields(row),
+        "extracted": builder._stored_extraction(item),
+        "class": {"gt": str(gt) if gt else None, "pred": builder._pred_class(item)},
+        "rewritten": bool(both and _normalise_text(working) != _normalise_text(original)),
+        "overlap": _verbatim_overlap(original, working) if both else None,
+    }
+
+
 class _FloorHandler(SimpleHTTPRequestHandler):
     """Static handler for the dashboard dir: quiet, and never cached (the digest changes under it)."""
 
-    def __init__(self, *args: Any, digest_directory: Path | None = None, **kwargs: Any) -> None:
-        """Serve dashboard assets with optional process-private digest files."""
+    def __init__(self, *args: Any, digest_directory: Path | None = None,
+                 runs_root: Path | None = None, **kwargs: Any) -> None:
+        """Serve dashboard assets with optional process-private digest files and a run store."""
         self.digest_directory = digest_directory
+        self.runs_root = runs_root
         super().__init__(*args, **kwargs)
+
+    def _send_json(self, status: int, payload: dict) -> None:
+        """Write one JSON response (never cached; ``end_headers`` adds the cache directive)."""
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 — http.server dispatch name
+        """Answer ``GET /api/floor/doc`` itself; every other path is a static file."""
+        parts = urlsplit(self.path)
+        if parts.path != DOC_ENDPOINT:
+            super().do_GET()
+            return
+        query = parse_qs(parts.query, keep_blank_values=True)
+        run, doc = query.get("run", [None])[0], query.get("doc", [None])[0]
+        if run is None or doc is None:
+            self._send_json(400, {"error": "run and doc are required"})
+            return
+        view = None
+        if self.runs_root is not None:
+            try:
+                view = doc_view(self.runs_root, run, doc)
+            except (OSError, ValueError):
+                view = None
+        if view is None:
+            self._send_json(404, {"error": "unknown run or document"})
+            return
+        self._send_json(200, view)
 
     def translate_path(self, path: str) -> str:
         """Resolve the two root digest URLs in this server's private directory."""
@@ -183,14 +301,17 @@ class _FloorHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path | None = None) -> ThreadingHTTPServer:
+def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path | None = None,
+                runs_root: Path | None = None) -> ThreadingHTTPServer:
     """Bind a loopback server for ``directory`` (port 0 = ephemeral), without serving yet.
 
-    Socket binding errors propagate.
+    ``runs_root`` is the run store (the builder's ``--base``) behind ``GET /api/floor/doc``;
+    without it that endpoint answers 404. Socket binding errors propagate.
     """
     return ThreadingHTTPServer(
         (DEFAULT_HOST, port),
-        partial(_FloorHandler, directory=str(directory.resolve()), digest_directory=digest_dir),
+        partial(_FloorHandler, directory=str(directory.resolve()), digest_directory=digest_dir,
+                runs_root=runs_root),
     )
 
 
@@ -435,7 +556,7 @@ def _serve_floor(
         print(f"sandbox floor: error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         return 1
     try:
-        httpd = make_server(out, port, digest_dir=digest_dir)
+        httpd = make_server(out, port, digest_dir=digest_dir, runs_root=base)
     except OSError as exc:  # port already in use / not bindable
         print(f"sandbox floor: cannot listen on {DEFAULT_HOST}:{port}: {exc}", file=sys.stderr, flush=True)
         return 1

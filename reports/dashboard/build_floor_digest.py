@@ -409,6 +409,102 @@ def discover_runs(base: Path) -> list[tuple[str, Path]]:
     return found
 
 
+# ── read ranges (numbers only; the text is served by the loopback endpoint) ─────
+
+
+def _int_pair(value) -> list[int] | None:
+    """A ``[start, end)`` pair of non-negative ints with start < end, else None."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    a, b = value
+    if any(isinstance(v, bool) or not isinstance(v, int) for v in (a, b)):
+        return None
+    return [a, b] if 0 <= a < b else None
+
+
+def _clean_ranges(raw) -> list[list[int]]:
+    """Valid range pairs only; anything else is dropped."""
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [pair for pair in (_int_pair(v) for v in raw) if pair is not None]
+
+
+def _merge_ranges(ranges: list[list[int]]) -> list[list[int]]:
+    """Sort and merge overlapping or touching ``[start, end)`` pairs."""
+    merged: list[list[int]] = []
+    for start, end in sorted(ranges):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+
+def _last_call_sequence(records: list[dict]) -> list[dict]:
+    """The last call sequence of one document's read records.
+
+    Call numbers count up from 1 per document. A resumed document re-appends
+    ``call=1..n``: when a record's call is not above the highest call of the sequence
+    so far, a new sequence starts and supersedes the earlier one. Records without an
+    integer call extend the current sequence.
+    """
+    sequence: list[dict] = []
+    top = 0
+    for rec in records:
+        call = rec.get("call")
+        if isinstance(call, int) and not isinstance(call, bool):
+            if call <= top:
+                sequence, top = [], 0
+            top = call
+        sequence.append(rec)
+    return sequence
+
+
+def _doc_reads(records: list[dict]) -> dict:
+    """``debug.reads`` for one document: calls, per-agent merged ranges, doc length. No text."""
+    kept = _last_call_sequence(records)
+    calls: list[dict] = []
+    by_agent: dict[str, list[list[int]]] = {}
+    doc_chars = 0
+    for rec in kept:
+        agent = str(rec.get("agent") or "?")
+        ranges = _clean_ranges(rec.get("ranges"))
+        call = {
+            "agent": agent,
+            "node": rec.get("node") if isinstance(rec.get("node"), str) else None,
+            "basis": rec.get("basis") if rec.get("basis") in ("working", "raw") else None,
+            "ranges": ranges,
+            "matched": int(_num(rec.get("matched_chars")) or 0),
+            "request": int(_num(rec.get("request_chars")) or 0),
+        }
+        if isinstance(rec.get("skipped"), str) and rec["skipped"]:
+            call["skipped"] = rec["skipped"]
+        calls.append(call)
+        by_agent.setdefault(agent, []).extend(ranges)
+        doc_chars = max(doc_chars, int(_num(rec.get("doc_chars")) or 0))
+    return {
+        "calls": calls,
+        "union": {agent: _merge_ranges(rs) for agent, rs in by_agent.items()},
+        "doc_chars": doc_chars,
+    }
+
+
+def read_ranges_by_doc(path: Path) -> dict[str, dict] | None:
+    """``debug.reads`` per document id from a run's ``reads.jsonl``; None when the run has none.
+
+    Torn or malformed lines are skipped (``read_jsonl``). Only offsets and counts are read
+    out of each record, never any document text.
+    """
+    reads_path = path / "reads.jsonl"
+    if not reads_path.is_file():
+        return None
+    per_doc: dict[str, list[dict]] = {}
+    for rec in read_jsonl(reads_path):
+        if rec.get("doc") is not None:
+            per_doc.setdefault(str(rec["doc"]), []).append(rec)
+    return {doc: _doc_reads(recs) for doc, recs in per_doc.items()}
+
+
 # ── per-run digest ──────────────────────────────────────────────────────────────
 
 
@@ -1678,6 +1774,11 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     cursor = checkpoint.get("cursor")
     routing = _routing(items, ds_class)
     kept_docs, docs_omitted, docs_omitted_healthy = _select_doc_rows(doc_rows)
+    reads_by_doc = read_ranges_by_doc(path)
+    if reads_by_doc is not None:  # absent file: the viewer says "not recorded"
+        for row in kept_docs:
+            if row["id"] in reads_by_doc:
+                row["debug"]["reads"] = reads_by_doc[row["id"]]
     state = checkpoint.get("state") or "unknown"
     last_activity = _last_activity(path)
     stalled_s = None
@@ -1747,6 +1848,17 @@ def resolve_base(arg: str | None) -> Path:
     return Path(arg or os.environ.get("MAILROOM_BASE_DIR") or "./data")
 
 
+def named_runs(runs_found: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
+    """``(digest run name, dir)`` for each discovered run; a repeated dir name gains ``(source)``."""
+    named: list[tuple[str, Path]] = []
+    used: set[str] = set()
+    for source, path in runs_found:
+        name = path.name if path.name not in used else f"{path.name} ({source})"
+        used.add(name)
+        named.append((name, path))
+    return named
+
+
 def build_digest(base: Path, graph_path: Path) -> dict:
     """Build a timestamped digest of discovered runs and their graph.
 
@@ -1766,10 +1878,7 @@ def build_digest(base: Path, graph_path: Path) -> dict:
     plain_edges = {tuple(pair) for pair in graph.get("plain_edges") or []}
     runs: list[dict] = []
     classes: set[str] = set()
-    used: set[str] = set()
-    for source, path in runs_found:
-        name = path.name if path.name not in used else f"{path.name} ({source})"
-        used.add(name)
+    for name, path in named_runs(runs_found):
         run, run_classes = build_run(name, path, edge_set, plain_edges)
         runs.append(run)
         classes |= run_classes

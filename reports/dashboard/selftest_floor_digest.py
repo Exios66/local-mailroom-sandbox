@@ -902,6 +902,29 @@ def mode_node_names_the_stage_to_read():
     assert shipped["mode"]["node"] == "classify"
 
 
+@test
+def reads_are_numbers_only_and_resumed_sequences_keep_the_last():
+    """debug.reads quotes offsets and counts, absent without reads.jsonl; a resumed doc keeps its last calls."""
+    text = "Nothing in this sentence may ever appear in a digest, however long the sentence runs on and on."
+    with tempfile.TemporaryDirectory() as tmp:
+        run = Path(tmp) / "run-r"
+        run.mkdir()
+        _jsonl(run / "items.jsonl", [{"item_id": "d1", "ok": True, "stage": "archived"}])
+        base = {"doc": "d1", "node": "classify", "basis": "working", "request_chars": 9, "matched_chars": 9,
+                "doc_chars": len(text)}
+        (run / "reads.jsonl").write_text(
+            "".join(json.dumps({**base, "call": c, "agent": a, "ranges": r}) + "\n"
+                    for c, a, r in ((1, "sorter", [[0, 5]]), (2, "judge", [[0, 9]]), (1, "sorter", [[10, 20]])))
+            + "{torn", encoding="utf-8")
+        row, _ = bfd.build_run("run-r", run, set())
+        reads = row["docs"][0]["debug"]["reads"]
+        assert [c["agent"] for c in reads["calls"]] == ["sorter"] and reads["union"] == {"sorter": [[10, 20]]}
+        assert text[:20] not in json.dumps(row)
+        (run / "reads.jsonl").unlink()
+        row, _ = bfd.build_run("run-r", run, set())
+        assert "reads" not in row["docs"][0]["debug"]
+
+
 def main() -> int:
     passed, failures = 0, []
     with tempfile.TemporaryDirectory() as tmp:
