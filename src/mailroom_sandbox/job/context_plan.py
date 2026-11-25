@@ -267,7 +267,7 @@ def plan(
                 entry["input_cost_usd"] = _cost_envelope(
                     taxonomy, cls, specialist, longest, per_pass, window_plan(budget, chunking),
                     windows.get("judge"), windows.get("arbiter"), models or {},
-                    intake_usd=(intake_entry or {}).get("input_usd_max_doc") or 0.0)
+                    intake_usd=(intake_entry or {}).get("input_usd_max_doc"))
             if not chunked and longest > budget:
                 why = "chunking is disabled" if pipeline else "no chunk_chars knob (single pass)"
                 warnings.append(f"{cls}: {why} and {specialist} max_input_chars={budget} "
@@ -340,7 +340,7 @@ def _calls_cost(model: str | None, calls: int, chars: int) -> float | None:
 
 def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longest: int, per_pass: int,
                    window: tuple[int, int], judge_w: int | None, arbiter_w: int | None,
-                   models: Mapping[str, Any], intake_usd: float = 0.0) -> dict[str, Any] | None:
+                   models: Mapping[str, Any], intake_usd: float | None = 0.0) -> dict[str, Any] | None:
     """Input cost of the class's longest document: clean path vs the full escalation loop.
 
     ``clean`` is one extraction pass with the judge skipped. ``judged`` adds one
@@ -352,7 +352,9 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     or its model has no API price.
 
     ``intake_usd`` is the intake read of the class's costliest document whose intake gate fires
-    (0 when none does). It is added to every scenario: the read runs before extraction and is
+    (0 when none does; None when one does but intake has no API price, which leaves the envelope
+    unpriced like any other unpriced agent). It prices windows HF-010 would refuse on an API route,
+    so it errs high there. It is added to every scenario: the read runs before extraction and is
     paid whatever the routing then does. It is an upper bound for this class's longest document.
     """
     conf = taxonomy.get("confidence") or {}
@@ -365,7 +367,7 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     extract = _calls_cost(_model(taxonomy, specialist, models), per_pass, chunk_in)
     judge = _calls_cost(_model(taxonomy, "judge", models), 2, min(longest, judge_w or longest))
     arbiter = _calls_cost(_model(taxonomy, "arbiter", models), 1, min(longest, arbiter_w or longest))
-    if None in (extract, judge, arbiter):
+    if None in (extract, judge, arbiter, intake_usd):  # a gated document on an unpriced intake model
         return None
     extract_passes = 1 + confidence_retries + retries
     worst = extract_passes * extract + judge_passes * judge + min(judge_passes, retries + 1) * arbiter
@@ -376,7 +378,7 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     rejudge = bool(th.get("judge_rejudge_retry", False)) and judge_passes > 1
     can_retry = retries > 0 and judge_passes > 1
     retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter) if can_retry else None
-    intake_usd = float(intake_usd or 0.0)
+    intake_usd = float(intake_usd)
     worst += intake_usd
     return {"clean": round(extract + intake_usd, 5), "judged": round(extract + judge + intake_usd, 5),
             "worst": round(worst, 5), "intake": round(intake_usd, 5),

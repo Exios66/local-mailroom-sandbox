@@ -480,3 +480,15 @@ def test_an_unpriced_intake_route_still_counts_its_calls():
     rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": _MESSY}]
     cp = context_plan.plan(tax, rows, windows=WINDOWS)
     assert cp["intake"]["docs_gated"] == 1 and cp["intake"]["calls"] == 1 and cp["intake"]["input_usd"] is None
+
+
+def test_a_gated_document_on_an_unpriced_intake_model_leaves_the_envelope_unpriced():
+    tax = _priced_taxonomy()
+    tax["agents"]["intake"] = {"provider": "openrouter", "model": "vendor/no-such-priced-model",
+                               "max_input_chars": 605_030}
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": _MESSY}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["classes"]["merger_agreement"]["intake"]["input_usd_total"] is None
+    assert cp["classes"]["merger_agreement"]["input_cost_usd"] is None  # never a silent $0 intake term
+    clean = context_plan.plan(tax, [{**rows[0], "doc_text": _CLEAN_SHORT}], windows=WINDOWS)
+    assert clean["classes"]["merger_agreement"]["input_cost_usd"]["intake"] == 0.0
