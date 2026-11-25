@@ -387,7 +387,14 @@ locked prompts/models/knobs rather than later ambient generation settings.
    (`WholeDocumentTooLong`, HF-009). On an API route, sorter and intake refuse
    input that needs more than one window (HF-010). Judge and arbiter
    source excerpts are outside those hotfixes and can still truncate long
-   input to their fitted windows; intake failures keep the clerk output. Modal,
+   input to their fitted windows; intake failures keep the clerk output. On
+   `qwen/qwen3.5-9b` the fitted windows are 2,487,552 characters (judge) and
+   600,115 (extraction and classification arbiters), above the specialist's
+   570,624, so any document that passes extraction reaches all three whole;
+   `tests/test_openrouter_full_source.py` checks a 250k-character document
+   end to end and that Modal/vLLM stays at 16,000. A document longer than the
+   arbiter window but inside the specialist budget (another model) is still
+   excerpted for the arbiter, and an acceptance from it stays parked. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
