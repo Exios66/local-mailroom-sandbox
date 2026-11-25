@@ -836,3 +836,29 @@ def test_shf003_currencies_named_in_words_count_as_stated():
     assert sh.currencies("1,000 dollars") == {"USD"} and sh.currencies("CAD 1,000 dollars") == {"CAD"}
     assert sh.currencies("£5 sterling") == {"GBP"} and sh.currencies("5,000 Canadian dollars") == {"CAD"}
     assert sh.currencies("10 pounds of grain") == set() and sh.currencies("Eurostar fare 40") == set()
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("Hong Kong dollars 1,000", {"HKD"}), ("HK dollars 1,000", {"HKD"}), ("HK$1,000", {"HKD"}),
+    ("5 New Zealand dollars", {"NZD"}), ("NZ dollars 5", {"NZD"}), ("NZ$5", {"NZD"}), ("NZD 5", {"NZD"}),
+    ("Singapore dollars 7", {"SGD"}), ("S$7", {"SGD"}), ("1,000 dollars Canadian", {"CAD"}),
+    ("CA dollars 3", {"CAD"}), ("5 Australian dollars", {"AUD"}), ("1,000 dollars Australian", {"AUD"}),
+    ("1,000 dollars", {"USD"}), ("5 million dollars", {"USD"}), ("US dollars 5", {"USD"}),
+])
+def test_shf003_a_bare_dollar_is_usd_only_when_no_other_dollar_is_named(text, expected):
+    assert sh.currencies(text) == expected
+
+
+def test_shf003_other_dollar_currencies_do_not_match_a_us_dollar_amount():
+    # the vendored scorer's base value is stubbed to 1.0 (amount equal), so only the currency check acts
+    def equal(pred, exp, embedding=None):
+        return 1.0
+
+    assert sh.fixed_money_score(equal, "Hong Kong dollars 1,000", "$1,000") == 0.0
+    assert sh.fixed_money_score(equal, "1,000 New Zealand dollars", "1,000 dollars") == 0.0
+    assert sh.fixed_money_score(equal, "Hong Kong dollars 1,000", "HKD 1,000") == 1.0
+    assert sh.fixed_money_score(equal, "1,000 dollars", "$1,000") == 1.0
+    with sh.hotfixed():
+        from llm_dojo_scoring.scoring import field_scoring as fs
+
+        assert fs.score_money_field("1,000 dollars", "$1,000") == 1.0

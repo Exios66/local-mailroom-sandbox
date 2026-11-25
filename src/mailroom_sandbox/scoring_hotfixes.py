@@ -493,14 +493,21 @@ def fixed_name_score(original: Callable[..., float], pred: Any, exp: Any, embedd
     return score
 
 
-_ISO = r"USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
+_ISO = r"USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
 
 
 # Currency names a money string can state in words. A bare "pound(s)" is left out (a weight), and a
-# bare "dollar(s)" means USD only when nothing else is stated, as a bare "$" does.
+# bare "dollar(s)" means USD only when nothing else is stated, as a bare "$" does. A qualified dollar
+# names its own currency: Canadian, Australian, Hong Kong, New Zealand and Singapore dollars, before
+# or after the word ("1,000 dollars Canadian") and by abbreviation ("HK dollars").
 _CURRENCY_WORDS = (
     (r"EUROS?", "EUR"), (r"(?:POUNDS?\s+)?STERLING|BRITISH\s+POUNDS?", "GBP"), (r"YEN", "JPY"),
-    (r"U\.?S\.?\s+DOLLARS?", "USD"), (r"CANADIAN\s+DOLLARS?", "CAD"), (r"AUSTRALIAN\s+DOLLARS?", "AUD"),
+    (r"U\.?S\.?\s+DOLLARS?", "USD"),
+    (r"(?:CANADIAN|CA)\s+DOLLARS?|DOLLARS?\s+CANADIAN", "CAD"),
+    (r"(?:AUSTRALIAN|AU)\s+DOLLARS?|DOLLARS?\s+AUSTRALIAN", "AUD"),
+    (r"(?:HONG\s+KONG|HK)\s+DOLLARS?|DOLLARS?\s+HONG\s+KONG", "HKD"),
+    (r"(?:NEW\s+ZEALAND|NZ)\s+DOLLARS?|DOLLARS?\s+NEW\s+ZEALAND", "NZD"),
+    (r"(?:SINGAPORE|SG)\s+DOLLARS?|DOLLARS?\s+SINGAPORE", "SGD"),
 )
 
 
@@ -515,7 +522,7 @@ def currencies(text: Any) -> set[str]:
         if re.search(rf"(?<![A-Z])(?:{word})(?![A-Z])", t):
             found.add(code)
     for prefix, code in (("US", "USD"), ("C", "CAD"), ("CA", "CAD"), ("A", "AUD"), ("AU", "AUD"),
-                         ("HK", "HKD"), ("S", "SGD")):
+                         ("HK", "HKD"), ("NZ", "NZD"), ("S", "SGD")):
         if re.search(rf"(?<![A-Z]){prefix}\$", t):
             found.add(code)
     # A bare "$" or "dollars" means USD only when the string states no other currency ("CAD $1,000" is CAD).

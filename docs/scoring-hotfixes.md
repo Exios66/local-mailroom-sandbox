@@ -143,7 +143,12 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
   `gold_audit.specialist_disagreements`, now score under `hotfixed()`, as does
   `scripts/extraction_gate.py` `_field_truth`. A field the headline scores right (a `CLM12345`
   for `CLM-12345`) is then never typed as the extraction miss. SHF-003 also reads currencies
-  named in words.
+  named in words. A bare "dollar(s)" is USD only when no other dollar currency is named: Canadian,
+  Australian, Hong Kong, New Zealand and Singapore dollars (also `CA`, `AU`, `HK`, `NZ`, `SG`
+  dollars, and the name after the word, "1,000 dollars Canadian") read as their own currency.
+  Another dollar (Taiwan, Jamaican and so on) is still read as USD. Measured on the 3,302 cached
+  Hub rows with both overlays applied: 98,872 truth strings, one containing "dollar", none read
+  differently than before.
   - Recorded as: the gate report and the calibration report name the fixes in force.
 - **Per-item and report provenance.**
   - `pipeline_item_score` adds `raw_dojo` (the item's raw extraction values) and
