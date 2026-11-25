@@ -9,7 +9,7 @@ experiment files were preserved; repairs were prepared in an isolated worktree.
 
 | Finding | Reproduction | Repair and guard |
 | --- | --- | --- |
-| A Decisions backend can retry after its caller expires. | With an already expired pipeline deadline, `_post_decision` still made three fake HTTP attempts. It ignored `Retry-After` and slept after the final failure. Five new tests failed before the repair. | [#413](https://github.com/Exios66/local-mailroom-sandbox/pull/413): one deadline across requests and backoff, per-attempt run checks, remaining-time HTTP timeouts, bounded Retry-After handling and no final sleep. `tests/test_decision_transport.py`. |
+| A Decisions backend can retry after the absolute run deadline. | With an already expired pipeline deadline, `_post_decision` still made three fake HTTP attempts. It ignored `Retry-After` and slept after the final failure. Five new tests failed before the repair. | [#413](https://github.com/Exios66/local-mailroom-sandbox/pull/413): one transport deadline across requests and backoff, per-attempt run checks, remaining-time HTTP timeouts, bounded Retry-After handling and no final sleep. Invalid attempt counts/timeouts are refused before HTTP. `tests/test_decision_transport.py`. |
 | Reviewer schema and runtime window calculations disagree after #405/#410. | Real `ReviewerSpec` rejected Jev's 1,032,576-character runtime estimate at 437,145 characters, and Liquid's 246,144-character estimate at zero. Three initial real-schema cases failed. Earlier window tests used synthetic spec objects. | [#414](https://github.com/Exios66/local-mailroom-sandbox/pull/414): share Decisions model-window arithmetic. Schema uses the default question reserve, preflight reserves actual questions, execution also reserves the handoff. Real-schema/variant/large-question tests in `tests/test_decision_windows.py`; above-window overrides remain refused. Schema validation does not reload frozen question files. |
 | The newest floor viewer displays the wrong graph for a selected confusion cell in DEBUG. | With class `contract` isolated, DEBUG enabled and cell `letter → contract` selected, the document table identified `d3` but the graph kept the contract debug path and showed two classify documents. Endpoint counting declined the cell isolate. The new JavaScript execution test failed. | The floor follow-up gives a confusion pair precedence over DEBUG and uses the same pair for repeat badges. The browser then showed one classify document, zero human-review documents and one START document. `test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_filters` executes actual viewer functions and verifies clearing restores DEBUG. |
 
@@ -62,6 +62,9 @@ to be this worktree. Counts overlap and must not be summed as unique tests.
 - Transport repair: `test_decision_transport.py`, `test_call_guard.py`,
   `test_decisions_backend.py`, `test_pipeline_routing_matrix.py`,
   `test_decision_slots.py`: **176 passed, 1 optional skip**.
+- Transport review repair `8c0e8cc7`: `test_decision_transport.py`,
+  `test_call_guard.py`, `test_decisions_backend.py`: **119 passed**.
+  This adds invalid-attempt/timeout refusal and qualifies the timer's start.
 - Updated-main floor plus initial schema repair: `test_decision_windows.py`,
   `test_decisions_backend.py`, `test_job_spec.py`, `test_floor_digest.py`,
   `test_floor_app.py`: **214 passed**.
@@ -73,6 +76,9 @@ to be this worktree. Counts overlap and must not be summed as unique tests.
   **232 passed**.
 - Final floor repair: `test_floor_app.py`, `test_floor_digest.py`:
   **90 passed**, including the JavaScript execution regression.
+- After rebasing the review repair through the stack: `test_decision_windows.py`,
+  `test_decision_transport.py`, `test_floor_app.py`, `test_floor_digest.py`:
+  **138 passed**. Markdown lint checked 200 files with zero errors.
 - `scripts/sync_requirements.py --check`: every requirements mirror matches.
   `scripts/check_hotfixes.py`: HF-001–012 applied; SHF-001–013 current.
 - Ruff 0.17.5 and markdownlint-cli2 0.18.1 passed on the repair surfaces.
@@ -105,8 +111,12 @@ for the shared 0.25 tokens/character estimate; a swapped model inherits
 Luna-calibrated cutoffs; and in-pipeline reviewer answers omit the truncation flag.
 Chat transport retries, SDK retries and graph retries are different layers;
 bounded graph self-loops do not prove a per-HTTP-attempt ceiling. Already
-in-flight requests can finish after client timeout. These need separately scoped
-provenance, calibration and live acceptance work.
+in-flight requests can finish after client timeout. The transport timer starts
+after backend preparation; it does not receive the caller's earlier node
+deadline, so that caller can expire first. The current overlay's configured
+call allowance is 600 seconds; with an absolute run deadline active, the
+transport uses the smaller of its explicit timeout and that allowance.
+These need separately scoped provenance, calibration and live acceptance work.
 
 Instruction validation checked AGENTS, CLAUDE, the dispatch and maintenance
 procedures, tool router and selected serving skill against the recorded
