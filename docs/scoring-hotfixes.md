@@ -31,8 +31,7 @@ revert, SHF-015) is off, so a scorer that does not opt in gets the Dojo pin's be
 The other fixes act outside a `hotfixed()` block and are on whenever they are current: the run
 aggregation fixes (SHF-005, SHF-006, SHF-007, SHF-008, SHF-011), SHF-010 during truth preparation
 (`gold_labels.apply_near_gold`), SHF-009 in the Decisions routing contract (`decision_backends`),
-SHF-012 in subclass scoring, SHF-015's label count in the gate (`job/gate.labelled_count`) and
-field truth in `scripts/extraction_gate.py`, and SHF-013 in the isolated sorter and
+SHF-012 in subclass scoring, SHF-015's label count in the gate (`job/gate.labelled_count`), and SHF-013 in the isolated sorter and
 `sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`), in pipeline subclass scoring and in
 `sorter_arms`. SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
@@ -68,7 +67,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     by pipeline runs, `sandbox rescore`, `job/pair_report` and the gate's document score. Also
     `run_extract_eval` and the isolated `extract` scorer (`eval/agents._score_extract`), which
     pass the row's overlay markers.
-  - Also: `job/gate.labelled_count`, and `scripts/extraction_gate.py` `_field_truth`.
+  - Also: `job/gate.labelled_count`. Not applied in `scripts/extraction_gate.py` `_field_truth`
+    (the extraction-gate calibration, known limit 4) or in the R02 scorer hand-check (limit 5).
   - Gate verdicts can move. A document's `labelled` no longer counts a dropped label, so one that
     had exactly `min_labelled` labels can become `unscorable_archive`. Each such document's
     gate status carries `labelled_raw` (the count before the drop; present only when it differs
@@ -86,7 +86,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     stale-label score. The item record's `stale_hub_labels` (`{field: reason}`, for example
     `{"intent": "intent_heuristic"}`) names each dropped field and why; the key is absent when
     nothing was dropped. `sandbox rescore` writes it the same way, because it builds items with
-    `pipeline_item_score`. The extraction gate calibration reports `field_truth_hotfixes`.
+    `pipeline_item_score`. The extraction gate calibration reports `field_truth_hotfixes` (without
+    SHF-015) and `shf015_scope`.
   - Known limits:
     1. Gate-cause typing (`job/gate_causes`) does not apply the SHF-015 drop, so `label_suspect`
        can still see a heuristic `intent`; a document failing on another field could be typed
@@ -96,6 +97,25 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
        SHF-015 then drops it. Today zero cached rows are affected.
     3. `scripts/sand032/rescore.py` passes no `overlay_fields`, so SHF-015 is off there by
        design and its output is not comparable to the hotfixed headline.
+    4. The extraction-gate calibration (`scripts/extraction_gate.py calibrate`) does not apply
+       SHF-015. The gate was asked about the question set's fields, `intent` among the key fields
+       of corporate records and correspondence in `extraction_gate_v1.2.0`, and judged each, so the
+       calibration keeps the Hub label as the field's truth: `key_truth`, the key-field set and
+       the per-field entries match what the gate was asked, and the target is the one it was
+       before SHF-015. Dropping a key field from the truth alone would score the gate's product of
+       supports over fields the target no longer holds. The report's `shf015_scope` says so, and
+       `skipped["stale_key_field_kept:<class>:<field>"]` counts each stale key-field label that was
+       kept. A calibration on the headline basis needs its own question set and a rerun of the
+       gate.
+    5. The R02 scorer hand-check (`scorer_handcheck.score_case`) scores the raw per-field basis,
+       not the SHF-015 headline: it verifies the per-field scorer against hand-computed truth, and
+       the committed sheet lists every field the truth names (a heuristic `intent` included).
+       SHF-015 is a label-policy layer over the headline and is checked by its own tests.
+    6. Compare like with like. A run scored before SHF-015 and one scored after differ on
+       `corporate_record`, `correspondence` and `insurance_claim` headline extraction scores by
+       construction (tables below). Rescore older runs (`sandbox rescore`) on the current
+       hotfixes before comparing their extraction headlines across the SHF-015 boundary, or
+       compare their `raw_dojo` figures, which SHF-015 does not touch.
 - **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
   - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
