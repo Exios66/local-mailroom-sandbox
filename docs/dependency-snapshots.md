@@ -71,7 +71,9 @@ release falls back to the selected cache when that cache ships the module, and o
 such a cache, to the vendored snapshot. `SANDBOX_DOJO_SOURCE=vendored` disables its cache and
 installed layers; the existing `installed` mode still explicitly permits an
 off-pin installed Dojo. `DOJO_SRC` remains the highest-priority development escape
-hatch. Pipeline source roots accept either `src/` or a repository containing it.
+hatch. It is taken as given, without the submodule check, so a checkout older
+than llm-dojo-scoring #185 fails with `ImportError` when extraction scoring imports
+`eval/pain_points.py`. Pipeline source roots accept either `src/` or a repository containing it.
 
 The cache defaults deliberately match the reviewed `PINS` in
 `src/mailroom_sandbox/snapshots.py`, even if the vendor directory is unavailable.

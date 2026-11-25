@@ -34,13 +34,6 @@ MODES = ("auto", "installed", "vendored")
 # falls back (to the selected release cache, checked the same way, then to the vendored snapshot).
 # ``tests/test_dojo_source.py`` checks that this covers every root import under src/, scripts/,
 # deploy/, api-evals/, tests/ and vendor/llm-mailroom/src/.
-# Submodules the sandbox imports at module load that older releases do not ship. A release
-# without one imports cleanly at the root, then breaks the importer at use time (extraction
-# scoring imports ``eval/pain_points.py``), so ``_import_ok`` imports each one and a release
-# without it falls back like one missing a root name. ``pipeline.pain_points`` arrived after
-# the v0.30.1 tag (llm-dojo-scoring #185); the version string cannot tell, as 7d69bbd also reports 0.30.1.
-REQUIRED_SUBMODULES = ("pipeline.pain_points",)
-
 REQUIRED_ROOT_NAMES = (
     "accuracy",
     "aggregate_sandbox_scores",
@@ -73,6 +66,13 @@ REQUIRED_ROOT_NAMES = (
     "suite_for_doc_type",
     "warm_embedding_model",
 )
+
+# Submodules the sandbox imports at module load that older releases do not ship. A release
+# without one imports cleanly at the root, then breaks the importer at use time (extraction
+# scoring imports ``eval/pain_points.py``), so ``_import_ok`` imports each one and a release
+# without it falls back like one missing a root name. ``pipeline.pain_points`` arrived after
+# the v0.30.1 tag (llm-dojo-scoring #185); the version string cannot tell, as 7d69bbd also reports 0.30.1.
+REQUIRED_SUBMODULES = ("pipeline.pain_points",)
 
 
 @dataclass(frozen=True)
