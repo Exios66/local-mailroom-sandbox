@@ -303,7 +303,8 @@ def decision_window_chars(model: str | None, *, question_chars: int = 0) -> int 
     ``None`` when the catalog gives no window (the question set's cap then applies alone). A
     ``:variant`` has its base's window. The reserve is the larger of ``DECISIONS_QUESTION_TOKENS``
     and the questions actually sent (``question_chars``), so a small-window model (Jev 1.14 at
-    262,144 tokens, Clef at 65k) is cut to what it accepts instead of answering a 400.
+    262,144 tokens, Clef at 65k) is cut to what it should accept by ``DECISIONS_TOKENS_PER_CHAR``
+    (an estimate measured on Luna only) instead of being sent a request its window cannot hold.
     """
     if not model:
         return None

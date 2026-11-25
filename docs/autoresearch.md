@@ -163,10 +163,11 @@ lever against the base before any spend (invalid patched spec, a patch that chan
 **Reviewer cutoffs are uncalibrated.** Every reviewer lever uses `reviewer_decisions_v2`'s per-class cutoffs,
 which were tuned for Luna on question set v2. They are reused for the other question sets and models; the study
 measures them, it does not calibrate them. **Context caps:** a reviewer's input is its question set's
-`max_input_chars` (no per-run override exists), within the model's own window at execution
+`max_input_chars` (a spec's `reviewer.max_input_chars`, where it has one, raises it), within the model's own window at execution
 (`decision_input_cap`, [decision model inputs](decision-model-inputs.md#swapping-the-decision-model)).
-`validate_catalog` still refuses a lever whose set would be cut: the 1,000,000-char sets fit Luna and the
-262k-token models (Jev, Gemini Decision, pplx-decider), not `liquid/d1.2`'s 65k.
+`validate_catalog` still refuses a lever whose set would be cut. By the 0.25 tokens-per-character estimate
+(measured on Luna only, unverified for other tokenizers), the 1,000,000-char sets fit Luna and the 262k-token
+models (Jev, Gemini Decision, pplx-decider), not `liquid/d1.2`'s 65k.
 
 **Input windows.** After `context_fit` the baseline's specialists on the 1M-context `qwen/qwen3.7-flash` read the whole
 document (up to ~2.37M chars) in one window, so no window lever can widen it. The only one left is
