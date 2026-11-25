@@ -154,3 +154,86 @@ def test_ranges_are_capped_and_merged():
         pos = doc.find(b)
         assert all(covered[pos : pos + len(b)])
     assert result["matched_chars"] == sum(len(b) for b in blocks)
+
+
+def _covered(ranges, n):
+    cov = bytearray(n)
+    for a, b in ranges:
+        cov[a:b] = b"\x01" * (b - a)
+    return cov
+
+
+def test_short_paragraphs_in_split_chunks_are_covered():
+    rng = random.Random(9)
+    heads = ["ARTICLE II", "1.2 Term", "2026-11-25", "Section 4", "Recitals"]
+    paras: list[str] = []
+    for i in range(300):
+        paras.append(f"{heads[i % 5]} #{i}")
+        paras.append("   ")
+        paras.append("")
+        paras.append(f"Body {i}: " + rng.randbytes(45).hex())
+    text = "\n\n".join(paras)
+    index = ShingleIndex(text)
+    chunks = _SpecialistBase._split_chunks(text, 20_000, 1_000)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        result = match_ranges(index, "SYSTEM\n\n" + chunk)
+        cov = _covered(result["ranges"], len(text))
+        for para in chunk.split("\n\n"):
+            if not para.strip():
+                continue
+            pos = text.find(para)
+            assert pos >= 0
+            for k, ch in enumerate(para):
+                if not ch.isspace():
+                    assert cov[pos + k], (pos + k, para[:30])
+
+
+def test_short_quoted_value_unique_is_mapped():
+    text = _numbered_text(30_000)
+    value = "Zebulon Quarry Ltd.!"  # 20 chars, appears once
+    pos = 12_345
+    text = text[:pos] + value + text[pos:]
+    result = match_ranges(ShingleIndex(text), "Extract the party named below.\n\n" + value)
+    assert result["ranges"] == [[pos, pos + len(value)]]
+    assert result["matched_chars"] == len(value)
+
+
+def test_short_ambiguous_value_is_not_mapped():
+    text = _numbered_text(30_000)
+    value = "Zebulon Quarry Ltd.!"
+    assert len(value) == 20
+    text = text[:5_000] + value + text[5_000:20_000] + value + text[20_000:]
+    result = match_ranges(ShingleIndex(text), "Extract the party named below.\n\n" + value)
+    assert result["ranges"] == []
+    assert result["matched_chars"] == 0
+
+
+def test_repeated_boilerplate_attributes_in_order():
+    block = "BOILERPLATE: " + "the parties agree to the standard terms of this schedule. " * 2
+    block = block[:100]
+    assert len(block) == 100
+    pieces = []
+    starts = []
+    pos = 0
+    for i in range(12):
+        line = f"Distinct line number {i} with unique tail {i * 7919:06d}\n"
+        pieces.append(line)
+        pos += len(line)
+        starts.append(pos)
+        pieces.append(block + "\n")
+        pos += len(block) + 1
+    doc = "".join(pieces)
+    s9 = starts[9]
+    request = doc[s9 - 20 : s9 + 100 + 20]
+    result = match_ranges(ShingleIndex(doc), request)
+    ranges = result["ranges"]
+    assert ranges
+    assert ranges[0][0] <= s9 and ranges[-1][1] >= s9 + 100
+    assert all(s9 - 20 <= a and b <= s9 + 120 for a, b in ranges)
+
+    # Sequential reading through repeats lands on the next occurrence, not the first.
+    reads = doc[starts[3] - 60 : starts[3] + 100] + "\n#\n" + block
+    result = match_ranges(ShingleIndex(doc), reads)
+    assert any(a <= starts[4] and b >= starts[4] + 100 for a, b in result["ranges"])
+    assert not any(a <= starts[0] and b >= starts[0] + 100 for a, b in result["ranges"])

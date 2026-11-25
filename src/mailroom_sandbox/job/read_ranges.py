@@ -9,6 +9,8 @@ Sections: matcher (below). Context, recorder and seam sections are appended afte
 
 from __future__ import annotations
 
+import re
+from bisect import bisect_left
 from typing import TypedDict
 
 # --- matcher ---------------------------------------------------------------
@@ -20,6 +22,9 @@ MAX_DOC_CHARS = 3_000_000
 MAX_REQUEST_CHARS = 3_000_000
 _MAX_CANDIDATES = 8  # doc positions tried per shingle (repetitive text)
 _BLOCK = 256
+_MAX_GAP_CHARS = 64_000  # request gaps larger than this are not gap-filled
+_MIN_UNANCHORED = 12  # non-whitespace chars needed to map a piece without an anchor
+_BLANK_LINE = re.compile(r"\n\s*\n")
 
 
 class MatchResult(TypedDict):
@@ -105,6 +110,58 @@ def _cap_ranges(ranges: list[list[int]]) -> list[list[int]]:
     return out
 
 
+def _pieces(request: str, lo: int, hi: int) -> list[str]:
+    """Stripped, non-empty pieces of ``request[lo:hi]`` split on blank lines."""
+    out: list[str] = []
+    pos = lo
+    for m in _BLANK_LINE.finditer(request, lo, hi):
+        out.append(request[pos : m.start()].strip())
+        pos = m.end()
+    out.append(request[pos:hi].strip())
+    return [p for p in out if p]
+
+
+def _unique_in_doc(doc: str, piece: str) -> int:
+    """Offset of ``piece`` if it occurs exactly once in ``doc``, else -1."""
+    if sum(not c.isspace() for c in piece) < _MIN_UNANCHORED:
+        return -1
+    pos = doc.find(piece)
+    if pos < 0 or doc.find(piece, pos + 1) >= 0:
+        return -1
+    return pos
+
+
+def _fill_gaps(
+    doc: str, request: str, bulk: list[tuple[int, int, int, int]], found: list[list[int]]
+) -> int:
+    """Anchored gap-fill: map short pieces between bulk matches. Returns chars matched."""
+    n = len(request)
+    gaps: list[tuple[int, int, int, int]] = []  # req_lo, req_hi, doc_lo, doc_hi
+    prev_re, prev_de = 0, 0
+    for rs, re_, ds, de in bulk:
+        gaps.append((prev_re, rs, prev_de, ds))
+        prev_re, prev_de = re_, de
+    gaps.append((prev_re, n, prev_de, len(doc)))
+    has_anchor = bool(bulk)
+    matched = 0
+    for req_lo, req_hi, doc_lo, doc_hi in gaps:
+        if req_hi - req_lo <= 0 or req_hi - req_lo > _MAX_GAP_CHARS:
+            continue
+        anchored = has_anchor and doc_hi >= doc_lo
+        cursor = doc_lo
+        for piece in _pieces(request, req_lo, req_hi):
+            pos = doc.find(piece, cursor, doc_hi) if anchored else -1
+            if pos >= 0:
+                cursor = pos + len(piece)
+            else:
+                pos = _unique_in_doc(doc, piece)
+                if pos < 0:
+                    continue
+            found.append([pos, pos + len(piece)])
+            matched += len(piece)
+    return matched
+
+
 def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
     """Ranges ``[start, end)`` of the document text that appear verbatim in ``request``."""
     request = request or ""
@@ -125,7 +182,9 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
     table = index.table
     n = len(request)
     found: list[list[int]] = []
+    bulk: list[tuple[int, int, int, int]] = []  # request lo/hi, doc lo/hi (verified)
     matched = 0
+    prev_doc_end = 0
     floor = 0  # request chars before this are already covered by an earlier match
     i = 0
     last = n - SHINGLE
@@ -137,7 +196,8 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         best_len = 0
         best_doc = 0
         best_req = 0
-        for j in cands[:_MAX_CANDIDATES]:
+        k = bisect_left(cands, prev_doc_end)
+        for j in (cands[k:] + cands[:k])[:_MAX_CANDIDATES]:
             right = _common_prefix(request, i + SHINGLE, doc, j + SHINGLE)
             left = _common_suffix(request, i, doc, j, i - floor)
             length = SHINGLE + left + right
@@ -145,6 +205,8 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
                 best_len, best_doc, best_req = length, j - left, i - left
         floor = best_req + best_len
         i = floor
+        prev_doc_end = best_doc + best_len
+        bulk.append((best_req, floor, best_doc, prev_doc_end))
         # A coincidental whitespace edge (a header's trailing newline against a
         # paragraph break) is not a read of the document: trim it.
         s, e = best_doc, best_doc + best_len
@@ -156,6 +218,7 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
             continue
         found.append([s, e])
         matched += e - s
+    matched += _fill_gaps(doc, request, bulk, found)
     result["ranges"] = _cap_ranges(_merge_ranges(found))
     result["matched_chars"] = matched
     return result
