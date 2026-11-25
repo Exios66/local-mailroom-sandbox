@@ -353,7 +353,9 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
 
     ``intake_usd`` is the intake read of the class's costliest document whose intake gate fires
     (0 when none does; None when one does but intake has no API price, which leaves the envelope
-    unpriced like any other unpriced agent). It prices windows HF-010 would refuse on an API route,
+    unpriced like any other unpriced agent). An intake served from Modal/vLLM is not token-billed,
+    so a gated document there also leaves the envelope None, the same as a Modal judge or arbiter;
+    preflight records the plan as advisory and no spend cap reads it. It prices windows HF-010 would refuse on an API route,
     so it errs high there. It is added to every scenario: the read runs before extraction and is
     paid whatever the routing then does. It is an upper bound for this class's longest document.
     """
