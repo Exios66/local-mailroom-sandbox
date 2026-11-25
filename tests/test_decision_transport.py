@@ -124,3 +124,85 @@ def test_permanent_failures_are_never_retried(monkeypatch, transport, status):
     with pytest.raises(RuntimeError, match=f"Decisions API {status}"):
         db._post_decision({}, timeout=120, attempts=3)
     assert len(calls) == 1 and sleeps == []
+
+
+# --- read ranges (Task 4) ----------------------------------------------------
+
+def _read_doc(n=1500, seed=11):
+    import random
+
+    rng = random.Random(seed)
+    return "\n\n".join(f"Section {i}. " + rng.randbytes(40).hex() for i in range(n // 90 + 1))[:n]
+
+
+def test_post_decision_records_once_per_request(monkeypatch, transport):
+    """A transport that fails twice and then succeeds is still one logical request."""
+    from mailroom_sandbox.job import read_ranges
+
+    _, calls, _ = transport
+    doc = _read_doc()
+
+    def post(*args, **kwargs):
+        calls.append(kwargs)
+        if len(calls) <= 2:
+            return httpx.Response(429, text="rate limited")
+        return httpx.Response(200, json={"answers": {}, "usage": {}})
+
+    monkeypatch.setattr(httpx, "post", post)
+    out: list[dict] = []
+    body = {"model": "m", "state": {"document": doc, "extraction_handoff": {"doc_type": "contract"}},
+            "questions": {"q": {"type": "choice"}}}
+    with read_ranges.document("d1", doc, out.append):
+        assert db._post_decision(body, timeout=120, attempts=3) == {"answers": {}, "usage": {}}
+    assert len(calls) == 3
+    assert len(out) == 1
+    assert out[0]["agent"] == "decisions:extraction_gate"
+    assert out[0]["ranges"] == [[0, len(doc)]]
+
+
+@pytest.mark.parametrize("state_extra,lane", [
+    ({"closed_field_handoff": {"field": "f"}}, "closed_field_resolver"),
+    ({"extraction_handoff": {"doc_type": "c"}}, "extraction_gate"),
+    ({"sorter_handoff": {"doc_type": "c"}}, "classification"),
+    ({}, "classification"),
+])
+def test_post_decision_lane_comes_from_the_state_shape(monkeypatch, transport, state_extra, lane):
+    from mailroom_sandbox.job import read_ranges
+
+    doc = _read_doc()
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(200, json={}))
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        db._post_decision({"model": "m", "state": {"document": doc, **state_extra}, "questions": {}},
+                          timeout=120, attempts=1)
+        db._post_decision({"model": "m", "state": doc, "questions": {}}, timeout=120, attempts=1)
+    assert [r["agent"] for r in out] == [f"decisions:{lane}", "decisions:classification"]
+
+
+def test_unsent_request_is_not_recorded(monkeypatch, transport):
+    from mailroom_sandbox.job import read_ranges
+
+    monkeypatch.delenv("OPENROUTER_API_KEY")
+    out: list[dict] = []
+    with read_ranges.document("d1", "x" * 500, out.append):
+        with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+            db._post_decision({"state": "x" * 500, "questions": {}}, timeout=120, attempts=1)
+    assert out == []
+
+
+def test_masked_digits_leave_a_gap_not_an_error(monkeypatch, transport):
+    from mailroom_sandbox.job import read_ranges
+
+    doc = _read_doc(1400)
+    mid = len(doc) // 2
+    doc = doc[:mid] + " 4111 1111 1111 1111 " + doc[mid:]
+    masked = db.mask_card_numbers(doc)
+    assert masked != doc and len(masked) == len(doc)
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(200, json={}))
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        db._post_decision({"model": "m", "state": {"document": masked}, "questions": {}},
+                          timeout=120, attempts=1)
+        stats = read_ranges.stats()
+    assert len(out) == 1 and len(out[0]["ranges"]) == 2
+    assert stats["read_errors"] == 0
