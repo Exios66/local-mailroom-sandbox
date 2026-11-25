@@ -1238,6 +1238,21 @@ def test_run_job_refuses_hotfix_code_other_than_the_locked_set(tmp_path, key):
     assert not store.load_items()
 
 
+def test_run_job_refuses_to_execute_a_rescore_lock(tmp_path):
+    """A paused rescore keeps the source checkpoint. Resume must not call the model."""
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["lock_kind"] = "rescore.lock"
+    lock["rescore"] = {"source_run": "source-run"}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    store.write_checkpoint(state="paused", cursor=0, total=2)
+
+    with pytest.raises(RuntimeError, match="rescore lock"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()
+    assert store.read_checkpoint()["state"] == "paused"
+
+
 def test_run_job_refuses_a_changed_context_fit_before_any_document(tmp_path):
     store = _prepped_store(tmp_path, rows=2)
     lock = json.loads(store.lock_path.read_text(encoding="utf-8"))

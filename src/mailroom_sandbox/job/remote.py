@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from mailroom_sandbox.job.checkpoint import RunStore, generation_identity
+from mailroom_sandbox.job.checkpoint import RunStore, generation_identity, refuse_rescore_execution
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +180,10 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
     checkpoint and lifecycle journal after spawning.
 
     Raise RuntimeError for invalid/mismatched generations or failed uploads.
-    CLI, SDK, and local store errors propagate.
+    CLI, SDK, and local store errors propagate. A rescore lock is refused
+    before a worker is spawned or the checkpoint is rewritten.
     """
+    refuse_rescore_execution(store)
     lock = store.verify_generation()
     # Prefer a prior matching location, including original /runs/<run_id>
     # stores. Mismatched legacy work is left untouched, even when apparently
@@ -446,8 +448,11 @@ def ensure_running(store: RunStore) -> dict:
     confirmed completion and expiry of the 15-minute cooldown when a dispatch
     time is recorded. Raise RuntimeError for unproven generation identity,
     a malformed dispatch timestamp, an active cooldown, or unconfirmed
-    completion; remote dispatch and store errors propagate.
+    completion; remote dispatch and store errors propagate. A rescore lock
+    is refused before attach or spawn, including when the copied checkpoint
+    still names the source call.
     """
+    refuse_rescore_execution(store)
     store.refuse_replay()
     cp = store.read_checkpoint() or {}
     remote = cp.get("remote")

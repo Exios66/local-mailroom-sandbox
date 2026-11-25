@@ -26,6 +26,29 @@ TERMINAL_STATES = ("done", "failed")
 STATES = ("prepared", "running", "paused", "failed", "done")
 
 
+class RescoreNotExecutable(RuntimeError):
+    """A derived rescore directory is an offline score, not a job to run or dispatch."""
+
+
+def refuse_rescore_execution(store: RunStore) -> None:
+    """Refuse to run, resume, or dispatch a directory whose lock is ``rescore.lock``.
+
+    Rescore copies the source checkpoint, including ``paused`` and ``running``,
+    and may copy a remote call id. Continuing that directory would spawn a
+    worker, call the model for the remaining rows, or pull that call's
+    artifacts over the offline scores. Continue the source run instead.
+    """
+    lock = store.read_lock() or {}
+    if lock.get("lock_kind") != "rescore.lock":
+        return
+    source = (lock.get("rescore") or {}).get("source_run")
+    where = f" (source {source})" if source else ""
+    raise RescoreNotExecutable(
+        f"{store.run_id}: a rescore lock is an offline score of stored answers and cannot "
+        f"be executed{where}; resume the source run if the job itself should continue"
+    )
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
