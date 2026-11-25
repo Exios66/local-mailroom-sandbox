@@ -14,18 +14,23 @@ id (``SHF-001`` ...), and never silently:
   Dojo-pin value, under ``raw_dojo``) and once with the current fixes on (the headline).
   ``scoring_hotfixes`` names the fixes that were on and ``scoring_hotfixes_changed`` the headline
   keys whose value differs, so no number changes without the record saying why.
+  A report built on the headline also records :func:`headline_basis`.
 - **Recorded in every run lock** (``scoring_hotfixes``: this module's sha256 and each fix's id and
-  target fingerprints). A resume refuses a lock whose set differs.
-- **Tracked upstream.** Each fix names the upstream it belongs to (a drafted, unfiled
-  llm-dojo-scoring issue in ``docs/scoring-hotfixes.md``, or ``sandbox`` when the defect is in
-  this repository's own scoring code).
+  target fingerprints). A resume refuses a lock whose set differs, and so does the executing
+  process; any edit here changes the sha, so a new run locks the new set and an older lock needs
+  ``--force`` to re-lock.
+- **Tracked upstream.** Each fix names the upstream it belongs to (an llm-dojo-scoring issue,
+  D-1 to D-5 filed as Exios66/llm-dojo-scoring#188 to #192, see ``docs/scoring-hotfixes.md``, or
+  ``sandbox`` when the defect is in this repository's own scoring code).
 
-Outside a :func:`hotfixed` block every scoring-call fix is off, so a scorer that does not opt in
-gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
-threads never see each other's mode. Three fixes act outside a scoring call and are on whenever
-they are current: SHF-010 during truth preparation (``gold_labels.apply_near_gold``) and SHF-009
-in the Decisions routing contract (``decision_backends``), and SHF-013 in isolated subclass
-scoring and sorter-arm comparisons. See ``docs/scoring-hotfixes.md``.
+Outside a :func:`hotfixed` block every per-row scoring-call fix is off, so a scorer that does not
+opt in gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
+threads never see each other's mode. The other fixes act outside a scoring call and are on whenever
+they are current: the run aggregation fixes (SHF-005/006/007/008/011), SHF-010 during truth
+preparation (``gold_labels.apply_near_gold``), SHF-009 in the Decisions routing contract
+(``decision_backends``), SHF-012 in subclass scoring, SHF-013 in isolated and pipeline subclass
+scoring and sorter-arm comparisons, and SHF-015's gate label count and extraction-gate field truth.
+See ``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations
@@ -70,7 +75,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("llm_dojo_scoring.scoring.extraction_metrics:extraction_binary_metrics",
              "a5b4378e11861c07c7218913056f7120c280b7a51f985a27669ab68de76fbd1c"),
         ),
-        upstream="sandbox (extraction_scope); Dojo draft issue D-1 in docs/scoring-hotfixes.md",
+        upstream="sandbox (extraction_scope); Dojo D-1, Exios66/llm-dojo-scoring#188",
         summary="a value predicted on a field the truth documents as absent (gt_presence "
                 "schema_documented_absence) is a false positive on every class, not only "
                 "corporate_record, and is counted as a hallucination",
@@ -80,7 +85,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_name_field",
                   "2858ef5f4d580f3e7f0f2f4ab220d12b423b299072b595bd306bece00c07787e"),),
-        upstream="llm-dojo-scoring draft issue D-2 (docs/scoring-hotfixes.md), not filed",
+        upstream="llm-dojo-scoring D-2, Exios66/llm-dojo-scoring#189",
         summary="a name whose tokens are a strict subset or superset of the truth's (after "
                 "legal-suffix, 'the', honorific and initial removal) is a partial match "
                 "(token Jaccard), not an exact 1.0",
@@ -90,15 +95,16 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_money_field",
                   "25ea35162ccef237c2c7f9aa655c810176305270ac279dcc101c636f1c9b087f"),),
-        upstream="llm-dojo-scoring draft issue D-3 (docs/scoring-hotfixes.md), not filed",
-        summary="two amounts that state different currencies do not match",
+        upstream="llm-dojo-scoring D-3, Exios66/llm-dojo-scoring#190",
+        summary="two amounts that state different currencies (code, symbol or name in words) "
+                "do not match",
     ),
     ScoringHotfix(
         id="SHF-004",
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_id_field",
                   "4ed5c2db371ebf14f322810f44d6828721e293482a4f9e0badf3bbbcfdbac1c3"),),
-        upstream="llm-dojo-scoring draft issue D-4 (docs/scoring-hotfixes.md), not filed",
+        upstream="llm-dojo-scoring D-4, Exios66/llm-dojo-scoring#191",
         summary="identifiers equal once every non-alphanumeric character is removed match "
                 "(CLM12345 = CLM-12345)",
     ),
@@ -193,7 +199,8 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",
                   "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed")),
-        upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: draft issue D-5)",
+        upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: D-5, "
+                 "Exios66/llm-dojo-scoring#192)",
         summary="pipeline items record the final sorter/reviewer subclass and score it joint with the "
                 "class on the canonical subclass token (normalize_corpus_subclass), not the Dojo's "
                 "class-blind raw-string match",

@@ -15,18 +15,26 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
 - **Dual reported.** A scoring entrypoint scores each row with every fix off (the raw Dojo-pin
   value, under `raw_dojo`) and with the current fixes on (the headline).
   `scoring_hotfixes` names the fixes that were on; `scoring_hotfixes_changed` names the
-  headline keys whose value differs.
+  headline keys whose value differs. A report built on the headline also carries
+  `headline_basis` (`{"headline": "hotfixed", "raw_key": "raw_dojo", "fixes_key":
+  "scoring_hotfixes", ...}`), so a reader knows which number is which.
 - **Recorded in every run lock** (`scoring_hotfixes`: the module sha256 and each fix's id and
   target fingerprints). A resume refuses a lock whose set differs, and the executing process
   (local or the Modal job worker) refuses to start when its set differs or a fix is not current.
-- **Tracked upstream.** Each fix names where it belongs: a drafted llm-dojo-scoring issue
-  (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
+- **Tracked upstream.** Each fix names where it belongs: an llm-dojo-scoring issue (D-N below,
+  filed as [#188](https://github.com/Exios66/llm-dojo-scoring/issues/188) to
+  [#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) or `sandbox` for a defect in this
+  repository's scoring code.
 
-Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
-the Dojo pin's behaviour unchanged. Three fixes act outside a `hotfixed()` block and are on whenever
-they are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`), SHF-009 in the
-Decisions routing contract (`decision_backends`), and SHF-013 in the isolated sorter and
-`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`. SHF-013 always
+Outside a `hotfixed()` block every per-row scoring-call fix (SHF-001 to SHF-004, SHF-010's raw
+revert, SHF-015) is off, so a scorer that does not opt in gets the Dojo pin's behaviour unchanged.
+The other fixes act outside a `hotfixed()` block and are on whenever they are current: the run
+aggregation fixes (SHF-005, SHF-006, SHF-007, SHF-008, SHF-011), SHF-010 during truth preparation
+(`gold_labels.apply_near_gold`), SHF-009 in the Decisions routing contract (`decision_backends`),
+SHF-012 in subclass scoring, SHF-015's label count in the gate (`job/gate.labelled_count`) and
+field truth in `scripts/extraction_gate.py`, and SHF-013 in the isolated sorter and
+`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`), in pipeline subclass scoring and in
+`sorter_arms`. SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
 still match the pinned fingerprint when it is read, or scoring stops. SHF-009's `forced_choice` is the forced-choice
 answer from the same question-set response, not a second request.
@@ -37,18 +45,107 @@ answer from the same question-set response, not a second request.
 | --- | --- | --- | --- |
 | SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. Re-validated at the Dojo `7d69bbd` refresh: `extraction_binary_metrics` now skips a contract's v1 parse-compat keys (`merger_consideration`, `maud_clauses`), which the sandbox's contract scope never restores, so the fix holds unchanged. | sandbox (`extraction_scope`); Dojo D-1 ([#188](https://github.com/Exios66/llm-dojo-scoring/issues/188)) |
 | SHF-002 | dojo | A name whose tokens are a strict subset or superset of the truth's (after legal-suffix, "the", honorific and initial removal) is a partial match (token Jaccard), not an exact 1.0. | Dojo D-2 ([#189](https://github.com/Exios66/llm-dojo-scoring/issues/189)) |
-| SHF-003 | dojo | Two amounts in different currencies do not match. | Dojo D-3 ([#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) |
+| SHF-003 | dojo | Two amounts in different currencies do not match. A currency counts as stated by its ISO code, its symbol or its name in words (`euros`, `sterling`, `yen`, `US / Canadian / Australian dollars`; a bare `dollars` is USD only when nothing else is stated, as a bare `$` is; a bare `pounds` is not read). | Dojo D-3 ([#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) |
 | SHF-004 | dojo | Identifiers equal once every non-alphanumeric character is removed match (`CLM12345` = `CLM-12345`). | Dojo D-4 ([#191](https://github.com/Exios66/llm-dojo-scoring/issues/191)) |
-| SHF-005 | sandbox | A row that errored (timeout, parse failure, crash) scores 0 in the run headline instead of leaving the denominator. | sandbox |
-| SHF-006 | sandbox | A row with no truth is left out of the run mean and counted (`n_no_truth`) instead of averaging in as 0. | sandbox |
-| SHF-007 | sandbox | Class labels compare case- and whitespace-folded; a row without a truth class is unscored; an abstention is its own outcome (scored wrong, routed to review). | sandbox |
+| SHF-005 | sandbox | A row that errored (timeout, parse failure, crash) scores 0 in the run headline instead of leaving the denominator: in isolated evals, in the job-runner sorter scores, and in a rescore's `scores.json`, where a failed item scores 0 on the headline keys (`rescore.HEADLINE_KEYS`) of its own first score, else of its truth class, else of the run. | sandbox |
+| SHF-006 | sandbox | A row with no truth is left out of the run mean and counted (`n_no_truth`) instead of averaging in as 0, in isolated evals and the job-runner sorter scores. | sandbox |
+| SHF-007 | sandbox | Class labels compare case-, hyphen- and whitespace-folded; a row without a truth class is unscored; an abstention is its own outcome (scored wrong, routed to review). The job-runner sorter scores (`job/runner._scored_pairs`) fold the same way. The gate's `is_wrong_class` stays exact on purpose: it judges the class a document was archived under, and `eval/archive_correctness` mirrors it. | sandbox |
 | SHF-008 | sandbox | Judge, arbiter and boss rows without a truth verdict are unscored instead of 1.0; a judge parse failure scores 0 with `parse_error`. | sandbox |
 | SHF-009 | sandbox | Question set 4.0.0's `document_form`, `abstain`, `subclass_gate` and `truncation_notice` keys are applied: an abstention parks the document and the forced-choice answer is kept under `forced_choice`. | sandbox (`decision_backends.decide`) |
 | SHF-010 | sandbox | A near-gold label supersedes a conflicting interim gate gap fill (not an `original_header` fill); the replaced value is kept under `truth_overrides` and scored as raw. Precedence reads the interim overlay the row was prepared with; when that snapshot is not passed and the current overlay's fingerprint differs from the row's, nothing is superseded. | sandbox (owner decision, `data/labels/review/INTERIM_AUDIT.md` step 2) |
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 ([#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) |
-| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
+| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
+| SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. A value an interim, near-gold or staged overlay supplied (the row's `interim_labels` / `near_gold_labels` / `staged_overlay` marker lists the field) is never dropped, because an interim correction leaves `intent_source` as `heuristic`. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
 | SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
+
+## Where the new and extended fixes apply
+
+Each entry gives what the fix changes, the code paths that apply it, and how a run records it.
+
+- **SHF-015** (new). Changes the extraction headline as described in the table.
+  - Paths: `eval/scoring.score_extraction_row`, used through `eval/runners._score_pipeline_extraction`
+    by pipeline runs, `sandbox rescore`, `job/pair_report` and the gate's document score. Also
+    `run_extract_eval` and the isolated `extract` scorer (`eval/agents._score_extract`), which
+    pass the row's overlay markers.
+  - Also: `job/gate.labelled_count`, and `scripts/extraction_gate.py` `_field_truth`.
+  - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
+    for `label_suspect`.
+  - Recorded as: the row's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
+    stale-label score. `stale_hub_labels` names each dropped field and why. The extraction gate
+    calibration reports `field_truth_hotfixes`.
+- **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
+  - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
+    `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
+  - Recorded as: `subclass_corrected` on the item and `subclass_corrections_applied` on the run.
+    `scoring_hotfixes` lists `SHF-013`. The Hub-truth outcome stays under
+    `raw_dojo_subclass_correct` / `raw_dojo`.
+- **SHF-010** (extended). `run_extract_eval` now passes each row's `truth_overrides`, so the raw
+  side scores the interim value near-gold replaced.
+  - Recorded as: the run's scores carry `raw_dojo`, `scoring_hotfixes`,
+    `scoring_hotfixes_changed` and `headline_basis`.
+- **SHF-005** (extended). `rescore.run_scores` keeps failed items in the headline means of
+  `scores.json`.
+  - Recorded as: the scored-only means sit under `raw_dojo`, with `failed`,
+    `failed_scored_zero`, `scoring_hotfixes` (`["SHF-005"]` when a failure was zero-filled),
+    `scoring_hotfixes_changed` and `headline_basis`.
+- **SHF-006 / SHF-007** (extended). `job/runner._scored_pairs`, the per-item job runner's sorter
+  scores, folds labels and leaves blank-truth rows out.
+  - Recorded as: `n_no_truth` and `n_errored_scored_wrong`. `scoring_hotfixes` lists each fix
+    that moved the score, and the exact-match scores stay under `raw_dojo`.
+- **SHF-002 / SHF-003 / SHF-004** (extended paths). `job/gate_causes._field_scores`, and with it
+  `gold_audit.specialist_disagreements`, now score under `hotfixed()`, as does
+  `scripts/extraction_gate.py` `_field_truth`. A field the headline scores right (a `CLM12345`
+  for `CLM-12345`) is then never typed as the extraction miss. SHF-003 also reads currencies
+  named in words.
+  - Recorded as: the gate report and the calibration report name the fixes in force.
+- **Per-item and report provenance.**
+  - `pipeline_item_score` adds `raw_dojo` (the item's raw extraction values) and
+    `scoring_hotfixes` to every item score.
+  - `gate_report` adds `headline_basis` and `scoring_hotfixes` (the fixes in force when it
+    scored).
+  - The autoresearch ledger's metrics add `headline_basis`.
+
+**Locks.** Every change above edits `scoring_hotfixes.py` or a fix target, so `module_sha256`
+and the target fingerprints change. A new run's preflight locks the new set automatically
+(`tests/test_scoring_golden.py::test_a_fresh_lock_and_its_outputs_carry_the_current_hotfix_set`).
+A run locked before the change no longer matches: preflight refuses to resume it and the job
+worker refuses to execute it, so it would need `sandbox run preflight --config CONFIG --run-id RUN --force` to re-lock (no run needs that today).
+
+### SHF-015 on the pulled corpus
+
+These figures were measured offline over the 3,302 cached Hub rows at the current pin, with the
+interim overlay and then near-gold applied. They come from synthetic predictors, not model runs.
+`copy` predicts the prepared truth. `stale-wrong` predicts the truth with every dropped field
+replaced. "Before" is the hotfixed headline without SHF-015; "after" is with it. The table gives
+the mean `overall_extraction_score`.
+
+| Class | n | copy before | copy after | stale-wrong before | stale-wrong after | rows moved |
+| --- | --- | --- | --- | --- | --- | --- |
+| contract | 509 | 0.0491 | 0.0491 | 0.0491 | 0.0491 | 0 |
+| corporate_record | 450 | 1.0 | 1.0 | 0.8774 | 1.0 | 395 |
+| correspondence | 1,000 | 1.0 | 1.0 | 0.7525 | 1.0 | 904 |
+| insurance_claim | 1,100 | 1.0 | 1.0 | 0.9902 | 1.0 | 150 |
+| merger_agreement | 152 | 0.0 | 0.0 | 0.0 | 0.0 | 0 |
+
+A prediction that equals the truth never moves. Contracts and mergers are scored on CUAD and
+MAUD labels, which the policy never drops; the `copy` predictor does not emit those labels, so
+its scores there are low.
+
+Dropped labels, by field:
+
+| Field | Count |
+| --- | --- |
+| correspondence `keywords` (`keywords_metadata`) | 904 |
+| correspondence `subject_matter` (`subject_matter_templated`) | 904 |
+| corporate_record `intent` (`intent_heuristic`) | 450 |
+| insurance_claim `intent` | 150 |
+| contract `intent` | 91 (not a scored contract field) |
+| correspondence `intent` | 78 |
+
+A further 27 correspondence intents are stale by policy but kept, because an interim correction
+supplied them. No corporate `subject_matter` or `keywords` label is stale at this pin. No money
+truth names its currency in words, so the SHF-003 change moves no current label.
 
 ## Truth evidence check
 
