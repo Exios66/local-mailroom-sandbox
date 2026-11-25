@@ -510,6 +510,23 @@ def test_observer_sees_every_call_and_changes_nothing(monkeypatch):
     assert Agent()._call_structured("x", schema) is result
 
 
+def test_observer_never_calls_agent_methods(monkeypatch):
+    Agent, calls, result = _fake_target(monkeypatch, langchain=True)
+    counter = {"n": 0}
+
+    def system_prompt(self):
+        counter["n"] += 1
+        raise RuntimeError("must not be called")
+
+    Agent.system_prompt = system_prompt
+    read_ranges.install_call_observer()
+    records: list[dict] = []
+    with read_ranges.document("d1", _DOC, records.append):
+        assert Agent()._call_structured(_DOC[:300], {}) is result
+    assert counter["n"] == 0 and len(calls) == 1 and len(records) == 1
+    assert records[0]["request_chars"] == len("contracts_specialist\n\n") + 300
+
+
 def test_observer_passes_exceptions_through_and_never_raises_itself(monkeypatch):
     Agent, calls, _ = _fake_target(monkeypatch)
     read_ranges.install_call_observer()

@@ -427,6 +427,9 @@ def record(agent: str, request: str, *, node: str | None = None) -> None:
 
 # --- seams: observe every chat agent request --------------------------------
 #
+# Recorded text is the document-bearing portion only (see ``_request_text``); the
+# measured request sizes are over that portion, not the full request sent.
+#
 # The observer sits on each target class's ``_call_structured`` and records the
 # request text before delegating with the exact same arguments. It is always the
 # OUTERMOST layer: the sampling layer may replace the call path (the native
@@ -461,12 +464,17 @@ def strip_observer(fn: Any) -> Any:
 
 
 def _request_text(self: Any, bound_args: dict[str, Any]) -> tuple[str, str]:
+    """The document-bearing part of a request: agent name, caller-passed system text, user message.
+
+    Only the ``system_prompt`` argument is used, and only when the caller passed a plain ``str``.
+    No agent method or attribute is ever called or read (``system_prompt()`` mutates agent state
+    and may fetch from Langfuse), apart from ``agent_name``. So ``request_chars`` and
+    ``matched_chars`` are measured over this portion, not the full request sent: the JSON-mode
+    note, the schema, skills, tools, memory and the augmented system prompt are excluded.
+    Ranges locate document text, which the agents carry in the user message.
+    """
     name = str(getattr(self, "agent_name", "") or "")
     system = bound_args.get("system_prompt")
-    if system is None:
-        system = getattr(self, "system_prompt", "")
-        if callable(system):
-            system = system()
     user = bound_args.get("user_message")
     parts = [name, system if isinstance(system, str) else "", user if isinstance(user, str) else ""]
     return name, "\n".join(parts)
