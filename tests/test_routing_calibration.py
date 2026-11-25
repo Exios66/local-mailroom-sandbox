@@ -332,7 +332,7 @@ def test_band_audit_skips_an_unrecorded_confidence_and_never_invents_a_band():
 def test_cost_envelope_follows_the_retry_thresholds():
     agent = {"provider": "openrouter", "model": "qwen/qwen3.7-flash", "max_input_chars": 2_000_000}
     tax = {"doc_classes": [{"key": "merger_agreement", "specialist": "merger_agreement_specialist"}],
-           "agents": {"merger_agreement_specialist": agent, "judge": agent, "arbiter": agent},
+           "agents": {"merger_agreement_specialist": agent, "judge": agent, "arbiter": agent, "intake": agent},
            "chunking": {"chunk_chars": 2_000_000},
            "confidence": {"arbiter_retry_max": 2, "judge_max_passes": 3,
                           "by_class": {"merger_agreement": {"arbiter_retry_max": 1, "judge_max_passes": 2}}}}
@@ -340,7 +340,8 @@ def test_cost_envelope_follows_the_retry_thresholds():
     cost = plan(tax, rows, windows={"judge": 2_000_000, "arbiter": 2_000_000})["classes"]["merger_agreement"]["input_cost_usd"]
     assert cost["worst_calls"] == {"extract_passes": 4, "judge": 4, "arbiter": 2}
     assert 0 < cost["clean"] < cost["judged"] < cost["worst"]
-    assert cost["worst"] == pytest.approx(4 * cost["clean"] + 3 * (cost["judged"] - cost["clean"]), rel=1e-3)
+    extract = cost["clean"] - cost["intake"]  # the intake read is paid once, not per pass
+    assert cost["worst"] - cost["intake"] == pytest.approx(4 * extract + 3 * (cost["judged"] - cost["clean"]), rel=1e-3)
 
 
 def test_rejudge_cost_uses_the_effective_class_flag_and_pass_cap():
