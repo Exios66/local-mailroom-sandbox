@@ -67,6 +67,13 @@ REQUIRED_ROOT_NAMES = (
     "warm_embedding_model",
 )
 
+# Submodules the sandbox imports at module load that older releases do not ship. A release
+# without one imports cleanly at the root, then breaks the importer at use time (extraction
+# scoring imports ``eval/pain_points.py``), so ``_import_ok`` imports each one and a release
+# without it falls back like one missing a root name. ``pipeline.pain_points`` arrived after
+# the v0.30.1 tag (llm-dojo-scoring #185); the version string cannot tell, as 7d69bbd also reports 0.30.1.
+REQUIRED_SUBMODULES = ("pipeline.pain_points",)
+
 
 @dataclass(frozen=True)
 class DojoSource:
@@ -192,6 +199,8 @@ def _import_ok() -> str | None:
             # A name the release no longer exports raises AttributeError here, which also falls back.
             for name in REQUIRED_ROOT_NAMES:
                 getattr(module, name)
+        for dotted in REQUIRED_SUBMODULES:
+            importlib.import_module(f"{PACKAGE}.{dotted}")
         return None
     except Exception as exc:  # noqa: BLE001 - any failure means fall back
         _purge()

@@ -381,48 +381,22 @@ def test_pipeline_run_reports_pain_points(monkeypatch):
     assert by_id["1"]["pain_points_classification_reason"] == "unnecessary_review"
 
 
-class TestHotfixSource:
-    """SHF-014: the sandbox serves a byte-identical copy of the Dojo module until the pin ships it."""
+class TestScorerSource:
+    """The vendored Dojo serves the composites; SHF-014, which served a copy until the pin shipped it, is retired."""
 
-    def test_the_copy_is_served_as_shf_014_while_the_pin_lacks_the_module(self):
-        assert pp.SOURCE.startswith("sandbox hotfix SHF-014") or pp.SOURCE == "dojo"
+    def test_the_vendored_dojo_module_is_the_scorer(self):
+        from llm_dojo_scoring.pipeline import pain_points as dojo
+
+        assert pp.SOURCE == "dojo" and pp.core() == (dojo, "dojo")
+        assert pp.PainPointDocument is dojo.PainPointDocument and pp.summarize is dojo.summarize
         block = pp.for_pipeline([_row()], [_result()])["pain_points"]
-        assert block["source"] == pp.SOURCE
-        if pp.SOURCE != "dojo":
-            assert "SHF-014" in block["scoring_hotfixes"]
+        assert block["source"] == "dojo" and "SHF-014" not in block["scoring_hotfixes"]
 
-    def test_the_copy_matches_the_dojo_module_once_vendored(self):
-        import importlib.util
-
-        spec = importlib.util.find_spec("llm_dojo_scoring.pipeline.pain_points")
-        if spec is None:
-            pytest.skip("the vendored Dojo pin does not ship pipeline.pain_points yet (SHF-014 serves it)")
-        copy = Path(pp._interim.__file__).read_bytes()
-        assert Path(spec.origin).read_bytes() == copy, (
-            "the vendored Dojo pain_points differs from the SHF-014 copy: retire SHF-014 and its copy")
-
-    def test_a_stale_hotfix_leaves_the_composites_out(self, monkeypatch):
-        if pp.SOURCE == "dojo":
-            pytest.skip("the Dojo serves the composites; SHF-014 is retired")
+    def test_shf_014_and_its_copy_are_retired(self):
         from mailroom_sandbox import scoring_hotfixes as sh
 
-        monkeypatch.setattr(sh, "enabled", lambda fix_id: fix_id != "SHF-014")
-        assert pp.available() is False
-        assert pp.for_pipeline([_row()], [_result()]) == {}
-        assert pp.item_points(_row(), _result(), None) == {}
-        with pytest.raises(pp.PainPointsUnavailable, match="SHF-014"):
-            pp.core()
-
-    def test_the_hotfix_is_fingerprinted_to_the_copy(self):
-        import hashlib
-
-        from mailroom_sandbox import scoring_hotfixes as sh
-
-        (fix,) = [f for f in sh.HOTFIXES if f.id == "SHF-014"]
-        ((target, sha),) = fix.targets
-        assert target == "file:src/mailroom_sandbox/eval/_dojo_pain_points.py"
-        assert hashlib.sha256(Path(pp._interim.__file__).read_bytes()).hexdigest() == sha
-        assert sh.status(refresh=True)["SHF-014"] == "current"
+        assert "SHF-014" not in {f.id for f in sh.HOTFIXES}
+        assert not (Path(pp.__file__).parent / "_dojo_pain_points.py").exists()
 
     def test_document_maps_sandbox_rows(self):
         doc = pp.document({"id": 7, "expected_doc_class": "contract", "expected_stage": "review"},

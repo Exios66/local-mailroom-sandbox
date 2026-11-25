@@ -9,7 +9,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_8cebcd8-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.1_%40_025400f-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.1_%40_7d69bbd-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -381,12 +381,13 @@ The exact snapshot commits are in
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
 | `vendor/llm-mailroom/` | 0.9.3 | `8cebcd8` (`main` after llm-mailroom #287, the v0.30.0 release line; untagged) | `abb1ccf` plus #261 (a 200 with `choices: null` is transient, not a `judge_error`), #262 (opt-in chunk-merge evidence policy), #263 (backlog fixes), #264 (routing ignores `ground_truth` unless oracle routing is on), #265 (bounded retry handoff, every attempt recorded, opt-in keep-best) and #271 (decision-reviewer backend errors recorded; correspondence typed by content, not carrier), #280 (insurance `claim_type` is the product line; a CMS table row is `health`), #281 (Dojo pin `025400f`), #283 (CMS `cms_source_table` and `supporting_documents`), #284 (opt-in interim GT overlay), #286 (routing as data) and #289/#291 (decision points, off by default) |
-| `vendor/llm-dojo-scoring/` | 0.30.1 | `025400f` (`v0.30.0` branch after llm-dojo-scoring #174; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; #163 date, archive, Wilson, decision-lane and MAUD fixes; #166 correspondence `production_prompts` v8 candidate (content, not carrier); #169 a typed decision with no gold for its class is `no_gold`; #173 CUAD agreement and expiration dates count toward recall only |
+| `vendor/llm-dojo-scoring/` | 0.30.1 | `7d69bbd` (`main` after llm-dojo-scoring #185; untagged, pre-release) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; #163 date, archive, Wilson, decision-lane and MAUD fixes; #166 correspondence `production_prompts` v8 candidate (content, not carrier); #169 a typed decision with no gold for its class is `no_gold`; #173 CUAD agreement and expiration dates count toward recall only; #181 the unreleased 0.30.2 scoring fixes; #185 the pain-point composites (`pipeline.pain_points`) |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-Both pins are reviewed commits on each repository's `v0.30.0` release branch: llm-mailroom
-`8cebcd8` (llm-mailroom `main`) and Dojo `025400f` (both untagged; each moves to a release tag once one is cut).
+Both pins are reviewed, untagged commits: llm-mailroom `8cebcd8` (llm-mailroom `main`, the v0.30.0
+release line) and Dojo `7d69bbd` (Dojo `main` after #185, ahead of the 0.30.2 release). Each moves to a
+release tag once one is cut.
 
 With no API token, the guard serves token-protected routes only on a loopback listener and
 answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and
@@ -539,7 +540,7 @@ The sandbox drives the vendored family code through these open-source projects.
 ### Reviewed dependency refreshes (DMR-111)
 
 The tracked snapshots contain pipeline 0.9.3 (llm-mailroom `main` after #287, `8cebcd8`) and
-Dojo 0.30.1 (the `v0.30.0` branch after llm-dojo-scoring #174, `025400f`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+Dojo 0.30.1 plus the unreleased 0.30.2 fixes (llm-dojo-scoring `main` after #185, `7d69bbd`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation

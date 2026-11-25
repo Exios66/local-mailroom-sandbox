@@ -23,11 +23,10 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   (D-N below, not yet filed) or `sandbox` for a defect in this repository's scoring code.
 
 Outside a `hotfixed()` block every scoring-call fix is off, so a scorer that does not opt in gets
-the Dojo pin's behaviour unchanged. Four fixes act outside a `hotfixed()` block and are on whenever
+the Dojo pin's behaviour unchanged. Three fixes act outside a `hotfixed()` block and are on whenever
 they are current: SHF-010 during truth preparation (`gold_labels.apply_near_gold`), SHF-009 in the
-Decisions routing contract (`decision_backends`), SHF-013 in the isolated sorter and
-`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`, and SHF-014
-in the pain-point composites (`eval/pain_points.py`, `sandbox pain-points`). SHF-013 always
+Decisions routing contract (`decision_backends`), and SHF-013 in the isolated sorter and
+`sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`) and in `sorter_arms`. SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
 still match the pinned fingerprint when it is read, or scoring stops. SHF-009's `forced_choice` is the forced-choice
 answer from the same question-set response, not a second request.
@@ -36,7 +35,7 @@ answer from the same question-set response, not a second request.
 
 | Id | Layer | Correction | Upstream |
 | --- | --- | --- | --- |
-| SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. | sandbox (`extraction_scope`); Dojo D-1 |
+| SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. Re-validated at the Dojo `7d69bbd` refresh: `extraction_binary_metrics` now skips a contract's v1 parse-compat keys (`merger_consideration`, `maud_clauses`), which the sandbox's contract scope never restores, so the fix holds unchanged. | sandbox (`extraction_scope`); Dojo D-1 |
 | SHF-002 | dojo | A name whose tokens are a strict subset or superset of the truth's (after legal-suffix, "the", honorific and initial removal) is a partial match (token Jaccard), not an exact 1.0. | Dojo D-2 |
 | SHF-003 | dojo | Two amounts in different currencies do not match. | Dojo D-3 |
 | SHF-004 | dojo | Identifiers equal once every non-alphanumeric character is removed match (`CLM12345` = `CLM-12345`). | Dojo D-4 |
@@ -49,7 +48,7 @@ answer from the same question-set response, not a second request.
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 |
 | SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
-| SHF-014 | dojo | Pipeline runs report the pain-point composites (profile `amfam-v1`: classification and extraction penalty points per document, 0 correct and complete to 4 a needless human review) per item and per run, and `sandbox pain-points` scores finished runs per document and breaks them down per experiment. The scorer is `eval/_dojo_pain_points.py`, a byte-identical copy of the Dojo's `pipeline/pain_points.py`, which the vendored pin does not ship yet; the target fingerprint is that file. Not dual reported against the pin (the pin has no composite); the block's `raw_dojo` holds the composites on the raw extraction scores. Retire it on the vendor refresh that ships the module ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring `pipeline/pain_points.py` |
+| SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
 
 ## Truth evidence check
 
