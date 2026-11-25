@@ -554,10 +554,12 @@ def class_error_rates(truth: Sequence[str], pred: Sequence[str], labels: Sequenc
 
     A failed prediction (not equal to its truth class, including the ``__failed__`` label)
     is a false negative for the true class and a false positive only when it names some
-    other real class. Macro rates average the per-class rates over ``labels``.
+    other real class. A class with no negatives has no false-positive rate, and a class
+    with no positives has no false-negative rate; those rates stay unset. Macro rates
+    average the rates that were measurable.
     """
-    per_fpr: dict[str, float] = {}
-    per_fnr: dict[str, float] = {}
+    per_fpr: dict[str, float | None] = {}
+    per_fnr: dict[str, float | None] = {}
     for label in labels:
         tp = fp = fn = tn = 0
         for truth_label, pred_label in zip(truth, pred):
@@ -569,11 +571,13 @@ def class_error_rates(truth: Sequence[str], pred: Sequence[str], labels: Sequenc
                 fp += 1
             else:
                 tn += 1
-        per_fpr[label] = fp / (fp + tn) if fp + tn else 0.0
-        per_fnr[label] = fn / (fn + tp) if fn + tp else 0.0
+        per_fpr[label] = fp / (fp + tn) if fp + tn else None
+        per_fnr[label] = fn / (fn + tp) if fn + tp else None
+    measured_fpr = [rate for rate in per_fpr.values() if rate is not None]
+    measured_fnr = [rate for rate in per_fnr.values() if rate is not None]
     return {
-        "class_macro_fpr": sum(per_fpr.values()) / len(labels) if labels else None,
-        "class_macro_fnr": sum(per_fnr.values()) / len(labels) if labels else None,
+        "class_macro_fpr": sum(measured_fpr) / len(measured_fpr) if measured_fpr else None,
+        "class_macro_fnr": sum(measured_fnr) / len(measured_fnr) if measured_fnr else None,
         "class_fpr": per_fpr,
         "class_fnr": per_fnr,
     }

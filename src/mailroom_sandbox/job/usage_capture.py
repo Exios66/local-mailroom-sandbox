@@ -87,20 +87,29 @@ def note_provider_call(usage: Any) -> None:
     Called beside ``pipeline.limits.record_usage``. A call that record_usage would drop
     (missing or non-integer counts) is not noted, so the two lists stay aligned. ``cost``
     stays absent when the provider did not report one; a reported 0 is kept.
+
+    OpenRouter reports the cache split as ``prompt_tokens_details.cached_tokens`` and
+    ``cache_write_tokens``, both already inside the prompt total. LangChain's
+    ``usage_metadata`` copies those into ``input_token_details.cache_read`` and
+    ``cache_creation`` with the same meaning, so list-price fallback can bill the
+    cached subset at the cache rate. A rejected count drops the call and the held
+    provider cost together: the next cost-less call must not inherit this one.
     """
     if usage is None:
         return
     prompt = _token_count(_first(usage, ("prompt_tokens", "input_tokens")))
     completion = _token_count(_first(usage, ("completion_tokens", "output_tokens")))
     if prompt is None or completion is None:
+        _PENDING_COST.set(None)
         return
-    details = _first(usage, ("prompt_tokens_details", "input_tokens_details")) or {}
-    cached = _token_count(_first(details, ("cached_tokens",)))
+    details = _first(usage, (
+        "prompt_tokens_details", "input_tokens_details", "input_token_details")) or {}
+    cached = _token_count(_first(details, ("cached_tokens", "cache_read")))
     if cached is None:
-        cached = _token_count(_first(usage, ("cached_tokens",))) or 0
-    written = _token_count(_first(details, ("cache_write_tokens",)))
+        cached = _token_count(_first(usage, ("cached_tokens", "cache_read"))) or 0
+    written = _token_count(_first(details, ("cache_write_tokens", "cache_creation")))
     if written is None:
-        written = _token_count(_first(usage, ("cache_write_tokens",))) or 0
+        written = _token_count(_first(usage, ("cache_write_tokens", "cache_creation"))) or 0
     calls = _CALLS.get()
     if calls is None:
         calls = []

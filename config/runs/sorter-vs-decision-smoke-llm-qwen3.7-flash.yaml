@@ -10,6 +10,7 @@
 # about $0.05. The cap is $1.
 #
 # Results stay on this machine (trace.sink: none). A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
 #   sandbox run preflight --config config/runs/sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml
 #   sandbox run start --config config/runs/sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml --initials <XX>
 schema: sandbox.run/v1

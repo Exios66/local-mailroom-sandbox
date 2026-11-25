@@ -11,6 +11,7 @@
 # The accurate total is the provider usage.cost summed after the run.
 #
 # Results stay on this machine. Launch one arm at a time. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
 #   sandbox run preflight --config config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml
 #   sandbox run start --config config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml --initials <XX>
 schema: sandbox.run/v1

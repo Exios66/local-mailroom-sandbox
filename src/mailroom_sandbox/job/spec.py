@@ -868,7 +868,11 @@ class ReviewerSpec(BaseModel):
             from mailroom_sandbox.context_fit import decision_document_chars
             from mailroom_sandbox.decision_backends import decision_model
 
-            row = decision_model(self.model) or {}
+            # Context length is a property of the model. A routing variant
+            # (``openai/gpt-6-luna-decisions:nitro``) is accepted by is_decisions_model
+            # and has no catalog row of its own. Pricing stays on the exact id.
+            base = str(self.model).split(":", 1)[0]
+            row = decision_model(self.model) or decision_model(base) or {}
             context = int(row.get("context_length") or 0)
             room = decision_document_chars(context) if context else 0
             if self.max_input_chars > room:

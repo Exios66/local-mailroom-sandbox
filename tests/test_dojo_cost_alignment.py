@@ -181,3 +181,12 @@ def test_call_usage_gains_cache_columns_only_when_a_split_was_noted():
         "prompt_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 0},
     }, model="deepseek/deepseek-v4.1-flash-1017")
     assert uc.call_usage_from_pipeline() == [[1_000, 10, 800, 0]]
+
+    reset_run_usage()
+    uc.reset_usage()
+    record_usage({
+        "input_tokens": 1_000,
+        "output_tokens": 10,
+        "input_token_details": {"cache_read": 800, "cache_creation": 0},
+    }, model="qwen/qwen3.7-flash")
+    assert uc.call_usage_from_pipeline() == [[1_000, 10, 800, 0]]

@@ -784,6 +784,11 @@ def test_class_error_rates_are_one_vs_rest():
     assert rates["class_macro_fpr"] == 0.5 and rates["class_macro_fnr"] == 0.5
     perfect = sa.class_error_rates(truth, truth, ["a", "b"])
     assert perfect["class_macro_fpr"] == 0.0 and perfect["class_macro_fnr"] == 0.0
+    # One truth class has no negatives, so its FPR is unmeasurable and must not pull the macro to 0.
+    single = sa.class_error_rates(["a", "a"], ["a", "b"], ["a"])
+    assert single["class_fpr"] == {"a": None}
+    assert single["class_fnr"] == {"a": 0.5}
+    assert single["class_macro_fpr"] is None and single["class_macro_fnr"] == 0.5
 
 
 def test_paired_500_arms_share_one_draw_and_leave_the_classify_window_open():

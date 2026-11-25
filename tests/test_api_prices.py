@@ -79,6 +79,17 @@ def test_provider_cost_is_kept_only_when_every_call_reports_one():
     assert uc.provider_calls()[-1]["cost"] == pytest.approx(0.02)
     uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
     assert uc.provider_calls()[-1]["cost"] is None  # the held cost is consumed by the matching call
+    uc.reset_usage()
+    uc.note_pending_provider_cost(0.02)
+    uc.note_provider_call({"prompt_tokens": 1.5, "completion_tokens": 1})  # rejected: not a whole number
+    uc.note_provider_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert uc.provider_calls()[-1]["cost"] is None  # a rejected call does not leave its cost for the next one
+    uc.reset_usage()
+    uc.note_provider_call({
+        "input_tokens": 1000, "output_tokens": 10,
+        "input_token_details": {"cache_read": 800, "cache_creation": 50},
+    })
+    assert uc.provider_calls()[-1]["cached"] == 800 and uc.provider_calls()[-1]["cache_write"] == 50
 
 
 def test_call_cost_bills_cached_prompt_tokens_at_the_cache_rate():

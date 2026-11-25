@@ -7,6 +7,7 @@
 # Five documents at the 1M-token peak are about $0.50.
 #
 # Launch after the LLM smoke. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
 #   sandbox run preflight --config config/runs/sorter-vs-decision-smoke-decision-luna.yaml
 #   sandbox run start --config config/runs/sorter-vs-decision-smoke-decision-luna.yaml --initials <XX>
 # Readout, after both smokes finish:
