@@ -68,6 +68,35 @@ carry from a `noul` to a `choice` or from one model to another.
 One request per document. Document text is truncated to `max_input_chars` (1,000,000 for v4.0.2)
 before sending; text beyond that cap is not sent. API runs do not chunk.
 
+### Swapping the decision model
+
+`openai/gpt-6-luna-decisions` is the frontrunner (1,050,000-token context). Any model in
+`SUPPORTED_DECISION_MODELS["decisions"]` (`src/mailroom_sandbox/decision_backends.py`) can take
+its place on the same lane by changing `model:` in the run YAML's `reviewer`, `extraction_gate` or
+`decision_slots.resolver` block, with `backend: decisions` and the same question set:
+`typesafe/jev-1.14`, `typesafe/jev-1.13`, `google/gemini-decision-1`,
+`perplexity/pplx-decider-v1.2`, `upstage/solar-decide` or `liquid/d1.2`. Price and context come
+from `config/decision_models.yaml`; a moving alias or a chat model is refused.
+
+Each request reads at most the chosen model's own window: `decision_input_cap` takes the
+smaller of the question set's `max_input_chars` and
+`(context_length - reserve) / 0.25` characters, where the reserve is 4,000 tokens or the
+questions and handoff actually sent, whichever is larger (0.25 tokens per character is
+conservative: the measured fit is 0.2073). On the current catalog:
+
+| Model | Context (tokens) | Window (chars) | 1,000,000-char sets |
+| --- | ---: | ---: | --- |
+| `openai/gpt-6-luna-decisions` | 1,050,000 | 4,184,000 | whole set cap |
+| `upstage/solar-decide` | 524,288 | 2,081,152 | whole set cap |
+| `typesafe/jev-1.14`, `typesafe/jev-1.13`, `google/gemini-decision-1`, `perplexity/pplx-decider-v1.2` | 262,144 | 1,032,576 | whole set cap |
+| `liquid/d1.2` | 65,536 | 246,144 | cut to 246,144 |
+
+A cut document is answered as `truncated`, as before. Preflight records every Decisions lane's
+model and window under `decision_windows` and says where a window cuts a set's cap. The window
+follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
+`context_length` changes the window of a resumed run. No model other than Luna has a calibration:
+the cutoffs in a run's `reviewer.classes` were tuned on Luna.
+
 ## Request format: findings and changes
 
 Ordered by expected effect. Each change alters what the model reads, so it belongs in a new question

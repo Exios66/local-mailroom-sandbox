@@ -52,6 +52,8 @@ from typing import Any, Mapping, Sequence
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from mailroom_sandbox.decision_backends import DECISIONS_QUESTION_TOKENS, DECISIONS_TOKENS_PER_CHAR
+
 SCHEMA = "sandbox.autoresearch.levers/v1"
 # A study compares candidates on one frozen draw: a lever may not move the draw, the run id or the
 # mock switch (those belong to the study, which sets them per round).
@@ -550,8 +552,9 @@ def reviewer_errors(spec: Mapping[str, Any]) -> list[str]:
 # ---- reviewer input vs the model's context -------------------------------------------------------
 
 # Conservative sizing: 0.25 tokens per character (the measured fit is 0.2073) plus the question text.
-TOKENS_PER_CHAR = 0.25
-QUESTION_TOKENS = 4000
+# The same numbers bound each request at execution (decision_backends.decision_input_cap).
+TOKENS_PER_CHAR = DECISIONS_TOKENS_PER_CHAR
+QUESTION_TOKENS = DECISIONS_QUESTION_TOKENS
 
 
 def reviewer_request_tokens(max_input_chars: int) -> int:

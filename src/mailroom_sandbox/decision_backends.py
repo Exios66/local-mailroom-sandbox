@@ -216,6 +216,11 @@ DECISIONS_DIR_NAME = "decisions"
 # Full documents fit: the largest train document is about 1.0M characters (~250k tokens),
 # inside Luna Decisions' 1.05M-token context. The cap only guards against a runaway input.
 DECISIONS_MAX_INPUT_CHARS = 2_000_000
+# Conservative sizing of one Decisions request: 0.25 tokens per character (the measured fit is
+# 0.2073) plus room for the question text (the largest reviewer set is ~3k tokens). The
+# autoresearch context check (autoresearch/levers.py) sizes requests with the same numbers.
+DECISIONS_TOKENS_PER_CHAR = 0.25
+DECISIONS_QUESTION_TOKENS = 4000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
 
 # A card-shaped number: four groups of four digits with a space or hyphen between groups
@@ -287,6 +292,38 @@ def decision_model(model: str | None) -> dict[str, Any] | None:
     if str(model) in catalog:
         return catalog[str(model)]
     return next((row for row in catalog.values() if row.get("canonical_slug") == model), None)
+
+
+def decision_window_chars(model: str | None, *, question_chars: int = 0) -> int | None:
+    """The most document characters one request to ``model`` can carry, from its catalog ``context_length``.
+
+    ``None`` when the catalog gives no window (the question set's cap then applies alone). A
+    ``:variant`` has its base's window. The reserve is the larger of ``DECISIONS_QUESTION_TOKENS``
+    and the questions actually sent (``question_chars``), so a small-window model (Jev 1.14 at
+    262,144 tokens, Clef at 65k) is cut to what it accepts instead of answering a 400.
+    """
+    if not model:
+        return None
+    row = decision_model(model) or decision_model(str(model).split(":", 1)[0])
+    try:
+        context = int((row or {}).get("context_length") or 0)
+    except (TypeError, ValueError):
+        context = 0
+    if context <= 0:
+        return None
+    reserve = max(DECISIONS_QUESTION_TOKENS, int(question_chars * DECISIONS_TOKENS_PER_CHAR) + 1000)
+    return max(0, int((context - reserve) / DECISIONS_TOKENS_PER_CHAR))
+
+
+def decision_input_cap(model: str | None, cap: int | None, *, question_chars: int = 0) -> int:
+    """The input cap a request to ``model`` uses: the question set's ``cap`` (else the global), within the model's window.
+
+    Luna Decisions (1.05M tokens) keeps every question set's own cap; a model with a smaller
+    window gets the smaller of the two, and the answer reports ``truncated`` as before.
+    """
+    limit = int(cap or DECISIONS_MAX_INPUT_CHARS)
+    window = decision_window_chars(model, question_chars=question_chars)
+    return limit if window is None else min(limit, window)
 
 
 def is_decisions_model(model: str | None) -> bool:
@@ -601,12 +638,14 @@ def decide_closed_field(doc_text: str, handoff: Mapping[str, Any], *, model: str
     """
     if not is_decisions_model(model):
         raise ValueError(f"{model!r} is not a Decisions-API model")
-    limit = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
-    text = mask_card_numbers((doc_text or "")[:limit])
     masked = _mask_card_values(dict(handoff))  # the value is quoted in the question text too
+    questions = resolver_question(qset, masked)
+    limit = decision_input_cap(model, qset.get("max_input_chars"),
+                               question_chars=len(json.dumps(questions, default=str)) + len(json.dumps(masked, default=str)))
+    text = mask_card_numbers((doc_text or "")[:limit])
     body = {"model": model,
             "state": {"document": text if text.strip() else "(empty document)", "closed_field_handoff": masked},
-            "questions": resolver_question(qset, masked)}
+            "questions": questions}
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     usage = data.get("usage") or {}
     _record_usage(model, usage, agent=CLOSED_FIELD_RESOLVER)
@@ -701,13 +740,15 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     if not is_decisions_model(model):
         raise ValueError(f"{model!r} is not a Decisions-API model")
     doc_type = str(handoff.get("doc_type") or "")
-    limit = int((qset.get("max_input_chars_by_class") or {}).get(doc_type) or qset.get("max_input_chars")
-                or DECISIONS_MAX_INPUT_CHARS)
+    questions = gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass"))
+    masked = _mask_card_values(dict(handoff))  # extracted values (an IBAN field) trip the same filter
+    limit = decision_input_cap(model, (qset.get("max_input_chars_by_class") or {}).get(doc_type)
+                               or qset.get("max_input_chars"),
+                               question_chars=len(json.dumps(questions, default=str)) + len(json.dumps(masked, default=str)))
     text = mask_card_numbers((doc_text or "")[:limit])
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
-                                      # Extracted values (an IBAN field) trip the same filter.
-                                      "extraction_handoff": _mask_card_values(dict(handoff))},
-            "questions": (questions := gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass")))}
+                                      "extraction_handoff": masked},
+            "questions": questions}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     _record_served(model, data)
@@ -1038,6 +1079,8 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         raise ValueError(f"{model!r} is not a Decisions-API model")
     text = doc_text or ""
     original_chars = len(text)
+    max_input_chars = decision_input_cap(model, max_input_chars, question_chars=len(json.dumps(dict(questions), default=str))
+                                         + (len(json.dumps(dict(handoff), default=str)) if handoff else 0))
     if len(text) > max_input_chars:
         text = text[:max_input_chars]
     text = mask_card_numbers(text)

@@ -873,6 +873,55 @@ def _explicit_input_knobs(spec: RunSpec) -> set[str]:
     }
 
 
+def _decision_blocks(spec: RunSpec) -> list[tuple[str, str, str]]:
+    """``(lane, model, question-set stem)`` for every Decisions-API request the run makes."""
+    out: list[tuple[str, str, str]] = []
+    reviewer = getattr(spec, "reviewer", None)
+    if reviewer is not None and reviewer.backend == "decisions" and reviewer.questions:
+        out.append(("reviewer", reviewer.model, reviewer.questions))
+    gate = getattr(spec, "extraction_gate", None)
+    if gate is not None:
+        out.append(("extraction_gate", gate.model, gate.questions))
+    resolver = getattr(getattr(spec, "decision_slots", None), "resolver", None)
+    if resolver is not None:
+        out.append(("closed_field_resolver", resolver.model, resolver.questions))
+    return out
+
+
+def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> None:
+    """Record the model and input window of each Decisions lane (advisory).
+
+    A swapped decision model (Jev 1.14, Gemini Decision, ...) reads at most its own context:
+    ``decision_input_cap`` cuts a question set's ``max_input_chars`` to the model's window,
+    and this check says where that happens so a smaller window is never a surprise.
+    """
+    blocks = _decision_blocks(spec)
+    if not blocks:
+        return
+    from mailroom_sandbox.decision_backends import decision_input_cap, decision_model, load_question_set
+
+    rows, cut = [], []
+    for lane, model, stem in blocks:
+        try:
+            qset = load_question_set(str(stem))
+        except Exception as exc:  # noqa: BLE001 - advisory: the lock step reports a bad stem
+            rows.append({"lane": lane, "model": model, "questions": stem, "error": str(exc)})
+            continue
+        caps = [qset.get("max_input_chars"), *((qset.get("max_input_chars_by_class") or {}).values())]
+        wanted = max(int(c) for c in caps if c) if any(caps) else None
+        window = decision_input_cap(model, wanted)
+        row = decision_model(model) or decision_model(str(model).split(":", 1)[0]) or {}
+        rows.append({"lane": lane, "model": model, "questions": stem, "context_length": row.get("context_length"),
+                     "max_input_chars": wanted, "window_chars": window})
+        if wanted and window < wanted:
+            cut.append(f"{lane} {model}: {stem} max_input_chars {wanted:,} cut to {window:,} "
+                       f"(the model's {row.get('context_length'):,}-token context)")
+    report["decision_windows"] = rows
+    detail = ("; ".join(cut) + " (longer documents are truncated; answers report truncated)") if cut else \
+        ", ".join(f"{r['lane']}={r['model']} ({r.get('window_chars') or '?'} chars)" for r in rows)
+    report["checks"].append({"name": "decision_windows", "ok": True, "detail": detail})
+
+
 def _record_expanded_inputs(
     report: dict[str, Any], spec: RunSpec, knobs: dict[str, Any], *, require: bool,
 ) -> bool:
@@ -1521,6 +1570,7 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
     report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
+    _record_decision_windows(report, spec)
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(report, spec, frozen, require=require):
         return report
@@ -1852,6 +1902,7 @@ def _preflight(
         return failed
     run_knobs = _run_knobs(spec, opened.run_id)
     _record_context_plan(opened.report, spec, opened.store, run_knobs)
+    _record_decision_windows(opened.report, spec)
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(opened.report, spec, run_knobs, require=require):
         return opened.report
