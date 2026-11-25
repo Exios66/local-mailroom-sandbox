@@ -237,3 +237,89 @@ def test_a_worker_without_the_key_publishes_an_openrouter_run_as_failed(tmp_path
     values = list(modal_fs.state.values())
     assert len(values) == 1 and values[0]["state"] == "failed"
     assert "has no OPENROUTER_API_KEY" in values[0]["error"]
+
+
+def _write_reads(store):
+    """A read-range record and a working text, as a recording run leaves them."""
+    store.append_read({"doc": "d0", "call": 1, "agent": "sorter", "ranges": [[0, 5]]})
+    store.write_doc_text("d0", "hello world")
+
+
+def test_remote_upload_includes_reads_and_doc_texts(tmp_path, source_root, modal_fs):
+    store = prepared(tmp_path, source_root)
+    _write_reads(store)
+    # Only plain files cross: a symlink and a subdirectory in doc_texts/ stay behind.
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    (store.doc_texts_dir / "link.txt").symlink_to(outside)
+    (store.doc_texts_dir / "sub").mkdir()
+    (store.doc_texts_dir / "sub" / "x.txt").write_text("nested", encoding="utf-8")
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    assert (target / "reads.jsonl").read_bytes() == store.reads_path.read_bytes()
+    sent = sorted(p.name for p in (target / "doc_texts").iterdir())
+    assert sent == sorted(["index.jsonl", *(p.name for p in store.doc_texts_dir.glob("*.txt")
+                                            if not p.is_symlink())])
+    assert "link.txt" not in sent and "sub" not in sent
+
+
+def test_remote_pull_includes_reads(tmp_path, source_root, modal_fs):
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    from mailroom_sandbox.job.checkpoint import RunStore
+    remote_store = RunStore(target)
+    _write_reads(remote_store)
+    (remote_store.doc_texts_dir / "sub").mkdir()
+    (remote_store.doc_texts_dir / "sub" / "x.txt").write_text("nested", encoding="utf-8")
+    remote_store.write_checkpoint(state="done", cursor=0, total=1)
+    assert remote.pull_run_dir(store) == (0, "")
+    assert store.reads_path.read_bytes() == remote_store.reads_path.read_bytes()
+    pulled = sorted(p.name for p in store.doc_texts_dir.iterdir())
+    assert pulled == sorted(["index.jsonl", *(p.name for p in remote_store.doc_texts_dir.glob("*.txt"))])
+    assert "sub" not in pulled
+    assert not list(store.doc_texts_dir.glob("*.pull.tmp"))
+    assert store.state() == "done"
+
+
+def test_pull_writes_checkpoint_after_reads_and_doc_texts(tmp_path, source_root, modal_fs, monkeypatch):
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    from mailroom_sandbox.job.checkpoint import RunStore
+    remote_store = RunStore(target)
+    _write_reads(remote_store)
+    remote_store.write_checkpoint(state="done", cursor=0, total=1)
+    order = []
+    real_replace = type(store.dir).replace
+
+    def spy(self, dest):
+        order.append(self.name)
+        return real_replace(self, dest)
+
+    monkeypatch.setattr(type(store.dir), "replace", spy)
+    assert remote.pull_run_dir(store) == (0, "")
+    pulled = [n for n in order if n.endswith(".pull.tmp")]
+    assert any(n.startswith("reads.jsonl") for n in pulled)
+    assert any(n.endswith(".txt.pull.tmp") for n in pulled)
+    assert pulled[-1].startswith("checkpoint.json")
+
+
+def test_copy_plain_files_skips_symlinks_and_directories(tmp_path):
+    src, outside = tmp_path / "src", tmp_path / "outside.txt"
+    src.mkdir()
+    outside.write_text("secret", encoding="utf-8")
+    (src / "a.txt").write_text("a", encoding="utf-8")
+    (src / "link.txt").symlink_to(outside)
+    (src / "sub").mkdir()
+    (src / "sub" / "b.txt").write_text("b", encoding="utf-8")
+    (src / "old.txt.pull.tmp").write_text("partial", encoding="utf-8")
+    for stage in (False, True):
+        dest = tmp_path / f"dest{stage}"
+        remote._copy_plain_files(src, dest, stage=stage)
+        assert [p.name for p in dest.iterdir()] == ["a.txt"]
+    # A missing or symlinked source directory copies nothing and creates nothing.
+    remote._copy_plain_files(tmp_path / "missing", tmp_path / "none")
+    (tmp_path / "dirlink").symlink_to(src)
+    remote._copy_plain_files(tmp_path / "dirlink", tmp_path / "none")
+    assert not (tmp_path / "none").exists()
