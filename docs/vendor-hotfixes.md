@@ -35,7 +35,7 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | --- | --- | --- | --- |
 | HF-001 | `langchain_agents.doc_inventories.enrich_extraction` | A null corporate `record_type` is filled from every corporate subclass through Dojo's subclass → `record_type` map. Upstream fills it only for the five Hub tokens, so indenture, board_resolution, officer_certificate, subsidiary_list, charter_amendment and certificate_of_formation left it null. | [Exios66/llm-mailroom#313](https://github.com/Exios66/llm-mailroom/issues/313) |
 | HF-002 | `agents.judge.CompletenessJudge.judge_completeness` | A completeness-judge parse failure raises instead of returning a real "incomplete 0.0" verdict, so the graph takes its judge-error path (human review, counted by the gate) instead of sending the document to the arbiter as if it were judged incomplete. | [Exios66/llm-mailroom#315](https://github.com/Exios66/llm-mailroom/issues/315) |
-| HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` replaces the document only when it keeps 90% of its length and its words: aligned in order, no run of 8 or more source words and no more than 5% of them may be lost, so a reply that drops a clause is refused even at full length. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. | [Exios66/llm-mailroom#316](https://github.com/Exios66/llm-mailroom/issues/316) |
+| HF-003 | `agents.intake.IntakeAgent.intake_run` | A single-window intake `cleaned_text` replaces the document only when it keeps 90% of its length and its words: aligned in order, no run of 8 or more source words and no more than 5% of them may be lost, so a reply that drops a clause is refused even at full length. Context fit reads a long document in one window while intake's output allowance stays ~2k tokens, and the graph replaces the whole document with any accepted cleaned text. With HF-014 installed the prompt no longer asks for a clean, so this guard is latent: it stays as a backstop for a model that returns `cleaned_text` anyway. | [Exios66/llm-mailroom#316](https://github.com/Exios66/llm-mailroom/issues/316) |
 | HF-004 | `pipeline.limits.record_usage` | Every returned chat call is priced against the run's `job.api_cost_cap_usd` as it returns (`job/call_guard.py`). The provider-pin wrappers refuse the next OpenRouter call once the cap or the per-document call ceiling is reached (40 for `pipeline`, 16 otherwise). A call already in flight can still return, so spend stops within one call per concurrent document of the cap; a document the guard cut short becomes an error row, never a score. A Decisions response is priced once, in the Decisions transport; while HF-004 is installed the usage accumulator is the unwrapped function, so that response is not priced again. Isolated `sorter_reviewer` and `extraction_gate` rows enter that document scope and use the default ceiling of 16. The R01 smoke's two merger agreements ran ~140 calls past the between-document check. | [Exios66/llm-mailroom#317](https://github.com/Exios66/llm-mailroom/issues/317) |
 | HF-005 | `pipeline.watcher._DispatchPool.submit` | Backpressure. The watcher queues an inbox file for a worker slot only while the in-memory dispatch queue and `processing/` (and `review/`, when limited) are below their `MAILROOM_MAX_QUEUE_DEPTH_<STAGE>` limits (`mailroom_sandbox.backpressure`). Over a limit the file stays in `inbox/` and the next 1-second rescan offers it again, so intake slows and nothing is dropped. Upstream queued every inbox file with no bound. | [Exios66/llm-mailroom#318](https://github.com/Exios66/llm-mailroom/issues/318) |
 | HF-006 | `langchain_agents.specialist_agents._SpecialistBase._confidence_missing` | Preserve an explicit numeric `0.0` in single and chunked extraction. Only missing confidence receives the existing evidence-derived fallback; a zero-confidence window cannot be lifted by that fallback. | [Exios66/llm-mailroom#279](https://github.com/Exios66/llm-mailroom/issues/279) |
@@ -45,6 +45,8 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-010 | `agents.intake.sliding_windows` | When an API-routed sorter or intake would need more than one window for a document, the read fails with `WholeDocumentTooLong` instead. The sorter failure takes the graph's review path; intake fails soft and the deterministic clerk output stays. Calls from Modal, vLLM or other self-hosted routes, and calls from no agent, keep the vendored windows. | [Exios66/llm-mailroom#319](https://github.com/Exios66/llm-mailroom/issues/319) |
 | HF-011 | `graph.routing.after_judge` (also bound to `after_arbiter`) | With `confidence.judge_exhausted_to_arbiter: true` (the overlay default), two `graph.route_spec` rules: a `partial` verdict on the last judge pass goes to the arbiter for a final ruling instead of straight to a person, unless `after_arbiter` would park it anyway (extraction still unsure, or an unadjudicated conflict), so no call is spent on a foregone park; and the arbiter cannot order a re-extraction once the judge passes are spent, because that retry could not be judged. `accept_with_caveats` archives through the vendored checks; anything else parks with the `judge_partial` cause. `incomplete`, judge errors and transient errors keep the vendored routes. The router itself is unchanged: `route_spec` binds routers at import, so its rule registry is the hook. Without the key both rules are inert. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
 | HF-012 | `graph.routing._transient_decision` | `confidence.transient_retry_max`, when set, is the number of times a node re-runs after a transient provider error (overlay: 1). `retry_chat_completion` already retries inside each call (5 attempts plus the SDK's own), so the vendored two node-level re-runs repeated whole extractions and judge passes. Unset keeps the vendored budget; counters and the `transient_exhausted` cause are unchanged. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
+| HF-014 | `agents.intake.IntakeAgent.system_prompt` (also swaps `agents.intake.INTAKE_SCHEMA`) | Intake returns triage and the section map only. The prompt the agent serves has its CLEAN block replaced by "set `cleaned_text` to null" (the rewrite runs on the served text, so a Langfuse-managed or locally overridden prompt gets it too; a text with no CLEAN block gets the instruction appended), and the schema sent with every call drops `cleaned_text`. Upstream asks a messy document's model to re-emit the whole text, but intake's output allowance is 2,048 tokens, so any document over about 2-3k characters was cut off mid-JSON: the triage, the section map and the clean were lost and the input was still paid. A document's working text is now always the deterministic clerk output. HF-003 stays installed and is latent unless a model returns a `cleaned_text` anyway. If the vendored prompt's CLEAN block or the schema's `cleaned_text` moves, the hotfix is reported `stale` and preflight fails. | upstream issue to be filed (J-8) |
+| HF-015 | `agents.intake.validate_intake` (also wraps `agents.intake.format_intake_prior`) | A failed intake read has no triage, so the sorter gets no prior. A reply with a parse error, no `triage` object or no `primary_doc_class` (a cut-off JSON, prose, a JSON list) used to become a truthy triage of `unknown`, confidence 0.0 and no gist, which `format_intake_prior` fed to the sorter as an advisory read. It is now an empty triage: `_merge_triage` falls back to the first window and `format_intake_prior` returns "". A model that answers `unknown` with a gist is a real read and keeps its prior. The prior's `subclass:` line is printed only for a token in the sorter's catalog for that primary class (`valid_sorter_subclasses`); an invented subtype is dropped, and so is any subclass for a class with no catalog. | upstream issue to be filed (J-9) |
 
 ### Confidence decisions
 
@@ -78,6 +80,13 @@ pipeline/scoring check, and run execution still verifies the locked identities.
   long-context API route, and the judge/arbiter source excerpts are module constants. The sandbox covers
   it with context fit and source windows, not a hotfix.
 
+- **J-8** (upstream issue to be filed) `INTAKE_SYSTEM_PROMPT` asks for the FULL repaired text in `cleaned_text` while intake's `max_tokens`
+  is 2,048 on every route; a document over about 2-3k characters is cut off mid-JSON and the whole read (triage, section map) is lost.
+  The clean should be optional and bounded, or removed from the model's job (the deterministic clerk already runs first).
+- **J-9** (upstream issue to be filed) `validate_intake` turns a parse failure into a truthy `unknown` / 0.0 triage that `format_intake_prior`
+  sends to the sorter, and `format_intake_prior` prints any `doc_subclass` the model invented (`validate_triage` only truncates it).
+  A failed read should carry no triage; the subclass should be checked against the sorter's catalog for the primary class.
+
 When llm-mailroom ships one of these and the sandbox vendors it, retire the matching hotfix in the
 same vendor refresh.
 
@@ -88,6 +97,26 @@ same vendor refresh.
    (`hashlib.sha256(inspect.getsource(fn).encode()).hexdigest()`), an upstream reference and a
    wrapper that changes only the defect.
 3. Add a row above and a CHANGELOG entry, and open the upstream issue.
+
+A hotfix that rewrites text rather than behavior (HF-014 rewrites the served intake prompt) cannot be
+fingerprinted by the target's source alone: its `install` raises `HotfixDrift` when the text it expects is gone,
+and `apply_hotfixes` reports the fix `stale`, so the run fails preflight instead of running on a prompt the fix
+no longer matches.
+
+## Intake hotfixes in run provenance
+
+`run.lock.json` records the hotfix set under `vendor_hotfixes` (every id, target and fingerprint, plus the sha256 of
+`vendor_hotfixes.py`), so a lock written with HF-014 and HF-015 names them and a lock written before them carries
+neither and refuses resume until `--force`. The prompt lock does **not** show HF-014: for the default
+`code-default` intake prompt it stores no text and no hash, and for a local or Langfuse prompt it hashes the text
+the run was given, not the text HF-014 serves after rewriting it. The served prompt differs from the locked one by
+exactly the CLEAN block. Read the intake behavior from the hotfix set, not from `prompt` in the lock.
+
+Every pipeline item record carries an `intake` block (`pred.intake` in `items.jsonl`), with no document text:
+`gate_fired`, `windows`, `triage_class`, `triage_confidence`, `prior_sent` (an intake prior reached the sorter),
+`clean_refused` (HF-003 refused a clean) and `read_failed` (the read ran and produced no triage). A cost estimate
+counts the same gate: preflight's `context_plan` reports an `intake` block (`docs_gated`, `calls`, `input_usd`)
+and adds the costliest gated document's read to each class's `clean`, `judged` and `worst` input cost.
 
 ## Isolated specialist runs and the subclass
 

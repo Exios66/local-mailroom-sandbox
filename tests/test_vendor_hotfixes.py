@@ -697,3 +697,33 @@ def test_hf015_both_classify_nodes_hand_the_sorter_the_patched_prior(monkeypatch
     for kwargs in seen[2:]:
         assert "primary class: corporate_record" in kwargs["intake_prior"]
         assert "subclass:" not in kwargs["intake_prior"] and "made_up" not in kwargs["intake_prior"]
+
+
+def test_a_fresh_run_lock_lists_the_intake_hotfixes_and_a_lock_without_them_refuses_resume(tmp_path, monkeypatch):
+    """The lock's ``vendor_hotfixes`` is where HF-014/HF-015 show: the prompt lock hashes no intake text."""
+    import json
+
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
+
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    path = tmp_path / "p.jsonl"
+    path.write_text(json.dumps({"id": "p0", "filename": "p0.txt", "doc_text": "agreement " * 50,
+                                "expected_doc_class": "merger_agreement",
+                                "expected": "merger_agreement"}) + "\n", encoding="utf-8")
+    spec = RunSpec(run_id="run-hf014-lock", task="pipeline",
+                   dataset=DatasetSpec(local_path=f"file://{path}", limit=1),
+                   engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"}, job={"mock": True})
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    store = RunStore(run_dir(spec.run_id))
+    lock = store.read_lock()
+    ids = [f["id"] for f in lock["vendor_hotfixes"]["fixes"]]
+    assert "HF-014" in ids and "HF-015" in ids
+    # The default intake prompt is locked as code-default: no text, no hash, so no hotfix shows there.
+    assert lock["prompt"]["default"]["sha256"] is None and "intake" not in lock["prompt"]["agents"]
+    # A lock written before the intake hotfixes (no HF-014/015) is refused on resume.
+    lock["vendor_hotfixes"]["fixes"] = [f for f in lock["vendor_hotfixes"]["fixes"]
+                                        if f["id"] not in {"HF-014", "HF-015"}]
+    store.lock_path.write_text(json.dumps(lock))
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
