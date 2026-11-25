@@ -52,7 +52,9 @@ the gold audit read that layout.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores.
 - `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
   derived lock's run, spec and generation identity, retaining its original content under
-  `source_checkpoint`. Its terminal state is preserved.
+  `source_checkpoint`. Its state is preserved, including a non-terminal `paused` or `running`
+  source. The derived directory is not a job: `sandbox run` refuses `lock_kind: rescore.lock`
+  before any model call. Continue the source run if the job itself should resume.
 
 ## Reading the digest
 

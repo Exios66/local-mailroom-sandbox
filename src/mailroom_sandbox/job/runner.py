@@ -1045,6 +1045,7 @@ def run_job(
     if not dry_run:
         store.verify_generation()
         _refuse_mock_override(store, mock)
+        _refuse_rescore_execution(store)
     if dry_run:
         return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
                         max_items=max_items, tracer=tracer, on_event=on_event)
@@ -1095,6 +1096,24 @@ def run_job(
         raise
     finish(summary if isinstance(summary, dict) else None)
     return summary
+
+
+def _refuse_rescore_execution(store: RunStore) -> None:
+    """A derived rescore is an offline score of stored answers, not a job to continue.
+
+    Rescore copies the source checkpoint, including ``paused`` and ``running``.
+    Resume would otherwise call the model for the remaining rows and append
+    those predictions beside the re-scored items, spending against the source
+    caps and corrupting the derived measurement. Continue the source run instead.
+    """
+    lock = store.read_lock() or {}
+    if lock.get("lock_kind") == "rescore.lock":
+        source = (lock.get("rescore") or {}).get("source_run")
+        where = f" (source {source})" if source else ""
+        raise RuntimeError(
+            f"{store.run_id}: a rescore lock is an offline score of stored answers and cannot "
+            f"be executed{where}; resume the source run if the job itself should continue"
+        )
 
 
 def verify_locked_hotfixes(lock: dict[str, Any]) -> None:
