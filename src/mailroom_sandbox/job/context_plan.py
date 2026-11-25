@@ -130,6 +130,19 @@ _INTAKE_OVERLAP_FRACTION = 0.15
 _INTAKE_SORTER_BUDGET = 12_000
 
 
+def _sorter_budget(taxonomy: Mapping[str, Any]) -> int:
+    """The sorter's ``max_input_chars`` as ``should_llm_intake`` reads it: 12,000 when it sets none.
+
+    Not ``_budget``: that defaults to the 90,000-character planning window, which would leave a clean
+    document between 12,000 and 90,000 characters out of a gate the graph fires for.
+    """
+    cfg = (taxonomy.get("agents") or {}).get("sorter") or {}
+    try:
+        return int(cfg.get("max_input_chars") or _INTAKE_SORTER_BUDGET)
+    except (TypeError, ValueError):
+        return _INTAKE_SORTER_BUDGET
+
+
 def _intake_gate(taxonomy: Mapping[str, Any]):
     """``(enabled, fires)`` for the vendored intake gate under ``taxonomy``; None when it cannot be imported.
 
@@ -143,7 +156,7 @@ def _intake_gate(taxonomy: Mapping[str, Any]):
     except Exception:  # noqa: BLE001 — optional (pipeline extra)
         return None
     enabled = bool(llm_intake_enabled())
-    sorter_budget = _budget(taxonomy, "sorter") if "sorter" in (taxonomy.get("agents") or {}) else _INTAKE_SORTER_BUDGET
+    sorter_budget = _sorter_budget(taxonomy)
 
     def fires(text: str) -> bool:
         if not enabled:
@@ -158,10 +171,12 @@ def _intake_gate(taxonomy: Mapping[str, Any]):
 
 
 def intake_windows(chars: int, budget: int) -> int:
-    """How many calls the vendored ``sliding_windows`` makes for ``chars`` at ``budget`` (an upper bound).
+    """An estimate of how many calls the vendored ``sliding_windows`` makes for ``chars`` at ``budget``.
 
-    Over budget the spans are packed to ``budget - overlap`` (15% overlap), so the count is the
-    document over that span, rounded up.
+    Over budget the spans are packed to ``budget - overlap`` (15% overlap), so the estimate is the
+    document over that span, rounded up. It ignores paragraph packing, which can make the real count
+    higher, so it is not an upper bound. HF-010 limits an API-routed intake to one window, so a
+    priced (OpenRouter) run is unaffected; only a Modal/vLLM or self-hosted route slides windows.
     """
     if chars <= budget:
         return 1

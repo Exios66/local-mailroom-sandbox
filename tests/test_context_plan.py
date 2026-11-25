@@ -492,3 +492,17 @@ def test_a_gated_document_on_an_unpriced_intake_model_leaves_the_envelope_unpric
     assert cp["classes"]["merger_agreement"]["input_cost_usd"] is None  # never a silent $0 intake term
     clean = context_plan.plan(tax, [{**rows[0], "doc_text": _CLEAN_SHORT}], windows=WINDOWS)
     assert clean["classes"]["merger_agreement"]["input_cost_usd"]["intake"] == 0.0
+
+
+def test_a_sorter_with_no_input_budget_gates_intake_at_the_graphs_12000_not_the_planners_90000():
+    """Without ``max_input_chars`` the vendored ``should_llm_intake`` falls back to 12,000 characters."""
+    text = "The Borrower shall deliver notice to the Agent within ten days.\n\n" * 300  # ~19k clean chars
+    tax = _priced_taxonomy()
+    tax["agents"]["sorter"].pop("max_input_chars")
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": text}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["intake"]["docs_gated"] == 1
+    tax["agents"]["sorter"]["max_input_chars"] = 30_000
+    assert context_plan.plan(tax, rows, windows=WINDOWS)["intake"]["docs_gated"] == 0
+    tax["agents"].pop("sorter")
+    assert context_plan.plan(tax, rows, windows=WINDOWS)["intake"]["docs_gated"] == 1
