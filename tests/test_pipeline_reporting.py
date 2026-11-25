@@ -289,3 +289,18 @@ def test_pipeline_doc_result_carries_the_intake_block(tmp_path, monkeypatch):
     assert "intake_prep" not in result  # the text-bearing prep never reaches an item record
     monkeypatch.setattr(bg, "run_pipeline", lambda *a, **k: {"doc_type": "contract", "stage": "archived"})
     assert runners._run_pipeline_doc(row, mock=False)["intake"] == _NO_INTAKE
+
+
+def test_intake_summary_sees_a_call_that_raised_inside_the_node(monkeypatch):
+    """intake_node sets intake_prep None when the call raises; the gate is read from the state's flags."""
+    from agents import intake
+    from mailroom_sandbox.eval import runners
+
+    monkeypatch.setenv("MAILROOM_LLM_INTAKE", "1")
+    raised = runners.intake_summary({"intake_prep": None, "intake_messy": True, "doc_text": "messy text"})
+    assert raised["gate_fired"] is True and raised["read_failed"] is True and raised["prior_sent"] is False
+    assert raised["windows"] == 0 and raised["triage_class"] is None
+    assert runners.intake_summary({"intake_prep": None, "intake_messy": False, "doc_text": "short"}) == _NO_INTAKE
+    monkeypatch.setenv("MAILROOM_LLM_INTAKE", "0")
+    assert runners.intake_summary({"intake_prep": None, "intake_messy": True, "doc_text": "x"}) == _NO_INTAKE
+    assert intake.should_llm_intake("x", {"messy": True})  # the gate itself is unchanged
