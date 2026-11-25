@@ -423,3 +423,100 @@ def record(agent: str, request: str, *, node: str | None = None) -> None:
             state.read_calls += 1
             state.read_ms += (time.perf_counter() - t0) * 1000
     return None
+
+
+# --- seams: observe every chat agent request --------------------------------
+#
+# The observer sits on each target class's ``_call_structured`` and records the
+# request text before delegating with the exact same arguments. It is always the
+# OUTERMOST layer: the sampling layer may replace the call path (the native
+# endpoint), so only an outer observer sees every request.
+#
+# ``functools.wraps`` copies the wrapped function's ``__dict__``, so a marker
+# attribute alone cannot identify a layer. Layers are identified by identity in
+# ``_OBSERVERS`` instead; the attribute is kept only as a human-readable tag.
+
+import functools  # noqa: E402
+import inspect  # noqa: E402
+import logging  # noqa: E402
+import weakref  # noqa: E402
+
+_log = logging.getLogger(__name__)
+_OBSERVERS: "weakref.WeakSet[Any]" = weakref.WeakSet()
+
+
+def is_observer(fn: Any) -> bool:
+    """True only for a function this module built (identity, not an inherited marker)."""
+    try:
+        return fn in _OBSERVERS
+    except TypeError:
+        return False
+
+
+def strip_observer(fn: Any) -> Any:
+    """``fn`` with any observer layers removed (through ``__wrapped__``)."""
+    while is_observer(fn):
+        fn = fn.__wrapped__
+    return fn
+
+
+def _request_text(self: Any, bound_args: dict[str, Any]) -> tuple[str, str]:
+    name = str(getattr(self, "agent_name", "") or "")
+    system = bound_args.get("system_prompt")
+    if system is None:
+        system = getattr(self, "system_prompt", "")
+        if callable(system):
+            system = system()
+    user = bound_args.get("user_message")
+    parts = [name, system if isinstance(system, str) else "", user if isinstance(user, str) else ""]
+    return name, "\n".join(parts)
+
+
+def _observe(inner: Any) -> Any:
+    try:
+        signature: inspect.Signature | None = inspect.signature(inner)
+    except (TypeError, ValueError):
+        signature = None
+
+    @functools.wraps(inner)
+    def _call_structured(self, *args, **kwargs):
+        if _STATE.get() is not None and signature is not None:
+            try:
+                bound = signature.bind(self, *args, **kwargs)
+                name, text = _request_text(self, bound.arguments)
+                record(name, text)
+            except Exception:  # noqa: BLE001 - observing must never change a call
+                state = _STATE.get()
+                if state is not None:
+                    state.count_error()
+        return inner(self, *args, **kwargs)
+
+    # wraps() copied the inner layer's __dict__: drop markers that are not ours.
+    _call_structured.__dict__.pop("__sandbox_sampling__", None)
+    _call_structured.__sandbox_read_ranges__ = True  # type: ignore[attr-defined]
+    _OBSERVERS.add(_call_structured)
+    return _call_structured
+
+
+def observe_class(cls: Any) -> bool:
+    """Put exactly one observer on top of ``cls._call_structured``. True when patched."""
+    current = cls.__dict__.get("_call_structured")
+    if current is None:
+        return False
+    cls._call_structured = _observe(strip_observer(current))
+    return True
+
+
+def install_call_observer() -> int:
+    """Observe every sampling target. Idempotent; returns the number of classes patched."""
+    from mailroom_sandbox import sampling
+
+    patched = 0
+    for module_name, class_name in sampling._TARGETS:
+        try:
+            module = __import__(module_name, fromlist=[class_name])
+            cls = getattr(module, class_name)
+            patched += bool(observe_class(cls))
+        except Exception as exc:  # noqa: BLE001 - optional (pipeline extra)
+            _log.debug("%s.%s unavailable - not observed: %s", module_name, class_name, exc)
+    return patched

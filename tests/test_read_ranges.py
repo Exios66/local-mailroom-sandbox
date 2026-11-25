@@ -432,3 +432,139 @@ def test_doc_text_files_never_use_the_raw_doc_id(tmp_path):
     index = [json.loads(ln) for ln in (d / "index.jsonl").read_text().splitlines()]
     assert index == [{"doc": "../../etc/x", "file": name}]
     assert sorted(p.name for p in d.iterdir()) == sorted([name, "index.jsonl"])
+
+
+# --- call observer ------------------------------------------------------------
+import sys  # noqa: E402
+import types  # noqa: E402
+
+from mailroom_sandbox import sampling  # noqa: E402
+
+_DOC = "".join(f"Clause {i}. " + "alpha beta gamma delta " * 6 + "\n\n" for i in range(40))
+
+
+def _fake_target(monkeypatch, *, langchain: bool = False):
+    calls: list[tuple] = []
+    result = {"ok": True}
+
+    if langchain:
+        class Agent:
+            agent_name = "contracts_specialist"
+            model = "m"
+
+            def system_prompt(self):
+                return "SYS"
+
+            def _call_structured(self, user_message, json_schema, system_prompt=None,
+                                 temperature=None, max_tokens=None, pages=None):
+                calls.append((user_message, json_schema, system_prompt, temperature))
+                return result
+        module = "langchain_agents.base_agent"
+    else:
+        class Agent:  # type: ignore[no-redef]
+            agent_name = "sorter"
+            system_prompt = "SYSTEM TEXT"
+
+            def _call_structured(self, user_message, json_schema, temperature=0.1,
+                                 system_prompt=None, max_tokens=None, reasoning_effort=None, pages=None):
+                calls.append((user_message, json_schema, temperature, system_prompt))
+                return result
+        module = "fake_obs_agents"
+
+    fake = types.ModuleType(module)
+    fake.BaseAgent = Agent
+    monkeypatch.setitem(sys.modules, module, fake)
+    monkeypatch.setattr(sampling, "_TARGETS", ((module, "BaseAgent"),))
+    monkeypatch.setattr(sampling, "_PATCHED", set())
+    monkeypatch.setattr(sampling, "_OVERRIDES", {})
+    monkeypatch.setattr(sampling, "_EXTRA", {})
+    return Agent, calls, result
+
+
+def _layers(fn):
+    out = []
+    while fn is not None:
+        out.append(fn)
+        fn = getattr(fn, "__wrapped__", None)
+    return out
+
+
+def test_observer_sees_every_call_and_changes_nothing(monkeypatch):
+    Agent, calls, result = _fake_target(monkeypatch)
+    original = Agent.__dict__["_call_structured"]
+    assert read_ranges.install_call_observer() == 1
+    assert read_ranges.install_call_observer() == 1  # idempotent
+    assert Agent.__dict__["_call_structured"].__wrapped__ is original
+    records: list[dict] = []
+    schema = {"type": "object"}
+    with read_ranges.document("d1", _DOC, records.append):
+        out = Agent()._call_structured(_DOC[:300], schema, 0.5, max_tokens=7)
+        out2 = Agent()._call_structured(user_message=_DOC[400:700], json_schema=schema)
+    assert out is result and out2 is result
+    assert calls == [(_DOC[:300], schema, 0.5, None), (_DOC[400:700], schema, 0.1, None)]
+    assert len(records) == 2
+    assert [r["agent"] for r in records] == ["sorter", "sorter"]
+    assert records[0]["ranges"][0][0] == 0
+    assert all("SYSTEM TEXT" not in json.dumps(r) for r in records)  # offsets only
+    # outside a document nothing is recorded and the call still works
+    assert Agent()._call_structured("x", schema) is result
+
+
+def test_observer_passes_exceptions_through_and_never_raises_itself(monkeypatch):
+    Agent, calls, _ = _fake_target(monkeypatch)
+    read_ranges.install_call_observer()
+
+    def boom(*a, **k):
+        raise RuntimeError("sink down")
+
+    with read_ranges.document("d1", _DOC, boom):
+        Agent()._call_structured(_DOC[:300], {})  # sink failure is swallowed
+        Agent()._call_structured(object(), {})  # non-string request is tolerated
+    assert len(calls) == 2
+    assert read_ranges.stats()["read_calls"] == 0  # no active document: zeros
+
+
+def test_observer_stays_outermost_across_reactivation(monkeypatch):
+    Agent, calls, _ = _fake_target(monkeypatch)
+    knobs = {"sorter": {"temperature": 0.7}}
+
+    def sampling_layers():
+        return [f for f in _layers(Agent.__dict__["_call_structured"])
+                if f.__dict__.get("__sandbox_sampling__") and not read_ranges.is_observer(f)]
+
+    for step in ("none", "on", "off", "on", "on"):
+        sampling.apply_sampling_overrides(knobs if step == "on" else None)
+        read_ranges.install_call_observer()
+        top = Agent.__dict__["_call_structured"]
+        assert read_ranges.is_observer(top)
+        assert sum(read_ranges.is_observer(f) for f in _layers(top)) == 1
+        if step == "on":
+            assert len(sampling_layers()) == 1
+            assert not read_ranges.is_observer(top.__wrapped__)
+    # sampling installed beneath an existing observer, not in front of it
+    sampling._PATCHED.clear()
+    sampling.apply_sampling_overrides(knobs)
+    assert read_ranges.is_observer(Agent.__dict__["_call_structured"])
+    assert len(sampling_layers()) == 1
+    records: list[dict] = []
+    with read_ranges.document("d1", _DOC, records.append):
+        Agent()._call_structured(_DOC[:300], {}, 0.1)
+    assert calls[-1][2] == 0.7 and len(records) == 1
+
+
+def test_native_endpoint_calls_are_seen(monkeypatch):
+    Agent, calls, _ = _fake_target(monkeypatch, langchain=True)
+    seen: list = []
+
+    def fake_native(self, bound, override):
+        seen.append(bound.arguments["user_message"])
+        return {"native": True}
+
+    monkeypatch.setattr(sampling, "_native_structured_completion", fake_native)
+    sampling.apply_sampling_overrides({"contracts_specialist": {"max_tokens": 8192, "top_p": 0.8}})
+    read_ranges.install_call_observer()
+    records: list[dict] = []
+    with read_ranges.document("d1", _DOC, records.append):
+        out = Agent()._call_structured(_DOC[:300], {})
+    assert out == {"native": True} and seen == [_DOC[:300]] and calls == []
+    assert len(records) == 1 and records[0]["agent"] == "contracts_specialist"
