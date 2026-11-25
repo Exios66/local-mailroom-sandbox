@@ -713,29 +713,74 @@ def mock_closed_field_resolver_backend(model: str, qset: Mapping[str, Any]) -> C
     return resolver
 
 
+def _decision_retry_delay(response: Any, attempt: int) -> float:
+    """Backoff for a transient response, respecting numeric and HTTP-date Retry-After."""
+    import math
+    import time
+    from email.utils import parsedate_to_datetime
+
+    delay = float(2 ** attempt)
+    raw = (getattr(response, "headers", None) or {}).get("Retry-After")
+    if raw is None:
+        return delay
+    try:
+        wait = float(raw)
+    except (TypeError, ValueError):
+        try:
+            wait = parsedate_to_datetime(str(raw)).timestamp() - time.time()
+        except (TypeError, ValueError, OverflowError):
+            return delay
+    return max(delay, wait) if math.isfinite(wait) else delay
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
     Transport errors and ``_TRANSIENT`` statuses are retried with backoff (``attempts`` in all);
-    any other status, or a refusal, raises at once.
+    any other status, or a refusal, raises at once. The timeout covers all attempts and
+    backoff together, starting here after backend preparation. An active pipeline run also
+    caps that allowance at its configured call timeout and checks its absolute run deadline.
+    The caller's earlier node timer is not propagated here; it can expire first.
     """
     import os
     import time
+    import math
 
     import httpx
+    from pipeline import limits
 
+    if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+        raise ValueError("Decisions attempts must be a positive integer")
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Decisions timeout must be finite and positive")
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not key:
         raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
+    run_deadline = limits.get_run_deadline()
+    call_timeout = min(timeout, limits.get_call_timeout_seconds()) if run_deadline is not None else timeout
+    deadline = time.monotonic() + call_timeout
+
+    def remaining() -> float:
+        limits.check_run_deadline(run_deadline)
+        room = deadline - time.monotonic()
+        if run_deadline is not None:
+            room = min(room, run_deadline - time.time())
+        if not room > 0:
+            raise TimeoutError("Decisions request deadline exceeded") from last
+        return room
+
     last: Exception | None = None
-    for attempt in range(max(1, attempts)):
+    count = attempts
+    for attempt in range(count):
         # Decisions calls bypass the chat provider wrappers; enforce the same run guard
         # before each HTTP attempt, including retries.
         from mailroom_sandbox.job import call_guard
 
+        attempt_timeout = remaining()
         call_guard.before_call()
+        resp = None
         try:
-            resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=timeout,
+            resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=attempt_timeout,
                               headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
         except httpx.TransportError as exc:
             last = exc
@@ -751,7 +796,8 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
                 raise last
-        time.sleep(2 ** attempt)
+        if attempt + 1 < count:
+            time.sleep(min(_decision_retry_delay(resp, attempt), remaining()))
     raise last or RuntimeError("Decisions API failed")
 
 
