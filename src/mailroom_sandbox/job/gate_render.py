@@ -69,8 +69,8 @@ def _shf015_line(report: Mapping[str, Any]) -> list[str]:
     where = ", ".join(f"{cls} {n}" for cls, n in by_class.items())
     return ["", f"SHF-015: {pooled} archived document(s) in the gated classes are unscorable only because a stale Hub "
                 f"label was dropped (enough labels before the drop, fewer than `min_labelled` after); all classes: "
-                f"{where or 'none'}. Their `labelled_raw` is in `gate.json` "
-                "([docs/scoring-hotfixes.md](../../../docs/scoring-hotfixes.md))."]
+                f"{where or 'none'}. Their `labelled_raw` is in `gate.json`; "
+                "see docs/scoring-hotfixes.md."]
 
 
 def _audit_lines(report: Mapping[str, Any]) -> list[str]:
