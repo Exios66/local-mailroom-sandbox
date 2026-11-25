@@ -73,7 +73,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     had exactly `min_labelled` labels can become `unscorable_archive`. Each such document's
     gate status carries `labelled_raw` (the count before the drop; present only when it differs
     from `labelled`), and the gate report's `pooled.unscorable_by_shf015` and each class's
-    `unscorable_by_shf015` count the archived documents SHF-015 alone made unscorable. Measured
+    `unscorable_by_shf015` count the archived documents SHF-015 alone made unscorable; the rendered
+    `gate.md` names that count after the pooled line when it is not zero. Measured
     on the 3,302 cached Hub rows with the interim and near-gold overlays applied and
     `min_labelled` 2 (`mailroom_sandbox.job.gate.Bars` default): 678 documents have a different
     `labelled` (450 corporate_record, 150 insurance_claim, 78 correspondence) and 8
