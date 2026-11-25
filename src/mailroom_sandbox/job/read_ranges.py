@@ -149,16 +149,28 @@ def _fill_gaps(
             continue
         anchored = has_anchor and doc_hi >= doc_lo
         cursor = doc_lo
-        for piece in _pieces(request, req_lo, req_hi):
-            pos = doc.find(piece, cursor, doc_hi) if anchored else -1
+
+        def place(text: str) -> bool:
+            nonlocal cursor, matched
+            pos = doc.find(text, cursor, doc_hi) if anchored else -1
             if pos >= 0:
-                cursor = pos + len(piece)
+                cursor = pos + len(text)
             else:
-                pos = _unique_in_doc(doc, piece)
+                pos = _unique_in_doc(doc, text)
                 if pos < 0:
-                    continue
-            found.append([pos, pos + len(piece)])
-            matched += len(piece)
+                    return False
+            found.append([pos, pos + len(text)])
+            matched += len(text)
+            return True
+
+        for piece in _pieces(request, req_lo, req_hi):
+            if place(piece) or "\n" not in piece:
+                continue
+            # A label line glued to the text by a single newline: try line by line.
+            for line in piece.split("\n"):
+                line = line.strip()
+                if line:
+                    place(line)
     return matched
 
 

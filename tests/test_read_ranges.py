@@ -237,3 +237,19 @@ def test_repeated_boilerplate_attributes_in_order():
     result = match_ranges(ShingleIndex(doc), reads)
     assert any(a <= starts[4] and b >= starts[4] + 100 for a, b in result["ranges"])
     assert not any(a <= starts[0] and b >= starts[0] + 100 for a, b in result["ranges"])
+
+
+def test_header_glued_by_single_newline_is_covered():
+    rng = random.Random(21)
+    prefix = "".join(f"Intro line {i} " + rng.randbytes(20).hex() + "\n\n" for i in range(40))
+    body = "\n\n".join(rng.randbytes(40).hex() for _ in range(10))
+    # The document has a whitespace-only paragraph the request omits, so the
+    # short heading does not connect to the body and only the label-line split finds it.
+    doc = prefix + "ARTICLE II\n\n   \n\n" + body + "\n\n" + rng.randbytes(40).hex()
+    window = "ARTICLE II\n\n" + body
+    start = len(prefix)
+    request = "File: x.txt\n\nDocument text:\n" + window
+    result = match_ranges(ShingleIndex(doc), request)
+    assert any(a == start for a, _ in result["ranges"]), result["ranges"]
+    assert all(a >= start for a, _ in result["ranges"])
+    assert result["ranges"][0][1] == start + len("ARTICLE II")
