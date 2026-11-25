@@ -489,19 +489,30 @@ def fixed_name_score(original: Callable[..., float], pred: Any, exp: Any, embedd
 _ISO = r"USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
 
 
+# Currency names a money string can state in words. A bare "pound(s)" is left out (a weight), and a
+# bare "dollar(s)" means USD only when nothing else is stated, as a bare "$" does.
+_CURRENCY_WORDS = (
+    (r"EUROS?", "EUR"), (r"(?:POUNDS?\s+)?STERLING|BRITISH\s+POUNDS?", "GBP"), (r"YEN", "JPY"),
+    (r"U\.?S\.?\s+DOLLARS?", "USD"), (r"CANADIAN\s+DOLLARS?", "CAD"), (r"AUSTRALIAN\s+DOLLARS?", "AUD"),
+)
+
+
 def currencies(text: Any) -> set[str]:
-    """Explicit currencies a money string states (ISO code or symbol); empty when none."""
+    """Explicit currencies a money string states (ISO code, symbol or name); empty when none."""
     t = str(text or "").upper()
     found = set(re.findall(rf"(?<![A-Z])({_ISO})(?![A-Z])", t))
     for symbol, code in (("€", "EUR"), ("£", "GBP"), ("¥", "JPY")):
         if symbol in t:
             found.add(code)
+    for word, code in _CURRENCY_WORDS:
+        if re.search(rf"(?<![A-Z])(?:{word})(?![A-Z])", t):
+            found.add(code)
     for prefix, code in (("US", "USD"), ("C", "CAD"), ("CA", "CAD"), ("A", "AUD"), ("AU", "AUD"),
                          ("HK", "HKD"), ("S", "SGD")):
         if re.search(rf"(?<![A-Z]){prefix}\$", t):
             found.add(code)
-    # A bare "$" means USD only when the string states no other currency ("CAD $1,000" is CAD).
-    if not found and re.search(r"(?<![A-Z])\$", t):
+    # A bare "$" or "dollars" means USD only when the string states no other currency ("CAD $1,000" is CAD).
+    if not found and re.search(r"(?<![A-Z])\$|(?<![A-Z])DOLLARS?(?![A-Z])", t):
         found.add("USD")
     return found
 

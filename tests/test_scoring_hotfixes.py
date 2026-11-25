@@ -791,3 +791,14 @@ def test_per_item_runner_without_a_moved_score_names_no_fix():
 
     scores = _scored_pairs("sorter", ["contract"], ["contract"], {0: True}, 1)
     assert scores["scoring_hotfixes"] == [] and "n_no_truth" not in scores
+
+
+def test_shf003_currencies_named_in_words_count_as_stated():
+    row = score_extraction_row("contract", {"contract_value": "1,000 euros"}, {"contract_value": "$1,000.00"})
+    assert row["raw_dojo"]["extraction_f1"] == 1.0  # defect: a currency in words read as unstated
+    assert row["extraction_f1"] == 0.0
+    same = score_extraction_row("contract", {"contract_value": "EUR 1,000"}, {"contract_value": "1,000 euros"})
+    assert same["extraction_f1"] == same["raw_dojo"]["extraction_f1"]  # the same currency is never zeroed
+    assert sh.currencies("1,000 dollars") == {"USD"} and sh.currencies("CAD 1,000 dollars") == {"CAD"}
+    assert sh.currencies("£5 sterling") == {"GBP"} and sh.currencies("5,000 Canadian dollars") == {"CAD"}
+    assert sh.currencies("10 pounds of grain") == set() and sh.currencies("Eurostar fare 40") == set()
