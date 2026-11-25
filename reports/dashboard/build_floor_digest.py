@@ -794,10 +794,11 @@ def _kept_decisions(record: dict) -> list:
 def _closed_visits(records: list[dict]) -> list[dict]:
     """One visit per node entry, closed by the matching done, error, or paused record.
 
-    A ``running`` row opens a visit. The next non-running row for that same node
-    closes it and supplies decisions, stage, and error. A trace with no
-    ``running`` rows treats every row as its own visit. Unclosed visits stay
-    ``running``.
+    A ``running`` row opens a visit. A second ``running`` row for that same node
+    while it is still open is the same visit, not a loop. The next non-running
+    row for that node closes it and supplies decisions, stage, and error. A
+    trace with no ``running`` rows treats every row as its own visit. Unclosed
+    visits stay ``running``.
     """
     visits: list[dict] = []
     pending: dict | None = None
@@ -818,6 +819,9 @@ def _closed_visits(records: list[dict]) -> list[dict]:
             continue
         status = str(record.get("status") or "done")
         if status == "running":
+            # A second start for the node already in flight is the same visit.
+            if pending is not None and pending["node"] == str(record.get("node")):
+                continue
             if pending is not None:
                 visits.append(pending)
             pending = pack(record, "running")
@@ -1137,7 +1141,8 @@ def _hop_list(visits: list[dict], causes: list[str],
     omitted = 0
     if len(hops) > _DEBUG_HOP_CAP:
         omitted = len(hops) - _DEBUG_HOP_CAP
-        hops = hops[:8] + hops[-8:]
+        # The gap is not a hop. Joining the two slices would invent a route.
+        hops = hops[:8] + [{"gap": omitted}] + hops[-8:]
     return hops, omitted
 
 

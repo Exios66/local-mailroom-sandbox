@@ -763,6 +763,42 @@ def debug_trace_quotes_recorded_decisions_and_reentry():
 
 
 @test
+def duplicate_running_start_is_one_visit():
+    """A second start while that node is still in flight is not another visit."""
+    visits = bfd._closed_visits([
+        {"node": "classify", "status": "running"},
+        {"node": "classify", "status": "running"},
+        {"node": "classify", "status": "done", "decisions": [
+            {"question": "doc_type", "type": "choice", "answer": "contract", "p": 0.9}]},
+    ])
+    assert len(visits) == 1 and visits[0]["status"] == "done", visits
+    assert visits[0]["decisions"] and bfd._loop_rows(visits) == []
+    again = bfd._closed_visits([
+        {"node": "classify", "status": "running"},
+        {"node": "classify", "status": "done"},
+        {"node": "classify", "status": "running"},
+        {"node": "classify", "status": "done"},
+    ])
+    assert [row["node"] for row in again] == ["classify", "classify"]
+    switched = bfd._closed_visits([
+        {"node": "classify", "status": "running"},
+        {"node": "extract", "status": "running"},
+    ])
+    assert [row["node"] for row in switched] == ["classify", "extract"]
+
+
+@test
+def long_hop_list_marks_the_gap():
+    """The first and last eight hops stay, with a gap that is not itself a hop."""
+    visits = [{"node": f"n{i}", "status": "done", "stage": None, "error": None, "decisions": []}
+              for i in range(20)]
+    hops, omitted = bfd._hop_list(visits, [], set())
+    assert omitted == 3 and hops[8] == {"gap": 3}, hops
+    assert hops[0]["to"] == "n1" and hops[-1]["to"] == "n19"
+    assert "from" not in hops[8]
+
+
+@test
 def dead_running_checkpoint_is_shown_stalled():
     """A killed run never rewrites checkpoint.json: idle past the threshold it reads 'stalled'."""
     with tempfile.TemporaryDirectory() as t:

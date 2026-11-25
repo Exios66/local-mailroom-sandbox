@@ -269,25 +269,26 @@ function modeElsewhere(id){
 function hasDebug(){return (run().docs||[]).some(d=>d.debug)}
 /** Nodes and hops touched by the isolated documents. Null unless debug isolate is on and no single document is picked. */
 function focusSets(){
- if(!DEBUG||!ISSUE||ISSUE==="all"||selDocPath())return null;
+ if(!DEBUG||selDocPath())return null;
+ if((!ISSUE||ISSUE==="all")&&!MODE)return null;
  const nodes=new Set(),edges=new Set(),loops=new Set();
  for(const d of debugDocs()){
   for(const n of d.path||[])nodes.add(n);
-  for(const h of (d.debug&&d.debug.hops)||[])edges.add(h.from+">"+h.to);
+  for(const h of (d.debug&&d.debug.hops)||[]){if(h.from&&h.to&&!h.gap)edges.add(h.from+">"+h.to)}
   for(const L of (d.debug&&d.debug.loops)||[]){loops.add(L.node);nodes.add(L.node)}}
  return {nodes,edges,loops}}
 /** How many isolated documents repeat this node, and the highest visit count among them. */
 function loopMark(id){
  if(!DEBUG)return null;
- const docs=selDoc?[(run().docs||[]).find(d=>d.id===selDoc)].filter(Boolean):(ISSUE==="all"?runDocs():debugDocs());
+ const docs=selDoc?[(run().docs||[]).find(d=>d.id===selDoc)].filter(Boolean):debugDocs();
  let n=0,max=0,why="";
  for(const d of docs){const L=((d.debug||{}).loops||[]).find(x=>x.node===id);if(L){n++;if(L.visits>max){max=L.visits;why=L.why}}}
  return n?{n,max,why}:null}
 /** Group recorded hops into one node by source and reason. */
-function arrivalGroups(node){
+function arrivalGroups(node, docs){
  const map=new Map();
- for(const d of debugDocs()){
-  for(const hop of ((d.debug||{}).hops||[]).filter(h=>h.to===node)){
+ for(const d of (docs||debugDocs())){
+  for(const hop of ((d.debug||{}).hops||[]).filter(h=>h.to===node&&!h.gap)){
    const key=hop.from+"\n"+hop.why;
    const g=map.get(key)||{from:hop.from,why:hop.why,n:0,docs:[]};
    g.n++;if(g.docs.length<4&&!g.docs.includes(d.id))g.docs.push(d.id);
@@ -499,8 +500,7 @@ function paintDoc(){
  if(!g){diag.innerHTML="";return}
  let h=`<div class="diag"><b>${g.archive&&g.archive.reached?"Reached archive":"Did not archive"}</b><div>${esc((g.archive||{}).why||"")}</div>`;
  if(g.loops&&g.loops.length)h+=`<b>Loops</b>`+g.loops.map(L=>`<div><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</div>`).join("");
- if(g.hops&&g.hops.length)h+=`<b>Why each hop</b>`+g.hops.map(hop=>`<div><span class="why">${esc(hop.from)} → ${esc(hop.to)}</span> — ${esc(hop.why)}</div>`).join("");
- if(g.hops_omitted)h+=`<div class="mut">${g.hops_omitted} earlier hop(s) omitted.</div>`;
+ if(g.hops&&g.hops.length)h+=`<b>Why each hop</b>`+g.hops.map(hop=>hop.gap?`<div class="mut">${hop.gap} hop(s) omitted here. The next line does not follow the previous one.</div>`:`<div><span class="why">${esc(hop.from)} → ${esc(hop.to)}</span> — ${esc(hop.why)}</div>`).join("");
  if(g.mode)h+=`<b>Next run</b><div>${esc(g.mode.lever)}</div>`;
  diag.innerHTML=h+"</div>"}
 function paintMode(){
@@ -580,7 +580,7 @@ function debugPane(){
   return `<tr class="click${MODE===m.id?" sel":""}" tabindex="0" data-mode="${esc(m.id)}"><td class="num">${m.n}</td><td class="why">${esc(m.label)}</td><td class="why">${esc(m.lever)}</td><td class="why">${elsew.length?elsew.map(x=>esc(x.name)+" · "+x.n).join("; "):"—"}</td><td>${m.docs.map(esc).join(", ")}</td></tr>`}).join("")+"</table>";
  h+=`<div class="kpis"><div class="kpi"><div class="l">${MODE?"THIS MODE":"IN THIS FILTER"} · ${esc(MODE?groups.find(m=>m.id===MODE)?.label||MODE:label)}</div><div class="v">${docs.length}</div><div class="s">${issueDocs().length} in the issue filter · ${runDocs().length} in view</div></div></div>`;
  if(selNode){
-  const groups=arrivalGroups(selNode),looping=docs.filter(d=>((d.debug||{}).loops||[]).some(L=>L.node===selNode));
+  const groups=arrivalGroups(selNode, docs),looping=docs.filter(d=>((d.debug||{}).loops||[]).some(L=>L.node===selNode));
   const blocked=docs.filter(d=>d.debug&&d.debug.archive&&!d.debug.archive.reached&&((d.path||[]).includes(selNode)||((d.debug.loops||[]).some(L=>L.node===selNode))));
   h+=`<h4>WHY DOCUMENTS REACHED ${esc(selNode)}</h4>`;
   if(!groups.length)h+=`<p class="secnote">${looping.length?"No other node handed a document here. The repeats are on this node.":"No recorded hop into this node for the current filter."}</p>`;
@@ -592,7 +592,7 @@ function debugPane(){
   return h}
  if(selDoc){
   const d=docs.find(x=>x.id===selDoc)||(run().docs||[]).find(x=>x.id===selDoc);
-  if(d&&d.debug){h+=`<h4>${esc(d.id)} — HOPS</h4><table class="t"><tr><th>from</th><th>to</th><th>why</th></tr>`+(d.debug.hops||[]).map(hop=>`<tr><td>${esc(hop.from)}</td><td>${esc(hop.to)}</td><td class="why">${esc(hop.why)}</td></tr>`).join("")+"</table>";
+  if(d&&d.debug){h+=`<h4>${esc(d.id)} — HOPS</h4><table class="t"><tr><th>from</th><th>to</th><th>why</th></tr>`+(d.debug.hops||[]).map(hop=>hop.gap?`<tr><td colspan="3" class="why">${hop.gap} hop(s) omitted here. The next row does not follow the previous one.</td></tr>`:`<tr><td>${esc(hop.from)}</td><td>${esc(hop.to)}</td><td class="why">${esc(hop.why)}</td></tr>`).join("")+"</table>";
    if(d.debug.loops&&d.debug.loops.length)h+=`<h4>LOOPS</h4>`+d.debug.loops.map(L=>`<p class="secnote"><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</p>`).join("");
    return h}}
  h+=`<h4>DOCUMENTS · ${esc(label)} — click a row to trace it</h4><table class="t"><tr><th>document</th><th>issues</th><th>why not archive, or the repeat</th></tr>`+
