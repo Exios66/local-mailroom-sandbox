@@ -172,6 +172,11 @@ def call_usage_from_pipeline() -> list[list[int]]:
     The item totals hide how a document's prompt tokens split across calls, and a tiered price
     sheet (cheaper below a prompt-size threshold) needs each call's own size. Empty when the
     vendored accumulator is unavailable.
+
+    HF-004's ``record_usage`` wrapper keeps that accumulator as the two token counts and notes
+    provider cost and cache beside it. A row gains ``cached`` and ``cache_write`` only when a
+    noted call actually recorded a cache split. A note of zeros is not a split, so a call the
+    provider reported as prompt and completion stays two numbers.
     """
     try:
         from pipeline import limits
@@ -183,9 +188,11 @@ def call_usage_from_pipeline() -> list[list[int]]:
         notes = provider_calls()
         rows: list[list[int]] = []
         aligned = len(notes) == len(calls)
+        # Widen every row together so a mixed document does not change width mid-list.
+        widen = aligned and any(int(note["cached"]) or int(note["cache_write"]) for note in notes)
         for index, call in enumerate(calls):
             row = [int(call["prompt_tokens"]), int(call["completion_tokens"])]
-            if aligned:
+            if widen:
                 row.extend([int(notes[index]["cached"]), int(notes[index]["cache_write"])])
             rows.append(row)
         return rows

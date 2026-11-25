@@ -124,6 +124,11 @@ def test_per_call_usage_prices_each_call_at_its_own_tier():
 def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monkeypatch, tmp_path):
     # Through run_pipeline_eval: the document's two calls are recorded in the vendored accumulator,
     # captured per call, persisted by the job runner, then priced call by call in the serving record.
+    # HF-004 notes provider cost beside that accumulator. A call with no cache split still persists
+    # as two numbers; the note does not widen the row with zeros.
+    from mailroom_sandbox.vendor_hotfixes import apply_hotfixes
+
+    apply_hotfixes()
     from pipeline.limits import record_usage
 
     from mailroom_sandbox.eval import runners
@@ -151,3 +156,28 @@ def test_pipeline_per_call_usage_survives_persistence_into_the_serving_cost(monk
     rec = _record(items, model="qwen/qwen3.7-flash")
     assert rec["estimated_cost_usd"] == pytest.approx((10_000 * 0.03 + 10 * 0.13 + 50_000 * 0.10 + 10 * 0.40) / 1e6, abs=1e-6)
     assert "cost_tier_approximate_items" not in rec
+
+
+def test_call_usage_gains_cache_columns_only_when_a_split_was_noted():
+    """The accumulator contract is two counts. A real cache split is the only reason to widen it."""
+    from pipeline.limits import reset_run_usage
+
+    from mailroom_sandbox.job import usage_capture as uc
+    from mailroom_sandbox.vendor_hotfixes import apply_hotfixes
+
+    apply_hotfixes()
+    from pipeline.limits import record_usage
+
+    reset_run_usage()
+    uc.reset_usage()
+    record_usage({"prompt_tokens": 10_000, "completion_tokens": 10}, model="qwen/qwen3.7-flash")
+    assert uc.call_usage_from_pipeline() == [[10_000, 10]]
+
+    reset_run_usage()
+    uc.reset_usage()
+    record_usage({
+        "prompt_tokens": 1_000,
+        "completion_tokens": 10,
+        "prompt_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 0},
+    }, model="deepseek/deepseek-v4.1-flash-1017")
+    assert uc.call_usage_from_pipeline() == [[1_000, 10, 800, 0]]
