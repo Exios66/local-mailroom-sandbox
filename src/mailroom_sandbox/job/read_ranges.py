@@ -4,6 +4,14 @@ For every LLM call made while a document goes through the pipeline, record which
 character ranges of the document's normalised working text the request contained.
 Matching runs against the working text; only offsets are stored, never text.
 
+Ranges are half-open ``[start, end)`` offsets into the working text, sorted, merged and
+trimmed of leading and trailing whitespace. ``matched_chars`` is the number of distinct
+request characters covered by a placed match (whitespace trimmed from a match edge is not
+counted); a request character is never counted twice. ``unplaced_pieces`` counts request
+pieces of at least 12 non-whitespace characters that could not be placed, either because
+they are not in the document or because the per-request lookup budget
+(``MAX_UNANCHORED_LOOKUPS``) ran out; downstream shows such requests as partly measured.
+
 Sections: matcher (below). Context, recorder and seam sections are appended after it.
 """
 
@@ -20,8 +28,10 @@ STRIDE = 16
 MAX_RANGES = 64
 MAX_DOC_CHARS = 3_000_000
 MAX_REQUEST_CHARS = 3_000_000
+MAX_UNANCHORED_LOOKUPS = 256  # whole-document uniqueness checks per request
 _MAX_CANDIDATES = 8  # doc positions tried per shingle (repetitive text)
 _BLOCK = 256
+_MAX_ANCHORED_SCAN = 400_000_000  # doc chars scanned by anchored finds per request
 _MAX_GAP_CHARS = 64_000  # request gaps larger than this are not gap-filled
 _MIN_UNANCHORED = 12  # non-whitespace chars needed to map a piece without an anchor
 _BLANK_LINE = re.compile(r"\n\s*\n")
@@ -32,6 +42,7 @@ class MatchResult(TypedDict):
     request_chars: int
     matched_chars: int
     doc_chars: int
+    unplaced_pieces: int  # pieces of >= 12 non-whitespace chars left unplaced
     skipped: str | None  # "size", "no_text" or None
 
 
@@ -121,10 +132,12 @@ def _pieces(request: str, lo: int, hi: int) -> list[str]:
     return [p for p in out if p]
 
 
+def _substantial(piece: str) -> bool:
+    return sum(not c.isspace() for c in piece) >= _MIN_UNANCHORED
+
+
 def _unique_in_doc(doc: str, piece: str) -> int:
     """Offset of ``piece`` if it occurs exactly once in ``doc``, else -1."""
-    if sum(not c.isspace() for c in piece) < _MIN_UNANCHORED:
-        return -1
     pos = doc.find(piece)
     if pos < 0 or doc.find(piece, pos + 1) >= 0:
         return -1
@@ -133,8 +146,12 @@ def _unique_in_doc(doc: str, piece: str) -> int:
 
 def _fill_gaps(
     doc: str, request: str, bulk: list[tuple[int, int, int, int]], found: list[list[int]]
-) -> int:
-    """Anchored gap-fill: map short pieces between bulk matches. Returns chars matched."""
+) -> tuple[int, int]:
+    """Anchored gap-fill: map short pieces between bulk matches.
+
+    Returns ``(chars matched, unplaced substantial pieces)``. Unanchored uniqueness
+    lookups are limited to ``MAX_UNANCHORED_LOOKUPS`` per request.
+    """
     n = len(request)
     gaps: list[tuple[int, int, int, int]] = []  # req_lo, req_hi, doc_lo, doc_hi
     prev_re, prev_de = 0, 0
@@ -144,6 +161,9 @@ def _fill_gaps(
     gaps.append((prev_re, n, prev_de, len(doc)))
     has_anchor = bool(bulk)
     matched = 0
+    unplaced = 0
+    lookups = 0
+    scanned = 0
     for req_lo, req_hi, doc_lo, doc_hi in gaps:
         if req_hi - req_lo <= 0 or req_hi - req_lo > _MAX_GAP_CHARS:
             continue
@@ -151,11 +171,17 @@ def _fill_gaps(
         cursor = doc_lo
 
         def place(text: str) -> bool:
-            nonlocal cursor, matched
-            pos = doc.find(text, cursor, doc_hi) if anchored else -1
+            nonlocal cursor, matched, lookups, scanned
+            pos = -1
+            if anchored and scanned + (doc_hi - cursor) <= _MAX_ANCHORED_SCAN:
+                pos = doc.find(text, cursor, doc_hi)
+                scanned += (pos - cursor) if pos >= 0 else (doc_hi - cursor)
             if pos >= 0:
                 cursor = pos + len(text)
             else:
+                if not _substantial(text) or lookups >= MAX_UNANCHORED_LOOKUPS:
+                    return False
+                lookups += 1
                 pos = _unique_in_doc(doc, text)
                 if pos < 0:
                     return False
@@ -164,14 +190,17 @@ def _fill_gaps(
             return True
 
         for piece in _pieces(request, req_lo, req_hi):
-            if place(piece) or "\n" not in piece:
+            if place(piece):
+                continue
+            if "\n" not in piece:
+                unplaced += _substantial(piece)
                 continue
             # A label line glued to the text by a single newline: try line by line.
             for line in piece.split("\n"):
                 line = line.strip()
-                if line:
-                    place(line)
-    return matched
+                if line and not place(line):
+                    unplaced += _substantial(line)
+    return matched, unplaced
 
 
 def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
@@ -182,6 +211,7 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         "request_chars": len(request),
         "matched_chars": 0,
         "doc_chars": index.doc_chars,
+        "unplaced_pieces": 0,
         "skipped": index.skipped,
     }
     if index.skipped:
@@ -230,7 +260,8 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
             continue
         found.append([s, e])
         matched += e - s
-    matched += _fill_gaps(doc, request, bulk, found)
+    filled, result["unplaced_pieces"] = _fill_gaps(doc, request, bulk, found)
+    matched += filled
     result["ranges"] = _cap_ranges(_merge_ranges(found))
     result["matched_chars"] = matched
     return result

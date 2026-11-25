@@ -253,3 +253,47 @@ def test_header_glued_by_single_newline_is_covered():
     assert any(a == start for a, _ in result["ranges"]), result["ranges"]
     assert all(a >= start for a, _ in result["ranges"])
     assert result["ranges"][0][1] == start + len("ARTICLE II")
+
+
+def test_window_edge_whitespace_is_trimmed():
+    text = _numbered_text(60_000)
+    a = text.index("\n\n", 10_000) + 2
+    b = text.index("\n\n", 40_000)
+    window = text[a - 2 : b + 2]  # contiguous slice that starts and ends in "\n\n"
+    assert window.startswith("\n\n") and window.endswith("\n\n")
+    result = match_ranges(ShingleIndex(text), "Document text:\n" + window)
+    assert result["ranges"] == [[a, b]]
+    assert result["matched_chars"] == b - a
+
+
+def test_many_small_gaps_stay_within_bound():
+    rng = random.Random(1)
+    doc = " ".join(rng.randbytes(5).hex() for _ in range(400_000))[:2_000_000]
+    index = ShingleIndex(doc)
+
+    # 1. Doc slices alternating with short unmatched lines, 600k characters.
+    parts: list[str] = []
+    total = 0
+    while total < 600_000:
+        s = rng.randrange(0, len(doc) - 200)
+        parts.append(doc[s : s + 100])
+        parts.append("\n\nzzjunk" + rng.randbytes(4).hex() + "\n\n")
+        total += 120
+    alternating = "".join(parts)
+    # 2. Thousands of short unmatched lines in one gap just under 64k, no bulk match.
+    lines = "\n\n".join("junkline number %d abc" % i for i in range(2500))
+    # 3. The same lines after one bulk match.
+    anchored = doc[1000:1200] + "\n\n" + lines
+
+    timings = {}
+    results = {}
+    for name, request in (("alternating", alternating), ("lines", lines), ("anchored", anchored)):
+        t0 = time.perf_counter()
+        results[name] = match_ranges(index, request)
+        timings[name] = time.perf_counter() - t0
+    for name, elapsed in timings.items():
+        assert elapsed < 2.0, (name, timings)
+    assert results["alternating"]["unplaced_pieces"] > 0
+    assert results["alternating"]["skipped"] is None
+    assert results["anchored"]["matched_chars"] >= 190
+    assert match_ranges(ShingleIndex(None), "x" * 100)["unplaced_pieces"] == 0
