@@ -1088,6 +1088,10 @@ def test_template_has_the_analysis_tabs_and_stalled_state():
     assert "if(snapshot)shareEpoch++" in html
     assert '(!ISSUE||ISSUE==="all")&&!MODE' in html
     assert "hop.gap" in html and "arrivalGroups(selNode, docs)" in html
+    assert "pairFocus" in html and "pathEdges" in html and "docAcross" in html and "modeNote" in html
+    assert "cellDocs" in html and "(run().docs||[])" in html and "cellEndpoint" in html
+    assert 'closest("button,input,textarea,select")' in html and "td[data-cell]" in html
+    assert 'q.set("doc"' in html and "data-cell" in html and "data-copy" in html
     assert 'r.state==="stalled"' in html and "near_gold" in html
 
 

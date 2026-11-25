@@ -147,7 +147,9 @@ The builder adds a `debug` object on each document row:
 | `loops` | Nodes entered more than once. `self` means the repeats were consecutive. `reentry` means the document left the node and came back. |
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
-| `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `lever` names the stage to inspect before the next run. |
+| `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
+| `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
+| `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
 
 A `why` sentence quotes only a stored decision, review cause, status, error,
 or an unconditional edge (`plain_edges`, such as `catalog_write` to
@@ -168,9 +170,17 @@ is grouped by the node it stopped on and its recorded review causes, so
 by the node and whether the repeat was consecutive or a reentry. A technical
 failure is grouped by the node and the error token. A class miss that still
 reached archive is its own mode. Click a mode to light only those documents.
-`?mode=` deep-links one id. The same id in another run of the digest is
-listed, so a mode that already appeared can be recognized before the next
-run repeats it. The lever tells which stage to read. It does not rewrite
+`?mode=` deep-links one id. `?doc=` and `?node=` reopen a document or a node.
+`?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the
+predicted class). Clicking a matrix cell isolates the documents in that pair
+on the whole run, including while a class is isolated, and only while debug
+isolate is off. Lit edges follow each document's path, including hops the why list omits after 16. START and END use that same pair count. A selected mode lists its count in
+every run of the digest, with the prompt stem stored for `mode.node` when the
+lock has one. Copy note writes that mode, the count, the sample ids, the stem,
+and the lever. It does not rewrite the run. A repeated visit shows stored
+elapsed time and token counts when the node record had them, and says nothing
+when it did not. Selecting a document lists that same id in the other runs of
+the digest. The lever tells which stage to read. It does not rewrite
 the run, its scores, or its prompts.
 
 **Label tiers.** Ground truth comes from the Hub, then the interim overlay,
@@ -182,8 +192,10 @@ fixture manifest (`dataset: sandbox-fixtures`, used by `sandbox api eval` withou
 hand-written test labels and show as `fixture`, not `hub`. `class only` means the row labels the
 class but no fields; `no GT row` means the run has no dataset row for it.
 
-The digest keeps at most 5,000 document rows per run (`docs_truncated` counts
-the rest); scores and node tables still cover every document. Mock and replay
+The digest keeps at most 5,000 document rows per run. Past that cap, problem
+rows stay ahead of healthy archived rows. `docs_truncated` counts every row
+left out, and `docs_omitted_healthy` counts how many of those were not
+problems. Scores and node tables still cover every document. Mock and replay
 runs carry a note: their numbers check wiring or the interface, not model
 quality.
 

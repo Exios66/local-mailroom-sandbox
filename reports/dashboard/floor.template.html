@@ -93,7 +93,8 @@ table.t tr.sel td{background:#123024}
 .bad{color:#e8543f}.warn{color:#e8b93f}.ok{color:#7fd0a2}.mut{color:#4d5c6e}
 .badge{display:inline-block;font-size:8.5px;padding:0 5px;border-radius:7px;border:1px solid #2e4256;color:#9fc6e8}
 .badge.near_gold{border-color:#e8b93f;color:#e8b93f}.badge.fixture{border-color:#5d6c80;color:#9fb0c2}.badge.interim{border-color:#c39ae8;color:#c39ae8}.badge.hub{border-color:#41d98f;color:#7fd0a2}
-.cm td.cell{text-align:center;min-width:34px}
+.cm td.cell{text-align:center;min-width:34px;cursor:pointer}
+.cm td.cell.on{outline:1px solid #7fd0a2}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;font-size:10px;color:#7e8ca0}
 .filters select,.filters input{font:inherit;font-size:10px;background:#0d141d;color:#b8c6d4;border:1px solid #2e4256;border-radius:3px;padding:2px 4px}
 .path{color:#7e8ca0}.path b{color:#9fc6e8;font-weight:normal}
@@ -142,7 +143,7 @@ const NB={w:186,h:62};
 const W=2200,H=1400, world=document.getElementById("world"), svg=document.getElementById("edges"), vp=document.getElementById("viewport");
 // default run: the last one still running, else the last run in the digest
 let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, selDoc=null, moved=0;
-let TAB="scores";const DF={outcome:"",miss:false,q:""};   // drawer tab + Documents filters (kept across refreshes)
+let TAB="scores";const DF={outcome:"",miss:false,q:"",cell:null,dec:""};   // drawer tab + Documents filters (kept across refreshes)
 let DEBUG=false, ISSUE="problems", MODE=null;
 const ISSUE_IDS=["problems","loop","stuck","held","failed","open","miss","diverted","all"];
 const PROBLEM=["stuck","held","failed","open","miss","diverted"];
@@ -151,6 +152,10 @@ const PROBLEM=["stuck","held","failed","open","miss","diverted"];
  DEBUG=q.get("debug")==="1";
  if(ISSUE_IDS.includes(q.get("issue")))ISSUE=q.get("issue");
  if(q.get("mode"))MODE=q.get("mode");
+ if(q.get("doc"))selDoc=q.get("doc");
+ if(q.get("node")&&!selDoc)selNode=q.get("node");
+ DF.cell=parseCell(q.get("cell"));
+ DF.dec=q.get("dec")||"";
  if(DEBUG)TAB="debug";
  const dr=D.runs[runIdx];   // honor ?class= only when THIS run can isolate it (same rule as the class rail's "?" state)
  if(c&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why){CLASS=c;document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";const bt=document.getElementById("bigTitle");bt.textContent=c.toUpperCase();bt.classList.add("on")}}
@@ -241,6 +246,81 @@ function paintProgress(){
  document.getElementById("ptxt").textContent=cur+" / "+r.total+" docs · "+(done?"100":pct.toFixed(1))+"%"+(typeof r.avg_doc_ms==="number"?" · AVG "+(r.avg_doc_ms/60000).toFixed(1)+" min/doc":"");
  el.classList.add("on")}
 const ISSUE_LABEL={problems:"problems",loop:"loops",stuck:"stuck in a loop",held:"human review",failed:"failed",open:"still open",miss:"class miss",diverted:"missed archive",all:"all traffic"};
+function parseCell(raw){
+ if(!raw||!raw.includes("\t"))return null;
+ const i=raw.indexOf("\t");
+ return {gt:raw.slice(0,i),pred:raw.slice(i+1)}}
+function recordedPred(d){return d.pred||(d.gt&&d.outcome!=="open"?"unknown":"")}
+function cellDocs(){
+ if(!DF.cell)return null;
+ // The confusion matrix is run-wide, so a cell must not follow the class isolate.
+ return (run().docs||[]).filter(d=>String(d.gt||"")===DF.cell.gt&&recordedPred(d)===DF.cell.pred)}
+function cellEndpoint(id){
+ if(!DF.cell||focusSets())return null;
+ const docs=cellDocs()||[];
+ if(id==="START")return docs.length;
+ return endSources().reduce((t,n)=>t+docs.filter(d=>(d.path||[]).includes(n)).length,0)}
+function cellNodeCount(id){
+ if(!DF.cell||focusSets())return null;
+ return (cellDocs()||[]).filter(d=>(d.path||[]).includes(id)).length}
+function pathEdges(d){
+ const path=d.path||[],out=[];
+ for(let i=1;i<path.length;i++)if(path[i]&&path[i]!==path[i-1])out.push([path[i-1],path[i]]);
+ return out}
+function cellEdgeCount(a,b){
+ if(!DF.cell||focusSets())return null;
+ let n=0;
+ for(const d of cellDocs()||[])for(const e of pathEdges(d))if(e[0]===a&&e[1]===b)n++;
+ return n}
+function pairFocus(){
+ const docs=cellDocs();
+ if(!docs||selDocPath())return null;
+ const nodes=new Set(),edges=new Set();
+ for(const d of docs){
+  for(const n of d.path||[])nodes.add(n);
+  for(const e of pathEdges(d))edges.add(e[0]+">"+e[1])}
+ return {nodes,edges}}
+function decisionMatch(d){
+ if(!DF.dec)return true;
+ const q=DF.dec.toLowerCase();
+ const answers=((d.debug||{}).answers||[]).join(" ");
+ const why=((d.debug||{}).hops||[]).map(h=>h.why||"").join(" ");
+ return (answers+" "+why+" "+((d.debug||{}).causes||[]).join(" ")).toLowerCase().includes(q)}
+function promptFor(runRow, node){
+ const agent=node&&(D.graph_reference.node_agents||{})[node];
+ const stem=agent&&runRow.prompts&&runRow.prompts[agent];
+ return stem?{agent,stem}:null}
+function docAcross(id){
+ const rows=[];
+ D.runs.forEach(r=>{
+  const d=(r.docs||[]).find(x=>x.id===id);if(!d)return;
+  const mode=d.debug&&d.debug.mode;
+  const prompt=promptFor(r, mode&&mode.node);
+  rows.push({name:r.name,outcome:d.outcome,mode:mode&&mode.id,prompt,replay:!!r.replay})});
+ return rows}
+function modeHistory(id){
+ const sample=D.runs.map(r=>(r.docs||[]).find(d=>d.debug&&d.debug.mode&&d.debug.mode.id===id)).find(Boolean);
+ const node=sample&&sample.debug.mode.node;
+ return D.runs.map(r=>({
+  name:r.name,
+  n:(r.docs||[]).filter(d=>d.debug&&d.debug.mode&&d.debug.mode.id===id).length,
+  node,prompt:promptFor(r,node),replay:!!r.replay}))}
+function costText(cost){
+ if(!cost)return "";
+ const bits=[];
+ if(cost.ms!=null)bits.push((cost.ms/1000).toFixed(1)+" s");
+ if(cost.prompt!=null)bits.push(cost.prompt+" prompt tokens");
+ if(cost.completion!=null)bits.push(cost.completion+" completion tokens");
+ return bits.length?" Stored on the repeats: "+bits.join(", ")+".":""}
+function modeNote(mode, n, ids){
+ const r=run(),prompt=promptFor(r, mode.node);
+ return ["Failure mode: "+mode.id,
+  "Run: "+r.name+(r.replay?" (replay, not model evidence)":""),
+  "Documents in this filter: "+n,
+  "Sample: "+ids.join(", "),
+  "Node: "+(mode.node||""),
+  prompt?"Prompt stem: "+prompt.agent+" = "+prompt.stem:"Prompt stem: none stored for this node",
+  mode.lever,"The past run is left unchanged."].join("\n")}
 function isProblem(d){return ((d.debug||{}).issues||[]).some(i=>PROBLEM.includes(i))}
 /** Documents in the debug isolate, or every document of the run/class when debug is off or set to all traffic. */
 function issueDocs(){
@@ -257,7 +337,7 @@ function modeGroups(docs){
  const map=new Map();
  for(const d of docs||issueDocs()){
   const m=d.debug&&d.debug.mode;if(!m)continue;
-  const g=map.get(m.id)||{id:m.id,label:m.label,lever:m.lever,n:0,docs:[]};
+  const g=map.get(m.id)||{id:m.id,label:m.label,lever:m.lever,node:m.node,n:0,docs:[]};
   g.n++;if(g.docs.length<8&&!g.docs.includes(d.id))g.docs.push(d.id);
   map.set(m.id,g)}
  return [...map.values()].sort((a,b)=>b.n-a.n||(a.id<b.id?-1:1))}
@@ -276,7 +356,7 @@ function focusSets(){
  const nodes=new Set(),edges=new Set(),loops=new Set();
  for(const d of debugDocs()){
   for(const n of d.path||[])nodes.add(n);
-  for(const h of (d.debug&&d.debug.hops)||[]){if(h.from&&h.to&&!h.gap)edges.add(h.from+">"+h.to)}
+  for(const e of pathEdges(d))edges.add(e[0]+">"+e[1]);
   for(const L of (d.debug&&d.debug.loops)||[]){loops.add(L.node);nodes.add(L.node)}}
  return {nodes,edges,loops}}
 /** How many isolated documents repeat this node, and the highest visit count among them. */
@@ -309,6 +389,12 @@ function syncDebug(){
  if(DEBUG)q.set("debug","1");else q.delete("debug");
  if(DEBUG&&ISSUE&&ISSUE!=="problems")q.set("issue",ISSUE);else q.delete("issue");
  if(DEBUG&&MODE)q.set("mode",MODE);else q.delete("mode");
+ q.set("run", run().name);
+ if(CLASS)q.set("class", CLASS);else q.delete("class");
+ if(selDoc)q.set("doc", selDoc);else q.delete("doc");
+ if(selNode&&!selDoc)q.set("node", selNode);else q.delete("node");
+ if(DF.cell)q.set("cell", DF.cell.gt+"\t"+DF.cell.pred);else q.delete("cell");
+ if(DF.dec)q.set("dec", DF.dec);else q.delete("dec");
  const s=q.toString();
  history.replaceState(null,"",location.pathname+(s?"?"+s:"")+location.hash)}
 /** Redraw graph traffic and detail panels for the current run, class, and node selection. */
@@ -316,7 +402,7 @@ function render(){
  world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
  while(svg.childNodes.length>1)svg.lastChild.remove();
  const r=run(),GR=D.graph_reference,docPath=selDocPath(),docPairs=new Set((docPath||[]).slice(1).map((n,i)=>docPath[i]+">"+n));
- const focus=focusSets();
+ const focus=focusSets()||pairFocus();
  // pre-compute edge traffic in current view context
  const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?nodeVal(b):b==="END"?nodeVal(a):edgeVal(a,b)}));
  const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
@@ -329,11 +415,12 @@ function render(){
      : selNode ? (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))))
      : focus ? (id==="START"?startTargets().some(t=>focus.nodes.has(t)):endSources().some(t=>focus.nodes.has(t)))
      : (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0)));
-   const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${id==="START"?r.items_attempted:endCount()}</div>`,"node"+(lit?"":" dim"));
+   const endN=cellEndpoint(id);
+   const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${endN==null?(id==="START"?r.items_attempted:endCount()):endN}</div>`,"node"+(lit?"":" dim"));
    el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
    el.dataset.k=id;continue;
   }
-  const v=nodeVal(id);
+  const counted=cellNodeCount(id),v=counted==null?nodeVal(id):counted;
   const isllm=isLLM(id);
   let ncls="node";
   if(id==="human_review")ncls+=" hold";
@@ -365,7 +452,7 @@ function render(){
   const p1=anc(POS[a],POS[b]),p2=anc(POS[b],POS[a]);const dx=p2.x-p1.x,dy=p2.y-p1.y,dist=Math.hypot(dx,dy)||1;
   const m=midFor(a,b,p1,p2,BOX);
   const cxm=m.x,cym=m.y;
-  const v=edgeVal(a,b), active=v>0;
+  const counted=cellEdgeCount(a,b),v=counted==null?edgeVal(a,b):counted, active=v>0;
   const selHit=!!selNode&&(a===selNode||b===selNode);
   let cls="edge", marker="url(#arr)";
   if(docPath){ if(docPairs.has(a+">"+b)){cls="edge sel";marker="url(#arrSel)"}else{cls="edge dim";marker="url(#arrDim)"} }   // picked document: only its own hops
@@ -436,7 +523,7 @@ function render(){
  document.getElementById("selExtra").textContent=!sel?"":
   (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
   +nodeOutcomeText(sel);
- paintDoc();paintMode();paintNodeDiag();renderPane();
+ paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();
 }
 /** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
@@ -499,12 +586,20 @@ function paintDoc(){
   ["latency",d.ms==null?"—":(d.ms/1000).toFixed(1)+" s"],["path",pathHtml(d.path)],["note",esc(d.note||"—")]]
   .map(([k,v])=>`<span>${k}</span><b style="font-weight:normal;white-space:normal">${v}</b>`).join("");
  const g=DEBUG&&d.debug;
- if(!g){diag.innerHTML="";return}
- let h=`<div class="diag"><b>${g.archive&&g.archive.reached?"Reached archive":"Did not archive"}</b><div>${esc((g.archive||{}).why||"")}</div>`;
- if(g.loops&&g.loops.length)h+=`<b>Loops</b>`+g.loops.map(L=>`<div><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</div>`).join("");
- if(g.hops&&g.hops.length)h+=`<b>Why each hop</b>`+g.hops.map(hop=>hop.gap?`<div class="mut">${hop.gap} hop(s) omitted here. The next line does not follow the previous one.</div>`:`<div><span class="why">${esc(hop.from)} → ${esc(hop.to)}</span> — ${esc(hop.why)}</div>`).join("");
- if(g.mode)h+=`<b>Next run</b><div>${esc(g.mode.lever)}</div>`;
- diag.innerHTML=h+"</div>"}
+ let h=`<div class="diag">`;
+ if(g)h+=`<b>${g.archive&&g.archive.reached?"Reached archive":"Did not archive"}</b><div>${esc((g.archive||{}).why||"")}</div>`;
+ if(g&&g.loops&&g.loops.length)h+=`<b>Loops</b>`+g.loops.map(L=>`<div><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why+costText(L.cost))}</div>`).join("");
+ if(d.fields&&d.fields.length){
+  h+=`<b>Fields</b><div class="mut">Stored comparison beside the extraction score. Not a new score.</div>`;
+  d.fields.forEach(f=>{const line=f.kind==="stored_score"?`stored score ${f.score}`:f.kind==="missing"?`label ${f.expected}, no stored value`:`label ${f.expected}, stored ${f.recorded}`;
+   h+=`<div>${esc(f.field)} — ${esc(line)}</div>`})}
+ const across=docAcross(d.id);
+ if(across.length>1){h+=`<b>This document in the digest</b>`;
+  across.forEach(row=>{const stem=row.prompt?` · ${row.prompt.agent} ${row.prompt.stem}`:"";
+   h+=`<div>${esc(row.name)} · ${esc(row.outcome)}${row.mode?" · "+esc(row.mode):""}${esc(stem)}${row.replay?" · replay":""}</div>`})}
+ if(g&&g.hops&&g.hops.length)h+=`<b>Why each hop</b>`+g.hops.map(hop=>hop.gap?`<div class="mut">${hop.gap} hop(s) omitted here. The next line does not follow the previous one.</div>`:`<div><span class="why">${esc(hop.from)} → ${esc(hop.to)}</span> — ${esc(hop.why)}</div>`).join("");
+ if(g&&g.mode)h+=`<b>Next run</b><div>${esc(g.mode.lever)}</div>`;
+ diag.innerHTML=h==="<div class=\"diag\">"?"":h+"</div>"}
 function paintMode(){
  if(!DEBUG||!MODE||selDoc)return;
  const sample=issueDocs().find(d=>d.debug&&d.debug.mode&&d.debug.mode.id===MODE);
@@ -545,18 +640,21 @@ function scoresPane(){
  h+=`<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start"><div><h4>LABEL TIER (GT source)</h4><table class="t"><tr><th>tier</th><th class="num">docs</th><th class="num">scored</th><th class="num">extraction</th></tr>${tierRows||'<tr><td colspan="4" class="mut">no dataset rows</td></tr>'}</table></div>`;
  const cm=sc.confusion||{},gts=Object.keys(cm),preds=[...new Set(gts.concat(...gts.map(g=>Object.keys(cm[g]))))].sort();
  if(gts.length)h+=`<div><h4>CONFUSION (rows = GT, columns = predicted)</h4><table class="t cm"><tr><th></th>${preds.map(p=>`<th class="num" title="${esc(p)}">${esc(p.slice(0,10))}</th>`).join("")}</tr>`+
-  gts.map(g=>`<tr><td>${esc(g)}</td>${preds.map(p=>{const v=cm[g][p]||0;return `<td class="cell ${v&&g!==p?"bad":v?"ok":"mut"}">${v||"·"}</td>`}).join("")}</tr>`).join("")+"</table></div>";
+  gts.map(g=>`<tr><td>${esc(g)}</td>${preds.map(p=>{const v=cm[g][p]||0,on=DF.cell&&DF.cell.gt===g&&DF.cell.pred===p;return `<td class="cell click ${on?"on ":""}${v&&g!==p?"bad":v?"ok":"mut"}" tabindex="0" data-cell="${esc(g)}\t${esc(p)}" title="isolate this ground-truth and prediction pair">${v||"·"}</td>`}).join("")}</tr>`).join("")+"</table></div>";
  return h+"</div>"}
 function docsPane(){
  const r=run();if(!r.docs)return '<p class="secnote">This digest predates per-document rows: rebuild it with the current builder.</p>';
  const q=DF.q.toLowerCase();
- const pool=DEBUG?debugDocs():runDocs();
- const rows=pool.filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q)));
+ const pool=DF.cell?cellDocs():DEBUG?debugDocs():runDocs();
+ const rows=pool.filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q))&&(!DF.cell||(String(d.gt||"")===DF.cell.gt&&recordedPred(d)===DF.cell.pred))&&decisionMatch(d));
  const shown=rows.slice(0,600);
- let h=`<div class="filters"><span>${rows.length} of ${pool.length} doc(s)${CLASS?" in "+esc(CLASS):""}${DEBUG?" · "+esc(ISSUE_LABEL[ISSUE]||ISSUE):""}${r.docs_truncated?` · digest keeps the first ${r.docs.length} of ${r.docs.length+r.docs_truncated}`:""}</span>
+ const keptNote=r.docs_truncated?` · ${r.docs.length} kept, ${r.docs_truncated} left out${r.docs_omitted_healthy?` (${r.docs_omitted_healthy} healthy; problems kept first)`:""}`:"";
+ let h=`<div class="filters"><span>${rows.length} of ${pool.length} doc(s)${CLASS?" in "+esc(CLASS):""}${DEBUG?" · "+esc(ISSUE_LABEL[ISSUE]||ISSUE):""}${DF.cell?" · "+esc(DF.cell.gt+" → "+DF.cell.pred):""}${keptNote}</span>
 <label>outcome <select id="fOut"><option value="">all</option>${["ship","held","failed","open"].map(k=>`<option value="${k}"${DF.outcome===k?" selected":""}>${OUTC[k][1]}</option>`).join("")}</select></label>
 <label><input type="checkbox" id="fMiss"${DF.miss?" checked":""}> misclassified or failed only</label>
-<label>id <input id="fQ" value="${esc(DF.q)}" size="16" placeholder="filter"></label><span class="mut">click a row to trace its path on the graph</span></div>`;
+<label>id <input id="fQ" value="${esc(DF.q)}" size="16" placeholder="filter"></label>
+<label>decision <input id="fDec" value="${esc(DF.dec)}" size="16" placeholder="stored answer"></label>
+${DF.cell?`<button type="button" class="tab" id="clearCell">clear cell</button>`:""}<span class="mut">click a row to trace its path on the graph</span></div>`;
  h+=`<table class="t"><tr><th>document</th><th>GT</th><th>predicted</th><th>outcome</th><th class="num">extraction</th><th>labels</th><th>review trigger</th><th class="num">s</th><th>path</th>${DEBUG?"<th>why</th>":""}</tr>`+
   shown.map(d=>{const miss=d.gt&&d.pred&&d.gt!==d.pred,o=OUTC[d.outcome]||["mut",d.outcome];
    const why=DEBUG&&d.debug&&d.debug.archive?d.debug.archive.why:"";
@@ -578,8 +676,12 @@ function debugPane(){
  const groups=modeGroups(DEBUG?issueDocs():runDocs().filter(isProblem));
  h+=`<h4>FAILURE MODES · ${esc(label)} — click a row to isolate that mode</h4>`;
  if(!groups.length)h+=`<p class="secnote">No failure mode in this filter.</p>`;
- else h+=`<table class="t"><tr><th class="num">docs</th><th>mode</th><th>next run</th><th>other runs</th><th>documents</th></tr>`+groups.map(m=>{const elsew=modeElsewhere(m.id);
-  return `<tr class="click${MODE===m.id?" sel":""}" tabindex="0" data-mode="${esc(m.id)}"><td class="num">${m.n}</td><td class="why">${esc(m.label)}</td><td class="why">${esc(m.lever)}</td><td class="why">${elsew.length?elsew.map(x=>esc(x.name)+" · "+x.n).join("; "):"—"}</td><td>${m.docs.map(esc).join(", ")}</td></tr>`}).join("")+"</table>";
+ else h+=`<table class="t"><tr><th class="num">docs</th><th>mode</th><th>prompt stem</th><th>next run</th><th>other runs</th><th>documents</th><th></th></tr>`+groups.map(m=>{const elsew=modeElsewhere(m.id),prompt=promptFor(run(), m.node);
+  const stem=prompt?prompt.agent+" = "+prompt.stem:"none stored";
+  return `<tr class="click${MODE===m.id?" sel":""}" tabindex="0" data-mode="${esc(m.id)}"><td class="num">${m.n}</td><td class="why">${esc(m.label)}</td><td class="why">${esc(stem)}</td><td class="why">${esc(m.lever)}</td><td class="why">${elsew.length?elsew.map(x=>esc(x.name)+" · "+x.n).join("; "):"—"}</td><td>${m.docs.map(esc).join(", ")}</td><td><button type="button" class="tab" data-copy="${esc(m.id)}">copy note</button></td></tr>`}).join("")+"</table>";
+ if(MODE){const hist=modeHistory(MODE);
+  h+=`<h4>THIS MODE ACROSS THE DIGEST</h4><table class="t"><tr><th>run</th><th class="num">docs</th><th>prompt stem</th></tr>`+hist.map(row=>{const stem=row.prompt?row.prompt.agent+" = "+row.prompt.stem:"none stored";
+   return `<tr><td>${esc(row.name)}${row.replay?" · replay":""}</td><td class="num">${row.n}</td><td class="why">${esc(stem)}</td></tr>`}).join("")+"</table>"}
  h+=`<div class="kpis"><div class="kpi"><div class="l">${MODE?"THIS MODE":"IN THIS FILTER"} · ${esc(MODE?groups.find(m=>m.id===MODE)?.label||MODE:label)}</div><div class="v">${docs.length}</div><div class="s">${issueDocs().length} in the issue filter · ${runDocs().length} in view</div></div></div>`;
  if(selNode){
   const groups=arrivalGroups(selNode, docs),looping=docs.filter(d=>((d.debug||{}).loops||[]).some(L=>L.node===selNode));
@@ -587,7 +689,7 @@ function debugPane(){
   h+=`<h4>WHY DOCUMENTS REACHED ${esc(selNode)}</h4>`;
   if(!groups.length)h+=`<p class="secnote">${looping.length?"No other node handed a document here. The repeats are on this node.":"No recorded hop into this node for the current filter."}</p>`;
   else h+=`<table class="t"><tr><th class="num">arrivals</th><th>from</th><th>why</th><th>documents</th></tr>`+groups.map(g=>`<tr class="click" tabindex="0" data-doc="${esc(g.docs[0]||"")}"><td class="num">${g.n}</td><td>${esc(g.from)}</td><td class="why">${esc(g.why)}</td><td>${g.docs.map(esc).join(", ")}</td></tr>`).join("")+"</table>";
-  if(looping.length)h+=`<h4>REPEATS AT ${esc(selNode)}</h4><table class="t"><tr><th>document</th><th>kind</th><th>why</th></tr>`+looping.map(d=>{const L=d.debug.loops.find(x=>x.node===selNode);return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td class="warn">${esc(L.kind)} ×${L.visits}</td><td class="why">${esc(L.why)}</td></tr>`}).join("")+"</table>";
+  if(looping.length)h+=`<h4>REPEATS AT ${esc(selNode)}</h4><table class="t"><tr><th>document</th><th>kind</th><th>why</th></tr>`+looping.map(d=>{const L=d.debug.loops.find(x=>x.node===selNode);return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td class="warn">${esc(L.kind)} ×${L.visits}</td><td class="why">${esc(L.why+costText(L.cost))}</td></tr>`}).join("")+"</table>";
   h+=`<h4>WHY THEY MISSED ARCHIVE</h4>`;
   if(!blocked.length)h+=`<p class="secnote">Every filtered document that reached ${esc(selNode)} also recorded archive, or none of them reached it.</p>`;
   else h+=`<table class="t"><tr><th>document</th><th>stopped</th><th>why not archive</th></tr>`+blocked.slice(0,80).map(d=>`<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td>${esc(d.debug.archive.stopped||"—")}</td><td class="why">${esc(d.debug.archive.why)}</td></tr>`).join("")+"</table>";
@@ -595,12 +697,14 @@ function debugPane(){
  if(selDoc){
   const d=docs.find(x=>x.id===selDoc)||(run().docs||[]).find(x=>x.id===selDoc);
   if(d&&d.debug){h+=`<h4>${esc(d.id)} — HOPS</h4><table class="t"><tr><th>from</th><th>to</th><th>why</th></tr>`+(d.debug.hops||[]).map(hop=>hop.gap?`<tr><td colspan="3" class="why">${hop.gap} hop(s) omitted here. The next row does not follow the previous one.</td></tr>`:`<tr><td>${esc(hop.from)}</td><td>${esc(hop.to)}</td><td class="why">${esc(hop.why)}</td></tr>`).join("")+"</table>";
-   if(d.debug.loops&&d.debug.loops.length)h+=`<h4>LOOPS</h4>`+d.debug.loops.map(L=>`<p class="secnote"><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</p>`).join("");
+   if(d.debug.loops&&d.debug.loops.length)h+=`<h4>LOOPS</h4>`+d.debug.loops.map(L=>`<p class="secnote"><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why+costText(L.cost))}</p>`).join("");
    return h}}
+ const listed=docs.filter(decisionMatch);
+ h+=`<div class="filters"><label>decision <input id="fDec" value="${esc(DF.dec)}" size="18" placeholder="stored answer"></label></div>`;
  h+=`<h4>DOCUMENTS · ${esc(label)} — click a row to trace it</h4><table class="t"><tr><th>document</th><th>issues</th><th>why not archive, or the repeat</th></tr>`+
-  docs.slice(0,200).map(d=>{const g=d.debug||{issues:[],archive:{}};const line=(g.archive&&g.archive.why)||"";
+  listed.slice(0,200).map(d=>{const g=d.debug||{issues:[],archive:{}};const line=(g.archive&&g.archive.why)||"";
    return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td>${(g.issues||[]).map(esc).join(" ")}</td><td class="why">${esc(line)}</td></tr>`}).join("")+"</table>";
- if(docs.length>200)h+=`<p class="secnote">${docs.length-200} more: narrow the issue filter.</p>`;
+ if(listed.length>200)h+=`<p class="secnote">${listed.length-200} more: narrow the issue filter.</p>`;
  return h}
 /** Repaint the drawer's active tab and wire its rows; keeps the pane's scroll position. */
 function renderPane(){
@@ -613,10 +717,25 @@ function renderPane(){
  pane.querySelectorAll("tr[data-doc]").forEach(el=>el.onclick=()=>pickDoc(el.dataset.doc));
  pane.querySelectorAll("tr[data-cls]").forEach(el=>el.onclick=()=>pickClass(el.dataset.cls));
  pane.querySelectorAll("tr[data-node]").forEach(el=>el.onclick=()=>{selNode=selNode===el.dataset.node?null:el.dataset.node;selDoc=null;render()});
- const fo=document.getElementById("fOut"),fm=document.getElementById("fMiss"),fq=document.getElementById("fQ");
+ const fo=document.getElementById("fOut"),fm=document.getElementById("fMiss"),fq=document.getElementById("fQ"),fd=document.getElementById("fDec");
  if(fo)fo.onchange=()=>{DF.outcome=fo.value;renderPane()};
  if(fm)fm.onchange=()=>{DF.miss=fm.checked;renderPane()};
- if(fq){fq.oninput=()=>{DF.q=fq.value;renderPane()};if(f==="fQ"){fq.focus();fq.setSelectionRange(fq.value.length,fq.value.length)}}}
+ if(fq){fq.oninput=()=>{DF.q=fq.value;renderPane()};if(f==="fQ"){fq.focus();fq.setSelectionRange(fq.value.length,fq.value.length)}}
+ if(fd){fd.oninput=()=>{DF.dec=fd.value;renderPane()};if(f==="fDec"){fd.focus();fd.setSelectionRange(fd.value.length,fd.value.length)}}
+ const clear=document.getElementById("clearCell");
+ if(clear)clear.onclick=()=>{DF.cell=null;render()};
+ pane.querySelectorAll("td[data-cell]").forEach(el=>el.onclick=()=>{
+  const raw=el.getAttribute("data-cell")||"",i=raw.indexOf("\t");if(i<0)return;
+  const gt=raw.slice(0,i),pred=raw.slice(i+1);
+  DF.cell=DF.cell&&DF.cell.gt===gt&&DF.cell.pred===pred?null:{gt,pred};render()});
+ pane.querySelectorAll("button[data-copy]").forEach(el=>el.onclick=(ev)=>{
+  ev.stopPropagation();
+  const m=modeGroups().find(x=>x.id===el.getAttribute("data-copy"));if(!m)return;
+  const text=modeNote(m,m.n,m.docs);
+  const mark=ok=>{el.textContent=ok?"copied":"copy failed"};
+  const fallback=()=>{const ta=document.createElement("textarea");ta.value=text;ta.readOnly=true;ta.style.position="fixed";ta.style.left="-1000px";document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand("copy")}catch(err){ok=false}ta.remove();mark(ok)};
+  const clip=navigator.clipboard;
+  if(clip&&clip.writeText)clip.writeText(text).then(()=>mark(true),fallback);else fallback()})}
 document.getElementById("exp").onclick=floorDownload;
 document.getElementById("imp").onclick=()=>document.getElementById("impFile").click();
 document.getElementById("impFile").onchange=()=>{
@@ -642,6 +761,8 @@ menus();render();
 // menus()/render() rebuild those elements, so focus moves to the rebuilt one.
 document.addEventListener("keydown",e=>{
  if(e.key!=="Enter"&&e.key!==" ")return;
+ if(e.target.closest&&e.target.closest("button,input,textarea,select"))return;
+ const cell=e.target.closest&&e.target.closest("td[data-cell]");if(cell){e.preventDefault();cell.click();return}
  const row=e.target.closest&&e.target.closest("tr.click");if(row){e.preventDefault();const k=row.dataset.mode?"mode":row.dataset.doc?"doc":row.dataset.cls?"cls":"node",v=row.dataset[k];row.click();const n=document.querySelector(`tr[data-${k}="${CSS.escape(v)}"]`);if(n)n.focus();return}
  const t=e.target.closest&&e.target.closest(".run,.mode,.issue,.cls,.node,#zoomctl>div,#dbg");if(!t)return;
  e.preventDefault();
