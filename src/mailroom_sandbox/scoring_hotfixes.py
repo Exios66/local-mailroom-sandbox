@@ -108,10 +108,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
-                  "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e")),
+                  "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e"),
+                 ("mailroom_sandbox.rescore:run_scores", "74498e99c35f8e067732a71670c944f22cd291fb2fdf4c2439e9d676ec57c9c6")),
         upstream="sandbox",
         summary="a row that errored (timeout, parse failure, crash) scores 0 in the run "
-                "headline instead of leaving the denominator",
+                "headline instead of leaving the denominator (isolated evals, the job-runner "
+                "sorter and a rescore's scores.json)",
     ),
     ScoringHotfix(
         id="SHF-006",
