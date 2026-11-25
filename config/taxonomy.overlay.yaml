@@ -64,12 +64,13 @@ context_fit:
   # a run max_tokens knob). The 2-4k L4 caps below cut long JSON off and forced re-extractions.
   output_tokens: 16384
 
-# Retry budgets (one retry per lane, not two). The vendored defaults let one document run up
-# to five extractions, three judge passes and two arbiter calls before parking it for a
-# person (retry_max 2 + arbiter_retry_max 2, judge_max_passes 3, two node-level transient
-# re-runs on top of retry_chat_completion's own five attempts). A run's `confidence`
-# block and a locked run's frozen block still win; a lock written before these keys keeps
-# the vendored routing (HF-011 and HF-012 are inert without them).
+# Retry budgets (one retry per lane, not two). Before this block a document could run up to
+# four extractions, three judge passes and two arbiter calls before parking it for a person
+# (retry_max 1 from config/components.yaml, arbiter_retry_max 2, judge_max_passes 3, two
+# node-level transient re-runs on top of retry_chat_completion's own five attempts). These
+# apply to every provider route. A run's `confidence` block and a locked run's frozen block
+# still win; a lock with no frozen effective_confidence resumes on its earlier budgets
+# (routing_audit.legacy_thresholds), so HF-011 and HF-012 stay inert there.
 confidence:
   retry_max: 1                    # one confidence/schema re-extraction (classify retries once anyway)
   arbiter_retry_max: 1            # one arbiter fix-list re-extraction

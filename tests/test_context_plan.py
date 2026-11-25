@@ -331,3 +331,16 @@ def test_a_decisions_backed_reviewer_task_is_not_blocked_by_reader_gaps():
     assert preflight._blocking_gaps(chat, gaps) == gaps
     pipeline = SimpleNamespace(task="pipeline", reviewer=SimpleNamespace(backend="decisions"), agent_knobs={})
     assert preflight._blocking_gaps(pipeline, gaps) == gaps
+
+
+def test_an_input_knob_never_excuses_a_short_source_window():
+    # A run-set max_input_chars widens the reader's input; the vendored 16k source window
+    # is a separate constant the knob cannot reach, so that gap still blocks.
+    from types import SimpleNamespace
+
+    gaps = [
+        "judge: max_input_chars=80000 was not expanded",
+        "judge: source window stays at 16000 chars; the judge reads a slice of the document",
+    ]
+    spec = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"judge": {"max_input_chars": 80000}})
+    assert preflight._blocking_gaps(spec, gaps) == gaps[1:]

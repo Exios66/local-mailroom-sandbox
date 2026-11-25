@@ -848,7 +848,21 @@ def _blocking_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
     if spec.task in _DECISION_MODEL_TASKS and reviewer is not None and reviewer.backend != "api":
         return []
     excused = _explicit_input_knobs(spec)
-    return [gap for gap in gaps if gap.split(":", 1)[0] not in excused]
+    return [gap for gap in gaps if not _knob_excuses(gap, excused)]
+
+
+_KNOB_FIXABLE_GAPS = ("max_input_chars=", "has no context_length")
+
+
+def _knob_excuses(gap: str, excused: set[str]) -> bool:
+    """An explicit ``max_input_chars`` knob excuses an input-budget gap, never a source window.
+
+    The knob sets the reader's input length; the 16k sliding source window is a separate
+    vendored constant the knob cannot widen, so that gap still blocks.
+    """
+    if gap.split(":", 1)[0] not in excused:
+        return False
+    return any(marker in gap for marker in _KNOB_FIXABLE_GAPS)
 
 
 def _explicit_input_knobs(spec: RunSpec) -> set[str]:

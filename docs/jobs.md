@@ -410,8 +410,13 @@ locked prompts/models/knobs rather than later ambient generation settings.
    (`context_fit.sha256`). The digest covers the fitted windows, the chunk cap,
    whether chunking is enabled, and the overlap. Resume, including
    `sandbox run resume --run-id`, refuses before any document when the price
-   sheet or overlay would change any of those. A lock without the key
-   still resumes when its spec hash matches. Re-preflighting a slice whose YAML now sets
+   sheet or overlay would change any of those. The digest also covers a fitted
+   specialist's raised output cap (`context_fit.output_tokens`), so an OpenRouter
+   lock taken before that cap existed is refused on resume and needs `--force` to
+   re-lock. A lock without the key
+   still resumes when its spec hash matches, on the live fit. A lock without a
+   frozen `effective_confidence` resumes on the retry budgets it started with
+   (`routing_audit.legacy_thresholds`), not on keys a later overlay added. Re-preflighting a slice whose YAML now sets
    `require_expanded_inputs` changes `spec_hash`, so a `--config` resume returns
    `drift_refused` until `--force` archives that generation and re-locks. Production
    slices set `job.require_expanded_inputs`. Their sorter and intake stay at

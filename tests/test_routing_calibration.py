@@ -569,3 +569,34 @@ def test_passing_judge_pass_has_two_billed_model_calls(monkeypatch):
         'classes']['contract']['input_cost_usd']
     assert cost['judged'] - cost['clean'] == pytest.approx(
         _calls_cost(agent['model'], len(calls), 1000), abs=0.00001)
+
+
+def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
+    """A lock with no frozen `effective_confidence` predates the overlay's retry-budget block.
+
+    It resumes on the budgets it ran with (vendored, then components.yaml), so HF-011/HF-012
+    stay inert, while a key the run set itself still wins.
+    """
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, legacy_thresholds
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    assert effective_thresholds()["transient_retry_max"] == 1  # what a new lock freezes
+    legacy = legacy_thresholds({})
+    assert "transient_retry_max" not in legacy and "judge_exhausted_to_arbiter" not in legacy
+    assert (legacy["retry_max"], legacy["arbiter_retry_max"], legacy["judge_max_passes"]) == (1, 2, 3)
+    assert legacy_thresholds({"judge_max_passes": 4})["judge_max_passes"] == 4
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {"arbiter_retry_max": 1}}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        resumed = get_confidence_thresholds("contract")
+        assert resumed.get("transient_retry_max") is None
+        assert resumed.get("judge_exhausted_to_arbiter") is None
+        assert resumed["judge_max_passes"] == 3 and resumed["arbiter_retry_max"] == 1
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert get_confidence_thresholds("contract")["transient_retry_max"] == 1

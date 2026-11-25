@@ -63,6 +63,37 @@ def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> di
     return deep_merge(block, dict(lock_confidence or {}))
 
 
+# Keys the taxonomy overlay's retry-budget block set (HF-011/HF-012 routing). A lock written
+# before preflight froze ``effective_confidence`` never saw them, so on resume they fall back
+# to the vendored + components value (absent keys stay absent, which leaves HF-011/HF-012 inert).
+OVERLAY_RETRY_KEYS = ("retry_max", "arbiter_retry_max", "judge_max_passes",
+                      "transient_retry_max", "judge_exhausted_to_arbiter")
+
+
+def legacy_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The confidence block for a lock with no frozen ``effective_confidence``.
+
+    As ``effective_thresholds``, but the overlay's retry-budget keys keep the value the run
+    had before they existed (vendored, then ``config/components.yaml``), unless the run's own
+    ``confidence`` block sets them. Use it as a replacement block, not an overlay to merge.
+    """
+    from mailroom_sandbox.components import load_components, routing_overlay
+    from mailroom_sandbox.overlay import deep_merge, load_yaml, mailroom_taxonomy_path
+
+    explicit = dict(lock_confidence or {})
+    before = deep_merge(load_yaml(mailroom_taxonomy_path()).get("confidence") or {},
+                        routing_overlay(load_components()).get("confidence") or {})
+    block = effective_thresholds(explicit)
+    for key in OVERLAY_RETRY_KEYS:
+        if key in explicit:
+            continue
+        if key in before:
+            block[key] = before[key]
+        else:
+            block.pop(key, None)
+    return block
+
+
 def _unknown_unless_explicit(block: Mapping[str, Any], explicit: Mapping[str, Any], key: str) -> dict[str, Any]:
     """``block`` with ``key`` set to ``None`` (unknown) wherever the run did not set it itself."""
     out = {k: v for k, v in block.items() if k != "by_class"}
@@ -385,7 +416,7 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
     else:
         # An older run froze only its explicit overrides. Fill the numeric thresholds from the
         # current config, but never report today's default as the run's rejudge setting.
-        block, source = effective_thresholds(lock.get("confidence")), "current_config"
+        block, source = legacy_thresholds(lock.get("confidence")), "current_config"
         block = _unknown_unless_explicit(block, lock.get("confidence") or {}, "judge_rejudge_retry")
     assignments = lock.get("agent_assignments") or {}
     model = ((assignments.get("judge") or {}).get("model")
