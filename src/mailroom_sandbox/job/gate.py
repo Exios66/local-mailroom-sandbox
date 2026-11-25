@@ -165,14 +165,22 @@ def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
 
     Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
     field: the count is its number of categories (the scored universe) when at least one carries
-    gold, else 0. Other classes count non-empty expected values after class scoping.
+    gold, else 0. Other classes count non-empty expected values after class scoping. SHF-015: a
+    stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
+    score does not score it (``docs/scoring-hotfixes.md``).
     """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
     unit_field = _UNIT_FIELD.get(doc_class)
     if unit_field:
         labels = _unit_labels(_fields(row).get(unit_field))
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
-    _, expected = scope_extraction_pair(doc_class, {}, _fields(row))
-    drop = TEMPLATED_FIELDS.get(doc_class, ())
+    raw = _fields(row)
+    stale: dict[str, str] = {}
+    if sh.enabled("SHF-015"):
+        _, stale = sh.drop_stale_hub_truth(doc_class, raw, sh.overlay_fields(row))
+    _, expected = scope_extraction_pair(doc_class, {}, raw)
+    drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale}
     scored = scored_fields(doc_class)
     return sum(1 for key, value in expected.items()
                if key not in drop and key not in _NOT_LABELS and not _blank(value)

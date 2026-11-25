@@ -233,6 +233,8 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("llm_dojo_scoring.schemas.label_policy:_corporate_stale", "65de264759beb5b282dc79cbe69d2dc1a5c3fdba7a5ae52ca83a1526d7d0fe6c"),
             ("llm_dojo_scoring.schemas.label_policy:_correspondence_stale", "af434deecfe68e0153549d06011e14220217ea9605f7c7010bac0f7040f92990"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
+            # the gate counts toward min_labelled only the labels the headline scores
+            ("mailroom_sandbox.job.gate:labelled_count", "6835378d219021bfea4e8b205f74d0921126285f21b0478184f71579df25da43"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
@@ -240,7 +242,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "templated correspondence and corporate subject_matter / metadata keywords) from both sides, "
                 "so a correct answer is not scored against a template; a value an interim, near-gold or "
                 "staged overlay supplied is never dropped, and the dropped fields are named "
-                "(stale_hub_labels)",
+                "(stale_hub_labels); the gate does not count a dropped label toward min_labelled",
     ),
 )
 

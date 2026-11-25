@@ -357,3 +357,19 @@ def test_load_bars_rejects_a_duplicate_key(tmp_path):
     custom.write_text("quality: 0.9\nquality: 0.5\n")
     with pytest.raises(ValueError, match="duplicate bar key 'quality'"):
         gate.load_bars(custom)
+
+
+def test_a_stale_hub_label_is_no_label_under_shf015(tmp_path):
+    """SHF-015: the headline does not score a heuristic intent no overlay supplied, so the gate does
+    not count it toward ``min_labelled``; an interim correction makes it a label again."""
+    fields = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    row = {"expected_doc_class": "correspondence", "expected_fields": json.dumps(fields)}
+    assert gate.labelled_count(row, "correspondence") == 1
+    reviewed = {**row, "interim_labels": {"fields": ["intent"], "overlay_sha256": "x"}}
+    assert gate.labelled_count(reviewed, "correspondence") == 2
+    llm = {"expected_fields": json.dumps({**fields, "intent_source": "llm_zero_shot"})}
+    assert gate.labelled_count(llm, "correspondence") == 2
+    (doc,) = gate.gate_report(_run(tmp_path, [{"id": "c0", "cls": "correspondence", "expected": fields}]),
+                              Bars())["docs"]
+    assert doc["outcome"] == "unscorable_archive" and doc["labelled"] == 1
+
