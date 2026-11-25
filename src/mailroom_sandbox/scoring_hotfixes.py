@@ -108,7 +108,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
-                  "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e"),
+                  "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0"),
                  ("mailroom_sandbox.rescore:run_scores", "74498e99c35f8e067732a71670c944f22cd291fb2fdf4c2439e9d676ec57c9c6")),
         upstream="sandbox",
         summary="a row that errored (timeout, parse failure, crash) scores 0 in the run "
@@ -119,10 +119,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-006",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
-                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),),
+                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0")),
         upstream="sandbox",
         summary="a row with no truth to score is left out of the run mean and counted "
-                "(n_no_truth) instead of averaging in as 0",
+                "(n_no_truth) instead of averaging in as 0 (isolated evals and the job-runner "
+                "sorter)",
     ),
     ScoringHotfix(
         id="SHF-007",
@@ -133,11 +135,14 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.agents:_fold",
                   "c332fba81b273d2b661944556f62bbc6fa6271ae132b6ef38ea5b75a991164e4"),
                  ("mailroom_sandbox.eval.agents:_class_answer",
-                  "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984")),
+                  "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984"),
+                 # the job-runner sorter scores folded labels and leaves no-truth rows out
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "780147c101a3dd956a7ad7416efa8bf92afafa3c59811ef16f5e5a5ea88c31a0")),
         upstream="sandbox",
-        summary="class labels compare case- and whitespace-folded; a row without a truth "
-                "class is unscored, not a match; an abstention is its own outcome "
-                "(abstain=True, scored wrong, routed to review)",
+        summary="class labels compare case-, hyphen- and whitespace-folded; a row without a "
+                "truth class is unscored, not a match; an abstention is its own outcome "
+                "(abstain=True, scored wrong, routed to review); the job-runner sorter "
+                "folds and leaves no-truth rows out the same way",
     ),
     ScoringHotfix(
         id="SHF-008",

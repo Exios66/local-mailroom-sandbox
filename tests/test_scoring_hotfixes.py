@@ -764,3 +764,30 @@ def test_changed_keys_names_every_moved_headline_including_the_field_f1_mean():
     raw = {"extraction_f1_mean": 0.5556, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
     fixed = {"extraction_f1_mean": 0.3333, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
     assert sh.changed_keys(raw, fixed, fixed) == ["extraction_f1_mean"]
+
+
+def test_shf007_per_item_runner_folds_labels_and_leaves_no_truth_rows_out():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["correspondence", "Contract", "", "insurance_claim"],
+                           ["correspondence", "contract", "contract", "insurance-claim"],
+                           {0: True, 1: True, 2: True, 3: True}, 4)
+    assert scores["raw_dojo"]["accuracy"] == 0.5  # defect: case, hyphen and a blank truth count wrong
+    assert scores["accuracy"] == 1.0 and scores["n"] == 3 and scores["n_no_truth"] == 1
+    assert scores["scoring_hotfixes"] == ["SHF-006", "SHF-007"]
+
+
+def test_shf007_per_item_runner_keeps_a_failed_row_wrong_after_folding():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["Contract", "contract", ""], ["contract", "", ""],
+                           {0: True, 1: False, 2: False}, 3)
+    assert scores["accuracy"] == 0.5 and scores["n_errored_scored_wrong"] == 1 and scores["n_no_truth"] == 1
+    assert scores["scoring_hotfixes"] == ["SHF-005", "SHF-006", "SHF-007"]
+
+
+def test_per_item_runner_without_a_moved_score_names_no_fix():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["contract"], ["contract"], {0: True}, 1)
+    assert scores["scoring_hotfixes"] == [] and "n_no_truth" not in scores
