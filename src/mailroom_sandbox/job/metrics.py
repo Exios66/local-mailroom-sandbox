@@ -56,11 +56,11 @@ API_PROFILES = ("openrouter",)
 # slugs; without this the flagship default model always costed None (DMR-049).
 SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
-    # SAND-077: Qwen3.5 rows price at their own OpenRouter twin (same weights),
-    # list price checked 2026-11-19.
-    "Qwen/Qwen3.5-9B": (0.17, 0.25),  # qwen/qwen3.5-9b
+    # SAND-077: Qwen3.5 rows price at their own OpenRouter canonical slug
+    # (same weights). List price checked 2026-11-25.
+    "Qwen/Qwen3.5-9B": (0.10, 0.25),  # qwen/qwen3.5-9b-20260310
     "Qwen/Qwen3.5-35B-A3B": (0.14, 1.00),  # qwen/qwen3.5-35b-a3b
-    "Qwen/Qwen3.5-27B": (0.195, 1.56),  # qwen/qwen3.5-27b
+    "Qwen/Qwen3.5-27B": (0.26, 2.60),  # qwen/qwen3.5-27b-20260224
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
@@ -69,30 +69,33 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     # (same weights; FP8 is the 1×L4 serve form).
     "ibm-granite/granite-4.2-8b": (0.06, 0.15),
     "ibm-granite/granite-4.2-8b-fp8": (0.06, 0.15),
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
+    # Local distill weights priced at the OpenRouter slug they stand in for
+    # (checked 2026-11-25). The 8B has no slug of its own.
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.09, 0.18),  # deepseek/deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.68459, 1.551),  # deepseek/deepseek-v4-pro
     # SAND-089: the OpenRouter ids themselves, so a paid API run can price (and cap)
-    # its token spend. OpenRouter /api/v1/models list price, checked 2026-11-19.
-    "qwen/qwen3.5-9b": (0.17, 0.25),
+    # its token spend. Canonical-slug list price from /api/v1/models, checked 2026-11-25.
+    "qwen/qwen3.5-9b": (0.10, 0.25),
     "qwen/qwen3.5-35b-a3b": (0.14, 1.00),
-    "qwen/qwen3.5-27b": (0.195, 1.56),
+    "qwen/qwen3.5-27b": (0.26, 2.60),
     "openai/gpt-4o": (2.50, 10.00),
     "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
     "openai/gpt-6-luna": (0.10, 0.50),
     "qwen/qwen3.7-flash": (0.03, 0.13),
-    "deepseek/deepseek-v4-flash": (0.09, 0.18),  # list price checked 2026-11-18
-    # Peak list price (time-of-day windows fold into the dearest rate). Checked 2026-11-18.
+    "deepseek/deepseek-v4-flash": (0.09, 0.18),  # slug price checked 2026-11-25
+    # Peak slug price (time-of-day windows fold into the dearest rate). Checked 2026-11-25.
     "deepseek/deepseek-v4.1-flash-1017": (0.30, 1.20),
 }
 
 # Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
-# GET https://openrouter.ai/api/v1/models, checked 2026-11-19. A tier applies to a whole call
-# whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
-# tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
+# GET https://openrouter.ai/api/v1/models, canonical-slug prices checked 2026-11-25.
+# A tier applies to a whole call whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash
+# is $0.03/$0.13 below 32k prompt tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k,
+# so a flat price under-counts every
 # long document. The live copy is config/api_prices.yaml (refresh it with
 # scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
-API_PRICES_CHECKED = "2026-11-19"
+API_PRICES_CHECKED = "2026-11-25"
 API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     "qwen/qwen3.7-flash": [
         {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
@@ -101,7 +104,8 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
     ],
     "openai/gpt-6-luna-decisions": [
         # Decisions API (/api/alpha/decisions): billed on input only.
-        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.0},
+        # Cache rates are the slug's published zeros (cached input is not re-billed).
+        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.0, "cache_read": 0.0, "cache_write": 0.0},
     ],
     "openai/gpt-6-luna": [
         {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.50, "cache_read": 0.01, "cache_write": 0.125},
@@ -117,7 +121,7 @@ API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
         {"min_prompt_tokens": 0, "prompt": 0.14, "completion": 1.00, "cache_read": 0.05},
     ],
     "qwen/qwen3.5-27b": [
-        {"min_prompt_tokens": 0, "prompt": 0.195, "completion": 1.56},
+        {"min_prompt_tokens": 0, "prompt": 0.26, "completion": 2.6},
     ],
     "ibm-granite/granite-4.2-8b": [
         {"min_prompt_tokens": 0, "prompt": 0.06, "completion": 0.15, "cache_read": 0.015},

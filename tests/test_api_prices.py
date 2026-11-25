@@ -159,6 +159,28 @@ def test_time_of_day_windows_are_not_prompt_tiers():
     assert "time_windows" not in out["models"]["x/w"]
 
 
+def test_refresh_prices_an_alias_at_its_canonical_slug_row():
+    """When the dated slug is its own catalog row, that row's price wins over the alias."""
+    alias = {"id": "org/model", "canonical_slug": "org/model-20261101", "context_length": 1000,
+             "top_provider": {}, "pricing": {"prompt": "0.0000001", "completion": "0.0000002"}}
+    slug = {"id": "org/model-20261101", "canonical_slug": "org/model-20261101", "context_length": 2000,
+            "top_provider": {"max_completion_tokens": 50},
+            "pricing": {"prompt": "0.0000003", "completion": "0.0000004"}}
+    catalog = {alias["id"]: alias, slug["id"]: slug}
+    new, changed = refresh_api_prices.refresh({"models": {"org/model": {}}}, catalog, today="2026-11-25")
+    row = new["models"]["org/model"]
+    assert changed == ["org/model"]
+    assert row["canonical_slug"] == "org/model-20261101"
+    assert row["context_length"] == 2000 and row["max_completion_tokens"] == 50
+    assert row["tiers"] == [{"min_prompt_tokens": 0, "prompt": 0.3, "completion": 0.4}]
+    # A slug with no separate row keeps the alias row that declares it.
+    lone = {"id": "org/only", "canonical_slug": "org/only-20260101", "context_length": 8,
+            "top_provider": {}, "pricing": {"prompt": "0.0000005", "completion": "0.0000006"}}
+    new, _ = refresh_api_prices.refresh({"models": {"org/only": {}}}, {"org/only": lone}, today="2026-11-25")
+    assert new["models"]["org/only"]["tiers"][0]["prompt"] == 0.5
+    assert new["models"]["org/only"]["canonical_slug"] == "org/only-20260101"
+
+
 @pytest.mark.parametrize("model,prompt", [("typesafe/jev-1.14", 0.042), ("liquid/d1.2", 0.02), ("upstage/solar-decide", 0.05),
                                           ("google/gemini-decision-1", 0.1), ("perplexity/pplx-decider-v1.2", 0.02)])
 def test_decision_models_price_from_the_catalog_input_only(model, prompt):
@@ -168,7 +190,7 @@ def test_decision_models_price_from_the_catalog_input_only(model, prompt):
 
 
 def test_unknown_decision_sibling_is_not_priced_by_prefix():
-    # liquid/d1 and liquid/d1.2 are catalog ids; a future liquid/d1.9 must stay unpriced.
+    # liquid/d1.2 is a catalog id; a future liquid/d1.9 must stay unpriced.
     assert metrics.price_sheet("liquid/d1.9") is None
 
 

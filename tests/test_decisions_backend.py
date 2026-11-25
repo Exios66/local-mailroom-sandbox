@@ -658,7 +658,7 @@ def test_post_decision_counts_returned_calls_against_the_document_ceiling(monkey
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test")
     monkeypatch.setattr("httpx.post", lambda *a, **k: Resp())
-    call_guard.arm(api_budget.ApiBudget(1000.0, 0.17, 0.25, [DECISIONS]), ceiling=1)
+    call_guard.arm(api_budget.ApiBudget(1000.0, 0.10, 0.0, [DECISIONS]), ceiling=1)
     with call_guard.document() as doc:
         db._post_decision({}, timeout=1, attempts=3)
         assert doc["calls"] == 1

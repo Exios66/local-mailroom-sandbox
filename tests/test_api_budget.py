@@ -23,7 +23,8 @@ def _no_price_override(monkeypatch):
 
 
 def test_the_openrouter_default_model_has_a_price():
-    assert token_price("qwen/qwen3.5-9b") == (0.17, 0.25)
+    # Canonical slug qwen/qwen3.5-9b-20260310, checked 2026-11-25.
+    assert token_price("qwen/qwen3.5-9b") == (0.10, 0.25)
 
 
 def test_api_models_come_from_the_engine_routes_and_assignments():
@@ -59,14 +60,14 @@ def test_a_gpu_run_still_needs_the_gpu_cap():
 
 def test_the_budget_prices_at_the_highest_api_price_and_seeds_from_persisted_items():
     lock = _lock(agent_routes={"judge": {"provider": "openrouter", "model": "qwen/qwen3.5-27b"}},
-                 job={"mock": False, "api_cost_cap_usd": 0.005})
+                 job={"mock": False, "api_cost_cap_usd": 0.008})
     budget = api_budget.budget_for(lock, [{"prompt_tokens": 10_000, "completion_tokens": 1_000}])
-    # The refreshed live-catalog sheet (config/api_prices.yaml): 0.195/1.56 per 1M.
-    assert (budget.usd_per_m_in, budget.usd_per_m_out) == (0.195, 1.56)
-    assert budget.spent_usd == pytest.approx(0.00351)
+    # The refreshed canonical-slug sheet (config/api_prices.yaml): 0.26/2.6 per 1M.
+    assert (budget.usd_per_m_in, budget.usd_per_m_out) == (0.26, 2.6)
+    assert budget.spent_usd == pytest.approx(0.0052)
     assert budget.exceeded() is None
     budget.add(10_000, 1_000)
-    assert "api_cost_cap_usd=0.005 reached" in budget.exceeded()
+    assert "api_cost_cap_usd=0.008 reached" in budget.exceeded()
     assert api_budget.budget_for({**lock, "job": {"mock": True, "api_cost_cap_usd": 0.005}}) is None
 
 
@@ -85,7 +86,7 @@ def test_the_pipeline_stops_before_the_next_document_once_api_spend_reaches_the_
         return {"id": row["id"], "doc_type": "contract", "stage": "archived", "extracted_data": {}}
 
     monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
-    budget = api_budget.ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"])  # one doc costs $0.102
+    budget = api_budget.ApiBudget(0.05, 0.10, 0.25, ["qwen/qwen3.5-9b"])  # one doc costs $0.060
     rows = [{"id": str(i), "expected_doc_class": "contract", "doc_text": "x"} for i in range(3)]
     with pytest.raises(RuntimeError, match="API spend cap reached before next document"):
         runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, api_budget=budget)
@@ -105,9 +106,9 @@ def test_an_api_run_gets_an_api_ceiling_and_no_gpu_cap():
     advice = budget_advice.recommend(_spec())
     assert advice["gpu_cost_cap_usd"] is None
     api = advice["basis"]["api"]
-    assert api["calls_per_document"] == 4 and api["usd_per_million_tokens"] == [0.17, 0.25]
-    # 20 docs × 4 calls × (4000 × $0.17 + 1000 × $0.25)/1M × 1.5 margin = $0.1116 → $0.15
-    assert advice["api_cost_cap_usd"] == 0.15
+    assert api["calls_per_document"] == 4 and api["usd_per_million_tokens"] == [0.10, 0.25]
+    # 20 docs × 4 calls × (4000 × $0.10 + 1000 × $0.25)/1M × 1.5 margin = $0.078 → $0.10
+    assert advice["api_cost_cap_usd"] == 0.10
     assert advice["max_wall_seconds"] == 3000  # 20 × 400 s / 4 × 1.5
 
 
@@ -126,7 +127,7 @@ def test_compare_warns_when_a_ceiling_is_below_its_recommendation():
     spec = _spec(job={"mock": False, "concurrency": 4, "max_wall_seconds": 600, "api_cost_cap_usd": 0.05})
     warnings = " ".join(budget_advice.compare(spec))
     assert "max_wall_seconds=600 is below the recommended 3000" in warnings
-    assert "api_cost_cap_usd=0.05 is below the recommended 0.15" in warnings
+    assert "api_cost_cap_usd=0.05 is below the recommended 0.1" in warnings
 
 
 def test_an_isolated_document_that_fails_after_a_paid_call_still_counts_its_tokens(monkeypatch):
@@ -139,11 +140,11 @@ def test_an_isolated_document_that_fails_after_a_paid_call_still_counts_its_toke
         raise RuntimeError("scoring blew up after the call")
 
     monkeypatch.setattr(runners, "_predict_spec", predict)
-    budget = api_budget.ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    budget = api_budget.ApiBudget(0.05, 0.10, 0.25, ["qwen/qwen3.5-9b"])
     rows = [{"id": str(i), "doc_text": "x", "expected": "contract"} for i in range(3)]
-    with pytest.raises(RuntimeError, match="api_cost_cap_usd=0.1 reached"):
+    with pytest.raises(RuntimeError, match="api_cost_cap_usd=0.05 reached"):
         runners.run_isolated_eval("judge", profile="ollama", rows=rows, mock=False, api_budget=budget, concurrency=1)
-    assert budget.spent_usd == pytest.approx(0.102, abs=1e-3)
+    assert budget.spent_usd == pytest.approx(0.060, abs=1e-3)
 
 
 def test_reports_estimate_api_spend_apart_from_gpu_cost():
@@ -152,7 +153,7 @@ def test_reports_estimate_api_spend_apart_from_gpu_cost():
     lock = _lock()
     assert not bills_gpu(lock)  # the report drops its GPU cost
     estimate = api_budget.spend_estimate(lock, [{"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}])
-    assert estimate["est_api_usd"] == pytest.approx(0.42) and estimate["models"] == ["qwen/qwen3.5-9b"]
+    assert estimate["est_api_usd"] == pytest.approx(0.35) and estimate["models"] == ["qwen/qwen3.5-9b"]
     assert api_budget.spend_estimate({"engine": {"kind": "modal-vllm", "model": "m"}}, []) is None
 
 
@@ -167,13 +168,13 @@ def test_a_pipeline_document_that_raises_after_a_paid_call_reports_its_usage(mon
         raise RuntimeError("graph raised after the call")
 
     monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
-    budget = api_budget.ApiBudget(1.0, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    budget = api_budget.ApiBudget(1.0, 0.10, 0.25, ["qwen/qwen3.5-9b"])
     rows = [{"id": "d0", "expected_doc_class": "contract", "doc_text": "x"}]
     with pytest.raises(RuntimeError) as raised:
         runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, api_budget=budget)
     assert raised.value.sandbox_failed_usage["item_id"] == "d0"
     assert raised.value.sandbox_failed_usage["prompt_tokens"] == 300_000
-    assert budget.spent_usd == pytest.approx(0.051, abs=1e-4)
+    assert budget.spent_usd == pytest.approx(0.030, abs=1e-4)
 
 
 def test_a_document_the_pipeline_aborted_fails_alone(monkeypatch):
@@ -231,7 +232,7 @@ def test_a_run_without_a_billed_gpu_reports_no_gpu_metrics():
 
 def test_in_flight_documents_count_against_the_cap():
     """Concurrent starts: each unfinished document is counted at the mean finished-document cost."""
-    budget = api_budget.ApiBudget(1.0, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    budget = api_budget.ApiBudget(1.0, 0.10, 0.25, ["qwen/qwen3.5-9b"])
     budget.spent_usd, budget.documents = 0.6, 3          # $0.20 per finished document
     assert budget.exceeded() is None
     assert budget.exceeded(in_flight=1) is None          # 0.80

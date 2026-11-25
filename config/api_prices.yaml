@@ -3,7 +3,7 @@
 # Read by mailroom_sandbox.job.metrics (call_price / call_cost); refresh with
 # scripts/refresh_api_prices.py (run it with --check to see drift; no workflow runs it).
 source: https://openrouter.ai/api/v1/models
-checked: '2026-11-19'
+checked: '2026-11-25'
 unit: USD per 1M tokens
 models:
   qwen/qwen3.5-9b:
@@ -12,8 +12,9 @@ models:
     max_completion_tokens: 235929
     tiers:
     - min_prompt_tokens: 0
-      prompt: 0.17
+      prompt: 0.1
       completion: 0.25
+    canonical_slug: qwen/qwen3.5-9b-20260310
   qwen/qwen3.7-flash:
     use: 'specialist extraction + condensed sorter (1M context: whole documents in
       one call)'
@@ -35,6 +36,7 @@ models:
       completion: 0.8
       cache_read: 0.04
       cache_write: 0.25
+    canonical_slug: qwen/qwen3.7-flash-20260727
   openai/gpt-6-luna:
     use: chat model behind the Decisions endpoint
     context_length: 1050000
@@ -50,6 +52,7 @@ models:
       completion: 0.75
       cache_read: 0.02
       cache_write: 0.25
+    canonical_slug: openai/gpt-6-luna-20260922
   deepseek/deepseek-v4-flash:
     use: openrouter profile judge
     context_length: 1048576
@@ -59,6 +62,7 @@ models:
       prompt: 0.09
       completion: 0.18
       cache_read: 0.018
+    canonical_slug: deepseek/deepseek-v4-flash-20260423
   deepseek/deepseek-v4.1-flash-1017:
     use: autoresearch cheap worker/supervisor candidate (1M context)
     context_length: 1048576
@@ -68,6 +72,7 @@ models:
       prompt: 0.3
       completion: 1.2
       cache_read: 0.006
+    canonical_slug: deepseek/deepseek-v4.1-flash-20261017
     time_windows: 6
   qwen/qwen3.7-plus:
     use: autoresearch supervisor tier 1 (judge/arbiter/boss)
@@ -84,6 +89,7 @@ models:
       completion: 3.84
       cache_read: 0.192
       cache_write: 1.2
+    canonical_slug: qwen/qwen3.7-plus-20260602
   minimax/minimax-m3:
     use: autoresearch supervisor tier 1
     context_length: 1048576
@@ -93,6 +99,7 @@ models:
       prompt: 0.3
       completion: 1.2
       cache_read: 0.06
+    canonical_slug: minimax/minimax-m3-20260531
   z-ai/glm-5.3-flashx-legal:
     use: autoresearch supervisor tier 1
     context_length: 1048576
@@ -102,15 +109,17 @@ models:
       prompt: 0.37
       completion: 1.25
       cache_read: 0.075
+    canonical_slug: z-ai/glm-5.3-flashx-legal-20261102
   deepseek/deepseek-v4-pro:
     use: autoresearch supervisor tier 2
     context_length: 1048576
     max_completion_tokens: 393216
     tiers:
     - min_prompt_tokens: 0
-      prompt: 0.9
-      completion: 1.5
-      cache_read: 0.25
+      prompt: 0.68459
+      completion: 1.551
+      cache_read: 0.21
+    canonical_slug: deepseek/deepseek-v4-pro-20260423
   mistralai/mistral-large-4-0:
     use: autoresearch supervisor tier 2
     context_length: 1048576
@@ -120,6 +129,7 @@ models:
       prompt: 0.7
       completion: 2.1
       cache_read: 0.07
+    canonical_slug: mistralai/mistral-large-4-0-20261006
   google/gemini-3.8-flash:
     use: autoresearch supervisor tier 2
     context_length: 1048576
@@ -130,6 +140,7 @@ models:
       completion: 4.125
       cache_read: 0.0825
       cache_write: 0.041667
+    canonical_slug: google/gemini-3.8-flash-20260902
   qwen/qwen4-max:
     use: autoresearch supervisor tier 2
     context_length: 1000000
@@ -140,6 +151,7 @@ models:
       completion: 4.275
       cache_read: 0.07125
       cache_write: 1.78125
+    canonical_slug: qwen/qwen4-max-20261115
   anthropic/claude-sonnet-5.5:
     use: autoresearch supervisor tier 3 (frontier)
     context_length: 1000000
@@ -150,6 +162,7 @@ models:
       completion: 10.0
       cache_read: 0.1
       cache_write: 2.5
+    canonical_slug: anthropic/claude-sonnet-5.5-20260928
   openai/gpt-6.1-sol:
     use: autoresearch supervisor tier 3 (frontier)
     context_length: 1050000
@@ -165,6 +178,7 @@ models:
       completion: 15.0
       cache_read: 0.2
       cache_write: 5.0
+    canonical_slug: openai/gpt-6.1-sol-20260929
   google/gemini-4-carbon:
     use: autoresearch supervisor tier 3 (frontier)
     context_length: 1048576
@@ -175,6 +189,7 @@ models:
       completion: 10.0
       cache_read: 0.1
       cache_write: 0.1875
+    canonical_slug: google/gemini-4-carbon-20261110
   openai/gpt-6-luna-decisions:
     use: Decisions reviewer / extraction gate
     endpoint: /api/alpha/decisions
@@ -183,9 +198,14 @@ models:
     - min_prompt_tokens: 0
       prompt: 0.1
       completion: 0.0
+      cache_read: 0.0
+      cache_write: 0.0
+    context_length: 1050000
+    max_completion_tokens: 945000
+    canonical_slug: openai/gpt-6-luna-decisions-20261006
   qwen/qwen3.5-35b-a3b:
-    use: 'SAND-079 mid specialist tier on OpenRouter (same weights as the Modal
-      Qwen/Qwen3.5-35B-A3B L4:2 TP=2 row)'
+    use: SAND-079 mid specialist tier on OpenRouter (same weights as the Modal Qwen/Qwen3.5-35B-A3B
+      L4:2 TP=2 row)
     context_length: 262144
     max_completion_tokens: 81920
     tiers:
@@ -193,18 +213,20 @@ models:
       prompt: 0.14
       completion: 1.0
       cache_read: 0.05
+    canonical_slug: qwen/qwen3.5-35b-a3b-20260224
   qwen/qwen3.5-27b:
-    use: 'SAND-078 judge tier on OpenRouter (same weights as the Modal
-      Qwen/Qwen3.5-27B L40S row)'
+    use: SAND-078 judge tier on OpenRouter (same weights as the Modal Qwen/Qwen3.5-27B
+      L40S row)
     context_length: 262144
-    max_completion_tokens: 65536
+    max_completion_tokens: 81920
     tiers:
     - min_prompt_tokens: 0
-      prompt: 0.195
-      completion: 1.56
+      prompt: 0.26
+      completion: 2.6
+    canonical_slug: qwen/qwen3.5-27b-20260224
   ibm-granite/granite-4.2-8b:
-    use: 'SAND-027 Granite program OpenRouter twin (same weights as the Modal
-      ibm-granite/granite-4.2-8b-fp8 L4 row)'
+    use: SAND-027 Granite program OpenRouter twin (same weights as the Modal ibm-granite/granite-4.2-8b-fp8
+      L4 row)
     context_length: 131072
     max_completion_tokens: 117964
     tiers:
@@ -212,3 +234,4 @@ models:
       prompt: 0.06
       completion: 0.15
       cache_read: 0.015
+    canonical_slug: ibm-granite/granite-4.2-8b-20260831

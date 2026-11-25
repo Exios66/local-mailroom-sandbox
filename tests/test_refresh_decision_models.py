@@ -26,6 +26,19 @@ def test_build_converts_prices_and_drops_aliases():
         "context_length": 262144, "prompt": 0.042}
 
 
+def test_build_prices_an_alias_from_its_canonical_slug_row():
+    slug = _entry("typesafe/jev-1.14-20261014", prompt="0.00000007")
+    slug["canonical_slug"] = slug["id"]
+    alias = _entry("typesafe/jev-1.14", prompt="0.00000099")
+    alias["canonical_slug"] = slug["id"]
+    alias["context_length"] = 1024
+    doc = rdm.build([alias, slug], today="2026-11-25")
+    row = doc["models"]["typesafe/jev-1.14"]
+    assert row["prompt"] == 0.07 and row["context_length"] == 262144
+    assert row["canonical_slug"] == "typesafe/jev-1.14-20261014"
+    assert doc["models"]["typesafe/jev-1.14-20261014"]["prompt"] == 0.07
+
+
 def test_diff_reports_added_removed_changed():
     old = rdm.build([_entry("a/one"), _entry("a/two")], today="d")
     new = rdm.build([_entry("a/two", prompt="0.0000001"), _entry("a/three")], today="d")
