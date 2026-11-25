@@ -29,10 +29,15 @@ tree: the 89 scoring-golden cases keep their raw scores; the 3,302 rows of the c
 label set, each scored with a perfect and a perturbed prediction, move nowhere. Targeted inputs
 move as #127 intends: a `partial` prediction against "partly approved" / "partly denied" truth
 goes from 0.0 to 1.0 (pain-point extraction 3 → 0), and a relative `outside_date` scores 1.0 when
-identical (was 0.0) and 0.0 when missing (was 1.0). Rescore runs that carry those values before
-comparing them with runs on `025400f`. The stale-label drop does not reach sandbox extraction
-headlines, which scope truth with the sandbox's own `eval/extraction_scope.py`; it does reach the
-vendored pipeline's scoring nodes through `score_archive_block`. SHF-001 was re-validated (its
+identical (was 0.0) and 0.0 when missing (was 1.0). Against MAUD gold mixing a question line
+with a plain line that names no question (#170), a question-only prediction goes from 1.0 to 0.5
+(the plain line is a missed `fn`), and a prediction stating both lines no longer counts the plain
+line as an `fp`; no committed v9.3 `merger_agreement` row holds such a plain line. Rescore runs
+that carry those values before comparing them with runs on `025400f`. The stale-label drop does
+not reach sandbox extraction headlines, which scope truth with the sandbox's own
+`eval/extraction_scope.py`; it does reach the vendored pipeline's scoring through the Dojo's
+`scope_extraction_pair` (`score_document`, `score_tiers`) and `score_archive_block` (not
+measured here). SHF-001 was re-validated (its
 `extraction_binary_metrics` target changed only to skip the contract parse-compat keys).
 
 Previous pin: `025400f3d703531c5e1a76093e4b803ccc6fb576` (the `v0.30.0` branch head after llm-dojo-scoring #174, package 0.30.1), the commit llm-mailroom `f83e398` and `8cebcd8` declare. Against `116da0b`: #173 (#167) makes

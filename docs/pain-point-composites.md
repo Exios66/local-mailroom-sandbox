@@ -197,7 +197,10 @@ Before that refresh, scoring hotfix **SHF-014** served a byte-identical copy of 
 (`eval/_dojo_pain_points.py`), fingerprinted and recorded in every run lock like every scoring
 hotfix. The refresh checked that the vendored module was byte-identical to the copy, then retired
 SHF-014 and deleted the copy, so no composite moved. A run made under SHF-014 names it in its
-lock and in the block's `source`; its points equal the Dojo's on the same extraction scores.
+lock and in the block's `source`; its points equal the Dojo's on the same extraction scores. Such
+a run cannot resume on the refreshed tree, because its lock recorded a different scoring hotfix
+set: re-lock it with `--force`, or score it again with `sandbox rescore` or
+`sandbox pain-points`.
 
 ## Scope and limits
 
