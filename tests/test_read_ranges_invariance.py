@@ -99,10 +99,33 @@ def test_recording_on_and_off_give_identical_results(tmp_path, monkeypatch):
     assert not (off.dir / "doc_texts").exists()
     assert all("reads" not in i for i in items_off)
 
-    # The long row really was windowed: several requests read it, over different ranges.
-    long_reads = [r for r in reads if r.get("doc") == "dlong"]
-    assert len({json.dumps(r.get("ranges"), sort_keys=True) for r in long_reads}) > 1, long_reads[:3]
-    assert len(long_reads) > 1
+    # The long row really was windowed. The sorter slides windows of its configured input cap (read
+    # the way the agent reads it); each window is one ``classify`` request, so one agent has many
+    # calls with distinct ranges, none holds the whole text, and together they span far more than
+    # one window.
+    from pipeline.config import get_agent_config  # type: ignore
+
+    cap = int(get_agent_config("sorter")["max_input_chars"])
+    sorter = [r for r in reads if r.get("doc") == "dlong" and r.get("agent") == "sorter"
+              and r.get("node") == "classify"]
+    # The working text is the intake node's cleaned text, so its length is read from the records.
+    (doc_chars,) = {r["doc_chars"] for r in sorter}
+    assert doc_chars > 100_000
+    assert len(sorter) >= -(-doc_chars // cap), (len(sorter), cap)  # at least one call per cap-sized slice
+    assert len({r["call"] for r in sorter}) == len(sorter)
+    assert len({json.dumps(r["ranges"]) for r in sorter}) == len(sorter), "windows must read distinct ranges"
+    assert all(r["matched_chars"] <= cap for r in sorter), "no request was the whole text"
+    merged, end = 0, -1
+    for lo, hi in sorted(rg for r in sorter for rg in r["ranges"]):
+        merged += max(0, hi - max(lo, end))
+        end = max(end, hi)
+    assert merged > cap, (merged, cap)
+
+    # No document text anywhere in the on-run's persisted records.
+    probe = _long_text()[60_000:60_060]
+    assert len(probe) >= 40
+    for path in (on.items_path, on.nodes_path, on.reads_path):
+        assert probe not in path.read_text(encoding="utf-8"), path.name
 
 
 def test_a_raising_matcher_leaves_the_document_unchanged(tmp_path, monkeypatch):
