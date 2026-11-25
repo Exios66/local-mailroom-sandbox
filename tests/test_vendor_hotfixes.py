@@ -519,3 +519,181 @@ def test_hf011_refresh_never_drops_a_registered_rule(monkeypatch):
     vh.apply_hotfixes()
     for node, rule in before.items():
         assert route_spec.route_rules(node)[0] is rule
+
+
+# --- HF-014 / HF-015: the intake read is triage-only and never feeds the sorter a bogus prior --------
+
+_INTAKE_TRIAGE = {"primary_doc_class": "contract", "confidence": 0.9, "gist": "A services agreement.",
+                  "keywords": ["services"]}
+
+
+def _intake_agent():
+    from agents.intake import IntakeAgent
+
+    return object.__new__(IntakeAgent)
+
+
+def test_hf014_the_intake_prompt_asks_for_triage_and_sections_only():
+    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    text = _intake_agent().system_prompt()
+    assert "Return the FULL repaired text" not in text and "CLEAN," not in text and "\nCLEAN " not in text
+    assert "cleaned_text" in text and "null" in text  # the model is told to leave it null
+    assert "TRIAGE" in text and "PREPARE" in text and "{classes}" not in text
+    assert "contract" in text  # the live class list is still substituted
+
+
+def test_hf014_the_intake_schema_no_longer_asks_for_cleaned_text(monkeypatch):
+    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    import agents.intake as intake
+
+    assert "cleaned_text" not in intake.INTAKE_SCHEMA["properties"]
+    assert "changes_applied" in intake.INTAKE_SCHEMA["properties"]
+    seen = {}
+    agent = _intake_agent()
+    monkeypatch.setattr(agent, "_call_structured",
+                        lambda user, schema, **kw: seen.update(schema=schema) or {"triage": _INTAKE_TRIAGE},
+                        raising=False)
+    prep = agent._call_one("some text", "doc.txt")
+    assert "cleaned_text" not in seen["schema"]["properties"] and prep["cleaned_text"] is None
+
+
+def test_hf014_a_managed_prompt_is_post_processed_and_a_reply_with_a_clean_is_still_guarded(monkeypatch):
+    assert vh.apply_hotfixes()["HF-014"] == "applied"
+    import agents.intake as intake
+
+    served = intake.INTAKE_SYSTEM_PROMPT.replace("Rules:", "Managed extra line.\nRules:")
+    monkeypatch.setattr(intake, "get_managed_prompt", lambda name, default: (served, None))
+    text = _intake_agent().system_prompt()
+    assert "Managed extra line." in text and "Return the FULL repaired text" not in text
+    # A managed prompt that has no CLEAN block at all still ends with the null instruction.
+    monkeypatch.setattr(intake, "get_managed_prompt", lambda name, default: ("Triage the file.", None))
+    assert "set cleaned_text to null" in _intake_agent().system_prompt().lower()
+
+
+def test_hf014_install_refuses_a_prompt_whose_clean_block_moved(monkeypatch):
+    import agents.intake as intake
+
+    monkeypatch.setattr(intake, "INTAKE_SYSTEM_PROMPT", "TRIAGE only. PREPARE the map.")
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-014")
+    with pytest.raises(vh.HotfixDrift):
+        fix.install(intake, intake.IntakeAgent.system_prompt)
+
+
+def test_hf014_apply_reports_stale_not_a_crash_when_the_prompt_drifts(monkeypatch):
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-014")
+
+    def drifted(module, original):
+        raise vh.HotfixDrift("CLEAN block not found")
+
+    bogus = vh.Hotfix(id="HF-TEST-DRIFT", module=fix.module, attr="IntakeAgent.intake_run",
+                      source_sha256=next(f for f in vh.HOTFIXES if f.id == "HF-003").source_sha256,
+                      upstream="-", summary="-", install=drifted)
+    assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-DRIFT": "stale"}
+
+
+def test_hf014_both_new_hotfixes_are_in_every_run_lock_identity():
+    from mailroom_sandbox.job.preflight import _hotfix_identity
+
+    ids = [f["id"] for f in _hotfix_identity()["fixes"]]
+    assert "HF-014" in ids and "HF-015" in ids
+    targets = {f["id"]: f["target"] for f in _hotfix_identity()["fixes"]}
+    assert targets["HF-014"] == "agents.intake.IntakeAgent.system_prompt"
+    assert targets["HF-015"] == "agents.intake.validate_intake"
+
+
+@pytest.mark.parametrize("raw", [
+    {"_raw": '{"triage": {"primary_doc_', "_parse_error": True},   # cut off mid-JSON
+    {},                                                            # prose / list answers end up here
+    {"triage": "contract"},
+    {"triage": []},
+    {"triage": {}},
+])
+def test_hf015_a_failed_read_has_no_triage_and_so_no_prior(raw):
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    out = intake.validate_intake(dict(raw), "some document text")
+    assert out["triage"] == {} and out["sections"] == [] and out["cleaned_text"] is None
+    assert not intake._merge_triage([out["triage"]])
+    assert intake.format_intake_prior({"triage": out["triage"]}) == ""
+    assert intake.format_intake_prior(out) == ""
+
+
+def test_hf015_a_failed_read_keeps_the_rest_of_the_validation():
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    text = "x" * 100
+    out = intake.validate_intake({"_parse_error": True, "changes_applied": ["a"],
+                                  "sections": [{"heading": "H", "role": "parties", "start_offset": 0,
+                                                "end_offset": 10}]}, text)
+    assert out["triage"] == {} and out["changes_applied"] == ["a"] and len(out["sections"]) == 1
+
+
+def test_hf015_an_honest_unknown_with_a_gist_still_produces_a_prior():
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    out = intake.validate_intake({"triage": {"primary_doc_class": "unknown", "confidence": 0.2,
+                                             "gist": "A hand-written shopping list."}}, "text")
+    assert out["triage"]["primary_doc_class"] == "unknown"
+    prior = intake.format_intake_prior(out)
+    assert "primary class: unknown" in prior and "shopping list" in prior
+
+
+def test_hf015_a_good_window_beats_a_failed_one_when_windows_merge():
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    good = intake.validate_intake({"triage": _INTAKE_TRIAGE}, "text")["triage"]
+    failed = intake.validate_intake({"_parse_error": True}, "text")["triage"]
+    assert intake._merge_triage([failed, good])["primary_doc_class"] == "contract"
+    assert not intake._merge_triage([failed, failed])
+
+
+@pytest.mark.parametrize(("cls", "subclass", "printed"), [
+    ("corporate_record", "bylaws", "bylaws"),
+    ("corporate_record", "invented_subtype", None),
+    ("corporate_record", "Bylaws ", "bylaws"),
+    ("contract", "not-a-subtype-at-all", None),
+    ("unknown", "bylaws", None),            # no catalog for the class: the line is dropped
+    ("memo", "bylaws", None),
+])
+def test_hf015_the_prior_prints_a_subclass_only_from_the_class_catalog(cls, subclass, printed):
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.intake as intake
+
+    prep = {"triage": {"primary_doc_class": cls, "doc_subclass": subclass, "confidence": 0.8, "gist": "g"}}
+    prior = intake.format_intake_prior(prep)
+    lines = [ln for ln in prior.splitlines() if ln.startswith("subclass:")]
+    assert lines == ([f"subclass: {printed}"] if printed else [])
+    assert prep["triage"]["doc_subclass"] == subclass  # the caller's record is not edited
+    assert f"primary class: {cls}" in prior
+
+
+def test_hf015_both_classify_nodes_hand_the_sorter_the_patched_prior(monkeypatch):
+    """The real classify_node / retry_classify_node import format_intake_prior at call time."""
+    assert vh.apply_hotfixes()["HF-015"] == "applied"
+    import agents.sorter as sorter_mod
+    import graph.build_graph as G
+
+    seen: list[dict] = []
+
+    class FakeSorter:
+        def classify_json(self, text, **kwargs):
+            seen.append(kwargs)
+            return {"doc_type": "contract", "confidence": 0.9, "reasoning": "r"}
+
+    monkeypatch.setattr(sorter_mod, "SorterAgent", FakeSorter)
+    monkeypatch.setattr(G, "_emit_stage_audit", lambda *a, **k: None)
+    failed = {"triage": {}, "sections": [], "windows": 1}
+    invented = {"triage": {"primary_doc_class": "corporate_record", "doc_subclass": "made_up",
+                           "confidence": 0.7, "gist": "g"}, "sections": [], "windows": 1}
+    for prep in (failed, invented):
+        state = {"doc_text": "A document body.", "intake_prep": prep, "doc_id": "d1"}
+        G.classify_node(state)
+        G.retry_classify_node({**state, "doc_type": "contract", "classification_confidence": 0.4})
+    assert [k["intake_prior"] for k in seen[:2]] == ["", ""]
+    for kwargs in seen[2:]:
+        assert "primary class: corporate_record" in kwargs["intake_prior"]
+        assert "subclass:" not in kwargs["intake_prior"] and "made_up" not in kwargs["intake_prior"]

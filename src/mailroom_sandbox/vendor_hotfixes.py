@@ -171,6 +171,115 @@ def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> C
     return intake_run
 
 
+class HotfixDrift(RuntimeError):
+    """The vendored text a hotfix rewrites is not where the hotfix expects it (reported ``stale``)."""
+
+
+#: What the triage-only intake prompt says where the vendored CLEAN block was (HF-014).
+INTAKE_TRIAGE_ONLY_BLOCK = (
+    "NO CLEANING — not requested here. The deterministic intake clerk has already normalized the "
+    "text, and the sorter reads that text, not yours. Set cleaned_text to null (or leave it out) and "
+    "changes_applied to an empty array; never return any part of the document.\n\n")
+_INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
+#: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
+INTAKE_TRIAGE_ONLY_TAIL = ("\n\nSet cleaned_text to null and changes_applied to an empty array in every "
+                           "answer: the document text is never returned (HF-014).")
+
+
+def _intake_triage_only(text: str) -> str:
+    """``text`` with its CLEAN block replaced by the null instruction (appended when it has none)."""
+    if INTAKE_TRIAGE_ONLY_BLOCK in text or INTAKE_TRIAGE_ONLY_TAIL in text:
+        return text  # already rewritten
+    out, n = _INTAKE_CLEAN_BLOCK.subn(lambda _m: INTAKE_TRIAGE_ONLY_BLOCK, text)
+    out = out.replace("TRIAGE, CLEAN, and PREPARE", "TRIAGE and PREPARE")
+    return out if n else out.rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+
+
+def _swap_intake_schema(module: Any) -> None:
+    """Point ``agents.intake.INTAKE_SCHEMA`` at a copy that does not ask for ``cleaned_text`` (idempotent)."""
+    schema = module.INTAKE_SCHEMA
+    if "cleaned_text" in schema.get("properties", {}):
+        props = {k: v for k, v in schema["properties"].items() if k != "cleaned_text"}
+        module.INTAKE_SCHEMA = {**schema, "properties": props}
+
+
+def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Intake returns triage and the section map only; it never re-emits the document (HF-014).
+
+    The vendored prompt asks a messy document's model to return the FULL repaired text as
+    ``cleaned_text``. On OpenRouter intake's output allowance is 2,048 tokens, so any document over
+    2-3k characters is cut off mid-JSON, the whole answer (triage and sections too) is lost and the
+    input is still paid. The clerk's deterministic output stays the working text. The prompt text
+    is rewritten after it is served, so a Langfuse-managed or locally overridden prompt gets the
+    same instruction; a vendored prompt whose CLEAN block moved fails here, not silently.
+    """
+    if not _INTAKE_CLEAN_BLOCK.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-014)")
+    if "cleaned_text" not in module.INTAKE_SCHEMA.get("properties", {}):
+        raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-014)")
+    _swap_intake_schema(module)
+
+    @functools.wraps(original)
+    def system_prompt(self: Any) -> str:
+        return _intake_triage_only(original(self))
+
+    return system_prompt
+
+
+def _usable_triage(triage: Any) -> bool:
+    return isinstance(triage, dict) and bool(triage.get("primary_doc_class"))
+
+
+def _catalog_subclass(primary_class: Any, subclass: Any) -> str | None:
+    """The canonical sorter subclass token for ``primary_class``, or None when it is not in its catalog."""
+    from langchain_agents.doc_inventories import valid_sorter_subclasses  # type: ignore
+
+    cls = str(primary_class or "").strip()
+    token = str(subclass or "").strip().lower()
+    # The guard's own acceptance set (the class catalog; contract also takes CUAD ``other``).
+    # ``normalize_sorter_subclass`` is not used: it falls back to ``other`` for any unknown token.
+    return token if cls and token in valid_sorter_subclasses(cls) else None
+
+
+def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """A failed intake read feeds the sorter no prior; an invented subclass is not printed (HF-015).
+
+    ``validate_intake`` turned a parse failure (a cut-off reply, prose, a JSON list) into a
+    truthy triage of ``unknown`` / 0.0 / no gist, and ``format_intake_prior`` rendered it as an
+    advisory read. An empty triage is falsy, ``_merge_triage`` falls back to the first window's
+    read and ``format_intake_prior`` returns "". A model that answers ``unknown`` with a gist is a
+    real read and keeps its prior. The subclass line is printed only for a token in the sorter's
+    own catalog for that primary class.
+    """
+
+    @functools.wraps(original)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = original(result, text)
+        if not isinstance(result, dict) or result.get("_parse_error") or not _usable_triage(result.get("triage")):
+            out["triage"] = {}
+        return out
+
+    prior = module.format_intake_prior
+    if getattr(prior, _MARK, None) != "HF-015":
+        @functools.wraps(prior)
+        def format_intake_prior(prep: dict | None) -> str:
+            triage = (prep or {}).get("triage")
+            if isinstance(triage, dict) and triage.get("doc_subclass"):
+                token = _catalog_subclass(triage.get("primary_doc_class"), triage["doc_subclass"])
+                prep = {**prep, "triage": {**triage, "doc_subclass": token}}
+            return prior(prep)
+
+        setattr(format_intake_prior, _MARK, "HF-015")
+        module.format_intake_prior = format_intake_prior
+    return validate_intake
+
+
+def _refresh_empty_intake_prior(module: Any) -> None:
+    """Re-install the ``format_intake_prior`` half if a reload restored the vendored function."""
+    if getattr(module.format_intake_prior, _MARK, None) != "HF-015":
+        _install_empty_intake_prior(module, module.validate_intake)
+
+
 def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(original)
     def record_usage(usage: Any, model: str | None = None, agent: str | None = None,
@@ -753,6 +862,33 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "(retry_chat_completion already retries inside the call); unset keeps the vendored 2",
         install=_install_transient_budget,
     ),
+    Hotfix(
+        id="HF-014",
+        module="agents.intake",
+        attr="IntakeAgent.system_prompt",
+        source_sha256="9d2e6238b09d65b18f70356c08bc8f712a70898a464662fc299d6abcdecbb886",
+        upstream="upstream issue to be filed (llm-mailroom: intake CLEAN re-emits the document under a 2k output cap)",
+        summary="intake returns triage and the section map only: the prompt's CLEAN block becomes "
+                "\"set cleaned_text to null\" and INTAKE_SCHEMA drops cleaned_text, so a long messy "
+                "document's answer is no longer cut off mid-JSON and the clerk's text stays the "
+                "working text (HF-003 stays as a latent guard)",
+        install=_install_intake_triage_only,
+        refresh=lambda module: _swap_intake_schema(module),
+    ),
+    Hotfix(
+        id="HF-015",
+        module="agents.intake",
+        attr="validate_intake",
+        source_sha256="c6957091af25c45f4af88ce8475349fb64cc3c40b4f2e66756eb5d91a3043df6",
+        upstream="upstream issue to be filed (llm-mailroom: a failed intake read becomes an unknown/0.0 prior)",
+        summary="a failed intake read (parse error, no triage object) has an empty triage and so no "
+                "sorter prior instead of 'unknown / 0.0'; the prior's subclass line is printed only "
+                "for a token in the sorter's catalog for that class",
+        install=_install_empty_intake_prior,
+        refresh=_refresh_empty_intake_prior,
+        also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
+              ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
+    ),
 )
 
 _STATUS: dict[str, str] = {}
@@ -796,7 +932,12 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
                          "(re-validate it or retire it)", fix.id, fix.module, fix.attr)
             _STATUS[fix.id] = "stale"
             continue
-        wrapped = fix.install(module, current)
+        try:
+            wrapped = fix.install(module, current)
+        except HotfixDrift as exc:
+            _log.warning("%s not applied: %s (re-validate it or retire it)", fix.id, exc)
+            _STATUS[fix.id] = "stale"
+            continue
         setattr(wrapped, _MARK, fix.id)
         setattr(owner, name, wrapped)
         _STATUS[fix.id] = "applied"
