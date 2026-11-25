@@ -68,6 +68,24 @@ last data. Use the digest's `generated_utc` to assess its age. A later rebuild
 failure logs the error and keeps the previous good digest available for a
 retry; a failed initial build prevents startup.
 
+## Sharing a digest
+
+EXPORT downloads one JSON file of the digest on screen. IMPORT loads that
+file, or a bare `floor_digest.json` from the builder, on another machine.
+The file is the viewer contract: runs, scores, paths, debug traces, and the
+graph reference. It is not `items.jsonl`, `nodes.jsonl`, or the other raw
+run logs, and document text is not in it. The page reads the file with
+`JSON.parse` and does not write the run store.
+
+The file has `mailroom_floor_export` set to `1`, `exported_utc`, `focus`
+(the run, class, debug filter, mode, document, and node on screen), and
+`digest` (the same object as `floor_digest.json`). A different export number, or a file that is not a digest, is refused
+and the current view stays. The ribbon keeps SNAPSHOT beside the refusal. After import the ribbon says
+SNAPSHOT and live polling pauses. A fetch that was already open does not
+replace that snapshot when it returns. LIVE returns to the digest this page
+opened with: the server digest over HTTP, or the `floor_digest.js` beside
+the page for `file://`. A replay digest stays labelled replay.
+
 ## Reading the figures
 
 | Display | Meaning |
@@ -110,6 +128,50 @@ selected run and the isolated class.
 | SCORES vs GT | Classification accuracy over documents with a ground-truth class that finished (a finished document with no predicted class counts as a miss, shown as `unknown` in the confusion matrix; an open one is not counted yet); the mean Dojo `overall_extraction_score` over all label tiers, with the Hub-GT-only mean beside it; the near-gold fields used; outcome totals. A per-class table (recall, precision, extraction mean, near-gold documents, archived/review/failed/open; click a row to isolate the class), the label-tier table and a confusion matrix (rows ground truth, columns predicted). |
 | DOCUMENTS | One row per document: GT and predicted class (✗ on a miss), outcome, extraction score, label tier, review trigger, latency and node path. Filter by outcome, by misclassified-or-failed, or by id. Click a row to light only that document's path on the graph and show its details in the right rail. |
 | NODES | Per node: documents in, p50, aborts, where those documents ended up (archived/review/failed/open) and how many were classified right. Click a row to select the node. |
+| DEBUG | Failure modes in the current filter, why the filtered documents reached the selected node, which of them repeat a node, and why they never recorded `archive`. Click a mode to isolate it, or a document row to trace it. |
+
+## Debug mode
+
+The ribbon **DEBUG** button isolates documents that need a diagnosis and
+explains each hop from the trace that was stored. `?debug=1` opens it;
+`?issue=` selects a filter (`problems`, `loop`, `stuck`, `held`, `failed`,
+`open`, `miss`, `diverted`, `all`). The default filter is problems: still
+open, held, failed, class misses, and any document that never recorded
+`archive`.
+
+The builder adds a `debug` object on each document row:
+
+| Field | Meaning |
+| --- | --- |
+| `issues` | Tags from the trace: `loop`, `stuck` (open on a repeated node), `held`, `failed`, `open`, `miss` (a finished document whose predicted class differs from ground truth, including a ground-truth class with no predicted class, the same `unknown` the scores panel counts), `diverted` (no `archive` visit and not a ship outcome). |
+| `loops` | Nodes entered more than once. `self` means the repeats were consecutive. `reentry` means the document left the node and came back. |
+| `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
+| `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
+| `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `lever` names the stage to inspect before the next run. |
+
+A `why` sentence quotes only a stored decision, review cause, status, error,
+or an unconditional edge (`plain_edges`, such as `catalog_write` to
+`archive`). It does not re-run the routers. When the node record has no
+decision, the sentence says so. A self-loop is not drawn; the node badge
+`LOOP ×n` is the repeat count, and the right rail states what was recorded
+on those visits.
+
+Click a node while DEBUG is on for the arrivals into that node and the
+documents that reached it instead of archive. Click a document for the hop
+list. Older digests without `debug` keep the previous panels; rebuild to
+fill the trace. Replay runs stay labelled as replay: the reasons describe
+the scripted trace, not a live model.
+
+Failure modes are the fine-grained groups inside a filter. A held document
+is grouped by the node it stopped on and its recorded review causes, so
+`class_miss` and `extraction_miss` stay separate. A stuck document is grouped
+by the node and whether the repeat was consecutive or a reentry. A technical
+failure is grouped by the node and the error token. A class miss that still
+reached archive is its own mode. Click a mode to light only those documents.
+`?mode=` deep-links one id. The same id in another run of the digest is
+listed, so a mode that already appeared can be recognized before the next
+run repeats it. The lever tells which stage to read. It does not rewrite
+the run, its scores, or its prompts.
 
 **Label tiers.** Ground truth comes from the Hub, then the interim overlay,
 then the near-gold overlay (`interim_labels` / `near_gold_labels` on the run's

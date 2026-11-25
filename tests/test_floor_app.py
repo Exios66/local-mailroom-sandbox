@@ -1076,8 +1076,18 @@ def test_template_fits_the_drawn_graph_not_the_fixed_canvas():
 def test_template_has_the_analysis_tabs_and_stalled_state():
     """Scores, documents and nodes tabs exist, and a stalled run is labelled rather than shown as running."""
     html = _template()
-    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"'):
+    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"', 'data-t="debug"'):
         assert tab in html
+    assert 'id="dbg"' in html and "arrivalGroups" in html and "modeGroups" in html
+    assert 'id="exp"' in html and 'id="imp"' in html and "mailroom_floor_export" in html
+    assert "floorShareText" in html and "JSON.parse" in html and "holdLive" in html
+    resume = html.split("async function floorResumeLive")[1].split("// ── LIVE refresh")[0]
+    poll = html.split("setInterval(async()=>{")[1].split(",3000)")[0]
+    assert resume.index("await fetch") < resume.index("if(epoch!==shareEpoch)return") < resume.index("takeDigest(nd")
+    assert poll.index("await fetch") < poll.index("if(holdLive||epoch!==shareEpoch)return") < poll.index("D=nd")
+    assert "if(snapshot)shareEpoch++" in html
+    assert '(!ISSUE||ISSUE==="all")&&!MODE' in html
+    assert "hop.gap" in html and "arrivalGroups(selNode, docs)" in html
     assert 'r.state==="stalled"' in html and "near_gold" in html
 
 

@@ -15,7 +15,9 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .run{padding:6px 8px;border:1px solid #1c2530;border-radius:4px;margin-bottom:5px;font-size:10.5px;cursor:pointer;color:#7e8ca0}
 .run.sel{border-color:#41d98f;color:#e6f0e9;background:#0d1a13}
 .run small{display:block;color:#4d5c6e;font-size:9px;margin-top:2px}
-.cls{display:flex;justify-content:space-between;padding:5px 8px;border-radius:4px;margin-bottom:3px;font-size:10.5px;cursor:pointer;border:1px solid transparent}
+.cls,.issue,.mode{display:flex;justify-content:space-between;gap:6px;padding:5px 8px;border-radius:4px;margin-bottom:3px;font-size:10.5px;cursor:pointer;border:1px solid transparent}
+.issue.sel,.mode.sel{background:#1a1408;border-color:#e8b93f;color:#f3e2b0}
+.mode span{white-space:normal;line-height:1.35}
 .cls.sel{background:#0f1d15;border-color:#7fd0a2;color:#d5f2e0}
 .cls.na{cursor:not-allowed;color:#4d5c6e}
 #viewport{position:relative;overflow:hidden;background:radial-gradient(1200px 700px at 45% 45%,#081019,#05070a);cursor:grab}
@@ -31,6 +33,8 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .node.hold{border-color:#7a5c1d}.node.fail{border-color:#7a2620}
 .node.dim{opacity:.14}
 .node.route{border-color:#7fd0a2;box-shadow:0 0 0 1.5px #7fd0a2,0 0 12px #7fd0a230}
+.node.loop{border-color:#e8b93f;box-shadow:0 0 0 1.5px #e8b93f80}
+.loopbadge{position:absolute;top:-10px;right:4px;background:#1a1408;border:1px solid #e8b93f;color:#e8b93f;border-radius:8px;font-size:8px;letter-spacing:.4px;padding:0 5px;pointer-events:none}
 .node.neighbor{border-color:#419bd9;opacity:.95;box-shadow:0 0 0 1px #419bd980,0 0 10px #419bd920}
 .node.selnode{border-color:#7fd0a2;box-shadow:0 0 0 2px #7fd0a2,0 0 16px #7fd0a260}
 .chip{position:absolute;transform:translate(-50%,-50%);background:#111c27;border:1px solid #33465c;color:#9fc6e8;font-size:9px;padding:1px 5px;border-radius:4px}
@@ -49,7 +53,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .state{display:flex;justify-content:space-between;padding:4px 6px;border:1px solid #1c2530;border-radius:4px;margin-bottom:3px;font-size:10px}
 .state .n{color:#5d6c80;margin-left:6px;font-size:9px}
 .note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
-.run:focus-visible,.cls:focus-visible,.node:focus-visible,#zoomctl div:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
+.run:focus-visible,.cls:focus-visible,.issue:focus-visible,.node:focus-visible,#zoomctl div:focus-visible,#dbg:focus-visible,#exp:focus-visible,#imp:focus-visible,#live:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
 .node.dim:focus-visible{opacity:1}
 .rnb{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#05130c;border:1.5px solid #41d98f;color:#41d98f;border-radius:10px;font-size:8.5px;font-weight:bold;letter-spacing:1px;padding:2px 9px;white-space:nowrap;box-shadow:0 0 10px #41d98f50;animation:pulse 1.6s infinite;pointer-events:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -68,6 +72,12 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .tabs{display:flex;align-items:center;gap:2px;padding:4px 8px 0;border-bottom:1px solid #1c2530;flex:none}
 .tab{font:inherit;font-size:10px;letter-spacing:1px;color:#7e8ca0;background:none;border:1px solid transparent;border-bottom:none;border-radius:4px 4px 0 0;padding:4px 10px;cursor:pointer}
 .tab.sel{color:#e6f0e9;background:#0d141d;border-color:#1c2530}
+#dbg,#exp,#imp,#live{font:inherit;font-size:9px;letter-spacing:1px;color:#7e8ca0;background:#0d141d;border:1px solid #2e4256;border-radius:4px;padding:2px 8px;cursor:pointer;flex:none}
+#dbg.on,#live.on{color:#e8b93f;border-color:#e8b93f;background:#1a1408}
+#share{color:#e8b93f;flex:none;margin-right:10px}
+.diag{font-size:10px;color:#c5d0dc;line-height:1.45;margin:4px 0 8px}
+.diag b{display:block;font-size:9px;letter-spacing:1px;color:#4d5c6e;font-weight:normal;margin-top:6px}
+.diag .why{color:#9fc6e8}
 .tabs .sp{flex:1}.tabs .hint{font-size:9px;color:#4d5c6e;margin-right:8px}
 .pane{overflow:auto;padding:8px 10px;flex:1;min-height:0}
 .kpis{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
@@ -76,6 +86,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 table.t{border-collapse:collapse;font-size:10.5px;margin-bottom:12px}
 table.t th{position:sticky;top:0;background:#0a0e13;color:#5d6c80;font-weight:normal;text-align:left;padding:3px 8px;border-bottom:1px solid #1c2530;font-size:9px;letter-spacing:1px;white-space:nowrap}
 table.t td{padding:3px 8px;border-bottom:1px solid #121a24;white-space:nowrap}
+table.t td.why{white-space:normal;max-width:480px;color:#9fc6e8;line-height:1.45}
 table.t td.num,table.t th.num{text-align:right}
 table.t tr.click{cursor:pointer}table.t tr.click:hover td{background:#0f1822}
 table.t tr.sel td{background:#123024}
@@ -94,26 +105,27 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 @media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px auto auto auto;height:auto}.ribbon{grid-column:1}.center{order:1}#viewport{height:70vh}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
 </style></head><body>
 <div class="app">
-<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
-<div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
+<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v11</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><button type="button" id="dbg" aria-pressed="false">DEBUG</button><button type="button" id="exp">EXPORT</button><button type="button" id="imp">IMPORT</button><button type="button" id="live" hidden>LIVE</button><input id="impFile" type="file" accept="application/json,.json" hidden><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="share"></span><span id="gen"></span><span id="upd"></span></span></div>
+<div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><div id="issueBox" hidden><h3>DEBUG — click = isolate</h3><div id="issues"></div><h3 id="modeHead">FAILURE MODES — click = isolate</h3><div id="modes"></div></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
 <div class="center"><div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
 <marker id="arr" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7e93a8"/></marker>
 <marker id="arrHot" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7cc4ff"/></marker>
 <marker id="arrSel" markerWidth="15" markerHeight="15" refX="12" refY="7.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L15,7.5 L0,15 z" fill="#cdeaff"/></marker>
 <marker id="arrDim" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#4a5a6e" opacity=".45"/></marker></defs></svg></div></div>
-<div class="drawer open" id="drawer"><div class="tabs" role="tablist"><button class="tab sel" data-t="scores" role="tab">SCORES vs GT</button><button class="tab" data-t="docs" role="tab">DOCUMENTS</button><button class="tab" data-t="nodes" role="tab">NODES</button><span class="sp"></span><span class="hint" id="tabHint"></span><button class="tab" id="drawerTog" aria-expanded="true">hide ▾</button></div><div class="pane" id="pane"></div></div></div>
+<div class="drawer open" id="drawer"><div class="tabs" role="tablist"><button class="tab sel" data-t="scores" role="tab">SCORES vs GT</button><button class="tab" data-t="docs" role="tab">DOCUMENTS</button><button class="tab" data-t="nodes" role="tab">NODES</button><button class="tab" data-t="debug" role="tab">DEBUG</button><span class="sp"></span><span class="hint" id="tabHint"></span><button class="tab" id="drawerTog" aria-expanded="true">hide ▾</button></div><div class="pane" id="pane"></div></div></div>
 <div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outRev"></div><div class="note2" id="outNote"></div>
 <h3>Node — <span id="selName">(click a node)</span></h3>
 <div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here</span><b id="kAb">—</b></div>
-<div class="note2" id="selExtra" style="color:#8fa3b8"></div>
-<h3>Document — <span id="docName">(pick one in DOCUMENTS)</span></h3><div class="kv" id="docKv"></div>
+<div class="note2" id="selExtra" style="color:#8fa3b8"></div><div id="nodeDiag"></div>
+<h3>Document — <span id="docName">(pick one in DOCUMENTS)</span></h3><div class="kv" id="docKv"></div><div id="docDiag"></div>
 <div class="kv" style="margin-top:8px"><span>run tokens</span><b id="kTok"></b><span>digest</span><b id="kGen"></b></div></div>
 </div>
 <script src="floor_digest.js"></script>
 <script>
 let D=window.DIGEST;
 if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
+const bootDigest=D;let holdLive=false,shareEpoch=0;
 /** Show the digest's generated time (ribbon and right rail); called at load and after each live refresh. */
 function setGen(){
  document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
@@ -131,8 +143,15 @@ const W=2200,H=1400, world=document.getElementById("world"), svg=document.getEle
 // default run: the last one still running, else the last run in the digest
 let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, selDoc=null, moved=0;
 let TAB="scores";const DF={outcome:"",miss:false,q:""};   // drawer tab + Documents filters (kept across refreshes)
-{const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>
+let DEBUG=false, ISSUE="problems", MODE=null;
+const ISSUE_IDS=["problems","loop","stuck","held","failed","open","miss","diverted","all"];
+const PROBLEM=["stuck","held","failed","open","miss","diverted"];
+{const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>&debug=1&issue=
  if(ri>=0)runIdx=ri;
+ DEBUG=q.get("debug")==="1";
+ if(ISSUE_IDS.includes(q.get("issue")))ISSUE=q.get("issue");
+ if(q.get("mode"))MODE=q.get("mode");
+ if(DEBUG)TAB="debug";
  const dr=D.runs[runIdx];   // honor ?class= only when THIS run can isolate it (same rule as the class rail's "?" state)
  if(c&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why){CLASS=c;document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";const bt=document.getElementById("bigTitle");bt.textContent=c.toUpperCase();bt.classList.add("on")}}
 function run(){return D.runs[runIdx]}
@@ -221,11 +240,83 @@ function paintProgress(){
  document.getElementById("pfill").style.width=pct+"%";
  document.getElementById("ptxt").textContent=cur+" / "+r.total+" docs · "+(done?"100":pct.toFixed(1))+"%"+(typeof r.avg_doc_ms==="number"?" · AVG "+(r.avg_doc_ms/60000).toFixed(1)+" min/doc":"");
  el.classList.add("on")}
+const ISSUE_LABEL={problems:"problems",loop:"loops",stuck:"stuck in a loop",held:"human review",failed:"failed",open:"still open",miss:"class miss",diverted:"missed archive",all:"all traffic"};
+function isProblem(d){return ((d.debug||{}).issues||[]).some(i=>PROBLEM.includes(i))}
+/** Documents in the debug isolate, or every document of the run/class when debug is off or set to all traffic. */
+function issueDocs(){
+ const docs=runDocs();
+ if(!DEBUG||ISSUE==="all")return docs;
+ if(ISSUE==="problems")return docs.filter(isProblem);
+ return docs.filter(d=>((d.debug||{}).issues||[]).includes(ISSUE))}
+function debugDocs(){
+ const docs=issueDocs();
+ if(!DEBUG||!MODE)return docs;
+ return docs.filter(d=>d.debug&&d.debug.mode&&d.debug.mode.id===MODE)}
+/** Failure modes in the current issue filter, before a single mode is isolated. */
+function modeGroups(docs){
+ const map=new Map();
+ for(const d of docs||issueDocs()){
+  const m=d.debug&&d.debug.mode;if(!m)continue;
+  const g=map.get(m.id)||{id:m.id,label:m.label,lever:m.lever,n:0,docs:[]};
+  g.n++;if(g.docs.length<8&&!g.docs.includes(d.id))g.docs.push(d.id);
+  map.set(m.id,g)}
+ return [...map.values()].sort((a,b)=>b.n-a.n||(a.id<b.id?-1:1))}
+/** The same mode id in other runs of this digest. */
+function modeElsewhere(id){
+ const out=[];
+ D.runs.forEach((r,i)=>{if(i===runIdx)return;
+  const n=(r.docs||[]).filter(d=>d.debug&&d.debug.mode&&d.debug.mode.id===id).length;
+  if(n)out.push({name:r.name,n})});
+ return out}
+function hasDebug(){return (run().docs||[]).some(d=>d.debug)}
+/** Nodes and hops touched by the isolated documents. Null unless debug isolate is on and no single document is picked. */
+function focusSets(){
+ if(!DEBUG||selDocPath())return null;
+ if((!ISSUE||ISSUE==="all")&&!MODE)return null;
+ const nodes=new Set(),edges=new Set(),loops=new Set();
+ for(const d of debugDocs()){
+  for(const n of d.path||[])nodes.add(n);
+  for(const h of (d.debug&&d.debug.hops)||[]){if(h.from&&h.to&&!h.gap)edges.add(h.from+">"+h.to)}
+  for(const L of (d.debug&&d.debug.loops)||[]){loops.add(L.node);nodes.add(L.node)}}
+ return {nodes,edges,loops}}
+/** How many isolated documents repeat this node, and the highest visit count among them. */
+function loopMark(id){
+ if(!DEBUG)return null;
+ const docs=selDoc?[(run().docs||[]).find(d=>d.id===selDoc)].filter(Boolean):debugDocs();
+ let n=0,max=0,why="";
+ for(const d of docs){const L=((d.debug||{}).loops||[]).find(x=>x.node===id);if(L){n++;if(L.visits>max){max=L.visits;why=L.why}}}
+ return n?{n,max,why}:null}
+/** Group recorded hops into one node by source and reason. */
+function arrivalGroups(node, docs){
+ const map=new Map();
+ for(const d of (docs||debugDocs())){
+  for(const hop of ((d.debug||{}).hops||[]).filter(h=>h.to===node&&!h.gap)){
+   const key=hop.from+"\n"+hop.why;
+   const g=map.get(key)||{from:hop.from,why:hop.why,n:0,docs:[]};
+   g.n++;if(g.docs.length<4&&!g.docs.includes(d.id))g.docs.push(d.id);
+   map.set(key,g)}}
+ return [...map.values()].sort((a,b)=>b.n-a.n)}
+function markTab(){document.querySelectorAll(".tab[data-t]").forEach(x=>{const on=x.dataset.t===TAB;x.classList.toggle("sel",on);x.setAttribute("aria-selected",String(on))})}
+function syncDebug(){
+ const b=document.getElementById("dbg");b.classList.toggle("on",DEBUG);b.setAttribute("aria-pressed",String(DEBUG));
+ document.getElementById("issueBox").hidden=!DEBUG;
+ document.getElementById("hud").innerHTML=DEBUG
+  ?"DEBUG · pick a <b>failure mode</b> to isolate it · click a node for <b>why it was reached</b> · click a document for <b>each hop</b>"
+  :"arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b>";
+ markTab();
+ if(location.protocol==="file:")return;
+ const q=new URLSearchParams(location.search);
+ if(DEBUG)q.set("debug","1");else q.delete("debug");
+ if(DEBUG&&ISSUE&&ISSUE!=="problems")q.set("issue",ISSUE);else q.delete("issue");
+ if(DEBUG&&MODE)q.set("mode",MODE);else q.delete("mode");
+ const s=q.toString();
+ history.replaceState(null,"",location.pathname+(s?"?"+s:"")+location.hash)}
 /** Redraw graph traffic and detail panels for the current run, class, and node selection. */
 function render(){
  world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
  while(svg.childNodes.length>1)svg.lastChild.remove();
  const r=run(),GR=D.graph_reference,docPath=selDocPath(),docPairs=new Set((docPath||[]).slice(1).map((n,i)=>docPath[i]+">"+n));
+ const focus=focusSets();
  // pre-compute edge traffic in current view context
  const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?nodeVal(b):b==="END"?nodeVal(a):edgeVal(a,b)}));
  const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
@@ -234,8 +325,10 @@ function render(){
  if(selNode)for(const e of ev){ if(e.v>0){ if(e.a===selNode)neighbors.add(e.b); if(e.b===selNode)neighbors.add(e.a);} }
  for(const [id,xy] of Object.entries(POS)){
   if(id==="START"||id==="END"){
-   const lit = docPath ? (id==="START"||docPath.length>0) : !selNode ? (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0))) :
-     (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))));
+   const lit = docPath ? (id==="START"||docPath.length>0)
+     : selNode ? (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))))
+     : focus ? (id==="START"?startTargets().some(t=>focus.nodes.has(t)):endSources().some(t=>focus.nodes.has(t)))
+     : (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0)));
    const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${id==="START"?r.items_attempted:endCount()}</div>`,"node"+(lit?"":" dim"));
    el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
    el.dataset.k=id;continue;
@@ -251,10 +344,13 @@ function render(){
     const linked = id===selNode || neighbors.has(id);
     ncls += linked ? (id===selNode?" selnode":" neighbor") : " dim";
   }
+  else if(focus){ ncls += focus.nodes.has(id)? " route":" dim"; }      // debug isolate: only the filtered documents' nodes
   else if(CLASS){ ncls += (v>0)? " route":" dim"; }
   else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
+  const mark=loopMark(id);if(mark)ncls+=" loop";
   mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${esc(GR.node_agents[id]||id)}</span><div class="nm">${esc(id)}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000).toFixed(1)}s</div>`, ncls)
    .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;world.lastChild.tabIndex=0;world.lastChild.setAttribute("role","button");world.lastChild.setAttribute("aria-pressed",String(selNode===id));
+  if(mark){const b=document.createElement("span");b.className="loopbadge";b.textContent="LOOP ×"+mark.max;b.title=mark.n+" document(s) repeated this node. "+mark.why;world.lastChild.appendChild(b)}
   // LIVE: RUNNING pill on the top edge of a visible node with docs in flight (run-level count).
   // Only for a running run: a finished run's leftover open record must not tick forever.
   if(LIVE&&r.state==="running"&&!/\bdim\b/.test(ncls)&&inflightList(id).length){const b=document.createElement("span");b.className="rnb";world.lastChild.appendChild(b);paintPill(b,id)}
@@ -277,13 +373,15 @@ function render(){
   else if(selNode){
     if(selHit){cls="edge sel";marker="url(#arrSel)"}                        // selected node's in/out edges light
     else {cls="edge dim";marker="url(#arrDim)"}                             // everything else greys when a node is toggled
-  } else if(CLASS){ cls="edge hot"; marker="url(#arrHot)"; }                // class view: live route edges blue
+  } else if(focus){ if(focus.edges.has(a+">"+b)){cls="edge hot";marker="url(#arrHot)"}else{cls="edge dim";marker="url(#arrDim)"} }
+  else if(CLASS){ cls="edge hot"; marker="url(#arrHot)"; }                // class view: live route edges blue
   const ln=document.createElementNS("http://www.w3.org/2000/svg","path");
   ln.setAttribute("d",`M ${p1.x} ${p1.y} Q ${cxm} ${cym} ${p2.x} ${p2.y}`);ln.setAttribute("fill","none");
   ln.setAttribute("class",cls);ln.setAttribute("marker-end",marker);
   svg.appendChild(ln);
   const c=mk(v?v:"","chip");c.style.left=(p1.x+2*cxm+p2.x)/4+"px";c.style.top=(p1.y+2*cym+p2.y)/4+"px";
   if(!active||(docPath&&!docPairs.has(a+">"+b)))c.classList.add("dim");
+  if(focus&&!selNode&&!focus.edges.has(a+">"+b))c.classList.add("dim");
   if(selNode&&!selHit)c.classList.add("dim");   // node toggled: grey chips not on the selected node's edges
   
   if(selHit)c.classList.add("chipSel");
@@ -338,7 +436,7 @@ function render(){
  document.getElementById("selExtra").textContent=!sel?"":
   (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
   +nodeOutcomeText(sel);
- paintDoc();renderPane();
+ paintDoc();paintMode();paintNodeDiag();renderPane();
 }
 /** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
@@ -354,7 +452,16 @@ function menus(){
  // A class with no items in the run keeps its real 0 and stays selectable.
  const rr=run(),agg={},why={};
  if(CLASS&&(!D.classes.includes(CLASS)||classView(rr,CLASS).why))CLASS=null;
- document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
+ document.getElementById("mode").textContent=(DEBUG?"DEBUG · ":"")+(CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)")+(DEBUG&&ISSUE!=="all"?" · "+(ISSUE_LABEL[ISSUE]||ISSUE):"")+(DEBUG&&MODE?" · one mode":"");
+ syncDebug();
+ const issueCounts={};
+ for(const id of ISSUE_IDS)issueCounts[id]=id==="all"?runDocs().length:id==="problems"?runDocs().filter(isProblem).length:runDocs().filter(d=>((d.debug||{}).issues||[]).includes(id)).length;
+ document.getElementById("issues").innerHTML=ISSUE_IDS.map(id=>`<div class="issue${ISSUE===id?" sel":""}" data-issue="${id}" tabindex="0" role="button" aria-pressed="${ISSUE===id}">${ISSUE_LABEL[id]}<b>${issueCounts[id]}</b></div>`).join("");
+ document.querySelectorAll(".issue").forEach(el=>el.onclick=()=>{ISSUE=el.dataset.issue;MODE=null;selDoc=null;selNode=null;menus();render()});
+ const modes=DEBUG?modeGroups(issueDocs()):[];
+ document.getElementById("modeHead").hidden=!DEBUG||!modes.length;
+ document.getElementById("modes").innerHTML=modes.map(m=>`<div class="mode${MODE===m.id?" sel":""}" data-mode="${esc(m.id)}" tabindex="0" role="button" aria-pressed="${MODE===m.id}" title="${esc(m.lever)}"><span>${esc(m.label)}</span><b>${m.n}</b></div>`).join("");
+ document.querySelectorAll(".mode").forEach(el=>el.onclick=()=>{MODE=MODE===el.dataset.mode?null:el.dataset.mode;selDoc=null;selNode=null;menus();render()});
  const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
  for(const c of D.classes){const v=classView(rr,c);agg[c]=v.agg;if(v.why)why[c]=v.why}
  document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}${routeSuffix(rr,c,why[c])}</b></div>`).join("");
@@ -382,15 +489,44 @@ function nodeOutcomeText(id){
 function paintDoc(){
  const kv=document.getElementById("docKv"),nm=document.getElementById("docName");
  const d=selDoc&&(run().docs||[]).find(x=>x.id===selDoc);
- if(!d){nm.textContent="(pick one in DOCUMENTS)";kv.innerHTML="";return}
+ const diag=document.getElementById("docDiag");
+ if(!d){nm.textContent="(pick one in DOCUMENTS)";kv.innerHTML="";diag.innerHTML="";return}
  nm.textContent=d.id;
  const miss=d.gt&&d.pred&&d.gt!==d.pred,o=OUTC[d.outcome]||["mut",d.outcome];
  kv.innerHTML=[["GT class",esc(d.gt||"?")],["predicted",`<span class="${miss?"bad":d.pred?"ok":"mut"}">${esc(d.pred||"—")}${miss?" ✗":d.pred&&d.gt?" ✓":""}</span>`],
   ["outcome",`<span class="${o[0]}">${esc(o[1])}</span>${d.stage?" · "+esc(d.stage):""}`],["review",esc(d.review||"—")],
   ["extraction",num3(d.score)],["labels",tierBadge(d.labels)+(d.labels&&d.labels.near_gold&&d.labels.near_gold.length?" "+esc(d.labels.near_gold.join(", ")):"")],
   ["latency",d.ms==null?"—":(d.ms/1000).toFixed(1)+" s"],["path",pathHtml(d.path)],["note",esc(d.note||"—")]]
-  .map(([k,v])=>`<span>${k}</span><b style="font-weight:normal;white-space:normal">${v}</b>`).join("")}
-function pickDoc(id){selDoc=selDoc===id?null:id;if(selDoc)selNode=null;render()}
+  .map(([k,v])=>`<span>${k}</span><b style="font-weight:normal;white-space:normal">${v}</b>`).join("");
+ const g=DEBUG&&d.debug;
+ if(!g){diag.innerHTML="";return}
+ let h=`<div class="diag"><b>${g.archive&&g.archive.reached?"Reached archive":"Did not archive"}</b><div>${esc((g.archive||{}).why||"")}</div>`;
+ if(g.loops&&g.loops.length)h+=`<b>Loops</b>`+g.loops.map(L=>`<div><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</div>`).join("");
+ if(g.hops&&g.hops.length)h+=`<b>Why each hop</b>`+g.hops.map(hop=>hop.gap?`<div class="mut">${hop.gap} hop(s) omitted here. The next line does not follow the previous one.</div>`:`<div><span class="why">${esc(hop.from)} → ${esc(hop.to)}</span> — ${esc(hop.why)}</div>`).join("");
+ if(g.mode)h+=`<b>Next run</b><div>${esc(g.mode.lever)}</div>`;
+ diag.innerHTML=h+"</div>"}
+function paintMode(){
+ if(!DEBUG||!MODE||selDoc)return;
+ const sample=issueDocs().find(d=>d.debug&&d.debug.mode&&d.debug.mode.id===MODE);
+ const el=document.getElementById("docDiag");
+ if(!sample){el.innerHTML=`<div class="diag"><b>Failure mode</b><div class="mut">This run has no document in ${esc(MODE)} under the current filter.</div></div>`;return}
+ const elsew=modeElsewhere(MODE);
+ el.innerHTML=`<div class="diag"><b>Failure mode</b><div>${esc(sample.debug.mode.label)}</div><b>Next run</b><div>${esc(sample.debug.mode.lever)}</div><b>Other runs in this digest</b><div>${elsew.length?elsew.map(x=>esc(x.name)+" · "+x.n).join("<br>"):"none"}</div></div>`}
+function paintNodeDiag(){
+ const el=document.getElementById("nodeDiag");
+ if(!DEBUG||!selNode||!hasDebug()){el.innerHTML="";return}
+ const groups=arrivalGroups(selNode);
+ const looping=debugDocs().filter(d=>((d.debug||{}).loops||[]).some(L=>L.node===selNode));
+ const blocked=debugDocs().filter(d=>d.debug&&d.debug.archive&&!d.debug.archive.reached&&((d.path||[]).includes(selNode)||looping.includes(d)));
+ let h=`<div class="diag"><b>Why documents reached ${esc(selNode)}</b>`;
+ if(!groups.length)h+=`<div class="mut">${looping.length?"No other node handed a document here. The repeats below are on this node.":"No recorded hop into this node in the current filter."}</div>`;
+ else groups.slice(0,5).forEach(g=>{h+=`<div><span class="why">${g.n} from ${esc(g.from)}</span> — ${esc(g.why)} <span class="mut">${g.docs.map(esc).join(", ")}</span></div>`});
+ if(looping.length){h+=`<b>Stuck or repeating here</b>`;const seen=new Set();looping.forEach(d=>{const L=d.debug.loops.find(x=>x.node===selNode);const key=L.why;if(seen.has(key))return;seen.add(key);h+=`<div><span class="warn">${esc(d.id)}</span> — ${esc(L.why)}</div>`})}
+ h+=`<b>Instead of archive</b><div>${blocked.length} filtered document(s) visited here and never recorded archive.</div>`;
+ const reasons=[...new Set(blocked.map(d=>d.debug.archive.why))].slice(0,3);
+ reasons.forEach(w=>{h+=`<div>${esc(w)}</div>`});
+ el.innerHTML=h+"</div>"}
+function pickDoc(id){if(!id)return;selDoc=selDoc===id?null:id;if(selDoc)selNode=null;render()}
 function pickClass(c){if(!D.classes.includes(c)||classView(run(),c).why)return;CLASS=CLASS===c?null:c;selDoc=null;menus();render()}
 function scoresPane(){
  const r=run(),sc=r.scores;
@@ -414,15 +550,17 @@ function scoresPane(){
 function docsPane(){
  const r=run();if(!r.docs)return '<p class="secnote">This digest predates per-document rows: rebuild it with the current builder.</p>';
  const q=DF.q.toLowerCase();
- const rows=runDocs().filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q)));
+ const pool=DEBUG?debugDocs():runDocs();
+ const rows=pool.filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q)));
  const shown=rows.slice(0,600);
- let h=`<div class="filters"><span>${rows.length} of ${runDocs().length} doc(s)${CLASS?" in "+esc(CLASS):""}${r.docs_truncated?` · digest keeps the first ${r.docs.length} of ${r.docs.length+r.docs_truncated}`:""}</span>
+ let h=`<div class="filters"><span>${rows.length} of ${pool.length} doc(s)${CLASS?" in "+esc(CLASS):""}${DEBUG?" · "+esc(ISSUE_LABEL[ISSUE]||ISSUE):""}${r.docs_truncated?` · digest keeps the first ${r.docs.length} of ${r.docs.length+r.docs_truncated}`:""}</span>
 <label>outcome <select id="fOut"><option value="">all</option>${["ship","held","failed","open"].map(k=>`<option value="${k}"${DF.outcome===k?" selected":""}>${OUTC[k][1]}</option>`).join("")}</select></label>
 <label><input type="checkbox" id="fMiss"${DF.miss?" checked":""}> misclassified or failed only</label>
 <label>id <input id="fQ" value="${esc(DF.q)}" size="16" placeholder="filter"></label><span class="mut">click a row to trace its path on the graph</span></div>`;
- h+=`<table class="t"><tr><th>document</th><th>GT</th><th>predicted</th><th>outcome</th><th class="num">extraction</th><th>labels</th><th>review trigger</th><th class="num">s</th><th>path</th></tr>`+
+ h+=`<table class="t"><tr><th>document</th><th>GT</th><th>predicted</th><th>outcome</th><th class="num">extraction</th><th>labels</th><th>review trigger</th><th class="num">s</th><th>path</th>${DEBUG?"<th>why</th>":""}</tr>`+
   shown.map(d=>{const miss=d.gt&&d.pred&&d.gt!==d.pred,o=OUTC[d.outcome]||["mut",d.outcome];
-   return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}" title="${esc(d.note||"")}"><td>${esc(d.id)}</td><td>${esc(d.gt||"?")}</td><td class="${miss?"bad":""}">${esc(d.pred||"—")}${miss?" ✗":""}</td><td class="${o[0]}">${esc(o[1])}</td><td class="num">${num3(d.score)}</td><td>${tierBadge(d.labels)}</td><td>${esc(d.review||"")}</td><td class="num">${d.ms==null?"":(d.ms/1000).toFixed(1)}</td><td class="path">${pathHtml(d.path)}</td></tr>`}).join("")+"</table>";
+   const why=DEBUG&&d.debug&&d.debug.archive?d.debug.archive.why:"";
+   return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}" title="${esc(d.note||why)}"><td>${esc(d.id)}</td><td>${esc(d.gt||"?")}</td><td class="${miss?"bad":""}">${esc(d.pred||"—")}${miss?" ✗":""}</td><td class="${o[0]}">${esc(o[1])}</td><td class="num">${num3(d.score)}</td><td>${tierBadge(d.labels)}</td><td>${esc(d.review||"")}</td><td class="num">${d.ms==null?"":(d.ms/1000).toFixed(1)}</td><td class="path">${pathHtml(d.path)}</td>${DEBUG?`<td class="why">${esc(why)}</td>`:""}</tr>`}).join("")+"</table>";
  if(rows.length>shown.length)h+=`<p class="secnote">${rows.length-shown.length} more row(s): narrow the filters.</p>`;
  return h}
 function nodesPane(){
@@ -432,13 +570,46 @@ function nodesPane(){
   ids.map(id=>{const o=no[id]||{ship:0,held:0,failed:0,open:0,n:0,class_n:0,class_ok:0};
    return `<tr class="click${selNode===id?" sel":""}" tabindex="0" data-node="${esc(id)}"><td>${esc(id)}</td><td class="mut">${esc(GR.node_agents[id]||"")}</td><td class="num">${nodeVal(id)}</td><td class="num">${((r.node_ms_p50||{})[id]/1000||0).toFixed(1)}</td><td class="num ${(r.aborts_by_last_node||{})[id]?"bad":""}">${(r.aborts_by_last_node||{})[id]||0}</td>`+
    ["ship","held","failed","open"].map(k=>`<td class="num ${o[k]&&k!=="ship"?OUTC[k][0]:""}">${o[k]}</td>`).join("")+`<td class="num">${o.class_n?o.class_ok+"/"+o.class_n:"—"}</td></tr>`}).join("")+"</table>"}
+function debugPane(){
+ if(!hasDebug())return '<p class="secnote">This digest has no per-document trace. Rebuild it with the current builder (sandbox floor does this on refresh).</p>';
+ const docs=DEBUG?debugDocs():runDocs().filter(isProblem);
+ const label=DEBUG?(ISSUE_LABEL[ISSUE]||ISSUE):"problems";
+ let h=`<p class="secnote">Failure modes group documents that failed the same way. A mode names the stage to inspect before the next run. It does not edit this run. Each hop still quotes only a stored decision, review cause, status, or an unconditional edge.${run().replay?" <span class='warn'>Replay: scripted numbers, not results.</span>":""}${DEBUG?"":" Turn DEBUG on to isolate a mode on the graph."}</p>`;
+ const groups=modeGroups(DEBUG?issueDocs():runDocs().filter(isProblem));
+ h+=`<h4>FAILURE MODES · ${esc(label)} — click a row to isolate that mode</h4>`;
+ if(!groups.length)h+=`<p class="secnote">No failure mode in this filter.</p>`;
+ else h+=`<table class="t"><tr><th class="num">docs</th><th>mode</th><th>next run</th><th>other runs</th><th>documents</th></tr>`+groups.map(m=>{const elsew=modeElsewhere(m.id);
+  return `<tr class="click${MODE===m.id?" sel":""}" tabindex="0" data-mode="${esc(m.id)}"><td class="num">${m.n}</td><td class="why">${esc(m.label)}</td><td class="why">${esc(m.lever)}</td><td class="why">${elsew.length?elsew.map(x=>esc(x.name)+" · "+x.n).join("; "):"—"}</td><td>${m.docs.map(esc).join(", ")}</td></tr>`}).join("")+"</table>";
+ h+=`<div class="kpis"><div class="kpi"><div class="l">${MODE?"THIS MODE":"IN THIS FILTER"} · ${esc(MODE?groups.find(m=>m.id===MODE)?.label||MODE:label)}</div><div class="v">${docs.length}</div><div class="s">${issueDocs().length} in the issue filter · ${runDocs().length} in view</div></div></div>`;
+ if(selNode){
+  const groups=arrivalGroups(selNode, docs),looping=docs.filter(d=>((d.debug||{}).loops||[]).some(L=>L.node===selNode));
+  const blocked=docs.filter(d=>d.debug&&d.debug.archive&&!d.debug.archive.reached&&((d.path||[]).includes(selNode)||((d.debug.loops||[]).some(L=>L.node===selNode))));
+  h+=`<h4>WHY DOCUMENTS REACHED ${esc(selNode)}</h4>`;
+  if(!groups.length)h+=`<p class="secnote">${looping.length?"No other node handed a document here. The repeats are on this node.":"No recorded hop into this node for the current filter."}</p>`;
+  else h+=`<table class="t"><tr><th class="num">arrivals</th><th>from</th><th>why</th><th>documents</th></tr>`+groups.map(g=>`<tr class="click" tabindex="0" data-doc="${esc(g.docs[0]||"")}"><td class="num">${g.n}</td><td>${esc(g.from)}</td><td class="why">${esc(g.why)}</td><td>${g.docs.map(esc).join(", ")}</td></tr>`).join("")+"</table>";
+  if(looping.length)h+=`<h4>REPEATS AT ${esc(selNode)}</h4><table class="t"><tr><th>document</th><th>kind</th><th>why</th></tr>`+looping.map(d=>{const L=d.debug.loops.find(x=>x.node===selNode);return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td class="warn">${esc(L.kind)} ×${L.visits}</td><td class="why">${esc(L.why)}</td></tr>`}).join("")+"</table>";
+  h+=`<h4>WHY THEY MISSED ARCHIVE</h4>`;
+  if(!blocked.length)h+=`<p class="secnote">Every filtered document that reached ${esc(selNode)} also recorded archive, or none of them reached it.</p>`;
+  else h+=`<table class="t"><tr><th>document</th><th>stopped</th><th>why not archive</th></tr>`+blocked.slice(0,80).map(d=>`<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td>${esc(d.debug.archive.stopped||"—")}</td><td class="why">${esc(d.debug.archive.why)}</td></tr>`).join("")+"</table>";
+  return h}
+ if(selDoc){
+  const d=docs.find(x=>x.id===selDoc)||(run().docs||[]).find(x=>x.id===selDoc);
+  if(d&&d.debug){h+=`<h4>${esc(d.id)} — HOPS</h4><table class="t"><tr><th>from</th><th>to</th><th>why</th></tr>`+(d.debug.hops||[]).map(hop=>hop.gap?`<tr><td colspan="3" class="why">${hop.gap} hop(s) omitted here. The next row does not follow the previous one.</td></tr>`:`<tr><td>${esc(hop.from)}</td><td>${esc(hop.to)}</td><td class="why">${esc(hop.why)}</td></tr>`).join("")+"</table>";
+   if(d.debug.loops&&d.debug.loops.length)h+=`<h4>LOOPS</h4>`+d.debug.loops.map(L=>`<p class="secnote"><span class="warn">${esc(L.node)} ×${L.visits} ${esc(L.kind)}</span> — ${esc(L.why)}</p>`).join("");
+   return h}}
+ h+=`<h4>DOCUMENTS · ${esc(label)} — click a row to trace it</h4><table class="t"><tr><th>document</th><th>issues</th><th>why not archive, or the repeat</th></tr>`+
+  docs.slice(0,200).map(d=>{const g=d.debug||{issues:[],archive:{}};const line=(g.archive&&g.archive.why)||"";
+   return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td>${(g.issues||[]).map(esc).join(" ")}</td><td class="why">${esc(line)}</td></tr>`}).join("")+"</table>";
+ if(docs.length>200)h+=`<p class="secnote">${docs.length-200} more: narrow the issue filter.</p>`;
+ return h}
 /** Repaint the drawer's active tab and wire its rows; keeps the pane's scroll position. */
 function renderPane(){
  const pane=document.getElementById("pane");if(!document.getElementById("drawer").classList.contains("open"))return;
  const top=pane.scrollTop,f=document.activeElement&&document.activeElement.id;
- pane.innerHTML=TAB==="docs"?docsPane():TAB==="nodes"?nodesPane():scoresPane();
+ pane.innerHTML=TAB==="docs"?docsPane():TAB==="nodes"?nodesPane():TAB==="debug"?debugPane():scoresPane();
  pane.scrollTop=top;
  document.getElementById("tabHint").textContent=run().name+(CLASS?" · "+CLASS:"");
+ pane.querySelectorAll("tr[data-mode]").forEach(el=>el.onclick=()=>{MODE=MODE===el.dataset.mode?null:el.dataset.mode;if(MODE)DEBUG=true;selDoc=null;selNode=null;menus();render()});
  pane.querySelectorAll("tr[data-doc]").forEach(el=>el.onclick=()=>pickDoc(el.dataset.doc));
  pane.querySelectorAll("tr[data-cls]").forEach(el=>el.onclick=()=>pickClass(el.dataset.cls));
  pane.querySelectorAll("tr[data-node]").forEach(el=>el.onclick=()=>{selNode=selNode===el.dataset.node?null:el.dataset.node;selDoc=null;render()});
@@ -446,6 +617,21 @@ function renderPane(){
  if(fo)fo.onchange=()=>{DF.outcome=fo.value;renderPane()};
  if(fm)fm.onchange=()=>{DF.miss=fm.checked;renderPane()};
  if(fq){fq.oninput=()=>{DF.q=fq.value;renderPane()};if(f==="fQ"){fq.focus();fq.setSelectionRange(fq.value.length,fq.value.length)}}}
+document.getElementById("exp").onclick=floorDownload;
+document.getElementById("imp").onclick=()=>document.getElementById("impFile").click();
+document.getElementById("impFile").onchange=()=>{
+ const input=document.getElementById("impFile"),f=input.files&&input.files[0];input.value="";if(!f)return;
+ const reader=new FileReader();
+ reader.onload=()=>floorShareText(String(reader.result||""));
+ reader.onerror=()=>paintShare("read failed");
+ reader.readAsText(f)};
+document.getElementById("live").onclick=()=>{floorResumeLive()};
+document.getElementById("dbg").onclick=()=>{
+ DEBUG=!DEBUG;
+ if(DEBUG){TAB="debug";const dr=document.getElementById("drawer");if(!dr.classList.contains("open"))document.getElementById("drawerTog").click()}
+ else if(TAB==="debug")TAB="docs";
+ MODE=null;selNode=null;selDoc=null;
+ menus();render()};
 document.querySelectorAll(".tab[data-t]").forEach(b=>b.onclick=()=>{TAB=b.dataset.t;document.querySelectorAll(".tab[data-t]").forEach(x=>{x.classList.toggle("sel",x===b);x.setAttribute("aria-selected",String(x===b))});
  const dr=document.getElementById("drawer");if(!dr.classList.contains("open"))document.getElementById("drawerTog").click();else renderPane()});
 document.getElementById("drawerTog").onclick=()=>{const dr=document.getElementById("drawer"),open=!dr.classList.contains("open");dr.classList.toggle("open",open);
@@ -456,10 +642,12 @@ menus();render();
 // menus()/render() rebuild those elements, so focus moves to the rebuilt one.
 document.addEventListener("keydown",e=>{
  if(e.key!=="Enter"&&e.key!==" ")return;
- const row=e.target.closest&&e.target.closest("tr.click");if(row){e.preventDefault();const k=row.dataset.doc?"doc":row.dataset.cls?"cls":"node",v=row.dataset[k];row.click();const n=document.querySelector(`tr[data-${k}="${CSS.escape(v)}"]`);if(n)n.focus();return}
- const t=e.target.closest&&e.target.closest(".run,.cls,.node,#zoomctl>div");if(!t)return;
+ const row=e.target.closest&&e.target.closest("tr.click");if(row){e.preventDefault();const k=row.dataset.mode?"mode":row.dataset.doc?"doc":row.dataset.cls?"cls":"node",v=row.dataset[k];row.click();const n=document.querySelector(`tr[data-${k}="${CSS.escape(v)}"]`);if(n)n.focus();return}
+ const t=e.target.closest&&e.target.closest(".run,.mode,.issue,.cls,.node,#zoomctl>div,#dbg");if(!t)return;
  e.preventDefault();
  const sel=t.id?`#${t.id}`:t.classList.contains("run")?`.run[data-i="${t.dataset.i}"]`:
+  t.classList.contains("mode")?`.mode[data-mode="${CSS.escape(t.dataset.mode)}"]`:
+  t.classList.contains("issue")?`.issue[data-issue="${CSS.escape(t.dataset.issue)}"]`:
   t.classList.contains("cls")?`.cls[data-c="${CSS.escape(t.dataset.c)}"]`:`.node[data-k="${CSS.escape(t.dataset.k)}"]`;
  t.click();const n=document.querySelector(sel);if(n)n.focus()});
 vp.addEventListener("click",e=>{
@@ -498,6 +686,69 @@ const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;const b=contentB
  tx=(vp.clientWidth-bw*z)/2-b.x0*z;ty=(vp.clientHeight-bh*z)/2-b.y0*z;apply();fitOk=true;userView=false};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
+// ── Shareable digest (the viewer contract, not the raw run logs) ──
+function shareFocus(){return {run:run().name,class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode}}
+function floorExportObject(){
+ return {mailroom_floor_export:1,exported_utc:new Date().toISOString().replace(/\.\d{3}Z$/,"Z"),focus:shareFocus(),digest:D}}
+function usableDigest(d){
+ return !!(d&&typeof d==="object"&&!Array.isArray(d)&&Array.isArray(d.runs)&&d.runs.length
+  &&d.runs.every(r=>r&&typeof r==="object"&&typeof r.name==="string"&&r.name)
+  &&d.graph_reference&&typeof d.graph_reference==="object"&&Array.isArray(d.graph_reference.edges)
+  &&Array.isArray(d.classes)&&typeof d.generated_utc==="string"&&d.generated_utc)}
+function readShare(obj){
+ if(!obj||typeof obj!=="object"||Array.isArray(obj))return null;
+ if(Object.prototype.hasOwnProperty.call(obj,"mailroom_floor_export")){
+  if(obj.mailroom_floor_export!==1||!usableDigest(obj.digest))return null;
+  return {digest:obj.digest,focus:obj.focus&&typeof obj.focus==="object"?obj.focus:null}}
+ if(usableDigest(obj))return {digest:obj,focus:null};
+ return null}
+function paintShare(msg){
+ const el=document.getElementById("share"),live=document.getElementById("live");
+ const snap=holdLive?"SNAPSHOT":"";
+ el.textContent=!msg||msg===snap?snap:(snap?msg+" · "+snap:msg);
+ live.hidden=!holdLive;live.classList.toggle("on",holdLive)}
+function applyShareFocus(focus){
+ let i=-1;D.runs.forEach((r,n)=>{if(r.state==="running")i=n});
+ const name=focus&&typeof focus.run==="string"?focus.run:"";
+ const named=name?D.runs.findIndex(r=>r.name===name):-1;
+ runIdx=named>=0?named:(i>=0?i:D.runs.length-1);
+ CLASS=null;selNode=null;selDoc=null;DEBUG=false;ISSUE="problems";MODE=null;TAB="scores";
+ const dr=D.runs[runIdx],c=focus&&focus.class;
+ if(typeof c==="string"&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why)CLASS=c;
+ if(focus&&(focus.debug===1||focus.debug===true)){DEBUG=true;TAB="debug"}
+ if(focus&&ISSUE_IDS.includes(focus.issue))ISSUE=focus.issue;
+ if(focus&&typeof focus.mode==="string"&&focus.mode)MODE=focus.mode;
+ if(focus&&typeof focus.doc==="string"&&(dr.docs||[]).some(d=>d.id===focus.doc))selDoc=focus.doc;
+ if(!selDoc&&focus&&typeof focus.node==="string")selNode=focus.node||null}
+function takeDigest(nd,focus,snapshot){
+ if(snapshot)shareEpoch++;
+ D=nd;window.DIGEST=nd;holdLive=!!snapshot;applyShareFocus(snapshot?focus:null);
+ const bt=document.getElementById("bigTitle");
+ if(CLASS){document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";bt.textContent=CLASS.toUpperCase();bt.classList.add("on")}
+ else{document.getElementById("mode").textContent="ALL CLASSES";bt.textContent="";bt.classList.remove("on")}
+ setGen();menus();render()}
+function floorShareText(text){
+ let obj;try{obj=JSON.parse(String(text||""))}catch(e){paintShare("not json");return "not json"}
+ const pack=readShare(obj);if(!pack){paintShare("not a floor digest");return "not a floor digest"}
+ takeDigest(pack.digest,pack.focus,true);paintShare("SNAPSHOT");return "ok"}
+function floorDownload(){
+ const blob=new Blob([JSON.stringify(floorExportObject())],{type:"application/json"});
+ const a=document.createElement("a"),safe=String(run().name||"runs").replace(/[^A-Za-z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)||"runs";
+ a.download="floor-digest-"+safe+".json";a.href=URL.createObjectURL(blob);document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),1500);if(!holdLive)paintShare("exported")}
+async function floorResumeLive(){
+ if(!LIVE){shareEpoch++;takeDigest(bootDigest,null,false);paintShare("");return}
+ if(busy)return;
+ const epoch=++shareEpoch;busy=true;
+ try{
+  const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+  if(epoch!==shareEpoch)return;
+  const nd=res.ok?await res.json():null;
+  if(!usableDigest(nd)){paintShare("live digest unavailable");return}
+  const name=run().name;takeDigest(nd,null,false);
+  const i=D.runs.findIndex(r=>r.name===name);if(i>=0)runIdx=i;menus();render();paintShare("");
+ }catch(e){paintShare("live digest unavailable")}
+ finally{busy=false}}
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 let busy=false,wasLive=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");
@@ -507,10 +758,11 @@ function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t
 if(LIVE){
  setInterval(async()=>{
   const idle=run().state!=="running"&&run().checkpoint_state!=="running";   // a stalled run is still polled: it may resume
-  if(busy||(idle&&!wasLive))return;
-  busy=true;
+  if(busy||holdLive||(idle&&!wasLive))return;
+  const epoch=shareEpoch;busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+   if(holdLive||epoch!==shareEpoch)return;
    if(!res.ok){stale++;stampUpdated();return}
    const nd=await res.json();
    if(!nd||!nd.runs||!nd.runs.length){stale++;stampUpdated();return}   // a digest with no runs cannot be this store
