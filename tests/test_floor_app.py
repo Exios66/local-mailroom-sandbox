@@ -1105,19 +1105,29 @@ def test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_fil
     html = _template()
     cells = html[html.index("function recordedPred("):html.index("function decisionMatch(")]
     focus = html[html.index("function focusSets("):html.index("/** Group recorded hops into one node")]
+    arrivals = html[html.index("function arrivalGroups("):html.index("function markTab(")]
+    node_diag = html[html.index("function paintNodeDiag("):html.index("function pickDoc(")]
     script = r'''
 const assert = require("node:assert/strict");
 let DEBUG=true, ISSUE="problems", MODE="old-class-mode", selDoc=null;
 const DF={cell:{gt:"letter",pred:"contract"}};
 const selected={id:"pair",gt:"letter",pred:"contract",path:["intake","classify","archive"],
-  debug:{loops:[{node:"classify",visits:2,why:"selected repeat"}]}};
+  debug:{loops:[{node:"classify",visits:2,why:"selected repeat"}],
+    hops:[{from:"intake",to:"classify",why:"selected arrival"}],archive:{reached:true}}};
 const unrelated={id:"old-class",gt:"contract",pred:"contract",path:["intake","human_review"],
-  debug:{loops:[{node:"intake",visits:9,why:"wrong repeat"}]}};
+  debug:{loops:[{node:"intake",visits:9,why:"wrong repeat"}],
+    hops:[{from:"intake",to:"classify",why:"unrelated arrival"}],
+    archive:{reached:false,why:"unrelated archive miss"}}};
 const run=()=>({docs:[selected,unrelated]});
 const debugDocs=()=>[unrelated]; // existing class/mode filters select another document
 const selDocPath=()=>null;
 const endSources=()=>["archive"];
-'''+cells+focus+r'''
+const panel={innerHTML:""};
+const document={getElementById:()=>panel};
+const hasDebug=()=>true;
+const esc=s=>String(s);
+let selNode="classify";
+'''+cells+focus+arrivals+node_diag+r'''
 assert.equal(focusSets(),null);
 assert.deepEqual([...pairFocus().nodes],["intake","classify","archive"]);
 assert.equal(cellEndpoint("START"),1);
@@ -1127,10 +1137,28 @@ assert.equal(cellNodeCount("human_review"),0);
 assert.equal(cellEdgeCount("classify","archive"),1);
 assert.equal(loopMark("intake"),null);
 assert.equal(loopMark("classify").why,"selected repeat");
+paintNodeDiag();
+assert.match(panel.innerHTML,/selected arrival/);
+assert.match(panel.innerHTML,/selected repeat/);
+assert.match(panel.innerHTML,/0 filtered document/);
+assert.doesNotMatch(panel.innerHTML,/unrelated arrival|unrelated archive miss/);
+selNode="intake";
+paintNodeDiag();
+assert.match(panel.innerHTML,/0 filtered document/);
+assert.doesNotMatch(panel.innerHTML,/wrong repeat|unrelated archive miss/);
+selNode="classify";
 DF.cell=null; // clearing the cell restores the previous debug isolate
 assert.deepEqual([...focusSets().nodes],["intake","human_review"]);
 assert.equal(cellNodeCount("classify"),null);
 assert.equal(loopMark("intake").why,"wrong repeat");
+paintNodeDiag();
+assert.match(panel.innerHTML,/unrelated arrival/);
+assert.doesNotMatch(panel.innerHTML,/selected arrival|selected repeat/);
+selNode="intake";
+paintNodeDiag();
+assert.match(panel.innerHTML,/wrong repeat/);
+assert.match(panel.innerHTML,/unrelated archive miss/);
+assert.match(panel.innerHTML,/1 filtered document/);
 console.log("confusion/debug selection passed");
 '''
     result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
