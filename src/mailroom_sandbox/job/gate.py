@@ -160,14 +160,15 @@ def _unit_labels(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
-def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
+def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = True) -> int:
     """Labelled units of a row: what the Dojo scores it on, after dropping the templated fields.
 
     Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
     field: the count is its number of categories (the scored universe) when at least one carries
     gold, else 0. Other classes count non-empty expected values after class scoping. SHF-015: a
     stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
-    score does not score it (``docs/scoring-hotfixes.md``).
+    score does not score it (``docs/scoring-hotfixes.md``). ``hotfixed=False`` counts as the Dojo pin
+    does, with no SHF-015 drop: ``_status`` records that as ``labelled_raw`` beside it.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -177,7 +178,7 @@ def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
     raw = _fields(row)
     stale: dict[str, str] = {}
-    if sh.enabled("SHF-015"):
+    if hotfixed and sh.enabled("SHF-015"):
         _, stale = sh.drop_stale_hub_truth(doc_class, raw, sh.overlay_fields(row))
     _, expected = scope_extraction_pair(doc_class, {}, raw)
     drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale}
@@ -213,6 +214,11 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out: dict[str, Any] = {"id": str(row.get("id")), "class": doc_class, "stage": "crashed", "score": None,
                            "scorable": False, "outcome": "crashed", "tokens": 0, "judge_error": False,
                            "labelled": labelled_count(row, doc_class)}
+    # SHF-015: the count before the stale-label drop, recorded only when the drop changed it, so a
+    # class that fell below min_labelled shows which documents moved and by how much.
+    raw_labelled = labelled_count(row, doc_class, hotfixed=False)
+    if raw_labelled != out["labelled"]:
+        out["labelled_raw"] = raw_labelled
     if item is None or item.get("error") or item.get("ok") is False:
         return out
     pred = item.get("pred") or {}
@@ -268,6 +274,12 @@ def _load(run_dir: Path) -> list[dict[str, Any]]:
         doc_id = str(row.get("id"))
         docs.append(arm.get(doc_id) or {"row": row, "item": None, "nodes": []})
     return docs
+
+
+def _unscorable_by_shf015(statuses: Collection[Mapping[str, Any]], bars: Bars) -> int:
+    """Archived documents that SHF-015 alone made unscorable: enough labels before the stale drop, too few after."""
+    return sum(1 for s in statuses
+               if s["outcome"] == "unscorable_archive" and s["labelled"] < bars.min_labelled <= s.get("labelled_raw", 0))
 
 
 def _counts(docs: list[dict[str, Any]]) -> dict[str, int]:
@@ -366,7 +378,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for status in statuses:
         by_class[status["class"]].append(status)
-    classes = {cls: {**_class_rates(_counts(docs)), "gated": cls in bars.gated}
+    classes = {cls: {**_class_rates(_counts(docs)), "gated": cls in bars.gated,
+                     "unscorable_by_shf015": _unscorable_by_shf015(docs, bars)}
                for cls, docs in sorted(by_class.items())}
     pooled_docs = [s for s in statuses if s["class"] in bars.gated]
     pooled = _counts(pooled_docs)
@@ -425,6 +438,7 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
                    "review_upper95": _wilson_upper(pooled["review"], pooled["n"]),
                    "wrong_archive_upper95": _wilson_upper(pooled["wrong"], scorable),
                    "scorable": scorable, "unscorable": pooled["unscorable"],
+                   "unscorable_by_shf015": _unscorable_by_shf015(pooled_docs, bars),
                    "crashes": crashes, "judge_errors": judge_errors},
         "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
         "audit": trail,

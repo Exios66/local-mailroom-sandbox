@@ -69,6 +69,17 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     `run_extract_eval` and the isolated `extract` scorer (`eval/agents._score_extract`), which
     pass the row's overlay markers.
   - Also: `job/gate.labelled_count`, and `scripts/extraction_gate.py` `_field_truth`.
+  - Gate verdicts can move. A document's `labelled` no longer counts a dropped label, so one that
+    had exactly `min_labelled` labels can become `unscorable_archive`. Each such document's
+    gate status carries `labelled_raw` (the count before the drop; present only when it differs
+    from `labelled`), and the gate report's `pooled.unscorable_by_shf015` and each class's
+    `unscorable_by_shf015` count the archived documents SHF-015 alone made unscorable. Measured
+    on the 3,302 cached Hub rows with the interim and near-gold overlays applied and
+    `min_labelled` 2 (`mailroom_sandbox.job.gate.Bars` default): 678 documents have a different
+    `labelled` (450 corporate_record, 150 insurance_claim, 78 correspondence) and 8
+    corporate_record documents (450 to 442 scorable) cross below the bar. No document crosses
+    above it, and no other class moves. At the per-class minimum of 20 scorable archives this
+    changes no class's standing.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the

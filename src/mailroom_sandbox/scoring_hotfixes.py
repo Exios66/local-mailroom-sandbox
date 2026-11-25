@@ -241,7 +241,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("llm_dojo_scoring.schemas.label_policy:_correspondence_stale", "af434deecfe68e0153549d06011e14220217ea9605f7c7010bac0f7040f92990"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "6835378d219021bfea4e8b205f74d0921126285f21b0478184f71579df25da43"),
+            ("mailroom_sandbox.job.gate:labelled_count", "b3bc1a48335464a5f08cbae2e07573cba79e0d97259a79a2661a881a8b0742a8"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",

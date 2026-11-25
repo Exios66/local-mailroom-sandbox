@@ -380,3 +380,28 @@ def test_the_gate_report_names_its_headline_basis(tmp_path):
     report = gate.gate_report(_run(tmp_path, _docs(2)), Bars())
     assert report["headline_basis"] == sh.headline_basis()
     assert "SHF-015" in report["scoring_hotfixes"] and report["scoring_hotfixes"] == sorted(sh.current_ids())
+
+
+def test_shf015_records_the_label_count_before_the_drop_and_pools_the_documents_it_made_unscorable(tmp_path):
+    """A document whose stale intent was its second label is unscorable now; the report says so."""
+    stale = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    kept = {**stale, "intent_source": "llm_zero_shot"}
+    report = gate.gate_report(_run(tmp_path, [{"id": "s0", "cls": "correspondence", "expected": stale},
+                                              {"id": "k0", "cls": "correspondence", "expected": kept},
+                                              {"id": "m0", "cls": "contract"}]), Bars())
+    docs = {d["id"]: d for d in report["docs"]}
+    assert docs["s0"]["labelled"] == 1 and docs["s0"]["labelled_raw"] == 2
+    assert docs["s0"]["outcome"] == "unscorable_archive"
+    assert "labelled_raw" not in docs["k0"] and docs["k0"]["outcome"] == "correct_archive"
+    assert "labelled_raw" not in docs["m0"]
+    assert report["classes"]["correspondence"]["unscorable_by_shf015"] == 1
+    assert report["classes"]["contract"]["unscorable_by_shf015"] == 0
+    assert report["pooled"]["unscorable_by_shf015"] == 1
+
+
+def test_shf015_pool_ignores_a_document_unscorable_for_another_reason(tmp_path):
+    """A document short of labels before and after the drop, or whose scorer failed, is not SHF-015's."""
+    few = {"intent": "payment_demand", "intent_source": "heuristic"}  # 1 label raw, 0 after: unscorable either way
+    report = gate.gate_report(_run(tmp_path, [{"id": "f0", "cls": "correspondence", "expected": few}]), Bars())
+    assert report["docs"][0]["outcome"] == "unscorable_archive"
+    assert report["pooled"]["unscorable_by_shf015"] == 0
