@@ -195,7 +195,9 @@ def apply_context_fit(
     ``pinned_output`` carry a run ``max_tokens`` knob, which is kept as set. ``run_inputs``
     maps an agent to the run's own ``max_input_chars`` knob, which the caller applies after
     the fit: a specialist's output cap is raised only when the window still holds that input
-    beside it, so the final ``max_tokens`` / ``max_input_chars`` pair fits the model.
+    beside it. The final ``max_tokens`` / ``max_input_chars`` pair therefore fits the model's
+    window whenever that input fit beside the prior cap; an input too large even for that is
+    the run's explicit choice and is left as set.
     """
     cfg = {**DEFAULTS, **(taxonomy.get("context_fit") or {})}
     cfg.pop("applied", None)

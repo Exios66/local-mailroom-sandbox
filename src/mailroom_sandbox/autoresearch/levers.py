@@ -551,7 +551,8 @@ def reviewer_errors(spec: Mapping[str, Any]) -> list[str]:
 
 # ---- reviewer input vs the model's context -------------------------------------------------------
 
-# Conservative sizing: 0.25 tokens per character (the measured fit is 0.2073) plus the question text.
+# Sizing estimate: 0.25 tokens per character (fit 0.2073, measured on Luna only; unverified for other
+# tokenizers) plus the question text.
 # The same numbers bound each request at execution (decision_backends.decision_input_cap).
 TOKENS_PER_CHAR = DECISIONS_TOKENS_PER_CHAR
 QUESTION_TOKENS = DECISIONS_QUESTION_TOKENS
