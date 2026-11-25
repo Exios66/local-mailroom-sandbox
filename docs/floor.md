@@ -81,7 +81,8 @@ The file has `mailroom_floor_export` set to `1`, `exported_utc`, `focus`
 (the run, class, debug filter, mode, document, and node on screen), and
 `digest` (the same object as `floor_digest.json`). A different export number, or a file that is not a digest, is refused
 and the current view stays. The ribbon keeps SNAPSHOT beside the refusal. After import the ribbon says
-SNAPSHOT and live polling pauses. LIVE returns to the digest this page
+SNAPSHOT and live polling pauses. A fetch that was already open does not
+replace that snapshot when it returns. LIVE returns to the digest this page
 opened with: the server digest over HTTP, or the `floor_digest.js` beside
 the page for `file://`. A replay digest stays labelled replay.
 

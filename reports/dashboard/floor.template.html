@@ -125,7 +125,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 <script>
 let D=window.DIGEST;
 if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
-const bootDigest=D;let holdLive=false;
+const bootDigest=D;let holdLive=false,shareEpoch=0;
 /** Show the digest's generated time (ribbon and right rail); called at load and after each live refresh. */
 function setGen(){
  document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
@@ -693,7 +693,8 @@ function floorExportObject(){
 function usableDigest(d){
  return !!(d&&typeof d==="object"&&!Array.isArray(d)&&Array.isArray(d.runs)&&d.runs.length
   &&d.runs.every(r=>r&&typeof r==="object"&&typeof r.name==="string"&&r.name)
-  &&d.graph_reference&&typeof d.graph_reference==="object"&&Array.isArray(d.classes))}
+  &&d.graph_reference&&typeof d.graph_reference==="object"&&Array.isArray(d.graph_reference.edges)
+  &&Array.isArray(d.classes)&&typeof d.generated_utc==="string"&&d.generated_utc)}
 function readShare(obj){
  if(!obj||typeof obj!=="object"||Array.isArray(obj))return null;
  if(Object.prototype.hasOwnProperty.call(obj,"mailroom_floor_export")){
@@ -720,6 +721,7 @@ function applyShareFocus(focus){
  if(focus&&typeof focus.doc==="string"&&(dr.docs||[]).some(d=>d.id===focus.doc))selDoc=focus.doc;
  if(!selDoc&&focus&&typeof focus.node==="string")selNode=focus.node||null}
 function takeDigest(nd,focus,snapshot){
+ if(snapshot)shareEpoch++;
  D=nd;window.DIGEST=nd;holdLive=!!snapshot;applyShareFocus(snapshot?focus:null);
  const bt=document.getElementById("bigTitle");
  if(CLASS){document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";bt.textContent=CLASS.toUpperCase();bt.classList.add("on")}
@@ -735,10 +737,12 @@ function floorDownload(){
  a.download="floor-digest-"+safe+".json";a.href=URL.createObjectURL(blob);document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(a.href),1500);if(!holdLive)paintShare("exported")}
 async function floorResumeLive(){
- if(!LIVE){takeDigest(bootDigest,null,false);paintShare("");return}
- if(busy)return;busy=true;
+ if(!LIVE){shareEpoch++;takeDigest(bootDigest,null,false);paintShare("");return}
+ if(busy)return;
+ const epoch=++shareEpoch;busy=true;
  try{
   const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+  if(epoch!==shareEpoch)return;
   const nd=res.ok?await res.json():null;
   if(!usableDigest(nd)){paintShare("live digest unavailable");return}
   const name=run().name;takeDigest(nd,null,false);
@@ -755,9 +759,10 @@ if(LIVE){
  setInterval(async()=>{
   const idle=run().state!=="running"&&run().checkpoint_state!=="running";   // a stalled run is still polled: it may resume
   if(busy||holdLive||(idle&&!wasLive))return;
-  busy=true;
+  const epoch=shareEpoch;busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+   if(holdLive||epoch!==shareEpoch)return;
    if(!res.ok){stale++;stampUpdated();return}
    const nd=await res.json();
    if(!nd||!nd.runs||!nd.runs.length){stale++;stampUpdated();return}   // a digest with no runs cannot be this store
