@@ -89,6 +89,12 @@ REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
 
 
+def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
+    from mailroom_sandbox.vendor_hotfixes import arbiter_caveats
+
+    return arbiter_caveats(result)
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
@@ -1740,6 +1746,9 @@ def _run_pipeline_doc_once(
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
+        # reports, the gate and the floor digest separate these from clean archives.
+        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),

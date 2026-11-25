@@ -528,7 +528,8 @@ def judge_exhausted_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str
     extraction with caveats. Only that park is redirected: an ``incomplete`` verdict, a judge
     error, a transient error, or a pass budget not yet spent keep the router's answer, and so
     does an extraction ``after_arbiter`` would park even on acceptance (still unsure, or an
-    unadjudicated conflict): asking the arbiter there would spend a call for the same park.
+    unadjudicated conflict, unless HF-014 lets a whole-source acceptance archive): asking the
+    arbiter there would spend a call for the same park.
     """
 
     def decide(state: Mapping[str, Any], proposed: str) -> str | None:
@@ -538,8 +539,9 @@ def judge_exhausted_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str
             return None
         if not _judge_passes_spent(routing, state):
             return None
-        # after_arbiter parks these whatever the arbiter says, so its call would be wasted.
-        if routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state):
+        # after_arbiter parks these whatever the arbiter says, so its call would be wasted
+        # (HF-014 keeps an acceptance from a whole-source reading out of that park).
+        if acceptance_parks(routing, state):
             return None
         return "arbiter"
 
@@ -640,6 +642,146 @@ def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Call
         return "human_review"
 
     return _transient_decision
+
+
+#: Run ``confidence`` key that turns on HF-014 (overlay default ``true``). It stays inert
+#: unless context fit widened the arbiter's source window, so Modal/vLLM and local routes are unchanged.
+FULL_SOURCE_KEY = "arbiter_full_source"
+#: Route-rule name of HF-014 (``graph.route_spec`` registry, ``arbiter`` node).
+FULL_SOURCE_RULE = "HF-014:arbiter_full_source_accepts"
+
+
+def arbiter_source_window() -> tuple[int | None, bool]:
+    """``(the extraction arbiter's source window, whether context fit widened it)``.
+
+    The window is ``agents.arbiter.SOURCE_CHARS`` as the arbiter reads it at call time
+    (:mod:`mailroom_sandbox.source_windows` raises it on a fitted route and restores the vendored
+    value on every other activation). ``(None, False)`` when the vendored agent is not importable.
+    """
+    from mailroom_sandbox.source_windows import vendored_windows
+
+    try:
+        arbiter = importlib.import_module("agents.arbiter")
+    except Exception:  # noqa: BLE001 — optional (pipeline extra)
+        return None, False
+    window = int(arbiter.SOURCE_CHARS)
+    vendored = vendored_windows().get("agents.arbiter.SOURCE_CHARS")
+    return window, vendored is not None and window > vendored
+
+
+def _full_source_route(routing: Any, state: Mapping[str, Any]) -> bool:
+    if routing._thresholds_for(state).get(FULL_SOURCE_KEY) is not True:
+        return False
+    return arbiter_source_window()[1]
+
+
+def _full_source_rule_registered() -> bool:
+    from graph import route_spec
+
+    return any(rule.name == FULL_SOURCE_RULE for rule in route_spec.route_rules("arbiter"))
+
+
+def arbiter_read_whole_source(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-014: whether an ``accept_with_caveats`` on ``state`` rests on the whole source.
+
+    True on a context-fitted route (``confidence.arbiter_full_source`` on and the arbiter window
+    widened) when the arbiter read every character of the document (``doc_text`` no longer than
+    its window), no chunked window was lost and no matter conflict is unadjudicated.
+    """
+    if not _full_source_route(routing, state):
+        return False
+    window, _ = arbiter_source_window()
+    text = state.get("doc_text")
+    if window is None or not isinstance(text, str) or len(text) > window:
+        return False
+    return not routing._chunks_lost(state) and not routing._unadjudicated_conflict(state)
+
+
+def acceptance_parks(routing: Any, state: Mapping[str, Any]) -> bool:
+    """Whether ``after_arbiter`` (with HF-014 when it is registered) parks an ``accept_with_caveats``."""
+    if not (routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state)):
+        return False
+    return not (_full_source_rule_registered() and arbiter_read_whole_source(routing, state))
+
+
+def full_source_accept_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
+    """``arbiter``: an acceptance from a whole-source reading goes to the report, not to a person.
+
+    The vendored ``after_arbiter`` parks ``accept_with_caveats`` while the extraction is still
+    unsure (confidence under the class ``low`` band and no source-verified judge verdict). On a
+    16k-excerpt route that park guards against an arbiter that never saw most of the document.
+    Where the arbiter read all of it, its acceptance is the ruling the judge/arbiter lane exists
+    for, so the document archives with its caveats on record (``arbiter_decision`` and
+    ``arbiter_reasoning`` in the manifest and the matter report; ``arbiter_caveats`` on the
+    sandbox item). Lost chunks and an unadjudicated conflict still park.
+    """
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "human_review" or state.get("transient_error"):
+            return None
+        if state.get("arbiter_decision") != "accept_with_caveats":
+            return None
+        return "compile_report" if arbiter_read_whole_source(routing, state) else None
+
+    return decide
+
+
+def _register_full_source_rule(module: Any) -> None:
+    """(Re)register the HF-014 rule right after the HF-011 rules on ``arbiter``; idempotent.
+
+    HF-011 keeps its rules first. This rule acts on a different proposal (``human_review``, not
+    ``retry_extract``), so the order between them never changes a route; keeping it fixed avoids
+    re-registering on every activation.
+    """
+    from graph import route_spec
+
+    current = route_spec.route_rules("arbiter")
+    position = sum(1 for rule in current if rule.name.startswith(JUDGE_EXHAUSTED_RULES))
+    mine = next((rule for rule in current if rule.name == FULL_SOURCE_RULE), None)
+    if (mine is not None and current.index(mine) == position
+            and getattr(mine.decide, "_hf014_module", None) is module):
+        return
+    decide = full_source_accept_rule(module)
+    decide._hf014_module = module  # type: ignore[attr-defined]
+    if mine is not None:
+        route_spec.remove_route_rule("arbiter", FULL_SOURCE_RULE)
+        position = sum(1 for rule in route_spec.route_rules("arbiter")
+                       if rule.name.startswith(JUDGE_EXHAUSTED_RULES))
+    route_spec.add_route_rule("arbiter", route_spec.RouteRule(FULL_SOURCE_RULE, decide), position=position)
+
+
+def arbiter_caveats(state: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The visible caveat marker of an archived ``accept_with_caveats`` document, else None.
+
+    ``{"decision", "reasoning", "judge_verdict", "whole_source", "hf014"}``: ``whole_source`` is
+    whether the arbiter read the whole document (HF-014's condition) and ``hf014`` whether the
+    vendored ``after_arbiter`` would have parked it (extraction still unsure), so HF-014 alone
+    archived it. Every caveat-accepted archive gets the marker, whichever route archived it, so
+    reports, the floor digest and the gate can count and separate them from clean archives.
+    """
+    if state.get("stage") != "archived" or state.get("arbiter_decision") != "accept_with_caveats":
+        return None
+    try:
+        routing = importlib.import_module("graph.routing")
+        whole = arbiter_read_whole_source(routing, state)
+        unsure = bool(routing._extraction_still_unsure(state))
+    except Exception:  # noqa: BLE001 — the marker never fails a record
+        whole, unsure = False, False
+    return {"decision": "accept_with_caveats",
+            "reasoning": str(state.get("arbiter_reasoning") or "")[:500] or None,
+            "judge_verdict": state.get("judge_verdict"),
+            "whole_source": whole, "hf014": whole and unsure}
+
+
+def _install_full_source_accept(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Register the HF-014 route rule; the router itself is unchanged (see HF-011)."""
+    _register_full_source_rule(module)
+
+    @functools.wraps(original)
+    def after_arbiter(state: dict) -> Any:
+        return original(state)
+
+    return after_arbiter
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
@@ -778,6 +920,21 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="an accuracy-judge parse failure is a judge error (human review, counted), "
                 "not an 'inaccurate 0.0' answer that reads as an incomplete verdict",
         install=_install_judge_correctness_parse_error,
+    ),
+    Hotfix(
+        id="HF-014",
+        module="graph.routing",
+        attr="after_arbiter",
+        source_sha256="6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter "
+                "accept_with_caveats from a whole-source reading archives with its caveats instead of "
+                "parking an extraction that is still unsure; lost chunks and conflicts still park",
+        install=_install_full_source_accept,
+        refresh=_register_full_source_rule,
+        also=(("_extraction_still_unsure", "21700548d1be504e6bd7ce93164d6630fc25e05a86a82df8585d1b8bd3d5bd67"),
+              ("_unadjudicated_conflict", "7084a3d97357b5ec6848b7847c95e3eabbbacfe7b474c8baf6270d5c2f24d1ce"),
+              ("_chunks_lost", "85eca48ae57b740f0d5fbd6118eea1682778bc774c14a274cf7d32b704109b2a")),
     ),
 )
 

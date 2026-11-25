@@ -587,6 +587,7 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
     assert effective_thresholds()["transient_retry_max"] == 1  # what a new lock freezes
     legacy = legacy_thresholds({})
     assert "transient_retry_max" not in legacy and "judge_exhausted_to_arbiter" not in legacy
+    assert "arbiter_full_source" not in legacy
     assert (legacy["retry_max"], legacy["arbiter_retry_max"], legacy["judge_max_passes"]) == (1, 2, 3)
     assert legacy_thresholds({"judge_max_passes": 4})["judge_max_passes"] == 4
     lock = {"profile": "modal-vllm", "job": {}, "confidence": {"arbiter_retry_max": 1}}
@@ -596,6 +597,7 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
         resumed = get_confidence_thresholds("contract")
         assert resumed.get("transient_retry_max") is None
         assert resumed.get("judge_exhausted_to_arbiter") is None
+        assert resumed.get("arbiter_full_source") is None
         assert resumed["judge_max_passes"] == 3 and resumed["arbiter_retry_max"] == 1
     finally:
         runtime.activate("modal-vllm", load_env_file=False)

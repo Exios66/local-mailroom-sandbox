@@ -581,3 +581,7 @@ def test_a_fresh_run_lock_records_every_hotfix_including_hf013(tmp_path, monkeyp
     assert fixes["HF-013"]["target"] == "agents.judge.CompletenessJudge.judge_extraction_correctness"
     assert fixes["HF-013"]["source_sha256"] == vh._source_sha(
         __import__("agents.judge", fromlist=["CompletenessJudge"]).CompletenessJudge.judge_extraction_correctness)
+    # HF-014: the route rule's target and its frozen switch (a legacy lock without it stays inert)
+    assert fixes["HF-014"]["target"] == "graph.routing.after_arbiter"
+    assert fixes["HF-014"]["source_sha256"] == vh._source_sha(__import__("graph.routing", fromlist=["x"]).after_arbiter)
+    assert lock["effective_confidence"]["arbiter_full_source"] is True

@@ -902,6 +902,23 @@ def mode_node_names_the_stage_to_read():
     assert shipped["mode"]["node"] == "classify"
 
 
+@test
+def arbiter_caveat_archives_are_marked_and_counted():
+    marker = {"decision": "accept_with_caveats", "reasoning": "entity name read from the signature page",
+              "judge_verdict": "partial", "whole_source": True, "hf014": True}
+    items = [{"item_id": "c1", "ok": True, "stage": "archived", "pred": {"stage": "archived", "arbiter_caveats": marker}},
+             {"item_id": "c2", "ok": True, "stage": "archived",
+              "pred": {"stage": "archived", "arbiter_caveats": {**marker, "hf014": False}}},
+             {"item_id": "k1", "ok": True, "stage": "archived", "pred": {"stage": "archived"}}]
+    with tempfile.TemporaryDirectory() as t:
+        rr = _live_run(Path(t), "run-caveats", items, None)
+    assert rr["caveat_archives"] == {"total": 2, "hf014": 1}, rr.get("caveat_archives")
+    rows = {row["id"]: row for row in rr["docs"]}
+    assert rows["c1"]["caveats"] == {"hf014": True, "why": "entity name read from the signature page"}
+    assert rows["c2"]["caveats"]["hf014"] is False and "caveats" not in rows["k1"]
+    assert all("caveat_archives" not in r for r in CTX["d"]["runs"]), "a run without caveats keeps its keys"
+
+
 def main() -> int:
     passed, failures = 0, []
     with tempfile.TemporaryDirectory() as tmp:

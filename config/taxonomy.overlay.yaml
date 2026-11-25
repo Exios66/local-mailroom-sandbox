@@ -77,6 +77,9 @@ confidence:
   judge_max_passes: 2             # = 1 + arbiter_retry_max: every arbiter retry is judged once
   transient_retry_max: 1          # HF-012: node re-runs after a transient provider error
   judge_exhausted_to_arbiter: true  # HF-011: a partial last pass gets the arbiter's final ruling
+  # HF-014: on a context-fitted route (arbiter window widened, e.g. OpenRouter) an arbiter
+  # acceptance from a whole-source reading archives with its caveats. Inert on Modal/vLLM and local routes (16k excerpts).
+  arbiter_full_source: true
 
 # DMR-072: run-level limits — 900s was too high for idle; 600s holds L4
 # saturation bursts (queue + decode under concurrency 4–5). The vendored
