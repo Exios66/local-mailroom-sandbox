@@ -620,10 +620,15 @@ def _stored_extraction(item: dict) -> dict:
 
 
 def _field_text(value) -> str:
-    """A short comparable form of a stored scalar. Nested values are skipped."""
+    """Normalized scalar text for comparison. Nested values are skipped."""
     if value is None or isinstance(value, (dict, list, tuple)):
         return ""
-    return " ".join(str(value).split()).lower()[:40]
+    return " ".join(str(value).split()).lower()
+
+
+def _show_field(text: str) -> str:
+    """Quote clip. Equality uses the full normalized text, so a later difference still counts."""
+    return text if len(text) <= 40 else text[:39] + "…"
 
 
 def _score_notes(stored: dict) -> list[dict]:
@@ -648,12 +653,13 @@ def _value_notes(expected: dict, predicted: dict) -> list[dict]:
         exp = _field_text(truth)
         if not exp:
             continue
-        if key not in predicted or _field_text(predicted.get(key)) == "":
-            notes.append({"field": str(key)[:40], "kind": "missing", "expected": exp})
-        elif _field_text(predicted.get(key)) != exp:
+        got = _field_text(predicted.get(key)) if key in predicted else ""
+        if got == "":
+            notes.append({"field": str(key)[:40], "kind": "missing", "expected": _show_field(exp)})
+        elif got != exp:
             notes.append({
                 "field": str(key)[:40], "kind": "value",
-                "expected": exp, "recorded": _field_text(predicted.get(key)),
+                "expected": _show_field(exp), "recorded": _show_field(got),
             })
         if len(notes) >= _FIELD_NOTE_CAP:
             break

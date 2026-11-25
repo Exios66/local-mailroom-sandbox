@@ -879,6 +879,16 @@ def field_notes_quote_stored_values_and_do_not_score():
         {"field": "date", "kind": "missing", "expected": "2020"},
     ]
     assert bfd._field_notes({}, {"expected_fields": {"sender": "Bea"}}) == []
+    tail = "a" * 40
+    differ = bfd._field_notes(
+        {"pred": {"extracted_data": {"sender": tail + "x"}}},
+        {"expected_fields": {"sender": tail + "y"}},
+    )
+    assert differ and differ[0]["kind"] == "value"
+    assert bfd._field_notes(
+        {"pred": {"extracted_data": {"sender": tail + "x"}}},
+        {"expected_fields": {"sender": tail + "X"}},
+    ) == []
 
 
 @test

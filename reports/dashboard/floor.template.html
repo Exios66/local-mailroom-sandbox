@@ -263,10 +263,14 @@ function cellEndpoint(id){
 function cellNodeCount(id){
  if(!DF.cell||focusSets())return null;
  return (cellDocs()||[]).filter(d=>(d.path||[]).includes(id)).length}
+function pathEdges(d){
+ const path=d.path||[],out=[];
+ for(let i=1;i<path.length;i++)if(path[i]&&path[i]!==path[i-1])out.push([path[i-1],path[i]]);
+ return out}
 function cellEdgeCount(a,b){
  if(!DF.cell||focusSets())return null;
  let n=0;
- for(const d of cellDocs()||[])for(const h of (d.debug&&d.debug.hops)||[])if(h.from===a&&h.to===b&&!h.gap)n++;
+ for(const d of cellDocs()||[])for(const e of pathEdges(d))if(e[0]===a&&e[1]===b)n++;
  return n}
 function pairFocus(){
  const docs=cellDocs();
@@ -274,7 +278,7 @@ function pairFocus(){
  const nodes=new Set(),edges=new Set();
  for(const d of docs){
   for(const n of d.path||[])nodes.add(n);
-  for(const h of (d.debug&&d.debug.hops)||[]){if(h.from&&h.to&&!h.gap)edges.add(h.from+">"+h.to)}}
+  for(const e of pathEdges(d))edges.add(e[0]+">"+e[1])}
  return {nodes,edges}}
 function decisionMatch(d){
  if(!DF.dec)return true;
@@ -352,7 +356,7 @@ function focusSets(){
  const nodes=new Set(),edges=new Set(),loops=new Set();
  for(const d of debugDocs()){
   for(const n of d.path||[])nodes.add(n);
-  for(const h of (d.debug&&d.debug.hops)||[]){if(h.from&&h.to&&!h.gap)edges.add(h.from+">"+h.to)}
+  for(const e of pathEdges(d))edges.add(e[0]+">"+e[1]);
   for(const L of (d.debug&&d.debug.loops)||[]){loops.add(L.node);nodes.add(L.node)}}
  return {nodes,edges,loops}}
 /** How many isolated documents repeat this node, and the highest visit count among them. */

@@ -149,7 +149,7 @@ The builder adds a `debug` object on each document row:
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
-| `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. Empty when neither was stored. This list is not a new score. |
+| `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
 
 A `why` sentence quotes only a stored decision, review cause, status, error,
 or an unconditional edge (`plain_edges`, such as `catalog_write` to
@@ -174,7 +174,7 @@ reached archive is its own mode. Click a mode to light only those documents.
 `?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the
 predicted class). Clicking a matrix cell isolates the documents in that pair
 on the whole run, including while a class is isolated, and only while debug
-isolate is off. START and END use that same pair count. A selected mode lists its count in
+isolate is off. Lit edges follow each document's path, including hops the why list omits after 16. START and END use that same pair count. A selected mode lists its count in
 every run of the digest, with the prompt stem stored for `mode.node` when the
 lock has one. Copy note writes that mode, the count, the sample ids, the stem,
 and the lever. It does not rewrite the run. A repeated visit shows stored
