@@ -1614,6 +1614,38 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     return result
 
 
+def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    """What the intake node did for one document, with no document text (the item record's ``intake``).
+
+    Built from the graph state's ``intake_prep``. ``gate_fired`` is False when the LLM read did not
+    run (or failed hard and left no prep); ``read_failed`` means it ran and yielded no triage, so no
+    prior reached the sorter. ``prior_sent`` is whether the intake prior block is non-empty (the
+    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's refusal.
+    """
+    prep = result.get("intake_prep")
+    if not isinstance(prep, Mapping):
+        return {"gate_fired": False, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": False}
+    triage = prep.get("triage") if isinstance(prep.get("triage"), Mapping) else {}
+    confidence = triage.get("confidence")
+    try:
+        from agents.intake import format_intake_prior  # type: ignore
+
+        prior_sent = bool(format_intake_prior(dict(prep)))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        prior_sent = bool(triage)
+    return {
+        "gate_fired": True,
+        "windows": int(prep.get("windows") or 0),
+        "triage_class": (str(triage["primary_doc_class"]) if triage.get("primary_doc_class") else None),
+        "triage_confidence": (float(confidence) if isinstance(confidence, (int, float))
+                              and not isinstance(confidence, bool) else None),
+        "prior_sent": prior_sent,
+        "clean_refused": bool(prep.get("clean_refused")),
+        "read_failed": not triage,
+    }
+
+
 def _run_pipeline_doc_once(
     row: dict[str, Any],
     *,
@@ -1740,6 +1772,8 @@ def _run_pipeline_doc_once(
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
+        "intake": intake_summary(result),
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),
