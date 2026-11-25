@@ -131,6 +131,10 @@ job:
                             # doc_inventories note, no subclass) and applies the node's
                             # inventory normalization, so an isolated A/B sees what the
                             # pipeline's specialist sees (llm-mailroom #174). Hashed only when true
+  trace_reads: true         # pipeline tasks: record which character ranges of each document
+                            # every LLM call read (reads.jsonl + doc_texts/ in the run store;
+                            # offsets only, no spans/Langfuse). Must be a boolean. Never
+                            # hashed: it does not change what the run does
 
 reviewer:                   # optional decision reviewer (SAND-085); see docs/experiments.md
   backend: api              # jev | local | api | mock

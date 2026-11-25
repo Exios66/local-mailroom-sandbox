@@ -297,3 +297,138 @@ def test_many_small_gaps_stay_within_bound():
     assert results["alternating"]["skipped"] is None
     assert results["anchored"]["matched_chars"] >= 190
     assert match_ranges(ShingleIndex(None), "x" * 100)["unplaced_pieces"] == 0
+
+
+# --- context and recorder (Task 2) -------------------------------------------
+
+import json  # noqa: E402
+import threading  # noqa: E402
+
+from mailroom_sandbox.job import read_ranges  # noqa: E402
+from mailroom_sandbox.job.checkpoint import RunStore  # noqa: E402
+
+
+def _doc(n: int = 2000, seed: int = 3) -> str:
+    return _numbered_text(n, seed)
+
+
+def test_working_text_replaces_raw_basis():
+    raw = _doc(1500, seed=1)
+    working = _doc(1500, seed=2)
+    out: list[dict] = []
+    texts: list[tuple[str, str]] = []
+    with read_ranges.document("d1", raw, out.append, lambda d, t: texts.append((d, t))):
+        read_ranges.record("sorter", "Document text:\n" + raw[100:700], node="classify")
+        read_ranges.set_working_text(working)
+        read_ranges.record("sorter", "Document text:\n" + working[200:900], node="classify")
+    assert [r["basis"] for r in out] == ["raw", "working"]
+    assert [r["call"] for r in out] == [1, 2]
+    assert out[0]["ranges"] == [[100, 700]]
+    assert out[1]["ranges"] == [[200, 900]]
+    assert out[1]["doc"] == "d1" and out[1]["agent"] == "sorter" and out[1]["node"] == "classify"
+    assert isinstance(out[1]["ts"], float) and "unplaced_pieces" in out[1]
+    assert texts == [("d1", working)]  # handed to the text sink exactly once
+    read_ranges.set_working_text(working)  # outside a scope: no-op
+    assert texts == [("d1", working)]
+
+
+def test_recording_errors_never_raise():
+    def bad_sink(rec):
+        raise RuntimeError("disk full")
+
+    with read_ranges.document("d2", _doc(), bad_sink, lambda d, t: None):
+        assert read_ranges.record("sorter", "anything") is None
+        assert read_ranges.stats()["read_errors"] == 1
+        assert read_ranges.stats()["read_calls"] == 1
+    # a failing text sink is swallowed and counted too
+    def bad_text(d, t):
+        raise OSError("nope")
+
+    with read_ranges.document("d3", _doc(), lambda r: None, bad_text):
+        read_ranges.set_working_text(_doc())
+        assert read_ranges.stats()["read_errors"] == 1
+
+
+def test_no_sink_is_a_noop_and_outside_scope_is_a_noop():
+    assert read_ranges.record("sorter", "x") is None
+    assert read_ranges.current_node() is None
+    assert read_ranges.stats() == {"read_calls": 0, "read_errors": 0, "read_ms": 0.0}
+    with read_ranges.document("d4", _doc(), None, None):
+        read_ranges.record("sorter", "x")
+        assert read_ranges.stats()["read_calls"] == 0
+
+
+def test_contexts_are_per_thread():
+    results: dict[str, list[dict]] = {}
+    errors: list[BaseException] = []
+
+    def work(name: str) -> None:
+        try:
+            text = _doc(3000, seed=hash(name) % 1000)
+            out: list[dict] = []
+            with read_ranges.document(name, text, out.append, lambda d, t: None):
+                for k in range(50):
+                    read_ranges.record("sorter", "Document text:\n" + text[k : k + 400])
+            results[name] = out
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=work, args=(n,)) for n in ("a", "b")]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert not errors
+    for name, out in results.items():
+        assert len(out) == 50
+        assert {r["doc"] for r in out} == {name}
+        assert [r["call"] for r in out] == list(range(1, 51))
+
+
+def test_mutation_in_a_copied_context_reaches_the_document():
+    import contextvars
+
+    text = _doc()
+    out: list[dict] = []
+    with read_ranges.document("d5", text, out.append, lambda d, t: None):
+        ctx = contextvars.copy_context()
+        ctx.run(read_ranges._enter_node, "classify")
+        ctx.run(read_ranges.record, "sorter", "Document text:\n" + text[:500])
+        assert read_ranges.current_node() == "classify"
+        ctx.run(read_ranges._exit_node, "classify")
+        assert read_ranges.current_node() is None
+    assert out[0]["node"] == "classify"
+
+
+def test_reads_hold_no_text(tmp_path):
+    text = _doc(4000)
+    store = RunStore(tmp_path / "run")
+    with read_ranges.document("../weird/id", text, store.append_read, store.write_doc_text):
+        read_ranges.set_working_text(text)
+        read_ranges.record("sorter", "Document text:\n" + text[100:1900] + "\nTASK " * 40)
+    lines = [json.loads(ln) for ln in store.reads_path.read_text().splitlines()]
+    assert len(lines) == 1
+
+    def strings(o):
+        if isinstance(o, str):
+            yield o
+        elif isinstance(o, dict):
+            for v in o.values():
+                yield from strings(v)
+        elif isinstance(o, list):
+            for v in o:
+                yield from strings(v)
+
+    assert all(len(s) <= 64 for s in strings(lines[0]))
+
+
+def test_doc_text_files_never_use_the_raw_doc_id(tmp_path):
+    import hashlib
+
+    store = RunStore(tmp_path / "run")
+    store.write_doc_text("../../etc/x", "hello")
+    store.write_doc_text("../../etc/x", "hello")  # idempotent
+    name = hashlib.sha1(b"../../etc/x").hexdigest()[:16] + ".txt"
+    d = store.dir / "doc_texts"
+    assert (d / name).read_text(encoding="utf-8") == "hello"
+    index = [json.loads(ln) for ln in (d / "index.jsonl").read_text().splitlines()]
+    assert index == [{"doc": "../../etc/x", "file": name}]
+    assert sorted(p.name for p in d.iterdir()) == sorted([name, "index.jsonl"])

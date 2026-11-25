@@ -145,6 +145,8 @@ class RunStore:
         self.checkpoint_path = self.dir / "checkpoint.json"
         self.events_path = self.dir / "events.jsonl"
         self.nodes_path = self.dir / "nodes.jsonl"
+        self.reads_path = self.dir / "reads.jsonl"
+        self.doc_texts_dir = self.dir / "doc_texts"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
         self.cancel_path = self.dir / "cancel.request.json"
@@ -570,6 +572,32 @@ class RunStore:
         """Append one graph-node start/end record (``job.node_trace``)."""
         with open(self.nodes_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+
+    # ── read ranges (offsets only; the text lives in doc_texts/) ─────────────
+    def append_read(self, record: dict[str, Any]) -> None:
+        """Append one LLM-call read-range record (``job.read_ranges``)."""
+        with open(self.reads_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+
+    def write_doc_text(self, doc: str, text: str) -> None:
+        """Write a document's working text once, as ``doc_texts/<sha1(doc)[:16]>.txt``.
+
+        The raw document id is never used as a path; ``doc_texts/index.jsonl`` maps it to the file.
+        """
+        import hashlib
+
+        name = hashlib.sha1(str(doc).encode("utf-8")).hexdigest()[:16] + ".txt"
+        path = self.doc_texts_dir / name
+        if path.exists():
+            return
+        self.doc_texts_dir.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+        with open(self.doc_texts_dir / "index.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"doc": str(doc), "file": name}) + "\n")
             fh.flush()
 
     def nodes(self, *, tail_bytes: int = 256_000) -> list[dict[str, Any]]:

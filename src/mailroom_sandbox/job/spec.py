@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 
 from mailroom_sandbox.paths import data_dir
 from mailroom_sandbox.services._exec import ServiceError
@@ -714,6 +714,9 @@ class JobSpec(BaseModel):
     # the vendored doc_inventories note, no subclass) and apply the node's post-extraction
     # inventory normalization, so an isolated A/B sees what the pipeline's specialist sees.
     pipeline_handoff: bool = False
+    # Pipeline runs: record which character ranges of each document every LLM call read
+    # (reads.jsonl and doc_texts/ in the run store; offsets only). Strict: a string is refused.
+    trace_reads: StrictBool = True
     # Specialist runs with pipeline_handoff: the subclass the handoff names (graph state
     # doc_subclass / contract_subtype), which also drives the vendored post-extraction
     # derivations (insurance cms_source_table, corporate record_type). ``none`` (default): no
@@ -1418,6 +1421,7 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
                                     "require_expanded_inputs") and value is False)
+                   and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}

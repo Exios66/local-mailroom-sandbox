@@ -12,14 +12,23 @@ pieces of at least 12 non-whitespace characters that could not be placed, either
 they are not in the document or because the per-request lookup budget
 (``MAX_UNANCHORED_LOOKUPS``) ran out; downstream shows such requests as partly measured.
 
-Sections: matcher (below). Context, recorder and seam sections are appended after it.
+Sections: matcher, document context, recorder. Call seams are appended after them.
+
+The per-document context holds one mutable state object in a ``ContextVar``. LangGraph may
+run node callbacks in a copied context, so callbacks and seams only *mutate* that object
+(guarded by a lock); ``document()`` is the one place that sets and resets the variable.
 """
 
 from __future__ import annotations
 
 import re
+import threading
+import time
 from bisect import bisect_left
-from typing import TypedDict
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, TypedDict
 
 # --- matcher ---------------------------------------------------------------
 
@@ -265,3 +274,152 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
     result["ranges"] = _cap_ranges(_merge_ranges(found))
     result["matched_chars"] = matched
     return result
+
+
+# --- document context ------------------------------------------------------
+
+
+class _DocState:
+    """Mutable per-document state shared by every callback that runs for the document."""
+
+    def __init__(self, doc_id: str, raw_text: str | None,
+                 sink: Callable[[dict], None] | None,
+                 text_sink: Callable[[str, str], None] | None) -> None:
+        self.doc_id = doc_id
+        self.raw_text = raw_text if isinstance(raw_text, str) else None
+        self.working_text: str | None = None
+        self.sink = sink
+        self.text_sink = text_sink
+        self.index: ShingleIndex | None = None  # built lazily, from the working text once known
+        self.calls = 0
+        self.read_calls = 0
+        self.read_errors = 0
+        self.read_ms = 0.0
+        self.nodes: list[str] = []
+        self.lock = threading.Lock()
+
+    def basis_and_index(self) -> tuple[str, ShingleIndex]:
+        with self.lock:
+            if self.index is None:
+                if self.working_text is not None:
+                    self.index = ShingleIndex(self.working_text)
+                else:
+                    self.index = ShingleIndex(self.raw_text)
+            return ("working" if self.working_text is not None else "raw"), self.index
+
+    def count_error(self) -> None:
+        with self.lock:
+            self.read_errors += 1
+
+
+_STATE: ContextVar[_DocState | None] = ContextVar("sandbox_read_ranges", default=None)
+
+
+@contextmanager
+def document(doc_id: str, raw_text: str | None, sink: Callable[[dict], None] | None,
+             text_sink: Callable[[str, str], None] | None = None) -> Iterator[None]:
+    """Record read ranges for every LLM call made for ``doc_id`` inside this scope.
+
+    ``raw_text`` is the row's text, used until the intake node hands over the working text.
+    A ``None`` ``sink`` makes every recorder call a no-op.
+    """
+    token = _STATE.set(_DocState(str(doc_id), raw_text, sink, text_sink))
+    try:
+        yield
+    finally:
+        _STATE.reset(token)
+
+
+def set_working_text(text: str) -> None:
+    """Adopt ``text`` as the document's working text (once) and hand it to the text sink."""
+    state = _STATE.get()
+    if state is None or state.sink is None or not isinstance(text, str) or not text:
+        return
+    with state.lock:
+        if state.working_text is not None:
+            return
+        state.working_text = text
+        state.index = None  # rebuilt lazily from the working text
+    if state.text_sink is not None:
+        try:
+            state.text_sink(state.doc_id, text)
+        except Exception:  # noqa: BLE001 - recording must never break a document
+            state.count_error()
+
+
+def _enter_node(node: str) -> None:
+    state = _STATE.get()
+    if state is None:
+        return
+    try:
+        with state.lock:
+            state.nodes.append(node)
+    except Exception:  # noqa: BLE001
+        state.count_error()
+
+
+def _exit_node(node: str) -> None:
+    state = _STATE.get()
+    if state is None:
+        return
+    try:
+        with state.lock:
+            for i in range(len(state.nodes) - 1, -1, -1):
+                if state.nodes[i] == node:
+                    del state.nodes[i]
+                    break
+    except Exception:  # noqa: BLE001
+        state.count_error()
+
+
+def current_node() -> str | None:
+    """The innermost open tracked node of the current document, if any."""
+    state = _STATE.get()
+    if state is None:
+        return None
+    with state.lock:
+        return state.nodes[-1] if state.nodes else None
+
+
+def stats() -> dict[str, Any]:
+    """``{read_calls, read_errors, read_ms}`` for the current document."""
+    state = _STATE.get()
+    if state is None:
+        return {"read_calls": 0, "read_errors": 0, "read_ms": 0.0}
+    with state.lock:
+        return {"read_calls": state.read_calls, "read_errors": state.read_errors,
+                "read_ms": round(state.read_ms, 3)}
+
+
+# --- recorder --------------------------------------------------------------
+
+
+def record(agent: str, request: str, *, node: str | None = None) -> None:
+    """Match ``request`` against the document and hand one offsets-only record to the sink."""
+    state = _STATE.get()
+    if state is None or state.sink is None:
+        return None
+    t0 = time.perf_counter()
+    try:
+        basis, index = state.basis_and_index()
+        with state.lock:
+            state.calls += 1
+            call = state.calls
+            attributed = node or (state.nodes[-1] if state.nodes else None)
+        result = match_ranges(index, request if isinstance(request, str) else "")
+        rec: dict[str, Any] = {
+            "doc": state.doc_id, "call": call, "agent": agent, "node": attributed,
+            "ts": time.time(), "basis": basis, "ranges": result["ranges"],
+            "request_chars": result["request_chars"], "matched_chars": result["matched_chars"],
+            "doc_chars": result["doc_chars"], "unplaced_pieces": result["unplaced_pieces"],
+        }
+        if result["skipped"]:
+            rec["skipped"] = result["skipped"]
+        state.sink(rec)
+    except Exception:  # noqa: BLE001 - recording must never break a document
+        state.count_error()
+    finally:
+        with state.lock:
+            state.read_calls += 1
+            state.read_ms += (time.perf_counter() - t0) * 1000
+    return None

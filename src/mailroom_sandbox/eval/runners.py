@@ -1226,6 +1226,8 @@ def run_pipeline_eval(
     row_cb=None,
     progress_cb=None,
     node_cb=None,
+    read_cb=None,
+    text_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
     api_budget: Any = None,
@@ -1278,6 +1280,19 @@ def run_pipeline_eval(
             with node_lock:
                 raw_node_cb(record)
 
+    if read_cb is not None and workers > 1:
+        # Same for read-range records and the working-text writer.
+        read_lock, raw_read_cb, raw_text_cb = threading.Lock(), read_cb, text_cb
+
+        def read_cb(record: dict[str, Any]) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+            with read_lock:
+                raw_read_cb(record)
+
+        if raw_text_cb is not None:
+            def text_cb(doc: str, text: str) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+                with read_lock:
+                    raw_text_cb(doc, text)
+
     def _check_caps(in_flight: int = 0) -> None:
         """Refuse to START another document once a wall, GPU or API cap is reached.
 
@@ -1307,6 +1322,7 @@ def run_pipeline_eval(
         """
         before = time.monotonic()
         started_ns = time.time_ns()
+        read_stats: dict[str, Any] | None = None
         with ExitStack() as nodes:
             if node_cb is not None:
                 # SAND-076: report each graph node as it starts and ends.
@@ -1321,6 +1337,13 @@ def run_pipeline_eval(
                     # The review node is answered by the decision backend, not the sorter_reviewer chat route.
                     models["sorter_reviewer"] = reviewer["model"]
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
+                if read_cb is not None:
+                    from mailroom_sandbox.job import read_ranges
+
+                    read_stats = {}
+                    nodes.enter_context(
+                        read_ranges.document(str(row.get("id")), row.get("doc_text"), read_cb, text_cb)
+                    )
             usage_capture.reset_usage()
             try:
                 result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
@@ -1334,6 +1357,8 @@ def run_pipeline_eval(
                     except (AttributeError, TypeError):
                         pass
                 raise
+            if read_stats is not None:
+                read_stats = read_ranges.stats()  # still inside the document scope
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
         calls = usage_capture.call_usage_from_pipeline()
@@ -1342,6 +1367,8 @@ def run_pipeline_eval(
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
+        if read_stats is not None:
+            usage = {**usage, "reads": read_stats}  # persisted by the job runner as the item's ``reads``
         return result, usage, latency_ms, (started_ns, time.time_ns())
 
     def _count_failed(exc: BaseException) -> None:

@@ -219,7 +219,7 @@ GRAPH_NODES = list(node_trace.NODE_AGENTS)
 
 
 def _doc_records(doc: str, i: int) -> list[dict]:
-    """The ~26 start/end records one pipeline document writes (13 graph nodes)."""
+    """The start/end records one pipeline document writes (one pair per tracked graph node)."""
     recs = []
     for k, node in enumerate(GRAPH_NODES):
         recs.append({"doc": doc, "node": node, "status": "running", "agent": None, "model": None, "ts": i})
@@ -364,7 +364,7 @@ def test_refresh_at_1000_docs_parses_only_the_new_lines(tmp_path):
     t0 = time.perf_counter()
     full = node_trace.summarize(store.iter_nodes(), docs=3, recent_records=store.nodes())
     full_s = time.perf_counter() - t0
-    assert parsed == [len(new)] == [26]  # only the appended document's records were parsed
+    assert parsed == [len(new)] == [2 * len(GRAPH_NODES)]  # only the appended document's records were parsed
     assert json.dumps(incremental) == json.dumps(full)
     assert full["docs_seen"] == 1001
     print(f"\nrefresh at 1001 docs: incremental {inc_s * 1000:.1f} ms vs full {full_s * 1000:.1f} ms")
@@ -376,3 +376,57 @@ def test_node_log_cursor_reads_nothing_new_without_appends(tmp_path):
     cursor = NodeLogCursor(store.nodes_path)
     assert cursor.read_new() == (False, [{"doc": "a", "node": "intake", "status": "done"}])
     assert cursor.read_new() == (False, [])
+
+
+# --- read ranges: tracker hand-over (Task 2) ---------------------------------
+
+def _start_end(tracker, node, outputs, run_id=None):
+    import uuid as _uuid
+
+    rid = run_id or _uuid.uuid4()
+    tracker.on_chain_start({}, {}, run_id=rid, metadata={"langgraph_node": node}, name=node)
+    tracker.on_chain_end(outputs, run_id=rid)
+
+
+def test_tracker_hands_intake_text_over(monkeypatch):
+    from mailroom_sandbox.job import read_ranges
+
+    calls: list[str] = []
+    monkeypatch.setattr(read_ranges, "set_working_text", lambda t: calls.append(t))
+    records: list[dict] = []
+    tracker = node_trace.NodeTracker("d1", records.append)
+    _start_end(tracker, "intake", {"doc_text": "X" * 500})
+    assert calls == ["X" * 500]
+    _start_end(tracker, "intake", {"doc_text": ""})
+    _start_end(tracker, "classify", {"doc_text": "Y" * 500})
+    _start_end(tracker, "intake", None)
+    assert calls == ["X" * 500]
+    assert all("X" * 20 not in json.dumps(r) for r in records)  # node records hold no text
+
+
+def test_tracker_keeps_the_current_node_for_read_ranges():
+    import uuid as _uuid
+
+    from mailroom_sandbox.job import read_ranges
+
+    tracker = node_trace.NodeTracker("d1", lambda r: None)
+    out: list[dict] = []
+    with read_ranges.document("d1", "T" * 100, out.append, lambda d, t: None):
+        rid = _uuid.uuid4()
+        tracker.on_chain_start({}, {}, run_id=rid, metadata={"langgraph_node": "classify"}, name="classify")
+        assert read_ranges.current_node() == "classify"
+        read_ranges.record("sorter", "x")
+        tracker.on_chain_error(RuntimeError("boom"), run_id=rid)
+        assert read_ranges.current_node() is None
+    assert out[0]["node"] == "classify"
+    # outside a document scope the hooks are silent
+    _start_end(tracker, "intake", {"doc_text": "Z" * 10})
+
+
+def test_classification_arbiter_is_tracked():
+    assert node_trace.NODE_AGENTS["classification_arbiter"] == "classification_arbiter"
+    records: list[dict] = []
+    tracker = node_trace.NodeTracker("d1", records.append)
+    _start_end(tracker, "classification_arbiter", {"stage": "classified"})
+    assert [r["status"] for r in records] == ["running", "done"]
+    assert {r["node"] for r in records} == {"classification_arbiter"}
