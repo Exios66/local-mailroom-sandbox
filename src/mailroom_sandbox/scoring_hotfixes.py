@@ -681,7 +681,12 @@ def overlay_fields(row: Mapping[str, Any] | None) -> frozenset[str]:
             except json.JSONDecodeError:
                 marker = None
         if isinstance(marker, Mapping):
-            out.update(str(f) for f in (marker.get("fields") or ()))
+            fields = marker.get("fields") or ()
+            if isinstance(fields, str):  # one field name, never its characters
+                fields = (fields,)
+            elif not isinstance(fields, (list, tuple, set, frozenset)):
+                fields = ()
+            out.update(str(f) for f in fields)
     return frozenset(out)
 
 
@@ -700,7 +705,10 @@ def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
 
     out = dict(expected or {})
     kept = set(keep)
-    dropped = {f: why for f, why in stale_hub_labels(doc_type, out).items() if f not in kept}
+    found = stale_hub_labels(doc_type, out)
+    if not isinstance(found, Mapping):  # no stale labels (None or any other shape), never an error
+        found = {}
+    dropped = {f: why for f, why in found.items() if f not in kept}
     if not dropped:
         return out, {}
     for name in dropped:

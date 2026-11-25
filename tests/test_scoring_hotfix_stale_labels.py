@@ -134,3 +134,23 @@ def test_a_rescored_item_carries_the_stale_labels_too():
             "extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}}
     item = rescore.scorer_for({"task": "pipeline"})(row, pred)
     assert item["stale_hub_labels"] == {"intent": "intent_heuristic"}
+
+
+@pytest.mark.parametrize("policy_result", [None, [], ["intent"], "intent", 0])
+def test_a_policy_result_that_is_not_a_mapping_means_no_stale_labels(monkeypatch, policy_result):
+    from llm_dojo_scoring.schemas import label_policy
+
+    monkeypatch.setattr(label_policy, "stale_hub_labels", lambda doc_type, expected: policy_result)
+    expected = {"sender": "Ann Lee", "intent": "payment_demand", "intent_source": "heuristic"}
+    out, dropped = sh.drop_stale_hub_truth("correspondence", expected, ())
+    assert out == expected and dropped == {}
+
+
+def test_overlay_fields_reads_a_string_as_one_field_name_and_ignores_junk():
+    assert sh.overlay_fields({"interim_labels": {"fields": "intent"}}) == {"intent"}
+    assert sh.overlay_fields({"near_gold_labels": json.dumps({"fields": "subject_matter"})}) == {"subject_matter"}
+    assert sh.overlay_fields({"interim_labels": {"fields": ["intent", "sender"]},
+                              "staged_overlay": {"fields": ("keywords",)}}) == {"intent", "sender", "keywords"}
+    assert sh.overlay_fields({"interim_labels": {"fields": 7}}) == frozenset()
+    assert sh.overlay_fields({"interim_labels": {"fields": None}}) == frozenset()
+    assert sh.overlay_fields(None) == frozenset()
