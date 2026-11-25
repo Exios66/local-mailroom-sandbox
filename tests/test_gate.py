@@ -405,3 +405,18 @@ def test_shf015_pool_ignores_a_document_unscorable_for_another_reason(tmp_path):
     report = gate.gate_report(_run(tmp_path, [{"id": "f0", "cls": "correspondence", "expected": few}]), Bars())
     assert report["docs"][0]["outcome"] == "unscorable_archive"
     assert report["pooled"]["unscorable_by_shf015"] == 0
+
+
+def test_the_rendered_gate_summary_names_the_documents_shf015_made_unscorable(tmp_path):
+    from mailroom_sandbox.job.gate_render import render_markdown
+
+    stale = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    kept = {**stale, "intent_source": "llm_zero_shot"}
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    report = gate.gate_report(_run(tmp_path / "a", [{"id": "s0", "cls": "correspondence", "expected": stale},
+                                                    {"id": "k0", "cls": "correspondence", "expected": kept}]), Bars())
+    md = render_markdown(report)
+    assert "SHF-015" in md and "1 archived document" in md and "correspondence 1" in md
+    clean = gate.gate_report(_run(tmp_path / "b", [{"id": "k0", "cls": "correspondence", "expected": kept}]), Bars())
+    assert "SHF-015" not in render_markdown(clean)
