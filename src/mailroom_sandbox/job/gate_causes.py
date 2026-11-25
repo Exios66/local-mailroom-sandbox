@@ -15,7 +15,8 @@ precedence:
    contracts and mergers, scored on one label field, ``cuad_missed`` / ``cuad_false`` / ``maud_wrong``;
 5. ``label_suspect``: the lowest field is a heuristic ``intent`` label and the document text states
    the predicted value, so the label is the likelier error. Checked ahead of the extraction type,
-   which it replaces. It never applies to contracts and mergers.
+   which it replaces. It never applies to contracts and mergers, nor to an ``intent`` a reviewed
+   overlay supplied (see ``label_suspect``).
 
 Review causes are the pipeline's ``review_causes`` tokens (``vendor/llm-mailroom``
 ``pipeline/reconsideration.py``). Tokens this module does not map are never bucketed by guess:
@@ -184,17 +185,33 @@ def _words(text: Any) -> str:
     return re.sub(r"\s+", " ", str(text).lower().replace("_", " ")).strip()
 
 
+def _overlay_supplied(row: Mapping[str, Any], field: str) -> bool:
+    """A reviewed overlay (interim, near-gold or staged) supplied this field's label on this row.
+
+    The overlays replace the label but leave ``intent_source`` as it was, so the marker each one
+    writes (``interim_labels``, ``near_gold_labels``, ``staged_overlay``, each listing the fields it
+    applied) is the provenance. A staged row marked ``stale`` applied nothing and lists no field.
+    Reads the row only; it never changes it, so no hash, lock or score depends on it.
+    """
+    from mailroom_sandbox.gold_audit import label_source
+
+    return label_source(row, field) != "hub"
+
+
 def label_suspect(row: Mapping[str, Any], pred: Mapping[str, Any], field: str | None) -> bool:
     """The lowest field's label is heuristic and the document text states the predicted value.
 
     Only ``intent`` carries a label source (``intent_source == "heuristic"``). Contracts and mergers
-    are scored on CUAD/MAUD labels, never on that intent, so they never qualify. The predicted value
-    must be in the intent vocabulary, must not be ``other`` (a catch-all, too common to be evidence),
-    and must appear in the text as whole words (underscores read as spaces).
+    are scored on CUAD/MAUD labels, never on that intent, so they never qualify. An ``intent`` that a
+    reviewed overlay supplied (``_overlay_supplied``) never qualifies either: the overlays leave
+    ``intent_source`` as ``heuristic`` while replacing the value, so the marker, not the source tag,
+    says the label was reviewed. The predicted value must be in the intent vocabulary, must not be
+    ``other`` (a catch-all, too common to be evidence), and must appear in the text as whole words
+    (underscores read as spaces).
     """
     if field != "intent" or str(row.get("expected_doc_class")) in _UNIT_FIELD:
         return False
-    if _fields(row).get("intent_source") != "heuristic":
+    if _fields(row).get("intent_source") != "heuristic" or _overlay_supplied(row, "intent"):
         return False
     value = (pred.get("extracted_data") or {}).get("intent")
     if value is None or _blank(value) or not isinstance(value, str) or _words(value) == "other":
