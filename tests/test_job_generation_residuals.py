@@ -161,6 +161,50 @@ def test_api_refuses_old_success_after_same_ref_reset_fails(tmp_path, source_roo
     assert store.state() == "failed"
 
 
+def test_cli_refuses_to_start_or_resume_a_rescore_lock(tmp_path, source_root, sdk, monkeypatch, capsys):
+    """Start and resume stop before spend authorization, dispatch, or a model call."""
+    spec, path, store, _ = spec_file(tmp_path, source_root)
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["lock_kind"] = "rescore.lock"
+    lock["rescore"] = {"source_run": "source-run"}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    store.write_checkpoint(state="paused", cursor=0, total=1, remote={"call_id": "fc-LIVE"})
+    before = {p.name: p.read_bytes() for p in store.dir.iterdir() if p.is_file()}
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("a rescore lock must not be dispatched or executed")
+
+    monkeypatch.setattr("mailroom_sandbox.job.remote.ensure_running", forbidden)
+    monkeypatch.setattr("mailroom_sandbox.job.runner.run_job", forbidden)
+    assert main(["run", "resume", "--run-id", store.run_id]) == 1
+    assert "rescore lock" in capsys.readouterr().out
+    assert main(["run", "start", "--config", str(path), "--offline"]) == 1
+    assert "rescore lock" in capsys.readouterr().out
+    assert main(["run", "status", "--run-id", store.run_id, "--watch"]) == 1
+    assert "rescore lock" in capsys.readouterr().out
+    assert sdk["requests"] == []
+    assert {p.name: p.read_bytes() for p in store.dir.iterdir() if p.is_file()} == before
+
+
+def test_worker_refuses_a_rescore_lock_without_rewriting_the_checkpoint(
+        tmp_path, source_root, sdk, monkeypatch):
+    spec, _, store, _ = spec_file(tmp_path, source_root)
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["lock_kind"] = "rescore.lock"
+    lock["rescore"] = {"source_run": "source-run"}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    store.write_checkpoint(state="paused", cursor=0, total=1)
+    before = store.checkpoint_path.read_bytes()
+    result = worker_body(monkeypatch, store)({"run_id": spec.run_id})
+    assert result["state"] == "refused" and "rescore lock" in result["error"]
+    assert store.checkpoint_path.read_bytes() == before
+    assert store.read_checkpoint()["state"] == "paused"
+    assert not store.load_items()
+    assert sdk["requests"] == []
+
+
 def test_run_id_resume_refuses_missing_prompt_before_activation(tmp_path, source_root, sdk):
     spec, _, store, _ = spec_file(tmp_path, source_root)
     assert preflight.preflight(spec, offline=True)["status"] == "prepared"

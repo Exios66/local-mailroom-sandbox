@@ -22,7 +22,8 @@ and the gold audit read:
 * ``events.jsonl`` and ``prompt.lock.json`` copied when present; ``checkpoint.json`` uses the
   derived lock's identity and retains the original checkpoint under ``source_checkpoint``.
   The copied state can still say ``paused`` or ``running``. That directory is not a job:
-  ``run_job`` refuses ``lock_kind: rescore.lock`` before any model call.
+  ``run_job`` refuses ``lock_kind: rescore.lock`` before any model call, and Modal
+  dispatch refuses it before a worker is spawned or the checkpoint is rewritten.
 
 Truth sources: the lock's own revision (default; isolates scorer drift while the run's overlays
 are unchanged, since they apply at their current content), ``--revision`` (a tag

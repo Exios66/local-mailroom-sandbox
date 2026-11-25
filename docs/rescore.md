@@ -53,8 +53,10 @@ the gold audit read that layout.
 - `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
   derived lock's run, spec and generation identity, retaining its original content under
   `source_checkpoint`. Its state is preserved, including a non-terminal `paused` or `running`
-  source. The derived directory is not a job: `sandbox run` refuses `lock_kind: rescore.lock`
-  before any model call. Continue the source run if the job itself should resume.
+  source. The derived directory is not a job: `sandbox run start` and `sandbox run resume`
+  refuse `lock_kind: rescore.lock` before spend authorization, and Modal dispatch refuses it
+  before a worker is spawned or the checkpoint is rewritten. `run_job` refuses the same lock
+  before activation. Continue the source run if the job itself should resume.
 
 ## Reading the digest
 

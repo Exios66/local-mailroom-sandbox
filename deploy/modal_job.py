@@ -219,7 +219,7 @@ def run_job(payload: dict) -> dict:
     """
     import traceback
 
-    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.checkpoint import RescoreNotExecutable, RunStore
     from mailroom_sandbox.job.deploy_env import durable_mailroom_env, scope_openrouter_key, settle_mailroom_writers
     from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
@@ -320,6 +320,21 @@ def run_job(payload: dict) -> dict:
                 tracer=tracer,
                 on_event=on_event,
             )
+    except RescoreNotExecutable as exc:
+        # The copied checkpoint is the source's, including paused or running.
+        # Publishing failed would make that partial offline score look finished.
+        refused = {
+            **identity,
+            "state": "refused",
+            "error": str(exc)[:512],
+            "heartbeat_at": _now(),
+        }
+        try:
+            state_dict.put(state_key, refused)
+        except Exception as put_exc:  # noqa: BLE001 — the checkpoint must stay unchanged either way
+            logger.warning("state Dict put failed for rescore refusal: %s", put_exc, exc_info=True)
+        flush_tracer(tracer)
+        return refused
     except Exception as exc:  # noqa: BLE001 — DMR-053: terminal diagnostics, never a silent drop
         if generation_fields(store.verify_generation()) != identity:
             raise RuntimeError("worker generation changed; refusing stale failure publication") from exc
