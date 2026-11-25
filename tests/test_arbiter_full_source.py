@@ -1,4 +1,4 @@
-"""On a full-source route the extraction arbiter's acceptance counts (HF-014).
+"""On a full-source route the extraction arbiter's acceptance counts (HF-014) and its last ruling is final (HF-015).
 
 Network-free: the real compiled graph with the judge and arbiter nodes real and their model
 calls scripted (``_arbiter_harness``). OpenRouter is activated as a run would be, so context fit
@@ -118,3 +118,51 @@ def test_no_marker_without_a_caveat_acceptance(profile_graph, monkeypatch):
     out = run(profile_graph("openrouter"), monkeypatch, Script())
     assert out["stage"] == "archived" and vh.arbiter_caveats(out["state"]) is None
 
+
+# --- HF-015: no re-extraction budget left, so the arbiter cannot choose one ------------------------
+
+def _decisions(schema) -> list[str]:
+    return list(schema["properties"]["decision"]["enum"])
+
+
+def test_the_last_ruling_offers_no_retry_on_openrouter(profile_graph, monkeypatch):
+    script = Script(confs=[0.95] * 4, judge=[("partial", "accurate")] * 3,
+                    arbiter=["retry_extraction", "accept_with_caveats"])
+    out = run(profile_graph("openrouter"), monkeypatch, script)
+    first, last = out["arbiter_schemas"]
+    assert "retry_extraction" in _decisions(first) and vh.RETRY_CLOSED_NOTE not in out["arbiter_prompts"][0]
+    assert _decisions(last) == ["accept_with_caveats", "human_review"]
+    assert out["arbiter_prompts"][1].endswith(vh.RETRY_CLOSED_NOTE)
+    assert out["stage"] == "archived"
+
+
+def test_a_retry_answer_without_budget_becomes_a_clean_escalation(profile_graph, monkeypatch):
+    """A provider that ignores the enum still cannot re-extract, and the park says why."""
+    script = Script(confs=[0.95] * 4, judge=[("partial", "accurate")] * 3, arbiter=["retry_extraction"] * 3)
+    out = run(profile_graph("openrouter"), monkeypatch, script)
+    assert out["stage"] == "review" and out["arbiter"] == 2 and out["extract_calls"] == 2
+    assert out["state"]["arbiter_decision"] == "human_review"
+    assert "ordered re-extraction" not in str(out["state"].get("escalation_reason"))
+
+
+def test_the_retry_count_alone_closes_the_retry(profile_graph, monkeypatch):
+    """Judge passes left, but arbiter_retry_max spent: the arbiter still cannot order another retry."""
+    bg = profile_graph("openrouter")
+    import graph.routing as routing
+
+    original = routing._thresholds_for
+    monkeypatch.setattr(routing, "_thresholds_for", lambda state: {**original(state), "judge_max_passes": 3})
+    script = Script(confs=[0.95] * 4, judge=[("partial", "accurate")] * 3,
+                    arbiter=["retry_extraction", "accept_with_caveats"])
+    out = run(bg, monkeypatch, script)
+    assert _decisions(out["arbiter_schemas"][1]) == ["accept_with_caveats", "human_review"]
+    assert out["stage"] == "archived"
+
+
+def test_modal_arbiter_prompts_are_unchanged(profile_graph, monkeypatch):
+    script = Script(confs=[0.95] * 4, judge=[("partial", "accurate")] * 3,
+                    arbiter=["retry_extraction", "retry_extraction"])
+    out = run(profile_graph("modal-vllm"), monkeypatch, script)
+    assert all("retry_extraction" in _decisions(s) for s in out["arbiter_schemas"])
+    assert not any(vh.RETRY_CLOSED_NOTE in p for p in out["arbiter_prompts"])
+    assert out["stage"] == "review"

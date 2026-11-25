@@ -22,6 +22,7 @@ live in ``scoring_hotfixes.py``, dual reported beside the Dojo pin's raw values.
 
 from __future__ import annotations
 
+import copy
 import difflib
 import functools
 import hashlib
@@ -644,11 +645,14 @@ def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Call
     return _transient_decision
 
 
-#: Run ``confidence`` key that turns on HF-014 (overlay default ``true``). It stays inert
+#: Run ``confidence`` key that turns on HF-014 and HF-015 (overlay default ``true``). Both stay inert
 #: unless context fit widened the arbiter's source window, so Modal/vLLM and local routes are unchanged.
 FULL_SOURCE_KEY = "arbiter_full_source"
 #: Route-rule name of HF-014 (``graph.route_spec`` registry, ``arbiter`` node).
 FULL_SOURCE_RULE = "HF-014:arbiter_full_source_accepts"
+#: The note HF-015 adds to the arbiter's request when no re-extraction budget is left.
+RETRY_CLOSED_NOTE = ("RE-EXTRACTION IS NOT AVAILABLE: no re-extraction budget is left, so this ruling is "
+                     "final. Decide accept_with_caveats or human_review; retry_extraction cannot be chosen.")
 
 
 def arbiter_source_window() -> tuple[int | None, bool]:
@@ -782,6 +786,91 @@ def _install_full_source_accept(module: Any, original: Callable[..., Any]) -> Ca
         return original(state)
 
     return after_arbiter
+
+
+def retry_closed(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-015: on a full-source route, whether the arbiter has no re-extraction left to order.
+
+    Closed when HF-011's last judge pass is spent (a retry could not be judged again), or when
+    ``arbiter_retry_count`` has reached ``arbiter_retry_max`` (``after_arbiter`` would refuse it).
+    """
+    if not _full_source_route(routing, state):
+        return False
+    thresholds = routing._thresholds_for(state)
+    if thresholds.get("judge_exhausted_to_arbiter") is True and _judge_passes_spent(routing, state):
+        return True
+    raw = thresholds.get("arbiter_retry_max")
+    retry_max = int(raw) if raw is not None else 2
+    return int(state.get("arbiter_retry_count") or 0) >= retry_max
+
+
+def _arbiter_node_state() -> Mapping[str, Any] | None:
+    """The graph state of the ``arbiter_node`` call that invoked the wrapped ``arbitrate``, else None."""
+    frame = inspect.currentframe()
+    try:
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        if caller is None or caller.f_code.co_name != "arbiter_node":
+            return None
+        state = caller.f_locals.get("state")
+        return state if isinstance(state, Mapping) else None
+    finally:
+        del frame
+
+
+def _without_retry(schema: Any) -> Any:
+    """``schema`` with ``retry_extraction`` dropped from its ``decision`` enum (a copy)."""
+    if not isinstance(schema, Mapping):
+        return schema
+    out = copy.deepcopy(dict(schema))
+    decision = (out.get("properties") or {}).get("decision")
+    if isinstance(decision, dict) and isinstance(decision.get("enum"), list):
+        decision["enum"] = [d for d in decision["enum"] if d != "retry_extraction"]
+    return out
+
+
+def _install_final_ruling(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """With no re-extraction budget left, the arbiter is asked for a final ruling.
+
+    The vendored arbiter is always offered ``retry_extraction``; HF-011 and ``after_arbiter``
+    then turn a retry they cannot grant into a park, under the arbiter's "ordered re-extraction"
+    reason. On a full-source route this request drops ``retry_extraction`` from the decision
+    enum and says why, so the model chooses between accepting with caveats and a person. An
+    answer that still names a retry (a provider that does not enforce the schema) becomes
+    ``human_review`` with its own reason. Every other call, and every Modal/vLLM or local call,
+    is the vendored request.
+    """
+
+    @functools.wraps(original)
+    def arbitrate(self: Any, *args: Any, **kwargs: Any) -> dict:
+        state = _arbiter_node_state()
+        try:
+            routing = importlib.import_module("graph.routing")
+        except Exception:  # noqa: BLE001 — optional (pipeline extra)
+            routing = None
+        if state is None or routing is None or not retry_closed(routing, state):
+            return original(self, *args, **kwargs)
+        had_own = "_call_structured" in vars(self)
+        own = vars(self).get("_call_structured")
+        call = self._call_structured
+
+        def final_call(user_message: str, schema: Any = None, *a: Any, **k: Any) -> dict:
+            return call(f"{user_message}\n\n{RETRY_CLOSED_NOTE}", _without_retry(schema), *a, **k)
+
+        self._call_structured = final_call
+        try:
+            result = original(self, *args, **kwargs)
+        finally:
+            if had_own:
+                self._call_structured = own
+            else:
+                del self._call_structured
+        if isinstance(result, dict) and result.get("decision") == "retry_extraction":
+            result = {**result, "decision": "human_review",
+                      "reasoning": "arbiter asked for a re-extraction with no budget left; escalated "
+                                   f"({str(result.get('reasoning') or '')[:200]})"}
+        return result
+
+    return arbitrate
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
@@ -935,6 +1024,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         also=(("_extraction_still_unsure", "21700548d1be504e6bd7ce93164d6630fc25e05a86a82df8585d1b8bd3d5bd67"),
               ("_unadjudicated_conflict", "7084a3d97357b5ec6848b7847c95e3eabbbacfe7b474c8baf6270d5c2f24d1ce"),
               ("_chunks_lost", "85eca48ae57b740f0d5fbd6118eea1682778bc774c14a274cf7d32b704109b2a")),
+    ),
+    Hotfix(
+        id="HF-015",
+        module="agents.arbiter",
+        attr="ArbiterAgent.arbitrate",
+        source_sha256="c6c7b3ac5c4aa19ae58c84527901658c3caa41f5788da3010ef046295445e6d4",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter with no "
+                "re-extraction budget left is not offered retry_extraction: its ruling is final",
+        install=_install_final_ruling,
     ),
 )
 

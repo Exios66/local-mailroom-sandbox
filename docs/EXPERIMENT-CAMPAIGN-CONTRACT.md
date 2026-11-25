@@ -56,6 +56,7 @@ The complete implementations and upstream retirement conditions live in
 | HF-005 | Hold files at saturated filesystem bins without dropping them; bound inbox waits and unfinished uploads | `test_backpressure.py` |
 | HF-006 | Preserve explicit zero confidence in single and chunked specialist extraction | `test_vendor_hotfixes.py` |
 | HF-014 | On a context-fitted route, an arbiter acceptance from a whole-source reading archives with a visible `arbiter_caveats` marker; lost chunks, conflicts and 16k-excerpt routes still park | `test_arbiter_full_source.py`, `test_gate.py` |
+| HF-015 | On a context-fitted route, an arbiter with no re-extraction budget left is never offered a retry | `test_arbiter_full_source.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |

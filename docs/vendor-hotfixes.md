@@ -47,6 +47,7 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-012 | `graph.routing._transient_decision` | `confidence.transient_retry_max`, when set, is the number of times a node re-runs after a transient provider error (overlay: 1). `retry_chat_completion` already retries inside each call (5 attempts plus the SDK's own), so the vendored two node-level re-runs repeated whole extractions and judge passes. Unset keeps the vendored budget; counters and the `transient_exhausted` cause are unchanged. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
 | HF-013 | `agents.judge.CompletenessJudge.judge_extraction_correctness` | An accuracy-judge parse failure raises `JudgeParseError` instead of returning "inaccurate 0.0". That answer used to turn a `complete` completeness verdict into `incomplete`, so a judge that never reached a verdict spent an arbiter call, a re-extraction and a second judge pass. The graph now takes the judge-error path HF-002 uses: `judge_verdict` `judge_error`, human review, counted by the gate. A parsed answer, however low, is unchanged. | to file (J-8) |
 | HF-014 | `graph.routing.after_arbiter` (also bound to `_extraction_still_unsure`, `_unadjudicated_conflict`, `_chunks_lost`) | With `confidence.arbiter_full_source: true` (the overlay default) on a context-fitted route, a `graph.route_spec` rule after HF-011's: an arbiter `accept_with_caveats` goes to `compile_report` and archive instead of human review when the arbiter read the whole source. That means the arbiter window was widened by context fit, `doc_text` fits in it, no chunked window was lost and no matter conflict is unadjudicated. The vendored route parks every acceptance whose extraction is still unsure (confidence under the class `low` band, no source-verified judge verdict); on a 16k-excerpt route that park guards against an arbiter that saw a fraction of the document, so Modal/vLLM and local routes keep it. Every caveat-accepted archive carries an `arbiter_caveats` marker on the run item (`decision`, `reasoning`, `judge_verdict`, `whole_source`, and `hf014` when the vendored route would have parked it); the gate report and the floor digest count them, and they are scored like any other archive. HF-011's skip check uses the same rule. | to file (J-9) |
+| HF-015 | `agents.arbiter.ArbiterAgent.arbitrate` | With the same key on a context-fitted route, an arbiter call with no re-extraction budget left (HF-011's last judge pass spent, or `arbiter_retry_count` at `arbiter_retry_max`) is a final ruling: `retry_extraction` is dropped from the decision enum and the request says why, so the model chooses between `accept_with_caveats` and `human_review`. An answer that still names a retry (a provider that ignores the schema) becomes `human_review` with its own reason instead of the stale "ordered re-extraction" one. It finds the graph state from its `arbiter_node` caller; called from anywhere else it is the vendored request. Every other call, and every Modal/vLLM or local call, is unchanged. | to file (J-10) |
 
 ### Confidence decisions
 
@@ -86,6 +87,10 @@ pipeline/scoring check, and run execution still verifies the locked identities.
   whatever the arbiter read. With provider-aware source windows (J-7) an arbiter that read the whole
   document should be able to accept with caveats, with lost chunks and conflicts still parking. HF-014
   covers it on context-fitted routes.
+- **J-10** (to file) `ArbiterAgent.arbitrate` always offers `retry_extraction`, even when the graph can no
+  longer grant one, so the model's ruling is replaced by a park under the arbiter's "ordered
+  re-extraction" reason. The caller should pass the remaining budget. HF-015 covers it on
+  context-fitted routes.
 
 ### What a hotfix change means for run locks
 
@@ -97,15 +102,15 @@ Every hotfix added or changed after a run was locked changes that lock's `vendor
   module sha256 changes with it. A run locked from this checkout records the new hashes automatically.
   A lock written before the change would need `sandbox run preflight --force` to re-lock before it could
   resume; no run needs that today.
-- **HF-014** (`graph.routing.after_arbiter`, with three helper predicates bound by `also`) changes
-  routes only where
+- **HF-014** (`graph.routing.after_arbiter`, with three helper predicates bound by `also`) and **HF-015**
+  (`agents.arbiter.ArbiterAgent.arbitrate`) change routes and requests only where
   `confidence.arbiter_full_source` is `true` and context fit widened the arbiter's source window, that
   is OpenRouter and other context-fitted API routes. Modal/vLLM and local routes are byte-for-byte
-  unchanged. A run records it under `vendor_hotfixes.fixes` with the module sha256, and the key in
-  its frozen `effective_confidence`; a new run locks the new hash and the key automatically. A lock
+  unchanged. A run records both under `vendor_hotfixes.fixes` with the module sha256, and the key in
+  its frozen `effective_confidence`; a new run locks the new hashes and the key automatically. A lock
   written before the change needs `sandbox run preflight --force` to re-lock before it could resume
   (no run needs it today); a legacy lock with no frozen `effective_confidence` drops the key on resume
-  (`routing_audit.OVERLAY_RETRY_KEYS`), which leaves it inert.
+  (`routing_audit.OVERLAY_RETRY_KEYS`), which leaves both hotfixes inert.
 
 When llm-mailroom ships one of these and the sandbox vendors it, retire the matching hotfix in the
 same vendor refresh.

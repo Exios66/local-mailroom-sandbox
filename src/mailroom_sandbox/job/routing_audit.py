@@ -63,7 +63,7 @@ def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> di
     return deep_merge(block, dict(lock_confidence or {}))
 
 
-# Keys the taxonomy overlay's retry-budget block set (HF-011/HF-012/HF-014 routing). A
+# Keys the taxonomy overlay's retry-budget block set (HF-011/HF-012/HF-014/HF-015 routing). A
 # lock written before preflight froze ``effective_confidence`` never saw them, so on resume they
 # fall back to the vendored + components value (absent keys stay absent, which leaves those
 # hotfixes inert).
