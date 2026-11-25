@@ -92,7 +92,7 @@ RUN_KEYS = {
     "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
     "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
     "routing", "review_routed", "replay", "checkpoint_state", "stalled_s", "last_activity_utc",
-    "scores", "node_outcomes", "docs", "docs_truncated",
+    "scores", "node_outcomes", "docs", "docs_truncated", "docs_omitted_healthy",
 }
 
 
@@ -650,10 +650,13 @@ def per_document_rows_carry_path_classes_outcome_and_note():
     assert d1["debug"]["archive"]["reached"] is True and d1["debug"]["loops"] == [
         {"node": "classify", "visits": 2, "kind": "self",
          "why": "classify ran 2 times without a different node between those visits. "
-                "No decision, stage, or error was stored on the repeated visits."},
+                "No decision, stage, or error was stored on the repeated visits.",
+         "cost": {"prompt": 200, "completion": 20}},
     ], d1["debug"]
     assert "loop" in d1["debug"]["issues"] and "diverted" not in d1["debug"]["issues"]
     assert d1["debug"]["mode"]["id"] == "loop:classify:self", d1["debug"]["mode"]
+    assert d1["debug"]["mode"]["node"] == "classify"
+    assert d1["fields"] == [] and d1["debug"]["answers"] == []
     assert d2["debug"]["mode"]["id"] == "held:human_review:classification"
     assert "no review cause was stored" in d2["debug"]["mode"]["lever"]
     assert d3["debug"]["mode"]["id"] == "failed:classify:boom"
@@ -849,6 +852,44 @@ def dead_running_checkpoint_is_shown_stalled():
         d = json.loads((Path(t) / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
         assert d["state"] == "running" and d["stalled_s"] is None, "threshold override honoured"
     assert CTX["runs"]["run-a"]["state"] == "running", "a fresh running run is not stalled"
+
+
+@test
+def problem_rows_survive_the_document_cap():
+    """Past the cap, a held document stays and a healthy archived one is the row left out."""
+    healthy = {"id": "ok", "debug": {"issues": ["loop"]}}
+    held = {"id": "parked", "debug": {"issues": ["held", "diverted"]}}
+    kept, omitted, omitted_healthy = bfd._select_doc_rows([healthy, held], cap=1)
+    assert [row["id"] for row in kept] == ["parked"]
+    assert (omitted, omitted_healthy) == (1, 1)
+    assert CTX["runs"]["run-a"]["docs_omitted_healthy"] == 0
+
+
+@test
+def field_notes_quote_stored_values_and_do_not_score():
+    """A stored field score below 1 is quoted. A value gap is listed only when both sides were stored."""
+    scored = bfd._field_notes({"score": {"field_scores": {"sender": 0.0, "date": 1}}}, None)
+    assert scored == [{"field": "sender", "kind": "stored_score", "score": 0.0}]
+    compared = bfd._field_notes(
+        {"pred": {"extracted_data": {"sender": "Ada", "date": None}}},
+        {"expected_fields": {"sender": "Bea", "date": "2020", "gt_presence": "{}"}},
+    )
+    assert compared == [
+        {"field": "sender", "kind": "value", "expected": "bea", "recorded": "ada"},
+        {"field": "date", "kind": "missing", "expected": "2020"},
+    ]
+    assert bfd._field_notes({}, {"expected_fields": {"sender": "Bea"}}) == []
+
+
+@test
+def mode_node_names_the_stage_to_read():
+    """An archived class miss points at classify. A park points at the node it stopped on."""
+    assert CTX["runs"]["run-a"]["docs"][1]["debug"]["mode"]["node"] == "human_review"
+    shipped = bfd._diagnose(
+        {}, [{"node": "archive", "status": "done"}],
+        "ship", "archived", None, None, None, "letter", {("catalog_write", "archive")},
+    )
+    assert shipped["mode"]["node"] == "classify"
 
 
 def main() -> int:

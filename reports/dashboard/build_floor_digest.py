@@ -564,9 +564,13 @@ def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[st
 
 # ── analysis helpers (per-document flow, scores against ground truth) ───────────
 
-# A document table is kept per run for the viewer's Documents tab; bigger runs keep the
-# first DOC_ROW_CAP rows (by item order) and say so in ``docs_truncated``.
+# A document table is kept per run for the viewer's Documents tab. Past DOC_ROW_CAP,
+# problem rows (held, failed, open, class miss, diverted, stuck) stay ahead of healthy
+# archived rows. ``docs_truncated`` is every row left out. ``docs_omitted_healthy`` is
+# how many of those left-out rows were not problems.
 DOC_ROW_CAP = 5000
+_PROBLEM_ISSUES = frozenset({"stuck", "held", "failed", "open", "miss", "diverted"})
+_FIELD_NOTE_CAP = 8
 # A run whose checkpoint still says ``running`` but whose artifacts have not changed for
 # this long is shown as ``stalled`` (a killed process never rewrites its checkpoint).
 # ``$FLOOR_STALL_SECONDS`` overrides it.
@@ -605,6 +609,95 @@ def _overlay_fields(row: dict, key: str) -> list[str]:
     block = row.get(key)
     fields = block.get("fields") if isinstance(block, dict) else None
     return sorted(str(f) for f in fields) if isinstance(fields, (list, tuple)) else []
+
+
+def _stored_extraction(item: dict) -> dict:
+    """The item's stored ``extracted_data`` map, or empty when none was recorded."""
+    for holder in (item.get("pred"), item.get("prediction"), item):
+        if isinstance(holder, dict) and isinstance(holder.get("extracted_data"), dict):
+            return holder["extracted_data"]
+    return {}
+
+
+def _field_text(value) -> str:
+    """A short comparable form of a stored scalar. Nested values are skipped."""
+    if value is None or isinstance(value, (dict, list, tuple)):
+        return ""
+    return " ".join(str(value).split()).lower()[:40]
+
+
+def _score_notes(stored: dict) -> list[dict]:
+    """Fields whose stored Dojo ``field_scores`` entry is below 1. A stored 0 stays 0."""
+    notes = []
+    for key, value in stored.items():
+        number = _num(value)
+        if number is None or number >= 1:
+            continue
+        notes.append({"field": str(key)[:40], "kind": "stored_score", "score": round(number, 4)})
+        if len(notes) >= _FIELD_NOTE_CAP:
+            break
+    return notes
+
+
+def _value_notes(expected: dict, predicted: dict) -> list[dict]:
+    """Stored values that differ from the dataset row. Not a score."""
+    notes = []
+    for key, truth in expected.items():
+        if key == "gt_presence":
+            continue
+        exp = _field_text(truth)
+        if not exp:
+            continue
+        if key not in predicted or _field_text(predicted.get(key)) == "":
+            notes.append({"field": str(key)[:40], "kind": "missing", "expected": exp})
+        elif _field_text(predicted.get(key)) != exp:
+            notes.append({
+                "field": str(key)[:40], "kind": "value",
+                "expected": exp, "recorded": _field_text(predicted.get(key)),
+            })
+        if len(notes) >= _FIELD_NOTE_CAP:
+            break
+    return notes
+
+
+def _field_notes(item: dict, row: dict | None) -> list[dict]:
+    """Disagreements to show beside the extraction score.
+
+    A stored ``field_scores`` map is quoted as the Dojo already recorded it.
+    Otherwise stored ``extracted_data`` is set beside the dataset row. Neither
+    path computes a new score.
+    """
+    score = item.get("score") if isinstance(item.get("score"), dict) else {}
+    stored = score.get("field_scores")
+    if isinstance(stored, dict) and stored:
+        return _score_notes(stored)
+    expected = _expected_fields(row or {})
+    predicted = _stored_extraction(item)
+    if not expected or not predicted:
+        return []
+    return _value_notes(expected, predicted)
+
+
+def _is_problem_row(row: dict) -> bool:
+    """True when the row's debug tags include a problem, not a recovered loop alone."""
+    issues = (row.get("debug") or {}).get("issues") or []
+    return any(issue in _PROBLEM_ISSUES for issue in issues)
+
+
+def _select_doc_rows(rows: list[dict], cap: int = DOC_ROW_CAP) -> tuple[list[dict], int, int]:
+    """Keep problem rows ahead of healthy ones once the table passes ``cap``.
+
+    Returns ``(kept, omitted, omitted_healthy)``. Scores are computed before this
+    cut, so a dropped row still counts in the score tables.
+    """
+    if len(rows) <= cap:
+        return rows, 0, 0
+    problems = [row for row in rows if _is_problem_row(row)]
+    healthy = [row for row in rows if not _is_problem_row(row)]
+    kept = (problems + healthy)[:cap]
+    kept_ids = {id(row) for row in kept}
+    omitted_healthy = sum(1 for row in healthy if id(row) not in kept_ids)
+    return kept, len(rows) - len(kept), omitted_healthy
 
 
 def _label_provenance(row: dict | None) -> dict:
@@ -777,6 +870,17 @@ def _decision_bits(decisions: list) -> str:
     return "; ".join(parts)
 
 
+def _visit_numbers(record: dict) -> tuple[float | None, float | None, float | None]:
+    """Stored elapsed milliseconds and token counts on one node record. Missing stays None."""
+    nested = record.get("tokens") if isinstance(record.get("tokens"), dict) else record.get("usage")
+    nested = nested if isinstance(nested, dict) else {}
+    prompt = _num(record.get("prompt_tokens", nested.get("prompt", nested.get("prompt_tokens"))))
+    completion = _num(record.get(
+        "completion_tokens", nested.get("completion", nested.get("completion_tokens")),
+    ))
+    return _num(record.get("ms", record.get("duration_ms"))), prompt, completion
+
+
 def _kept_decisions(record: dict) -> list:
     """The decision fields a diagnosis is allowed to quote."""
     raw = record.get("decisions")
@@ -806,13 +910,21 @@ def _closed_visits(records: list[dict]) -> list[dict]:
     def pack(record: dict, status: str) -> dict:
         stage = record.get("stage")
         error = record.get("error")
-        return {
+        packed = {
             "node": str(record.get("node")),
             "status": status,
             "stage": stage if isinstance(stage, str) and stage else None,
             "error": error.strip()[:120] if isinstance(error, str) and error.strip() else None,
             "decisions": _kept_decisions(record),
         }
+        ms, prompt, completion = _visit_numbers(record)
+        if ms is not None:
+            packed["ms"] = _int_if_whole(ms)
+        if prompt is not None:
+            packed["prompt"] = int(prompt)
+        if completion is not None:
+            packed["completion"] = int(completion)
+        return packed
 
     for record in records:
         if not record.get("node"):
@@ -868,7 +980,11 @@ def _loop_rows(visits: list[dict]) -> list[dict]:
             why += " Recorded on those visits: " + recorded + "."
         else:
             why += " No decision, stage, or error was stored on the repeated visits."
-        loops.append({"node": node, "visits": count, "kind": kind, "why": _clip(why)})
+        row = {"node": node, "visits": count, "kind": kind, "why": _clip(why)}
+        cost = _loop_cost(mine)
+        if cost:
+            row["cost"] = cost
+        loops.append(row)
         if len(loops) >= 8:
             break
     return loops
@@ -919,9 +1035,44 @@ def _error_slug(note: str | None) -> str:
 _PAST_RUN_UNCHANGED = " The past run is left unchanged."
 
 
-def _pack_mode(mode_id: str, label: str, lever: str) -> dict:
-    """A mode id, a short label, and a next-run lever, each clipped for the digest."""
-    return {"id": mode_id, "label": _clip(label, 180), "lever": _clip(lever, 360)}
+def _loop_cost(visits: list[dict]) -> dict:
+    """Sum of stored visit times and tokens. A number is included only when a visit stored it."""
+    totals: dict[str, float] = {}
+    for visit in visits:
+        for key in ("ms", "prompt", "completion"):
+            number = _num(visit.get(key))
+            if number is None:
+                continue
+            totals[key] = totals.get(key, 0.0) + number
+    cost = {}
+    if "ms" in totals:
+        cost["ms"] = _int_if_whole(totals["ms"])
+    for key in ("prompt", "completion"):
+        if key in totals:
+            cost[key] = int(totals[key])
+    return cost
+
+
+def _answer_bits(visits: list[dict]) -> list[str]:
+    """Stored decision phrases a viewer can search. Capped, and not a new inference."""
+    bits: list[str] = []
+    for visit in visits:
+        phrase = _decision_bits(visit.get("decisions") or [])
+        if phrase and phrase not in bits:
+            bits.append(phrase)
+        if len(bits) >= 12:
+            break
+    return bits
+
+
+def _pack_mode(mode_id: str, label: str, lever: str, node: str) -> dict:
+    """A mode id, a short label, the node to inspect, and a next-run lever."""
+    return {
+        "id": mode_id,
+        "label": _clip(label, 180),
+        "node": node,
+        "lever": _clip(lever, 360),
+    }
 
 
 def _class_disagreement(gt: str | None, pred: str | None) -> bool:
@@ -979,6 +1130,7 @@ def _stuck_mode(loop: dict | None, miss_bit: str) -> dict | None:
         f"Next run: {loop['node']} is still repeating. Use the decisions stored on those "
         f"visits. A missing decision was not recorded, so do not guess a cutoff from this view."
         + _PAST_RUN_UNCHANGED,
+        loop["node"],
     )
 
 
@@ -992,6 +1144,7 @@ def _failed_mode(node: str, note: str | None, miss_bit: str) -> dict:
         f"Next run: this is a technical failure at {node}, not a route. "
         f"The recorded error ({shown}) is the defect. "
         f"Fix that failure before rerunning the same documents." + _PAST_RUN_UNCHANGED,
+        node,
     )
 
 
@@ -1037,6 +1190,7 @@ def _held_mode(node: str, causes: list[str], review: str | None,
         f"held:{_mode_token(node)}:{_mode_token(key)}",
         f"Held at {node} · {key}{miss_bit}",
         _held_lever(node, causes, review, gt, pred),
+        node,
     )
 
 
@@ -1048,6 +1202,7 @@ def _archived_miss_mode(gt: str, pred: str) -> dict:
         f"Next run: the document reached archive with ground truth {gt} and recorded class {pred}. "
         f"The classify decision is the disagreement. Do not treat that archive as a correct route."
         + _PAST_RUN_UNCHANGED,
+        "classify",
     )
 
 
@@ -1058,6 +1213,7 @@ def _open_mode(node: str, miss_bit: str) -> dict:
         f"Still open at {node}{miss_bit}",
         f"Next run: the trace is still open at {node}. Resume or read that visit before "
         f"changing a prompt. This is not a completed routing decision." + _PAST_RUN_UNCHANGED,
+        node,
     )
 
 
@@ -1069,6 +1225,7 @@ def _diverted_mode(node: str, miss_bit: str) -> dict:
         f"Next run: the trace stopped at {node} and never recorded archive. "
         f"Use the hop into that node. Do not invent a router input that was not stored."
         + _PAST_RUN_UNCHANGED,
+        node,
     )
 
 
@@ -1081,6 +1238,7 @@ def _recovered_loop_mode(loop: dict | None) -> dict | None:
         f"{loop['node']} repeated ({loop['kind']}) and then reached archive",
         f"This repeat reached archive, so it is not an open failure. A later run that stops "
         f"on {loop['node']} the same way is the same mode." + _PAST_RUN_UNCHANGED,
+        loop["node"],
     )
 
 
@@ -1332,6 +1490,7 @@ def _diagnose(item: dict, records: list[dict], outcome: str, stage: str | None,
         "hops_omitted": omitted,
         "causes": causes,
         "archive": {"reached": reached, "stopped": stopped, "why": _clip(why, 420)},
+        "answers": _answer_bits(visits),
         "mode": _failure_mode(issues, loops, last, stopped, reached, outcome, causes, review, note, pred, gt),
     }
 
@@ -1449,6 +1608,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             "path": [n for i, n in enumerate(seq) if i == 0 or seq[i - 1] != n],  # self-loops collapsed
             "ms": _num(it.get("latency_ms")),
             "score": _score_value(it),
+            "fields": _field_notes(it, ds_by_id.get(item_id)),
             "labels": _label_provenance(ds_by_id.get(item_id)),
             "review": _review_trigger(it, recs),
             "note": _error_text(it),
@@ -1511,6 +1671,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
 
     cursor = checkpoint.get("cursor")
     routing = _routing(items, ds_class)
+    kept_docs, docs_omitted, docs_omitted_healthy = _select_doc_rows(doc_rows)
     state = checkpoint.get("state") or "unknown"
     last_activity = _last_activity(path)
     stalled_s = None
@@ -1564,8 +1725,9 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
         "routing": routing,
         "scores": _scores(doc_rows),
         "node_outcomes": _node_outcomes(doc_rows),
-        "docs": doc_rows[:DOC_ROW_CAP],
-        "docs_truncated": max(0, len(doc_rows) - DOC_ROW_CAP),
+        "docs": kept_docs,
+        "docs_truncated": docs_omitted,
+        "docs_omitted_healthy": docs_omitted_healthy,
     }
     classes = {c for c in outcomes if c != "?"} | set(ds_class.values())
     return run, classes
