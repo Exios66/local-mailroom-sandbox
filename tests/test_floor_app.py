@@ -1095,6 +1095,48 @@ def test_template_has_the_analysis_tabs_and_stalled_state():
     assert 'r.state==="stalled"' in html and "near_gold" in html
 
 
+def test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_filters():
+    """Execute the viewer's actual selection functions; a stale debug isolate cannot win."""
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    html = _template()
+    cells = html[html.index("function recordedPred("):html.index("function decisionMatch(")]
+    focus = html[html.index("function focusSets("):html.index("/** Group recorded hops into one node")]
+    script = r'''
+const assert = require("node:assert/strict");
+let DEBUG=true, ISSUE="problems", MODE="old-class-mode", selDoc=null;
+const DF={cell:{gt:"letter",pred:"contract"}};
+const selected={id:"pair",gt:"letter",pred:"contract",path:["intake","classify","archive"],
+  debug:{loops:[{node:"classify",visits:2,why:"selected repeat"}]}};
+const unrelated={id:"old-class",gt:"contract",pred:"contract",path:["intake","human_review"],
+  debug:{loops:[{node:"intake",visits:9,why:"wrong repeat"}]}};
+const run=()=>({docs:[selected,unrelated]});
+const debugDocs=()=>[unrelated]; // existing class/mode filters select another document
+const selDocPath=()=>null;
+const endSources=()=>["archive"];
+'''+cells+focus+r'''
+assert.equal(focusSets(),null);
+assert.deepEqual([...pairFocus().nodes],["intake","classify","archive"]);
+assert.equal(cellEndpoint("START"),1);
+assert.equal(cellEndpoint("END"),1);
+assert.equal(cellNodeCount("classify"),1);
+assert.equal(cellNodeCount("human_review"),0);
+assert.equal(cellEdgeCount("classify","archive"),1);
+assert.equal(loopMark("intake"),null);
+assert.equal(loopMark("classify").why,"selected repeat");
+DF.cell=null; // clearing the cell restores the previous debug isolate
+assert.deepEqual([...focusSets().nodes],["intake","human_review"]);
+assert.equal(cellNodeCount("classify"),null);
+assert.equal(loopMark("intake").why,"wrong repeat");
+console.log("confusion/debug selection passed");
+'''
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_refresher_rechecks_a_running_run_even_when_nothing_changed(tmp_path, monkeypatch):
     """A run that dies writes nothing; the refresher still rebuilds it periodically so it can read 'stalled'."""
     run = tmp_path / "runtime" / "runs" / "r"

@@ -349,9 +349,9 @@ function modeElsewhere(id){
   if(n)out.push({name:r.name,n})});
  return out}
 function hasDebug(){return (run().docs||[]).some(d=>d.debug)}
-/** Nodes and hops touched by the isolated documents. Null unless debug isolate is on and no single document is picked. */
+/** Debug isolate; a selected confusion pair or document takes precedence. */
 function focusSets(){
- if(!DEBUG||selDocPath())return null;
+ if(!DEBUG||DF.cell||selDocPath())return null;
  if((!ISSUE||ISSUE==="all")&&!MODE)return null;
  const nodes=new Set(),edges=new Set(),loops=new Set();
  for(const d of debugDocs()){
@@ -362,7 +362,7 @@ function focusSets(){
 /** How many isolated documents repeat this node, and the highest visit count among them. */
 function loopMark(id){
  if(!DEBUG)return null;
- const docs=selDoc?[(run().docs||[]).find(d=>d.id===selDoc)].filter(Boolean):debugDocs();
+ const docs=selDoc?[(run().docs||[]).find(d=>d.id===selDoc)].filter(Boolean):(DF.cell?cellDocs():debugDocs());
  let n=0,max=0,why="";
  for(const d of docs){const L=((d.debug||{}).loops||[]).find(x=>x.node===id);if(L){n++;if(L.visits>max){max=L.visits;why=L.why}}}
  return n?{n,max,why}:null}
