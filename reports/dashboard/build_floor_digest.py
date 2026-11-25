@@ -855,7 +855,9 @@ def _loop_rows(visits: list[dict]) -> list[dict]:
             phrase = _decision_bits(visit["decisions"])
             if phrase:
                 evidence.append(phrase)
-            elif visit["error"] or visit["status"] in ("error", "paused"):
+            if visit.get("stage"):
+                evidence.append(f"stage {visit['stage']}")
+            if visit["error"] or visit["status"] in ("error", "paused"):
                 evidence.append(visit["status"] + (f" {visit['error']}" if visit["error"] else ""))
         recorded = "; ".join(dict.fromkeys(evidence))
         if kind == "self":
@@ -927,11 +929,25 @@ def _class_disagreement(gt: str | None, pred: str | None) -> bool:
     return bool(gt and pred and gt != pred)
 
 
-def _class_note(gt: str | None, pred: str | None) -> str:
-    """A label suffix for a stored class disagreement, or empty."""
-    if not _class_disagreement(gt, pred):
-        return ""
-    return f" · class {gt} recorded as {pred}"
+def _class_miss(gt: str | None, pred: str | None, outcome: str) -> bool:
+    """The scores-panel miss: both classes disagree, or a finished document recorded none.
+
+    An open document with no predicted class is still undecided, so it is not a miss.
+    """
+    if not gt:
+        return False
+    if pred:
+        return pred != gt
+    return outcome != "open"
+
+
+def _class_note(gt: str | None, pred: str | None, outcome: str) -> str:
+    """A label suffix for a class miss, or empty."""
+    if _class_disagreement(gt, pred):
+        return f" · class {gt} recorded as {pred}"
+    if gt and not pred and outcome != "open":
+        return f" · class {gt} with no recorded class"
+    return ""
 
 
 def _stop_node(stopped: str | None, last: dict | None) -> str:
@@ -1005,6 +1021,8 @@ def _held_lever(node: str, causes: list[str], review: str | None,
                  f"{review or 'no stage'}. Inspect the hop into {node} before changing a prompt.")
     if _class_disagreement(gt, pred):
         lever += f" Ground truth is {gt}; the run recorded {pred}."
+    elif gt and not pred:
+        lever += f" Ground truth is {gt}; the run recorded no class."
     return lever + _PAST_RUN_UNCHANGED
 
 
@@ -1088,11 +1106,11 @@ def _early_modes(issues: list[str], loop: dict | None, miss_bit: str, node: str,
     return modes
 
 
-def _archived_if(reached: bool, gt: str | None, pred: str | None) -> dict | None:
-    """A class miss that reached archive, else None."""
-    if not reached or not _class_disagreement(gt, pred):
+def _archived_if(reached: bool, outcome: str, gt: str | None, pred: str | None) -> dict | None:
+    """A class miss that reached archive, else None. A missing class is ``unknown``."""
+    if not reached or not _class_miss(gt, pred, outcome):
         return None
-    return _archived_miss_mode(str(gt), str(pred))
+    return _archived_miss_mode(str(gt), str(pred or UNKNOWN_CLASS))
 
 
 def _late_modes(issues: list[str], node: str, miss_bit: str, loop: dict | None) -> list[dict | None]:
@@ -1107,7 +1125,7 @@ def _late_modes(issues: list[str], node: str, miss_bit: str, loop: dict | None) 
 
 
 def _failure_mode(issues: list[str], loops: list[dict], last: dict | None, stopped: str | None,
-                  reached: bool, causes: list[str], review: str | None,
+                  reached: bool, outcome: str, causes: list[str], review: str | None,
                   note: str | None, pred: str | None, gt: str | None) -> dict | None:
     """One stable failure mode for a document, or None when nothing went wrong.
 
@@ -1117,11 +1135,11 @@ def _failure_mode(issues: list[str], loops: list[dict], last: dict | None, stopp
     """
     if not issues:
         return None
-    miss_bit = _class_note(gt, pred)
+    miss_bit = _class_note(gt, pred, outcome)
     node = _stop_node(stopped, last)
     loop = _loop_at(loops, node)
     modes = _early_modes(issues, loop, miss_bit, node, note, causes, review, gt, pred)
-    modes.append(_archived_if(reached, gt, pred))
+    modes.append(_archived_if(reached, outcome, gt, pred))
     modes.extend(_late_modes(issues, node, miss_bit, loop))
     return _first_mode(modes)
 
@@ -1277,7 +1295,7 @@ def _issue_tags(loops: list[dict], outcome: str, last: dict | None, reached: boo
         issues.append("failed")
     if outcome == "open":
         issues.append("open")
-    if _class_disagreement(gt, pred):
+    if _class_miss(gt, pred, outcome):
         issues.append("miss")
     if _diverted_from_archive(reached, outcome):
         issues.append("diverted")
@@ -1314,7 +1332,7 @@ def _diagnose(item: dict, records: list[dict], outcome: str, stage: str | None,
         "hops_omitted": omitted,
         "causes": causes,
         "archive": {"reached": reached, "stopped": stopped, "why": _clip(why, 420)},
-        "mode": _failure_mode(issues, loops, last, stopped, reached, causes, review, note, pred, gt),
+        "mode": _failure_mode(issues, loops, last, stopped, reached, outcome, causes, review, note, pred, gt),
     }
 
 

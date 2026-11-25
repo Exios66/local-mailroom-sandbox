@@ -799,6 +799,39 @@ def long_hop_list_marks_the_gap():
 
 
 @test
+def loop_why_quotes_a_stored_stage():
+    """A repeat that stored a stage does not claim that no stage was stored."""
+    visits = [
+        {"node": "extract", "status": "done", "stage": "extracting", "error": None, "decisions": []},
+        {"node": "extract", "status": "done", "stage": "extracting", "error": None, "decisions": []},
+    ]
+    row = bfd._loop_rows(visits)[0]
+    assert "stage extracting" in row["why"], row
+    assert "No decision, stage, or error" not in row["why"]
+
+
+@test
+def finished_document_with_no_predicted_class_is_a_miss():
+    """The scores panel counts this as unknown; the miss filter must include it. An open one stays undecided."""
+    held = bfd._diagnose(
+        {}, [{"node": "human_review", "status": "paused"}],
+        "held", "review", "classification", None, None, "contract", set(),
+    )
+    assert "miss" in held["issues"], held["issues"]
+    assert "recorded no class" in held["mode"]["lever"]
+    open_doc = bfd._diagnose(
+        {}, [{"node": "extract", "status": "running"}],
+        "open", None, None, None, None, "contract", set(),
+    )
+    assert "miss" not in open_doc["issues"], open_doc["issues"]
+    shipped = bfd._diagnose(
+        {}, [{"node": "archive", "status": "done"}],
+        "ship", "archived", None, None, None, "contract", {("catalog_write", "archive"), ("archive", "END")},
+    )
+    assert shipped["mode"]["id"] == "miss:archived:contract>unknown", shipped["mode"]
+
+
+@test
 def dead_running_checkpoint_is_shown_stalled():
     """A killed run never rewrites checkpoint.json: idle past the threshold it reads 'stalled'."""
     with tempfile.TemporaryDirectory() as t:

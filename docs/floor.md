@@ -125,7 +125,7 @@ The builder adds a `debug` object on each document row:
 
 | Field | Meaning |
 | --- | --- |
-| `issues` | Tags from the trace: `loop`, `stuck` (open on a repeated node), `held`, `failed`, `open`, `miss`, `diverted` (no `archive` visit and not a ship outcome). |
+| `issues` | Tags from the trace: `loop`, `stuck` (open on a repeated node), `held`, `failed`, `open`, `miss` (a finished document whose predicted class differs from ground truth, including a ground-truth class with no predicted class, the same `unknown` the scores panel counts), `diverted` (no `archive` visit and not a ship outcome). |
 | `loops` | Nodes entered more than once. `self` means the repeats were consecutive. `reentry` means the document left the node and came back. |
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
