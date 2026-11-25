@@ -36,10 +36,10 @@ answer from the same question-set response, not a second request.
 
 | Id | Layer | Correction | Upstream |
 | --- | --- | --- | --- |
-| SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. | sandbox (`extraction_scope`); Dojo D-1 |
-| SHF-002 | dojo | A name whose tokens are a strict subset or superset of the truth's (after legal-suffix, "the", honorific and initial removal) is a partial match (token Jaccard), not an exact 1.0. | Dojo D-2 |
-| SHF-003 | dojo | Two amounts in different currencies do not match. | Dojo D-3 |
-| SHF-004 | dojo | Identifiers equal once every non-alphanumeric character is removed match (`CLM12345` = `CLM-12345`). | Dojo D-4 |
+| SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. | sandbox (`extraction_scope`); Dojo D-1 ([#188](https://github.com/Exios66/llm-dojo-scoring/issues/188)) |
+| SHF-002 | dojo | A name whose tokens are a strict subset or superset of the truth's (after legal-suffix, "the", honorific and initial removal) is a partial match (token Jaccard), not an exact 1.0. | Dojo D-2 ([#189](https://github.com/Exios66/llm-dojo-scoring/issues/189)) |
+| SHF-003 | dojo | Two amounts in different currencies do not match. | Dojo D-3 ([#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) |
+| SHF-004 | dojo | Identifiers equal once every non-alphanumeric character is removed match (`CLM12345` = `CLM-12345`). | Dojo D-4 ([#191](https://github.com/Exios66/llm-dojo-scoring/issues/191)) |
 | SHF-005 | sandbox | A row that errored (timeout, parse failure, crash) scores 0 in the run headline instead of leaving the denominator. | sandbox |
 | SHF-006 | sandbox | A row with no truth is left out of the run mean and counted (`n_no_truth`) instead of averaging in as 0. | sandbox |
 | SHF-007 | sandbox | Class labels compare case- and whitespace-folded; a row without a truth class is unscored; an abstention is its own outcome (scored wrong, routed to review). | sandbox |
@@ -47,7 +47,7 @@ answer from the same question-set response, not a second request.
 | SHF-009 | sandbox | Question set 4.0.0's `document_form`, `abstain`, `subclass_gate` and `truncation_notice` keys are applied: an abstention parks the document and the forced-choice answer is kept under `forced_choice`. | sandbox (`decision_backends.decide`) |
 | SHF-010 | sandbox | A near-gold label supersedes a conflicting interim gate gap fill (not an `original_header` fill); the replaced value is kept under `truth_overrides` and scored as raw. Precedence reads the interim overlay the row was prepared with; when that snapshot is not passed and the current overlay's fingerprint differs from the row's, nothing is superseded. | sandbox (owner decision, `data/labels/review/INTERIM_AUDIT.md` step 2) |
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
-| SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 |
+| SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 ([#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) |
 | SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
 | SHF-014 | dojo | Pipeline runs report the pain-point composites (profile `amfam-v1`: classification and extraction penalty points per document, 0 correct and complete to 4 a needless human review) per item and per run, and `sandbox pain-points` scores finished runs per document and breaks them down per experiment. The scorer is `eval/_dojo_pain_points.py`, a byte-identical copy of the Dojo's `pipeline/pain_points.py`, which the vendored pin does not ship yet; the target fingerprint is that file. Not dual reported against the pin (the pin has no composite); the block's `raw_dojo` holds the composites on the raw extraction scores. Retire it on the vendor refresh that ships the module ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring `pipeline/pain_points.py` |
 
@@ -115,14 +115,14 @@ the gate adds descriptors, renewal clauses CUAD does not tag as a Renewal Term, 
 merger consideration). Settling one goes through a review file (`data/labels/interim/README.md`),
 which makes the winner a `correction` and records who decided it.
 
-## Draft Dojo issues (not filed)
+## Upstream Dojo issues
 
-- **D-1** `extraction_binary_metrics` treats a documented-absent field as a hallucination only
+- **D-1** ([llm-dojo-scoring#188](https://github.com/Exios66/llm-dojo-scoring/issues/188)) `extraction_binary_metrics` treats a documented-absent field as a hallucination only
   for `corporate_record`.
-- **D-2** `score_name_field` scores a token subset or superset of the truth name as an exact match.
-- **D-3** `score_money_field` ignores the currency.
-- **D-4** `score_id_field` does not normalize separators.
-- **D-5** `pipeline_subclass_match` compares raw subclass strings and ignores the class.
+- **D-2** ([llm-dojo-scoring#189](https://github.com/Exios66/llm-dojo-scoring/issues/189)) `score_name_field` scores a token subset or superset of the truth name as an exact match.
+- **D-3** ([llm-dojo-scoring#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) `score_money_field` ignores the currency.
+- **D-4** ([llm-dojo-scoring#191](https://github.com/Exios66/llm-dojo-scoring/issues/191)) `score_id_field` does not normalize separators.
+- **D-5** ([llm-dojo-scoring#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) `pipeline_subclass_match` compares raw subclass strings and ignores the class.
 
-Filing these upstream is an owner decision. When the Dojo pin ships a fix, retire the matching
+When the Dojo pin ships a fix, retire the matching
 `SHF` entry in the same change that refreshes `vendor/llm-dojo-scoring`.

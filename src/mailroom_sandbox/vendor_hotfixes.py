@@ -624,7 +624,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.judge",
         attr="CompletenessJudge.judge_completeness",
         source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
-        upstream="llm-mailroom: draft issue J-1 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#315",
         summary="a completeness-judge parse failure is a judge error (human review, counted), "
                 "not an 'incomplete 0.0' verdict",
         install=_install_judge_parse_error,
@@ -634,7 +634,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.intake",
         attr="IntakeAgent.intake_run",
         source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
-        upstream="llm-mailroom: draft issue J-2 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#316",
         summary="a single-window intake cleaned_text replaces the document only when it keeps "
                 "90% of its length and its words (no dropped run of 8+ words, under 5% lost); "
                 "context fit reads long documents in one window",
@@ -645,7 +645,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="pipeline.limits",
         attr="record_usage",
         source_sha256="f150e39413a1b6501feddcd6eed7f79414e5c44754e6c0f10486b0a7e344ed8b",
-        upstream="llm-mailroom: draft issue J-3 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#317",
         summary="every returned call is priced against the run's API cap as it returns, so a "
                 "document in flight cannot spend past job.api_cost_cap_usd (job.call_guard)",
         install=_install_call_spend,
@@ -655,7 +655,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="pipeline.watcher",
         attr="_DispatchPool.submit",
         source_sha256="be8d41188d093a667196d2c9af16342b0d35a237188660eca75308df0292018c",
-        upstream="llm-mailroom: draft issue J-4 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#318",
         summary="the watcher queues an inbox file only while dispatch, processing (and review, "
                 "when limited) are below MAILROOM_MAX_QUEUE_DEPTH_<STAGE>; a held file stays in "
                 "the inbox for the next rescan, never dropped (mailroom_sandbox.backpressure)",
@@ -697,7 +697,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="graph.build_graph",
         attr="_run_chunked_extraction",
         source_sha256="4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f",
-        upstream="draft J-5 below (not filed)",
+        upstream="Exios66/llm-mailroom#319 (budgets: #321)",
         summary="an API-routed specialist reads the whole document in one call and refuses a "
                 "document over its budget; only Modal/vLLM and self-hosted routes chunk",
         install=_install_api_whole_document,
@@ -707,7 +707,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="agents.intake",
         attr="sliding_windows",
         source_sha256="f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4",
-        upstream="draft J-5 below (not filed)",
+        upstream="Exios66/llm-mailroom#319 (budgets: #321)",
         summary="an API-routed sorter or intake refuses a document that needs more than one "
                 "window; only Modal/vLLM and self-hosted routes slide windows",
         install=_install_api_single_window,
@@ -717,7 +717,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="graph.routing",
         attr="after_judge",
         source_sha256="f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66",
-        upstream="draft J-6 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#320",
         summary="with confidence.judge_exhausted_to_arbiter, a partial verdict on the last judge "
                 "pass goes to the arbiter (accept with caveats or a person) instead of straight to "
                 "review, and the arbiter cannot order a retry the pass budget no longer covers",
@@ -730,7 +730,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="graph.routing",
         attr="_transient_decision",
         source_sha256="506a662ea96308180e4c402a8276720698d4bacea01a5762e860eb3b101ca5f2",
-        upstream="draft J-6 in docs/vendor-hotfixes.md (not filed)",
+        upstream="Exios66/llm-mailroom#320",
         summary="confidence.transient_retry_max, when set, bounds each node's transient self-loop "
                 "(retry_chat_completion already retries inside the call); unset keeps the vendored 2",
         install=_install_transient_budget,
