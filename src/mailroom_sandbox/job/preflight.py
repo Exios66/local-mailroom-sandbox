@@ -927,6 +927,19 @@ def _decision_blocks(spec: RunSpec) -> list[tuple[str, str, str]]:
     return out
 
 
+def _reviewer_override(spec: RunSpec, wanted: int | None) -> int | None:
+    """The reviewer's requested cap with a run's ``reviewer.max_input_chars`` applied.
+
+    Mirrors ``decision_backends.classify_window_chars`` where a spec carries that field:
+    the run's value raises the question set's cap and never lowers it, and it is the cap
+    when the set has none. A spec without the field keeps the set's cap.
+    """
+    extra = getattr(getattr(spec, "reviewer", None), "max_input_chars", None)
+    if not isinstance(extra, int) or isinstance(extra, bool) or extra < 1:
+        return wanted
+    return max(wanted, extra) if wanted else extra
+
+
 def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> bool:
     """Record the model and input window of each Decisions lane (advisory).
 
@@ -960,6 +973,8 @@ def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> bool:
             question_chars = 0
         caps = [qset.get("max_input_chars"), *((qset.get("max_input_chars_by_class") or {}).values())]
         wanted = max(int(c) for c in caps if c) if any(caps) else None
+        if lane == "reviewer":
+            wanted = _reviewer_override(spec, wanted)
         try:
             # Sized like execution: the questions are counted; the run's handoff is not known yet.
             window = decision_input_cap(model, wanted, question_chars=question_chars)

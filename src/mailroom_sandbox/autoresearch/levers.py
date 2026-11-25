@@ -571,8 +571,9 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
     """Reviewer (and gate) requests that cannot fit the Decisions model's context.
 
     The input cap of a reviewer is its question set's ``max_input_chars`` (``DECISIONS_MAX_INPUT_CHARS`` when the
-    set omits it, as at execution): the spec has no per-run override, so a model with a small window needs a
-    question set that caps lower.
+    set omits it, as at execution). A spec's ``reviewer.max_input_chars``, where the spec carries one, raises
+    that cap and never lowers it, as ``classify_window_chars`` does at execution. A model with a small window
+    needs a question set that caps lower.
     """
     from mailroom_sandbox.decision_backends import (
         DECISIONS_MAX_INPUT_CHARS,
@@ -591,7 +592,11 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
             qset = load_question_set(str(stem))
             # The cap execution applies: the set's own, else DECISIONS_MAX_INPUT_CHARS (never 0). The gate
             # may cap a class higher (``max_input_chars_by_class``), so its worst case is the largest of them.
-            chars = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
+            set_cap = int(qset.get("max_input_chars") or 0)
+            chars = set_cap or DECISIONS_MAX_INPUT_CHARS
+            extra = block.get("max_input_chars") if label == "reviewer" else None
+            if isinstance(extra, int) and not isinstance(extra, bool) and extra > 0:
+                chars = max(set_cap, extra) if set_cap else extra
             if label == "extraction_gate":
                 chars = max([chars, *(int(v) for v in (qset.get("max_input_chars_by_class") or {}).values() if v)])
         except Exception as exc:  # noqa: BLE001 - reported, not raised: the catalog check lists every problem

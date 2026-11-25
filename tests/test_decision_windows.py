@@ -162,3 +162,22 @@ def test_preflight_sizes_the_window_with_the_lanes_own_questions():
     assert db.lane_question_chars("extraction_gate", gate) == max(
         len(__import__("json").dumps(db.gate_questions(gate, cls, sub), default=str))
         for cls in gate["fields"] for sub in [None, *((gate.get("subclass_fields") or {}).get(cls) or {})])
+
+
+def test_preflight_reads_a_runs_reviewer_input_override():
+    """A run's ``reviewer.max_input_chars`` (where the spec carries it) raises the set's cap and never
+    lowers it, as ``classify_window_chars`` does at execution; preflight reports the cap the run asks for."""
+    def spec(extra):
+        out = _spec(JEV)
+        out.reviewer.max_input_chars = extra
+        return out
+
+    raised = {"checks": []}
+    preflight._record_decision_windows(raised, spec(3_000_000))
+    (row,) = raised["decision_windows"]
+    assert row["max_input_chars"] == 3_000_000 and row["window_chars"] < 3_000_000
+    assert "max_input_chars 3,000,000 cut to" in raised["checks"][-1]["detail"]
+    for ignored in (500, 0, True, None):
+        kept = {"checks": []}
+        preflight._record_decision_windows(kept, spec(ignored))
+        assert kept["decision_windows"][0]["max_input_chars"] == 1_000_000, ignored
