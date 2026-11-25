@@ -801,6 +801,9 @@ class ReviewerSpec(BaseModel):
     # A finished sorter run, a saved pass (data/handoff/<name>/<split>.jsonl), or several of
     # these merged (later entries win on overlap).
     handoff_run: str | list[str] | None = None
+    # Decisions classify only: raise the question set's document window up to the model's
+    # context. Omitted when unset, so older reviewer blocks keep their hash. Never lowers a set.
+    max_input_chars: int | None = None
 
     @field_validator("classes", mode="before")
     @classmethod
@@ -832,7 +835,71 @@ class ReviewerSpec(BaseModel):
             out.pop("allow_chat_model", None)
         if out.get("handoff_run") is None:
             out.pop("handoff_run", None)
+        if out.get("max_input_chars") is None:
+            out.pop("max_input_chars", None)
         return out
+
+    def _guard_decisions_backend(self, is_decisions_model) -> None:
+        if self.backend != "decisions":
+            return
+        if not is_decisions_model(self.model):
+            raise ValueError(
+                "reviewer backend decisions needs a Decisions-API model "
+                "(e.g. 'openai/gpt-6-luna-decisions'); "
+                f"{self.model!r} is a chat model"
+            )
+        if not self.questions:
+            raise ValueError(
+                "reviewer backend decisions needs questions: <stem> (config/decisions/<stem>.yaml)"
+            )
+        # A human verdict gates at confidence 0.0, parked only by a cutoff above 0.
+        zero = sorted(name for name, cutoff in self.classes.items() if cutoff <= 0)
+        if zero:
+            raise ValueError(
+                f"reviewer backend decisions needs cutoffs above 0 ({', '.join(zero)}): "
+                "a human verdict gates at 0.0 and a cutoff of 0 would never park it"
+            )
+
+    def _guard_decisions_model_on_other_backend(self, is_decisions_model) -> None:
+        if self.backend != "decisions" and is_decisions_model(self.model):
+            raise ValueError(
+                f"{self.model!r} is a Decisions-API model; "
+                f"use reviewer backend decisions, not {self.backend!r}"
+            )
+
+    def _guard_max_input_chars(self) -> None:
+        if self.max_input_chars is None:
+            return
+        if isinstance(self.max_input_chars, bool) or self.max_input_chars < 1:
+            raise ValueError("reviewer.max_input_chars must be a positive character count")
+        if self.backend != "decisions":
+            raise ValueError("reviewer.max_input_chars applies only to reviewer backend decisions")
+        self._guard_decision_window()
+
+    def _guard_decision_window(self) -> None:
+        from mailroom_sandbox.context_fit import decision_document_chars
+        from mailroom_sandbox.decision_backends import decision_model
+
+        # Context length is a property of the model. A routing variant
+        # (``openai/gpt-6-luna-decisions:nitro``) is accepted by is_decisions_model
+        # and has no catalog row of its own. Pricing stays on the exact id.
+        base = str(self.model).split(":", 1)[0]
+        row = decision_model(self.model) or decision_model(base) or {}
+        context = int(row.get("context_length") or 0)
+        room = decision_document_chars(context) if context else 0
+        if self.max_input_chars is not None and self.max_input_chars > room:
+            raise ValueError(
+                f"reviewer.max_input_chars={self.max_input_chars} exceeds the {context}-token "
+                f"window of {self.model} once the question payload is reserved ({room} characters)"
+            )
+
+    def _guard_chat_api_opt_in(self) -> None:
+        if self.backend == "api" and not self.allow_chat_model:
+            raise ValueError(
+                f"reviewer backend api runs the chat model {self.model!r} as the decision reviewer; "
+                "the decision reviewer is a Decisions-API model (backend decisions). "
+                "Set allow_chat_model: true only to compare against a chat model on purpose"
+            )
 
     @model_validator(mode="after")
     def _decision_model_guard(self) -> "ReviewerSpec":
@@ -842,23 +909,10 @@ class ReviewerSpec(BaseModel):
         # explicit opt-in, so the two can no longer be swapped silently.
         from mailroom_sandbox.decision_backends import is_decisions_model
 
-        if self.backend == "decisions" and not is_decisions_model(self.model):
-            raise ValueError(f"reviewer backend decisions needs a Decisions-API model (e.g. 'openai/gpt-6-luna-decisions'); "
-                             f"{self.model!r} is a chat model")
-        if self.backend == "decisions" and not self.questions:
-            raise ValueError("reviewer backend decisions needs questions: <stem> (config/decisions/<stem>.yaml)")
-        if self.backend == "decisions":
-            # A human verdict gates at confidence 0.0, parked only by a cutoff above 0.
-            zero = sorted(name for name, cutoff in self.classes.items() if cutoff <= 0)
-            if zero:
-                raise ValueError(f"reviewer backend decisions needs cutoffs above 0 ({', '.join(zero)}): "
-                                 "a human verdict gates at 0.0 and a cutoff of 0 would never park it")
-        if self.backend != "decisions" and is_decisions_model(self.model):
-            raise ValueError(f"{self.model!r} is a Decisions-API model; use reviewer backend decisions, not {self.backend!r}")
-        if self.backend == "api" and not self.allow_chat_model:
-            raise ValueError(f"reviewer backend api runs the chat model {self.model!r} as the decision reviewer; "
-                             "the decision reviewer is a Decisions-API model (backend decisions). "
-                             "Set allow_chat_model: true only to compare against a chat model on purpose")
+        self._guard_decisions_backend(is_decisions_model)
+        self._guard_decisions_model_on_other_backend(is_decisions_model)
+        self._guard_max_input_chars()
+        self._guard_chat_api_opt_in()
         return self
 
 

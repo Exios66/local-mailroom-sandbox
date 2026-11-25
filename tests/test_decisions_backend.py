@@ -45,9 +45,14 @@ def test_aliases_and_unlisted_ids_stay_refused_with_a_variant(model):
 
 
 def test_a_variant_reviewer_freezes_but_an_alias_variant_does_not():
-    spec = ReviewerSpec(backend="decisions", model=f"{DECISIONS}:nitro", questions="reviewer_decisions_v2",
-                        classes={"contract": 0.78})
+    from mailroom_sandbox.context_fit import decision_document_chars
+
+    room = decision_document_chars(1_050_000)
+    spec = ReviewerSpec(backend="decisions", model=f"{DECISIONS}:nitro", questions="reviewer_decisions_v4.1.0",
+                        classes={"contract": 0.78}, max_input_chars=room)
     assert spec.model == f"{DECISIONS}:nitro"
+    assert spec.max_input_chars == room
+    assert db.decision_model(f"{DECISIONS}:nitro") is None  # a variant is still not priced as its base
     with pytest.raises(ValueError, match="Decisions-API model"):
         ReviewerSpec(backend="decisions", model="~typesafe/jev-latest:free", questions="reviewer_decisions_v2",
                      classes={"contract": 0.78})
@@ -93,6 +98,18 @@ def test_decisions_model_needs_decisions_backend_and_questions():
         ReviewerSpec(backend="decisions", model=DECISIONS)
     spec = ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1")
     assert spec.classes == {}
+    from mailroom_sandbox.context_fit import decision_document_chars
+    from mailroom_sandbox.decision_backends import classify_window_chars
+
+    room = decision_document_chars(1_050_000)
+    raised = ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v4.1.0",
+                          max_input_chars=room)
+    assert raised.model_dump()["max_input_chars"] == room
+    assert classify_window_chars({"max_input_chars": 1_000_000}, room) == room
+    assert classify_window_chars({"max_input_chars": 1_000_000}, None) == 1_000_000
+    with pytest.raises(ValueError, match="exceeds"):
+        ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v4.1.0",
+                     max_input_chars=room + 1)
     # Old reviewer blocks dump (and hash) exactly as before.
     assert ReviewerSpec(backend="jev", model="jev-1.13.0", classes={"contract": 0.9}).model_dump() == {
         "backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.9}}
@@ -179,6 +196,53 @@ def test_live_reviewer_uses_the_activated_decisions_reviewer_from_a_worker_threa
     worker.join()
     assert out["doc_type"] == "contract"
     assert seen == {"model": DECISIONS, "n": 6, "cap": 120000}
+
+
+def test_decisions_usage_keeps_a_reported_cache_split():
+    from mailroom_sandbox.job import usage_capture as uc
+    from pipeline.limits import reset_run_usage
+
+    reset_run_usage()
+    uc.reset_usage()
+    db._record_usage(DECISIONS, {
+        "input_tokens": 1000, "output_tokens": 0, "cost": 0.01,
+        "prompt_tokens_details": {"cached_tokens": 400, "cache_write_tokens": 20},
+    })
+    note = uc.provider_calls()[0]
+    assert note["prompt"] == 1000 and note["completion"] == 0
+    assert note["cached"] == 400 and note["cache_write"] == 20
+    assert note["cost"] == pytest.approx(0.01)
+
+
+def test_activated_backend_sends_the_run_document_window(monkeypatch):
+    """The graph calls the backend activate() registers, so the run window has to be on it."""
+    from agents.decision_backend import get_decision_backend, register_decision_backend
+
+    from mailroom_sandbox.context_fit import decision_document_chars
+    from mailroom_sandbox.runtime import activate
+
+    room = decision_document_chars(1_050_000)
+    seen: dict[str, int] = {}
+
+    def fake_decide(text, *, model, questions, max_input_chars, qset=None, handoff=None):
+        seen["cap"] = max_input_chars
+        return {"doc_type": "contract", "doc_subclass": None, "confidence": 0.9}
+
+    monkeypatch.setattr(db, "decide", fake_decide)
+    previous = get_decision_backend()
+    try:
+        activate("ollama", load_env_file=False, reviewer=ReviewerSpec(
+            backend="decisions", model=DECISIONS, questions="reviewer_decisions_v4.1.0",
+            classes={"contract": 0.5}, max_input_chars=room,
+        ))
+        backend = get_decision_backend()
+        assert backend is not None
+        backend("AGREEMENT " * 20, ["contract"], {"contract": []})
+        assert seen["cap"] == room
+        assert seen["cap"] > 1_000_000  # above the question set's own cap
+    finally:
+        register_decision_backend(previous)
+        activate("ollama", load_env_file=False)
 
 
 def test_zero_output_tokens_are_still_recorded():
@@ -594,7 +658,7 @@ def test_post_decision_counts_returned_calls_against_the_document_ceiling(monkey
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test")
     monkeypatch.setattr("httpx.post", lambda *a, **k: Resp())
-    call_guard.arm(api_budget.ApiBudget(1000.0, 0.17, 0.25, [DECISIONS]), ceiling=1)
+    call_guard.arm(api_budget.ApiBudget(1000.0, 0.10, 0.0, [DECISIONS]), ceiling=1)
     with call_guard.document() as doc:
         db._post_decision({}, timeout=1, attempts=3)
         assert doc["calls"] == 1

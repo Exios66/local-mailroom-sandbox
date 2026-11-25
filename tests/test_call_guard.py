@@ -17,22 +17,22 @@ def _disarmed():
 
 
 def _budget(cap=0.10):
-    return api_budget.ApiBudget(cap, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    return api_budget.ApiBudget(cap, 0.10, 0.25, ["qwen/qwen3.5-9b"])
 
 
 def test_live_spend_trips_the_cap_before_any_document_finishes():
-    budget = _budget()
+    budget = _budget(cap=0.05)
     budget.start_live()
     assert budget.exceeded() is None and budget.documents == 0
-    budget.add_live(600_000, 1)  # $0.102 on one call of a document still running
-    assert "api_cost_cap_usd=0.1 reached" in budget.exceeded()
+    budget.add_live(600_000, 1)  # $0.060 at the qwen3.5-9b slug price, one call still running
+    assert "api_cost_cap_usd=0.05 reached" in budget.exceeded()
 
 
 def test_live_spend_counts_from_a_resumed_runs_persisted_spend():
-    budget = api_budget.ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"])
-    budget.add_usage({"prompt_tokens": 400_000, "completion_tokens": 1})  # $0.068 persisted
+    budget = api_budget.ApiBudget(0.05, 0.10, 0.25, ["qwen/qwen3.5-9b"])
+    budget.add_usage({"prompt_tokens": 400_000, "completion_tokens": 1})  # $0.040 persisted
     budget.start_live()
-    budget.add_live(200_000, 1)  # +$0.034
+    budget.add_live(200_000, 1)  # +$0.020
     assert budget.exceeded() is not None
 
 
@@ -40,13 +40,13 @@ def test_hf004_prices_every_vendored_call_and_the_guard_refuses_the_next():
     assert vh.apply_hotfixes()["HF-004"] == "applied"
     from pipeline import limits
 
-    budget = _budget()
+    budget = _budget(cap=0.05)
     call_guard.arm(budget, ceiling=40)
     with call_guard.document() as doc:
         limits.reset_run_usage()
         call_guard.before_call()  # under the cap: allowed
         limits.record_usage({"input_tokens": 600_000, "output_tokens": 1}, agent="sorter")
-        assert doc["calls"] == 1 and budget.live_usd == pytest.approx(0.102, abs=1e-4)
+        assert doc["calls"] == 1 and budget.live_usd == pytest.approx(0.060, abs=1e-4)
         with pytest.raises(limits.RunBudgetExceeded, match="call refused: api_cost_cap_usd"):
             call_guard.before_call()
     assert doc["refused"].startswith("call refused")
@@ -95,14 +95,14 @@ def test_a_document_the_guard_cut_short_is_an_error_row_not_a_score(monkeypatch)
         return {"id": row["id"], "doc_type": "merger_agreement", "stage": "archived", "extracted_data": {}}
 
     monkeypatch.setattr(runners, "_run_pipeline_doc_once", long_merger)
-    budget = _budget(cap=0.10)  # $0.017 per call: the 6th call reaches the cap
+    budget = _budget(cap=0.10)  # $0.010 per call at the slug price: the 10th call reaches the cap
     call_guard.arm(budget, ceiling=40)
     items = []
     rows = [{"id": "merger", "expected_doc_class": "merger_agreement", "doc_text": "x"}]
     with pytest.raises(RuntimeError) as raised:
         runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, api_budget=budget,
                                   connected=False, row_cb=items.append)
-    assert len(calls) == 6  # stopped at the cap, not 140 calls later
+    assert len(calls) == 10  # stopped at the cap, not 140 calls later
     assert "API call guard" in str(raised.value) or "api_cost_cap_usd" in str(raised.value)
     assert not [i for i in items if not i.get("error")]  # nothing scored as a pipeline outcome
 
@@ -201,7 +201,7 @@ def test_decisions_rechecks_budget_before_retry(monkeypatch):
         raise httpx.ConnectError("temporary")
 
     monkeypatch.setattr("httpx.post", first_attempt)
-    call_guard.arm(_budget(), ceiling=40)
+    call_guard.arm(_budget(cap=0.05), ceiling=40)
     with call_guard.document():
         with pytest.raises(Exception, match="api_cost_cap_usd"):
             db._post_decision({}, timeout=1, attempts=3)

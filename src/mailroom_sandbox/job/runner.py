@@ -17,7 +17,7 @@ from typing import Any
 from mailroom_sandbox import console_log
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
-from mailroom_sandbox.job.checkpoint import RunStore, utc_now
+from mailroom_sandbox.job.checkpoint import RunStore, refuse_rescore_execution, utc_now
 from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run, routed_gpu_fleet
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
@@ -876,6 +876,11 @@ def _persist_isolated_items(
                 **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
                 # Per-call (prompt, completion) tokens, so a tiered price applies to each call.
                 **({"call_usage": row["call_usage"]} if row.get("call_usage") else {}),
+                **({"cached_tokens": int(row["cached_tokens"])} if row.get("cached_tokens") is not None else {}),
+                **({"cache_write_tokens": int(row["cache_write_tokens"])} if row.get("cache_write_tokens") is not None else {}),
+                **({"reported_cost_usd": float(row["reported_cost_usd"])}
+                   if isinstance(row.get("reported_cost_usd"), (int, float)) and not isinstance(row.get("reported_cost_usd"), bool)
+                   else {}),
                 # The evaluator's execution window; ``ts`` is when the row was persisted, which can
                 # trail the answer while the main thread drains results.
                 **{k: row[k] for k in ("started_at_ns", "finished_at_ns") if isinstance(row.get(k), int)},
@@ -1045,6 +1050,7 @@ def run_job(
     if not dry_run:
         store.verify_generation()
         _refuse_mock_override(store, mock)
+        refuse_rescore_execution(store)
     if dry_run:
         return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
                         max_items=max_items, tracer=tracer, on_event=on_event)

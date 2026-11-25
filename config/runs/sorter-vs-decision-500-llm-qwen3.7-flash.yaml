@@ -1,0 +1,63 @@
+# LLM sorter arm of the 500-document comparison, on Qwen 3.7 Flash.
+# The paired decision arm is config/runs/sorter-vs-decision-500-decision-luna.yaml.
+# Both arms use this dataset block unchanged (seed 3302, ranked draw, the production
+# 500-document strata and exclusion list, staged labels 9.3.1-rc.9).
+#
+# Model: qwen/qwen3.7-flash on OpenRouter (1,000,000 input tokens), pinned to Alibaba.
+# No agent_knobs max_input_chars. Context fit sizes the classify node to the model's
+# window, and job.require_expanded_inputs fails preflight if that expansion does not happen.
+# Price steps are $0.03/$0.13, then $0.10/$0.40 from 32,000 prompt tokens, then
+# $0.20/$0.80 from 256,000. The cap is $6, inside the key's spendable balance.
+# The accurate total is the provider usage.cost summed after the run.
+#
+# Results stay on this machine. Launch one arm at a time. A human supplies the initials:
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
+#   sandbox run preflight --config config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml
+#   sandbox run start --config config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml --initials <XX>
+schema: sandbox.run/v1
+run_id: sorter-vs-decision-500-llm-qwen3.7-flash
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  strata:
+    buckets:
+      - {doc_class: contract, count: 91}
+      - {doc_class: corporate_record, count: 68}
+      - {doc_class: correspondence, count: 151}
+      - {doc_class: insurance_claim, count: 167}
+      - {doc_class: merger_agreement, count: 23}
+  sample_seed: 3302
+  require_task_gt: true
+  staged_overlay: 9.3.1-rc.9
+  exclude_ids_file: config/production/excluded-ids.txt
+  draw: ranked
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.50
+  max_wall_seconds: 14400
+  api_cost_cap_usd: 6
+  require_expanded_inputs: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, sorter-vs-decision, llm-sorter, qwen3.7-flash, openrouter, n500]

@@ -965,7 +965,7 @@ def test_per_item_run_aborts_once_api_token_spend_reaches_its_cap(tmp_path, monk
     from mailroom_sandbox.job.api_budget import ApiBudget
 
     store = _prepped_store(tmp_path, rows=4, job={"mock": False, "max_retries": 0, "concurrency": 1})
-    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"]))
+    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.10, 0.10, 0.25, ["qwen/qwen3.5-9b"]))
     monkeypatch.setattr(runner, "_predict_row", lambda task, row, **_: (
         eval_runners._classify_mock(row), {"prompt_tokens": 600_000, "completion_tokens": 1}))
     summary = runner.run_job(store, mock=None)
@@ -984,7 +984,7 @@ def test_per_item_cap_projects_in_flight_documents(tmp_path, monkeypatch):
     from mailroom_sandbox.job.api_budget import ApiBudget
 
     store = _prepped_store(tmp_path, rows=4, job={"mock": False, "max_retries": 0, "concurrency": 2})
-    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.20, 0.17, 0.25, ["qwen/qwen3.5-9b"]))
+    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.10, 0.10, 0.25, ["qwen/qwen3.5-9b"]))
 
     def slow_first_row(task, row, **_):
         if row["doc_text"] == "t0":
@@ -996,7 +996,7 @@ def test_per_item_cap_projects_in_flight_documents(tmp_path, monkeypatch):
     assert summary["state"] == "failed"
     error = (store.read_checkpoint() or {})["last_error"]
     assert error["type"] == "api_cost_cap" and "1 in flight" in error["message"]
-    # The cap tripped at the first completion (0.102 + 0.102 in flight ≥ 0.20),
+    # The cap tripped at the first completion (0.060 + 0.060 in flight ≥ 0.10),
     # so the run stops SCHEDULING: only the initial wave's two documents are
     # recorded (the slow in-flight one still finishes and persists). Without
     # the projection, docs d2/d3 would be scheduled and recorded too.
@@ -1037,7 +1037,7 @@ def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_
     monkeypatch.setattr(eval_runners, "run_pipeline_eval", fake_pipeline)
     out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
     assert out["state"] == "failed" and store.load_items() == []
-    assert runner._api_budget(store).spent_usd == pytest.approx(0.17)
+    assert runner._api_budget(store).spent_usd == pytest.approx(0.10)
 
 
 def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp_path, monkeypatch):
@@ -1061,7 +1061,7 @@ def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp
         out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
         assert out["state"] == "failed"
     assert len(store.load_items()) == 1  # still one item row: the evidence is not duplicated
-    assert runner._api_budget(store).spent_usd == pytest.approx(3 * 0.17)
+    assert runner._api_budget(store).spent_usd == pytest.approx(3 * 0.10)
 
 
 def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
@@ -1238,6 +1238,21 @@ def test_run_job_refuses_hotfix_code_other_than_the_locked_set(tmp_path, key):
     assert not store.load_items()
 
 
+def test_run_job_refuses_to_execute_a_rescore_lock(tmp_path):
+    """A paused rescore keeps the source checkpoint. Resume must not call the model."""
+    store = _prepped_store(tmp_path, rows=2)
+    lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
+    lock["lock_kind"] = "rescore.lock"
+    lock["rescore"] = {"source_run": "source-run"}
+    store.lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    store.write_checkpoint(state="paused", cursor=0, total=2)
+
+    with pytest.raises(RuntimeError, match="rescore lock"):
+        runner.run_job(store, mock=None)
+    assert not store.load_items()
+    assert store.read_checkpoint()["state"] == "paused"
+
+
 def test_run_job_refuses_a_changed_context_fit_before_any_document(tmp_path):
     store = _prepped_store(tmp_path, rows=2)
     lock = json.loads(store.lock_path.read_text(encoding="utf-8"))
@@ -1274,10 +1289,13 @@ def test_persist_isolated_items_keeps_the_execution_window_and_per_call_usage(tm
     store = RunStore(tmp_path / "r")
     row = {"id": "a", "pred": {}, "score": {}, "error": None, "latency_ms": 1000.0, "prompt_tokens": 60_000,
            "completion_tokens": 20, "llm_calls": 2, "call_usage": [[10_000, 10], [50_000, 10]],
+           "cached_tokens": 100, "cache_write_tokens": 0, "reported_cost_usd": 0.0184,
            "started_at_ns": 1_700_000_000_000_000_000, "finished_at_ns": 1_700_000_001_000_000_000}
     _persist_isolated_items(store, [row])
     item = json.loads(store.items_path.read_text().splitlines()[0])
     assert item["call_usage"] == [[10_000, 10], [50_000, 10]]
+    assert item["cached_tokens"] == 100 and item["cache_write_tokens"] == 0
+    assert item["reported_cost_usd"] == pytest.approx(0.0184)
     assert (item["started_at_ns"], item["finished_at_ns"]) == (row["started_at_ns"], row["finished_at_ns"])
 
 

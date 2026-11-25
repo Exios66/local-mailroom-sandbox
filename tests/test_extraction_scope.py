@@ -243,7 +243,7 @@ def test_seam_keys_track_the_vendored_engine_and_the_merger_agent():
 _DELIBERATELY_UNSCORED = {
     # Dojo 0.28 contract schema v2: these belong to merger_agreement.
     "contract": {"merger_consideration", "maud_clauses"},
-    # llm-mailroom #283 emits it, but the Dojo insurance suite (025400f) has no class-level
+    # llm-mailroom #283 emits it, but the Dojo insurance suite (7d69bbd) has no class-level
     # field type for it, and the seam must equal the engine (test above). The Dojo scores it
     # only through its CMS subtype schema. Scoring it here waits on the Dojo.
     "insurance_claim": {"cms_source_table"},

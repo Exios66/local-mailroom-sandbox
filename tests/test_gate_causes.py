@@ -353,6 +353,70 @@ def test_label_suspect_never_fires_for_other_or_partial_words():
     assert gate_causes.label_suspect(underscored["row"], underscored["item"]["pred"], "intent") is True
 
 
+# --- reviewed overlay labels are not heuristic labels (label_suspect provenance) -----------------
+# The overlays replace a heuristic intent with a reviewed one but leave ``intent_source`` on the row as
+# ``heuristic``; the marker each overlay writes is what says the label was reviewed.
+
+_SUSPECT_PRED = {"extracted_data": {"entity_name": "Acme Corp", "record_type": "other",
+                                    "intent": "investor_rights"}, "_score": 0.5}
+_OVERLAY_MARKERS = {
+    "interim": ("interim_labels", {"fields": ["intent"], "overlay_sha256": "0" * 64}),
+    "near_gold": ("near_gold_labels", {"fields": ["intent"], "overlay_sha256": "0" * 64, "status": "near_gold"}),
+    "staged": ("staged_overlay", {"version": "9.3.1-rc.9", "manifest_sha256": "0" * 64,
+                                  "fields": ["intent"], "overrides": {}}),
+}
+
+
+def _suspect_doc(**row_extra):
+    d = doc(pred=_SUSPECT_PRED)
+    d["row"].update(row_extra)
+    return d
+
+
+def test_unmarked_heuristic_intent_is_still_label_suspect():
+    d = _suspect_doc()
+    assert gate_causes.label_suspect(d["row"], d["item"]["pred"], "intent") is True
+
+
+@pytest.mark.parametrize("kind", sorted(_OVERLAY_MARKERS))
+def test_overlay_supplied_intent_is_not_label_suspect(kind):
+    key, marker = _OVERLAY_MARKERS[kind]
+    d = _suspect_doc(**{key: marker})
+    row, pred = d["row"], d["item"]["pred"]
+    assert row["expected_fields"] and json.loads(row["expected_fields"])["intent_source"] == "heuristic"
+    assert gate_causes.label_suspect(row, pred, "intent") is False
+    status = {"outcome": "wrong_archive", "class": "corporate_record", "judge_error": False}
+    assert gate_causes.primary_cause(d, status) == "extraction:wrong_value"
+
+
+def test_the_real_interim_overlay_marker_clears_label_suspect():
+    # The marker comes from the production writer, not a hand-built dict, so a change to its shape shows here.
+    from mailroom_sandbox import interim_labels as il
+
+    d = _suspect_doc()
+    row = d["row"]
+    overlay = {"d1": {"doc_sha256": il.row_doc_sha(row),
+                      "labels": {"intent": {"use_as_truth": True, "status": "correction", "value": "update"}}}}
+    reviewed = il.apply_overlay(row, overlay, overlay_sha="0" * 64)
+    assert reviewed["interim_labels"]["fields"] == ["intent"]
+    assert json.loads(reviewed["expected_fields"])["intent_source"] == "heuristic"
+    assert gate_causes.label_suspect(row, d["item"]["pred"], "intent") is True
+    assert gate_causes.label_suspect(reviewed, d["item"]["pred"], "intent") is False
+
+
+def test_overlay_that_did_not_supply_intent_leaves_label_suspect():
+    # An overlay filled another field; the intent label is still the heuristic one.
+    key, marker = _OVERLAY_MARKERS["interim"]
+    d = _suspect_doc(**{key: {**marker, "fields": ["entity_name"]}})
+    assert gate_causes.label_suspect(d["row"], d["item"]["pred"], "intent") is True
+
+
+def test_stale_staged_overlay_applied_nothing_and_leaves_label_suspect():
+    stale = {"version": "9.3.1-rc.9", "manifest_sha256": "0" * 64, "fields": [], "overrides": {}, "stale": True}
+    d = _suspect_doc(staged_overlay=stale)
+    assert gate_causes.label_suspect(d["row"], d["item"]["pred"], "intent") is True
+
+
 def test_every_non_passing_outcome_has_exactly_one_cause(fake_score):
     statuses = [
         gate.doc_status(doc("contract", cuad(), pred={"_score": 0.95}), Bars()),            # correct

@@ -150,12 +150,12 @@ def test_endpoint_tags_match_the_display_name_openrouter_reports():
 
 
 def test_committed_pins_name_one_endpoint_each_without_fallbacks():
-    """R01 (owner choice 2026-11-18): first-party or full-precision endpoints, no fallbacks."""
+    """R01: one endpoint per model, no fallbacks. DeepSeek 4.1 Flash is Together at list price."""
     pins = pp.load_pins()
     assert {m: p["order"] for m, p in pins.items()} == {
         "qwen/qwen3.7-flash": ["alibaba"],
         "qwen/qwen3.5-9b": ["deepinfra/bf16"],
-        "deepseek/deepseek-v4.1-flash-1017": ["deepseek"],
+        "deepseek/deepseek-v4.1-flash-1017": ["together"],
         "z-ai/glm-5.3-flashx-legal": ["z-ai/fp8"],
     }
     assert not any(p["allow_fallbacks"] for p in pins.values())

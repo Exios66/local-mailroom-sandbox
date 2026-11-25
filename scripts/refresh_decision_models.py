@@ -7,7 +7,7 @@ needed): every model that answers ``POST /api/alpha/decisions``. ``mailroom_sand
 name (``typesafe/jev-router``) is never a decision reviewer. Moving aliases (``~...``, ``...-latest``)
 are left out on purpose: a tuned cutoff is tied to one pinned model version.
 
-Prices are USD per 1M input tokens; the Decisions API bills input only.
+Prices are USD per 1M input tokens, taken from each model's canonical slug; the Decisions API bills input only.
 
     python scripts/refresh_decision_models.py                      # rewrite in place (network)
     python scripts/refresh_decision_models.py --check              # exit 1 if the file is stale (network)
@@ -46,25 +46,40 @@ def _per_million(value: Any) -> float:
     return round(float(value) * 1_000_000, 6)
 
 
-def entry_from_catalog(entry: dict[str, Any]) -> dict[str, Any]:
-    """One catalog row from an OpenRouter ``/models`` entry."""
-    top = entry.get("top_provider") or {}
+def priced_entry(entry: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], str]:
+    """The catalog row billed for ``entry`` and its canonical slug.
+
+    The prompt price is the slug's own row when OpenRouter lists that slug
+    separately. Otherwise the alias row carries the slug's price.
+    """
+    slug = str(entry.get("canonical_slug") or entry["id"])
+    return by_id.get(slug) or entry, slug
+
+
+def entry_from_catalog(entry: dict[str, Any], by_id: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """One catalog row from an OpenRouter ``/models`` entry, priced at its canonical slug."""
+    priced, slug = priced_entry(entry, by_id or {})
+    top = priced.get("top_provider") or {}
+    context = priced.get("context_length")
+    if context is None:
+        context = top.get("context_length")
     return {
-        "canonical_slug": entry.get("canonical_slug") or entry["id"],
+        "canonical_slug": slug,
         "endpoints": list(entry.get("endpoints") or []),
-        "context_length": entry["context_length"] if entry.get("context_length") is not None else top.get("context_length"),
-        "prompt": _per_million((entry.get("pricing") or {}).get("prompt") or 0),
+        "context_length": context,
+        "prompt": _per_million((priced.get("pricing") or {}).get("prompt") or 0),
     }
 
 
 def build(catalog: list[dict[str, Any]], *, today: str) -> dict[str, Any]:
     """The catalog document from a ``/models?output_modalities=decisions`` ``data`` list."""
+    by_id = {str(entry["id"]): entry for entry in catalog}
     models = {}
     for entry in catalog:
         model_id = str(entry["id"])
         if is_alias(model_id):
             continue
-        out = entry_from_catalog(entry)
+        out = entry_from_catalog(entry, by_id)
         if "/api/alpha/decisions" not in out["endpoints"]:
             continue
         models[model_id] = out

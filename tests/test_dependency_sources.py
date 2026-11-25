@@ -240,6 +240,12 @@ def mutable_source(request, isolated, tmp_path):
     (root / package / "__init__.py").write_text(
         f'__version__ = "{s.PINS["dojo"]["version"]}"\n' if component == "dojo" else ""
     )
+    if component == "dojo":
+        # dojo_source.REQUIRED_SUBMODULES: a release without them is not selectable.
+        for name in ("pipeline/__init__.py", "pipeline/pain_points.py"):
+            path = root / package / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
     if component == "pipeline":
         for name in (
             "pipeline/config.py",

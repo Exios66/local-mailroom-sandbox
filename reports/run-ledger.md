@@ -75,3 +75,11 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-22T18:12:57Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |
 | 2026-11-22T18:13:27Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |
 | 2026-11-22T18:14:26Z | JJB | start | sand214-30-contracts-specialist-awq-1l4-windows-c28k | config/runs/sand214-30-contracts-specialist-awq-1l4-windows-c28k.yaml | 948d6080e32f | 30 | - |   |
+| 2026-11-24T00:51:44Z | JJB | start | sorter-vs-decision-smoke-llm-deepseek-v4.1-flash | config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml | db91be0dad1a | 5 | 3.0 | ✗ |
+| 2026-11-24T00:51:51Z | JJB | start | sorter-vs-decision-smoke-decision-luna | config/runs/sorter-vs-decision-smoke-decision-luna.yaml | 2eefbd0c39dc | 5 | 2.0 | ✓ |
+| 2026-11-24T00:54:31Z | JJB | start | sorter-vs-decision-smoke-llm-deepseek-v4.1-flash | config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml | db91be0dad1a | 5 | 3.0 | ✓ |
+| 2026-11-24T00:57:12Z | JJB | start | sorter-vs-decision-smoke-llm-deepseek-v4.1-flash | config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml | db91be0dad1a | 5 | 3.0 | ✓ |
+| 2026-11-24T00:59:49Z | JJB | start | sorter-vs-decision-smoke-llm-deepseek-v4.1-flash | config/runs/sorter-vs-decision-smoke-llm-deepseek-v4.1-flash.yaml | db91be0dad1a | 5 | 3.0 | ✓ |
+| 2026-11-24T01:04:57Z | JJB | start | sorter-vs-decision-smoke-llm-qwen3.7-flash | config/runs/sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml | af4f39f05f83 | 5 | 1.0 | ✓ |
+| 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-decision-luna | config/runs/sorter-vs-decision-500-decision-luna.yaml | 911495e1db93 | 500 | 5.0 | ✓ |
+| 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-llm-qwen3.7-flash | config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml | aed6bd904510 | 500 | 6.0 | ✓ |

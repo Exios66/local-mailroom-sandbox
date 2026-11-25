@@ -9,10 +9,13 @@ same truth: each run's locked ``dataset.jsonl`` (interim and near-gold overlays 
 prepare time), with the subclass scored exactly and at its split unit
 (``experiment_splits.unit_correct``).
 
-Cost is priced the same way for both arms: the item's tokens through
-``job.metrics.call_cost`` (``config/api_prices.yaml`` tiers for chat models, the
-``config/decision_models.yaml`` input-only price for Decisions models). The provider-reported
-``pred.usage.cost`` of a Decisions call is shown beside it as a check, never mixed in.
+Cost is priced the same way for both arms. ``cost.total_usd`` is list price through
+``job.metrics.call_cost`` (tier sheets in ``config/api_prices.yaml``, cache-read and cache-write
+rates when the call recorded them, input-only for Decisions models). ``cost.accurate_total_usd``
+is the provider's own ``usage.cost`` summed over the compared documents when every one of them
+reported a charge (``accurate_basis: provider``). When any charge is missing, the accurate total
+falls back to the list-price total and ``accurate_basis`` says ``list_price``. The two figures
+are never added together.
 
 Refusals (``ArmError``), never silent filtering:
 
@@ -397,12 +400,15 @@ def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str])
         sub_ok, unit_scored, unit_ok = scored(truth_sub)
         hub_sub_ok, hub_unit_scored, hub_unit_ok = scored(hub_sub) if corrected else (sub_ok, unit_scored, unit_ok)
         usage = pred.get("usage") if isinstance(pred.get("usage"), Mapping) else {}
+        reported = _num(usage.get("cost"))
+        if reported is None:
+            reported = _num(item.get("reported_cost_usd"))
         routed, reasons = _human_route(arm.task, pred, failed)
         out.append(Outcome(
             doc_id=doc_id, truth_class=truth_class, pred_class=pred_class, class_ok=class_ok,
             sub_scored=sub_scored, sub_ok=sub_ok, unit_scored=unit_scored, unit_ok=unit_ok, failed=failed,
             confidence=None if failed else _confidence(pred), latency_ms=_num(item.get("latency_ms")),
-            cost_usd=item_cost(arm.model, item), reported_cost_usd=_num(usage.get("cost")),
+            cost_usd=item_cost(arm.model, item), reported_cost_usd=reported,
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
             abstained=routed,
             abstain_reasons=reasons,
@@ -543,6 +549,40 @@ def fast_macro_f1(truth: Sequence[str], pred: Sequence[str], labels: Sequence[st
     return sum(table.values()) / len(labels) if labels else 0.0
 
 
+def class_error_rates(truth: Sequence[str], pred: Sequence[str], labels: Sequence[str]) -> dict[str, Any]:
+    """One-vs-rest false-positive and false-negative rates, per class and macro-averaged.
+
+    A failed prediction (not equal to its truth class, including the ``__failed__`` label)
+    is a false negative for the true class and a false positive only when it names some
+    other real class. A class with no negatives has no false-positive rate, and a class
+    with no positives has no false-negative rate; those rates stay unset. Macro rates
+    average the rates that were measurable.
+    """
+    per_fpr: dict[str, float | None] = {}
+    per_fnr: dict[str, float | None] = {}
+    for label in labels:
+        tp = fp = fn = tn = 0
+        for truth_label, pred_label in zip(truth, pred):
+            if truth_label == label and pred_label == label:
+                tp += 1
+            elif truth_label == label:
+                fn += 1
+            elif pred_label == label:
+                fp += 1
+            else:
+                tn += 1
+        per_fpr[label] = fp / (fp + tn) if fp + tn else None
+        per_fnr[label] = fn / (fn + tp) if fn + tp else None
+    measured_fpr = [rate for rate in per_fpr.values() if rate is not None]
+    measured_fnr = [rate for rate in per_fnr.values() if rate is not None]
+    return {
+        "class_macro_fpr": sum(measured_fpr) / len(measured_fpr) if measured_fpr else None,
+        "class_macro_fnr": sum(measured_fnr) / len(measured_fnr) if measured_fnr else None,
+        "class_fpr": per_fpr,
+        "class_fnr": per_fnr,
+    }
+
+
 def _quantile(values: Sequence[float], q: float) -> float | None:
     """Nearest-rank quantile."""
     if not values:
@@ -567,6 +607,7 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
     truth = [r.truth_class for r in rows]
     pred = [r.pred_class for r in rows]
     per_class = _f1_table(truth, pred, labels)
+    rates = class_error_rates(truth, pred, labels)
     sub = [r for r in rows if r.sub_scored]
     unit = [r for r in rows if r.unit_scored]
     conf = [(r.confidence, r.class_ok) for r in rows if r.confidence is not None]
@@ -574,6 +615,9 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
     cost_ok = all(c is not None for c in costs)
     total = sum(c for c in costs if c is not None) if cost_ok else None
     reported = [r.reported_cost_usd for r in rows if r.reported_cost_usd is not None]
+    provider_complete = bool(n) and len(reported) == n
+    accurate_total = (sum(reported) if provider_complete else total)
+    accurate_basis = "provider" if provider_complete else ("list_price" if cost_ok else None)
     latencies = [r.latency_ms for r in rows if r.latency_ms is not None]
     class_correct = sum(r.class_ok for r in rows)
     unit_correct_n = sum(r.unit_ok for r in unit)
@@ -593,6 +637,10 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
         "class_accuracy": _rate(class_correct, n),
         "class_macro_f1": sum(per_class.values()) / len(labels) if labels else None,
         "class_f1": per_class,
+        "class_macro_fpr": rates["class_macro_fpr"],
+        "class_macro_fnr": rates["class_macro_fnr"],
+        "class_fpr": rates["class_fpr"],
+        "class_fnr": rates["class_fnr"],
         "subclass_scored": len(sub), "subclass_accuracy": _rate(sum(r.sub_ok for r in sub), len(sub)),
         "unit_scored": len(unit), "unit_accuracy": _rate(unit_correct_n, len(unit)),
         # SHF-013: the two figures above score the reviewed subclass corrections; hub_truth keeps the Hub's.
@@ -618,6 +666,11 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
             "per_unit_correct_usd": total / unit_correct_n if cost_ok and unit_correct_n else None,
             "provider_reported_usd": sum(reported) if reported else None,
             "provider_reported_docs": len(reported),
+            # The comparison figure: the provider's bill when every document reported one,
+            # otherwise the cache-aware list price. ``accurate_basis`` says which.
+            "accurate_total_usd": accurate_total,
+            "accurate_basis": accurate_basis,
+            "accurate_per_doc_usd": accurate_total / n if accurate_total is not None and n else None,
         },
     }
 
@@ -870,8 +923,14 @@ def frontier(summaries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     unit accuracy and no dearer per 1k documents, and strictly better on one of the three."""
     rows = []
     for s in summaries:
+        cost = s.get("cost") or {}
+        runtime = s.get("runtime") or {}
         rows.append({"run_id": s["run_id"], "model": s["model"], "class_macro_f1": s["class_macro_f1"],
-                     "unit_accuracy": s["unit_accuracy"], "per_1k_docs_usd": s["cost"]["per_1k_docs_usd"]})
+                     "class_macro_fpr": s.get("class_macro_fpr"), "class_macro_fnr": s.get("class_macro_fnr"),
+                     "unit_accuracy": s["unit_accuracy"], "per_1k_docs_usd": cost.get("per_1k_docs_usd"),
+                     "run_wall_seconds": runtime.get("run_wall_seconds"),
+                     "accurate_total_usd": cost.get("accurate_total_usd"),
+                     "accurate_basis": cost.get("accurate_basis")})
     for r in rows:
         r["dominated_by"] = None
         if r["per_1k_docs_usd"] is None:
@@ -1051,6 +1110,11 @@ def _render_arms(report: Mapping[str, Any]) -> list[str]:
             f"{_fmt(cal.get('ece'), '.3f'):>6} {_fmt(cal.get('ece_null_floor'), '.3f'):>6} {_fmt(cal.get('auroc'), '.3f'):>6} "
             f"{_fmt(lat['p50'], '.0f'):>7} {_fmt(lat['p95'], '.0f'):>7} "
             f"{_usd(s['cost']['per_1k_docs_usd']):>8} {_usd(s['cost']['per_class_correct_usd']):>8}")
+        lines.append(
+            f"  {s['run_id'][:44]}: macro-FPR {_pct(s.get('class_macro_fpr'))}  macro-FNR {_pct(s.get('class_macro_fnr'))}  "
+            f"accurate cost {_usd(s['cost'].get('accurate_total_usd'))} ({s['cost'].get('accurate_basis') or 'unpriced'})  "
+            f"run wall {_fmt((s.get('runtime') or {}).get('run_wall_seconds'), '.1f')}s"
+        )
     for s in report["arms"]:
         if s.get("subclass_corrections_applied"):
             hub = s["hub_truth"]

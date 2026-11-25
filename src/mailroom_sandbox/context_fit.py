@@ -132,6 +132,23 @@ def fit_chars(context_tokens: int, max_tokens: int, cfg: Mapping[str, Any]) -> i
     return max(0, int(room * float(cfg["chars_per_token"])))
 
 
+#: Tokens held back from a Decisions classify call for the question payload (document text is the rest).
+DECISION_QUESTION_RESERVE_TOKENS = 80_000
+
+
+def decision_document_chars(context_tokens: int, *, question_reserve_tokens: int = DECISION_QUESTION_RESERVE_TOKENS,
+                            chars_per_token: float | None = None) -> int:
+    """Characters of document text that fit beside the questions in a Decisions classify call.
+
+    The model's context is about a million tokens. The question payload is not part of
+    ``max_input_chars`` (that cap slices the document only), so this reserve keeps the
+    document plus the questions inside the window at the dense-filing chars/token ratio.
+    """
+    ratio = float(DEFAULTS["chars_per_token"] if chars_per_token is None else chars_per_token)
+    room = int(context_tokens) - int(question_reserve_tokens)
+    return max(0, int(room * ratio))
+
+
 def _route_field(route: Any, key: str) -> Any:
     if route is None:
         return None

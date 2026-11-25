@@ -1677,13 +1677,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The fallback rejects moved refs before replacing any tracked vendor file.
 # llm-mailroom: main at 8cebcd8 (llm-mailroom #287, the v0.30.0 release line squashed into main; package 0.9.3)
 # until the next llm-mailroom release tag is cut; untagged, so its ref is its exact commit.
-# llm-dojo-scoring: the v0.30.0 branch at 025400f (after llm-dojo-scoring #173 and #174; package 0.30.1;
-# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom 8cebcd8 declares.
+# llm-dojo-scoring: main at 7d69bbd (llm-dojo-scoring #185, the pain-point composites, on top of the
+# #181 0.30.2 scoring fixes; package 0.30.1; untagged, so its ref is its exact commit). llm-mailroom
+# 8cebcd8 still declares Dojo 025400f; the sandbox scores with the newer Dojo.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "8cebcd86521755a8b77502f7c1e22609ef19ae21",
      "https://github.com/Exios66/llm-mailroom.git", "8cebcd86521755a8b77502f7c1e22609ef19ae21"),
-    ("llm-dojo-scoring", "025400f3d703531c5e1a76093e4b803ccc6fb576",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "025400f3d703531c5e1a76093e4b803ccc6fb576"),
+    ("llm-dojo-scoring", "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e"),
 )
 
 
@@ -3964,6 +3965,17 @@ def _refuse_modal_max_items(args, mode: str, task: str | None = None) -> None:
                             "lower dataset.limit or point the run config at a smaller dataset")
 
 
+def _rescore_execution_refusal(store) -> str | None:
+    """The reason a rescore directory cannot be started, resumed, or dispatched."""
+    from mailroom_sandbox.job.checkpoint import RescoreNotExecutable, refuse_rescore_execution
+
+    try:
+        refuse_rescore_execution(store)
+    except RescoreNotExecutable as exc:
+        return str(exc)
+    return None
+
+
 def _cmd_run_start(args) -> int:
     """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
@@ -3996,6 +4008,10 @@ def _cmd_run_start(args) -> int:
         return 0
     store = RunStore(run_dir(run_id))
     store.verify_generation()
+    refused = _rescore_execution_refusal(store)
+    if refused:
+        _print({"run_id": run_id, "status": "refused", "detail": refused})
+        return 1
     from mailroom_sandbox.job.spend import authorize
 
     authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)),
@@ -4297,10 +4313,14 @@ def _cmd_run_status(args) -> int:
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run found"})
         return 1
+    rescore_refusal = _rescore_execution_refusal(store)
     if getattr(args, "watch", False):
+        if rescore_refusal:
+            _print({"run_id": run_id, "status": "refused", "detail": rescore_refusal})
+            return 1
         return _watch_remote(store, args)
     remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
-    if remote_progress and remote_progress.get("state") in {"done", "failed"}:
+    if remote_progress and remote_progress.get("state") in {"done", "failed"} and not rescore_refusal:
         # Terminal remote run: sync items/checkpoints/records back locally.
         if not _finalize_remote(store):
             return 1
@@ -4341,6 +4361,12 @@ def _cmd_run_resume(args) -> int:
         raise CLIUsageError(str(exc)) from exc
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
+        return 1
+    refused = _rescore_execution_refusal(store)
+    if refused:
+        # Before --config --force, which can archive the derived generation, and before
+        # spend authorization or Modal attach/spawn.
+        _print({"run_id": run_id, "status": "refused", "detail": refused})
         return 1
     if getattr(args, "config", None):
         from mailroom_sandbox.job import preflight

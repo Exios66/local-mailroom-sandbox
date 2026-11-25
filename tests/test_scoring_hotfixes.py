@@ -75,18 +75,21 @@ def test_an_unresolvable_target_is_not_applied_and_fails_preflight(monkeypatch):
 def test_a_package_file_target_resolves_in_the_modal_worker_layout(monkeypatch, tmp_path):
     # The job image ships the package via add_local_python_source: /root/mailroom_sandbox/...,
     # no src/ around it, and SANDBOX_ROOT holds only the bundled data files.
-    import shutil
+    import hashlib
 
     package = tmp_path / "root" / "mailroom_sandbox"
     (package / "eval").mkdir(parents=True)
-    shutil.copy(sh.data_path("src/mailroom_sandbox/eval/_dojo_pain_points.py"), package / "eval")
+    target = package / "eval" / "reviewed_table.py"
+    target.write_text("TABLE = {}\n", encoding="utf-8")
     sandbox_root = tmp_path / "sandbox_root"
     sandbox_root.mkdir()
     monkeypatch.setattr(sh, "__file__", str(package / "scoring_hotfixes.py"))
     monkeypatch.setenv("SANDBOX_ROOT", str(sandbox_root))
-    shf014 = [f for f in sh.HOTFIXES if f.id == "SHF-014"]
-    assert sh.data_path("src/mailroom_sandbox/eval/_dojo_pain_points.py") == package / "eval" / "_dojo_pain_points.py"
-    assert sh.status(shf014, refresh=True) == {"SHF-014": "current"}
+    rel = "src/mailroom_sandbox/eval/reviewed_table.py"
+    fix = sh.ScoringHotfix("SHF-999", "sandbox", ((f"file:{rel}", hashlib.sha256(target.read_bytes()).hexdigest()),),
+                           "sandbox", "a package file target")
+    assert sh.data_path(rel) == target
+    assert sh.status([fix], refresh=True) == {"SHF-999": "current"}
     assert sh.data_path("src/mailroom_sandbox/eval/no_such_file.py") is None
     monkeypatch.setattr(sh, "_STATUS", {})
 

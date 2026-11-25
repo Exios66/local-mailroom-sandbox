@@ -25,7 +25,12 @@ def wheel(files=None):
         for name, content in (
             files
             if files is not None
-            else {"llm_dojo_scoring/__init__.py": '__version__ = "0.28.1"\n'}
+            else {
+                "llm_dojo_scoring/__init__.py": '__version__ = "0.28.1"\n',
+                # dojo_source.REQUIRED_SUBMODULES: a release without them is not selectable.
+                "llm_dojo_scoring/pipeline/__init__.py": "",
+                "llm_dojo_scoring/pipeline/pain_points.py": "",
+            }
         ).items():
             archive.writestr(name, content)
     return buffer.getvalue()

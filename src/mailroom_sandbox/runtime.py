@@ -268,7 +268,10 @@ def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
         policy = _LOCKED_RUNTIME.get()
         locked = ((policy or {}).get("lock") or {}).get("reviewer") or {}
         # A locked run answers from the frozen question set, never a later edit of the file.
-        return decisions_backend(spec.model, spec.questions, qset=locked.get("question_set"))
+        # The run window has to travel with that backend: the isolated eval path reads
+        # reviewer.max_input_chars itself, and this is the path the graph calls.
+        return decisions_backend(spec.model, spec.questions, qset=locked.get("question_set"),
+                                 max_input_chars=spec.max_input_chars)
     return build_backend(spec.backend, spec.model, questions=spec.questions)
 
 

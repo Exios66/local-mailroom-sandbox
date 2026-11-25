@@ -10,7 +10,9 @@ Prices are stored in USD per 1M tokens. ``--add MODEL`` adds a model to the list
     python scripts/refresh_api_prices.py --check    # exit 1 if the file is stale
     python scripts/refresh_api_prices.py --add qwen/qwen3.7-flash
 
-Decisions-endpoint ids (``*-decisions``) are not in the catalog; they are kept as written.
+Each row is priced from its OpenRouter ``canonical_slug`` (the dated id that is billed).
+A public alias uses that slug's catalog row when the slug is listed on its own.
+Decisions-API ids are read from the decisions catalog and priced the same way.
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ from mailroom_sandbox.decision_backends import is_decisions_model
 from mailroom_sandbox.paths import repo_root
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
+DECISIONS_CATALOG_URL = "https://openrouter.ai/api/v1/models?output_modalities=decisions"
 _FIELDS = {"prompt": "prompt", "completion": "completion",
            "input_cache_read": "cache_read", "input_cache_write": "cache_write"}
 
@@ -64,16 +67,48 @@ def sheet_from_catalog(entry: dict) -> dict:
     row = {"context_length": entry.get("context_length") or top.get("context_length"),
            "max_completion_tokens": top.get("max_completion_tokens"),
            "tiers": sorted(tiers, key=lambda t: t["min_prompt_tokens"])}
+    slug = entry.get("canonical_slug") or entry.get("id")
+    if slug:
+        row["canonical_slug"] = slug
     if windows:
         row["time_windows"] = len(windows)
     return row
 
 
-def fetch_catalog(url: str = CATALOG_URL) -> dict[str, dict]:
+def priced_entry(catalog: dict[str, dict], model_id: str) -> dict | None:
+    """The catalog row whose pricing is ``model_id``'s canonical-slug price.
+
+    OpenRouter bills the dated ``canonical_slug``. When that slug is its own
+    catalog row, that row's pricing is the genuine price. Otherwise the row
+    that declares the slug carries it (the public id is an alias of that slug).
+    """
+    entry = catalog.get(model_id)
+    if entry is None:
+        entry = next((row for row in catalog.values() if row.get("canonical_slug") == model_id), None)
+    if not entry:
+        return None
+    slug = entry.get("canonical_slug") or model_id
+    return catalog.get(slug) or entry
+
+
+def _fetch(url: str) -> dict[str, dict]:
     if not url.startswith("https://"):
         raise ValueError(f"model catalog URL must be https: {url!r}")
     with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 - https only, checked above
         return {m["id"]: m for m in json.load(resp)["data"]}
+
+
+def fetch_catalog(url: str = CATALOG_URL) -> dict[str, dict]:
+    """Chat catalog, plus Decisions-API models so their slug prices refresh too.
+
+    A decisions id is absent from the chat catalog. Its price lives on the
+    decisions catalog row of its canonical slug.
+    """
+    catalog = _fetch(url)
+    if url == CATALOG_URL:
+        for model_id, entry in _fetch(DECISIONS_CATALOG_URL).items():
+            catalog.setdefault(model_id, entry)
+    return catalog
 
 
 def refresh(doc: dict, catalog: dict[str, dict], *, today: str) -> tuple[dict, list[str]]:
@@ -81,14 +116,15 @@ def refresh(doc: dict, catalog: dict[str, dict], *, today: str) -> tuple[dict, l
     changed = []
     models = dict(doc.get("models") or {})
     for model_id, row in models.items():
-        if model_id not in catalog:
-            # Decisions-API ids are not in the chat catalog: kept as written, never flagged. They are the ids of
-            # config/decision_models.yaml (not a name suffix) or rows that carry their own endpoint.
+        entry = priced_entry(catalog, model_id)
+        if entry is None:
+            # A decisions id with no catalog row is kept as written, never flagged. It is an id of
+            # config/decision_models.yaml (not a name suffix) or a row that carries its own endpoint.
             if not is_decisions_model(model_id) and not (row or {}).get("endpoint"):
                 changed.append(f"{model_id}: not in the OpenRouter catalog")
             continue
         kept = {k: v for k, v in (row or {}).items() if k != "time_windows"}  # recomputed below
-        new = {**kept, **sheet_from_catalog(catalog[model_id])}
+        new = {**kept, **sheet_from_catalog(entry)}
         if new != row:
             changed.append(model_id)
         models[model_id] = new

@@ -226,6 +226,25 @@ DECISIONS_QUESTION_TOKENS = 4000
 DECISIONS_MIN_WINDOW_CHARS = 8000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
 
+
+def classify_window_chars(qset: Mapping[str, Any] | None, override: Any = None) -> int:
+    """Document characters sent to one Decisions classify call.
+
+    The question set's ``max_input_chars`` is the floor. A run's ``reviewer.max_input_chars``
+    may raise it so a model with a million-token window is not cut at a million characters.
+    The override never lowers the set.
+    """
+    set_cap = 0
+    if isinstance(qset, Mapping):
+        try:
+            set_cap = int(qset.get("max_input_chars") or 0)
+        except (TypeError, ValueError):
+            set_cap = 0
+    extra = override if isinstance(override, int) and not isinstance(override, bool) and override > 0 else 0
+    if set_cap and extra:
+        return max(set_cap, extra)
+    return extra or set_cap or DECISIONS_MAX_INPUT_CHARS
+
 # A card-shaped number: four groups of four digits with a space or hyphen between groups
 # (plus up to three trailing digits). OpenRouter's Decisions endpoint refuses a document
 # holding one (403 "content filter: [CREDIT_CARD]"), even a synthetic IBAN tail, and the
@@ -1075,10 +1094,24 @@ def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_
     fn = record_usage
     if getattr(fn, "_sandbox_hotfix", None) == "HF-004":
         fn = getattr(fn, "__wrapped__", fn)
+    # The unwrapped accumulator does not see HF-004, so the provider cost is noted here.
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
-    fn({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
-       model=model, agent=agent)
+    from mailroom_sandbox.job.usage_capture import note_provider_call
+
+    counted: dict[str, Any] = {
+        "prompt_tokens": int(usage.get("input_tokens") or 0),
+        "completion_tokens": int(usage.get("output_tokens") or 0),
+        "cost": usage.get("cost"),
+    }
+    # The accumulator only wants prompt and completion. Cache fields stay on the note so a
+    # provider that returns them is not recorded as an all-fresh prompt.
+    for name in ("prompt_tokens_details", "input_tokens_details", "input_token_details",
+                 "cached_tokens", "cache_write_tokens", "cache_read", "cache_creation"):
+        if usage.get(name) is not None:
+            counted[name] = usage[name]
+    note_provider_call(counted)
+    fn(counted, model=model, agent=agent)
 
 
 def _record_served(model: str, data: Mapping[str, Any]) -> None:
@@ -1491,8 +1524,13 @@ def apply_question_set_contract(result: Mapping[str, Any], answers: Mapping[str,
     return out
 
 
-def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping[str, Any] | None = None) -> "DecisionBackend":
-    """Backend over a Decisions-API model with a question set from ``config/decisions``."""
+def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping[str, Any] | None = None,
+                      max_input_chars: int | None = None) -> "DecisionBackend":
+    """Backend over a Decisions-API model with a question set from ``config/decisions``.
+
+    ``max_input_chars`` is the run's ``reviewer.max_input_chars``. It raises the question
+    set's document window the same way the isolated eval path does, and never lowers it.
+    """
     if not is_decisions_model(model) or not _PINNED_API.match(model.split(":", 1)[0]):
         raise ValueError(f"{model!r} is not a pinned Decisions-API model id (expected e.g. 'openai/gpt-6-luna-decisions')")
     if qset is None and not questions:
@@ -1504,7 +1542,7 @@ def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping
         if not loaded:
             loaded.update(qset if qset is not None else load_question_set(str(questions)))
         picked = decide(doc_text, model=model, questions=decision_questions(loaded, doc_types),
-                        max_input_chars=int(loaded.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=loaded,
+                        max_input_chars=classify_window_chars(loaded, max_input_chars), qset=loaded,
                         handoff=handoff)
         return _answer(picked["doc_type"], picked["doc_subclass"], picked["confidence"], model)
 

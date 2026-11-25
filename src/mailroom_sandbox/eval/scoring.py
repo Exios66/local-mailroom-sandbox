@@ -332,14 +332,13 @@ def _field_value_outcomes(expected: Mapping[str, Any], predicted: Mapping[str, A
                           per_field: Any) -> dict[str, int]:
     """Per-field outcomes on the targeted fields (``n_targeted``, ``n_value_correct``,
     ``n_value_wrong``, ``n_value_partial``): the Dojo's ``field_value_outcomes``, served by the
-    pain-point adapter (``eval/pain_points.py``; SHF-014 until the vendored Dojo ships it). The
+    pain-point adapter (``eval/pain_points.py``, the vendored Dojo's ``pipeline.pain_points``). The
     detailed suite path (corporate records, any row with a subclass) returns no ``tp`` / ``fn``,
-    so these are the event counts there. Empty when the scorer returned no per-field scores, or when
-    the adapter is not available (SHF-014 stale or unavailable), like the composites.
+    so these are the event counts there. Empty when the scorer returned no per-field scores.
     """
-    from mailroom_sandbox.eval.pain_points import available, field_value_outcomes
+    from mailroom_sandbox.eval.pain_points import field_value_outcomes
 
-    return field_value_outcomes(expected, predicted, per_field) if available() else {}
+    return field_value_outcomes(expected, predicted, per_field)
 
 
 def _norm_label(value: Any) -> str:
