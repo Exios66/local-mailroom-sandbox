@@ -386,3 +386,22 @@ def test_calibration_skips_key_field_score_with_missing_support(monkeypatch):
     item["pred"]["field_support"] = {"a": 0.9, "b": 0.5}
     report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
     assert report["keyfields"]["contract"]["n"] == 1
+
+
+def test_field_truth_scores_fields_as_the_hotfixed_headline():
+    """SHF-004 (an identifier without its hyphen is right) and SHF-015 (a heuristic intent no overlay
+    supplied is no field truth; one an interim correction supplied is)."""
+    eg = _script("extraction_gate")
+    claim = {"id": "c1", "expected_doc_class": "insurance_claim", "doc_text": "Claim CLM-12345.",
+             "expected_fields": json.dumps({"claim_number": "CLM-12345", "policy_number": "POL-9"})}
+    truth, error = eg._field_truth("insurance_claim", claim, {"claim_number": "CLM12345", "policy_number": "POL-9"}, 0.8)
+    assert error is None and truth == {"claim_number": True, "policy_number": True}
+    fields = {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "payment_demand", "intent_source": "heuristic"}
+    mail = {"id": "m1", "expected_doc_class": "correspondence", "doc_text": "From: Ann Lee\nTo: Bo Chu\nPlease pay.",
+            "expected_fields": json.dumps(fields)}
+    answer = {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}
+    truth, _ = eg._field_truth("correspondence", mail, answer, 0.8)
+    assert "intent" not in truth and truth["sender"] is True
+    reviewed = {**mail, "interim_labels": {"fields": ["intent"], "overlay_sha256": "x"}}
+    assert eg._field_truth("correspondence", reviewed, answer, 0.8)[0]["intent"] is False
+    assert "SHF-015" in eg._field_truth_fixes()

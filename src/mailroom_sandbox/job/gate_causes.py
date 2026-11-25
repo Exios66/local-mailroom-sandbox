@@ -102,7 +102,15 @@ def _is_iso_date(value: Any) -> bool:
 
 
 def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, float]:
-    """Dojo per-field scores of the labelled fields (templated and metadata keys dropped), as the gate scores."""
+    """Dojo per-field scores of the labelled fields (templated and metadata keys dropped), as the gate scores.
+
+    Scored with the current scoring hotfixes on (``scoring_hotfixes.hotfixed``), so the per-field
+    scorer fixes (SHF-002 names, SHF-003 money, SHF-004 identifiers) type a miss the way the run
+    headline scores it: a ``claim_number`` the headline counts right is never the lowest field. The
+    stale-label drop (SHF-015) is not applied here: a heuristic ``intent`` stays a candidate lowest
+    field so that ``label_suspect`` can name it.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.eval.scoring import suite_for_doc_type
 
     doc_class = str(row.get("expected_doc_class"))
@@ -117,8 +125,9 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     detailed = bool(sub or doc_class == "corporate_record")
     try:
         suite = suite_for_doc_type(doc_class)
-        result = (suite.score(expected, predicted, doc_text=row.get("doc_text"), detailed=True, **kwargs)
-                  if detailed else suite.score(expected, predicted, doc_text=row.get("doc_text")))
+        with sh.hotfixed():
+            result = (suite.score(expected, predicted, doc_text=row.get("doc_text"), detailed=True, **kwargs)
+                      if detailed else suite.score(expected, predicted, doc_text=row.get("doc_text")))
     except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error, never as an extraction type
         raise ScorerError(f"{doc_class}: {type(exc).__name__}: {exc}") from exc
     nested = result.get("extraction") if isinstance(result, dict) else result

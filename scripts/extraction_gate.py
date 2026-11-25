@@ -337,10 +337,20 @@ def cutoff_for_precision(scores: list[float], labels: list[bool], precision: flo
     return best
 
 
+def _field_truth_fixes() -> list[str]:
+    """The scoring hotfixes ``_field_truth`` applies, as a report records them."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    return sorted(sh.current_ids() & {"SHF-002", "SHF-003", "SHF-004", "SHF-015"})
+
+
 def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[dict[str, bool], str | None]:
     """Per-field correctness of the extraction, from the dojo scorers, and the scorer error if any.
 
-    On an error the row's fields are unscored; ``calibrate`` counts it in ``skipped``.
+    On an error the row's fields are unscored; ``calibrate`` counts it in ``skipped``. Per-field
+    classes are scored as the run headline scores them (``docs/scoring-hotfixes.md``): with the
+    current field-scorer fixes on (SHF-002/003/004), and without the stale Hub labels an overlay
+    did not supply (SHF-015), which are no field truth.
     """
     exp = _expected(row)
     out: dict[str, bool] = {}
@@ -366,12 +376,19 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[d
             if sub and sub != "other":
                 out["merger_consideration"] = fields.get("merger_consideration") == sub
             return out, None
+        from mailroom_sandbox import scoring_hotfixes as sh
         from mailroom_sandbox.datasets import parse_expected_fields
         from mailroom_sandbox.eval.scoring import suite_for_doc_type
 
         suite = suite_for_doc_type(doc_type)
         kwargs = {"doc_subclass": row.get("expected_subclass")} if doc_type == "corporate_record" and row.get("expected_subclass") else {}
-        result = suite.score(parse_expected_fields(row) or exp, fields, doc_text=row.get("doc_text"), detailed=True, **kwargs)
+        expected = parse_expected_fields(row) or exp
+        stale: dict[str, str] = {}
+        if sh.enabled("SHF-015"):
+            expected, stale = sh.drop_stale_hub_truth(doc_type, expected, sh.overlay_fields(row))
+        with sh.hotfixed():
+            result = suite.score(expected, {k: v for k, v in fields.items() if k not in stale},
+                                 doc_text=row.get("doc_text"), detailed=True, **kwargs)
         extraction = result["extraction"] if isinstance(result, dict) else result
         unlabeled = set((result.get("unlabeled_fields") or []) if isinstance(result, dict) else [])
         for field, score in (getattr(extraction, "field_scores", None) or {}).items():
@@ -478,7 +495,8 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
                 fields[(cls, field)]["p"].append(float(prob))
                 fields[(cls, field)]["y"].append(ok)
     report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped),
-                              "field_truth": "dojo+gt-corrections" if corrected else "dojo", "classes": {}}
+                              "field_truth": "dojo+gt-corrections" if corrected else "dojo",
+                              "field_truth_hotfixes": _field_truth_fixes(), "classes": {}}
     for cls, d in sorted(per.items()):
         n = len(d["y"])
         median = sorted(d["score"])[n // 2]
