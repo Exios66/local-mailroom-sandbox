@@ -1192,11 +1192,22 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
     sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
                                    result.get("doc_type"), scoring.predicted_subclass(result),
                                    doc_id=row.get("id"))
+    fixes = set((scored or {}).get("scoring_hotfixes") or [])
     if sub is not None:
         score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
+        if sub[0] != sub[1]:
+            fixes.add("SHF-012")
         if scoring.corrected_subclass_truth(row.get("id"), row.get("expected_doc_class"),
                                             row.get("expected_subclass")) is not None:
             score["subclass_corrected"] = True
+            fixes.add("SHF-013")
+    # Per-document dual provenance (docs/scoring-hotfixes.md): the raw Dojo-pin extraction values
+    # and the fixes that moved this document's scores, so a report can show both sides per item.
+    raw_side = {k: v for k, v in ((scored or {}).get("raw_dojo") or {}).items()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if raw_side:
+        score["raw_dojo"] = raw_side
+    score["scoring_hotfixes"] = sorted(fixes)
     # The pain-point penalty points of this document (eval/pain_points.py), headline side.
     from mailroom_sandbox.eval import pain_points
 

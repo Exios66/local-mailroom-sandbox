@@ -412,10 +412,14 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     gated = [(d, s) for d, s in doc_pairs if s["class"] in bars.gated]
     slots = decision_slot_report([d for d, _ in gated], [s for _, s in gated],
                                  max_wrong_archive_rate=bars.wrong_archive_max)
+    from mailroom_sandbox import scoring_hotfixes as sh
+
     return {
         # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
         **({"decision_slots": slots} if slots is not None else {}),
         "run_id": run_dir.name, "n": len(statuses), "bars": {**asdict(bars), "gated": list(bars.gated)},
+        # The document scores are the hotfixed headline; these are the fixes in force when scored.
+        "headline_basis": sh.headline_basis(), "scoring_hotfixes": sorted(sh.current_ids()),
         "classes": classes,
         "pooled": {"review_rate": review_rate, "wrong_archive_rate": wrong_rate,
                    "review_upper95": _wilson_upper(pooled["review"], pooled["n"]),

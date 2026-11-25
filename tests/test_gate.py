@@ -373,3 +373,10 @@ def test_a_stale_hub_label_is_no_label_under_shf015(tmp_path):
                               Bars())["docs"]
     assert doc["outcome"] == "unscorable_archive" and doc["labelled"] == 1
 
+
+def test_the_gate_report_names_its_headline_basis(tmp_path):
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    report = gate.gate_report(_run(tmp_path, _docs(2)), Bars())
+    assert report["headline_basis"] == sh.headline_basis()
+    assert "SHF-015" in report["scoring_hotfixes"] and report["scoring_hotfixes"] == sorted(sh.current_ids())

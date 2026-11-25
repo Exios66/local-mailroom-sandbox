@@ -98,3 +98,16 @@ def test_shf015_a_dropped_label_becomes_unlabelled_not_a_documented_absence():
     assert json.loads(out["gt_presence"])["intent"] == "pending_annotation"
     assert sh.documented_absent_fields("correspondence", out) == []  # SHF-001 never restores it
     assert json.loads(expected["gt_presence"])["intent"] == "populated"  # the input is never mutated
+
+
+def test_a_pipeline_item_keeps_its_raw_side_and_names_its_fixes():
+    row = _row(HEURISTIC)
+    result = {"doc_type": "correspondence", "stage": "archived",
+              "extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "complaint"}}
+    scored = runners._score_pipeline_extraction(row, result)
+    item = runners.pipeline_item_score(row, result, scored)
+    assert item["overall_extraction_score"] == 1.0
+    assert item["raw_dojo"]["overall_extraction_score"] == scored["raw_dojo"]["overall_extraction_score"] < 1.0
+    assert "SHF-015" in item["scoring_hotfixes"]
+    plain = runners.pipeline_item_score(row, result, None)
+    assert "raw_dojo" not in plain and plain["scoring_hotfixes"] == []
