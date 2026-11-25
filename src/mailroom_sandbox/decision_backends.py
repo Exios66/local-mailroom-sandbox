@@ -221,6 +221,8 @@ DECISIONS_MAX_INPUT_CHARS = 2_000_000
 # autoresearch context check (autoresearch/levers.py) sizes requests with the same numbers.
 DECISIONS_TOKENS_PER_CHAR = 0.25
 DECISIONS_QUESTION_TOKENS = 4000
+# Below this many document characters a request answers on a sliver of the document: refuse it.
+DECISIONS_MIN_WINDOW_CHARS = 8000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
 
 # A card-shaped number: four groups of four digits with a space or hyphen between groups
@@ -323,6 +325,9 @@ def decision_input_cap(model: str | None, cap: int | None, *, question_chars: in
     """
     limit = int(cap or DECISIONS_MAX_INPUT_CHARS)
     window = decision_window_chars(model, question_chars=question_chars)
+    if window is not None and window < min(limit, DECISIONS_MIN_WINDOW_CHARS):
+        raise ValueError(f"{model!r} has room for only {window:,} document characters next to these questions "
+                         f"(minimum {min(limit, DECISIONS_MIN_WINDOW_CHARS):,}); choose a model with a larger context")
     return limit if window is None else min(limit, window)
 
 

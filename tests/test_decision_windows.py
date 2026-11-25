@@ -127,3 +127,23 @@ def test_the_autoresearch_context_check_sizes_requests_like_execution():
 
     assert levers.TOKENS_PER_CHAR == db.DECISIONS_TOKENS_PER_CHAR
     assert levers.QUESTION_TOKENS == db.DECISIONS_QUESTION_TOKENS
+
+
+def test_a_window_too_small_for_the_document_is_refused_not_sent(monkeypatch):
+    monkeypatch.setattr(db, "_post_decision", lambda *a, **k: pytest.fail("no request may be sent"))
+    tiny = "jaredpalmer/kev-4b"  # 8,192-token context
+    huge = 40_000  # questions + handoff that leave no room for the document
+    with pytest.raises(ValueError, match="room for only"):
+        db.decision_input_cap(tiny, 1_000_000, question_chars=huge)
+    with pytest.raises(ValueError, match="room for only"):
+        db.decide("x" * 100, model=tiny, questions={f"q{i}": {"type": "noul", "instructions": "y" * 400}
+                                                    for i in range(100)})
+    assert db.decision_input_cap(tiny, 5_000) == 5_000  # a set that asks for less than the floor keeps it
+
+
+def test_preflight_fails_a_lane_whose_model_cannot_hold_the_minimum_window(monkeypatch):
+    monkeypatch.setattr(db, "decision_window_chars", lambda model, question_chars=0: 100)
+    report = {"checks": []}
+    assert preflight._record_decision_windows(report, _spec(JEV)) is False
+    assert report["status"] == "failed" and report["checks"][-1]["ok"] is False
+    assert "room for only 100" in report["checks"][-1]["detail"]

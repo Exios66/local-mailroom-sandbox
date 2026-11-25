@@ -304,10 +304,21 @@ def test_an_api_reader_on_the_short_budget_fails_preflight_without_require(tmp_p
     assert "short Modal/L4 budget" in check["detail"] and "judge:" in check["detail"]
 
 
+def _short_specialist(_taxonomy):
+    return {"agents": [{"agent": "contracts_specialist", "provider": "openrouter", "expanded": False,
+                        "max_input_chars": 80000}],
+            "gaps": ["contracts_specialist: model x/y has no context_length in config/api_prices.yaml, "
+                     "so its input length stays 80000"],
+            "source_windows": {}}
+
+
 def test_a_run_set_short_budget_is_recorded_but_not_blocking(tmp_path, monkeypatch):
-    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_judge)
+    # A specialist reads only its input budget, so a run-set knob is a deliberate choice.
+    # (An unpriced judge or arbiter still blocks: it would also keep the 16k source excerpt.)
+    monkeypatch.setattr("mailroom_sandbox.context_fit.expansion_status", _short_specialist)
     spec = _pipeline_spec(tmp_path, monkeypatch)
-    spec = RunSpec.model_validate({**spec.model_dump(), "agent_knobs": {"judge": {"max_input_chars": 80000}}})
+    spec = RunSpec.model_validate({**spec.model_dump(),
+                                   "agent_knobs": {"contracts_specialist": {"max_input_chars": 80000}}})
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     check = next(c for c in report["checks"] if c["name"] == "expanded_inputs")
@@ -344,3 +355,17 @@ def test_an_input_knob_never_excuses_a_short_source_window():
     ]
     spec = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"judge": {"max_input_chars": 80000}})
     assert preflight._blocking_gaps(spec, gaps) == gaps[1:]
+
+
+@pytest.mark.parametrize("agent", ["judge", "arbiter"])
+def test_an_input_knob_never_excuses_an_unpriced_judge_or_arbiter(agent):
+    # With no context_length the reader is never fitted, so it also keeps the 16k source
+    # excerpt; that gap is not emitted on its own, so the context gap must still block.
+    from types import SimpleNamespace
+
+    gap = f"{agent}: model acme/unpriced has no context_length in config/api_prices.yaml, so its input length stays 80000"
+    spec = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={agent: {"max_input_chars": 80000}})
+    assert preflight._blocking_gaps(spec, [gap]) == [gap]
+    specialist = gap.replace(agent, "contracts_specialist", 1)
+    knob = SimpleNamespace(task="pipeline", reviewer=None, agent_knobs={"contracts_specialist": {"max_input_chars": 1}})
+    assert preflight._blocking_gaps(knob, [specialist]) == []

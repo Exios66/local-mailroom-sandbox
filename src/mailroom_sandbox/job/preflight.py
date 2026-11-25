@@ -852,6 +852,7 @@ def _blocking_gaps(spec: RunSpec, gaps: list[str]) -> list[str]:
 
 
 _KNOB_FIXABLE_GAPS = ("max_input_chars=", "has no context_length")
+_SOURCE_READERS = ("judge", "arbiter")  # context_fit._SOURCE_AGENTS: they read a source excerpt
 
 
 def _knob_excuses(gap: str, excused: set[str]) -> bool:
@@ -860,7 +861,12 @@ def _knob_excuses(gap: str, excused: set[str]) -> bool:
     The knob sets the reader's input length; the 16k sliding source window is a separate
     vendored constant the knob cannot widen, so that gap still blocks.
     """
-    if gap.split(":", 1)[0] not in excused:
+    name = gap.split(":", 1)[0]
+    if name not in excused:
+        return False
+    if name in _SOURCE_READERS and "has no context_length" in gap:
+        # An unfitted judge/arbiter also keeps the 16k source excerpt; that gap is not
+        # emitted separately when the context is unknown, so this one must still block.
         return False
     return any(marker in gap for marker in _KNOB_FIXABLE_GAPS)
 
@@ -888,7 +894,7 @@ def _decision_blocks(spec: RunSpec) -> list[tuple[str, str, str]]:
     return out
 
 
-def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> None:
+def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> bool:
     """Record the model and input window of each Decisions lane (advisory).
 
     A swapped decision model (Jev 1.14, Gemini Decision, ...) reads at most its own context:
@@ -897,10 +903,10 @@ def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> None:
     """
     blocks = _decision_blocks(spec)
     if not blocks:
-        return
+        return True
     from mailroom_sandbox.decision_backends import decision_input_cap, decision_model, load_question_set
 
-    rows, cut = [], []
+    rows, cut, refused = [], [], []
     for lane, model, stem in blocks:
         try:
             qset = load_question_set(str(stem))
@@ -909,17 +915,27 @@ def _record_decision_windows(report: dict[str, Any], spec: RunSpec) -> None:
             continue
         caps = [qset.get("max_input_chars"), *((qset.get("max_input_chars_by_class") or {}).values())]
         wanted = max(int(c) for c in caps if c) if any(caps) else None
-        window = decision_input_cap(model, wanted)
+        try:
+            window = decision_input_cap(model, wanted)
+        except ValueError as exc:  # a window too small to read the document: no request may go out
+            rows.append({"lane": lane, "model": model, "questions": stem, "error": str(exc)})
+            refused.append(f"{lane}: {exc}")
+            continue
         row = decision_model(model) or decision_model(str(model).split(":", 1)[0]) or {}
         rows.append({"lane": lane, "model": model, "questions": stem, "context_length": row.get("context_length"),
                      "max_input_chars": wanted, "window_chars": window})
         if wanted and window < wanted:
             cut.append(f"{lane} {model}: {stem} max_input_chars {wanted:,} cut to {window:,} "
-                       f"(the model's {row.get('context_length'):,}-token context)")
+                       f"(the model's {row.get('context_length')}-token context)")
     report["decision_windows"] = rows
+    if refused:
+        report["status"] = "failed"
+        report["checks"].append({"name": "decision_windows", "ok": False, "detail": "; ".join(refused)})
+        return False
     detail = ("; ".join(cut) + " (longer documents are truncated; answers report truncated)") if cut else \
         ", ".join(f"{r['lane']}={r['model']} ({r.get('window_chars') or '?'} chars)" for r in rows)
     report["checks"].append({"name": "decision_windows", "ok": True, "detail": detail})
+    return True
 
 
 def _record_expanded_inputs(
@@ -1570,7 +1586,8 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
     report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
-    _record_decision_windows(report, spec)
+    if not _record_decision_windows(report, spec):
+        return report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(report, spec, frozen, require=require):
         return report
@@ -1902,7 +1919,8 @@ def _preflight(
         return failed
     run_knobs = _run_knobs(spec, opened.run_id)
     _record_context_plan(opened.report, spec, opened.store, run_knobs)
-    _record_decision_windows(opened.report, spec)
+    if not _record_decision_windows(opened.report, spec):
+        return opened.report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
     if not _record_expanded_inputs(opened.report, spec, run_knobs, require=require):
         return opened.report

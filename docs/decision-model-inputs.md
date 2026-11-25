@@ -82,7 +82,8 @@ Each request reads at most the chosen model's own window: `decision_input_cap` t
 smaller of the question set's `max_input_chars` and
 `(context_length - reserve) / 0.25` characters, where the reserve is 4,000 tokens or the
 questions and handoff actually sent, whichever is larger (0.25 tokens per character is
-conservative: the measured fit is 0.2073). On the current catalog:
+conservative: the measured fit is 0.2073). With the default reserve, on the current catalog (a set whose
+questions run past 4,000 tokens leaves slightly less: `liquid/d1.2` reads 244,524 chars on v4.2.0):
 
 | Model | Context (tokens) | Window (chars) | 1,000,000-char sets |
 | --- | ---: | ---: | --- |
@@ -91,11 +92,14 @@ conservative: the measured fit is 0.2073). On the current catalog:
 | `typesafe/jev-1.14`, `typesafe/jev-1.13`, `google/gemini-decision-1`, `perplexity/pplx-decider-v1.2` | 262,144 | 1,032,576 | whole set cap |
 | `liquid/d1.2` | 65,536 | 246,144 | cut to 246,144 |
 
-A cut document is answered as `truncated`, as before. Preflight records every Decisions lane's
-model and window under `decision_windows` and says where a window cuts a set's cap. The window
+The `sorter_reviewer` task and the extraction gate report a cut document as `truncated`; the in-pipeline
+reviewer answer does not carry that flag. A model whose window would hold fewer than 8,000 document
+characters next to its questions is refused before any request (`DECISIONS_MIN_WINDOW_CHARS`).
+Preflight records every Decisions lane's model and window under `decision_windows`, says where a
+window cuts a set's cap, and fails a lane that cannot hold the minimum. A swapped reviewer keeps the
+run's `reviewer.classes` cutoffs, which were tuned on Luna. The window
 follows the catalog row, which the lock does not freeze; a catalog refresh that changes a model's
-`context_length` changes the window of a resumed run. No model other than Luna has a calibration:
-the cutoffs in a run's `reviewer.classes` were tuned on Luna.
+`context_length` changes the window of a resumed run. No model other than Luna has a calibration.
 
 ## Request format: findings and changes
 
