@@ -877,8 +877,10 @@ class ReviewerSpec(BaseModel):
         self._guard_decision_window()
 
     def _guard_decision_window(self) -> None:
-        from mailroom_sandbox.context_fit import decision_document_chars
-        from mailroom_sandbox.decision_backends import decision_model
+        from mailroom_sandbox.decision_backends import (
+            decision_model,
+            decision_window_chars,
+        )
 
         # Context length is a property of the model. A routing variant
         # (``openai/gpt-6-luna-decisions:nitro``) is accepted by is_decisions_model
@@ -886,7 +888,11 @@ class ReviewerSpec(BaseModel):
         base = str(self.model).split(":", 1)[0]
         row = decision_model(self.model) or decision_model(base) or {}
         context = int(row.get("context_length") or 0)
-        room = decision_document_chars(context) if context else 0
+        # Use the Decisions sizing contract's default question reserve, rather than
+        # the chat-reader ratio and fixed 80k-token reserve. Do not load a mutable
+        # question file here: locked activation carries its own frozen question set.
+        # Preflight reserves the actual questions; execution also reserves the handoff.
+        room = decision_window_chars(self.model) or 0
         if self.max_input_chars is not None and self.max_input_chars > room:
             raise ValueError(
                 f"reviewer.max_input_chars={self.max_input_chars} exceeds the {context}-token "
