@@ -96,7 +96,7 @@ Any agent can pick this up where the last one stopped. The owner approved the de
   "usage_by_agent", "cached_tokens", "cache_write_tokens", "reported_cost_usd")` and
   `replayable(item: Mapping[str, Any] | None) -> bool` in `eval/runners.py`: True when `pred` is a dict.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_pipeline_concurrency.py`, using `_install`:
+- [x] **Step 1: Write the failing tests** in `tests/test_pipeline_concurrency.py`, using `_install`:
   - `test_a_replayed_document_is_scored_without_a_model_call`. Use 4 rows; `replay` holds rows "0" and "2" with
     `pred` = the fake's result and `prompt_tokens: 100`; concurrency 2. Assert `state["started"] == ["1", "3"]`
     (sorted), `result["scores"]["class_correct"] == 1.0` and `len(result["docs"]) == 4`. Assert that the row_cb entries for "0" and "2" carry `replayed: True` and `prompt_tokens: 100`.
@@ -106,10 +106,10 @@ Any agent can pick this up where the last one stopped. The owner approved the de
     and the scores are as in a full run.
   - `test_an_item_without_a_dict_pred_is_run_again`. `replay` holds `{"0": {"pred": None}}`; assert "0" is in
     `started`.
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
   `.venv/bin/python -m pytest -q tests/test_pipeline_concurrency.py -n 0 --no-cov`. Expected: TypeError (no
   `replay` kwarg).
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - Before either loop, record every replayable row on the main thread: call `_record(index, dict(item["pred"]),
     usage, float(item.get("latency_ms") or 0.0), window, replayed=True)`. Here `usage` holds the
     `REPLAY_USAGE_KEYS` present, and `window` comes from the item's `started_at_ns` / `finished_at_ns` when
@@ -118,8 +118,8 @@ Any agent can pick this up where the last one stopped. The owner approved the de
     to the row_cb entry.
   - Both loops iterate only the indices not yet in `by_index`, and `_check_caps` runs only before those.
   - `results`, the scores and the experiment-log record are unchanged: they read `by_index` for every index.
-- [ ] **Step 4: Run the tests again; they pass.** Run the same command plus `tests/test_dojo_cost_alignment.py`.
-- [ ] **Step 5: Commit** `feat(resume): replay persisted pipeline documents instead of re-running them (phase1 task 1)`.
+- [x] **Step 4: Run the tests again; they pass.** Run the same command plus `tests/test_dojo_cost_alignment.py`.
+- [x] **Step 5: Commit** `feat(resume): replay persisted pipeline documents instead of re-running them (phase1 task 1)`.
 
 ### Task 2: Replay persisted rows in `run_isolated_eval`
 
