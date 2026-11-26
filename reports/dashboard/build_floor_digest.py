@@ -517,21 +517,19 @@ def _text_hash(data: bytes) -> str:
     return hashlib.sha1(data, usedforsecurity=False).hexdigest()[:16]
 
 
-def _text_pairing(path: Path, doc: str, tag: str) -> str:
-    """Whether the stored working text is the one the kept read records were measured on.
+def _stored_text_hash(path: Path, doc: str) -> str | None:
+    """The content tag of the stored working text (``doc_texts/<sha1(doc)[:16]>.txt``), or None.
 
-    ``match`` or ``different`` by hashing ``doc_texts/<sha1(doc)[:16]>.txt`` (never the index line,
-    which a crash can leave behind the file); ``missing`` when no regular file is stored. A symlink
-    is not followed, like the viewer's endpoint.
+    A symlink is not followed and a missing file yields None, like the viewer's endpoint.
     """
     name = hashlib.sha1(doc.encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
     file = path / "doc_texts" / name
     try:
         if file.is_symlink() or not file.is_file():
-            return "missing"
-        return "match" if _text_hash(file.read_bytes()) == tag else "different"
+            return None
+        return _text_hash(file.read_bytes())
     except OSError:
-        return "missing"
+        return None
 
 
 def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[str, dict] | None:
@@ -545,8 +543,11 @@ def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[
     Torn or malformed lines are skipped (``iter_jsonl``). Only offsets and counts are read
     out of each record, never any document text. When the kept calls carry a ``text_hash``,
     ``text_pairing`` says whether the stored text still hashes to it (``match``, ``different`` or
-    ``missing``) and the same digest-side content tag is emitted as ``text_hash`` for the
-    viewer's served-vs-stored comparison; it is a content tag, not a secret.
+    ``missing``) — that keeps the read-record tag for range validation. ``text_hash`` itself is
+    the STORED FILE's content tag (not the records'), so the viewer pairs the text it serves
+    with the text the digest saw without mistaking a rewrite that outran its records (an
+    attempt stored the new text and died before its first read) for a stale cache; it is a
+    content tag, not a secret.
     """
     reads_path = path / "reads.jsonl"
     if not reads_path.is_file():
@@ -562,12 +563,15 @@ def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[
     for doc, recs in per_doc.items():
         reads = _doc_reads(recs)
         tag = reads.pop("_text_hash")
+        stored = _stored_text_hash(path, doc)  # hashed once per kept document
         if tag:  # records without a tag are from before pairing existed: the length check alone applies
-            reads["text_pairing"] = _text_pairing(path, doc, tag)
-            # The digest-side content tag (read_ranges.text_hash over the stored file): the viewer
-            # compares it with the endpoint response's tag over the served text, so a rewrite the
-            # digest has not rebuilt yet still refetches/withholds. It is a content tag, not a secret.
-            reads["text_hash"] = tag
+            reads["text_pairing"] = "missing" if stored is None else ("match" if stored == tag else "different")
+        if stored:
+            # The stored file's own tag, not the records': what the served text should still
+            # match. A rewrite the records do not know about (they kept the old tag, and
+            # ``text_pairing`` says ``different``) no longer trips the viewer's cache check,
+            # which would refetch the same unchanged text forever.
+            reads["text_hash"] = stored
         out[doc] = reads
     return out
 

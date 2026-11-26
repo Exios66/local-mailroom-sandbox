@@ -493,6 +493,9 @@ included). A lock written before the key existed counts as `true`.
   replaces the line, and a line lost in a crash is added again on the next write. The
   floor digest recomputes the hash from the stored file and withholds the bands when it
   differs from the records' (an attempt that rewrote the text and died before reading).
+  `debug.reads` also carries that stored file's own `text_hash`, which the document panel
+  compares against the tag of the text the endpoint serves (refetching once per digest
+  generation on a mismatch, then keeping the response with its bands withheld).
   Where the text goes: into the run store (`data/runtime/runs/<run_id>/doc_texts/`), and
   from there to the floor server's loopback endpoint for the document you select. A
   remote Modal job also copies `doc_texts/` to the Modal volume with the rest of the run

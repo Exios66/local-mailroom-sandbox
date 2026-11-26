@@ -862,7 +862,8 @@ function rdAnalyse(a){
  // Overlay selection is not an input: the analysis is reused across agent/call toggles and
  // invalidated when the text, the fields, the class pair, the specialist set or the reads change.
  const sig=JSON.stringify([hasText,expected,extracted,cls.gt||null,cls.pred||null,(a.specialists||[]).join(","),
-  reads&&Array.isArray(reads.calls)?reads.calls.length:-1,reads&&reads.doc_chars||null,reads&&reads.text_pairing||null,digestHash,servedHash]);
+  reads&&Array.isArray(reads.calls)?JSON.stringify(reads.calls):null,
+  reads&&reads.doc_chars||null,reads&&reads.text_pairing||null,digestHash,servedHash]);
  if(cache.analysis&&cache.analysisSig===sig&&cache.analysisText===text)return cache.analysis;
  Object.keys(expected).concat(Object.keys(extracted)).forEach(k=>{if(!names.includes(k))names.push(k)});
  const rows=names.map(field=>{
@@ -965,7 +966,7 @@ function rdPanelHtml(v){
  else if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served working text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded a working text of ${reads.doc_chars.toLocaleString("en-US")} characters; its ranges would not line up.</p>`;
  if(model.agents.length){
   h+=`<div class="rd-tog" role="group" aria-label="Agents whose reads are painted on the text">${rdTogglesHtml(model,on,callOff)}</div>`;
-  h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total,!bandsOff)}</div>`;
+  h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total,!(bandsOff||(an&&an.lengthMismatch)))}</div>`;
   if(model.agents.some(g=>g.calls.some(c=>c.basis!=="working")))h+=`<p class="secnote">Dashed bars (raw): calls made before intake finished, matched against the row's raw text. They are not painted on the working text.</p>`}
  if(text!==null){
   const rowFor=an&&v.field!=null?an.rows.find(r=>r.field===v.field):null;
@@ -988,7 +989,7 @@ function rdPanelHtml(v){
  return h+`</div>`}
 // READS:END
 // ── DOCUMENT panel glue: the only part that touches the DOM, fetch and the selected run ──
-const DOCV={key:"",status:"idle",reason:"",retry:false,data:null,on:new Set(),callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,epoch:0,scrollReset:false};
+const DOCV={key:"",status:"idle",reason:"",retry:false,data:null,on:new Set(),callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,epoch:0,scrollReset:false,fetchedFor:null};
 /** Agents that are specialists by the digest's own data: those observed under a graph node labelled "specialists …". Names ending _specialist are caught in rdGroup. */
 function rdSpecialistNames(){
  const out=new Set(),na=D.graph_reference.node_agents||{},seen=run().node_agents||{};
@@ -1020,13 +1021,14 @@ function rdEnsure(d){
  const reads=(d.debug&&d.debug.reads)||null;
  const storeHash=reads&&typeof reads.text_hash==="string"?reads.text_hash:null;
  const served=DOCV.data&&typeof DOCV.data.text_hash==="string"?DOCV.data.text_hash:null;
- if(DOCV.key===key&&served&&storeHash&&served!==storeHash){
-  // The run store rewrote this document's text since the response was served (a resumed
-  // attempt): the cached response no longer describes the stored text. Refetch, keeping the
-  // panel's toggles and selection but dropping the text-derived analysis cache.
+ if(DOCV.key===key&&served&&storeHash&&served!==storeHash&&DOCV.fetchedFor!==storeHash){
+  // The run store rewrote this document's text after the digest read it: one refetch per digest
+  // generation. A mismatch that survives it (the digest has not rebuilt yet) keeps the response
+  // with its bands withheld instead of refetching the same text on every repaint.
+  DOCV.fetchedFor=storeHash;
   DOCV.status="idle";DOCV.data=null;DOCV.cache={};DOCV.scroll=0}
  if(DOCV.key!==key){
-  Object.assign(DOCV,{key,status:"idle",reason:"",retry:false,data:null,callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false});
+  Object.assign(DOCV,{key,status:"idle",reason:"",retry:false,data:null,callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,fetchedFor:storeHash});
   DOCV.epoch++;
   DOCV.on=new Set(rdModel(d.debug&&d.debug.reads,rdSpecialistNames()).agents.filter(g=>g.group==="specialist").map(g=>g.agent));
   document.getElementById("pane").scrollTop=0}
@@ -1048,7 +1050,7 @@ function paintDocPanel(){
   if(cur){const a=cur.getBoundingClientRect().top-tx.getBoundingClientRect().top;tx.scrollTop=Math.max(0,tx.scrollTop+a-tx.clientHeight/3)}
   else tx.scrollTop=DOCV.scroll;
   DOCV.jump=false}
- DOCV.scrollReset=false}}
+ DOCV.scrollReset=false}
 function rdAct(b){
  const k=b.dataset.rd,a=b.dataset.agent,i=b.dataset.i,view=b.dataset.view,f=b.dataset.f;
  if(k==="agent"){if(DOCV.on.has(a))DOCV.on.delete(a);else DOCV.on.add(a)}
