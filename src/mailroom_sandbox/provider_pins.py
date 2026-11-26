@@ -59,6 +59,7 @@ import os
 import sys
 import threading
 import time
+import types
 from pathlib import Path
 from typing import Any, Callable
 
@@ -81,6 +82,8 @@ _LC_PENDING: contextvars.ContextVar[tuple[str, dict[str, dict[str, Any]], list[s
 # None outside a ``_generate`` scope, where a request is guarded without a reservation.
 _LC_RESERVED: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar("provider_pins_lc_reserved",
                                                                                   default=None)
+#: Set inside ``_generate``: gains an entry once the request is built and past the guard (L1 counting).
+_LC_SENT: contextvars.ContextVar[list[bool] | None] = contextvars.ContextVar("provider_pins_lc_sent", default=None)
 CALL_PATHS = ("retry_chat_completion", "langchain", "decisions")
 
 
@@ -118,6 +121,94 @@ def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
         raise
     read_ranges.admit_pending()
     return held
+
+
+def _deadline_capped(request: dict[str, Any]) -> dict[str, Any]:
+    """Cap an attempt's timeout at the run deadline (1 s floor); past the deadline, raise before sending."""
+    from pipeline.limits import check_run_deadline, get_run_deadline
+
+    deadline = get_run_deadline()
+    if deadline is None:
+        return request
+    check_run_deadline(deadline)
+    left = max(1.0, float(deadline) - time.time())
+    timeout = request.get("timeout")
+    if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and 0 < timeout <= left:
+        return request
+    return {**request, "timeout": left}
+
+
+def _without_sdk_retries(client: Any) -> Any:
+    """``client`` with the OpenAI SDK's own retries off: the vendored loop is the one retry layer (L1).
+
+    Only a client that reports SDK retries (an integer ``max_retries`` above 0) and can copy itself
+    (``with_options``) is copied; any other client (one already at 0, a test double) is used as is.
+    """
+    retries = getattr(client, "max_retries", None)
+    with_options = getattr(client, "with_options", None)
+    if isinstance(retries, int) and not isinstance(retries, bool) and retries > 0 and callable(with_options):
+        return with_options(max_retries=0)
+    return client
+
+
+class _AttemptGuardedCompletions:
+    def __init__(self, client: Any, guarded: bool):
+        self._client, self._guarded = client, guarded
+
+    def create(self, **request: Any) -> Any:
+        from mailroom_sandbox.job import call_guard
+
+        request = _deadline_capped(request)
+        # rb1 R01 / S2: no attempt past the run's cap or the document's ceiling; each reserves its
+        # worst-case cost until it ends.
+        held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)))
+                if self._guarded else 0.0)
+        sender = _without_sdk_retries(self._client)
+        try:
+            response = sender.chat.completions.create(**request)
+        except BaseException as exc:
+            if held:
+                call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            call_guard.note_failed_attempt()
+            raise
+        if _no_usable_choice(response):
+            # The vendored loop rejects this reply and tries again, and nothing prices it: it is a
+            # failed attempt that reached the provider, so it may have been billed (L1).
+            if held:
+                call_guard.settle(held, billed=True)
+            call_guard.note_failed_attempt()
+            return response
+        if held:
+            call_guard.settle(held, billed=False)
+        return response
+
+
+def _no_usable_choice(response: Any) -> bool:
+    """The vendored ``validate_completion`` rule: ``choices`` is present and null or empty, or its
+    first entry has no ``message``. A reply without a ``choices`` attribute is left to the caller."""
+    choices = getattr(response, "choices", _NO_CHOICES)
+    if choices is _NO_CHOICES:
+        return False
+    if choices is None:
+        return True
+    if isinstance(choices, (list, tuple)):
+        return not choices or getattr(choices[0], "message", None) is None
+    return False
+
+
+_NO_CHOICES = object()
+
+
+class _AttemptGuardedClient:
+    """The client the vendored retry loop sees (L1): one guarded, deadline-capped HTTP attempt per
+    ``chat.completions.create``, with the SDK's own retries off. Every other attribute passes through."""
+
+    def __init__(self, client: Any, guarded: bool):
+        self._client = client
+        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded))
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
 
 
 def _output_cap(request: dict[str, Any]) -> Any:
@@ -357,22 +448,10 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         openrouter = _is_openrouter(client)
         fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
-        held = 0.0
         if openrouter:
-            from mailroom_sandbox.job import call_guard
-
-            # rb1 R01 / S2: no API call past the run's cap or the document's ceiling; the request
-            # reserves its worst-case cost until it ends.
-            held = _guard_call(*call_guard.request_tokens(kwargs.get("messages"), _output_cap(kwargs)))
             kwargs = pinned_kwargs(model, kwargs, pins)
-        try:
-            response = original(client, **kwargs)
-        except BaseException as exc:
-            if held:
-                call_guard.settle(held, billed=call_guard.billed_failure(exc))
-            raise
-        if held:
-            call_guard.settle(held, billed=False)
+        # L1 (phase 2): the vendored loop is the one retry layer; each HTTP attempt it sends is guarded.
+        response = original(_AttemptGuardedClient(client, guarded=openrouter), **kwargs)
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)
@@ -409,6 +488,24 @@ def _stamp_provider_cost(result: Any, cost: Any) -> None:
             meta["cost"] = float(cost)
 
 
+def _note_lc_sent() -> None:
+    sent = _LC_SENT.get()
+    if sent is not None:
+        sent.append(True)
+
+
+def _note_lc_failure(sent: list[bool]) -> None:
+    """L1: a LangChain call that failed after its request went out counts toward the document.
+
+    With the client's own retries off, one ``_generate`` is one HTTP attempt; the vendored
+    ``_invoke_with_retry`` loop makes the next. A request the guard refused never went out.
+    """
+    if sent:
+        from mailroom_sandbox.job import call_guard
+
+        call_guard.note_failed_attempt()
+
+
 def _settle_all(holder: list[float], exc: BaseException | None) -> None:
     """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
     may have been billed."""
@@ -434,6 +531,7 @@ def pinned_chat_openai(parent: type) -> type:
             payload = super()._get_request_payload(input_, stop=stop, **kwargs)
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
+                _note_lc_sent()
                 return payload
             holder = _LC_RESERVED.get()
             if holder is None:
@@ -446,31 +544,38 @@ def pinned_chat_openai(parent: type) -> type:
             pins = _ACTIVE  # one snapshot per request, as on the retry_chat_completion path
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]
             _LC_PENDING.set((model, pins, fallback))
+            _note_lc_sent()  # past the guard: this request goes out
             return pinned_kwargs(model, payload, pins)
 
         def _generate(self, *args: Any, **kwargs: Any) -> Any:
             holder: list[float] = []
-            token = _LC_RESERVED.set(holder)
+            sent: list[bool] = []
+            token, sent_token = _LC_RESERVED.set(holder), _LC_SENT.set(sent)
             try:
                 result = super()._generate(*args, **kwargs)
             except BaseException as exc:
                 _settle_all(holder, exc)
+                _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
+                _LC_SENT.reset(sent_token)
             _settle_all(holder, None)
             return result
 
         async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
             holder: list[float] = []
-            token = _LC_RESERVED.set(holder)
+            sent: list[bool] = []
+            token, sent_token = _LC_RESERVED.set(holder), _LC_SENT.set(sent)
             try:
                 result = await super()._agenerate(*args, **kwargs)
             except BaseException as exc:
                 _settle_all(holder, exc)
+                _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
+                _LC_SENT.reset(sent_token)
             _settle_all(holder, None)
             return result
 
