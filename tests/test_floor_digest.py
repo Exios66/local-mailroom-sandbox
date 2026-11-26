@@ -98,6 +98,24 @@ def test_digest_dedupes_resumed_call_sequences(tmp_path):
     assert set(reads["union"]) == {"sorter", "specialist"}
 
 
+def test_dedupe_resets_on_call_one_only(tmp_path):
+    """Records of one attempt written out of order (concurrent calls) are not mistaken for a resume."""
+    builder = floor_app.load_builder()
+    run_dir = _reads_run(tmp_path, reads=[
+        _read(1, "sorter", [[0, 10]]), _read(3, "judge", [[0, 30]]), _read(2, "specialist", [[0, 20]]),
+    ])
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert [c["agent"] for c in reads["calls"]] == ["sorter", "judge", "specialist"]
+    # a later attempt starts at call 1 again and supersedes all of it
+    other = tmp_path / "other"
+    run_dir = _reads_run(other, reads=[
+        _read(1, "sorter", [[0, 10]]), _read(3, "judge", [[0, 30]]), _read(2, "specialist", [[0, 20]]),
+        _read(1, "sorter", [[7, 9]]),
+    ])
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert [(c["agent"], c["ranges"]) for c in reads["calls"]] == [("sorter", [[7, 9]])]
+
+
 def test_doc_chars_comes_from_working_basis_calls_only(tmp_path):
     """A raw-basis call indexes the raw text; its length must not stand for the working text."""
     builder = floor_app.load_builder()

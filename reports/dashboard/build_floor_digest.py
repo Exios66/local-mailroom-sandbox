@@ -443,19 +443,16 @@ def _merge_ranges(ranges: list[list[int]]) -> list[list[int]]:
 def _last_call_sequence(records: list[dict]) -> list[dict]:
     """The last call sequence of one document's read records.
 
-    Call numbers count up from 1 per document. A resumed document re-appends
-    ``call=1..n``: when a record's call is not above the highest call of the sequence
-    so far, a new sequence starts and supersedes the earlier one. Records without an
-    integer call extend the current sequence.
+    Call numbers are assigned per document attempt, starting at 1. A resumed document re-appends
+    ``call=1..n``, so a record with ``call == 1`` starts a new sequence that supersedes the earlier
+    one. Any other record extends the current sequence, even when concurrent calls wrote their
+    records out of order (call 3 before call 2). Records without an integer call extend it too.
     """
     sequence: list[dict] = []
-    top = 0
     for rec in records:
         call = rec.get("call")
-        if isinstance(call, int) and not isinstance(call, bool):
-            if call <= top:
-                sequence, top = [], 0
-            top = call
+        if call == 1 and isinstance(call, int) and not isinstance(call, bool):
+            sequence = []
         sequence.append(rec)
     return sequence
 
