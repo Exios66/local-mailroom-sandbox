@@ -664,3 +664,41 @@ def test_post_decision_counts_returned_calls_against_the_document_ceiling(monkey
         with pytest.raises(Exception, match="per-document ceiling"):
             db._post_decision({}, timeout=1, attempts=3)
     assert doc["refused"].startswith("call refused")
+
+
+def test_jev_request_is_recorded(monkeypatch):
+    """The Jev call records its prompt once and hands the same prompt to the agent."""
+    import random
+    import sys
+    import types
+
+    from mailroom_sandbox.job import read_ranges
+
+    rng = random.Random(5)
+    doc = "\n\n".join(f"Section {i}. " + rng.randbytes(40).hex() for i in range(20))
+    seen: dict = {}
+
+    class Picked:
+        doc_type = "contract"
+        doc_subclass = None
+
+    class Result:
+        output = Picked()
+        response = types.SimpleNamespace(provider_details={})
+
+    class FakeAgent:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run_sync(self, prompt):
+            seen["prompt"] = prompt
+            return Result()
+
+    monkeypatch.setitem(sys.modules, "pydantic_ai", types.SimpleNamespace(Agent=FakeAgent))
+    backend = db.jev_backend("jev-1.13.0", max_input_chars=600)
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        backend(doc, ["contract", "memo"], {})
+    assert seen["prompt"] == doc[:600]
+    assert len(out) == 1 and out[0]["agent"] == "jev"
+    assert out[0]["ranges"] == [[0, 600]]

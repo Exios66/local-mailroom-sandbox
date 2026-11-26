@@ -342,6 +342,12 @@ def _run_whole_run(
         store.append_node(record)
         spans.node(record)
 
+    # Read-range records go to the run store only: never to spans or Langfuse. ``None`` turns
+    # recording off (``job.trace_reads: false``).
+    _trace_reads = _task_defaults(store).get("trace_reads", True) is not False
+    _read_sink = store.append_read if _trace_reads else None
+    _text_sink = store.write_doc_text if _trace_reads else None
+
     def _isolated(agent: str, rows: list[dict[str, Any]] | None, progress: Any = None, **extra: Any) -> dict[str, Any]:
         return eval_runners.run_isolated_eval(
             agent,
@@ -404,7 +410,8 @@ def _run_whole_run(
             result = eval_runners.run_pipeline_eval(
                 connected=True, rows=locked_rows,
                 row_cb=_row_sink,
-                progress_cb=_progress, node_cb=_node_sink, max_wall_seconds=max_wall,
+                progress_cb=_progress, node_cb=_node_sink, read_cb=_read_sink, text_cb=_text_sink,
+                max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap, api_budget=api_budget, gpu=gpu, replicas=replicas,
                 gpu_fleet=gpu_fleet, concurrency=concurrency, **kwargs)
         elif task == "extract":
@@ -899,6 +906,7 @@ def _persist_isolated_items(
                 "latency_ms": row.get("latency_ms"),
                 "prompt_tokens": row.get("prompt_tokens"),
                 "completion_tokens": row.get("completion_tokens"),
+                **merge_item_metrics(reads=row.get("reads")),
                 # The call count prices tiered models per call (autoresearch read a missing count as
                 # one call, which put a document's whole prompt in the top price tier).
                 **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),

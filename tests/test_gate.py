@@ -47,7 +47,9 @@ def _run(root, docs, name="slice"):
                 continue
             for _ in range(d.get("repeat", 1)):
                 pred = {"stage": d.get("stage", "archived"), "extracted_data": {},
-                        "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95)}
+                        "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95),
+                        **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {}),
+                        **({"judge_reasks": d["reasks"]} if "reasks" in d else {})}
                 it.write(json.dumps({"item_id": d["id"], "ok": d.get("error") is None, "error": d.get("error"),
                                      "prompt_tokens": 10, "completion_tokens": 5, "pred": pred}) + "\n")
     return run
@@ -83,6 +85,69 @@ def test_outcomes_follow_score_and_stage(tmp_path):
     assert out["rev"]["outcome"] == "review" and out["rev"]["stage"] == "review"
     assert out["few"]["outcome"] == "unscorable_archive" and out["few"]["scorable"] is False
     assert out["ok"]["class"] == "contract" and out["ok"]["tokens"] == 15
+
+
+def test_caveat_archives_are_marked_counted_and_scored(tmp_path):
+    """HF-014: an archive the arbiter accepted with caveats is scored like any other, and shown apart."""
+    marker = {"decision": "accept_with_caveats", "judge_verdict": "partial", "whole_source": True, "hf014": True}
+    run = _run(tmp_path, [{"id": "cav", "cls": "contract", "score": 0.95, "caveats": marker},
+                          {"id": "old", "cls": "contract", "score": 0.6, "caveats": {**marker, "hf014": False}},
+                          {"id": "clean", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    out = {d["id"]: d for d in report["docs"]}
+    assert out["cav"]["arbiter_caveats"] and out["cav"]["caveats_hf014"] and out["cav"]["outcome"] == "correct_archive"
+    assert out["old"]["outcome"] == "wrong_archive" and not out["old"]["caveats_hf014"]
+    assert "arbiter_caveats" not in out["clean"]
+    assert report["arbiter_caveats"] == {"archives": 2, "hf014": 1, "docs": ["cav", "old"]}
+    assert report["pooled"]["scorable"] == 3  # caveat archives stay in the score denominators
+
+
+def test_a_run_without_caveat_archives_keeps_its_report_shape(tmp_path):
+    assert "arbiter_caveats" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
+
+
+def test_judge_re_asks_are_counted_with_their_outcome(tmp_path):
+    """HF-002 / HF-013: every re-ask ends recovered, parked (the second answer did not parse) or errored."""
+    run = _run(tmp_path, [
+        {"id": "ok", "cls": "contract", "score": 0.95,
+         "reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}},
+        # a re-ask that raised (transport error, guard refusal): not recovered, not parked; HF-012 re-ran
+        # the node and the document archived
+        {"id": "both", "cls": "contract", "score": 0.95,
+         "reasks": {"completeness": {"asked": 1, "recovered": 1}, "correctness": {"asked": 1, "recovered": 0}}},
+        {"id": "parked", "cls": "contract", "stage": "review", "causes": ["judge_error"],
+         "reasks": {"correctness": {"asked": 1, "recovered": 0, "parked": 1}}},
+        {"id": "clean", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    assert report["judge_reasks"] == {
+        "documents": 3, "asked": 4, "recovered": 2, "parked": 1, "errored": 1,
+        "by_judge": {"completeness": {"asked": 2, "recovered": 2, "parked": 0, "errored": 0},
+                     "correctness": {"asked": 2, "recovered": 0, "parked": 1, "errored": 1}},
+        "docs": ["ok", "both", "parked"]}
+    block = report["judge_reasks"]
+    assert block["asked"] == block["recovered"] + block["parked"] + block["errored"]
+    out = {d["id"]: d for d in report["docs"]}
+    assert out["ok"]["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}
+    assert out["both"]["judge_reasks"]["correctness"] == {"asked": 1, "recovered": 0, "parked": 0}
+    assert "judge_reasks" not in out["clean"]
+    assert report["pooled"]["judge_errors"] == 1  # the re-ask whose second answer failed too parked a document
+
+
+def test_a_re_ask_made_by_a_document_that_ended_as_an_error_row_still_counts(tmp_path):
+    """A pipeline abort the run returned (not raised) is an error item whose pred carries the counts (M2)."""
+    run = _run(tmp_path, [
+        {"id": "boom", "cls": "contract", "error": "pipeline failed",
+         "reasks": {"completeness": {"asked": 1, "recovered": 0, "parked": 0}}},
+        {"id": "fine", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    boom = {d["id"]: d for d in report["docs"]}["boom"]
+    assert boom["outcome"] == "crashed" and report["pooled"]["crashes"] == 1
+    assert report["judge_reasks"]["docs"] == ["boom"]
+    assert report["judge_reasks"]["errored"] == 1 and report["judge_reasks"]["asked"] == 1
+
+
+def test_a_run_without_judge_re_asks_keeps_its_report_shape(tmp_path):
+    assert "judge_reasks" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
 
 
 def test_bar_edge_is_inclusive(tmp_path):
@@ -420,3 +485,43 @@ def test_the_rendered_gate_summary_names_the_documents_shf015_made_unscorable(tm
     assert "SHF-015" in md and "1 archived document" in md and "correspondence 1" in md
     clean = gate.gate_report(_run(tmp_path / "b", [{"id": "k0", "cls": "correspondence", "expected": kept}]), Bars())
     assert "SHF-015" not in render_markdown(clean)
+
+
+@pytest.mark.parametrize("item", [
+    {"error": "x", "pred": "boom"}, {"error": "x", "pred": ["a"]}, {"ok": False, "pred": 3},
+    {"error": "x", "pred": None}])
+def test_an_error_row_with_a_malformed_pred_stays_crashed(item):
+    """The base returned ``crashed`` before touching ``pred``; the re-ask read must not raise first."""
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": item}, Bars())
+    assert status["outcome"] == "crashed" and "judge_reasks" not in status
+
+
+@pytest.mark.parametrize("asked", ["x", "1.5", [1], float("inf"), float("nan")])
+def test_a_malformed_re_ask_count_is_skipped_not_raised(asked):
+    pred = {"stage": "review", "judge_reasks": {"completeness": {"asked": asked},
+                                                "correctness": {"asked": 1, "recovered": 1}}}
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": {"pred": pred}}, Bars())
+    assert status["judge_reasks"] == {"correctness": {"asked": 1, "recovered": 1, "parked": 0}}
+
+
+@pytest.mark.parametrize("asked", [-1, 1.5, True])
+def test_a_negative_fractional_or_boolean_re_ask_count_is_skipped(asked):
+    """``int()`` would accept these and understate or flip the totals."""
+    pred = {"stage": "review", "judge_reasks": {"completeness": {"asked": asked},
+                                                "correctness": {"asked": 2.0, "recovered": 2}}}
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": {"pred": pred}}, Bars())
+    assert status["judge_reasks"] == {"correctness": {"asked": 2, "recovered": 2, "parked": 0}}
+
+
+@pytest.mark.parametrize("pred", ["boom", ["a"], 3])
+def test_an_ok_row_with_a_malformed_pred_is_crashed_not_archived(pred):
+    """A corrupted prediction must not count as an archive (a silent wrong outcome)."""
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"},
+                           "item": {"ok": True, "pred": pred}}, Bars())
+    assert status["outcome"] == "crashed" and status["stage"] == "crashed"
+
+
+def test_errored_never_goes_negative_on_inconsistent_counts():
+    status = {"id": "d", "judge_reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 1}}}
+    block = gate._judge_reask_block([status])
+    assert block["errored"] == 0 and block["by_judge"]["completeness"]["errored"] == 0

@@ -82,3 +82,43 @@ def test_the_job_runner_passes_job_concurrency_to_the_pipeline(monkeypatch):
     call = source[source.index("eval_runners.run_pipeline_eval("):]
     call = call[:call.index(")\n")]
     assert "concurrency=concurrency" in call
+
+
+def test_read_sinks_are_wired_per_document_and_reported_as_item_reads(monkeypatch):
+    from mailroom_sandbox.job import read_ranges
+
+    def fake_doc(row, **_kw):
+        read_ranges.record("sorter", "Document text:\n" + row["doc_text"], node="classify")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    reads, items = [], []
+    rows = [{"id": str(i), "expected_doc_class": _cls(i), "doc_text": "t" * 80} for i in range(6)]
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False, row_cb=items.append,
+                              node_cb=lambda rec: None, read_cb=reads.append, text_cb=lambda d, t: None,
+                              concurrency=3)
+    assert sorted(r["doc"] for r in reads) == sorted(str(i) for i in range(6))
+    assert all(r["call"] == 1 and r["node"] == "classify" for r in reads)
+    assert all(item["reads"]["read_calls"] == 1 and item["reads"]["read_errors"] == 0 for item in items)
+    # no read sink: nothing recorded and no ``reads`` key
+    items.clear()
+    runners.run_pipeline_eval(profile="ollama", rows=rows[:2], mock=False, connected=False, row_cb=items.append,
+                              node_cb=lambda rec: None)
+    assert all("reads" not in item for item in items)
+
+
+def test_read_recording_works_without_node_tracking(monkeypatch):
+    """A caller may supply read_cb alone: records land and the item still reports ``reads``."""
+    from mailroom_sandbox.job import read_ranges
+
+    def fake_doc(row, **_kw):
+        read_ranges.record("sorter", "Document text:\n" + row["doc_text"], node="classify")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    reads, items = [], []
+    rows = [{"id": str(i), "expected_doc_class": _cls(i), "doc_text": "t" * 80} for i in range(4)]
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False, row_cb=items.append,
+                              read_cb=reads.append, text_cb=lambda d, t: None, concurrency=2)
+    assert sorted(r["doc"] for r in reads) == sorted(str(i) for i in range(4))
+    assert all(item["reads"]["read_calls"] == 1 for item in items)

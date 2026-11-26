@@ -33,7 +33,7 @@ def test_shf016_an_empty_cuad_row_keeps_the_suite_headline():
     assert out["cuad_unlabeled"] is True
     assert "SHF-016" in out["scoring_hotfixes"]
     assert "overall_extraction_score" in out["scoring_hotfixes_changed"]
-    # the raw side keeps the Dojo pin's None, so the run-level raw means still exclude the row
+    # the raw side keeps the Dojo pin's None (docs/scoring-hotfixes.md says how each run mean reads it)
     assert out["raw_dojo"]["overall_extraction_score"] is None
 
 
@@ -73,3 +73,21 @@ def test_shf016_a_contract_row_without_a_cuad_key_never_needed_the_fix():
     out = score_extraction_row("contract", predicted, expected)
     assert "cuad_unlabeled" not in out
     assert "overall_extraction_score" not in out["scoring_hotfixes_changed"]
+
+
+def test_shf016_each_run_level_raw_mean_reads_the_row_as_documented():
+    """docs/scoring-hotfixes.md: run_extract_eval's raw side leaves the row out, an isolated eval's
+    pre-hotfix raw aggregate counts it as 0, and the headline of both scores it."""
+    from mailroom_sandbox.eval import runners
+
+    empty = score_extraction_row("contract", *reversed(_row(cuad_clause_labels="{}")))
+    other = score_extraction_row("contract", *reversed(_row()))
+    run = runners._extract_run_headline([empty, other], 2)
+    assert run["n_scored"] == 2 and run["raw_dojo"]["n_scored"] == 1
+    assert runners._row_value({"score": empty}, raw=True) == 0.0
+    assert runners._row_value({"score": empty}) == empty["overall_extraction_score"]
+    from mailroom_sandbox.rescore import run_scores
+
+    rescored = run_scores([{"item_id": "a", "ok": True, "score": empty}], {})
+    assert rescored["raw_dojo"]["means"]["overall_extraction_score"] == {
+        "n": 1, "mean": empty["overall_extraction_score"]}

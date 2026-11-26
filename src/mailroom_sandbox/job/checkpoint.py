@@ -17,6 +17,7 @@ import fcntl
 import io
 import json
 import os
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,8 +85,11 @@ def _read_json(path: Path, *, strict: bool = False) -> dict[str, Any] | None:
         return None
 
 
-def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
-    """Drop an unparseable newline-less tail; keep a parseable final record."""
+def truncate_torn_tail(items_path: Path, events_path: Path, *, event: str = "items_truncated") -> int:
+    """Drop an unparseable newline-less tail; keep a parseable final record.
+
+    ``event`` names the logged truncation (``reads.jsonl`` repairs report ``reads_truncated``).
+    """
     if not items_path.is_file():
         return 0
     data = items_path.read_bytes()
@@ -107,7 +111,7 @@ def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
                     json.dumps(
                         {
                             "ts": utc_now(),
-                            "event": "items_truncated",
+                            "event": event,
                             "level": "warn",
                             "detail": {"dropped_chars": len(tail)},
                         }
@@ -145,11 +149,15 @@ class RunStore:
         self.checkpoint_path = self.dir / "checkpoint.json"
         self.events_path = self.dir / "events.jsonl"
         self.nodes_path = self.dir / "nodes.jsonl"
+        self.reads_path = self.dir / "reads.jsonl"
+        self.doc_texts_dir = self.dir / "doc_texts"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
         self.cancel_path = self.dir / "cancel.request.json"
         self.cancel_ack_path = self.dir / "cancel.ack.json"
         self.run_id = self.dir.name
+        self._doc_texts_lock = threading.Lock()
+        self._doc_index: dict[str, str | None] | None = None  # doc_texts/index.jsonl: id to text_hash, loaded lazily
 
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
@@ -237,7 +245,7 @@ class RunStore:
         return lock.get("spec_hash") if lock else None
 
     def archive_generation(self) -> Path | None:
-        """Archive the current lock/items/checkpoint/events (preflight --force).
+        """Archive the current lock/items/checkpoint/events/read ranges (preflight --force).
 
         ``write_lock`` refuses to overwrite in place, so a forced re-lock must
         move the old generation aside first — otherwise new dataset bytes live
@@ -263,6 +271,7 @@ class RunStore:
             self.checkpoint_path,
             self.events_path,
             self.nodes_path,
+            self.reads_path,
             self.dataset_path,
             self.cold_boot_path,
             self.cancel_path,
@@ -271,6 +280,12 @@ class RunStore:
         ):
             if path.is_file():
                 path.rename(dest / path.name)
+        # The read-range text goes with its ranges: left behind, the floor would pair the old
+        # generation's text and ranges with the new generation's truth (and report a hash match).
+        with self._doc_texts_lock:
+            if self.doc_texts_dir.is_dir():
+                self.doc_texts_dir.rename(dest / self.doc_texts_dir.name)
+            self._doc_index = None  # the cached index described the archived directory
         return dest
 
     def write_prompt_lock(self, payload: dict[str, Any]) -> Path:
@@ -571,6 +586,119 @@ class RunStore:
         with open(self.nodes_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
             fh.flush()
+
+    # ── read ranges (offsets only; the text lives in doc_texts/) ─────────────
+    def append_read(self, record: dict[str, Any]) -> None:
+        """Append one LLM-call read-range record (``job.read_ranges``) after repairing a torn tail.
+
+        Same contract as :meth:`append_item`: preserve a parseable unterminated record and
+        separate it with a newline, discard an unparseable fragment. The digest reads
+        ``call == 1`` as the attempt boundary, so a resumed attempt's first record must land on
+        its own line — appended raw onto a torn tail, it would be lost with the fragment and the
+        previous attempt's ranges would stay in the digest. Writes are serialized by the runner's
+        read lock; the caller does not hold ``acquire()``.
+        """
+        if self.reads_path.is_file() and self.reads_path.stat().st_size:
+            with self.reads_path.open("rb") as tail:
+                tail.seek(-1, 2)
+                terminated = tail.read(1) == b"\n"
+            if not terminated:
+                truncate_torn_tail(self.reads_path, self.events_path, event="reads_truncated")
+                if self.reads_path.stat().st_size:
+                    with self.reads_path.open("ab") as tail:
+                        tail.write(b"\n")
+        with open(self.reads_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+
+    def write_doc_text(self, doc: str, text: str) -> None:
+        """Record a document's working text as ``doc_texts/<sha1(doc)[:16]>.txt``; the last write wins.
+
+        A resumed document hands over its text again, and the digest keeps the ranges of the last
+        attempt, so the stored text is replaced (temp file, then rename) to stay paired with them.
+        The bytes are written as UTF-8 with no newline translation, so offsets stay exact on every
+        platform. The raw document id is never used as a path; ``doc_texts/index.jsonl`` maps it to
+        the file and to ``text_hash`` (the tag the read records carry) and holds exactly one line per
+        document: a missing line (an append lost in a crash) is added on the next write, and a rewrite
+        with different text replaces that line instead of adding another.
+        """
+        import hashlib
+
+        from mailroom_sandbox.job.read_ranges import text_hash
+
+        name = hashlib.sha1(str(doc).encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
+        tag = text_hash(text)
+        path = self.doc_texts_dir / name
+        with self._doc_texts_lock:
+            self.doc_texts_dir.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(text.encode("utf-8"))
+            tmp.replace(path)
+            indexed = self._indexed_docs()
+            index = self.doc_texts_dir / "index.jsonl"
+            if str(doc) in indexed:
+                if indexed[str(doc)] != tag:  # the text changed (a resume): refresh the one line
+                    self._rewrite_index_entry(index, str(doc), name, tag)
+                    indexed[str(doc)] = tag
+                return
+            line = json.dumps({"doc": str(doc), "file": name, "text_hash": tag}) + "\n"
+            if not self._index_ends_with_newline(index):
+                line = "\n" + line  # a torn last line must not swallow the new entry
+            with open(index, "ab") as fh:
+                fh.write(line.encode("utf-8"))
+                fh.flush()
+            indexed[str(doc)] = tag
+
+    def _rewrite_index_entry(self, index: Path, doc: str, name: str, tag: str) -> None:
+        """Replace ``doc``'s line in ``index.jsonl`` (temp file, then rename); other lines are kept."""
+        kept: list[str] = []
+        try:
+            with open(index, encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    try:
+                        row = json.loads(raw)
+                    except ValueError:
+                        continue  # a torn line is dropped here
+                    if isinstance(row, dict) and row.get("doc") != doc:
+                        kept.append(raw.rstrip("\n"))
+        except OSError:
+            pass
+        kept.append(json.dumps({"doc": doc, "file": name, "text_hash": tag}))
+        tmp = index.with_suffix(".tmp")
+        tmp.write_bytes(("\n".join(kept) + "\n").encode("utf-8"))
+        tmp.replace(index)
+
+    def _indexed_docs(self) -> dict[str, str | None]:
+        """Document id to ``text_hash`` (None for a line without one), read once per store object."""
+        if self._doc_index is None:
+            docs: dict[str, str | None] = {}
+            try:
+                with open(self.doc_texts_dir / "index.jsonl", encoding="utf-8", errors="replace") as fh:
+                    for raw in fh:
+                        try:
+                            row = json.loads(raw)
+                        except ValueError:
+                            continue
+                        if isinstance(row, dict) and isinstance(row.get("doc"), str):
+                            tag = row.get("text_hash")
+                            docs[row["doc"]] = tag if isinstance(tag, str) else None
+            except OSError:
+                pass
+            self._doc_index = docs
+        return self._doc_index
+
+    @staticmethod
+    def _index_ends_with_newline(index: Path) -> bool:
+        """True when the index file is empty or its last byte is a newline."""
+        try:
+            with open(index, "rb") as fh:
+                size = fh.seek(0, 2)
+                if not size:
+                    return True
+                fh.seek(size - 1)
+                return fh.read(1) == b"\n"
+        except OSError:
+            return True
 
     def nodes(self, *, tail_bytes: int = 256_000) -> list[dict[str, Any]]:
         """The latest node records; a torn or corrupt line is skipped."""

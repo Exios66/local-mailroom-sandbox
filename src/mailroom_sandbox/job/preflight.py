@@ -1623,6 +1623,32 @@ def _writer_still_live(store, force: bool, cp: Mapping[str, Any]) -> bool:
     return bool(force and (remote_busy or (cp.get("state") == "running" and not remote_call)))
 
 
+def _note_trace_reads_drift(spec: RunSpec, store, report: dict[str, Any]) -> None:
+    """Say so when ``job.trace_reads`` differs from the prepared lock; the lock wins.
+
+    The switch is observational and not part of ``spec_hash`` (hashing it would refuse resume for
+    every existing lock), so a changed value is neither drift nor a new generation: the run keeps
+    recording, or not recording, as it was locked. This is a note, not a refusal, because the only
+    way to change it is ``--force``, which archives the whole generation (finished items included)
+    for a setting that moves no route, score or cost.
+    """
+    if spec.task != "pipeline":  # only pipeline runs record read ranges
+        return
+    locked = (store.read_lock() or {}).get("job", {}).get("trace_reads", True)
+    if locked is spec.job.trace_reads:
+        return
+    report["checks"].append({
+        "name": "trace_reads",
+        "ok": True,
+        "detail": (
+            f"job.trace_reads is {str(spec.job.trace_reads).lower()} in this spec but the prepared lock "
+            f"keeps {str(bool(locked)).lower()}; the run uses the lock's value. It is not part of the spec "
+            "hash, so a re-preflight does not change it; to apply the new value re-lock with --force "
+            "(this archives the generation, finished items included)."
+        ),
+    })
+
+
 def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: dict[str, Any], *, require_expanded_inputs: bool = False):
     """The existing generation's report, or None when preparation should continue."""
     if not existing:
@@ -1649,6 +1675,7 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
         return report
     report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
     report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+    _note_trace_reads_drift(spec, store, report)
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
     if not _record_decision_windows(report, spec):
