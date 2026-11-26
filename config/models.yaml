@@ -1,6 +1,6 @@
 # OpenRouter champion ids → local serving tags.
 # Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
-# Hosted-catalog sunset (2026-10-10) inventory: docs/openrouter-sunset-audit.md
+# Hosted-catalog sunset (2026-10-10) inventory: docs/archive/openrouter-sunset-audit.md
 
 # SAND-077: the default Modal+vLLM model is Qwen/Qwen3.5-9B (online FP8 on L4).
 # OpenRouter defaults to the SAME open weights (qwen/qwen3.5-9b, HF id

@@ -100,7 +100,7 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # before tracked vendor files are replaced:
 # Stop every sandbox process using this checkout before refreshing vendor trees.
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
-# sandbox deps fetch --component dojo --version v0.29.0  # optional verified release cache
+# sandbox deps fetch --check --offline  # read-only: vendor pin, verified caches, selected source
 sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
 sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
 sandbox health                     # probes the deployed modal-vllm endpoint

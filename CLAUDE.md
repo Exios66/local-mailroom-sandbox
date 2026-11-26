@@ -58,7 +58,8 @@ sandbox doctor                                              # offline status of 
   CI. Use focused single-worker checks without coverage locally; require passing
   current-head hosted gates before merging. CircleCI currently runs lint (pinned tools plus
   markdownlint), a `checks` job for committed generated files (reports hub,
-  requirements, CLI reference, runbooks, campaign reports), pytest and coverage; it has no dedicated campaign
+  requirements, CLI reference, runbooks, campaign reports), pytest, offline notebook
+  execution (`notebook-regressions`), `no-session-links` and coverage; it has no dedicated campaign
   or runtime-benchmark jobs. If those are needed, arrange scoped hosted verification
   and keep the result unverified until it runs. See [CI guidance](.circleci/README.md).
 - Live-LLM tests need `SANDBOX_LOCAL_LLM=1`; real Modal/HF contract checks need
@@ -108,12 +109,13 @@ sandbox doctor                                              # offline status of 
 - This repo owns the offline/Modal harness. **Commit sandbox fixes here first**,
   then they are imported into Digital-Mailroom. Never export hub edits back into the
   standalone repos, and never patch scoring or pipeline logic in `vendor/`.
-- `sandbox` flags such as `--profile`, `--model`, `--prompt` work before or after the
+- `sandbox` flags `--profile`, `--model`, `--prompt` and `--agent-model` work before or after the
   subcommand; a flag after the subcommand wins. `sandbox autoresearch` refuses them
   (its frozen study spec sets provider, models and prompts).
 - The reporter agent is retired here: `compile_report` is the deterministic
   procedural reporter (no LLM). Reviewers (`sorter_reviewer`) stay enabled.
-- Experiment log is `reports/experiment_log.jsonl` (sandbox-local). Reports under
+- Experiment log is `reports/experiment_log.jsonl` (sandbox-local, runtime-generated and
+  gitignored, so a fresh checkout has none). Reports under
   `reports/` are large; search narrowly instead of grepping the whole tree.
 
 ## Environment and dispatch

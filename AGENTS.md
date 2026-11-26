@@ -15,9 +15,18 @@ rejects moved refs before replacing tracked vendor files. The drift guard
 packages; run `python scripts/sync_vendor.py` from the sandbox package root,
 using the monorepo as the source workspace
 (DMR-070). The docclass-era compliance files are intentionally absent from
-the vendored llm-mailroom tree (retired agent, 59c47401). The sandbox is
-**self-contained**: no pip git pins, no `sandbox fetch-deps` step, no network
-needed to score or run evals. Prompt loops run through the vendored `llm-mailroom`.
+the vendored llm-mailroom tree (retired agent, 59c47401). A fresh checkout is
+**self-contained**: no `sandbox fetch-deps` step and no network are needed to
+score or run evals. Prompt loops run through the vendored `llm-mailroom`.
+
+**Source precedence.** The vendored trees are the fallback, not the only
+source. In `auto` mode (`SANDBOX_DOJO_SOURCE`, see `src/mailroom_sandbox/dojo_source.py`)
+scoring prefers an installed Dojo release that matches the pin
+(`requirements/dojo-release.txt`, a git pin kept out of `pyproject.toml`), then a
+selected verified cache (`SANDBOX_DOJO_SNAPSHOT`), then `vendor/llm-dojo-scoring/`.
+`SANDBOX_DOJO_SOURCE=vendored` forces the snapshot. An explicit `DOJO_SRC` wins
+over all of these (`MAILROOM_SRC` does the same for the pipeline). Each run lock records the source it
+used in `dependency_sources`. See [the snapshot guide](docs/dependency-snapshots.md).
 
 Python 3.11+, no build step.
 
@@ -29,8 +38,8 @@ the offline/local and Modal/vLLM GPU execution and testing environment.
 The-Mailroom is their shared visualizer. Vendor snapshots consume reviewed,
 committed standalone source revisions; the hub refresh mirrors packages only
 after those sources have been imported. Preserve live corporate v6 and sandbox
-evaluation v7 independently. The historical sandbox v0.2.0 release exists;
-current development version and immutable vendor pins are separate facts.
+evaluation v7 independently. The package version (`pyproject.toml`, released
+tags in `CHANGELOG.md`) and the immutable vendor pins are separate facts.
 
 ## Instruction validation (routine)
 
@@ -161,8 +170,8 @@ Meta agents: **`harness-doctor`**, **`adversarial-reviewer`** and
 [`docs/pr-review-lanes.md`](docs/pr-review-lanes.md)). See
 [`config/subagents/README.md`](config/subagents/README.md). Harness health:
 `sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
-sibling checkouts). Durable eve doctor:
-`~/Downloads/agent-harness-doctor` (`npm exec -- eve dev`, Node >= 24).
+sibling checkouts). The durable eve doctor is a separate checkout outside this
+repository (`npm exec -- eve dev`, Node >= 24).
 
 ## Commands
 
@@ -242,10 +251,10 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.4`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: `--profile`, `--model`, `--prompt` and `--agent-model` work before OR after the subcommand on every command (a flag after the subcommand wins; `SANDBOX_PROFILE` is the default). Exception: `sandbox autoresearch` refuses all four (a non-default `--profile` included), because the study's frozen base run spec sets them.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
-- Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
+- Experiment log: `reports/experiment_log.jsonl` (sandbox-local, written at runtime and gitignored, so a fresh checkout has none).
 - Experiment reports: `sandbox experiment report` writes `report.md`, `report.json` and `cards/<run-id>.card.json` beside the manifest with the sand42 card contract (`docs/SAND42-EXPERIMENT-DESIGN.md` section 5), per-class routing and paired CIs.
 - Human review: `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked documents survive a restart. Decision-reviewer classes (`--decision-reviewer BACKEND:MODEL`, `--decision-class CLASS=CUTOFF`) reach their reviewer at any sorter confidence, after the sorter's retries. Agreement at the cutoff goes to `extract`. A sorter below its low band may be corrected by a reviewer at the cutoff. An unsure reviewer, or disagreement with a medium or high sorter, parks for human review. Cutoffs are provisional until issue #208. Other classes have no disagreement check. An unsure extraction reaches the judge once its retries are spent, unless it is empty or failed a guardrail; only a complete, accurate judge pass that read the whole source lets it archive, otherwise it parks. The arbiter also reads the source.
-- Decision backends (SAND-085): `local` runs `sorter_reviewer` on the run's own serving route; `api` runs it through OpenRouter on `agent_routes.sorter_reviewer` (e.g. `api:openai/gpt-6-luna`) and accepts pinned provider ids only, so `-latest`, `~`, `:floor` and `openrouter/*` ids are refused; `jev` and `mock` are the other backends. Every live class, correspondence included, accepts every backend. The Enron correspondence is public, so no backend refuses it (SAND-086 cancelled).
+- Decision backends (SAND-085): `decisions` (recommended) sends `sorter_reviewer` to the OpenRouter Decisions API (`decisions:openai/gpt-6-luna-decisions`); `local` runs it on the run's own serving route; `api` runs it as a chat model through OpenRouter on `agent_routes.sorter_reviewer`, needs `allow_chat_model: true` and accepts pinned provider ids only, so `-latest`, `~`, `:floor` and `openrouter/*` ids are refused; `jev` and `mock` are the other backends. Every live class, correspondence included, accepts every backend. The Enron correspondence is public, so no backend refuses it (SAND-086 cancelled).
 - Reviewer runs: the decision reviewer is the Decisions-API model `openai/gpt-6-luna-decisions` (OpenRouter `POST /api/alpha/decisions`; no chat route, a probability per option, input-only pricing), set with `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}`. Question sets live in `config/decisions/` and are frozen in the run lock. `config/runs/reviewer-calibration-luna-decisions-v2.yaml` (735 train documents, `reviewer_decisions_v2`) puts all five classes over the 95% target (contract 0.78, merger_agreement 0.99, corporate_record 0.96, correspondence 0.64, insurance_claim 0.70); `reviewer-validation-luna-decisions-v2-test.yaml` routes 98.5% of the test split unattended with one misroute (`reports/reviewer-calibration/reviewer-calibration-luna-decisions.md`). `config/runs/pipeline-luna-decisions-qwen-smoke.yaml` runs the full pipeline (`qwen/qwen3.7-flash`, 10 documents at a time, single-call sorter) with that reviewer. Never calibrate the reviewer on a chat model: preflight refuses a paid `task: sorter_reviewer` run without a `reviewer:` block, and `backend: api` needs `allow_chat_model: true`. The older `reviewer-calibration-luna*.yaml`, `reviewer-validation-luna-*.yaml` and `sorter_reviewer_decision_v*.txt` runs used the chat model `openai/gpt-6-luna` by mistake and are superseded. `scripts/calibrate_reviewer.py --run <id>` picks each class's cutoff from a finished calibration run. Start: `sandbox run preflight --config <file>`, then `sandbox run start --config <file> --initials <XX>` (the spend gate; initials are 2–6 capital letters). If a long `task: pipeline` process dies, the checkpoint stays `running` and `sandbox run resume` continues it. A draft 4.2.0 question set also locks `reviewer.routing_sha256`; resume returns `drift_refused` when those routing helpers change, and `--force` archives the generation and re-locks ([design](docs/decision-model-input-design.md)).
 - Paid runs (SAND-089): every paid run needs `job.max_wall_seconds`; a run that warms a Modal GPU, or has no API model, also needs `job.cost_cap_usd`; a run that sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a token price for every API model: `config/api_prices.yaml` (full OpenRouter price sheets; a tier applies to a whole call whose prompt reaches its `min_prompt_tokens`), with the built-in `SANDBOX_MODEL_PRICES` table in `src/mailroom_sandbox/job/metrics.py` as the fallback. The run ceiling uses each model's dearest tier. The GPU cap does not limit OpenRouter spend. `sandbox experiment create` recommends all three from the design.
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
@@ -306,7 +315,7 @@ for source links and registered communication types.
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone commit/release refs as the fallback; refresh with `python scripts/sync_vendor.py` from the sandbox package root (the monorepo supplies source packages), or `sandbox fetch-deps`, and commit the diff. Fixes needed before upstream ships them are wrappers in `src/mailroom_sandbox/vendor_hotfixes.py`, fingerprint-bound to the vendored source, recorded in run locks and gated by preflight ([docs/vendor-hotfixes.md](docs/vendor-hotfixes.md)). `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
+- The tracked snapshots carry the pins (the scoring source order is under "Source precedence" above): `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both consume reviewed standalone revisions through workspace packages when available, with SHA-frozen standalone commit/release refs as the fallback; refresh with `python scripts/sync_vendor.py` from the sandbox package root (the monorepo supplies source packages), or `sandbox fetch-deps`, and commit the diff. Fixes needed before upstream ships them are wrappers in `src/mailroom_sandbox/vendor_hotfixes.py`, fingerprint-bound to the vendored source, recorded in run locks and gated by preflight ([docs/vendor-hotfixes.md](docs/vendor-hotfixes.md)). `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
 - Sandbox-isolated work uses the local **`SAND-*`** board in
