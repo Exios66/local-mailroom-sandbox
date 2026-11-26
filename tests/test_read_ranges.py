@@ -154,6 +154,33 @@ def test_ranges_are_capped_and_merged():
         pos = doc.find(b)
         assert all(covered[pos : pos + len(b)])
     assert result["matched_chars"] == sum(len(b) for b in blocks)
+    # Capping merged the smallest gaps: the ranges span unread text and say so.
+    assert result["ranges_approx"] is True
+
+
+def test_uncapped_ranges_are_exact():
+    result = match_ranges(ShingleIndex("abc def ghi jkl mno pqr"), "abc def ghi jkl mno pqr")
+    assert result["ranges_approx"] is False
+
+
+def test_candidate_rotation_stays_in_order_without_copying_the_whole_list():
+    """A repetitive document with more candidates than the cap: matches stay in document order."""
+    doc = ("AB" * 24) * 500
+    request = doc[:2000]
+    result = match_ranges(ShingleIndex(doc), request)
+    assert result["matched_chars"] > 0
+    assert result["ranges"] == sorted(result["ranges"])
+
+
+def test_oversized_gap_pieces_count_as_unplaced():
+    """A request gap too large to scan keeps its pieces unmeasured, not silently covered."""
+    left, right = "Q" * 100, "Z" * 100
+    gap = "unmatchedword " * 6_000  # 78,000 chars > _MAX_GAP_CHARS
+    doc = left + "\n\n" + right
+    request = left + "\n\n" + gap + "\n\n" + right
+    result = match_ranges(ShingleIndex(doc), request)
+    assert result["unplaced_pieces"] >= 1
+    assert result["matched_chars"] > 0
 
 
 def _covered(ranges, n):

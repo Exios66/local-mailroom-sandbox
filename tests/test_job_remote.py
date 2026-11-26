@@ -282,6 +282,22 @@ def test_remote_pull_includes_reads(tmp_path, source_root, modal_fs):
     assert store.state() == "done"
 
 
+def test_pull_clears_the_cached_document_index(tmp_path, source_root, modal_fs):
+    """The pulled doc_texts/index.jsonl replaces the cached one, not the other way round."""
+    store = prepared(tmp_path, source_root)
+    store._doc_index = {"d0": "stale-hash-from-the-local-generation"}
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    from mailroom_sandbox.job.checkpoint import RunStore
+    remote_store = RunStore(target)
+    remote_store.write_doc_text("d0", "remote working text")
+    remote_store.write_checkpoint(state="done", cursor=0, total=1)
+    assert remote.pull_run_dir(store) == (0, "")
+    assert store._doc_index is None, "a cached index would keep the pulled hash beside a new text"
+    fresh = RunStore(store.dir)
+    assert store._indexed_docs() == fresh._indexed_docs()
+
+
 def test_pull_writes_checkpoint_after_reads_and_doc_texts(tmp_path, source_root, modal_fs, monkeypatch):
     store = prepared(tmp_path, source_root)
     remote.fire(store)

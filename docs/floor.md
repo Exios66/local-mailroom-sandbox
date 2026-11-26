@@ -210,7 +210,8 @@ A class is matched to its specialist by name (`contract` and
 counts as routed to whichever specialist ran. When a specialist call has no exact
 range (raw basis or a size skip), or the served text length differs from the
 recorded working length (`doc_chars`; null skips the check), `not read` is not claimed and the panel says why.
-When `text_pairing` is `different`, the stored text is from another attempt than the read ranges (a resumed run rewrote it, possibly to the same length), so the bands are withheld and no `not read` or `misrouted` flag is raised. Stores recorded before the hash existed have no `text_pairing` and keep the length check alone.
+When `text_pairing` is `different`, the stored text is from another attempt than the read ranges (a resumed run rewrote it, possibly to the same length), so the bands are withheld and no `not read` is raised; `misrouted` is still shown, because it does not depend on the ranges. The endpoint response carries the `text_hash` of the exact text it served, and the panel also withholds the bands when that hash differs from the digest's (a rewrite the digest has not rebuilt yet). Stores recorded before the hash existed have no `text_pairing` and keep the length check alone.
+A specialist call that reached the 64-range cap has `approx` in the digest: capping merged the smallest gaps, so a range also spans unread text and cannot prove a value was read (the call's `matched_chars` stays exact). A call with `unplaced` pieces — a request piece the matcher could not place, whose gap was too large to scan included — was only partly measured. When any specialist call is approximate or partly measured, no definitive `not read` is claimed and the panel says so.
 "matches" and "differs" beside an extracted value compare strings only. They
 are not the Dojo score.
 

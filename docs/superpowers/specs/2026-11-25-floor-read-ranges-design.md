@@ -72,8 +72,9 @@ So **ranges are measured against the document's working text**: the text in grap
 which is what every later agent's window is cut from.
 
 - The runner captures that text once per document from the intake node's output.
-- It is written to the local run store as `doc_texts/<doc>.txt`. That store is gitignored local
-  runtime state, and it already holds the raw text in `dataset.jsonl`.
+- It is written to the run store as `doc_texts/<doc>.txt`. That store is gitignored runtime
+  state (local under `data/runtime`; a remote Modal job also holds it on the Modal volume with
+  the rest of the run directory), and it already holds the raw text in `dataset.jsonl`.
 - The digest and the export never contain it.
 - The inspector shows the working text with the bands. A toggle shows the original row text, without
   bands.
@@ -143,7 +144,10 @@ which is what every later agent's window is cut from.
   - The redeploy is a paid, live step this work does not take, and remote behaviour stays unverified.
     Local and OpenRouter runs are covered. *(My call, given that OpenRouter is the primary path.)*
 - **Switch:** on by default for pipeline runs; the spec knob `job.trace_reads: false` turns it off.
-  The knob is documented for future runs. No resume shims are needed, since no run is open.
+  The knob is documented for future runs. On a resume the lock keeps its recorded `trace_reads`
+  value, and the digest keeps only the last attempt's call sequence (a resumed document re-appends
+  `call=1..n`, so a record with `call == 1` supersedes the earlier attempt); no other resume shim
+  is needed, since no run is open.
 
 ### Digest (`reports/dashboard/build_floor_digest.py`)
 
@@ -167,7 +171,8 @@ which is what every later agent's window is cut from.
   - the working text in a scrollable pane, with a minimap of ranges;
   - one toggle per agent: intake, sorter, reviewer, specialist(s), judge, arbiter, classification
     arbiter, decision lanes;
-  - a per-call toggle when an agent ran more than once (retries, resumed documents);
+  - a per-call toggle when an agent ran more than once (retries; on a resumed document, the
+    digest keeps only the last attempt's call sequence, so the toggle lists those);
   - band colours taken from the repo's figure colour roles.
 - **Field rows:**
   - Expected and extracted value per field. Occurrences are found with whitespace- and

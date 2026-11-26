@@ -1235,7 +1235,7 @@ const w=DOC,calls=[call("contracts_specialist","extract",[rangeOf("Lease between
 const panel=pairing=>rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:[...w].length,...(pairing?{text_pairing:pairing}:{})},cls:{gt:"contract",pred:"contract"},specialists:SP,
  status:"ok",reason:"",data:{working:w,original:null,expected:{parking:"75"},extracted:{},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:null},
  on:[rdLaneKey("contracts_specialist","extract")],callOff:[],original:false,field:null,hit:0,cache:{}});
-A.match(panel("different"),/Bands withheld[\s\S]*different attempt than the stored working text/);
+A.match(panel("different"),/Bands withheld[\s\S]*different text than the one stored or served/);
 A.doesNotMatch(panel("different"),/rd-seg[^>]*linear-gradient/);A.match(panel("match"),/rd-seg[^>]*linear-gradient/);   // painted only when paired
 for(const ok of ["match","missing",""])A.doesNotMatch(panel(ok),/Bands withheld/);   // match, no text to compare, or an old store
 const mk=pairing=>rdAnalyse({text:w,expected:{parking:"75"},extracted:{},reads:{calls,union:{},doc_chars:[...w].length,...(pairing?{text_pairing:pairing}:{})},cls:{gt:"contract",pred:"contract"},specialists:SP});

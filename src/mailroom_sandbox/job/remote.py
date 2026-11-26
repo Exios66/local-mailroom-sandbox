@@ -438,6 +438,10 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                              "experiment_log.jsonl", "doc_texts", "checkpoint.json"):
                     item = source / name
                     if name == "doc_texts":
+                        # The pulled index replaces the cached one (checkpoint.py clears it for
+                        # the same reason when a generation is archived): a cached index would
+                        # keep the pulled text_hash beside a newly written text file.
+                        store._doc_index = None
                         _copy_plain_files(item, store.dir / name, stage=True)
                     elif item.is_file():
                         # Replace each file from a local staging file; checkpoint last.

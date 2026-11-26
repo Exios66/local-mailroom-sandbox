@@ -9,7 +9,8 @@ inspector.
 **Architecture:**
 
 - A new `job/read_ranges.py` holds a per-document context, a shingle matcher and two writers:
-  `reads.jsonl` (ranges only) and `doc_texts/<doc>.txt` (the working text, in the local run store).
+  `reads.jsonl` (ranges only) and `doc_texts/<doc>.txt` (the working text, in the run store; a
+  remote Modal job also holds it on the Modal volume with the rest of the run).
 - Two thin observers feed it: an outermost `_call_structured` wrapper, and the decision transport.
 - The floor digest attaches the ranges as numbers. A new loopback endpoint serves text and field
   values to a DOCUMENT panel.
@@ -30,7 +31,8 @@ inspector.
   against the raw row text and marked `basis: "raw"`.
 - No text in `nodes.jsonl`, `items.jsonl`, `reads.jsonl`, `floor_digest.json`/`.js`, the digest
   export, Langfuse or git. The working text goes only to `<run store>/doc_texts/<doc>.txt`
-  (gitignored `data/runtime`).
+  (gitignored `data/runtime`); a remote Modal job also copies that directory to the Modal volume
+  with the rest of the run, and pulls it back, like `dataset.jsonl`.
 - Do not edit `vendor/**`, `vendor_hotfixes.py`, `requirements/*.txt`, `uv.lock`, `.env*`,
   `data/runtime`, `data/cache`. Do not lower coverage (`fail_under = 84`).
 - Observers never change a request or a result. Every exception inside recording is swallowed and
@@ -160,7 +162,8 @@ inspector.
   - `test_reads_hold_no_text`: no string value in a `reads.jsonl` line is longer than 64 characters.
   - `test_tracker_hands_intake_text_over`: `NodeTracker.on_chain_end` for node `intake`, with outputs
     `{"doc_text": "X"*500}`, calls `set_working_text` exactly once.
-  - `test_classification_arbiter_is_tracked`: `NODE_AGENTS["classification_arbiter"] == "classification_arbiter"`,
+  - `test_classification_arbiter_is_tracked`: `NODE_AGENTS["classification_arbiter"] == "arbiter"`
+    (the node runs the `arbiter` agent, matching `node_trace.py` and `docs/floor.md`),
     and a chain start/end for that node emits running and done records.
   - `test_trace_reads_knob`:
     - `job.trace_reads: false` validates and disables recording;
@@ -203,8 +206,13 @@ inspector.
     an existing observer layer (`__sandbox_read_ranges__`) through `__wrapped__`, then wraps the
     current attribute once.
   - Targets are `sampling._TARGETS`.
-  - The observer records `agent_name`, `system_prompt` and `user_message` joined by `"\n"`, then calls
-    the wrapped function with the same arguments.
+  - The observer builds a pending read from `agent_name`, the caller-passed plain-string
+    `system_prompt` and `user_message` joined by `"\n"`, then calls the wrapped function with the
+    same arguments. It records only after the call guard admits the request (`admit_pending`), or
+    — when the call meets no guard (non-OpenRouter routes, the native sampling endpoint) — when
+    the call returns or raises. A guard-refused request is never recorded (`refuse_pending`).
+  - The observer stays the outermost layer: a sampling layer may replace the call path, so only
+    an outer observer sees every request.
 
 - [ ] **Step 1: Write the failing tests**
   - `test_observer_sees_every_call_and_changes_nothing`:
@@ -384,7 +392,8 @@ inspector.
 
 - [ ] **Step 1: Document for future runs.**
   - What gets recorded and where.
-  - That text stays in the local run store only.
+  - That text stays in the run store (a remote Modal job also holds it on the Modal volume with
+    the rest of the run).
   - The knob.
   - That remote runs record after the next worker deploy (unverified until then).
   - The intended new `classification_arbiter` records in `nodes.jsonl`.
