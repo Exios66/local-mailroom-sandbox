@@ -168,9 +168,9 @@ same vendor refresh.
   therefore a lower bound on re-asks made.
 - **A judge that fails to parse twice still parks the document.** HF-002 and HF-013 ask once more, so a
   single unparseable answer no longer parks a correct document, but two in a row still raise
-  `JudgeParseError` (human review, counted by the gate as `parked`). The re-ask repeats the same request at
-  temperature 0, so a judge that fails the same way every time recovers nothing. How often a live judge
-  fails to parse and recovers on the repeat is unmeasured offline (the harness answers its own scripted
+  `JudgeParseError` (human review, counted by the gate as `parked`). Since phase 2 (L3) the re-ask carries a
+  repair note and the start of the unparseable reply, so it is not the same request. How often a live judge
+  fails to parse and recovers on the re-ask is unmeasured offline (the harness answers its own scripted
   verdicts); the first spend-gated run reads it from `judge_reasks` on the items and in the gate report.
 - **HF-014 answers before any later `decision_point:*` route rule.** `graph.route_spec.decide_route`
   returns the first rule that answers, and HF-014's rule is registered right after HF-011's, ahead of the

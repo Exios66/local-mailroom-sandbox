@@ -1900,6 +1900,10 @@ def _near_empty_item(row: dict[str, Any], src: Any) -> dict[str, Any] | None:
         "escalation_reason": f"near-empty document ({chars} characters, floor {spec.near_empty_chars})"}, src)
     item["governor_stop"] = {"reason": "near_empty", "outcome": "human_review", "node": "intake", "proposed": None,
                              "calls": 0, "retries": 0, "spend_usd": 0.0}
+    from mailroom_sandbox.job.node_trace import note_node
+
+    # The graph never runs, so no callback writes this document's node record; the gate audit needs one.
+    note_node("intake", "done", ms=0.0, stage="review", skipped="near_empty")
     return item
 
 

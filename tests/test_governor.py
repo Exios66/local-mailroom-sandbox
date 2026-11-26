@@ -517,6 +517,20 @@ def test_an_empty_inline_field_falls_back_to_the_fixture(pipeline_spy, monkeypat
     assert runners._near_empty_item({"id": "p1", "text": "", "subdir": "x", "filename": "scan.pdf"}, None) is None
 
 
+def test_a_near_empty_document_leaves_a_node_record_for_the_gate_audit(pipeline_spy):
+    """The gate's audit trail needs a nodes.jsonl record for every document; L5 never enters the graph."""
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.job.node_trace import track_nodes
+
+    governor.activate(GovernorSpec())
+    records = []
+    with track_nodes("n0", records.append):
+        item = runners._run_pipeline_doc_once(_doc_row("x" * 40), mock=False)
+    assert item["stage"] == "review" and pipeline_spy == []
+    assert [(r["doc"], r["node"], r["status"], r["stage"]) for r in records] == [("n0", "intake", "done", "review")]
+    assert records[0]["skipped"] == "near_empty"
+
+
 def test_near_empty_rows_are_scored_as_review(pipeline_spy):
     from mailroom_sandbox.eval import runners
     from mailroom_sandbox.job import gate

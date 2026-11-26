@@ -85,13 +85,18 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   see the final destination after HF-011 and HF-014. Wrapping `decide_route` sees the final answer for every
   node in one place. The counters stay out of graph state, in the document scope.
 - **`archive_with_caveats` in this phase.** There are no judge fixes before phase 4. In this phase, "passed the
-  judge and every field named wrong has a verified fix" means `judge_verdict == "complete"` with no
-  `judge_findings`. The outcome routes to `compile_report`, the router's own archive path. Phase 4 adds verified
-  fixes to the condition.
+  judge and every field named wrong has a verified fix" means `judge_verdict == "complete"` on the latest
+  recorded extraction attempt. As built (Task 4 ruling and final review), `judge_findings` is not read (the
+  vendored judge stores its reasoning there even for a pass), the vendored judge tail's archive guards must also
+  hold (`routing._extraction_still_unsure` and `routing._unadjudicated_conflict` false), and a stopped
+  `boss_escalation` always goes to review. The outcome routes to `compile_report`, the router's own archive
+  path. Phase 4 adds verified fixes to the condition.
 - **L1: no vendor patch is needed for the SDK retries.** The LangChain and Decisions paths already set
   `max_retries=0`. The native path builds `OpenAI()` with the SDK default (`llm/client.py:228-235`).
   `pinned_retry_chat_completion` turns SDK retries off only for the client it is given
   (`client.with_options(max_retries=0)`), so any other caller of that client keeps its own retries.
+  As built (final review), retries were already off on the LangChain path but its failed attempts were not
+  counted; `PinnedChatOpenAI._generate` / `_agenerate` now count them, and so does the Decisions loop.
 - **L1: the transport timeout is capped at the run deadline.** Nodes have no per-node deadline. The only
   deadline is the run's (`state["run_deadline"]`, `pipeline.limits.get_run_deadline()`), and Decisions already
   caps its timeout at it (`decision_backends.py:799-807`). This finishes the S2 item phase 1 moved here.
@@ -199,7 +204,8 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
 
 - Consumes: nothing from Task 1.
 - Produces:
-  - **The `document()` scope** gains `llm_calls: int`, `spend_usd: float` and `governor: {"retries": 0,
+  - **The `document()` scope** gains `llm_calls: int` (every call), `spend_usd: float` (priced only while a
+    budget is armed) and `governor: {"retries": 0,
     "boss": 0, "skipped_classify_retries": 0}`.
   - **`call_guard.scope() -> dict | None`:** the public accessor for the current document scope.
   - **`call_guard.note_failed_attempt() -> None`:** adds 1 to `calls` and to `llm_calls`.
@@ -286,16 +292,18 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     2. **L2:** node `classify`, `proposed == "retry_classify"`, `sorter_ceiling` set,
        `state["classification_confidence"] >= sorter_ceiling` and `"review_classify"` in destinations. Return
        `"review_classify"` and add 1 to `skipped_classify_retries`. This is not a round.
-    3. `proposed` not in `ROUND_DESTINATIONS`, or `proposed == node` (a transient self-loop): return
-       `proposed`.
+    3. `proposed` not in `ROUND_DESTINATIONS`, or `proposed == node` with `state["transient_error"]` set (a
+       node re-run for a transient error): return `proposed`. A self-loop without one (a second
+       re-extraction) is a round.
     4. Stop reasons, first match wins:
        - `boss_repeat`: `proposed == "boss_escalation"` and `boss >= 1`;
        - `retry_budget`: `retries >= spec.retries`;
        - `call_budget`: `llm_calls >= call_budget(state.get("doc_type"))`;
        - `spend_budget`: `spend_usd` set and the document's spend is at least that.
-    5. On a stop, return `stop_destination(state, destinations)`: `"compile_report"`
-       (`archive_with_caveats`) when `state["judge_verdict"] == "complete"`, `not state.get("judge_findings")`
-       and `"compile_report"` is in destinations; otherwise `"human_review"`. Record `scope["governor_stop"] =
+    5. On a stop, return `stop_destination(state, destinations, proposed)`: `"compile_report"`
+       (`archive_with_caveats`) when `proposed != "boss_escalation"`, `"compile_report"` is in destinations,
+       the latest recorded attempt has a `complete` verdict and the vendored archive guards hold; otherwise
+       `"human_review"`. Record `scope["governor_stop"] =
        {"reason", "outcome", "node", "proposed", "calls", "retries", "spend_usd"}` on the first stop only.
     6. Otherwise add 1 to `retries` (and to `boss` for a boss entry) and return `proposed`.
   - **HF-018** wraps `decide_route(spec, state)`: `dest = original(spec, state)`, then `return
@@ -313,8 +321,9 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     - `test_mergers_get_36_calls`: at 30 calls a `merger_agreement` still retries; at 36 it stops.
     - `test_a_second_boss_entry_is_boss_repeat`;
     - `test_spend_budget_off_by_default_and_on_when_set`;
-    - `test_a_passed_extraction_stops_as_archive_with_caveats`: `judge_verdict "complete"`, no findings, budget
-      spent at a boss entry. Stage `archived`, `outcome == "archive_with_caveats"`.
+    - `test_a_passed_extraction_stops_as_archive_with_caveats`: `judge_verdict "complete"` on the latest
+      attempt, budget spent at an arbiter proposal. `outcome == "archive_with_caveats"`. As built, a stopped boss
+      entry goes to review (`test_a_stopped_boss_entry_is_never_archived`).
   - **Wiring and safety:**
     - `test_every_stop_destination_is_wired_for_its_node`: for each `ROUTE_SPECS` node that can propose a
       round destination, `human_review` is in its destinations.
@@ -457,7 +466,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   - `test_the_gate_counts_governor_stops_by_reason`;
   - `test_a_governor_stop_is_its_own_cause`;
   - `test_duplicates_are_counted_in_the_gate`.
-- [x] **Step 2: Run them; they fail.** Run the gate test file with `-n 0 --no-cov`.
+- [x] **Step 2: Run them; they fail.** Run `tests/test_gate.py` with `-n 0 --no-cov`.
 - [x] **Step 3: Implement** the aggregation and the cause, then write the docs.
 - [x] **Step 4: Run every file this phase touched:**
 
@@ -465,7 +474,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   .venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py tests/test_call_guard.py \
     tests/test_provider_pins.py tests/test_vendor_hotfixes.py tests/test_arbiter_termination.py \
     tests/test_judge_second_pass.py tests/test_job_runner.py tests/test_pipeline_concurrency.py \
-    tests/test_job_spec.py <the gate test file>
+    tests/test_job_spec.py tests/test_gate.py
   ```
 
   Also run ruff, markdownlint, `scripts/check_cli_surface.py --check` and `sandbox runbook check`.

@@ -107,8 +107,9 @@ def document() -> Iterator[dict[str, Any]]:
     """One document's scope: its call count and, if the guard refused a call, why.
 
     ``calls`` counts guarded calls while a budget is armed (the hard ceiling reads it).
-    ``llm_calls`` and ``spend_usd`` count every call and its priced spend, armed or not, and
-    ``governor`` holds the loop governor's round counters (phase 2, ``mailroom_sandbox.governor``).
+    ``llm_calls`` counts every call, armed or not; ``spend_usd`` is its priced spend, which needs an armed
+    budget (unarmed, nothing prices a call). ``governor`` holds the loop governor's round counters
+    (phase 2, ``mailroom_sandbox.governor``).
     """
     state: dict[str, Any] = {"calls": 0, "refused": None, "llm_calls": 0, "spend_usd": 0.0,
                              "governor": {"retries": 0, "boss": 0, "skipped_classify_retries": 0}}

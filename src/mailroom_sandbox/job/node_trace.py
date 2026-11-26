@@ -245,6 +245,17 @@ def track_nodes(doc_id: str, sink: Callable[[dict[str, Any]], None], *,
         _TRACKER.reset(token)
 
 
+def note_node(node: str, status: str, **extra: Any) -> None:
+    """Report one node record for the document tracked in this context (a no-op outside ``track_nodes``).
+
+    For a step the graph does not run, such as L5's near-empty review, so the document still has the
+    ``nodes.jsonl`` record the gate audit requires.
+    """
+    tracker = _TRACKER.get()
+    if tracker is not None:
+        tracker._emit(node, status, **extra)
+
+
 class NodeTotals:
     """Run-wide per-node aggregates that can be fed records a batch at a time.
 

@@ -526,7 +526,9 @@ latest recorded extraction attempt has a `complete` judge verdict and the judge 
 a stopped boss entry is never archived. Transient provider errors keep their own limit
 (`transient_retry_max`) and still count toward the call and spend budgets. With L1, every HTTP attempt on
 the chat, LangChain and Decisions paths counts, a failed one included (a request the guard refused never
-went out and does not count). The call budget is checked before each round, so a round that starts below it
+went out and does not count). A successful reply that carries no usage is the exception: it is not counted,
+because a missing usage block cannot be told from a cache hit that made no request. Cost is reserved only
+for guarded (OpenRouter) requests while a budget is armed. The call budget is checked before each round, so a round that starts below it
 can still end above it; the hard ceiling stays the backstop. The mechanics are vendor hotfixes HF-018 and
 HF-019 ([vendor hotfixes](vendor-hotfixes.md)).
 
