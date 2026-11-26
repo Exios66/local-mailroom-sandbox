@@ -43,12 +43,14 @@ def _links(path: Path) -> list[Path]:
 
 def test_every_doc_is_reachable_from_the_docs_index():
     """docs/README.md links every page, directly or through pages it links. Add new pages there."""
-    start = (ROOT / "docs" / "README.md").resolve()
+    docs = (ROOT / "docs").resolve()
+    start = docs / "README.md"
     seen, queue = {start}, [start]
     while queue:
         page = queue.pop()
         for target in _links(page):
-            if target.suffix == ".md" and target.is_file() and target not in seen and ROOT in target.parents:
+            # Crawl only inside docs/: a page linked from the root README or AGENTS.md is not indexed.
+            if target.suffix == ".md" and target.is_file() and target not in seen and docs in target.parents:
                 seen.add(target)
                 queue.append(target)
     missing = [
