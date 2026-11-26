@@ -99,7 +99,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    | 5 | label | `label_suspect` (a heuristic `intent` label only: never one an interim, staged or near-gold overlay supplied) |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
 
-   A reviewer cause (`reviewer_unknown`, `reviewer_disagreement`, the reviewer's low confidence) is settled when the item records that the classification arbiter accepted a class (`classification_arbiter_decision` is `accept_sorter` or `accept_reviewer`): extraction ran only after that acceptance, so row 4 decides first and the reviewer cause names the bucket only when no judge cause is on the item. An item without the decision keeps the order in the table, with one exception: the extraction arbiter outranks the reviewer's low-confidence doubt.
+   A reviewer cause (`reviewer_unknown`, `reviewer_disagreement`, the reviewer's low confidence) is settled when the item records that the classification arbiter accepted a class (`classification_arbiter_decision` is `accept_sorter` or `accept_reviewer`): extraction ran only after that acceptance, so rows 4 to 6 decide first and the reviewer cause names the bucket only when none of them applies. An item without the decision keeps the order in the table, with one exception: the extraction arbiter outranks the reviewer's low-confidence doubt.
 
    Two mechanism buckets sit outside this order:
    - `mechanism:scorer_error`: a Dojo failure while typing the extraction miss.

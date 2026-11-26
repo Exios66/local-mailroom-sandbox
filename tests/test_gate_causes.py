@@ -210,6 +210,20 @@ def test_review_cause_mapping(causes, extra, expected):
     assert cause_of(review(causes, **extra)) == expected
 
 
+@pytest.mark.parametrize("reviewer_tokens, extra", [
+    (["reviewer_disagreement"], {}), (["reviewer_unavailable"], {}), (["reviewer_low_confidence"], {}),
+    ([], {"reviewer_doc_type": "unknown"}),
+])
+@pytest.mark.parametrize("decision", [ACCEPT_SORTER, ACCEPT_REVIEWER])
+def test_a_settled_reviewer_cause_ranks_below_an_extraction_miss(reviewer_tokens, extra, decision):
+    """Once the classification arbiter accepted a class, an extraction miss names the park, not the reviewer."""
+    alone = cause_of(review(["extraction_miss"], **decision))
+    assert alone.startswith(("extraction:", "label_suspect")), alone
+    assert cause_of(review([*reviewer_tokens, "extraction_miss"], **decision, **extra)) == alone
+    # without the recorded acceptance the reviewer cause keeps its precedence over the extraction lane
+    assert cause_of(review([*reviewer_tokens, "extraction_miss"], **extra)).startswith("classification:")
+
+
 def test_reviewer_doc_type_unknown_without_a_cause_token():
     assert cause_of(review(["reviewer_disagreement"], reviewer_doc_type="unknown")) \
         == "classification:reviewer_unknown"

@@ -15,8 +15,8 @@ precedence:
    settled past that doubt, so the doubt is stale. When the item records that the classification
    arbiter accepted a class (``classification_arbiter_decision`` ``accept_sorter`` or
    ``accept_reviewer``), every reviewer cause (``reviewer_unknown``, ``reviewer_disagreement``, the doubt)
-   is settled: the judge lane below decides first, and a reviewer cause names the park only when
-   nothing there does. An item that does not carry the decision keeps the order above;
+   is settled: the judge and extraction lanes below decide first, and a reviewer cause names the park
+   only when nothing there does. An item that does not carry the decision keeps the order above;
 3. ``judge``: ``arbiter_escalated`` (the extraction arbiter's ``arbiter_escalated``: it ruled last on
    the judge lane, so it wins over the verdict beside it), ``partial_exhausted`` (partial verdict,
    retries spent), ``judge_rejected``;
@@ -268,7 +268,7 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "classification:wrong_class"
     # A classification arbiter that accepted a class let the document on to extraction, so whatever the
     # reviewer doubted (disagreement, no answer, an unknown class, low confidence) is settled: the judge
-    # lane that ran after it is the likelier cause. Without the recorded decision the reviewer causes
+    # and extraction lanes that ran after it are the likelier cause. Without the recorded decision the reviewer causes
     # keep their precedence.
     settled = str(pred.get("classification_arbiter_decision") or "") in _CLASSIFICATION_ACCEPTED
     reviewer = ""
@@ -292,8 +292,6 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "judge:partial_exhausted"
     if have & _JUDGE_REJECTED:
         return "judge:judge_rejected"
-    if settled and (reviewer or have & _REVIEWER_DOUBT):  # nothing later explains the park
-        return reviewer or "classification:reviewer_unknown"
     if outcome == "wrong_archive" or have & _EXTRACTION:
         try:
             field = None if doc_class in _UNIT_FIELD else lowest_field(row, pred)[0]
@@ -302,4 +300,6 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
             return f"extraction:{extraction_miss(row, pred)}"
         except ScorerError:
             return "mechanism:scorer_error"
+    if settled and (reviewer or have & _REVIEWER_DOUBT):  # nothing in the judge or extraction lane explains the park
+        return reviewer or "classification:reviewer_unknown"
     return f"mechanism:unmapped:{causes[0] if causes else 'none'}"
