@@ -15,14 +15,17 @@ Status: draft for owner review · approach chosen by the owner: build in the san
 - **Limit.** At most two judge rulings and one retry per document. A document that reaches the limit
   goes to human review, so it stays in the scored results.
 - **Better information.** The judge also sees earlier attempts, the labeling guide, and how similar
-  documents were labeled, drawn only from documents that are never used for testing.
-- **Stronger model.** The judge moves to `qwen/qwen3.7-plus`, pinned to one provider.
-- **Off by default.** Nothing changes for any existing run. Production turns it on only after a
+  documents were labeled. The examples come from the `calibration` and `pool` sets only, using
+  near-gold and interim labels, and those sets are never used for testing.
+- **Cost-effective models.** `qwen/qwen3.7-plus` judges most documents. Mergers, which are huge,
+  go to the cheaper pinned `deepseek/deepseek-v4.1-flash-1017`. The document goes first in the
+  prompt, so a second ruling reuses the provider's cache at a fraction of the price.
+- **Staged test.** A free offline proof first, then a small paid pilot, then the full comparison.
+  Each stage must pass before the next one is paid for.
+- **Off by default.** Nothing changes for any existing run. Production turns it on only after the
   test shows it works.
 - **Where.** Built as a sandbox patch (the repo's approved way to change the pipeline without
   editing `vendor/`). Issues for the permanent `llm-mailroom` fix are written at the end.
-- **Decisions needed from you.** Where reference labels come from, the cost per judged document,
-  and the acceptable score margin (see the end).
 
 ## The problem
 
@@ -59,6 +62,8 @@ Status: draft for owner review · approach chosen by the owner: build in the san
 judge:
   mode: correct              # "verify" = today's behaviour
   model: qwen/qwen3.7-plus
+  models_by_class:
+    merger_agreement: deepseek/deepseek-v4.1-flash-1017
   references: train_pool     # off | train_pool | catalog
   reference_pool: config/judge/reference-pool-runbook-v2.jsonl
 ```
@@ -66,7 +71,7 @@ judge:
 The setting is saved in the run's lock file, so a run cannot change behaviour halfway through.
 Preflight refuses the run if:
 
-- the model has no price or no provider pin;
+- any judge model (default or per class) has no price or no provider pin;
 - the reference pool file is missing or changed;
 - any tested document is in the reference pool, or shares a thread, matter or text with it;
 - `catalog` references are used on a run that is scored (they are only for unlabeled real mail).
@@ -93,16 +98,46 @@ Preflight refuses the run if:
 ### References without cheating
 
 - The judge must never see labels for the document it is judging, or for any test document.
-- In tests, examples come only from split sets that are never tested. Which sets is decision 1.
-- Contracts and corporate records only have labels outside the test sets in `calibration`
-  (25 contracts, 112 corporate records).
-- Insurance claims and mergers have no labels, so they get no examples.
+- Examples come only from the runbook-v2 `calibration` and `pool` sets (owner decision). Preflight
+  refuses `train_pool` on any run that tests on those sets.
+- Labels come from the near-gold catalog (`data/labels/gold/`) and the interim labels
+  (`data/labels/interim/`) that count as truth. Interim labels marked `disputed` are left out.
+- Documents with usable labels in those sets:
 
-### The model
+  | Type | Near-gold | Interim | Combined |
+  |---|---|---|---|
+  | Contract | 25 | 8 | 32 |
+  | Corporate record | 112 | 54 | 118 |
+  | Correspondence | 550 | 447 | 550 |
+  | Insurance claim | 0 | 322 | 322 |
+  | Merger | 0 | 4 | 4 |
 
-`qwen/qwen3.7-plus` reads whole documents (1M-token context). It costs about 10 times the current
-judge. A whole merger costs about $0.55 per ruling. It needs a provider pin and a passing smoke test
-before any paid run.
+- Where the two sources disagree on a field, near-gold wins. The pool is rebuilt and re-hashed
+  whenever either source changes.
+
+### The models, balanced for cost
+
+Most judge cost comes from reading the document, so the design spends on a strong model where
+documents are short and saves where they are huge:
+
+| Documents | Judge model | Cost per ruling (approx.) |
+|---|---|---|
+| All except mergers (about 76k tokens on average) | `qwen/qwen3.7-plus` | about $0.03 |
+| Mergers (about 570k tokens) | `deepseek/deepseek-v4.1-flash-1017` | about $0.17 |
+
+Putting Plus on mergers would cost about $0.55 per ruling, so mergers go to the cheaper model.
+Other ways the design keeps cost down:
+
+- **One call per ruling.** Today a "complete" verdict takes two calls; the new judge takes one.
+- **Caching.** The document goes first in the prompt, so a second ruling on the same document can
+  be billed at the provider's cache price: about 20% of the input price for Plus, and about 2% for
+  DeepSeek. Caching depends on the provider, so the pilot measures the cached tokens. The spend caps
+  assume no caching, so they stay safe either way.
+- **Retries only re-read the named fields.** There are no whole-document rounds.
+- **The second ruling is rare.** It only happens after a retry the judge asked for.
+
+Both models need a provider pin and a passing smoke test before any paid run. DeepSeek 4.1 Flash
+is already pinned.
 
 ## How we will measure it
 
@@ -118,24 +153,32 @@ before any paid run.
 Scores that include judge fixes are labelled "after judge". Judge-corrected documents are counted,
 and stay in every total.
 
-## The test
+## The test, in stages
 
-Four versions of the production setup, on the same documents:
+The earlier plan ran four full versions. This one spends money only after each cheaper stage
+passes, and every version keeps today's tightened loop limits (`judge_max_passes: 2`,
+`arbiter_retry_max: 1`). All versions copy the production setup and run on the same documents.
 
-1. today's judge;
-2. today's judge on the stronger model;
-3. new judge, stronger model, no examples;
-4. new judge, stronger model, with examples.
+| Stage | What runs | Cost | Must pass before the next stage |
+|---|---|---|---|
+| 0. Offline proof | the pipeline with fake model answers | free | every path ends within two rulings and one retry; call counts per path match the design |
+| 1. Pilot | `dev-look1` (302 documents): today's judge vs the new judge with examples, plus the new judge without examples | small | the new judge makes at least 50% fewer judge-related calls; no extra crashes; cost per judged document no higher than today |
+| 2. Full test | `dev` (900 documents): today's judge vs the new judge with examples | larger | the success rules below |
 
-This separates the effect of the model, the new behaviour and the examples. Each version runs free
-(mock) first. Paid runs need a person's initials at the spend gate.
+The "without examples" version runs only in the pilot, to show cheaply what the examples add. The
+earlier "today's judge on the stronger model" version is dropped to save cost.
 
-**Success:**
+**Success (full test):**
 
 - at least 50% fewer judge-related calls per judged document;
-- an extraction score no worse than today, within the agreed margin;
+- judge cost per judged document no higher than today, by document type;
+- on judged documents, an extraction score at most 2 points below today, with a paired bootstrap
+  interval (owner decision);
 - no more wrong archives;
 - no leaks.
+
+Each paid stage needs a person's initials at the spend gate. Its spend cap is worked out from the
+per-ruling costs above with the repo's 1.5x margin.
 
 ## Rolling it out
 
@@ -172,24 +215,22 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
    `evidence_support`).
 4. **New judge.** The sandbox patch: the one-step ruling, the arbiter pass-through, the field-only
    retry, and the two-ruling limit. Tests on the offline pipeline prove every path ends.
-5. **Extra information.** Earlier attempts, guide definitions, and the reference pool builder with
-   its leak checks.
+5. **Extra information.** Earlier attempts and guide definitions. The reference pool builder reads
+   near-gold and interim labels for `calibration` and `pool`, with its leak checks.
 6. **Reports.** Before and after scores, fix accuracy, calls, cost and rulings in the gate and
    routing reports.
-7. **Model.** Add the provider pin for `qwen/qwen3.7-plus`. Write the four test configs and their
+7. **Models and tests.** Add the provider pin for `qwen/qwen3.7-plus`, the per-class judge model,
+   and the document-first prompt order for caching. Write the stage 1 and stage 2 configs and their
    spend caps.
-8. **Hand over.** Open a PR, draft the upstream issues, and hand the paid test to you to launch.
+8. **Hand over.** Open a PR, draft the upstream issues, and hand each paid stage to you to launch.
 
-## Decisions needed from you
+## Decisions made by the owner (2026-11-26)
 
-1. **Where reference examples come from.** Recommended: the `calibration` and `pool` sets, with
-   runs that test on those sets refused. Alternatives: label more contracts first, or use examples
-   for correspondence only for now.
-2. **Cost.** About $0.55 per merger ruling would exceed today's production caps ($2 per 100
-   documents). Options: raise the caps; use a cheaper judge for mergers only; or limit how much of a
-   merger the judge reads.
-3. **Score margin.** Proposed: the new judge may score at most 2 points lower than today on judged
-   documents, tested on the full `dev` set (900 documents) for enough data.
+1. Examples come from the `calibration` and `pool` sets, using near-gold and interim labels.
+2. The judge takes the most cost-effective route without losing effectiveness. The per-class
+   models, caching and the staged test above are the design's answer.
+3. Score margin: at most 2 points below today on judged documents, tested on the full `dev` set.
+4. The test design is reworked to cut repeat judge and arbiter loops and wasted calls.
 
 ## Calls I made
 
@@ -198,8 +239,10 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
 - Fixes cannot blank fields. A document with an unfixed wrong field cannot be archived.
 - A retry the judge asks for always comes back to the judge (except matter conflicts).
 - "Before the judge" means the extraction the judge first saw.
-- Examples are matched by type and subtype, at most two.
-- The judge model is `qwen/qwen3.7-plus`.
+- Examples are matched by type and subtype, at most two. Where near-gold and interim labels
+  disagree, near-gold wins.
+- Judge models: `qwen/qwen3.7-plus` by default, `deepseek/deepseek-v4.1-flash-1017` for mergers.
+- The test runs in three stages; the "model only" version is dropped.
 
 ## Left to the builder
 
