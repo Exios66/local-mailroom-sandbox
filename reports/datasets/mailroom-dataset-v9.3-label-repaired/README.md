@@ -100,19 +100,22 @@ agreement on 169 of 171 `expiration_date` cells, 43 of 46 `termination_notice_pe
 does not annotate party roles, so `party_roles` is not mapped from it. Treat these counts as
 unverified until a dated rebuild records them in `summary.json` / provenance.
 
-**Changes in this regeneration.** Two independent changes moved 651 provenance cells against
+**Changes in this regeneration.** Two independent changes moved 644 provenance cells against
 the previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
 Hub source changed value or presence:
 
-- **Near-gold contract labels** (542 cells, all in the 61 empty-CUAD contracts that had no
-  near-gold record; `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91 empty-CUAD rows): 324 previously unlabeled cells, 182 unreviewed
+- **Near-gold contract labels** (542 cells, all in 61 of the 91 empty-CUAD contracts: those that
+  had no near-gold record. `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91, including
+  the 30 already covered, so it is not the changed subset): 324 previously unlabeled cells, 182 unreviewed
   gold candidates promoted to `near_gold_reviewed`, and 36 `generated_rule` cells replaced by
   near-gold.
-- **Event-defined dates are no longer absences** (109 cells in 91 other contracts): the builder
+- **Event-defined dates are no longer absences** (102 cells in 84 other contracts): the builder
   fix that skips a ballot for a CUAD date span with no calendar date ("the date of the last
   signature") was committed without regenerating these files. 93 `effective_date` /
-  `agreement_date` cells move from a generated documented absence to unlabeled, and the other 16
-  take the next source's value.
+  `agreement_date` cells move from a generated documented absence to unlabeled, 8 more
+  `agreement_date` cells take the next source's value (5 `gold_candidate`, 3 `generated_rule`),
+  and one `expiration_date` cell (`DOC-e4272758b561f8cd`) gains its CUAD-span value.
+  With the 324 cells above, that is 325 cells gaining a label and 93 losing one: the net +232.
 
 ## Presence codes (provenance file)
 
@@ -148,8 +151,11 @@ blank in a row is absence versus unlabeled.
 - **Generated labels are not human-reviewed.** `generated_rule` labels are pattern matches, each
   with a verbatim quote, and spot checks found them right in most cases, but they are not
   gold. Filter on `chosen_source` in the provenance file if your analysis needs reviewed labels only.
-- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so their CUAD-derived fields
-  (`effective_date`, `governing_law`, `term_length`, `renewal_terms`, …) stay unlabeled. Their
+- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so no CUAD ballot labels them.
+  `effective_date`, `term_length` and `renewal_terms` stay unlabeled on all 91; `governing_law`
+  is labeled on 28 of them by a `generated_rule` pattern match and unlabeled on the other 63 (it
+  is labeled on 537 of all 600 contracts). A missing CUAD ballot is not a missing label: check
+  `presence` before discarding a field. Their
   nine scored contract fields come from the near-gold overlay instead (agent label and check
   passes plus a reviewing model, not human gold). `expiration_date` is labeled on 314 contracts,
   `termination_notice_period` on 380 and `dispute_forum` on 281. `contract_value`,

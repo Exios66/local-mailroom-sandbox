@@ -21,6 +21,14 @@ no spend:
 python scripts/pull_staged_overlay.py --version 9.3.1-rc.10
 ```
 
+**Production stays on `9.3.1-rc.9`.** The example above names the newest registered cut, rc.10
+(the near-gold labels for the 61 empty-CUAD contracts). Registering a cut does not move a
+deployment: the production slice configs (`config/runs/production/`), their test
+(`tests/test_production_slices.py`) and the operator instructions keep `9.3.1-rc.9` until an
+eligible stable cut is verified, because a production run's frozen lock must keep scoring
+against the labels it was approved on. Moving production is one change across all of them, with
+its own review; a run that wants the rc.10 labels before then names rc.10 in its own config.
+
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
   file's sha256, and every pinned file is checked. A cache whose bytes differ from the pin is

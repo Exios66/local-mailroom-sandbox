@@ -20750,7 +20750,7 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "eedaf5e875a2763a091dcf749bd90c0ac411758dee510406d5ed5eeff4f0984d",
+  "labeling_guide_sha256": "9e61b0eb5a8badf77906c3d4012912970ccd8c5fc8c6ed4e844b08400ef7b542",
   "min_dev": 20,
   "near_gold_overlay_sha256": "b64d6c9c680a94a819c7e22a5bb2c29aa6f8d1581fa1d35d0b5fff6069cb164f",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
