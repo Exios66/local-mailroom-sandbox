@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,26 @@ def test_floor_digest_selftest_passes():
     res = subprocess.run([sys.executable, str(SELFTEST)], capture_output=True, text=True, timeout=120)
     assert res.returncode == 0, res.stdout + res.stderr
     assert "PASS" in res.stdout.splitlines()[-1], res.stdout
+
+
+def _selftest_without_node(tmp_path, **env):
+    """Run the selftest with a PATH that holds no ``node`` (the interpreter is called by absolute path)."""
+    empty = tmp_path / "empty-path"
+    empty.mkdir(exist_ok=True)
+    base = {k: v for k, v in os.environ.items() if k != "CI"}
+    return subprocess.run([sys.executable, str(SELFTEST)], capture_output=True, text=True, timeout=120,
+                          env={**base, "PATH": str(empty), **env}, check=False)
+
+
+def test_selftest_without_node_is_a_notice_locally_and_a_failure_in_ci(tmp_path):
+    """No Node: the viewer checks cannot run. Locally the selftest says so; with CI set it must not pass."""
+    local = _selftest_without_node(tmp_path)
+    assert local.returncode == 0, local.stdout + local.stderr
+    assert "SKIPPED" in local.stdout.splitlines()[-1], local.stdout
+    ci = _selftest_without_node(tmp_path, CI="true")
+    assert ci.returncode != 0, ci.stdout + ci.stderr
+    assert "FAIL" in ci.stdout.splitlines()[-1], ci.stdout
+    assert "Node is required when CI is set" in ci.stderr, ci.stderr
 
 
 # ── debug.reads: numbers only, never document text ──────────────────────────────
