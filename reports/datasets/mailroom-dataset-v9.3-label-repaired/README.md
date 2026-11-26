@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,380 labeled,
-5,228 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,387 labeled,
+5,221 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,380 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,387 (89.1%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 ## Files
@@ -46,7 +46,7 @@ df = df.merge(text, on="document_id", how="left")
 | --- | ---: | ---: | ---: | ---: |
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
-| `contract` | 600 | 17 | 0.0% | 66.6% |
+| `contract` | 600 | 17 | 0.0% | 66.7% |
 | `corporate_record` | 450 | 9 | 54.6% | 91.1% |
 | `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
 
@@ -100,8 +100,8 @@ agreement on 169 of 171 `expiration_date` cells, 43 of 46 `termination_notice_pe
 does not annotate party roles, so `party_roles` is not mapped from it. Treat these counts as
 unverified until a dated rebuild records them in `summary.json` / provenance.
 
-**Changes in this regeneration.** Two independent changes moved 651 provenance cells against
-the previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
+**Earlier rc.10 regeneration** (builder commit `736fe3ee`). Two independent changes moved
+651 provenance cells against its previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
 Hub source changed value or presence:
 
 - **Near-gold contract labels** (542 cells, all in the 61 empty-CUAD contracts that had no
@@ -113,6 +113,15 @@ Hub source changed value or presence:
   signature") was committed without regenerating these files. 93 `effective_date` /
   `agreement_date` cells move from a generated documented absence to unlabeled, and the other 16
   take the next source's value.
+
+**Reverse completion checkpoint (2026-11-26).** The next pass starts with the longest remaining
+contracts to preserve the interrupted pass's starting portion. `DOC-29c516a4775b07d9` now has nine
+near-gold fields from independent label/check passes and source-based machine review: six accepted
+and three corrected. Seven previously unlabeled cells are filled; an unreviewed signature rule
+and a CUAD-derived notice mapping are replaced by the reviewed bundle-specific readings. All
+34,848 previously protected cells retain their values and presence. These are machine labels,
+not human gold, and keep `use_as_truth: false`. The Hub revision and production overlay pin are
+unchanged; this checkpoint is not a newly staged or published overlay.
 
 ## Presence codes (provenance file)
 
@@ -151,10 +160,10 @@ blank in a row is absence versus unlabeled.
 - **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so their CUAD-derived fields
   (`effective_date`, `governing_law`, `term_length`, `renewal_terms`, …) stay unlabeled. Their
   nine scored contract fields come from the near-gold overlay instead (agent label and check
-  passes plus a reviewing model, not human gold). `expiration_date` is labeled on 314 contracts,
-  `termination_notice_period` on 380 and `dispute_forum` on 281. `contract_value`,
+  passes plus a reviewing model, not human gold). `expiration_date` is labeled on 315 contracts,
+  `termination_notice_period` on 380 and `dispute_forum` on 282. `contract_value`,
   `payment_terms`, `territory` and `party_roles` have no CUAD category, so they are labeled only on
-  the roughly 265 contracts in the gold catalog.
+  the 268-document gold catalog; coverage varies by field.
 - **Merger agreements:** several fields are found only where the agreement states them in a
   standard form (exchange ratio, termination fees, advisors, signatories). Signature pages are
   usually missing from the text. `merger_consideration` is never labeled for the `other` subclass.

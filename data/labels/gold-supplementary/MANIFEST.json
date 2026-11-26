@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T04:15:12Z",
+  "added_at": "2026-11-26T06:29:48Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -81,6 +81,32 @@
           "review-contract-e40.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-26T06:29:48Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-29c516a4775b07d9"
+      ],
+      "sources": {
+        "check": [
+          "tail-001-check.jsonl"
+        ],
+        "label": [
+          "tail-001-label.jsonl"
+        ],
+        "review": [
+          "tail-001-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -96,7 +122,7 @@
   "counts": {
     "contract": {
       "-": {
-        "notes": 267
+        "notes": 268
       },
       "agreement_date": {
         "gate_reject": 13
@@ -138,7 +164,7 @@
     }
   },
   "files": {
-    "contract.jsonl": "5b98ad9fdae6873b40b34fbbd2ed77cd95f540f15c73e16696206a80117728a8",
+    "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
     "corporate_record.jsonl": "e72a8a0451e0490db2d561dfe3af33e71c9f0fe5816196be43845f4ceed4cae4",
     "correspondence.jsonl": "64f472cc3fff363fa13ca858bf85de094a9281d92ccb43c8358d12691ea877b7"
   },
@@ -195,7 +221,8 @@
       "check-correspondence-031.jsonl",
       "check-correspondence-038.jsonl",
       "check-correspondence-039.jsonl",
-      "check-correspondence-040.jsonl"
+      "check-correspondence-040.jsonl",
+      "tail-001-check.jsonl"
     ],
     "label": [
       "label-contract-000.jsonl",
@@ -404,7 +431,8 @@
       "label-correspondence-040.jsonl",
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
-      "label-correspondence-043.jsonl"
+      "label-correspondence-043.jsonl",
+      "tail-001-label.jsonl"
     ],
     "override": [
       "fwd-label-correspondence-000.jsonl",
@@ -421,7 +449,8 @@
       "review-fwd.jsonl",
       "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
-      "review-promo-urgency.jsonl"
+      "review-promo-urgency.jsonl",
+      "tail-001-review.jsonl"
     ]
   },
   "target_fields": {
