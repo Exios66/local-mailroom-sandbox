@@ -349,7 +349,7 @@ Spec: [design/specs/2026-09-28-mailroom-job-beacon-design.md](../design/specs/20
 
 ### SAND-032 warm flow (`scripts/sand032/flow*.sh`)
 
-1. Terminal 1: `scripts/sand032/flow.sh` (or `flow2.sh`, …).
+1. Terminal 1: `scripts/sand032/flow.sh` (later stages: `scripts/archive/sand032/flow2.sh` … `flow5.sh`).
 2. Terminal 2: `sandbox watch` (follows `current` + ledger automatically).
 3. Optional: `sandbox watch --web` on a laptop browser via SSH local forward:
 

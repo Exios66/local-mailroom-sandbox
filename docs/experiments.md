@@ -201,17 +201,23 @@ run `sandbox modal publish-image` once per Modal account first. `--no-named-imag
 
 ### Calibrate the cutoffs
 
-`config/runs/reviewer-calibration-luna.yaml` runs `openai/gpt-6-luna` as the reviewer
-over 200 labelled training documents (40 per class) with a `$0.25` API cap. Its header
-estimates about $0.07. Start it through the signed run lifecycle (a paid run asks for
-initials unless `--initials` is given), then calibrate:
+`config/runs/reviewer-calibration-luna-decisions-v2.yaml` runs the Decisions-API model
+`openai/gpt-6-luna-decisions` as the reviewer over the 735-document train draw, with the
+`reviewer_decisions_v2` question set and a `$2.00` API cap (its header estimates about
+$0.85). `reviewer-validation-luna-decisions-v2-test.yaml` is its held-out check. Start it
+through the signed run lifecycle (a paid run asks for initials unless `--initials` is
+given), then calibrate:
 
 ```bash
-sandbox run preflight --config config/runs/reviewer-calibration-luna.yaml
-sandbox run start --config config/runs/reviewer-calibration-luna.yaml
-python scripts/calibrate_reviewer.py --run reviewer-calibration-luna --probe
-python scripts/calibrate_reviewer.py --run reviewer-calibration-luna
+sandbox run preflight --config config/runs/reviewer-calibration-luna-decisions-v2.yaml
+sandbox run start --config config/runs/reviewer-calibration-luna-decisions-v2.yaml
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v2 --probe
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v2
 ```
+
+Never calibrate on a chat model. The earlier `reviewer-calibration-luna*.yaml` and
+`reviewer-validation-luna-*-test.yaml` runs used the chat model `openai/gpt-6-luna` by
+mistake; their configs are kept under `config/runs/legacy/` for provenance.
 
 Each class also reports `top_confidence`, `top_confidence_documents` and
 `top_confidence_wrong`. Wrong answers at the top confidence are confidence saturation:
