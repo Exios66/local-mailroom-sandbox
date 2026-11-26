@@ -166,6 +166,21 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     (["classification_arbiter_escalated", "reviewer_ineligible_label", "reviewer_disagreement",
       "reviewer_low_confidence"], {}, "classification:reviewer_disagreement"),
     (["judge_partial", "classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
+    # Reviewer doubt the classification arbiter resolved (it accepted a class, so extraction ran) is
+    # stale once the extraction arbiter has parked the document: the park is a judge-lane outcome.
+    (["judge_partial", "arbiter_escalated", "reviewer_low_confidence"], {}, "judge:arbiter_escalated"),
+    (["reviewer_low_confidence", "judge_partial", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["reviewer_ineligible_label", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["reviewer_ineligible_label", "reviewer_low_confidence", "arbiter_escalated"], {},
+     "judge:arbiter_escalated"),
+    # ... while an unresolved doubt or any classification-lane cause still outranks it
+    (["reviewer_low_confidence", "arbiter_escalated", "classification_arbiter_escalated"], {},
+     "classification:arbiter_escalated"),
+    (["reviewer_low_confidence", "arbiter_escalated", "reviewer_disagreement"], {},
+     "classification:reviewer_disagreement"),
+    (["reviewer_unavailable", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
+    (["unknown_class", "reviewer_low_confidence", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
+    (["reviewer_low_confidence", "judge_partial"], {}, "classification:reviewer_unknown"),
 ])
 def test_review_cause_mapping(causes, extra, expected):
     assert cause_of(review(causes, **extra)) == expected

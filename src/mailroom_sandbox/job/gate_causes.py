@@ -10,7 +10,9 @@ precedence:
    abstain. A wrong archive of such a document keeps its classification or extraction cause;
 2. ``classification``: ``wrong_class`` (the archived or reviewed class is not the expected one),
    ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated`` (the classification
-   arbiter's ``classification_arbiter_escalated``);
+   arbiter's ``classification_arbiter_escalated``). The reviewer's own doubt (low confidence,
+   ineligible label) ranks last of these: once the extraction arbiter has ruled, the class was
+   settled past that doubt, so the doubt is stale;
 3. ``judge``: ``arbiter_escalated`` (the extraction arbiter's ``arbiter_escalated``: it ruled last on
    the judge lane, so it wins over the verdict beside it), ``partial_exhausted`` (partial verdict,
    retries spent), ``judge_rejected``;
@@ -264,10 +266,14 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "classification:reviewer_disagreement"
     if have & _ARBITER:
         return "classification:arbiter_escalated"
-    if have & _REVIEWER_DOUBT:
-        return "classification:reviewer_unknown"
+    # The extraction arbiter only runs after extraction, and the vendored routes reach extraction past
+    # reviewer doubt in one way: the classification arbiter accepted a class (a classification arbiter that
+    # did not accept would have left its own token, handled above). The doubt token is then stale, so the
+    # extraction arbiter's park outranks it; any reviewer cause that settled nothing is caught earlier.
     if have & _EXTRACTION_ARBITER:
         return "judge:arbiter_escalated"
+    if have & _REVIEWER_DOUBT:
+        return "classification:reviewer_unknown"
     if "judge_partial" in have and "retries_exhausted" in have:
         return "judge:partial_exhausted"
     if have & _JUDGE_REJECTED:
