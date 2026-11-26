@@ -11,14 +11,14 @@ central cache, so every deployment scores against the same labels.
 ```yaml
 dataset:
   name: family-corpus            # Hub v9.3 (ff4ca546); the overlay is a delta against it
-  staged_overlay: 9.3.1-rc.9     # a version pinned in config/staged_overlays.yaml
+  staged_overlay: 9.3.1-rc.10    # a version pinned in config/staged_overlays.yaml
 ```
 
 Pull the pinned cut before preparing the dataset. This needs GitHub network access but involves
 no spend:
 
 ```bash
-python scripts/pull_staged_overlay.py --version 9.3.1-rc.9
+python scripts/pull_staged_overlay.py --version 9.3.1-rc.10
 ```
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
