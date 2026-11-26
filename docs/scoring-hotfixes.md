@@ -77,8 +77,15 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     preflight fails) instead of moving headlines while it reads `current`.
   - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;
     `scoring_hotfixes` lists `SHF-016`, and `scoring_hotfixes_changed` includes
-    `overall_extraction_score` for exactly the rows it moves (the raw side keeps the Dojo
-    pin's `None`, so the run-level means under `raw_dojo` still exclude them).
+    `overall_extraction_score` for exactly the rows it moves. The row's own `raw_dojo` keeps
+    the Dojo pin's `None`; what a run-level raw mean does with that depends on the path:
+    - `run_extract_eval`'s run `raw_dojo` leaves the rows out (its `raw_dojo.n_scored` is lower
+      than the headline's `n_scored` by exactly these rows).
+    - An isolated eval's raw side (`eval/runners._isolated_headline`) is the pre-hotfix
+      aggregate, where a row without truth averages in as 0, so these rows count as 0 there.
+    - A rescore's `scores.json` `raw_dojo` averages the scored items' hotfixed values (it is
+      the scored-only mean of SHF-005, not a fixes-off aggregate), so it includes them at
+      their headline score.
   - Not changed: a contract row with labeled CUAD categories still scores the CUAD basis, and
     the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the
     suite basis is not a stand-in there). The Hub's own field labels also score when it labels
