@@ -341,7 +341,7 @@ scripts/mailroom-tui board [--tui|--demo]
 
 Long shell scripts can publish progress with `mailroom_sandbox.tui.beacon.Beacon` or `sandbox beacon update`.
 
-Spec: [superpowers/specs/2026-09-28-mailroom-job-beacon-design.md](../superpowers/specs/2026-09-28-mailroom-job-beacon-design.md).
+Spec: [design/specs/2026-09-28-mailroom-job-beacon-design.md](../design/specs/2026-09-28-mailroom-job-beacon-design.md).
 
 ---
 
@@ -349,7 +349,7 @@ Spec: [superpowers/specs/2026-09-28-mailroom-job-beacon-design.md](../superpower
 
 ### SAND-032 warm flow (`scripts/sand032/flow*.sh`)
 
-1. Terminal 1: `scripts/sand032/flow.sh` (or `flow2.sh`, …).
+1. Terminal 1: `scripts/sand032/flow.sh` (later stages: `scripts/archive/sand032/flow2.sh` … `flow5.sh`).
 2. Terminal 2: `sandbox watch` (follows `current` + ledger automatically).
 3. Optional: `sandbox watch --web` on a laptop browser via SSH local forward:
 

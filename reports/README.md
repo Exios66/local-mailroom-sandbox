@@ -1,6 +1,34 @@
 # Reports
 
-Run reports, serving exports and the offline experiment log (JSONL + markdown written by `sandbox eval` / `sandbox matrix`).
+Committed run reports, figures, serving exports and the reports hub. The offline experiment log
+(`experiment_log.jsonl` / `.md`, written by `sandbox eval` / `sandbox matrix`) also lands here, but it
+is gitignored runtime state, so a fresh checkout has none.
+
+## Directory map
+
+Ticket folders keep the spelling the code uses: `SAND-32`, `SAND-37` and `SAND-214` are hyphenated,
+`SAND42` is not (`report_paths._FOLDER_ALIAS` maps `SAND-42` to it). Renaming one breaks the hub,
+the card builders and their tests.
+
+| Path | What it holds | Written by | Guard |
+| --- | --- | --- | --- |
+| `dashboard/` | Reports hub, floor viewer template, cross-repo exports | `dashboard/build_hub.py`, `export_hub_reports.py` | `build_hub.py --check` (CI) |
+| `campaigns/` | Per-run trees for runbook campaigns (`rb1`) | `sandbox report build` | `sandbox report build --campaign rb1 --check` (CI) |
+| `decisions/` | Decisions-model reviewer reports, figures and dashboard | `decisions/build_decisions_report.py` | `build_decisions_report.py --check` (CI) |
+| `SAND-32/`, `serving/` | SAND-032 ladder and specialist reports, serving exports and figures | `scripts/sand032/report.py`, `sandbox metrics serving-record` | `scripts/sand032/rerender.py --check` (CI); the hub reads them |
+| `SAND-37/` | SAND-037 specialist grid cards and figures | `sandbox run card`, `job/sand42_figures.py` | — |
+| `SAND42/` | SAND-042 grid cards, master report and figures | `job/sand42_cards.py`, `scripts/sand42/` | — |
+| `SAND-214/` | Window-run reports by date | `job/length_fix.py` | — |
+| `YYYY-MM-DD/` | Runs that belong to no ticket, by date | `job/dated_reports.py` | `tests/test_dated_reports.py` |
+| `autoresearch/` | Study ledgers and rounds | `autoresearch/loop.py` | — |
+| `reviewer-calibration/` | Reviewer calibration and validation reports | `scripts/calibrate_reviewer.py` | — |
+| `extraction-gate/` | Extraction-gate calibration | `scripts/extraction_gate.py` | — |
+| `sorter-handoff/`, `specialist-condensed/`, `sorter-vs-decision-500/` | Prompt and arm comparisons | `scripts/compare_sorter_prompt.py`, `scripts/compare_specialist_prompt.py`; the sorter-vs-decision runs (`config/runs/sorter-vs-decision-*.yaml`) | — |
+| `modernbert/` | ModernBERT classifier results (mailroom-ml) | — | the hub and cross-repo exports read them |
+| `datasets/` | Dataset releases built here (v9.3 label-repaired) | the builder in each release folder | `tests/test_label_repaired_builder.py` |
+| `a100/`, `gt-labeler/` | A100 manifest; EX10 CUAD labelling checkpoint | `scripts/build_a100_manifest.py`, `scripts/gt_label_ex10.py` | — |
+| `archive/` | Superseded hand-written reports, read by the hub | hand-written | the hub reads them |
+| `run-ledger.md` | Every paid run that passed the spend gate | `job/ledger.py` | `tests/conftest.py` |
 
 ## Reports hub
 

@@ -1,5 +1,9 @@
 # Mailroom benchmark program: how to structure runs after SAND-40
 
+> **Historical design (SAND-043).** Kept as the record of how the SAND-42 runs were planned. It cites
+> the superseded dataset pin `ed7576b6` (v9.1). Current campaign rules are in the
+> [experiment campaign contract](../../EXPERIMENT-CAMPAIGN-CONTRACT.md).
+
 **Card:** SAND-043 (milestone after the SAND-40 AmFam handoff) · **Status:** research and proposal, no spend ·
 **Inputs:** SAND-37/39/40 run cards (`reports/SAND-37/`), the public `Lucius-Morningstar/mailroom-dataset`
 @ `ed7576b6`, and the external sources listed at the end.

@@ -65,7 +65,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens).
 - preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock.
 - grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell.
-- Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
+- Full cell status and the aligned spec: docs/design/sand037/specialist-grid-plan.md.
 
 ### Do not
 
@@ -211,7 +211,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.
 - Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding.
 - grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell.
-- Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
+- Full cell status and the aligned spec: docs/design/sand037/specialist-grid-plan.md.
 
 ### Do not
 

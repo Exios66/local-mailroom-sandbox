@@ -1,6 +1,6 @@
 # SAND-032 Stage 8 (C fleet): seqs32 + max_num_batched_tokens 16384 + gpu_mem 0.93 — compare with sand032-s7-contracts50-seqs32.
 # SAND-032 Stage 3 — contracts n=50 on the warm fleet (serving metrics only: no extraction ground truth).
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 # Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
 # rewrites this block if a rung is reverted — fp8 KV stays regardless).

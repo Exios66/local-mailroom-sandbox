@@ -12,7 +12,7 @@
 #   prompt  = eval-environment frozen v1 simplified stem ONLY
 #   decode  = max_tokens 8192 + temperature 0.7; WHOLE-DOCUMENT CHUNKED extraction
 #             (43,000-char window / 6,000 overlap) — the old 24,000-char head+tail
-#             cap dropped 62 % of contract text. See docs/SAND42-EXPERIMENT-DESIGN.md §3.7
+#             cap dropped 62 % of contract text. See docs/design/sand42/experiment-design.md §3.7
 #   telemetry = container nvidia-smi series (util/power/temp/mem) under the cell label;
 #             pulled by `sandbox run scrape-metrics` and recorded on the run card
 # Runbook: sandbox runbook show sand42-1l4-c16

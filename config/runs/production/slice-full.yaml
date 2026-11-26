@@ -1,5 +1,5 @@
 # Production slice gate, full slice: every eligible document (no strata, no limit).
-# Spec: docs/superpowers/specs/2026-11-16-production-slice-gate-design.md
+# Spec: docs/design/specs/2026-11-16-production-slice-gate-design.md
 #
 # Bars (sandbox run gate; config/production/bars.yaml):
 #   - quality >= 0.90 per scorable document on its labelled fields

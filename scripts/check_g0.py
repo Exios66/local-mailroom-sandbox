@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Evaluation runbook G0 checkpoint: run every Phase 0 gate and print one line each.
 
-G0 closes only when all of these pass (``docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md``,
+G0 closes only when all of these pass (``docs/design/rb1/2026-11-18-evaluation-runbook-plan.md``,
 Task 5):
 
 * R00: ``sandbox splits audit`` (the frozen split rebuilds from its seed, no leak).
