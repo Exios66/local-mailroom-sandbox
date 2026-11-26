@@ -131,6 +131,21 @@ runs. It demonstrates wall-time improvement, not reduced credit consumption
 or a guarantee for every push. Recheck the current feature stack's gates;
 this prerequisite comparison does not certify later code changes.
 
+The 8-container change with per-test scheduling for `PER_TEST_XDIST_FILES` was
+compared against the 36 most recent successful 4-container workflows (medians).
+Both sides had venv cache hits and the same combined 89% coverage. The new run
+had 6,261 passed and 41 skipped, which is the baseline's 6,257 plus the 4 guard
+tests the change adds.
+
+| Hosted run | Containers | `test` job | Slowest pytest step | Workflow | `test` container-seconds |
+| --- | --- | --- | --- | --- | --- |
+| 36 runs before, median ([4044](https://circleci.com/gh/Exios66/local-mailroom-sandbox/4044) shown) | 4 | 284 s | 276 s (4044) | 319 s | 1,073 (4044) |
+| [4066](https://circleci.com/gh/Exios66/local-mailroom-sandbox/4066), `64e1831` | 8 | 182 s | 158 s | 221 s | 1,203 |
+
+That is a 36% shorter `test` job and a 31% shorter workflow for about 12% more
+`test` container time. This is one run, and it is the first with 8 containers,
+so the timing split had no 8-way history.
+
 ## Local verification policy
 
 Keep expensive full suites, coverage sweeps, large mock campaigns and timing
