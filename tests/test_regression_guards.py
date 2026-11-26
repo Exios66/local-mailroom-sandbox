@@ -96,6 +96,39 @@ def test_ci_parallel_test_shards_feed_a_combined_coverage_gate():
     assert "fail_under = 84" in pyproject
 
 
+def test_loadfile_scheduler_splits_only_files_whose_tests_share_no_state():
+    """CI's `--dist loadfile` keeps each file on one worker, so process-local unions such as
+    test_pipeline_routing_matrix.WALKED stay whole. conftest's scheduler hands out single tests
+    only for PER_TEST_XDIST_FILES, whose tests share no state; on one worker the slowest of them
+    set the floor for a whole CI container."""
+    import conftest
+
+    # _split_scope reads no scheduler state; __init__ would need a live worker spec.
+    sched = object.__new__(conftest.PerTestLoadFileScheduling)
+    routing = "tests/test_pipeline_routing_matrix.py::test_every_edge_is_walked[a]"
+    arbiter = "tests/test_arbiter_termination.py::test_every_judge_and_arbiter_path_terminates[x]"
+    assert sched._split_scope(routing) == "tests/test_pipeline_routing_matrix.py"
+    assert sched._split_scope(arbiter) == arbiter
+    assert "tests/test_pipeline_routing_matrix.py" not in conftest.PER_TEST_XDIST_FILES
+    for rel in conftest.PER_TEST_XDIST_FILES:
+        assert (ROOT / rel).is_file(), rel
+
+
+class _DistConfig:
+    def __init__(self, dist):
+        self.dist = dist
+
+    def getvalue(self, name):
+        return self.dist if name == "dist" else None
+
+
+@pytest.mark.parametrize("dist", ["load", "loadgroup", "no"])
+def test_other_dist_modes_keep_xdist_s_own_scheduler(dist):
+    import conftest
+
+    assert conftest.pytest_xdist_make_scheduler(config=_DistConfig(dist), log=None) is None
+
+
 def test_ci_checks_job_gates_every_committed_generated_file():
     """Stale generated files (critical-regressions: CLI reference, runbooks, hub,
     requirements) fail in their own job, which waits for nothing."""

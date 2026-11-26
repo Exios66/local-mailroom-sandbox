@@ -75,6 +75,41 @@ def pytest_configure(config):
     )
 
 
+# CI runs `--dist loadfile`: each test file goes to one xdist worker, so process-local unions
+# such as test_pipeline_routing_matrix.WALKED stay whole. These files are the exception: their
+# tests share no state (function-scoped fixtures, no module globals, arbiter_harness_state
+# restores the compiled graph), so the scheduler below hands out their tests one at a time.
+# They are the slowest files; on one worker each set the floor for a whole CI container. Add a
+# file only after checking that none of its tests reads state another test leaves behind.
+PER_TEST_XDIST_FILES = frozenset({
+    "tests/test_arbiter_termination.py",
+    "tests/test_generation_protocol.py",
+    "tests/test_job_generation_residuals.py",
+})
+
+try:
+    from xdist.scheduler import LoadFileScheduling
+except ImportError:  # xdist is a dev dependency; without it there is nothing to schedule
+    LoadFileScheduling = None
+else:
+
+    class PerTestLoadFileScheduling(LoadFileScheduling):
+        """`--dist loadfile`, except that tests in PER_TEST_XDIST_FILES are scheduled singly.
+
+        Only the scope key changes (xdist's documented `_split_scope` override point); node IDs
+        are untouched, so this does not depend on how a pytest version stores them.
+        """
+
+        def _split_scope(self, nodeid: str) -> str:
+            scope = super()._split_scope(nodeid)
+            return nodeid if scope in PER_TEST_XDIST_FILES else scope
+
+    def pytest_xdist_make_scheduler(config, log):
+        if config.getvalue("dist") != "loadfile":
+            return None
+        return PerTestLoadFileScheduling(config, log)
+
+
 def pytest_collection_modifyitems(config, items):
     if os.environ.get("SANDBOX_LOCAL_LLM", "").strip() in {"1", "true", "yes"}:
         return
