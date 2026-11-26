@@ -18,6 +18,16 @@ NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
 BINARY_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif",
                 "image/bmp", "image/tiff", "application/pdf", "application/octet-stream"}
+# Pandas truncates long cells ("/var/folders/...") before sanitization sees them, so a
+# truncated machine path would no longer match its replacement and would leak.
+KERNEL_SETUP = (
+    "try:\n"
+    "    import pandas as _demo_pd\n"
+    "    _demo_pd.set_option('display.max_colwidth', None)\n"
+    "    del _demo_pd\n"
+    "except ImportError:\n"
+    "    pass"
+)
 
 
 def _path_aliases(source: str) -> set[Path]:
@@ -58,6 +68,40 @@ def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
             cell["outputs"] = clean(cell["outputs"])
 
 
+def find_path_leaks(nb, markers: list[str]) -> list[str]:
+    """Return ``cell-id:marker`` for each sanitized output that still holds a machine path.
+
+    A cell can truncate a path itself (for example ``pd.set_option("display.max_colwidth", 80)``),
+    so no sanitization rule matches it; this check refuses to publish such a demo.
+    """
+    needles = sorted({str(alias) for marker in markers for alias in _path_aliases(marker)}, key=len, reverse=True)
+    leaks = []
+
+    def texts(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, list):
+            for item in value:
+                yield from texts(item)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if key not in BINARY_MIMES and not key.startswith(("audio/", "video/")):
+                    yield from texts(item)
+
+    for cell in nb["cells"]:
+        for text in texts(cell.get("outputs") or []):
+            hit = next((needle for needle in needles if needle in text), None)
+            if hit:
+                leaks.append(f"{cell.get('id')}:{hit}")
+                break
+    return leaks
+
+
+def _short_temp_base() -> str | None:
+    """Prefer ``/tmp`` over macOS's long ``$TMPDIR`` so paths fit display widths."""
+    return "/tmp" if os.name == "posix" and Path("/tmp").is_dir() else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEMOS, help="directory for executed demos")
@@ -68,7 +112,7 @@ def main() -> int:
 
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="notebook-demos-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="notebook-demos-", dir=_short_temp_base()) as tmp:
         tmp_path = Path(tmp)
         os.environ["MAILROOM_BASE_DIR"] = str(tmp_path / "data")
         os.environ["SANDBOX_NOTEBOOK_LOG"] = str(tmp_path / "log" / "experiment_log.jsonl")
@@ -87,6 +131,7 @@ def main() -> int:
                 timeout=300,
                 kernel_name="python3",
                 resources={"metadata": {"path": str(path.parent)}},
+                extra_arguments=[f"--IPKernelApp.exec_lines={json.dumps([KERNEL_SETUP])}"],
             )
             client.km = client.create_kernel_manager()
             kernel_executable = client.km.format_kernel_cmd()[0]
@@ -94,6 +139,10 @@ def main() -> int:
             sanitize_demo_outputs(nb, {str(ROOT): "/demo/checkout", str(tmp_path): "/demo/runtime",
                                        str(Path.home()): "/demo/home", sys.executable: "/demo/python",
                                        kernel_executable: "/demo/python"})
+            leaks = find_path_leaks(nb, [str(Path.home()), str(tmp_path.parent / "notebook-demos-")])
+            if leaks:
+                print(f"  ERRORS: unsanitized machine paths in {path.name}: {leaks}", flush=True)
+                return 1
             dest = out / path.name
             nbformat.write(nb, dest)
             code = [c for c in nb.cells if c.cell_type == "code"]

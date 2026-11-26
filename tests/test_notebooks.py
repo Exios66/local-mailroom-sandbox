@@ -90,6 +90,59 @@ def test_demo_renderer_executes_and_sanitizes_a_real_kernel(tmp_path, monkeypatc
     assert result.cells[0].outputs[0].text == "/demo/python\n"
 
 
+def test_demo_renderer_sanitizes_long_paths_in_dataframes(tmp_path, monkeypatch):
+    """Pandas must not truncate a machine path before sanitization can replace it."""
+    import importlib.util
+    import os
+    import sys
+
+    nbformat = pytest.importorskip("nbformat")
+    pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    pytest.importorskip("pandas")
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "long-paths.ipynb"
+    cell = (
+        "import os, pandas as pd\n"
+        "long = os.path.join(os.environ['MAILROOM_BASE_DIR'], 'runtime', 'prepared', 'x' * 60)\n"
+        "pd.DataFrame({'path': [long]})"
+    )
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(cell)]), source)
+    monkeypatch.setattr(module, "NOTEBOOKS", [source])
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "demos")])
+    assert module.main() == 0
+    data = nbformat.read(tmp_path / "demos" / source.name, as_version=4).cells[0].outputs[0].data
+    expected = "/demo/runtime/data/runtime/prepared/" + "x" * 60
+    for mime in ("text/plain", "text/html"):
+        assert expected in data[mime]
+        assert "..." not in data[mime]
+
+
+def test_demo_renderer_refuses_paths_a_cell_truncated(tmp_path, monkeypatch):
+    """A cell that shortens a path itself defeats sanitization; the render must fail, not leak."""
+    import importlib.util
+    import os
+    import sys
+
+    nbformat = pytest.importorskip("nbformat")
+    pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "truncated.ipynb"
+    cell = "import os; print(os.environ['MAILROOM_BASE_DIR'][:-8] + '...')"
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(cell)]), source)
+    monkeypatch.setattr(module, "NOTEBOOKS", [source])
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "demos")])
+    assert module.main() == 1
+    assert not (tmp_path / "demos" / source.name).exists()
+
+
 def test_notebooks_execute(tmp_path, monkeypatch):
     """Run all notebooks in order from notebooks/, as Jupyter would, with writes under tmp_path."""
     nbformat = pytest.importorskip("nbformat")
