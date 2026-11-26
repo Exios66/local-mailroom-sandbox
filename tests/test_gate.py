@@ -133,6 +133,19 @@ def test_judge_re_asks_are_counted_with_their_outcome(tmp_path):
     assert report["pooled"]["judge_errors"] == 1  # the re-ask whose second answer failed too parked a document
 
 
+def test_a_re_ask_made_by_a_document_that_ended_as_an_error_row_still_counts(tmp_path):
+    """A pipeline abort the run returned (not raised) is an error item whose pred carries the counts (M2)."""
+    run = _run(tmp_path, [
+        {"id": "boom", "cls": "contract", "error": "pipeline failed",
+         "reasks": {"completeness": {"asked": 1, "recovered": 0, "parked": 0}}},
+        {"id": "fine", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    boom = {d["id"]: d for d in report["docs"]}["boom"]
+    assert boom["outcome"] == "crashed" and report["pooled"]["crashes"] == 1
+    assert report["judge_reasks"]["docs"] == ["boom"]
+    assert report["judge_reasks"]["errored"] == 1 and report["judge_reasks"]["asked"] == 1
+
+
 def test_a_run_without_judge_re_asks_keeps_its_report_shape(tmp_path):
     assert "judge_reasks" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
 

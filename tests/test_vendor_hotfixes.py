@@ -876,3 +876,16 @@ def test_the_re_ask_reaches_the_run_item_through_the_document_scope(monkeypatch)
     monkeypatch.setattr(runners, "_run_pipeline_doc_once", lambda row, **kw: {"id": row["id"], "stage": "archived"})
     assert "judge_reasks" not in runners._run_pipeline_doc({"id": "d1"}, mock=False)  # present only when it happened
 
+
+def test_a_document_the_pipeline_returned_as_failed_still_carries_its_re_ask_counts(monkeypatch):
+    """A returned failure becomes an error item (``_record``) whose pred keeps ``judge_reasks``; a raised one has no item."""
+    from mailroom_sandbox.eval import runners
+
+    def once(row, **kwargs):
+        _judge_node(monkeypatch, [PARSE, COMPLETE], [ACCURATE])
+        return {"id": row["id"], "stage": "failed", "escalation_reason": "run limit"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", once)
+    result = runners._run_pipeline_doc({"id": "d0"}, mock=False)
+    assert result["stage"] == "failed"
+    assert result["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}

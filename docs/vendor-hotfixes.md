@@ -145,6 +145,12 @@ same vendor refresh.
   `BaseAgent._call_structured`. If llm-mailroom ever adds its own parse retry there, a pass would make
   more calls than the four priced per pass without a stale fingerprint; re-check the envelope at the
   next vendor refresh.
+- **The re-ask counts miss a document that raises.** A document the pipeline returns as failed
+  becomes an error item whose `pred` keeps its `judge_reasks`, and the gate counts them (outcome `crashed`).
+  A document that raises (a crash, or the call guard's refusal, which `_run_pipeline_doc` turns into an
+  exception) writes no item at all: the run fails, a resume runs the document again in a fresh scope, and
+  the first attempt's re-asks are not counted anywhere, although they were made and billed (the billed
+  tokens are kept for the API budget, SAND-089). The counts are therefore a lower bound on re-asks made.
 - **A judge that fails to parse twice still parks the document.** HF-002 and HF-013 ask once more, so a
   single unparseable answer no longer parks a correct document, but two in a row still raise
   `JudgeParseError` (human review, counted by the gate as `parked`). The re-ask repeats the same request at

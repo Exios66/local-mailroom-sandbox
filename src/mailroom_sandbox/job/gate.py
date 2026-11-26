@@ -231,15 +231,17 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out: dict[str, Any] = {"id": str(row.get("id")), "class": doc_class, "stage": "crashed", "score": None,
                            "scorable": False, "outcome": "crashed", "tokens": 0, "judge_error": False,
                            "labelled": labelled_count(row, doc_class)}
-    if item is None or item.get("error") or item.get("ok") is False:
+    if item is None:
         return out
     pred = item.get("pred") or {}
-    if pred.get("error"):
+    if isinstance(pred.get("judge_reasks"), Mapping):
+        # HF-002 / HF-013: a judge answer was asked twice. Read before the crash returns below: a document
+        # the run returned as failed still made (and billed) its re-asks.
+        out["judge_reasks"] = _judge_reask_counts(pred["judge_reasks"])
+    if item.get("error") or item.get("ok") is False or pred.get("error"):
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
-    if isinstance(pred.get("judge_reasks"), Mapping):  # HF-002 / HF-013: a judge answer was asked twice
-        out["judge_reasks"] = _judge_reask_counts(pred["judge_reasks"])
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
         out["archived_class"] = str(pred.get("doc_type") or "").strip().lower() or None
