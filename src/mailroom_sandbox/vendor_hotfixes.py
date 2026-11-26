@@ -222,6 +222,206 @@ def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> C
     return intake_run
 
 
+class HotfixDrift(RuntimeError):
+    """The vendored text a hotfix rewrites is not where the hotfix expects it (reported ``stale``)."""
+
+
+#: What the triage-only intake prompt says where the vendored CLEAN block was (HF-016).
+INTAKE_TRIAGE_ONLY_BLOCK = (
+    "NO CLEANING — not requested here. The deterministic intake clerk has already normalized the "
+    "text, and the sorter reads that text, not yours. Set cleaned_text to null (or leave it out) and "
+    "changes_applied to an empty array; never return any part of the document.\n\n")
+_INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
+#: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
+INTAKE_TRIAGE_ONLY_TAIL = ("\n\nIgnore any instruction to return the document text: set cleaned_text to null and "
+                           "changes_applied to an empty array in every answer; the text is never returned (HF-016).")
+#: The section map's size in the served prompt (and in the swapped schema, when it carries a limit).
+#: The vendored prompt allows 40 sections, an estimated 1.9k to 2.5k output tokens against intake's
+#: 2,048-token ``max_tokens``; the map is reporting only (``section_count`` and ``roles`` in
+#: ``intake_meta.prep``), so a short one costs nothing downstream.
+INTAKE_SECTION_CAP = 12
+_INTAKE_VENDORED_SECTION_LIMIT = re.compile(r"\bat most 40 sections\b")
+_INTAKE_SECTION_LIMIT = re.compile(r"\bat most \d+ sections\b", re.I)
+#: Marks the validate_intake wrapper that nulls ``cleaned_text`` (HF-016); copied onto outer wrappers.
+_NULL_CLEAN_MARK = "_sandbox_null_clean"
+
+
+def _intake_triage_only(text: str) -> str:
+    """``text`` with its CLEAN block replaced by the null instruction and its section map capped."""
+    if INTAKE_TRIAGE_ONLY_BLOCK in text or INTAKE_TRIAGE_ONLY_TAIL in text:
+        return text  # already rewritten
+    out, n = _INTAKE_CLEAN_BLOCK.subn(lambda _m: INTAKE_TRIAGE_ONLY_BLOCK, text)
+    out = out.replace("TRIAGE, CLEAN, and PREPARE", "TRIAGE and PREPARE")
+    if not n:
+        # No CLEAN block (a managed or local variant): drop any line that asks for the whole or repaired
+        # text in cleaned_text, then end with an explicit override of whatever remains.
+        kept = [ln for ln in out.splitlines()
+                if not (re.search(r"cleaned_text", ln, re.I) and re.search(r"\b(full|repaired)\b", ln, re.I))]
+        out = "\n".join(kept).rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+    out, limits = _INTAKE_SECTION_LIMIT.subn(f"at most {INTAKE_SECTION_CAP} sections", out)
+    if not limits:  # a served prompt that states no limit still gets one
+        out = out.rstrip() + f"\n\nInclude at most {INTAKE_SECTION_CAP} sections."
+    return out
+
+
+def _swap_intake_schema(module: Any) -> None:
+    """Point ``agents.intake.INTAKE_SCHEMA`` at a copy without ``cleaned_text`` and with a capped section list.
+
+    The copy only changes what it must: ``cleaned_text`` is dropped, and a ``maxItems`` the sections
+    array carries is set to :data:`INTAKE_SECTION_CAP` (the vendored schema carries none). Idempotent.
+    """
+    schema = module.INTAKE_SCHEMA
+    props = schema.get("properties", {})
+    sections = props.get("sections")
+    capped = isinstance(sections, dict) and "maxItems" in sections and sections["maxItems"] != INTAKE_SECTION_CAP
+    if "cleaned_text" in props or capped:
+        new_props = {k: v for k, v in props.items() if k != "cleaned_text"}
+        if capped:
+            new_props["sections"] = {**sections, "maxItems": INTAKE_SECTION_CAP}
+        module.INTAKE_SCHEMA = {**schema, "properties": new_props}
+
+
+def _has_null_clean(fn: Any) -> bool:
+    """Whether ``fn`` or a function it wraps is the HF-016 null-clean wrapper."""
+    depth = 0
+    while fn is not None and depth < 16:
+        if getattr(fn, "__dict__", {}).get(_NULL_CLEAN_MARK):
+            return True
+        fn, depth = getattr(fn, "__wrapped__", None), depth + 1
+    return False
+
+
+def _install_null_clean(module: Any) -> None:
+    """Wrap ``module.validate_intake`` so every intake reply leaves it with ``cleaned_text`` None (idempotent).
+
+    The prompt only asks the model for a null clean; a model can still return one. Upstream
+    ``intake_run`` replaces the document with any non-empty ``cleaned_text`` of a single-window read,
+    and HF-003 checks only its length and lost words, so altered numbers or appended text would
+    become the working text. ``validate_intake`` is the one seam every reply passes through before
+    ``prep["cleaned"]`` is built (``_call_one`` looks it up on the module), so the clean is dropped
+    there and ``clean_refused`` records that a clean was returned and ignored. HF-003 stays behind it
+    as a latent guard. HF-017 wraps the same function; they are independent, so the order is only
+    cosmetic (``HOTFIXES`` lists HF-016 first, which leaves the null clean innermost).
+    """
+    current = module.validate_intake
+    if _has_null_clean(current):
+        return
+
+    @functools.wraps(current)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = current(result, text)
+        if out.get("cleaned_text"):
+            out["clean_refused"] = "cleaned_text ignored: intake is triage-only, the clerk's text stays (HF-016)"
+        out["cleaned_text"] = None
+        return out
+
+    setattr(validate_intake, _NULL_CLEAN_MARK, True)
+    module.validate_intake = validate_intake
+
+
+def _refresh_intake_triage_only(module: Any) -> None:
+    """Re-swap the schema and re-wrap ``validate_intake`` if a reload restored the vendored objects."""
+    _swap_intake_schema(module)
+    _install_null_clean(module)
+
+
+def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Intake returns triage and a short section map only; it never re-emits the document (HF-016).
+
+    The vendored prompt asks a messy document's model to return the FULL repaired text as
+    ``cleaned_text``. On OpenRouter intake's output allowance is 2,048 tokens, so any document over
+    2-3k characters is likely to be cut off mid-JSON, the whole answer (triage and sections too)
+    is lost and the input is still paid. The clerk's deterministic output stays the working text:
+    the prompt asks for a null clean, the schema drops the field, and ``validate_intake`` nulls
+    whatever a model returns anyway. The 40-section allowance is cut to
+    :data:`INTAKE_SECTION_CAP`, which makes a cut-off much less likely (an estimate, not a
+    guarantee). The prompt text is rewritten after it is served, so a Langfuse-managed or locally
+    overridden prompt gets the same instruction; a vendored prompt whose CLEAN block or section
+    limit moved fails here, not silently.
+    """
+    if not _INTAKE_CLEAN_BLOCK.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-016)")
+    if not _INTAKE_VENDORED_SECTION_LIMIT.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT no longer says 'at most 40 sections' (HF-016)")
+    if "cleaned_text" not in module.INTAKE_SCHEMA.get("properties", {}):
+        raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-016)")
+    _swap_intake_schema(module)
+    _install_null_clean(module)
+
+    @functools.wraps(original)
+    def system_prompt(self: Any) -> str:
+        return _intake_triage_only(original(self))
+
+    return system_prompt
+
+
+def _usable_triage(triage: Any) -> bool:
+    return isinstance(triage, dict) and bool(triage.get("primary_doc_class"))
+
+
+def _catalog_subclass(primary_class: Any, subclass: Any) -> str | None:
+    """The canonical sorter subclass token for ``primary_class``, or None when it is not in its catalog."""
+    from langchain_agents.doc_inventories import valid_sorter_subclasses  # type: ignore
+
+    cls = str(primary_class or "").strip()
+    token = str(subclass or "").strip().lower()
+    # The guard's own acceptance set (the class catalog; contract also takes CUAD ``other``).
+    # ``normalize_sorter_subclass`` is not used: it falls back to ``other`` for any unknown token.
+    return token if cls and token in valid_sorter_subclasses(cls) else None
+
+
+def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """A failed intake read feeds the sorter no prior; an invented subclass is not printed (HF-017).
+
+    ``validate_intake`` turned a parse failure (a cut-off reply, prose, a JSON list) into a
+    truthy triage of ``unknown`` / 0.0 / no gist, and ``format_intake_prior`` rendered it as an
+    advisory read. An empty triage is falsy, ``_merge_triage`` falls back to the first window's
+    read and ``format_intake_prior`` returns "". A model that answers ``unknown`` with a gist is a
+    real read and keeps its prior. The subclass line is printed only for a token in the sorter's
+    own catalog for that primary class. ``_merge_triage`` drops empty reads before it merges, so a
+    failed window never hides another window's real read.
+    """
+
+    @functools.wraps(original)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = original(result, text)
+        if not isinstance(result, dict) or result.get("_parse_error") or not _usable_triage(result.get("triage")):
+            out["triage"] = {}
+        return out
+
+    merge = module._merge_triage
+    if getattr(merge, _MARK, None) != "HF-017":
+        @functools.wraps(merge)
+        def _merge_triage(reads: list[dict]) -> dict:
+            # Upstream's all-unknown fallback is reads[0], so a failed (empty) first window hid an
+            # honest ``unknown`` read from a later one. Empty reads are dropped first.
+            return merge([r for r in reads if r] or reads)
+
+        setattr(_merge_triage, _MARK, "HF-017")
+        module._merge_triage = _merge_triage
+
+    prior = module.format_intake_prior
+    if getattr(prior, _MARK, None) != "HF-017":
+        @functools.wraps(prior)
+        def format_intake_prior(prep: dict | None) -> str:
+            triage = (prep or {}).get("triage")
+            if isinstance(triage, dict) and triage.get("doc_subclass"):
+                token = _catalog_subclass(triage.get("primary_doc_class"), triage["doc_subclass"])
+                prep = {**prep, "triage": {**triage, "doc_subclass": token}}
+            return prior(prep)
+
+        setattr(format_intake_prior, _MARK, "HF-017")
+        module.format_intake_prior = format_intake_prior
+    return validate_intake
+
+
+def _refresh_empty_intake_prior(module: Any) -> None:
+    """Re-wrap ``format_intake_prior`` and ``_merge_triage`` if a reload restored the vendored functions."""
+    if (getattr(module.format_intake_prior, _MARK, None) != "HF-017"
+            or getattr(module._merge_triage, _MARK, None) != "HF-017"):
+        _install_empty_intake_prior(module, module.validate_intake)
+
+
 def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(original)
     def record_usage(usage: Any, model: str | None = None, agent: str | None = None,
@@ -1100,6 +1300,35 @@ HOTFIXES: tuple[Hotfix, ...] = (
         # The wrapper reads the graph state from this caller's frame (_arbiter_node_state).
         also=(("graph.build_graph:arbiter_node", "16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f"),),
     ),
+    Hotfix(
+        id="HF-016",
+        module="agents.intake",
+        attr="IntakeAgent.system_prompt",
+        source_sha256="9d2e6238b09d65b18f70356c08bc8f712a70898a464662fc299d6abcdecbb886",
+        upstream="upstream issue to be filed (llm-mailroom: intake CLEAN re-emits the document under a 2k output cap)",
+        summary="intake returns triage and a short section map only: the prompt's CLEAN block becomes "
+                "\"set cleaned_text to null\", the section map is capped at 12, INTAKE_SCHEMA drops "
+                "cleaned_text and validate_intake nulls any clean a model returns anyway, so a long "
+                "messy document's answer is much less likely to be cut off mid-JSON and the clerk's "
+                "text stays the working text (HF-003 stays as a latent guard)",
+        install=_install_intake_triage_only,
+        refresh=_refresh_intake_triage_only,
+    ),
+    Hotfix(
+        id="HF-017",
+        module="agents.intake",
+        attr="validate_intake",
+        source_sha256="c6957091af25c45f4af88ce8475349fb64cc3c40b4f2e66756eb5d91a3043df6",
+        upstream="upstream issue to be filed (llm-mailroom: a failed intake read becomes an unknown/0.0 prior)",
+        summary="a failed intake read (parse error, no triage object) has an empty triage and so no "
+                "sorter prior instead of 'unknown / 0.0', and a failed window never hides another "
+                "window's read in the merge; the prior's subclass line is printed only "
+                "for a token in the sorter's catalog for that class",
+        install=_install_empty_intake_prior,
+        refresh=_refresh_empty_intake_prior,
+        also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
+              ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
+    ),
 )
 
 _STATUS: dict[str, str] = {}
@@ -1143,7 +1372,12 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
                          "(re-validate it or retire it)", fix.id, fix.module, fix.attr)
             _STATUS[fix.id] = "stale"
             continue
-        wrapped = fix.install(module, current)
+        try:
+            wrapped = fix.install(module, current)
+        except HotfixDrift as exc:
+            _log.warning("%s not applied: %s (re-validate it or retire it)", fix.id, exc)
+            _STATUS[fix.id] = "stale"
+            continue
         setattr(wrapped, _MARK, fix.id)
         setattr(owner, name, wrapped)
         _STATUS[fix.id] = "applied"

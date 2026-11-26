@@ -124,6 +124,85 @@ def _coverage(cls: str, agent: str, window: int | None, docs: list[tuple[str, in
         )
 
 
+#: ``agents.intake.INTAKE_OVERLAP_FRACTION``: windows after the first re-send this share of the budget.
+_INTAKE_OVERLAP_FRACTION = 0.15
+#: ``should_llm_intake``'s fallback when the sorter has no ``max_input_chars``.
+_INTAKE_SORTER_BUDGET = 12_000
+
+
+def _sorter_budget(taxonomy: Mapping[str, Any]) -> int:
+    """The sorter's ``max_input_chars`` as ``should_llm_intake`` reads it: 12,000 when it sets none.
+
+    Not ``_budget``: that defaults to the 90,000-character planning window, which would leave a clean
+    document between 12,000 and 90,000 characters out of a gate the graph fires for.
+    """
+    cfg = (taxonomy.get("agents") or {}).get("sorter") or {}
+    try:
+        return int(cfg.get("max_input_chars") or _INTAKE_SORTER_BUDGET)
+    except (TypeError, ValueError):
+        return _INTAKE_SORTER_BUDGET
+
+
+def _intake_gate(taxonomy: Mapping[str, Any]):
+    """``(enabled, fires)`` for the vendored intake gate under ``taxonomy``; None when it cannot be imported.
+
+    ``fires(text)`` repeats ``should_llm_intake`` on what the graph hands it: the clerk's normalized
+    text and its ``looks_messy`` flag, or a text over the sorter's budget (read from ``taxonomy``,
+    the run's planned config, not the process's active one). Importing the agent stays lazy so an
+    offline preflight without the pipeline falls back to counting every document.
+    """
+    try:
+        from agents.intake import deterministic_normalize, llm_intake_enabled, looks_messy  # type: ignore
+    except Exception:  # noqa: BLE001 — optional (pipeline extra)
+        return None
+    enabled = bool(llm_intake_enabled())
+    sorter_budget = _sorter_budget(taxonomy)
+
+    def fires(text: str) -> bool:
+        if not enabled:
+            return False
+        cleaned, stats = deterministic_normalize(text)
+        if not cleaned.strip():
+            return False
+        return bool(looks_messy(cleaned, stats)) or len(cleaned) > sorter_budget
+
+    fires.enabled = enabled  # type: ignore[attr-defined]
+    return fires
+
+
+def intake_windows(chars: int, budget: int) -> int:
+    """An estimate of how many calls the vendored ``sliding_windows`` makes for ``chars`` at ``budget``.
+
+    Over budget the spans are packed to ``budget - overlap`` (15% overlap), so the estimate is the
+    document over that span, rounded up. It ignores paragraph packing, which can make the real count
+    higher, so it is not an upper bound. HF-010 limits an API-routed intake to one window, so a
+    priced (OpenRouter) run is unaffected; only a Modal/vLLM or self-hosted route slides windows.
+    """
+    if chars <= budget:
+        return 1
+    overlap = max(1, int(budget * _INTAKE_OVERLAP_FRACTION))
+    return -(-chars // max(1, budget - overlap))
+
+
+def _intake_plan(taxonomy: Mapping[str, Any], docs: list[tuple[str, str]], models: Mapping[str, Any],
+                 gate: Any) -> dict[str, Any]:
+    """The intake read of one class's documents: how many fire the gate, their windows and input cost.
+
+    A document whose gate fires makes ``intake_windows`` calls of at most the intake budget each,
+    priced like the other agents (2.4 chars/token plus the 8k-token prompt allowance, at the intake
+    model's tier). ``input_usd_*`` is None when intake is not token-billed (Modal/vLLM).
+    """
+    budget = _budget(taxonomy, "intake")
+    model = _model(taxonomy, "intake", models)
+    gated = [(d, len(t)) for d, t in docs if gate is None or gate(t)]
+    calls = [intake_windows(n, budget) for _, n in gated]
+    costs = [_calls_cost(model, c, min(n, budget)) for c, (_, n) in zip(calls, gated)]
+    priced = None not in costs
+    return {"docs_gated": len(gated), "windows_max": max(calls, default=0), "calls": sum(calls),
+            "input_usd_total": round(sum(costs), 5) if priced else None,
+            "input_usd_max_doc": round(max(costs, default=0.0), 5) if priced else None}
+
+
 def plan(
     taxonomy: Mapping[str, Any],
     rows: Iterable[Mapping[str, Any]],
@@ -162,10 +241,21 @@ def plan(
 
     classes: dict[str, Any] = {}
     warnings: list[str] = []
+    gate = _intake_gate(taxonomy) if pipeline else None
+    intake_total = {"docs_gated": 0, "calls": 0, "input_usd": 0.0}
     for cls in sorted(texts):
         docs = [(d, len(t)) for d, t in texts[cls]]
         longest_id, longest = max(docs, key=lambda d: d[1])
         entry: dict[str, Any] = {"docs": len(docs), "max_chars": longest, "longest_doc": longest_id}
+        intake_entry = None
+        if pipeline:
+            intake_entry = _intake_plan(taxonomy, texts[cls], models or {}, gate)
+            entry["intake"] = intake_entry
+            intake_total["docs_gated"] += intake_entry["docs_gated"]
+            intake_total["calls"] += intake_entry["calls"]
+            usd = intake_entry["input_usd_total"]
+            intake_total["input_usd"] = None if usd is None or intake_total["input_usd"] is None \
+                else intake_total["input_usd"] + usd
         specialist = specialists.get(cls)
         if specialist:
             budget = _budget(taxonomy, specialist)
@@ -191,7 +281,8 @@ def plan(
             if pipeline:
                 entry["input_cost_usd"] = _cost_envelope(
                     taxonomy, cls, specialist, longest, per_pass, window_plan(budget, chunking),
-                    windows.get("judge"), windows.get("arbiter"), models or {})
+                    windows.get("judge"), windows.get("arbiter"), models or {},
+                    intake_usd=(intake_entry or {}).get("input_usd_max_doc"))
             if not chunked and longest > budget:
                 why = "chunking is disabled" if pipeline else "no chunk_chars knob (single pass)"
                 warnings.append(f"{cls}: {why} and {specialist} max_input_chars={budget} "
@@ -218,7 +309,16 @@ def plan(
         shown = ", ".join(tiny[:5]) + (" …" if len(tiny) > 5 else "")
         warnings.append(f"{len(tiny)} document(s) under {min_chars} chars of text: {shown}")
     fit = taxonomy.get("context_fit") or {}
+    intake_block: dict[str, Any] = {}
+    if pipeline:
+        usd = intake_total["input_usd"]
+        intake_block = {"intake": {
+            "enabled": True if gate is None else bool(gate.enabled),
+            "gate": "assumed: every document" if gate is None else "should_llm_intake",
+            "docs_gated": intake_total["docs_gated"], "calls": intake_total["calls"],
+            "input_usd": None if usd is None else round(usd, 5)}}
     return {
+        **intake_block,
         "task": task,
         "source_windows": windows if pipeline else {},
         "context_fit": {"applied": fit.get("applied") or {}, "chunk_chars": fit.get("chunk_chars")},
@@ -261,7 +361,7 @@ JUDGE_WORST_CALLS_PER_PASS = 4
 
 def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longest: int, per_pass: int,
                    window: tuple[int, int], judge_w: int | None, arbiter_w: int | None,
-                   models: Mapping[str, Any]) -> dict[str, Any] | None:
+                   models: Mapping[str, Any], intake_usd: float | None = 0.0) -> dict[str, Any] | None:
     """Input cost of the class's longest document: clean path vs the full escalation loop.
 
     ``clean`` is one extraction pass with the judge skipped. ``judged`` adds one
@@ -272,6 +372,14 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     plus 8k tokens of prompt, so these are upper bounds. Tiered API prices apply
     per call. None when an agent is not token-billed (Modal/vLLM GPU-hour serving)
     or its model has no API price.
+
+    ``intake_usd`` is the intake read of the class's costliest document whose intake gate fires
+    (0 when none does; None when one does but intake has no API price, which leaves the envelope
+    unpriced like any other unpriced agent). An intake served from Modal/vLLM is not token-billed,
+    so a gated document there also leaves the envelope None, the same as a Modal judge or arbiter;
+    preflight records the plan as advisory and no spend cap reads it. It prices windows HF-010 would refuse on an API route,
+    so it errs high there. It is added to every scenario: the read runs before extraction and is
+    paid whatever the routing then does. It is an upper bound for this class's longest document.
     """
     conf = taxonomy.get("confidence") or {}
     th = {**{k: v for k, v in conf.items() if k != "by_class"}, **((conf.get("by_class") or {}).get(cls) or {})}
@@ -283,7 +391,7 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     extract = _calls_cost(_model(taxonomy, specialist, models), per_pass, chunk_in)
     judge = _calls_cost(_model(taxonomy, "judge", models), 2, min(longest, judge_w or longest))
     arbiter = _calls_cost(_model(taxonomy, "arbiter", models), 1, min(longest, arbiter_w or longest))
-    if None in (extract, judge, arbiter):
+    if None in (extract, judge, arbiter, intake_usd):  # a gated document on an unpriced intake model
         return None
     extract_passes = 1 + confidence_retries + retries
     judge_worst = _calls_cost(_model(taxonomy, "judge", models), JUDGE_WORST_CALLS_PER_PASS,
@@ -295,14 +403,19 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     # flag off, so the flag must not artificially inflate the maximum pass budget.
     rejudge = bool(th.get("judge_rejudge_retry", False)) and judge_passes > 1
     can_retry = retries > 0 and judge_passes > 1
-    retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter) if can_retry else None
-    return {"clean": round(extract, 5), "judged": round(extract + judge, 5), "worst": round(worst, 5),
+    intake_usd = float(intake_usd)
+    retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter + intake_usd) if can_retry else None
+    worst += intake_usd
+    return {"clean": round(extract + intake_usd, 5), "judged": round(extract + judge + intake_usd, 5),
+            "worst": round(worst, 5), "intake": round(intake_usd, 5),
             "worst_calls": {"extract_passes": extract_passes, "judge": JUDGE_WORST_CALLS_PER_PASS * judge_passes,
                             "arbiter": min(judge_passes, retries + 1)},
             "high_confidence_retry": {"input_usd": round(retry_cost, 5) if retry_cost is not None else None,
                                       "judge_calls": 2 * (1 + int(rejudge)) if can_retry else None},
             "keep_best_attempt_adds_calls": False,
-            "basis": "input-only upper bound; excludes output tokens, intake, classification and transport retries"}
+            "basis": "input-only upper bound; includes the intake read of a document whose intake gate "
+                     "fires (messy, or over the sorter budget) at the intake model's price; excludes output "
+                     "tokens, sorter and reviewer classification calls and transport retries"}
 
 
 def taxonomy_for_spec(spec: Any, knobs: Mapping[str, Any] | None = None) -> dict[str, Any]:

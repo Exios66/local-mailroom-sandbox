@@ -1632,6 +1632,59 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     return result
 
 
+def _gate_fired_without_prep(result: Mapping[str, Any]) -> bool:
+    """Whether the vendored intake gate would have fired for this state, read from its flags (no text kept)."""
+    try:
+        from agents.intake import llm_intake_enabled, should_llm_intake  # type: ignore
+
+        return bool(llm_intake_enabled() and should_llm_intake(str(result.get("doc_text") or ""),
+                                                               {"messy": bool(result.get("intake_messy"))}))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        return False
+
+
+def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    """What the intake node did for one document, with no document text (the item record's ``intake``).
+
+    Built from the graph state's ``intake_prep``. ``gate_fired`` is True when a prep is present, or when
+    the gate (``should_llm_intake`` on the state's ``intake_messy`` flag and text length) would have
+    fired although the call raised and the node left no prep; that case is ``read_failed`` too.
+    ``read_failed`` means it ran and yielded no triage, so no
+    prior reached the sorter. ``prior_sent`` is whether the intake prior block is non-empty (the
+    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's or HF-016's refusal. ``windows`` is None when the prep's count is malformed.
+    """
+    prep = result.get("intake_prep")
+    if not isinstance(prep, Mapping) and _gate_fired_without_prep(result):
+        # intake_node catches a failed call (a timeout, HF-010's WholeDocumentTooLong) and leaves no prep.
+        return {"gate_fired": True, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": True}
+    if not isinstance(prep, Mapping):
+        return {"gate_fired": False, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": False}
+    triage = prep.get("triage") if isinstance(prep.get("triage"), Mapping) else {}
+    confidence = triage.get("confidence")
+    try:
+        from agents.intake import format_intake_prior  # type: ignore
+
+        prior_sent = bool(format_intake_prior(dict(prep)))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        prior_sent = bool(triage)
+    try:
+        windows: int | None = int(prep.get("windows") or 0)
+    except (TypeError, ValueError, OverflowError):  # a summary never fails a document
+        windows = None
+    return {
+        "gate_fired": True,
+        "windows": windows,
+        "triage_class": (str(triage["primary_doc_class"]) if triage.get("primary_doc_class") else None),
+        "triage_confidence": (float(confidence) if isinstance(confidence, (int, float))
+                              and not isinstance(confidence, bool) else None),
+        "prior_sent": prior_sent,
+        "clean_refused": bool(prep.get("clean_refused")),
+        "read_failed": not triage,
+    }
+
+
 def _run_pipeline_doc_once(
     row: dict[str, Any],
     *,
@@ -1666,6 +1719,7 @@ def _run_pipeline_doc_once(
         "stage": row.get("expected_stage"),
         "extracted_data": parse_expected_fields(row) if mock else None,
         "offline_fallback": True,
+        "intake": intake_summary({}),
     }
     try:
         from graph.build_graph import run_pipeline  # type: ignore
@@ -1761,6 +1815,8 @@ def _run_pipeline_doc_once(
         # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
         # reports, the gate and the floor digest separate these from clean archives.
         **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
+        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
+        "intake": intake_summary(result),
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),

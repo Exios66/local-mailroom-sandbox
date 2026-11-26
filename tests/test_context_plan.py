@@ -401,19 +401,143 @@ def test_require_counts_only_the_readers_a_task_calls(monkeypatch):
         assert preflight._record_expanded_inputs(report, spec, {}, require=True) is ok, task
 
 
+# --- the intake read in the input-cost estimate --------------------------------------------------
+
+_PRICED = {"provider": "openrouter", "model": "qwen/qwen3.5-9b"}
+_MESSY = ("Section 4.2 The Purchase Price is $12,500,000 payable on\n" * 3 + "\n\n\n\n") * 12
+_CLEAN_SHORT = "The Parties agree to the terms set out in this short letter.\n\nSincerely, A."
+
+
+def _priced_taxonomy(intake_budget=605_030, sorter_budget=605_030):
+    tax = json.loads(json.dumps(TAXONOMY))
+    for name in ("merger_agreement_specialist", "correspondence_specialist", "judge", "arbiter", "sorter", "intake"):
+        tax["agents"].setdefault(name, {}).update(_PRICED)
+    tax["agents"]["intake"]["max_input_chars"] = intake_budget
+    tax["agents"]["sorter"]["max_input_chars"] = sorter_budget
+    return tax
+
+
+def _intake_plan(text, **kw):
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": text}]
+    return context_plan.plan(_priced_taxonomy(**kw), rows, windows=WINDOWS)
+
+
+def test_a_messy_document_prices_its_intake_read():
+    cp = _intake_plan(_MESSY)
+    entry = cp["classes"]["merger_agreement"]
+    assert entry["intake"]["docs_gated"] == 1 and entry["intake"]["windows_max"] == 1
+    assert entry["intake"]["input_usd_total"] > 0
+    assert cp["intake"]["docs_gated"] == 1 and cp["intake"]["input_usd"] > 0
+    env = entry["input_cost_usd"]
+    clean_only = _intake_plan(_CLEAN_SHORT)["classes"]["merger_agreement"]["input_cost_usd"]
+    assert env["intake"] == pytest.approx(entry["intake"]["input_usd_max_doc"])
+    assert env["clean"] > clean_only["clean"] - 1e-9 and env["intake"] > 0
+    assert "intake" in env["basis"] and "excludes output tokens, intake" not in env["basis"]
+
+
+def test_the_high_confidence_retry_scenario_includes_the_intake_read():
+    """The intake read is paid before routing, so every scenario carries it, the retry one too."""
+    gated = _intake_plan(_MESSY)["classes"]["merger_agreement"]["input_cost_usd"]
+    retry = gated["high_confidence_retry"]["input_usd"]
+    assert gated["intake"] > 0 and retry is not None
+    extract = gated["clean"] - gated["intake"]
+    judge = gated["judged"] - gated["clean"]  # one judge pass (completeness plus correctness)
+    calls = gated["worst_calls"]
+    arbiter = (gated["worst"] - gated["intake"] - calls["extract_passes"] * extract
+               - calls["judge"] / 2 * judge) / calls["arbiter"]
+    assert arbiter > 0
+    # Two extraction passes, one judge pass and one arbiter call, plus the intake read once.
+    assert retry == pytest.approx(2 * extract + judge + arbiter + gated["intake"], abs=5e-5)
+
+
+def test_a_clean_short_document_prices_no_intake_read():
+    cp = _intake_plan(_CLEAN_SHORT)
+    entry = cp["classes"]["merger_agreement"]
+    assert entry["intake"]["docs_gated"] == 0 and entry["intake"]["input_usd_total"] == 0.0
+    assert cp["intake"]["docs_gated"] == 0 and cp["intake"]["input_usd"] == 0.0
+    assert entry["input_cost_usd"]["intake"] == 0.0
+
+
+def test_a_clean_document_over_the_sorter_budget_still_fires_the_gate():
+    text = "The Borrower shall deliver notice to the Agent within ten days.\n\n" * 1000
+    assert _intake_plan(text, sorter_budget=30_000)["intake"]["docs_gated"] == 1
+    assert _intake_plan(text, sorter_budget=605_030)["intake"]["docs_gated"] == 0
+
+
+def test_a_document_over_the_intake_budget_is_priced_per_window():
+    one = _intake_plan(_MESSY)["classes"]["merger_agreement"]["intake"]
+    many = _intake_plan(_MESSY, intake_budget=1_000)["classes"]["merger_agreement"]["intake"]
+    assert one["windows_max"] == 1 and many["windows_max"] >= 3
+    assert many["input_usd_total"] > one["input_usd_total"]
+
+
+def test_the_intake_gate_off_prices_nothing(monkeypatch):
+    monkeypatch.setenv("MAILROOM_LLM_INTAKE", "0")
+    cp = _intake_plan(_MESSY)
+    assert cp["intake"]["docs_gated"] == 0 and cp["intake"]["enabled"] is False
+
+
+def test_an_unavailable_gate_counts_every_document(monkeypatch):
+    monkeypatch.setattr(context_plan, "_intake_gate", lambda taxonomy: None)
+    cp = _intake_plan(_CLEAN_SHORT)
+    assert cp["intake"]["gate"] == "assumed: every document" and cp["intake"]["docs_gated"] == 1
+
+
+def test_an_isolated_task_has_no_intake_term():
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": _MESSY}]
+    cp = context_plan.plan(_priced_taxonomy(), rows, windows=WINDOWS, task="specialist")
+    assert "intake" not in cp and "intake" not in cp["classes"]["merger_agreement"]
+
+
+def test_an_unpriced_intake_route_still_counts_its_calls():
+    tax = _priced_taxonomy()
+    tax["agents"]["intake"] = {"provider": "modal", "model": "Qwen/Qwen3.5-9B", "max_input_chars": 25_000}
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": _MESSY}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["intake"]["docs_gated"] == 1 and cp["intake"]["calls"] == 1 and cp["intake"]["input_usd"] is None
+
+
+def test_a_gated_document_on_an_unpriced_intake_model_leaves_the_envelope_unpriced():
+    tax = _priced_taxonomy()
+    tax["agents"]["intake"] = {"provider": "openrouter", "model": "vendor/no-such-priced-model",
+                               "max_input_chars": 605_030}
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": _MESSY}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["classes"]["merger_agreement"]["intake"]["input_usd_total"] is None
+    assert cp["classes"]["merger_agreement"]["input_cost_usd"] is None  # never a silent $0 intake term
+    clean = context_plan.plan(tax, [{**rows[0], "doc_text": _CLEAN_SHORT}], windows=WINDOWS)
+    assert clean["classes"]["merger_agreement"]["input_cost_usd"]["intake"] == 0.0
+
+
+def test_a_sorter_with_no_input_budget_gates_intake_at_the_graphs_12000_not_the_planners_90000():
+    """Without ``max_input_chars`` the vendored ``should_llm_intake`` falls back to 12,000 characters."""
+    text = "The Borrower shall deliver notice to the Agent within ten days.\n\n" * 300  # ~19k clean chars
+    tax = _priced_taxonomy()
+    tax["agents"]["sorter"].pop("max_input_chars")
+    rows = [{"id": "d1", "expected_doc_class": "merger_agreement", "doc_text": text}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["intake"]["docs_gated"] == 1
+    tax["agents"]["sorter"]["max_input_chars"] = 30_000
+    assert context_plan.plan(tax, rows, windows=WINDOWS)["intake"]["docs_gated"] == 0
+    tax["agents"].pop("sorter")
+    assert context_plan.plan(tax, rows, windows=WINDOWS)["intake"]["docs_gated"] == 1
+
+
 def test_worst_case_prices_each_judge_pass_at_four_calls_and_leaves_clean_and_judged_alone():
     """HF-002 / HF-013: completeness and correctness are each asked once more after a parse failure."""
     agent = {"provider": "openrouter", "model": "qwen/qwen3.7-flash", "max_input_chars": 100000}
     tax = {"doc_classes": [{"key": "contract", "specialist": "contracts_specialist"}],
-           "agents": {"contracts_specialist": agent, "judge": agent, "arbiter": agent},
+           # intake is priced too: a 90k-character document fires the intake gate (HF-016's read)
+           "agents": {"contracts_specialist": agent, "judge": agent, "arbiter": agent, "intake": agent},
            "confidence": {"arbiter_retry_max": 1, "retry_max": 1, "judge_max_passes": 3}}
     rows = [{"id": "c", "expected_doc_class": "contract", "doc_text": "x" * 90_000}]
     cost = context_plan.plan(tax, rows)["classes"]["contract"]["input_cost_usd"]
     assert cost["worst_calls"] == {"extract_passes": 3, "judge": 12, "arbiter": 2}
     assert context_plan.JUDGE_WORST_CALLS_PER_PASS == 4
-    clean, judged = cost["clean"], cost["judged"]
+    intake = cost["intake"]  # paid once per document, not per pass
+    clean, judged = cost["clean"] - intake, cost["judged"] - intake
     pair = judged - clean  # one judge pass without a re-ask: two calls
     # 3 extractions + 3 passes x two pairs + 2 arbiter calls (one call each, half a pair)
-    assert cost["worst"] == pytest.approx(3 * clean + 6 * pair + 1 * pair, rel=1e-3)
+    assert cost["worst"] - intake == pytest.approx(3 * clean + 6 * pair + 1 * pair, rel=1e-3)
     # the clean path and the one-judge-pass scenario still count two judge calls
     assert judged > clean > 0

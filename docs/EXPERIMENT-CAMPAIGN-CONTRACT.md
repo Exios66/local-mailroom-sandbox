@@ -57,6 +57,8 @@ The complete implementations and upstream retirement conditions live in
 | HF-013 | The same for the accuracy judge: a correctness parse failure is asked once more; a second one is a judge error, never an "inaccurate" answer that reads as incomplete | `test_vendor_hotfixes.py`, `test_arbiter_termination.py` |
 | HF-014 | On a context-fitted route, an arbiter acceptance from a whole-source reading archives with a visible `arbiter_caveats` marker once the extraction confidence reaches `confidence.arbiter_full_source_min_confidence` (unset: the class `low`, so no route changes); lost chunks, conflicts and 16k-excerpt routes still park | `test_arbiter_full_source.py`, `test_gate.py` |
 | HF-015 | On a context-fitted route, an arbiter with no re-extraction budget left is never offered a retry | `test_arbiter_full_source.py`, `test_arbiter_termination.py` |
+| HF-016 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
+| HF-017 | A failed intake read sends the sorter no prior; an invented subclass is not printed | `test_vendor_hotfixes.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |
@@ -89,7 +91,8 @@ figure budgets four per pass (per node run, not counting transient HF-012 re-run
 HF-013). A separate high-confidence
 retry scenario shows the extra judge call from `judge_rejudge_retry`, respecting the class
 override and judge pass cap; a cap of one leaves no retry scenario. `keep_best_attempt` selects stored attempts and adds no calls.
-Output tokens, intake, classification and transport retries are outside this input estimate;
+The intake read of each document whose gate fires (messy, or over the sorter budget) is inside it, priced on the intake
+model; output tokens, classification and transport retries are outside this input estimate;
 compare measured per-class costs before the 500-document and full slices (#330).
 
 From the intended checkout and its own environment, run these offline checks after caching
