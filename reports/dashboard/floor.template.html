@@ -117,7 +117,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 <div class="drawer open" id="drawer"><div class="tabs" role="tablist"><button class="tab sel" data-t="scores" role="tab">SCORES vs GT</button><button class="tab" data-t="docs" role="tab">DOCUMENTS</button><button class="tab" data-t="nodes" role="tab">NODES</button><button class="tab" data-t="debug" role="tab">DEBUG</button><span class="sp"></span><span class="hint" id="tabHint"></span><button class="tab" id="drawerTog" aria-expanded="true">hide ▾</button></div><div class="pane" id="pane"></div></div></div>
 <div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outRev"></div><div class="note2" id="outNote"></div>
 <h3>Node — <span id="selName">(click a node)</span></h3>
-<div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here</span><b id="kAb">—</b></div>
+<div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen (run)</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50 (run)</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here (run)</span><b id="kAb">—</b></div>
 <div class="note2" id="selExtra" style="color:#8fa3b8"></div><div id="nodeDiag"></div>
 <h3>Document — <span id="docName">(pick one in DOCUMENTS)</span></h3><div class="kv" id="docKv"></div><div id="docDiag"></div>
 <div class="kv" style="margin-top:8px"><span>run tokens</span><b id="kTok"></b><span>digest</span><b id="kGen"></b></div></div>
@@ -524,7 +524,7 @@ function render(){
  document.getElementById("kAb").textContent=sel?(r.aborts_by_last_node[sel]||0):"—";
  document.getElementById("kTok").textContent=(r.tokens.prompt+r.tokens.completion).toLocaleString()+" tokens";
  document.getElementById("selExtra").textContent=!sel?"":
-  (D.graph_reference.node_agents[sel]||"")+" · "+graphNodeVal(sel)+" docs fired this node"+countScope+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
+  (D.graph_reference.node_agents[sel]||"")+" · "+graphNodeVal(sel)+" docs fired this node"+countScope+(Object.keys(agN).length?" · agents observed in run: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
   +nodeOutcomeText(sel);
  paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();
 }
@@ -668,9 +668,9 @@ ${DF.cell?`<button type="button" class="tab" id="clearCell">clear cell</button>`
 function nodesPane(){
  const r=run(),GR=D.graph_reference,no=r.node_outcomes||{};
  const ids=Object.keys(POS).filter(k=>k!=="START"&&k!=="END");
- return `<p class="secnote">Docs = distinct documents that entered the node${CLASS?" (class view)":""}. The outcome columns follow those documents to the end of the run${CLASS?" (run-wide; isolate is ignored here)":""}; "classified right" counts the ones with both a GT and a predicted class.</p><table class="t"><tr><th>node</th><th>agent</th><th class="num">docs</th><th class="num">p50 s</th><th class="num">aborts here</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th><th class="num">classified right</th></tr>`+
+ return `<p class="secnote">Docs = distinct documents that entered the node${DF.cell?" (pair view)":CLASS?" (class view)":" (run view)"}. The outcome columns, p50 and aborts use the whole run; "classified right" counts run documents with both a GT and a predicted class.</p><table class="t"><tr><th>node</th><th>agent</th><th class="num">docs</th><th class="num">p50 s</th><th class="num">aborts here</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th><th class="num">classified right</th></tr>`+
   ids.map(id=>{const o=no[id]||{ship:0,held:0,failed:0,open:0,n:0,class_n:0,class_ok:0};
-   return `<tr class="click${selNode===id?" sel":""}" tabindex="0" data-node="${esc(id)}"><td>${esc(id)}</td><td class="mut">${esc(GR.node_agents[id]||"")}</td><td class="num">${nodeVal(id)}</td><td class="num">${((r.node_ms_p50||{})[id]/1000||0).toFixed(1)}</td><td class="num ${(r.aborts_by_last_node||{})[id]?"bad":""}">${(r.aborts_by_last_node||{})[id]||0}</td>`+
+   return `<tr class="click${selNode===id?" sel":""}" tabindex="0" data-node="${esc(id)}"><td>${esc(id)}</td><td class="mut">${esc(GR.node_agents[id]||"")}</td><td class="num">${graphNodeVal(id)}</td><td class="num">${((r.node_ms_p50||{})[id]/1000||0).toFixed(1)}</td><td class="num ${(r.aborts_by_last_node||{})[id]?"bad":""}">${(r.aborts_by_last_node||{})[id]||0}</td>`+
    ["ship","held","failed","open"].map(k=>`<td class="num ${o[k]&&k!=="ship"?OUTC[k][0]:""}">${o[k]}</td>`).join("")+`<td class="num">${o.class_n?o.class_ok+"/"+o.class_n:"—"}</td></tr>`}).join("")+"</table>"}
 function debugPane(){
  if(!hasDebug())return '<p class="secnote">This digest has no per-document trace. Rebuild it with the current builder (sandbox floor does this on refresh).</p>';

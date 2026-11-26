@@ -1108,6 +1108,9 @@ def test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_fil
     render_prefix = html[html.index("function render(){"):html.index(" for(const [id,xy] of Object.entries(POS))")]
     arrivals = html[html.index("function arrivalGroups("):html.index("function markTab(")]
     node_diag = html[html.index("function paintNodeDiag("):html.index("function pickDoc(")]
+    nodes_pane = html[html.index("function nodesPane("):html.index("function debugPane(")]
+    selected_details = html[html.index(' const sel=selNode||""'):html.index(' paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();')]
+    selected_details = 'function paintSelected(){const r=run();'+selected_details+'}'
     script = r'''
 const assert = require("node:assert/strict");
 let DEBUG=true, ISSUE="problems", MODE="old-class-mode", selDoc=null;
@@ -1119,8 +1122,9 @@ const unrelated={id:"old-class",gt:"contract",pred:"contract",path:["intake","hu
   debug:{loops:[{node:"intake",visits:9,why:"wrong repeat"}],
     hops:[{from:"intake",to:"classify",why:"unrelated arrival"}],
     archive:{reached:false,why:"unrelated archive miss"}}};
-const run=()=>({docs:[selected,unrelated]});
-const D={graph_reference:{edges:[["START","intake"],["intake","classify"],
+const run=()=>({docs:[selected,unrelated],node_agents:{classify:{sorter:7}},node_ms_p50:{},
+  aborts_by_last_node:{},tokens:{prompt:0,completion:0},engine:{model:"test"},node_outcomes:{}});
+const D={graph_reference:{node_agents:{classify:"sorter"},edges:[["START","intake"],["intake","classify"],
   ["classify","archive"],["classify","human_review"],["archive","END"]]}};
 const nodeVal=()=>2;
 const edgeVal=(a,b)=>b==="human_review"?2:0;
@@ -1130,15 +1134,26 @@ const debugDocs=()=>[unrelated]; // existing class/mode filters select another d
 const selDocPath=()=>null;
 const endSources=()=>["archive"];
 const panel={innerHTML:""};
-const document={getElementById:()=>panel};
+const elements={};
+const document={getElementById:id=>id==="nodeDiag"?panel:(elements[id]??={})};
+let CLASS="contract";
+const POS={classify:[0,0]};
+const OUTC={ship:["ok"],held:["warn"],failed:["bad"],open:["mut"]};
+const isLLM=()=>true;
+const nodeOutcomeText=()=>"";
 const hasDebug=()=>true;
 const esc=s=>String(s);
 let selNode="classify";
-'''+cells+focus+arrivals+node_diag+render_prefix+' return {ev,neighbors};}'+r'''
+'''+cells+focus+arrivals+node_diag+render_prefix+' return {ev,neighbors};}'+nodes_pane+selected_details+r'''
 const highlighted=render().neighbors;
 assert.ok(highlighted.has("archive"));
 assert.ok(!highlighted.has("human_review"));
 assert.equal(graphNodeVal("classify"),1);
+assert.match(nodesPane(),/data-node="classify"><td>classify<\/td><td class="mut">sorter<\/td><td class="num">1<\/td>/);
+assert.match(nodesPane(),/pair view/);
+paintSelected();
+assert.equal(elements.kF.textContent,"1 (pair)");
+assert.match(elements.selExtra.textContent,/agents observed in run: sorter 7/);
 assert.equal(focusSets(),null);
 assert.deepEqual([...pairFocus().nodes],["intake","classify","archive"]);
 assert.equal(cellEndpoint("START"),1);
@@ -1162,6 +1177,9 @@ DF.cell=null; // clearing the cell restores the previous debug isolate
 assert.deepEqual([...focusSets().nodes],["intake","human_review"]);
 assert.equal(cellNodeCount("classify"),null);
 assert.equal(graphNodeVal("classify"),2);
+assert.match(nodesPane(),/data-node="classify"><td>classify<\/td><td class="mut">sorter<\/td><td class="num">2<\/td>/);
+paintSelected();
+assert.equal(elements.kF.textContent,"2 (class)");
 assert.ok(render().neighbors.has("human_review"));
 assert.ok(!render().neighbors.has("archive"));
 assert.equal(loopMark("intake").why,"wrong repeat");

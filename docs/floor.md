@@ -176,7 +176,9 @@ failure is grouped by the node and the error token. A class miss that still
 reached archive is its own mode. Click a mode to light only those documents.
 `?mode=` deep-links one id. `?doc=` and `?node=` reopen a document or a node.
 A selected confusion pair also controls clicked-node neighbors and the
-selected-node count, alongside graph counts, repeat badges and node diagnostics.
+selected-node count and the NODES table's docs column, alongside graph counts,
+repeat badges and node diagnostics. Agent observations, p50, aborts and node
+outcome summaries retain explicit run scope.
 Clearing it restores the previous class and DEBUG filters.
 
 `?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the

@@ -24,6 +24,13 @@ Export/import before repair retained the receiver's foreign cell and searches;
 after repair it restores the sender's pair, searches and DOCUMENTS tab. An older
 export clears those filters. These are simulated UI checks, not model evidence.
 
+Review also reproduced a NODES-table/rail mismatch on the initial repair:
+the table kept class counts after the rail switched to pair counts. Both now
+use the same helper. The executable regression renders the actual NODES table
+and selected-node details, checks matching pair/class counts and confirms that
+aggregate agent counts say they are from the whole run. The table explains
+that outcomes, p50 and aborts retain run scope.
+
 ## OpenRouter reconciliation
 
 - #413 remains present with invalid attempt/timeout refusal, one transport budget,
