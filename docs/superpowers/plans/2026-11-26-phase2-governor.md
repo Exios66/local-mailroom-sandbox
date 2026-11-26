@@ -350,18 +350,18 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   `_ask_once_more` captures the first attempt's `_raw` and appends the note to the user message of the re-ask
   only. Both judge modes (completeness, correctness) use it.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_the_completeness_reask_carries_the_repair_note_and_the_first_reply`: patch `_call_structured` to
     return `{"_raw": "not json", "_parse_error": True}` once, then a valid answer. The second user message
     ends with the note and contains `not json`.
   - `test_the_correctness_reask_carries_the_repair_note`: the same, for correctness.
   - `test_a_first_answer_that_parses_sends_no_note`.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_vendor_hotfixes.py`.
-- [ ] **Step 3: Implement** the capture and the note in `_ask_once_more`, keeping its current counting
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_vendor_hotfixes.py`.
+- [x] **Step 3: Implement** the capture and the note in `_ask_once_more`, keeping its current counting
   (`note_judge_reask/parked/recovered`) and its `JudgeParseError` on a second failure.
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py
   tests/test_judge_second_pass.py`.
-- [ ] **Step 5: Commit** `fix(judge): HF-002/HF-013 re-ask with a repair note instead of the same request (phase2 task 5)`.
+- [x] **Step 5: Commit** `fix(judge): HF-002/HF-013 re-ask with a repair note instead of the same request (phase2 task 5)`.
 
 ### Task 6: L4 — link duplicates before the conflict check (HF-019)
 

@@ -1080,7 +1080,9 @@ def test_a_judge_parse_failure_is_asked_once_more_and_a_parsed_answer_is_the_ver
     assert out[field] == good[field] and out["reasoning"] == "ok"
     assert len(judge._call_structured.calls) == 2
     first, second = judge._call_structured.calls
-    assert first == second  # the same request: prompt, schema, temperature and system prompt
+    # the same request (schema, temperature, system prompt), its message followed by the L3 repair note
+    assert second[1:] == first[1:]
+    assert second[0] == f"{first[0]}\n\n{vh.JUDGE_REPAIR_NOTE}garbage"
 
 
 @pytest.mark.parametrize("which", sorted(JUDGES))
@@ -1233,8 +1235,13 @@ def test_a_re_ask_through_the_real_call_path_passes_the_guard_and_is_priced_once
     _, single_budget, single_scope, _, _ = _run_live_path(which, [good])
     client, budget, scope, usage, outcome = _run_live_path(which, ["not json", good])
     assert outcome[field] == good[field]
-    assert len(client.requests) == 2  # the re-ask is a second HTTP call, with the same request
-    assert client.requests[0] == client.requests[1]
+    assert len(client.requests) == 2  # the re-ask is a second HTTP call: the same request plus the L3 note
+    first, second = client.requests
+    assert {k: v for k, v in second.items() if k != "messages"} == {k: v for k, v in first.items() if k != "messages"}
+    assert second["messages"][:-1] == first["messages"][:-1]
+    note = f"\n\n{vh.JUDGE_REPAIR_NOTE}not json"  # the vendored call adds its schema text after the message
+    assert note in second["messages"][-1]["content"]
+    assert second["messages"][-1]["content"].replace(note, "", 1) == first["messages"][-1]["content"]
     assert single_scope["calls"] == 1 and scope["calls"] == 2  # guard saw each call once
     assert usage["calls"] == 2 and usage["by_agent"]["judge"]["calls"] == 2
     assert (usage["prompt_tokens"], usage["completion_tokens"]) == (2000, 200)
@@ -1391,3 +1398,54 @@ def test_hf018_is_registered_with_a_pinned_source():
     assert fix.source_sha256 == vh._source_sha(rs.decide_route)
     assert vh.apply_hotfixes()["HF-018"] == "applied"
     assert getattr(rs.decide_route, "_sandbox_hotfix", None) == "HF-018"
+
+
+# --- L3 (phase 2): the judge re-ask carries a repair note and the first reply ---------------------------------
+
+def _repair_judge(answers):
+    """A judge whose model call answers ``answers`` in turn and records each user message."""
+    from agents.judge import CompletenessJudge
+
+    judge = CompletenessJudge.__new__(CompletenessJudge)
+    sent, queue = [], list(answers)
+
+    def call(user_message, *a, **k):
+        sent.append(user_message)
+        return queue.pop(0)
+
+    judge._call_structured = call
+    return judge, sent
+
+
+def test_the_completeness_reask_carries_the_repair_note_and_the_first_reply():
+    assert vh.apply_hotfixes()["HF-002"] == "applied"
+    judge, sent = _repair_judge([{"_raw": "not json", "_parse_error": True},
+                                   {"completeness": 0.9, "completeness_label": "complete", "reasoning": "ok"}])
+    assert judge.judge_completeness("contract", {"parties": ["A"]}, "t")["completeness_label"] == "complete"
+    assert len(sent) == 2 and not sent[0].endswith("not json")
+    assert sent[1].startswith(sent[0]) and sent[1].endswith(vh.JUDGE_REPAIR_NOTE + "not json")
+    assert judge._call_structured.__name__ == "call"  # the judge's own call is put back
+
+
+def test_the_correctness_reask_carries_the_repair_note():
+    assert vh.apply_hotfixes()["HF-013"] == "applied"
+    judge, sent = _repair_judge([{"_raw": "{\"extraction_corr" + "x" * 2000, "_parse_error": True},
+                                   {"extraction_correctness": 0.9, "extraction_correctness_label": "accurate",
+                                    "reasoning": "ok"}])
+    judge.judge_extraction_correctness("contract", {"parties": ["A"]}, "t")
+    assert sent[1].endswith(vh.JUDGE_REPAIR_NOTE + ("{\"extraction_corr" + "x" * 2000)[:1000])
+
+
+def test_a_first_answer_that_parses_sends_no_note():
+    vh.apply_hotfixes()
+    judge, sent = _repair_judge([{"completeness": 0.4, "completeness_label": "partial", "reasoning": "r"}])
+    judge.judge_completeness("contract", {"parties": ["A"]}, "t")
+    assert len(sent) == 1 and vh.JUDGE_REPAIR_NOTE not in sent[0]
+
+
+def test_a_reask_that_fails_again_still_parks_with_the_note_sent():
+    vh.apply_hotfixes()
+    judge, sent = _repair_judge([{"_raw": "a", "_parse_error": True}, {"_raw": "b", "_parse_error": True}])
+    with pytest.raises(vh.JudgeParseError):
+        judge.judge_completeness("contract", {"parties": ["A"]}, "t")
+    assert sent[1].endswith(vh.JUDGE_REPAIR_NOTE + "a")

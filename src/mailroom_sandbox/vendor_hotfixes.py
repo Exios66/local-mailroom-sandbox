@@ -107,6 +107,34 @@ def _is_correctness_parse_failure(out: Mapping[str, Any]) -> bool:
             and out.get("extraction_correctness_label") == "inaccurate")
 
 
+#: Appended to a judge's re-ask (L3), followed by the start of the reply that did not parse.
+JUDGE_REPAIR_NOTE = ("Your previous reply could not be read as the required JSON object. Reply again with only "
+                     "that JSON object, no other text. Your previous reply began:\n")
+JUDGE_REPAIR_RAW_CHARS = 1000
+
+
+def _with_model_call(agent: Any, through: Callable[..., Any], run: Callable[[], Any]) -> Any:
+    """Run ``run`` with ``agent._call_structured`` passed through ``through(call, user_message, ...)``.
+
+    The vendored judge builds its user message inside the method HF-002 / HF-013 wrap, so the
+    only seam for the message and the raw reply is the agent's model call. The override is an
+    instance attribute on a judge the graph creates per node call, and the previous binding (a
+    class method, or an instance attribute a caller set) is put back afterwards. The call itself
+    is the agent's own, so the guard, pins and read observer still see every request.
+    """
+    had = "_call_structured" in vars(agent)
+    saved = vars(agent).get("_call_structured")
+    call = agent._call_structured
+    agent._call_structured = lambda user_message, *a, **k: through(call, user_message, *a, **k)
+    try:
+        return run()
+    finally:
+        if had:
+            agent._call_structured = saved
+        else:
+            del agent._call_structured
+
+
 def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[Mapping[str, Any]], bool],
                    self: Any, args: tuple, kwargs: dict) -> dict:
     """One judge call, re-asked once when its answer did not parse; raises when the re-ask fails too.
@@ -121,13 +149,27 @@ def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[M
     recorded when the second answer parses and ``parked`` when it does not either, so a re-ask that
     raised is neither (counts only, never document text).
     """
-    out = original(self, *args, **kwargs)
+    first: dict[str, str] = {}
+
+    def capture(call: Callable[..., Any], user_message: str, *a: Any, **k: Any) -> Any:
+        answer = call(user_message, *a, **k)
+        if isinstance(answer, Mapping) and answer.get("_parse_error"):
+            first["raw"] = str(answer.get("_raw") or "")
+        return answer
+
+    out = _with_model_call(self, capture, lambda: original(self, *args, **kwargs))
     if not failed(out):
         return out
     from mailroom_sandbox.job import call_guard
 
     call_guard.note_judge_reask(judge)
-    out = original(self, *args, **kwargs)
+    # L3 (phase 2): the re-ask says what went wrong and shows the start of the reply that failed.
+    note = JUDGE_REPAIR_NOTE + first.get("raw", "")[:JUDGE_REPAIR_RAW_CHARS]
+
+    def repair(call: Callable[..., Any], user_message: str, *a: Any, **k: Any) -> Any:
+        return call(f"{user_message}\n\n{note}", *a, **k)
+
+    out = _with_model_call(self, repair, lambda: original(self, *args, **kwargs))
     if failed(out):
         call_guard.note_judge_parked(judge)
         raise JudgeParseError(JUDGE_PARSE_FAILURE)
