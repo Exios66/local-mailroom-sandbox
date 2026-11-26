@@ -121,7 +121,7 @@ instead:
 
 | Outcome | When | Result |
 |---|---|---|
-| `archive_with_caveats` | the current extraction already passed the judge or the fix checks | archived, marked `governor_stop`, scored |
+| `archive_with_caveats` | the current extraction already passed the judge, and every field the judge named wrong has a verified fix (the safety rules above) | archived, marked `governor_stop`, scored |
 | `human_review: retry_budget` | the retry budget is spent | sent to a person, scored as review |
 | `human_review: call_budget` | the call budget is spent | sent to a person, scored as review |
 | `human_review: spend_budget` | the spend budget is spent | sent to a person, scored as review |
@@ -215,10 +215,10 @@ passes, and every version keeps today's tightened loop limits (`judge_max_passes
 | 2. Full test | `dev` (900 documents): today's judge vs the new judge with examples | larger | the success rules below |
 
 The "without examples" version runs only in the pilot, to show cheaply what the examples add. The
-earlier "today's judge on the stronger model" version is dropped to save cost. Every version runs
-with the governor on, including today's judge, so loop savings from the governor and from the new
-judge can be told apart. The pilot also adds "today's judge, governor off" as the plain baseline,
-and its call counts per document type set the governor's final budgets.
+earlier "today's judge on the stronger model" version is dropped to save cost. Every other version
+runs with the governor on, including one with today's judge, so loop savings from the governor and
+from the new judge can be told apart. The one exception is the plain baseline, "today's judge,
+governor off", in the pilot only; its call counts per document type set the governor's final budgets.
 
 **Success (full test):**
 
@@ -338,8 +338,9 @@ CircleCI.
    `evidence_support`).
 4. **New judge.** The sandbox patch: the one-step ruling, the arbiter pass-through, the field-only
    retry, and the two-ruling limit. Tests on the offline pipeline prove every path ends.
-5. **Loop governor.** The `job.governor` switch, the per-document retry, call and spend budgets,
-   the routing outcomes, and the `governor_stop` record. Offline tests reach every outcome.
+5. **Loop governor.** Built in phase 2, with its own plan: the `job.governor` switch, the budgets,
+   the routing outcomes and the `governor_stop` record. Here, the new judge's rulings and retries
+   count toward its budgets, and offline tests reach every outcome with the new judge on.
 6. **Extra information.** Earlier attempts and guide definitions. The reference pool builder reads
    near-gold and interim labels for `calibration` and `pool`, with its leak checks.
 7. **Reports.** Before and after scores, fix accuracy, calls, cost, rulings and governor stops in

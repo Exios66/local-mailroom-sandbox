@@ -340,8 +340,8 @@ calls drain. Resume ignores an acknowledged token, skips completed indices and
 runs the remaining rows; a newer token cannot be erased by an older
 acknowledgement. A provider call already submitted can still finish, so pause
 latency includes its duration. Whole-run delegates retain their existing
-whole-run granularity; this row-level protocol does not add resumability to
-those evaluators. Remote `FunctionCall.cancel` behavior is unchanged.
+whole-run granularity; this row-level cancel protocol does not reach those
+evaluators (their resume replays finished documents instead, as described below). Remote `FunctionCall.cancel` behavior is unchanged.
 
 A resumed `pipeline`, `specialist`, `isolated` or agent-name task replays the
 documents an earlier attempt persisted in `items.jsonl`. Each is scored again
@@ -573,8 +573,8 @@ included). A lock written before the key existed counts as `true`.
   predicted, ok/error, latency, ts), then writes the checkpoint.
 - Ctrl-C → `paused`; errors retry up to `max_retries`; `fail_fast` marks
   `failed` (with `concurrency > 1` it stops *scheduling* new rows; in-flight
-  rows finish and persist — their GPU work is already spent). `resume` never
-  re-runs completed rows: it skips by completed **index**, so concurrent
+  rows finish and persist — their GPU work is already spent). `resume` of a
+  per-item task never re-runs completed rows: it skips by completed **index**, so concurrent
   runs whose items completed out of order resume exactly (the old
   contiguous-cursor skip would silently drop rows).
 - **`concurrency: N`** (job block, `[1, 64]`) runs N rows in parallel so a

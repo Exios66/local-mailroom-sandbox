@@ -34,8 +34,9 @@ Any agent can pick this up where the last one stopped. The owner approved the de
   then finish it or discard it (`git stash`) and redo it from Step 1.
 - **Context to read first:** `CLAUDE.md`, the spec section named above, then this file from "Global
   constraints". Line numbers here are from `e344b0b`, so search by name if they have moved.
-- **When every task is ticked:** do the hand-over steps at the end, then ask the owner whether to mark the PR
-  ready for review.
+- **When every task is ticked:** do the hand-over steps at the end. Ask the owner whether to mark the PR ready
+  for review only once CircleCI is green on the PR's current head; while it is pending or red, the PR stays
+  draft.
 
 ## Global constraints
 
@@ -293,7 +294,7 @@ Any agent can pick this up where the last one stopped. The owner approved the de
 - [x] **Step 2: Run and see them fail.** `.venv/bin/python -m pytest -q tests/test_provider_pins.py
   tests/test_decision_transport.py tests/test_call_guard.py -n 0 --no-cov`.
 - [x] **Step 3: Implement.**
-- [x] **Step 4: Run the tests again; they pass**, together with `tests/test_vendor_hotfixes.py -k hf004` and the
+- [x] **Step 4: Run the tests again; they pass**, together with the whole of `tests/test_vendor_hotfixes.py` (its HF-004 tests have no `hf004` in their names) and the
   files from Tasks 1-5.
 - [x] **Step 5: Gates.** Run `ruff check src tests scripts deploy reports notebooks` and `npx --yes
   markdownlint-cli2@0.18.1` on the changed docs; both must be clean. If any doc is in the CLI reference or the
