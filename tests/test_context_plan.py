@@ -435,6 +435,21 @@ def test_a_messy_document_prices_its_intake_read():
     assert "intake" in env["basis"] and "excludes output tokens, intake" not in env["basis"]
 
 
+def test_the_high_confidence_retry_scenario_includes_the_intake_read():
+    """The intake read is paid before routing, so every scenario carries it, the retry one too."""
+    gated = _intake_plan(_MESSY)["classes"]["merger_agreement"]["input_cost_usd"]
+    retry = gated["high_confidence_retry"]["input_usd"]
+    assert gated["intake"] > 0 and retry is not None
+    extract = gated["clean"] - gated["intake"]
+    judge = gated["judged"] - gated["clean"]  # one judge pass (completeness plus correctness)
+    calls = gated["worst_calls"]
+    arbiter = (gated["worst"] - gated["intake"] - calls["extract_passes"] * extract
+               - calls["judge"] / 2 * judge) / calls["arbiter"]
+    assert arbiter > 0
+    # Two extraction passes, one judge pass and one arbiter call, plus the intake read once.
+    assert retry == pytest.approx(2 * extract + judge + arbiter + gated["intake"], abs=5e-5)
+
+
 def test_a_clean_short_document_prices_no_intake_read():
     cp = _intake_plan(_CLEAN_SHORT)
     entry = cp["classes"]["merger_agreement"]

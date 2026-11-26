@@ -394,8 +394,8 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     # flag off, so the flag must not artificially inflate the maximum pass budget.
     rejudge = bool(th.get("judge_rejudge_retry", False)) and judge_passes > 1
     can_retry = retries > 0 and judge_passes > 1
-    retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter) if can_retry else None
     intake_usd = float(intake_usd)
+    retry_cost = (2 * extract + (1 + int(rejudge)) * judge + arbiter + intake_usd) if can_retry else None
     worst += intake_usd
     return {"clean": round(extract + intake_usd, 5), "judged": round(extract + judge + intake_usd, 5),
             "worst": round(worst, 5), "intake": round(intake_usd, 5),
