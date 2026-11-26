@@ -94,10 +94,12 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    |---|---|---|
    | 1 | mechanism | `judge_error`, `crashed`, `transient` |
    | 2 | input | `input:near_empty` (reviews only: document text under 200 characters) |
-   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` |
-   | 4 | judge | `partial_exhausted`, `judge_rejected` |
+   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` (the classification arbiter) |
+   | 4 | judge | `arbiter_escalated` (the extraction arbiter, which ruled last on the judge lane), `partial_exhausted`, `judge_rejected` |
    | 5 | label | `label_suspect` (a heuristic `intent` label only: never one an interim, staged or near-gold overlay supplied) |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
+
+   A reviewer cause (`reviewer_unknown`, `reviewer_disagreement`, the reviewer's low confidence) is settled when the item records that the classification arbiter accepted a class (`classification_arbiter_decision` is `accept_sorter` or `accept_reviewer`): extraction ran only after that acceptance, so rows 4 to 6 decide first and the reviewer cause names the bucket only when none of them applies. An item without the decision keeps the order in the table, with one exception: the extraction arbiter outranks the reviewer's low-confidence doubt.
 
    Two mechanism buckets sit outside this order:
    - `mechanism:scorer_error`: a Dojo failure while typing the extraction miss.

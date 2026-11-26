@@ -857,6 +857,18 @@ def _review_causes(item: dict) -> list[str]:
     return found
 
 
+def _arbiter_caveats(item: dict) -> dict | None:
+    """The HF-014 caveat marker of an archive the extraction arbiter accepted with caveats, else None.
+
+    ``{"hf014": bool, "why": str}``; ``hf014`` means the vendored route would have parked it.
+    """
+    for holder in (item, item.get("pred"), item.get("prediction")):
+        marker = holder.get("arbiter_caveats") if isinstance(holder, dict) else None
+        if isinstance(marker, dict):
+            return {"hf014": marker.get("hf014") is True, "why": _clip(str(marker.get("reasoning") or ""))}
+    return None
+
+
 def _decision_bits(decisions: list) -> str:
     """One short phrase per recorded decision (question, answer, probability, expected)."""
     parts: list[str] = []
@@ -1617,6 +1629,8 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             "fields": _field_notes(it, ds_by_id.get(item_id)),
             "labels": _label_provenance(ds_by_id.get(item_id)),
             "review": _review_trigger(it, recs),
+            # Present only on an archive accepted with arbiter caveats (HF-014 marker).
+            **({"caveats": caveats} if (caveats := _arbiter_caveats(it)) else {}),
             "note": _error_text(it),
             "debug": _diagnose(it, recs, bucket, str(stage) if stage else None,
                                _review_trigger(it, recs), _error_text(it), _pred_class(it),
@@ -1715,6 +1729,9 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             for agent, ref in prompt_agents.items() if isinstance(ref, dict)
         )),
         "review_routed": {"total": sum(routed.values()), "by_stage": dict(sorted(routed.items()))},
+        # Present only when an archive was accepted with arbiter caveats (HF-014 marker).
+        **({"caveat_archives": {"total": len(caveat_rows), "hf014": sum(1 for r in caveat_rows if r["caveats"]["hf014"])}}
+           if (caveat_rows := [r for r in doc_rows if "caveats" in r]) else {}),
         "tokens": _tokens(nodes, [it for _, it in items]),
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),

@@ -588,6 +588,7 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
     assert effective_thresholds()["transient_retry_max"] == 1  # what a new lock freezes
     legacy = legacy_thresholds({})
     assert "transient_retry_max" not in legacy and "judge_exhausted_to_arbiter" not in legacy
+    assert "arbiter_full_source" not in legacy and "arbiter_full_source_min_confidence" not in legacy
     assert (legacy["retry_max"], legacy["arbiter_retry_max"], legacy["judge_max_passes"]) == (1, 2, 3)
     assert legacy_thresholds({"judge_max_passes": 4})["judge_max_passes"] == 4
     lock = {"profile": "modal-vllm", "job": {}, "confidence": {"arbiter_retry_max": 1}}
@@ -597,7 +598,31 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
         resumed = get_confidence_thresholds("contract")
         assert resumed.get("transient_retry_max") is None
         assert resumed.get("judge_exhausted_to_arbiter") is None
+        assert resumed.get("arbiter_full_source") is None
         assert resumed["judge_max_passes"] == 3 and resumed["arbiter_retry_max"] == 1
     finally:
         runtime.activate("modal-vllm", load_env_file=False)
     assert get_confidence_thresholds("contract")["transient_retry_max"] == 1
+
+
+def test_the_hf014_floor_is_frozen_only_when_a_run_sets_it(monkeypatch):
+    """HF-014's floor: unset it is absent (each class's ``low``); a run's value is frozen and served."""
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, legacy_thresholds
+
+    key = "arbiter_full_source_min_confidence"
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    assert key not in effective_thresholds()
+    assert effective_thresholds({key: 0.5})[key] == 0.5 and legacy_thresholds({key: 0.5})[key] == 0.5
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {key: 0.5},
+            "effective_confidence": effective_thresholds({key: 0.5})}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        assert get_confidence_thresholds("corporate_record")[key] == 0.5
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert get_confidence_thresholds("corporate_record").get(key) is None

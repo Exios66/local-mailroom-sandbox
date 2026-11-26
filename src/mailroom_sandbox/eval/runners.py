@@ -82,17 +82,25 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     return "L4" if profile in _GPU_PROFILES else None
 
 
+# ``classification_arbiter_decision`` lets the gate's cause typing tell reviewer doubt the classification
+# arbiter settled (it accepted a class) from doubt it left standing; None when that arbiter did not run.
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
-                        "reviewer_doc_type", "reviewer_confidence")
+                        "reviewer_doc_type", "reviewer_confidence", "classification_arbiter_decision")
 # llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
 # Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
 
 
+def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
+    from mailroom_sandbox.vendor_hotfixes import arbiter_caveats
+
+    return arbiter_caveats(result)
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
-    return {
+    expect = {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
@@ -100,6 +108,12 @@ def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
+    # A pipeline mock row can force the classification arbiter's decision the same way a
+    # hand-built expect dict can: without it the mock silently uses the class-matching fallback.
+    decision = row.get("classification_arbiter_decision")
+    if decision:
+        expect["classification_arbiter_decision"] = decision
+    return expect
 
 
 def _classify_mock(row: dict[str, Any]) -> str:
@@ -1794,6 +1808,9 @@ def _run_pipeline_doc_once(
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
+        # reports, the gate and the floor digest separate these from clean archives.
+        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
         # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
         "intake": intake_summary(result),
         "error": result.get("error") or result.get("errors"),

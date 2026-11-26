@@ -37,6 +37,7 @@ def test_specialist_map_matches_the_eval_harness():
     (doc(cause="classification:reviewer_unknown", outcome="review", utility=-0.25), ("reviewer", "classification:reviewer_unknown")),
     (doc(cause="classification:reviewer_disagreement", outcome="review", utility=-0.25), ("reviewer", "classification:reviewer_disagreement")),
     (doc(cause="classification:arbiter_escalated", outcome="review", utility=-0.25), ("arbiter", "classification:arbiter_escalated")),
+    (doc(cause="judge:arbiter_escalated", outcome="review", utility=-0.25), ("arbiter", "judge:arbiter_escalated")),
     (doc(cause="judge:rejected", outcome="review", utility=-0.25), ("judge", "judge:rejected")),
     (doc(cause="extraction:missing_field", cls="insurance_claim", outcome="correct_archive", utility=0.6),
      ("insurance_claims_specialist", "extraction:missing_field")),

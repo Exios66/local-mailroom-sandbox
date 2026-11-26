@@ -1034,7 +1034,10 @@ class DecisionSlotsSpec(BaseModel):
 
 
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
-_THRESHOLD_UNIT = ("high", "low", "judge_band_high")
+# arbiter_full_source_min_confidence (HF-014): the extraction confidence a whole-source arbiter
+# acceptance needs to archive; unset, the class's own ``low``. It can only lower the bar: the
+# vendored route already archives at ``low``, so a floor above it changes nothing.
+_THRESHOLD_UNIT = ("high", "low", "judge_band_high", "arbiter_full_source_min_confidence")
 # transient_retry_max (HF-012): node-level re-runs after a transient provider error.
 _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "transient_retry_max")
 # Routing flags. judge_rejudge_retry (llm-mailroom #241, ships false): a retry whose
@@ -1044,8 +1047,10 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "trans
 # false, which keeps the checks on): judge_complete_archives, arbiter_accept_archives and
 # judge_clears_low_confidence; true restores the old route, e.g. for a baseline arm.
 # judge_exhausted_to_arbiter (HF-011): a partial verdict on the last judge pass asks the arbiter.
+# arbiter_full_source (HF-014/HF-015): on a context-fitted route an arbiter acceptance from a
+# whole-source reading archives, and a ruling with no re-extraction budget left is final.
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
-                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter")
+                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:

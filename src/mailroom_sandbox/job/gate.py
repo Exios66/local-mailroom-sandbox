@@ -215,6 +215,9 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
         out["archived_class"] = str(pred.get("doc_type") or "").strip().lower() or None
+        if isinstance(pred.get("arbiter_caveats"), Mapping):  # HF-014 marker: accepted with caveats
+            out["arbiter_caveats"] = True
+            out["caveats_hf014"] = bool(pred["arbiter_caveats"].get("hf014"))
     out["scorable"] = out["labelled"] >= bars.min_labelled
     if out["stage"] == "review":
         out["outcome"] = "review"
@@ -404,9 +407,15 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     gated = [(d, s) for d, s in doc_pairs if s["class"] in bars.gated]
     slots = decision_slot_report([d for d, _ in gated], [s for _, s in gated],
                                  max_wrong_archive_rate=bars.wrong_archive_max)
+    caveated = [s for s in statuses if s.get("arbiter_caveats")]
     return {
         # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
         **({"decision_slots": slots} if slots is not None else {}),
+        # Present only when an archive was accepted with arbiter caveats (HF-014 marker). These
+        # archives are scored like any other; ``hf014`` counts those the vendored route parked.
+        **({"arbiter_caveats": {"archives": len(caveated),
+                                "hf014": sum(1 for s in caveated if s.get("caveats_hf014")),
+                                "docs": [s["id"] for s in caveated]}} if caveated else {}),
         "run_id": run_dir.name, "n": len(statuses), "bars": {**asdict(bars), "gated": list(bars.gated)},
         "classes": classes,
         "pooled": {"review_rate": review_rate, "wrong_archive_rate": wrong_rate,

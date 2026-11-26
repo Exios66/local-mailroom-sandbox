@@ -181,7 +181,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-012",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_run_pipeline_doc_once",
-                  "fe64306d8258d261342f0c54dcee0334e88776d39a068da0a2619abd80a0fd91"),
+                  "9dcf38c50ec87b64d0be008c911d1b3dba37a582c4da301c914592341ac333e2"),
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",

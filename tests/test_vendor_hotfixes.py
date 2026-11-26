@@ -489,6 +489,22 @@ def test_hf011_is_stale_when_after_arbiter_changes():
     assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-ALSO": "stale"}
 
 
+def test_hf015_is_stale_when_the_arbiter_node_changes():
+    """HF-015 reads the graph state from ``arbiter_node``'s frame, so a change to it is drift."""
+    import graph.build_graph as build_graph
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-015")
+    assert dict(fix.also) == {"graph.build_graph:arbiter_node": vh._source_sha(build_graph.arbiter_node)}
+    bogus = vh.Hotfix(id="HF-TEST-NODE", module=fix.module, attr=fix.attr, source_sha256=fix.source_sha256,
+                      upstream="-", summary="-", install=fix.install,
+                      also=(("graph.build_graph:arbiter_node", "0" * 64),))
+    assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-NODE": "stale"}
+    gone = vh.Hotfix(id="HF-TEST-GONE", module=fix.module, attr=fix.attr, source_sha256=fix.source_sha256,
+                     upstream="-", summary="-", install=fix.install,
+                     also=(("graph.build_graph:no_such_node", "0" * 64),))
+    assert vh.apply_hotfixes((gone,)) == {"HF-TEST-GONE": "stale"}
+
+
 def test_hf012_transient_budget_follows_the_threshold(monkeypatch):
     from graph import routing
 
@@ -519,6 +535,78 @@ def test_hf011_refresh_never_drops_a_registered_rule(monkeypatch):
     vh.apply_hotfixes()
     for node, rule in before.items():
         assert route_spec.route_rules(node)[0] is rule
+
+
+# --- HF-013: an accuracy-judge parse failure is a judge error -------------------------------------
+
+def _bare_judge(answer):
+    from agents.judge import CompletenessJudge
+
+    judge = CompletenessJudge.__new__(CompletenessJudge)
+    judge._call_structured = lambda *a, **k: answer
+    return judge
+
+
+def test_hf013_an_accuracy_judge_parse_failure_is_a_judge_error():
+    assert vh.apply_hotfixes()["HF-013"] == "applied"
+    with pytest.raises(vh.JudgeParseError):
+        _bare_judge({"_raw": "garbage", "_parse_error": True}).judge_extraction_correctness("contract", {"parties": ["A"]}, "t")
+    # an answer that parsed, however poor, is still a verdict
+    real = _bare_judge({"extraction_correctness": 0.0, "extraction_correctness_label": "inaccurate", "reasoning": "r"})
+    assert real.judge_extraction_correctness("contract", {"parties": ["A"]}, "t")["extraction_correctness_label"] == "inaccurate"
+
+
+def test_hf013_the_judge_node_parks_a_correctness_parse_failure_as_judge_error(monkeypatch):
+    """Not an ``incomplete`` verdict that spends an arbiter call, a retry and a second judge pass."""
+    vh.apply_hotfixes()
+    import graph.build_graph as bg
+    from agents.judge import CompletenessJudge
+
+    def call(self, user_message, *a, **k):
+        if user_message.startswith("Evaluate extraction completeness"):
+            return {"completeness": 0.97, "completeness_label": "complete", "reasoning": "ok"}
+        return {"_raw": "garbage", "_parse_error": True}
+
+    monkeypatch.setattr(CompletenessJudge, "_call_structured", call)
+    monkeypatch.setattr(CompletenessJudge, "__init__", lambda self: None)
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    out = bg.judge_verify_node({"doc_id": "d", "doc_type": "contract", "doc_text": "Cedar Sample Ltd agreement.",
+                                "extracted_data": {"parties": ["Cedar Sample Ltd"]}, "extraction_confidence": 0.99})
+    assert out["judge_verdict"] == "judge_error" and "JudgeParseError" in out["escalation_reason"]
+    assert "judge_pass_count" not in out
+
+
+def test_a_fresh_run_lock_records_every_hotfix_including_hf013(tmp_path, monkeypatch):
+    import json
+
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
+
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    data = tmp_path / "f.jsonl"
+    data.write_text(json.dumps({"id": "d0", "filename": "0.txt", "doc_text": "t", "expected": "contract",
+                                "expected_subclass": "service"}) + "\n")
+    spec = RunSpec(run_id="hf-lock-r1", task="sorter", dataset=DatasetSpec(local_path=f"file://{data}", limit=1),
+                   engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"}, job={"mock": True})
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    lock = RunStore(run_dir(report["run_id"])).read_lock()
+    assert lock["vendor_hotfixes"] == vh.describe()
+    fixes = {f["id"]: f for f in lock["vendor_hotfixes"]["fixes"]}
+    assert fixes["HF-013"]["target"] == "agents.judge.CompletenessJudge.judge_extraction_correctness"
+    assert fixes["HF-013"]["source_sha256"] == vh._source_sha(
+        __import__("agents.judge", fromlist=["CompletenessJudge"]).CompletenessJudge.judge_extraction_correctness)
+    # HF-014: the route rule's target and its frozen switch (a legacy lock without it stays inert)
+    assert fixes["HF-014"]["target"] == "graph.routing.after_arbiter"
+    assert fixes["HF-014"]["source_sha256"] == vh._source_sha(__import__("graph.routing", fromlist=["x"]).after_arbiter)
+    assert lock["effective_confidence"]["arbiter_full_source"] is True
+    assert "arbiter_full_source_min_confidence" not in lock["effective_confidence"]  # unset: class ``low``
+    # HF-015: the arbiter's request wrapper
+    assert fixes["HF-015"]["target"] == "agents.arbiter.ArbiterAgent.arbitrate"
+    assert fixes["HF-015"]["source_sha256"] == vh._source_sha(
+        __import__("agents.arbiter", fromlist=["ArbiterAgent"]).ArbiterAgent.arbitrate)
+
 
 
 # --- HF-016 / HF-017: the intake read is triage-only and never feeds the sorter a bogus prior --------

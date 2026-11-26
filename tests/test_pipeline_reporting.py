@@ -165,6 +165,8 @@ def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypa
     activate("ollama", load_env_file=False)
     bg.reset_compiled_graph()
     row = next(row for row in runners.load_manifest() if row["id"] == "corporate_bylaws")
+    # Without its subclass the sorter guardrail (doc_subclass_missing) parks the document.
+    row = {**row, "expected_subclass": ""}
     try:
         result = runners._run_pipeline_doc(row, mock=True)
     finally:
