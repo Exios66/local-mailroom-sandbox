@@ -242,7 +242,7 @@ class RunStore:
         return lock.get("spec_hash") if lock else None
 
     def archive_generation(self) -> Path | None:
-        """Archive the current lock/items/checkpoint/events (preflight --force).
+        """Archive the current lock/items/checkpoint/events/read ranges (preflight --force).
 
         ``write_lock`` refuses to overwrite in place, so a forced re-lock must
         move the old generation aside first — otherwise new dataset bytes live
@@ -268,6 +268,7 @@ class RunStore:
             self.checkpoint_path,
             self.events_path,
             self.nodes_path,
+            self.reads_path,
             self.dataset_path,
             self.cold_boot_path,
             self.cancel_path,
@@ -276,6 +277,12 @@ class RunStore:
         ):
             if path.is_file():
                 path.rename(dest / path.name)
+        # The read-range text goes with its ranges: left behind, the floor would pair the old
+        # generation's text and ranges with the new generation's truth (and report a hash match).
+        with self._doc_texts_lock:
+            if self.doc_texts_dir.is_dir():
+                self.doc_texts_dir.rename(dest / self.doc_texts_dir.name)
+            self._doc_index = None  # the cached index described the archived directory
         return dest
 
     def write_prompt_lock(self, payload: dict[str, Any]) -> Path:
