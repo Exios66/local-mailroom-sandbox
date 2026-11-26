@@ -85,7 +85,7 @@ version number alone never proves a fix is incorporated.
 The context plan reports input-only upper bounds, not a full-run quote. The worst extraction
 path includes confidence retries plus arbiter-requested retries. The `clean` and `judged` figures
 count two judge calls per pass: completeness and, for a complete verdict, source correctness. The `worst`
-figure budgets four per pass, because each judge is asked once more after a parse failure (HF-002,
+figure budgets four per pass (per node run, not counting transient HF-012 re-runs), because each judge is asked once more after a parse failure (HF-002,
 HF-013). A separate high-confidence
 retry scenario shows the extra judge call from `judge_rejudge_retry`, respecting the class
 override and judge pass cap; a cap of one leaves no retry scenario. `keep_best_attempt` selects stored attempts and adds no calls.

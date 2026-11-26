@@ -281,8 +281,8 @@ the judge. It also suggests a `judge_band_high` from the recorded
 evidence, not settings. Apply them through the run's locked `confidence` block,
 then confirm with the next run's audit. Preflight's `context_plan` prices the
 longest document of each class three ways: a clean pass, one judged pass, and
-the worst-case loop the thresholds allow (four judge calls per pass: each judge asked once more
-after a parse failure).
+the worst-case loop the thresholds allow (four judge calls per pass and node run: each judge asked once more
+after a parse failure; transient re-runs are not priced).
 
 A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,

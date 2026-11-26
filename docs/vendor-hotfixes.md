@@ -107,15 +107,17 @@ Every hotfix added or changed after a run was locked changes that lock's `vendor
 - **HF-002 and HF-013 ask a judge once more after a parse failure.** The wrapper calls the vendored
   method again with the same arguments when it returns the parse-failure answer. The re-ask is a call
   like any other: it passes the API call guard (and counts toward the per-document ceiling), the provider
-  pins, usage capture and the spend caps. A pass therefore holds at most two calls per judge method, four
+  pins, usage capture and the spend caps. One run of the judge node therefore holds at most two calls per judge method, four
   in all, and preflight's `worst` envelope prices four judge calls per pass (`clean` and `judged` keep two).
+  The envelope counts per node run: a transient HF-012 re-run of the node (up to two more) can re-ask
+  again, and, like transport retries, is not priced; the per-document call ceiling still bounds spend.
   The vendored targets are unchanged, so their source fingerprints are unchanged, but the module sha256
   in a lock changes with this edit. Each re-ask is counted per judge (`asked`, `recovered`, `parked`) in
   the document's call-guard scope, copied onto the run item's pipeline result as `judge_reasks` (only when
   one happened, no document text) and totalled in the gate report's `judge_reasks` block
   (`gate.json` and `--json`; `gate.md` does not render it), so a first live run measures the parse-failure
   rate and how often the second answer parses. Every re-ask ends in exactly one of three ways: `recovered`
-  (the second answer parsed), `parked` (it did not parse either, so the judge raised `JudgeParseError`) or
+  (the second answer parsed as JSON; a valid answer of the wrong shape, such as `{}`, also counts, because the wrapper sees only the vendored method's processed result), `parked` (it did not parse either, so the judge raised `JudgeParseError`) or
   `errored` (the second call itself raised, a transport error or the guard's refusal, and the error
   propagates unchanged). The scope records `asked` before the second call is made and the other two after,
   and the gate derives `errored = asked - recovered - parked`, so `asked = recovered + parked + errored`
@@ -145,12 +147,14 @@ same vendor refresh.
   `BaseAgent._call_structured`. If llm-mailroom ever adds its own parse retry there, a pass would make
   more calls than the four priced per pass without a stale fingerprint; re-check the envelope at the
   next vendor refresh.
-- **The re-ask counts miss a document that raises.** A document the pipeline returns as failed
+- **The re-ask counts miss a document that raises, and a resumed document's second attempt.** A document the pipeline returns as failed
   becomes an error item whose `pred` keeps its `judge_reasks`, and the gate counts them (outcome `crashed`).
   A document that raises (a crash, or the call guard's refusal, which `_run_pipeline_doc` turns into an
   exception) writes no item at all: the run fails, a resume runs the document again in a fresh scope, and
   the first attempt's re-asks are not counted anywhere, although they were made and billed (the billed
-  tokens are kept for the API budget, SAND-089). The counts are therefore a lower bound on re-asks made.
+  tokens are kept for the API budget, SAND-089). A resumed document is the same: the first row stays the evidence, so the re-asks of the
+  second attempt are made and billed but not added, for an error item and a good one alike. The counts are
+  therefore a lower bound on re-asks made.
 - **A judge that fails to parse twice still parks the document.** HF-002 and HF-013 ask once more, so a
   single unparseable answer no longer parks a correct document, but two in a row still raise
   `JudgeParseError` (human review, counted by the gate as `parked`). The re-ask repeats the same request at

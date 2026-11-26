@@ -254,7 +254,8 @@ def _calls_cost(model: str | None, calls: int, chars: int) -> float | None:
 
 
 #: Judge calls one pass can make at most: completeness and correctness, each re-asked once when its
-#: answer did not parse (HF-002 / HF-013). A second parse failure parks the document, so no pass has more.
+#: answer did not parse (HF-002 / HF-013). A second parse failure parks the document, so no node run has
+#: more. Transient HF-012 node re-runs (up to two more) are not included, like transport retries.
 JUDGE_WORST_CALLS_PER_PASS = 4
 
 
