@@ -54,6 +54,7 @@ Root-cause analysis of a failed document needs two things the floor viewer lacks
 ## Key decision: measure against the working text, not the dataset row
 
 Agents never see `doc_text` verbatim. The pipeline first normalises it at intake:
+
 - markdown stripped;
 - Unicode normalised;
 - CRLF converted to LF;

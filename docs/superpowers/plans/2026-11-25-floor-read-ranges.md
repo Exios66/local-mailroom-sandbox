@@ -7,6 +7,7 @@ request contained, and show them, with the text and every field's values, in a f
 inspector.
 
 **Architecture:**
+
 - A new `job/read_ranges.py` holds a per-document context, a shingle matcher and two writers:
   `reads.jsonl` (ranges only) and `doc_texts/<doc>.txt` (the working text, in the local run store).
 - Two thin observers feed it: an outermost `_call_structured` wrapper, and the decision transport.
@@ -14,6 +15,7 @@ inspector.
   values to a DOCUMENT panel.
 
 **Tech Stack:**
+
 - Python 3.11, pytest, LangChain callbacks (`NodeTracker`).
 - The floor dashboard: vanilla JS in `reports/dashboard/floor.template.html`, served by
   `tui/floor_app.py`'s `http.server`.
@@ -61,10 +63,12 @@ inspector.
 ### Task 1: The range matcher
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/job/read_ranges.py` (matcher section)
 - Test: `tests/test_read_ranges.py`
 
 **Interfaces:**
+
 - Produces:
   - `SHINGLE = 48`, `STRIDE = 16`, `MAX_RANGES = 64`, `MAX_DOC_CHARS = 3_000_000`,
     `MAX_REQUEST_CHARS = 3_000_000`
@@ -113,6 +117,7 @@ inspector.
 ### Task 2: Document context, recorder and run-store writers
 
 **Files:**
+
 - Modify:
   - `src/mailroom_sandbox/job/read_ranges.py` (context and recorder sections)
   - `src/mailroom_sandbox/job/node_trace.py:47-61` (`NODE_AGENTS`), plus `NodeTracker.on_chain_end`
@@ -127,6 +132,7 @@ inspector.
   - `tests/test_job_spec.py`
 
 **Interfaces:**
+
 - Consumes: `ShingleIndex` and `match_ranges` from Task 1.
 - Produces:
   - `document(doc_id: str, raw_text: str | None, sink: Callable[[dict], None], text_sink: Callable[[str, str], None]) -> ContextManager[None]`
@@ -180,6 +186,7 @@ inspector.
 ### Task 3: Chat-agent observer, outermost and stable across re-activation
 
 **Files:**
+
 - Modify:
   - `src/mailroom_sandbox/job/read_ranges.py` (seam section)
   - `src/mailroom_sandbox/sampling.py:283-300` (look through the observer layer)
@@ -189,6 +196,7 @@ inspector.
   - `tests/test_sampling.py` (or the existing sampling test file)
 
 **Interfaces:**
+
 - Consumes: `record` and `current_node` from Task 2.
 - Produces:
   - `install_call_observer() -> int`: returns the number of classes patched. Idempotent: it removes
@@ -225,11 +233,13 @@ inspector.
 ### Task 4: Decision-backend observers
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/decision_backends.py`: `_post_decision` (~736, after #413/#414),
   and the Jev pydantic_ai call (~149-172).
 - Test: `tests/test_decisions_backend.py`, `tests/test_decision_transport.py`
 
 **Interfaces:**
+
 - Consumes: `record` from Task 2.
 - `_post_decision` records the lane from the request body as agent `decisions:<lane>`, and the
   question and context text as the request. It records once per logical request, never once per
@@ -250,10 +260,12 @@ inspector.
 ### Task 5: Invariance harness and remote file lists
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/remote.py:203-204, 413` (add `reads.jsonl` and `doc_texts/`)
 - Create: `tests/test_read_ranges_invariance.py`
 
 **Interfaces:**
+
 - Consumes: Tasks 2–4.
 
 - [ ] **Step 1: Write the failing tests**
@@ -276,6 +288,7 @@ inspector.
 ### Task 6: Digest rows and the loopback document endpoint
 
 **Files:**
+
 - Modify:
   - `reports/dashboard/build_floor_digest.py` (~1531, read `reads.jsonl`; ~1621, attach to `debug`)
   - `src/mailroom_sandbox/tui/floor_app.py` (`_FloorHandler`, `make_server`, `serve_floor`)
@@ -285,6 +298,7 @@ inspector.
   - `reports/dashboard/selftest_floor_digest.py`
 
 **Interfaces:**
+
 - Produces:
   - Digest field `doc_row["debug"]["reads"]`:
     `{"calls": [{agent, node, basis, ranges, matched, request}], "union": {agent: ranges}, "doc_chars": int}`,
@@ -321,6 +335,7 @@ inspector.
 ### Task 7: DOCUMENT panel in floor debug mode
 
 **Files:**
+
 - Modify:
   - `reports/dashboard/floor.template.html`
   - `docs/floor.md`
@@ -330,6 +345,7 @@ inspector.
   - a Playwright script in scratch, kept out of the repo
 
 **Interfaces:**
+
 - Consumes: `debug.reads` and `/api/floor/doc` from Task 6.
 - Flags, computed client-side:
   - `not read`: the expected value occurs (whitespace- and case-insensitive) in the working text, but
@@ -362,6 +378,7 @@ inspector.
 ### Task 8: Docs, changelog and repo gates
 
 **Files:**
+
 - Modify: `docs/floor.md`, `docs/jobs.md` (`job.trace_reads`, `reads.jsonl`, `doc_texts/`),
   `CHANGELOG.md` `[Unreleased]`, and `docs/critical-regressions.md` (only if a row applies).
 
