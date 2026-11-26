@@ -154,7 +154,7 @@ class RunStore:
         self.cancel_ack_path = self.dir / "cancel.ack.json"
         self.run_id = self.dir.name
         self._doc_texts_lock = threading.Lock()
-        self._doc_index: set[str] | None = None  # ids listed in doc_texts/index.jsonl, loaded lazily
+        self._doc_index: dict[str, str | None] | None = None  # doc_texts/index.jsonl: id to text_hash, loaded lazily
 
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
@@ -591,12 +591,16 @@ class RunStore:
         attempt, so the stored text is replaced (temp file, then rename) to stay paired with them.
         The bytes are written as UTF-8 with no newline translation, so offsets stay exact on every
         platform. The raw document id is never used as a path; ``doc_texts/index.jsonl`` maps it to
-        the file and holds exactly one line per document: a missing line (an append lost in a crash)
-        is added on the next write, and a rewrite never duplicates it.
+        the file and to ``text_hash`` (the tag the read records carry) and holds exactly one line per
+        document: a missing line (an append lost in a crash) is added on the next write, and a rewrite
+        with different text replaces that line instead of adding another.
         """
         import hashlib
 
+        from mailroom_sandbox.job.read_ranges import text_hash
+
         name = hashlib.sha1(str(doc).encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
+        tag = text_hash(text)
         path = self.doc_texts_dir / name
         with self._doc_texts_lock:
             self.doc_texts_dir.mkdir(parents=True, exist_ok=True)
@@ -604,21 +608,43 @@ class RunStore:
             tmp.write_bytes(text.encode("utf-8"))
             tmp.replace(path)
             indexed = self._indexed_docs()
-            if str(doc) in indexed:
-                return
             index = self.doc_texts_dir / "index.jsonl"
-            line = json.dumps({"doc": str(doc), "file": name}) + "\n"
+            if str(doc) in indexed:
+                if indexed[str(doc)] != tag:  # the text changed (a resume): refresh the one line
+                    self._rewrite_index_entry(index, str(doc), name, tag)
+                    indexed[str(doc)] = tag
+                return
+            line = json.dumps({"doc": str(doc), "file": name, "text_hash": tag}) + "\n"
             if not self._index_ends_with_newline(index):
                 line = "\n" + line  # a torn last line must not swallow the new entry
             with open(index, "ab") as fh:
                 fh.write(line.encode("utf-8"))
                 fh.flush()
-            indexed.add(str(doc))
+            indexed[str(doc)] = tag
 
-    def _indexed_docs(self) -> set[str]:
-        """The document ids ``doc_texts/index.jsonl`` lists, read from disk once per store object."""
+    def _rewrite_index_entry(self, index: Path, doc: str, name: str, tag: str) -> None:
+        """Replace ``doc``'s line in ``index.jsonl`` (temp file, then rename); other lines are kept."""
+        kept: list[str] = []
+        try:
+            with open(index, encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    try:
+                        row = json.loads(raw)
+                    except ValueError:
+                        continue  # a torn line is dropped here
+                    if isinstance(row, dict) and row.get("doc") != doc:
+                        kept.append(raw.rstrip("\n"))
+        except OSError:
+            pass
+        kept.append(json.dumps({"doc": doc, "file": name, "text_hash": tag}))
+        tmp = index.with_suffix(".tmp")
+        tmp.write_bytes(("\n".join(kept) + "\n").encode("utf-8"))
+        tmp.replace(index)
+
+    def _indexed_docs(self) -> dict[str, str | None]:
+        """Document id to ``text_hash`` (None for a line without one), read once per store object."""
         if self._doc_index is None:
-            docs: set[str] = set()
+            docs: dict[str, str | None] = {}
             try:
                 with open(self.doc_texts_dir / "index.jsonl", encoding="utf-8", errors="replace") as fh:
                     for raw in fh:
@@ -627,7 +653,8 @@ class RunStore:
                         except ValueError:
                             continue
                         if isinstance(row, dict) and isinstance(row.get("doc"), str):
-                            docs.add(row["doc"])
+                            tag = row.get("text_hash")
+                            docs[row["doc"]] = tag if isinstance(tag, str) else None
             except OSError:
                 pass
             self._doc_index = docs

@@ -430,7 +430,7 @@ def test_doc_text_files_never_use_the_raw_doc_id(tmp_path):
     d = store.dir / "doc_texts"
     assert (d / name).read_text(encoding="utf-8") == "hello"
     index = [json.loads(ln) for ln in (d / "index.jsonl").read_text().splitlines()]
-    assert index == [{"doc": "../../etc/x", "file": name}]
+    assert index == [{"doc": "../../etc/x", "file": name, "text_hash": read_ranges.text_hash("hello")}]
     assert sorted(p.name for p in d.iterdir()) == sorted([name, "index.jsonl"])
 
 
@@ -471,6 +471,52 @@ def test_resumed_document_keeps_the_last_attempts_text_and_one_index_entry(tmp_p
     assert reads["doc_chars"] == len(_stored_text(store, "d1")) == 920
 
 
+def test_read_records_carry_the_text_hash_the_index_and_file_agree_on(tmp_path):
+    text = _doc(1500, seed=21)
+    store = RunStore(tmp_path / "run")
+    with read_ranges.document("d1", text, store.append_read, store.write_doc_text):
+        read_ranges.record("intake", "Document text:\n" + text[:300])  # raw basis: no hash
+        read_ranges.set_working_text(text)
+        read_ranges.record("sorter", "Document text:\n" + text[10:400])
+    raw, working = [json.loads(ln) for ln in store.reads_path.read_text().splitlines()]
+    assert raw["basis"] == "raw" and "text_hash" not in raw
+    assert working["basis"] == "working" and working["text_hash"] == read_ranges.text_hash(text)
+    assert _index_rows(store)[0]["text_hash"] == working["text_hash"]
+    assert read_ranges.text_hash(_stored_text(store, "d1")) == working["text_hash"]
+
+
+def test_equal_length_resume_that_dies_before_any_read_is_withheld(tmp_path):
+    """Attempt 2 rewrites the text (same length) and dies before a read record: attempt 1's ranges must not pair."""
+    from mailroom_sandbox.tui import floor_app
+
+    first = _doc(600, seed=31)
+    second = _doc(600, seed=32)
+    assert len(first) == len(second) and first != second
+    run_dir = tmp_path / "run"
+    store = RunStore(run_dir)
+    with read_ranges.document("d1", first, store.append_read, store.write_doc_text):
+        read_ranges.set_working_text(first)
+        read_ranges.record("sorter", "Document text:\n" + first[10:300])
+    resumed = RunStore(run_dir)
+    with read_ranges.document("d1", second, resumed.append_read, resumed.write_doc_text):
+        read_ranges.set_working_text(second)  # the attempt dies here, before any record
+    assert _stored_text(resumed, "d1") == second
+    assert [r["text_hash"] for r in _index_rows(resumed)] == [read_ranges.text_hash(second)]
+    (run_dir / "items.jsonl").write_text(json.dumps({"item_id": "d1", "ok": True}) + "\n")
+    (run_dir / "nodes.jsonl").write_text("")
+    (run_dir / "dataset.jsonl").write_text(json.dumps({"id": "d1", "doc_text": second}) + "\n")
+    builder = floor_app.load_builder()
+    reads = next(r for r in builder.build_run("run", run_dir, set())[0]["docs"] if r["id"] == "d1")["debug"]["reads"]
+    assert reads["doc_chars"] == len(second)  # the length check alone would pass
+    assert reads["text_pairing"] == "different"
+    # and a normal resume whose attempt 2 did read is paired again
+    with read_ranges.document("d1", second, resumed.append_read, resumed.write_doc_text):
+        read_ranges.set_working_text(second)
+        read_ranges.record("sorter", "Document text:\n" + second[10:300])
+    reads = next(r for r in builder.build_run("run", run_dir, set())[0]["docs"] if r["id"] == "d1")["debug"]["reads"]
+    assert reads["text_pairing"] == "match"
+
+
 def test_missing_index_entry_is_repaired_without_duplicating(tmp_path):
     """An index append lost in a crash is added by the next write; a third write adds nothing."""
     run_dir = tmp_path / "run"
@@ -490,6 +536,21 @@ def test_missing_index_entry_is_repaired_without_duplicating(tmp_path):
     RunStore(run_dir).write_doc_text("d2", "x")
     rows = [ln for ln in (resumed.doc_texts_dir / "index.jsonl").read_text().splitlines()]
     assert json.loads(rows[-1])["doc"] == "d2" and rows[0] == '{"doc": "d9", "fi'
+
+
+def test_legacy_index_line_without_a_hash_is_upgraded_in_place(tmp_path):
+    """A store written before text_hash existed keeps one line per doc; the next write adds the hash."""
+    run_dir = tmp_path / "run"
+    store = RunStore(run_dir)
+    store.write_doc_text("d1", "text")
+    store.write_doc_text("d2", "other")
+    index = store.doc_texts_dir / "index.jsonl"
+    index.write_text("".join(json.dumps({k: v for k, v in r.items() if k != "text_hash"}) + "\n"
+                             for r in _index_rows(store)))
+    RunStore(run_dir).write_doc_text("d1", "text")
+    rows = {r["doc"]: r for r in _index_rows(store)}
+    assert sorted(rows) == ["d1", "d2"] and rows["d1"]["text_hash"] == read_ranges.text_hash("text")
+    assert "text_hash" not in rows["d2"], "untouched documents keep their old line"
 
 
 def test_doc_text_is_written_newline_exact(tmp_path):

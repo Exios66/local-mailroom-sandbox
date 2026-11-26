@@ -468,6 +468,7 @@ def _doc_reads(records: list[dict]) -> dict:
     calls: list[dict] = []
     by_agent: dict[str, list[list[int]]] = {}
     doc_chars: int | None = None
+    tag: str | None = None
     for rec in kept:
         agent = str(rec.get("agent") or "?")
         ranges = _clean_ranges(rec.get("ranges"))
@@ -485,18 +486,45 @@ def _doc_reads(records: list[dict]) -> dict:
         by_agent.setdefault(agent, []).extend(ranges)
         if call["basis"] == "working" and (_num(rec.get("doc_chars")) or 0) > 0:
             doc_chars = int(_num(rec["doc_chars"]))
+            if isinstance(rec.get("text_hash"), str) and rec["text_hash"]:
+                tag = rec["text_hash"]
     return {
         "calls": calls,
         "union": {agent: _merge_ranges(rs) for agent, rs in by_agent.items()},
         "doc_chars": doc_chars,
+        "_text_hash": tag,  # consumed by read_ranges_by_doc, never emitted
     }
+
+
+def _text_hash(data: bytes) -> str:
+    """The tag read records carry (``mailroom_sandbox.job.read_ranges.text_hash``): sha1 hex[:16] of the UTF-8 bytes."""
+    return hashlib.sha1(data, usedforsecurity=False).hexdigest()[:16]
+
+
+def _text_pairing(path: Path, doc: str, tag: str) -> str:
+    """Whether the stored working text is the one the kept read records were measured on.
+
+    ``match`` or ``different`` by hashing ``doc_texts/<sha1(doc)[:16]>.txt`` (never the index line,
+    which a crash can leave behind the file); ``missing`` when no regular file is stored. A symlink
+    is not followed, like the viewer's endpoint.
+    """
+    name = hashlib.sha1(doc.encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
+    file = path / "doc_texts" / name
+    try:
+        if file.is_symlink() or not file.is_file():
+            return "missing"
+        return "match" if _text_hash(file.read_bytes()) == tag else "different"
+    except OSError:
+        return "missing"
 
 
 def read_ranges_by_doc(path: Path) -> dict[str, dict] | None:
     """``debug.reads`` per document id from a run's ``reads.jsonl``; None when the run has none.
 
     Torn or malformed lines are skipped (``read_jsonl``). Only offsets and counts are read
-    out of each record, never any document text.
+    out of each record, never any document text. When the kept calls carry a ``text_hash``,
+    ``text_pairing`` says whether the stored text still hashes to it (``match``, ``different`` or
+    ``missing``); the hash itself is not emitted.
     """
     reads_path = path / "reads.jsonl"
     if not reads_path.is_file():
@@ -505,7 +533,14 @@ def read_ranges_by_doc(path: Path) -> dict[str, dict] | None:
     for rec in read_jsonl(reads_path):
         if rec.get("doc") is not None:
             per_doc.setdefault(str(rec["doc"]), []).append(rec)
-    return {doc: _doc_reads(recs) for doc, recs in per_doc.items()}
+    out: dict[str, dict] = {}
+    for doc, recs in per_doc.items():
+        reads = _doc_reads(recs)
+        tag = reads.pop("_text_hash")
+        if tag:  # records without a tag are from before pairing existed: the length check alone applies
+            reads["text_pairing"] = _text_pairing(path, doc, tag)
+        out[doc] = reads
+    return out
 
 
 # ── per-run digest ──────────────────────────────────────────────────────────────

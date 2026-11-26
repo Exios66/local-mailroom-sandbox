@@ -116,6 +116,52 @@ def test_dedupe_resets_on_call_one_only(tmp_path):
     assert [(c["agent"], c["ranges"]) for c in reads["calls"]] == [("sorter", [[7, 9]])]
 
 
+def _tag(text: str) -> str:
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
+def test_text_pairing_matches_when_the_stored_text_is_the_one_the_agents_saw(tmp_path):
+    builder = floor_app.load_builder()
+    run_dir = _reads_run(tmp_path, reads=[_read(1, "sorter", [[0, 60]], text_hash=_tag(WORKING))])
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert reads["text_pairing"] == "match"
+    assert reads["calls"][0]["ranges"] == [[0, 60]]
+    assert _tag(WORKING) not in json.dumps(reads), "the hash itself is not emitted"
+
+
+def test_text_pairing_flags_equal_length_different_text(tmp_path):
+    """A later attempt rewrote the text to the same length: the length check cannot see it, the hash does."""
+    builder = floor_app.load_builder()
+    other = WORKING.replace("Orion", "Ozone")
+    assert len(other) == len(WORKING) and other != WORKING
+    run_dir = _reads_run(tmp_path, reads=[_read(1, "sorter", [[0, 60]], text_hash=_tag(other))])
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert reads["text_pairing"] == "different"
+    assert reads["doc_chars"] == len(WORKING)
+
+
+def test_text_pairing_missing_text_and_old_stores(tmp_path):
+    builder = floor_app.load_builder()
+    run_dir = _reads_run(tmp_path, reads=[_read(1, "sorter", [[0, 60]], text_hash=_tag(WORKING))])
+    for f in (run_dir / "doc_texts").glob("*.txt"):
+        f.unlink()
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert reads["text_pairing"] == "missing"
+    # records without a hash (a store from before pairing) keep the length check alone: no verdict at all
+    old = tmp_path / "old"
+    run_dir = _reads_run(old, reads=[_read(1, "sorter", [[0, 60]])], text=WORKING.replace("Orion", "Ozone"))
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert "text_pairing" not in reads and reads["calls"][0]["ranges"] == [[0, 60]]
+
+
+def test_digest_and_recorder_hash_the_same_way():
+    from mailroom_sandbox.job import read_ranges
+
+    builder = floor_app.load_builder()
+    for text in ("", "plain", "a\r\nb\rc", "caf\u00e9 \u2028"):
+        assert builder._text_hash(text.encode("utf-8")) == read_ranges.text_hash(text)
+
+
 def test_doc_chars_comes_from_working_basis_calls_only(tmp_path):
     """A raw-basis call indexes the raw text; its length must not stand for the working text."""
     builder = floor_app.load_builder()

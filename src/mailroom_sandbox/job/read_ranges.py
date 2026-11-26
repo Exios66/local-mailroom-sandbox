@@ -21,6 +21,7 @@ run node callbacks in a copied context, so callbacks and seams only *mutate* tha
 
 from __future__ import annotations
 
+import hashlib
 import re
 import threading
 import time
@@ -279,6 +280,17 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
 # --- document context ------------------------------------------------------
 
 
+def text_hash(text: str) -> str:
+    """Short content tag of a working text: sha1 over its UTF-8 bytes, first 16 hex characters.
+
+    Read records and ``doc_texts/index.jsonl`` carry it, and the floor digest builder recomputes it
+    from the stored file, so ranges are only shown against the exact text the agents saw. It is a
+    content tag, not a security control. ``reports/dashboard/build_floor_digest.py`` repeats these
+    two lines (it is stdlib-only); a test keeps them equal.
+    """
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
 class _DocState:
     """Mutable per-document state shared by every callback that runs for the document."""
 
@@ -288,6 +300,7 @@ class _DocState:
         self.doc_id = doc_id
         self.raw_text = raw_text if isinstance(raw_text, str) else None
         self.working_text: str | None = None
+        self.text_hash: str | None = None  # of the working text; None until intake hands it over
         self.sink = sink
         self.text_sink = text_sink
         self.index: ShingleIndex | None = None  # built lazily, from the working text once known
@@ -339,6 +352,10 @@ def set_working_text(text: str) -> None:
         if state.working_text is not None:
             return
         state.working_text = text
+        try:
+            state.text_hash = text_hash(text)
+        except Exception:  # noqa: BLE001 - e.g. a lone surrogate; records then carry no hash
+            state.text_hash = None
         state.index = None  # rebuilt lazily from the working text
     if state.text_sink is not None:
         try:
@@ -415,6 +432,8 @@ def record(agent: str, request: str, *, node: str | None = None) -> None:
         }
         if result["skipped"]:
             rec["skipped"] = result["skipped"]
+        if basis == "working" and state.text_hash:
+            rec["text_hash"] = state.text_hash  # pairs these ranges with the stored text
         state.sink(rec)
     except Exception:  # noqa: BLE001 - recording must never break a document
         state.count_error()

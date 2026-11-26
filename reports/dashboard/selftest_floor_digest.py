@@ -1096,6 +1096,27 @@ console.log("ok");
 
 
 @test
+def viewer_withholds_bands_when_the_ranges_are_from_another_attempt():
+    """text_pairing "different" (digest hashed the stored text) withholds bands and flags, naming the attempt."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const w=DOC,calls=[call("contracts_specialist","extract",[rangeOf("Lease between","first day.")])];
+const panel=pairing=>rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:[...w].length,...(pairing?{text_pairing:pairing}:{})},cls:{gt:"contract",pred:"contract"},specialists:SP,
+ status:"ok",reason:"",data:{working:w,original:null,expected:{parking:"75"},extracted:{},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:null},
+ on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.match(panel("different"),/Bands withheld[\s\S]*different attempt than the stored working text/);
+A.doesNotMatch(panel("different"),/rd-seg[^>]*linear-gradient/);A.match(panel("match"),/rd-seg[^>]*linear-gradient/);   // painted only when paired
+for(const ok of ["match","missing",""])A.doesNotMatch(panel(ok),/Bands withheld/);   // match, no text to compare, or an old store
+const mk=pairing=>rdAnalyse({text:w,expected:{parking:"75"},extracted:{},reads:{calls,union:{},doc_chars:[...w].length,...(pairing?{text_pairing:pairing}:{})},cls:{gt:"contract",pred:"contract"},specialists:SP});
+A.equal(mk("different").textMismatch,true);A.equal(mk("different").rows[0].flag,"");     // not judged: no "not read" claim
+A.equal(mk("match").textMismatch,false);A.equal(mk("match").rows[0].flag,"not read");
+A.equal(mk("").textMismatch,false);A.equal(mk("").rows[0].flag,"not read");               // old store: length check only
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
 def viewer_panel_without_text_says_unavailable_and_still_draws_the_band_map():
     """File://, an imported digest or no server: say the text is unavailable, keep lanes, toggles and calls."""
     out = viewer_js(_RD_SETUP + r"""

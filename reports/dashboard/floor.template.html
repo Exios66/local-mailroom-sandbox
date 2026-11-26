@@ -836,11 +836,13 @@ function rdAnalyse(a){
  const nt=cache.nt,cp=cache.cp,reads=a.reads,model=rdModel(reads,a.specialists);
  const noReads=!reads||!Array.isArray(reads.calls);
  const lengthMismatch=!noReads&&reads.doc_chars>0&&cp.len!==reads.doc_chars;
+ /** The digest hashed the stored text against the tag on the kept read records: ranges from another attempt. */
+ const textMismatch=!noReads&&reads.text_pairing==="different";
  const spec=model.agents.filter(g=>g.group==="specialist"),exact=[];let unknown=0;
  spec.forEach(g=>g.calls.forEach(c=>{if(c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>exact.push(rdToU16(cp,r)));else unknown++}));
  const merged=rdMerge(exact),ran=spec.map(g=>g.agent),cls=a.cls||{},gt=cls.gt,pred=cls.pred;
  const forGt=!gt||ran.some(n=>rdStem(n)===rdStem(gt))||(pred===gt&&ran.length>0);
- const misrouted=!noReads&&!forGt,canJudgeRange=!noReads&&!lengthMismatch&&unknown===0;
+ const misrouted=!noReads&&!forGt,canJudgeRange=!noReads&&!lengthMismatch&&!textMismatch&&unknown===0;
  const expected=a.expected||{},extracted=a.extracted||{},names=[];
  Object.keys(expected).concat(Object.keys(extracted)).forEach(k=>{if(!names.includes(k))names.push(k)});
  const rows=names.map(field=>{
@@ -853,7 +855,7 @@ function rdAnalyse(a){
    else if(canJudgeRange&&!occ.some(r=>rdCovers(merged,r[0],r[1])))flag="not read"}
   const result=hasExpected&&hasExtracted?(rdNormalize(rdShow(ev)).norm===rdNormalize(rdShow(xv)).norm?"matches":"differs"):hasExpected?"no value":"";
   return {field,expected:rdShow(ev),extracted:rdShow(xv),hasExpected,hasExtracted,leaves,occ,flag,result}});
- return {rows,misrouted,ran,unknown,noReads,lengthMismatch,merged}}
+ return {rows,misrouted,ran,unknown,noReads,lengthMismatch,textMismatch,merged}}
 /** Cut [0,len) at every range boundary in one sweep; each segment lists the layers covering it. Layers are arrays of [start,end). */
 function rdSegments(len,layers){
  const ev=[];
@@ -924,7 +926,8 @@ function rdPanelHtml(v){
  else if(text===null)h+=`<p class="secnote"><span class="warn">Text unavailable</span> — the run store holds no text for this document.</p>`;
  if(!reads||!Array.isArray(reads.calls))h+=`<p class="secnote">Read ranges: not recorded for this run.</p>`;
  else if(!model.agents.length)h+=`<p class="secnote">Read ranges: this document has no recorded agent call.</p>`;
- if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served working text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded a working text of ${reads.doc_chars.toLocaleString("en-US")} characters; its ranges would not line up.</p>`;
+ if(an&&an.textMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The read ranges are from a different attempt than the stored working text (a resumed run rewrote it), so they would not line up.</p>`;
+ else if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served working text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded a working text of ${reads.doc_chars.toLocaleString("en-US")} characters; its ranges would not line up.</p>`;
  if(model.agents.length){
   h+=`<div class="rd-tog" role="group" aria-label="Agents whose reads are painted on the text">${rdTogglesHtml(model,on,callOff)}</div>`;
   h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total)}</div>`;
@@ -936,7 +939,7 @@ function rdPanelHtml(v){
   else if(rowFor&&useOrig){if(cache.origText!==original){cache.origText=original;cache.origNt=rdNormalize(original)}occ=rdOccurrences(cache.origNt,rowFor.leaves)}
   const cur=occ.length?occ[((v.hit||0)%occ.length+occ.length)%occ.length]:null;
   const shown=text.slice(0,RD_MAX_CHARS),layers=[],colors=[];
-  if(!useOrig&&an&&!an.lengthMismatch)for(const g of model.agents){
+  if(!useOrig&&an&&!an.lengthMismatch&&!an.textMismatch)for(const g of model.agents){
    if(!on.has(g.agent))continue;
    const rs=[];g.calls.forEach(c=>{if(!callOff.has(c.i)&&c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>rs.push(rdToU16(cache.cp,r)))});
    layers.push(rdMerge(rs));colors.push(g.color)}

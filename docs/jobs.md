@@ -471,15 +471,18 @@ is never hashed, because recording does not change items, routes, scores or cost
 
 - `reads.jsonl` gets one line per call:
   `{doc, call, agent, node, ts, basis, ranges, request_chars, matched_chars, doc_chars}`
-  plus `unplaced_pieces`, and `skipped` when matching was skipped. `ranges` are
+  plus `unplaced_pieces`, `skipped` when matching was skipped, and, on working-basis
+  calls, `text_hash` (sha1 of the working text's UTF-8 bytes, first 16 hex characters). `ranges` are
   half-open `[start, end)` offsets into the working text. There is no text in it.
 - `doc_texts/<sha1(doc)[:16]>.txt` holds each document's working text. The last write
   wins: a resumed document replaces the file (atomic rename, bytes written as UTF-8
-  with no newline translation), so the text always pairs with the ranges and
-  `doc_chars` of the last attempt that the floor digest keeps. `doc_texts/index.jsonl`
-  maps the document id to the file name, one line per document; a line lost in a crash
-  is added again on the next write. This text stays in the local run store. It never
-  reaches the floor digest, its export, Langfuse or git.
+  with no newline translation). `doc_texts/index.jsonl` maps the document id to the file
+  name and to the same `text_hash`, one line per document: a rewrite with different text
+  replaces the line, and a line lost in a crash is added again on the next write. The
+  floor digest recomputes the hash from the stored file and withholds the bands when it
+  differs from the records' (an attempt that rewrote the text and died before reading).
+  This text stays in the local run store. It never reaches the floor digest, its export,
+  Langfuse or git.
 - A call made before intake finished is matched against the dataset row's raw text
   and marked `basis: "raw"`. A document above the matcher's size limit is not
   matched (`skipped: "size"`).
