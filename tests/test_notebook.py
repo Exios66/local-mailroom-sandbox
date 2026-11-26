@@ -546,6 +546,51 @@ def _overlay(tmp_path, labels, doc_class="contract", overlay="gold-overlay", row
     return {f.field: (f.status, f.reason) for f in found}
 
 
+@pytest.mark.parametrize("reviewed", [False, True])
+def test_corporate_entities_use_subclass_and_per_member_evidence(tmp_path, reviewed):
+    review = {"reviewer": {"role": "review"}} if reviewed else None
+
+    def check(case, field, value, evidence, subclass="subsidiary_list"):
+        label = {"value": value, "evidence": evidence, "review": review, "basis": "review_read_message"}
+        return _overlay(tmp_path / case, {field: label}, "corporate_record", doc_subclass=subclass)[field][0]
+
+    assert check("good", "subsidiaries", ["Acme Inc", "Beta LLC"], ["Acme Inc", "Beta LLC"]) == GROUNDED
+    assert check("jurisdiction", "subsidiary_jurisdictions", ["Delaware"], ["Delaware"]) == GROUNDED
+    assert check("missing_quote", "subsidiaries", ["Acme Inc"], []) == NO_EVIDENCE
+    assert check("missing_member", "subsidiaries", ["Acme Inc", "Beta LLC"], ["Acme Inc"]) == UNGROUNDED
+    assert check("split_member", "subsidiaries", ["Acme Inc", "Beta LLC"],
+                 ["Acme", "Inc", "Beta LLC"]) == UNGROUNDED
+    assert check("wrong_type", "subsidiaries", ["Acme Inc", True], ["Acme Inc"]) == UNGROUNDED
+    assert check("scalar", "subsidiaries", "Acme Inc", ["Acme Inc"]) == UNGROUNDED
+    assert check("wrong_subclass", "subsidiaries", ["Acme Inc"], ["Acme Inc"], "indenture") == UNGROUNDED
+    assert check("unknown_subclass", "subsidiaries", ["Acme Inc"], ["Acme Inc"], "invalid") == UNGROUNDED
+    assert check("missing_subclass", "subsidiaries", ["Acme Inc"], ["Acme Inc"], None) == UNGROUNDED
+    assert check("unknown_field", "invented", "Acme Inc", ["Acme Inc"]) == UNGROUNDED
+
+
+def test_corporate_entity_uses_only_matching_bound_row_identity(tmp_path):
+    from mailroom_sandbox.interim_labels import doc_sha
+
+    text = "Subsidiaries: Acme Inc."
+    row = {"id": "DOC-1", "doc_text": text, "expected_doc_class": "corporate_record",
+           "expected_subclass": "subsidiary_list"}
+    labels = {"subsidiaries": {"value": ["Acme Inc"], "evidence": [text]}}
+
+    def check(case, source, **record):
+        return _overlay(tmp_path / case, labels, "corporate_record", rows={"DOC-1": source},
+                        doc_sha256=doc_sha(text), **record)["subsidiaries"][0]
+
+    assert check("row_subclass", row) == GROUNDED
+    assert check("conflict", row, doc_subclass="indenture") == UNGROUNDED
+    assert check("class_conflict", {**row, "expected_doc_class": "contract"},
+                 doc_subclass="subsidiary_list") == UNGROUNDED
+    assert check("invalid_explicit", row, doc_subclass=None) == UNGROUNDED
+    assert check("stale", {**row, "doc_text": "changed"}) == UNGROUNDED
+    derived = {"subsidiaries": {"value": "subsidiary_list", "status": "derived", "basis": "cms_subclass"}}
+    assert _overlay(tmp_path / "derived", derived, "corporate_record",
+                    doc_subclass="subsidiary_list")["subsidiaries"][0] == UNGROUNDED
+
+
 def test_overlay_label_is_checked_against_each_evidence_shape(tmp_path):
     span = {"text": "made on this 1st day of December, 2015 by and between"}
     status = _overlay(
