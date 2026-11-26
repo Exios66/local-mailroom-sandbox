@@ -22,12 +22,14 @@ live in ``scoring_hotfixes.py``, dual reported beside the Dojo pin's raw values.
 
 from __future__ import annotations
 
+import copy
 import difflib
 import functools
 import hashlib
 import importlib
 import inspect
 import logging
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,8 +49,9 @@ class Hotfix:
     upstream: str
     summary: str
     install: Callable[[Any, Callable[..., Any]], Callable[..., Any]]
-    # Other functions of the same module whose behavior the fix relies on: (attr, sha256).
-    # Any mismatch makes the whole fix stale, like a change to the target itself.
+    # Other functions whose behavior the fix relies on: (attr, sha256), the attr in the same
+    # module, or "other.module:attr" in another one. Any mismatch makes the whole fix stale,
+    # like a change to the target itself.
     also: tuple[tuple[str, str], ...] = ()
     # Re-run on an already-applied fix, for side effects a test or a reload can undo (route rules).
     refresh: Callable[[Any], None] | None = None
@@ -92,22 +95,70 @@ JUDGE_PARSE_FAILURE = "judge output failed to parse"
 
 
 class JudgeParseError(RuntimeError):
-    """The completeness judge's answer did not parse: no verdict was reached (HF-002)."""
+    """A judge's answer did not parse: no verdict was reached (HF-002 completeness, HF-013 accuracy)."""
+
+
+def _is_completeness_parse_failure(out: Mapping[str, Any]) -> bool:
+    return str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0
+
+
+def _is_correctness_parse_failure(out: Mapping[str, Any]) -> bool:
+    return (str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("extraction_correctness") == 0.0
+            and out.get("extraction_correctness_label") == "inaccurate")
+
+
+def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[Mapping[str, Any]], bool],
+                   self: Any, args: tuple, kwargs: dict) -> dict:
+    """One judge call, re-asked once when its answer did not parse; raises when the re-ask fails too.
+
+    Only the vendored parse-failure sentinel triggers the re-ask: a transport or provider error
+    raises out of ``original`` untouched (HF-012 bounds those at node level), and an answer that
+    parsed, however low, is a verdict. The re-ask is the same vendored method with the same
+    arguments, so it passes the API call guard, the provider pins, usage capture and the spend caps
+    like any call. It is made at most once per call, so a pass holds at most two calls per judge
+    method. The re-ask is recorded as ``asked`` before it is made, so one that raises (transport
+    error, guard refusal) still counts, and the error propagates unchanged; ``recovered`` is
+    recorded when the second answer parses and ``parked`` when it does not either, so a re-ask that
+    raised is neither (counts only, never document text).
+    """
+    out = original(self, *args, **kwargs)
+    if not failed(out):
+        return out
+    from mailroom_sandbox.job import call_guard
+
+    call_guard.note_judge_reask(judge)
+    out = original(self, *args, **kwargs)
+    if failed(out):
+        call_guard.note_judge_parked(judge)
+        raise JudgeParseError(JUDGE_PARSE_FAILURE)
+    call_guard.note_judge_recovered(judge)
+    return out
 
 
 def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(original)
     def judge_completeness(self: Any, *args: Any, **kwargs: Any) -> dict:
-        out = original(self, *args, **kwargs)
         # Upstream turns a parse failure into a real "incomplete 0.0" verdict, which sends the
         # document to the arbiter as if the extraction were judged incomplete and is never counted
-        # as a judge error. Raising takes the graph's own hard-failure path: judge_verdict
-        # "judge_error", routed to human review and counted by the gate.
-        if str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0:
-            raise JudgeParseError(JUDGE_PARSE_FAILURE)
-        return out
+        # as a judge error. A single unparseable answer is asked once more; when the second one
+        # fails too, raising takes the graph's own hard-failure path: judge_verdict "judge_error",
+        # routed to human review and counted by the gate.
+        return _ask_once_more("completeness", original, _is_completeness_parse_failure, self, args, kwargs)
 
     return judge_completeness
+
+
+def _install_judge_correctness_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def judge_extraction_correctness(self: Any, *args: Any, **kwargs: Any) -> dict:
+        # HF-002's gap: the accuracy judge runs after a "complete" completeness verdict, and its
+        # parse failure becomes "inaccurate 0.0", which judge_verify turns into an "incomplete"
+        # verdict that spends an arbiter call and a re-extraction. No verdict was reached, so it is
+        # asked once more and, failing again, takes the same judge_error path as a completeness
+        # parse failure (HF-002).
+        return _ask_once_more("correctness", original, _is_correctness_parse_failure, self, args, kwargs)
+
+    return judge_extraction_correctness
 
 
 #: The least share of the source a single-window intake ``cleaned_text`` must keep to replace it.
@@ -169,6 +220,206 @@ def _install_intake_clean_guard(_module: Any, original: Callable[..., Any]) -> C
         return prep
 
     return intake_run
+
+
+class HotfixDrift(RuntimeError):
+    """The vendored text a hotfix rewrites is not where the hotfix expects it (reported ``stale``)."""
+
+
+#: What the triage-only intake prompt says where the vendored CLEAN block was (HF-016).
+INTAKE_TRIAGE_ONLY_BLOCK = (
+    "NO CLEANING — not requested here. The deterministic intake clerk has already normalized the "
+    "text, and the sorter reads that text, not yours. Set cleaned_text to null (or leave it out) and "
+    "changes_applied to an empty array; never return any part of the document.\n\n")
+_INTAKE_CLEAN_BLOCK = re.compile(r"^CLEAN\b.*?(?=^PREPARE\b)", re.S | re.M)
+#: The closing instruction added when a served prompt (managed or local) carries no CLEAN block.
+INTAKE_TRIAGE_ONLY_TAIL = ("\n\nIgnore any instruction to return the document text: set cleaned_text to null and "
+                           "changes_applied to an empty array in every answer; the text is never returned (HF-016).")
+#: The section map's size in the served prompt (and in the swapped schema, when it carries a limit).
+#: The vendored prompt allows 40 sections, an estimated 1.9k to 2.5k output tokens against intake's
+#: 2,048-token ``max_tokens``; the map is reporting only (``section_count`` and ``roles`` in
+#: ``intake_meta.prep``), so a short one costs nothing downstream.
+INTAKE_SECTION_CAP = 12
+_INTAKE_VENDORED_SECTION_LIMIT = re.compile(r"\bat most 40 sections\b")
+_INTAKE_SECTION_LIMIT = re.compile(r"\bat most \d+ sections\b", re.I)
+#: Marks the validate_intake wrapper that nulls ``cleaned_text`` (HF-016); copied onto outer wrappers.
+_NULL_CLEAN_MARK = "_sandbox_null_clean"
+
+
+def _intake_triage_only(text: str) -> str:
+    """``text`` with its CLEAN block replaced by the null instruction and its section map capped."""
+    if INTAKE_TRIAGE_ONLY_BLOCK in text or INTAKE_TRIAGE_ONLY_TAIL in text:
+        return text  # already rewritten
+    out, n = _INTAKE_CLEAN_BLOCK.subn(lambda _m: INTAKE_TRIAGE_ONLY_BLOCK, text)
+    out = out.replace("TRIAGE, CLEAN, and PREPARE", "TRIAGE and PREPARE")
+    if not n:
+        # No CLEAN block (a managed or local variant): drop any line that asks for the whole or repaired
+        # text in cleaned_text, then end with an explicit override of whatever remains.
+        kept = [ln for ln in out.splitlines()
+                if not (re.search(r"cleaned_text", ln, re.I) and re.search(r"\b(full|repaired)\b", ln, re.I))]
+        out = "\n".join(kept).rstrip() + INTAKE_TRIAGE_ONLY_TAIL
+    out, limits = _INTAKE_SECTION_LIMIT.subn(f"at most {INTAKE_SECTION_CAP} sections", out)
+    if not limits:  # a served prompt that states no limit still gets one
+        out = out.rstrip() + f"\n\nInclude at most {INTAKE_SECTION_CAP} sections."
+    return out
+
+
+def _swap_intake_schema(module: Any) -> None:
+    """Point ``agents.intake.INTAKE_SCHEMA`` at a copy without ``cleaned_text`` and with a capped section list.
+
+    The copy only changes what it must: ``cleaned_text`` is dropped, and a ``maxItems`` the sections
+    array carries is set to :data:`INTAKE_SECTION_CAP` (the vendored schema carries none). Idempotent.
+    """
+    schema = module.INTAKE_SCHEMA
+    props = schema.get("properties", {})
+    sections = props.get("sections")
+    capped = isinstance(sections, dict) and "maxItems" in sections and sections["maxItems"] != INTAKE_SECTION_CAP
+    if "cleaned_text" in props or capped:
+        new_props = {k: v for k, v in props.items() if k != "cleaned_text"}
+        if capped:
+            new_props["sections"] = {**sections, "maxItems": INTAKE_SECTION_CAP}
+        module.INTAKE_SCHEMA = {**schema, "properties": new_props}
+
+
+def _has_null_clean(fn: Any) -> bool:
+    """Whether ``fn`` or a function it wraps is the HF-016 null-clean wrapper."""
+    depth = 0
+    while fn is not None and depth < 16:
+        if getattr(fn, "__dict__", {}).get(_NULL_CLEAN_MARK):
+            return True
+        fn, depth = getattr(fn, "__wrapped__", None), depth + 1
+    return False
+
+
+def _install_null_clean(module: Any) -> None:
+    """Wrap ``module.validate_intake`` so every intake reply leaves it with ``cleaned_text`` None (idempotent).
+
+    The prompt only asks the model for a null clean; a model can still return one. Upstream
+    ``intake_run`` replaces the document with any non-empty ``cleaned_text`` of a single-window read,
+    and HF-003 checks only its length and lost words, so altered numbers or appended text would
+    become the working text. ``validate_intake`` is the one seam every reply passes through before
+    ``prep["cleaned"]`` is built (``_call_one`` looks it up on the module), so the clean is dropped
+    there and ``clean_refused`` records that a clean was returned and ignored. HF-003 stays behind it
+    as a latent guard. HF-017 wraps the same function; they are independent, so the order is only
+    cosmetic (``HOTFIXES`` lists HF-016 first, which leaves the null clean innermost).
+    """
+    current = module.validate_intake
+    if _has_null_clean(current):
+        return
+
+    @functools.wraps(current)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = current(result, text)
+        if out.get("cleaned_text"):
+            out["clean_refused"] = "cleaned_text ignored: intake is triage-only, the clerk's text stays (HF-016)"
+        out["cleaned_text"] = None
+        return out
+
+    setattr(validate_intake, _NULL_CLEAN_MARK, True)
+    module.validate_intake = validate_intake
+
+
+def _refresh_intake_triage_only(module: Any) -> None:
+    """Re-swap the schema and re-wrap ``validate_intake`` if a reload restored the vendored objects."""
+    _swap_intake_schema(module)
+    _install_null_clean(module)
+
+
+def _install_intake_triage_only(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Intake returns triage and a short section map only; it never re-emits the document (HF-016).
+
+    The vendored prompt asks a messy document's model to return the FULL repaired text as
+    ``cleaned_text``. On OpenRouter intake's output allowance is 2,048 tokens, so any document over
+    2-3k characters is likely to be cut off mid-JSON, the whole answer (triage and sections too)
+    is lost and the input is still paid. The clerk's deterministic output stays the working text:
+    the prompt asks for a null clean, the schema drops the field, and ``validate_intake`` nulls
+    whatever a model returns anyway. The 40-section allowance is cut to
+    :data:`INTAKE_SECTION_CAP`, which makes a cut-off much less likely (an estimate, not a
+    guarantee). The prompt text is rewritten after it is served, so a Langfuse-managed or locally
+    overridden prompt gets the same instruction; a vendored prompt whose CLEAN block or section
+    limit moved fails here, not silently.
+    """
+    if not _INTAKE_CLEAN_BLOCK.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT has no CLEAN block to replace (HF-016)")
+    if not _INTAKE_VENDORED_SECTION_LIMIT.search(module.INTAKE_SYSTEM_PROMPT):
+        raise HotfixDrift("agents.intake.INTAKE_SYSTEM_PROMPT no longer says 'at most 40 sections' (HF-016)")
+    if "cleaned_text" not in module.INTAKE_SCHEMA.get("properties", {}):
+        raise HotfixDrift("agents.intake.INTAKE_SCHEMA no longer carries cleaned_text (HF-016)")
+    _swap_intake_schema(module)
+    _install_null_clean(module)
+
+    @functools.wraps(original)
+    def system_prompt(self: Any) -> str:
+        return _intake_triage_only(original(self))
+
+    return system_prompt
+
+
+def _usable_triage(triage: Any) -> bool:
+    return isinstance(triage, dict) and bool(triage.get("primary_doc_class"))
+
+
+def _catalog_subclass(primary_class: Any, subclass: Any) -> str | None:
+    """The canonical sorter subclass token for ``primary_class``, or None when it is not in its catalog."""
+    from langchain_agents.doc_inventories import valid_sorter_subclasses  # type: ignore
+
+    cls = str(primary_class or "").strip()
+    token = str(subclass or "").strip().lower()
+    # The guard's own acceptance set (the class catalog; contract also takes CUAD ``other``).
+    # ``normalize_sorter_subclass`` is not used: it falls back to ``other`` for any unknown token.
+    return token if cls and token in valid_sorter_subclasses(cls) else None
+
+
+def _install_empty_intake_prior(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """A failed intake read feeds the sorter no prior; an invented subclass is not printed (HF-017).
+
+    ``validate_intake`` turned a parse failure (a cut-off reply, prose, a JSON list) into a
+    truthy triage of ``unknown`` / 0.0 / no gist, and ``format_intake_prior`` rendered it as an
+    advisory read. An empty triage is falsy, ``_merge_triage`` falls back to the first window's
+    read and ``format_intake_prior`` returns "". A model that answers ``unknown`` with a gist is a
+    real read and keeps its prior. The subclass line is printed only for a token in the sorter's
+    own catalog for that primary class. ``_merge_triage`` drops empty reads before it merges, so a
+    failed window never hides another window's real read.
+    """
+
+    @functools.wraps(original)
+    def validate_intake(result: dict, text: str) -> dict:
+        out = original(result, text)
+        if not isinstance(result, dict) or result.get("_parse_error") or not _usable_triage(result.get("triage")):
+            out["triage"] = {}
+        return out
+
+    merge = module._merge_triage
+    if getattr(merge, _MARK, None) != "HF-017":
+        @functools.wraps(merge)
+        def _merge_triage(reads: list[dict]) -> dict:
+            # Upstream's all-unknown fallback is reads[0], so a failed (empty) first window hid an
+            # honest ``unknown`` read from a later one. Empty reads are dropped first.
+            return merge([r for r in reads if r] or reads)
+
+        setattr(_merge_triage, _MARK, "HF-017")
+        module._merge_triage = _merge_triage
+
+    prior = module.format_intake_prior
+    if getattr(prior, _MARK, None) != "HF-017":
+        @functools.wraps(prior)
+        def format_intake_prior(prep: dict | None) -> str:
+            triage = (prep or {}).get("triage")
+            if isinstance(triage, dict) and triage.get("doc_subclass"):
+                token = _catalog_subclass(triage.get("primary_doc_class"), triage["doc_subclass"])
+                prep = {**prep, "triage": {**triage, "doc_subclass": token}}
+            return prior(prep)
+
+        setattr(format_intake_prior, _MARK, "HF-017")
+        module.format_intake_prior = format_intake_prior
+    return validate_intake
+
+
+def _refresh_empty_intake_prior(module: Any) -> None:
+    """Re-wrap ``format_intake_prior`` and ``_merge_triage`` if a reload restored the vendored functions."""
+    if (getattr(module.format_intake_prior, _MARK, None) != "HF-017"
+            or getattr(module._merge_triage, _MARK, None) != "HF-017"):
+        _install_empty_intake_prior(module, module.validate_intake)
 
 
 def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
@@ -512,7 +763,8 @@ def judge_exhausted_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str
     extraction with caveats. Only that park is redirected: an ``incomplete`` verdict, a judge
     error, a transient error, or a pass budget not yet spent keep the router's answer, and so
     does an extraction ``after_arbiter`` would park even on acceptance (still unsure, or an
-    unadjudicated conflict): asking the arbiter there would spend a call for the same park.
+    unadjudicated conflict, unless HF-014 lets a whole-source acceptance archive): asking the
+    arbiter there would spend a call for the same park.
     """
 
     def decide(state: Mapping[str, Any], proposed: str) -> str | None:
@@ -522,8 +774,9 @@ def judge_exhausted_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str
             return None
         if not _judge_passes_spent(routing, state):
             return None
-        # after_arbiter parks these whatever the arbiter says, so its call would be wasted.
-        if routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state):
+        # after_arbiter parks these whatever the arbiter says, so its call would be wasted
+        # (HF-014 keeps an acceptance from a whole-source reading out of that park).
+        if acceptance_parks(routing, state):
             return None
         return "arbiter"
 
@@ -626,6 +879,261 @@ def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Call
     return _transient_decision
 
 
+#: Run ``confidence`` key that turns on HF-014 and HF-015 (overlay default ``true``). Both stay inert
+#: unless context fit widened the arbiter's source window, so Modal/vLLM and local routes are unchanged.
+FULL_SOURCE_KEY = "arbiter_full_source"
+#: Run ``confidence`` key: the extraction confidence an HF-014 acceptance needs. Unset (the
+#: overlay default) it is the class's own ``low`` band, read the way routing reads it.
+FULL_SOURCE_FLOOR_KEY = "arbiter_full_source_min_confidence"
+#: Route-rule name of HF-014 (``graph.route_spec`` registry, ``arbiter`` node).
+FULL_SOURCE_RULE = "HF-014:arbiter_full_source_accepts"
+#: The note HF-015 adds to the arbiter's request when no re-extraction budget is left.
+RETRY_CLOSED_NOTE = ("RE-EXTRACTION IS NOT AVAILABLE: no re-extraction budget is left, so this ruling is "
+                     "final. Decide accept_with_caveats or human_review; retry_extraction cannot be chosen.")
+
+
+def arbiter_source_window() -> tuple[int | None, bool]:
+    """``(the extraction arbiter's source window, whether context fit widened it)``.
+
+    The window is ``agents.arbiter.SOURCE_CHARS`` as the arbiter reads it at call time
+    (:mod:`mailroom_sandbox.source_windows` raises it on a fitted route and restores the vendored
+    value on every other activation). ``(None, False)`` when the vendored agent is not importable.
+    """
+    from mailroom_sandbox.source_windows import vendored_windows
+
+    try:
+        arbiter = importlib.import_module("agents.arbiter")
+    except Exception:  # noqa: BLE001 — optional (pipeline extra)
+        return None, False
+    window = int(arbiter.SOURCE_CHARS)
+    vendored = vendored_windows().get("agents.arbiter.SOURCE_CHARS")
+    return window, vendored is not None and window > vendored
+
+
+def _full_source_route(routing: Any, state: Mapping[str, Any]) -> bool:
+    if routing._thresholds_for(state).get(FULL_SOURCE_KEY) is not True:
+        return False
+    return arbiter_source_window()[1]
+
+
+def _full_source_rule_registered() -> bool:
+    from graph import route_spec
+
+    return any(rule.name == FULL_SOURCE_RULE for rule in route_spec.route_rules("arbiter"))
+
+
+def arbiter_read_whole_source(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-014: whether an ``accept_with_caveats`` on ``state`` rests on the whole source.
+
+    True on a context-fitted route (``confidence.arbiter_full_source`` on and the arbiter window
+    widened) when the arbiter read every character of the document (``doc_text`` no longer than
+    its window), no chunked window was lost and no matter conflict is unadjudicated.
+    """
+    if not _full_source_route(routing, state):
+        return False
+    window, _ = arbiter_source_window()
+    text = state.get("doc_text")
+    if window is None or not isinstance(text, str) or len(text) > window:
+        return False
+    return not routing._chunks_lost(state) and not routing._unadjudicated_conflict(state)
+
+
+def full_source_floor(routing: Any, state: Mapping[str, Any]) -> float:
+    """HF-014's confidence floor for ``state``'s class: ``confidence.arbiter_full_source_min_confidence``,
+    else the class's ``low`` band (by-class overrides included, vendored default 0.70)."""
+    thresholds = routing._thresholds_for(state)
+    raw = thresholds.get(FULL_SOURCE_FLOOR_KEY)
+    return float(raw if raw is not None else thresholds.get("low", 0.70))
+
+
+def confidence_floor_met(routing: Any, state: Mapping[str, Any]) -> bool:
+    """Whether the extraction confidence reaches HF-014's floor (missing or non-finite: it does not)."""
+    confidence = state.get("extraction_confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not math.isfinite(confidence):
+        return False
+    return confidence >= full_source_floor(routing, state)
+
+
+def full_source_accepts(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-014: an ``accept_with_caveats`` on ``state`` archives (whole source read, floor reached)."""
+    return arbiter_read_whole_source(routing, state) and confidence_floor_met(routing, state)
+
+
+def acceptance_parks(routing: Any, state: Mapping[str, Any]) -> bool:
+    """Whether ``after_arbiter`` (with HF-014 when it is registered) parks an ``accept_with_caveats``."""
+    if not (routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state)):
+        return False
+    return not (_full_source_rule_registered() and full_source_accepts(routing, state))
+
+
+def full_source_accept_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
+    """``arbiter``: an acceptance from a whole-source reading goes to the report, not to a person.
+
+    The vendored ``after_arbiter`` parks ``accept_with_caveats`` while the extraction is still
+    unsure (confidence under the class ``low`` band and no source-verified judge verdict). On a
+    16k-excerpt route that park guards against an arbiter that never saw most of the document.
+    Where the arbiter read all of it, its acceptance is the ruling the judge/arbiter lane exists
+    for, so the document archives with its caveats on record (``arbiter_decision`` and
+    ``arbiter_reasoning`` in the manifest and the matter report; ``arbiter_caveats`` on the
+    sandbox item). The extraction confidence must still reach a floor
+    (``confidence.arbiter_full_source_min_confidence``, else the class ``low`` band): below it,
+    or with none recorded, the document parks as before. Lost chunks and an unadjudicated
+    conflict still park. The judge verdict is not gated.
+    """
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "human_review" or state.get("transient_error"):
+            return None
+        if state.get("arbiter_decision") != "accept_with_caveats":
+            return None
+        return "compile_report" if full_source_accepts(routing, state) else None
+
+    return decide
+
+
+def _register_full_source_rule(module: Any) -> None:
+    """(Re)register the HF-014 rule right after the HF-011 rules on ``arbiter``; idempotent.
+
+    HF-011 keeps its rules first. This rule acts on a different proposal (``human_review``, not
+    ``retry_extract``), so the order between them never changes a route; keeping it fixed avoids
+    re-registering on every activation.
+    """
+    from graph import route_spec
+
+    current = route_spec.route_rules("arbiter")
+    position = sum(1 for rule in current if rule.name.startswith(JUDGE_EXHAUSTED_RULES))
+    mine = next((rule for rule in current if rule.name == FULL_SOURCE_RULE), None)
+    if (mine is not None and current.index(mine) == position
+            and getattr(mine.decide, "_hf014_module", None) is module):
+        return
+    decide = full_source_accept_rule(module)
+    decide._hf014_module = module  # type: ignore[attr-defined]
+    if mine is not None:
+        route_spec.remove_route_rule("arbiter", FULL_SOURCE_RULE)
+        position = sum(1 for rule in route_spec.route_rules("arbiter")
+                       if rule.name.startswith(JUDGE_EXHAUSTED_RULES))
+    route_spec.add_route_rule("arbiter", route_spec.RouteRule(FULL_SOURCE_RULE, decide), position=position)
+
+
+def arbiter_caveats(state: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The visible caveat marker of an archived ``accept_with_caveats`` document, else None.
+
+    ``{"decision", "reasoning", "judge_verdict", "whole_source", "hf014"}``: ``whole_source`` is
+    whether the arbiter read the whole document (HF-014's condition) and ``hf014`` whether the
+    vendored ``after_arbiter`` would have parked it (extraction still unsure), so HF-014 alone
+    archived it. Every caveat-accepted archive gets the marker, whichever route archived it, so
+    reports, the floor digest and the gate can count and separate them from clean archives.
+    """
+    if state.get("stage") != "archived" or state.get("arbiter_decision") != "accept_with_caveats":
+        return None
+    try:
+        routing = importlib.import_module("graph.routing")
+        whole = arbiter_read_whole_source(routing, state)
+        unsure = bool(routing._extraction_still_unsure(state)) and confidence_floor_met(routing, state)
+    except Exception:  # noqa: BLE001 — the marker never fails a record
+        whole, unsure = False, False
+    return {"decision": "accept_with_caveats",
+            "reasoning": str(state.get("arbiter_reasoning") or "")[:500] or None,
+            "judge_verdict": state.get("judge_verdict"),
+            "whole_source": whole, "hf014": whole and unsure}
+
+
+def _install_full_source_accept(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Register the HF-014 route rule; the router itself is unchanged (see HF-011)."""
+    _register_full_source_rule(module)
+
+    @functools.wraps(original)
+    def after_arbiter(state: dict) -> Any:
+        return original(state)
+
+    return after_arbiter
+
+
+def retry_closed(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-015: on a full-source route, whether the arbiter has no re-extraction left to order.
+
+    Closed when HF-011's last judge pass is spent (a retry could not be judged again), or when
+    ``arbiter_retry_count`` has reached ``arbiter_retry_max`` (``after_arbiter`` would refuse it).
+    """
+    if not _full_source_route(routing, state):
+        return False
+    thresholds = routing._thresholds_for(state)
+    if thresholds.get("judge_exhausted_to_arbiter") is True and _judge_passes_spent(routing, state):
+        return True
+    raw = thresholds.get("arbiter_retry_max")
+    retry_max = int(raw) if raw is not None else 2
+    return int(state.get("arbiter_retry_count") or 0) >= retry_max
+
+
+def _arbiter_node_state() -> Mapping[str, Any] | None:
+    """The graph state of the ``arbiter_node`` call that invoked the wrapped ``arbitrate``, else None."""
+    frame = inspect.currentframe()
+    try:
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        if caller is None or caller.f_code.co_name != "arbiter_node":
+            return None
+        state = caller.f_locals.get("state")
+        return state if isinstance(state, Mapping) else None
+    finally:
+        del frame
+
+
+def _without_retry(schema: Any) -> Any:
+    """``schema`` with ``retry_extraction`` dropped from its ``decision`` enum (a copy)."""
+    if not isinstance(schema, Mapping):
+        return schema
+    out = copy.deepcopy(dict(schema))
+    decision = (out.get("properties") or {}).get("decision")
+    if isinstance(decision, dict) and isinstance(decision.get("enum"), list):
+        decision["enum"] = [d for d in decision["enum"] if d != "retry_extraction"]
+    return out
+
+
+def _install_final_ruling(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """With no re-extraction budget left, the arbiter is asked for a final ruling.
+
+    The vendored arbiter is always offered ``retry_extraction``; HF-011 and ``after_arbiter``
+    then turn a retry they cannot grant into a park, under the arbiter's "ordered re-extraction"
+    reason. On a full-source route this request drops ``retry_extraction`` from the decision
+    enum and says why, so the model chooses between accepting with caveats and a person. An
+    answer that still names a retry (a provider that does not enforce the schema) becomes
+    ``human_review`` with its own reason. Every other call, and every Modal/vLLM or local call,
+    is the vendored request.
+    """
+
+    @functools.wraps(original)
+    def arbitrate(self: Any, *args: Any, **kwargs: Any) -> dict:
+        state = _arbiter_node_state()
+        try:
+            routing = importlib.import_module("graph.routing")
+        except Exception:  # noqa: BLE001 — optional (pipeline extra)
+            routing = None
+        if state is None or routing is None or not retry_closed(routing, state):
+            return original(self, *args, **kwargs)
+        had_own = "_call_structured" in vars(self)
+        own = vars(self).get("_call_structured")
+        call = self._call_structured
+
+        def final_call(user_message: str, schema: Any = None, *a: Any, **k: Any) -> dict:
+            return call(f"{user_message}\n\n{RETRY_CLOSED_NOTE}", _without_retry(schema), *a, **k)
+
+        self._call_structured = final_call
+        try:
+            result = original(self, *args, **kwargs)
+        finally:
+            if had_own:
+                self._call_structured = own
+            else:
+                del self._call_structured
+        if isinstance(result, dict) and result.get("decision") == "retry_extraction":
+            result = {**result, "decision": "human_review",
+                      "reasoning": "arbiter asked for a re-extraction with no budget left; escalated "
+                                   f"({str(result.get('reasoning') or '')[:200]})"}
+        return result
+
+    return arbitrate
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -643,8 +1151,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="CompletenessJudge.judge_completeness",
         source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
         upstream="Exios66/llm-mailroom#315",
-        summary="a completeness-judge parse failure is a judge error (human review, counted), "
-                "not an 'incomplete 0.0' verdict",
+        summary="a completeness-judge parse failure is asked once more; a second failure is a judge "
+                "error (human review, counted), not an 'incomplete 0.0' verdict",
         install=_install_judge_parse_error,
     ),
     Hotfix(
@@ -753,6 +1261,74 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "(retry_chat_completion already retries inside the call); unset keeps the vendored 2",
         install=_install_transient_budget,
     ),
+    Hotfix(
+        id="HF-013",
+        module="agents.judge",
+        attr="CompletenessJudge.judge_extraction_correctness",
+        source_sha256="dd2b8dae82df4c789b9636c694dd35ca1bd16212dbdd14788530d41aad0b4634",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="an accuracy-judge parse failure is asked once more; a second failure is a judge "
+                "error (human review, counted), not an 'inaccurate 0.0' answer that reads as an "
+                "incomplete verdict",
+        install=_install_judge_correctness_parse_error,
+    ),
+    Hotfix(
+        id="HF-014",
+        module="graph.routing",
+        attr="after_arbiter",
+        source_sha256="6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter "
+                "accept_with_caveats from a whole-source reading archives with its caveats when the "
+                "extraction confidence reaches confidence.arbiter_full_source_min_confidence (unset: the "
+                "class low, so no route changes); below it, lost chunks and conflicts still park",
+        install=_install_full_source_accept,
+        refresh=_register_full_source_rule,
+        also=(("_extraction_still_unsure", "21700548d1be504e6bd7ce93164d6630fc25e05a86a82df8585d1b8bd3d5bd67"),
+              ("_unadjudicated_conflict", "7084a3d97357b5ec6848b7847c95e3eabbbacfe7b474c8baf6270d5c2f24d1ce"),
+              ("_chunks_lost", "85eca48ae57b740f0d5fbd6118eea1682778bc774c14a274cf7d32b704109b2a")),
+    ),
+    Hotfix(
+        id="HF-015",
+        module="agents.arbiter",
+        attr="ArbiterAgent.arbitrate",
+        source_sha256="c6c7b3ac5c4aa19ae58c84527901658c3caa41f5788da3010ef046295445e6d4",
+        upstream="to file (Exios66/llm-mailroom)",
+        summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter with no "
+                "re-extraction budget left is not offered retry_extraction: its ruling is final",
+        install=_install_final_ruling,
+        # The wrapper reads the graph state from this caller's frame (_arbiter_node_state).
+        also=(("graph.build_graph:arbiter_node", "16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f"),),
+    ),
+    Hotfix(
+        id="HF-016",
+        module="agents.intake",
+        attr="IntakeAgent.system_prompt",
+        source_sha256="9d2e6238b09d65b18f70356c08bc8f712a70898a464662fc299d6abcdecbb886",
+        upstream="upstream issue to be filed (llm-mailroom: intake CLEAN re-emits the document under a 2k output cap)",
+        summary="intake returns triage and a short section map only: the prompt's CLEAN block becomes "
+                "\"set cleaned_text to null\", the section map is capped at 12, INTAKE_SCHEMA drops "
+                "cleaned_text and validate_intake nulls any clean a model returns anyway, so a long "
+                "messy document's answer is much less likely to be cut off mid-JSON and the clerk's "
+                "text stays the working text (HF-003 stays as a latent guard)",
+        install=_install_intake_triage_only,
+        refresh=_refresh_intake_triage_only,
+    ),
+    Hotfix(
+        id="HF-017",
+        module="agents.intake",
+        attr="validate_intake",
+        source_sha256="c6957091af25c45f4af88ce8475349fb64cc3c40b4f2e66756eb5d91a3043df6",
+        upstream="upstream issue to be filed (llm-mailroom: a failed intake read becomes an unknown/0.0 prior)",
+        summary="a failed intake read (parse error, no triage object) has an empty triage and so no "
+                "sorter prior instead of 'unknown / 0.0', and a failed window never hides another "
+                "window's read in the merge; the prior's subclass line is printed only "
+                "for a token in the sorter's catalog for that class",
+        install=_install_empty_intake_prior,
+        refresh=_refresh_empty_intake_prior,
+        also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
+              ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
+    ),
 )
 
 _STATUS: dict[str, str] = {}
@@ -790,18 +1366,38 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
                 fix.refresh(module)
             _STATUS[fix.id] = "applied"
             continue
-        drifted = [attr for attr, sha in fix.also if _source_sha(getattr(module, attr)) != sha]
+        drifted = [attr for attr, sha in fix.also if _also_sha(module, attr) != sha]
         if _source_sha(current) != fix.source_sha256 or drifted:
             _log.warning("%s not applied: vendored %s.%s changed since the hotfix was written "
                          "(re-validate it or retire it)", fix.id, fix.module, fix.attr)
             _STATUS[fix.id] = "stale"
             continue
-        wrapped = fix.install(module, current)
+        try:
+            wrapped = fix.install(module, current)
+        except HotfixDrift as exc:
+            _log.warning("%s not applied: %s (re-validate it or retire it)", fix.id, exc)
+            _STATUS[fix.id] = "stale"
+            continue
         setattr(wrapped, _MARK, fix.id)
         setattr(owner, name, wrapped)
         _STATUS[fix.id] = "applied"
         _log.info("%s applied: %s", fix.id, fix.summary)
     return {fix.id: _STATUS[fix.id] for fix in hotfixes}
+
+
+def _also_sha(module: Any, attr: str) -> str | None:
+    """The source sha of the function an ``also`` entry names (``attr`` of ``module``, or
+    ``other.module:attr``); ``None`` when it is gone, which counts as drift."""
+    try:
+        if ":" in attr:
+            other, _, attr = attr.partition(":")
+            module = importlib.import_module(other)
+        owner: Any = module
+        for part in attr.split("."):
+            owner = getattr(owner, part)
+        return _source_sha(owner)
+    except Exception:  # noqa: BLE001 — a missing helper is drift, never a crash
+        return None
 
 
 def describe() -> dict[str, Any]:

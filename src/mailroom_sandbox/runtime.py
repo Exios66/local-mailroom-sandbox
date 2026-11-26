@@ -609,6 +609,14 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("temperature override failed — call-site temperatures stand: %s", exc)
 
+    # Read ranges: observe every chat agent request, outermost, after sampling.
+    try:
+        from mailroom_sandbox.job.read_ranges import install_call_observer
+
+        install_call_observer()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("read-range observer failed — agent reads are not recorded: %s", exc)
+
     patched_prompts = False
     if prompt_variant:
         from mailroom_sandbox.prompts import patch_managed_prompt

@@ -63,11 +63,13 @@ def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> di
     return deep_merge(block, dict(lock_confidence or {}))
 
 
-# Keys the taxonomy overlay's retry-budget block set (HF-011/HF-012 routing). A lock written
-# before preflight froze ``effective_confidence`` never saw them, so on resume they fall back
-# to the vendored + components value (absent keys stay absent, which leaves HF-011/HF-012 inert).
+# Keys the taxonomy overlay's retry-budget block set (HF-011/HF-012/HF-014/HF-015 routing). A
+# lock written before preflight froze ``effective_confidence`` never saw them, so on resume they
+# fall back to the vendored + components value (absent keys stay absent, which leaves those
+# hotfixes inert).
 OVERLAY_RETRY_KEYS = ("retry_max", "arbiter_retry_max", "judge_max_passes",
-                      "transient_retry_max", "judge_exhausted_to_arbiter")
+                      "transient_retry_max", "judge_exhausted_to_arbiter", "arbiter_full_source",
+                      "arbiter_full_source_min_confidence")
 
 
 def legacy_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -352,7 +354,8 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
         "docs": len(docs),
         "thresholds": {k: thresholds.get(k) for k in ("high", "low", "judge_band_high", "arbiter_retry_max",
                                                      "judge_max_passes", "judge_rejudge_retry", "retry_max",
-                                                     "transient_retry_max", "judge_exhausted_to_arbiter")},
+                                                     "transient_retry_max", "judge_exhausted_to_arbiter",
+                                                     "arbiter_full_source", "arbiter_full_source_min_confidence")},
         "fires": {k: nodes.get(k, 0) for k in ("retry_classify", "judge_verify", "arbiter", "retry_extract")},
         "judged_docs": len(judged),
         "review_docs": sum(1 for d in docs if d["stage"] == "review"),

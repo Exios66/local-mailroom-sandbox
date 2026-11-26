@@ -83,17 +83,25 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     return "L4" if profile in _GPU_PROFILES else None
 
 
+# ``classification_arbiter_decision`` lets the gate's cause typing tell reviewer doubt the classification
+# arbiter settled (it accepted a class) from doubt it left standing; None when that arbiter did not run.
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
-                        "reviewer_doc_type", "reviewer_confidence")
+                        "reviewer_doc_type", "reviewer_confidence", "classification_arbiter_decision")
 # llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
 # Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
 
 
+def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
+    from mailroom_sandbox.vendor_hotfixes import arbiter_caveats
+
+    return arbiter_caveats(result)
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
-    return {
+    expect = {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
@@ -101,6 +109,12 @@ def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
+    # A pipeline mock row can force the classification arbiter's decision the same way a
+    # hand-built expect dict can: without it the mock silently uses the class-matching fallback.
+    decision = row.get("classification_arbiter_decision")
+    if decision:
+        expect["classification_arbiter_decision"] = decision
+    return expect
 
 
 def _classify_mock(row: dict[str, Any]) -> str:
@@ -1268,6 +1282,8 @@ def run_pipeline_eval(
     row_cb=None,
     progress_cb=None,
     node_cb=None,
+    read_cb=None,
+    text_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
     api_budget: Any = None,
@@ -1320,6 +1336,19 @@ def run_pipeline_eval(
             with node_lock:
                 raw_node_cb(record)
 
+    if read_cb is not None and workers > 1:
+        # Same for read-range records and the working-text writer.
+        read_lock, raw_read_cb, raw_text_cb = threading.Lock(), read_cb, text_cb
+
+        def read_cb(record: dict[str, Any]) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+            with read_lock:
+                raw_read_cb(record)
+
+        if raw_text_cb is not None:
+            def text_cb(doc: str, text: str) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+                with read_lock:
+                    raw_text_cb(doc, text)
+
     def _check_caps(in_flight: int = 0) -> None:
         """Refuse to START another document once a wall, GPU or API cap is reached.
 
@@ -1349,7 +1378,17 @@ def run_pipeline_eval(
         """
         before = time.monotonic()
         started_ns = time.time_ns()
+        read_stats: dict[str, Any] | None = None
         with ExitStack() as nodes:
+            if read_cb is not None:
+                # Read recording is independent of node tracking: a caller may supply read_cb
+                # alone, and records without a node are attributed to no graph node.
+                from mailroom_sandbox.job import read_ranges
+
+                read_stats = {}
+                nodes.enter_context(
+                    read_ranges.document(str(row.get("id")), row.get("doc_text"), read_cb, text_cb)
+                )
             if node_cb is not None:
                 # SAND-076: report each graph node as it starts and ends.
                 from mailroom_sandbox.job.node_trace import track_nodes
@@ -1376,6 +1415,8 @@ def run_pipeline_eval(
                     except (AttributeError, TypeError):
                         pass
                 raise
+            if read_stats is not None:
+                read_stats = read_ranges.stats()  # still inside the document scope
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
         calls = usage_capture.call_usage_from_pipeline()
@@ -1384,6 +1425,8 @@ def run_pipeline_eval(
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
+        if read_stats is not None:
+            usage = {**usage, "reads": read_stats}  # persisted by the job runner as the item's ``reads``
         return result, usage, latency_ms, (started_ns, time.time_ns())
 
     def _count_failed(exc: BaseException) -> None:
@@ -1653,7 +1696,64 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
         raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+    if scope.get("judge_reasks"):
+        # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
+        # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
+        result = {**result, "judge_reasks": scope["judge_reasks"]}
     return result
+
+
+def _gate_fired_without_prep(result: Mapping[str, Any]) -> bool:
+    """Whether the vendored intake gate would have fired for this state, read from its flags (no text kept)."""
+    try:
+        from agents.intake import llm_intake_enabled, should_llm_intake  # type: ignore
+
+        return bool(llm_intake_enabled() and should_llm_intake(str(result.get("doc_text") or ""),
+                                                               {"messy": bool(result.get("intake_messy"))}))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        return False
+
+
+def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    """What the intake node did for one document, with no document text (the item record's ``intake``).
+
+    Built from the graph state's ``intake_prep``. ``gate_fired`` is True when a prep is present, or when
+    the gate (``should_llm_intake`` on the state's ``intake_messy`` flag and text length) would have
+    fired although the call raised and the node left no prep; that case is ``read_failed`` too.
+    ``read_failed`` means it ran and yielded no triage, so no
+    prior reached the sorter. ``prior_sent`` is whether the intake prior block is non-empty (the
+    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's or HF-016's refusal. ``windows`` is None when the prep's count is malformed.
+    """
+    prep = result.get("intake_prep")
+    if not isinstance(prep, Mapping) and _gate_fired_without_prep(result):
+        # intake_node catches a failed call (a timeout, HF-010's WholeDocumentTooLong) and leaves no prep.
+        return {"gate_fired": True, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": True}
+    if not isinstance(prep, Mapping):
+        return {"gate_fired": False, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": False}
+    triage = prep.get("triage") if isinstance(prep.get("triage"), Mapping) else {}
+    confidence = triage.get("confidence")
+    try:
+        from agents.intake import format_intake_prior  # type: ignore
+
+        prior_sent = bool(format_intake_prior(dict(prep)))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        prior_sent = bool(triage)
+    try:
+        windows: int | None = int(prep.get("windows") or 0)
+    except (TypeError, ValueError, OverflowError):  # a summary never fails a document
+        windows = None
+    return {
+        "gate_fired": True,
+        "windows": windows,
+        "triage_class": (str(triage["primary_doc_class"]) if triage.get("primary_doc_class") else None),
+        "triage_confidence": (float(confidence) if isinstance(confidence, (int, float))
+                              and not isinstance(confidence, bool) else None),
+        "prior_sent": prior_sent,
+        "clean_refused": bool(prep.get("clean_refused")),
+        "read_failed": not triage,
+    }
 
 
 def _run_pipeline_doc_once(
@@ -1690,6 +1790,7 @@ def _run_pipeline_doc_once(
         "stage": row.get("expected_stage"),
         "extracted_data": parse_expected_fields(row) if mock else None,
         "offline_fallback": True,
+        "intake": intake_summary({}),
     }
     try:
         from graph.build_graph import run_pipeline  # type: ignore
@@ -1782,6 +1883,11 @@ def _run_pipeline_doc_once(
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
+        # reports, the gate and the floor digest separate these from clean archives.
+        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
+        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
+        "intake": intake_summary(result),
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),
