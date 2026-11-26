@@ -777,10 +777,12 @@ def test_ribbon_keeps_the_digest_clock_visible():
     assert "flex:none" in brand
     prog = css[css.index("\n.prog{"):]
     prog = prog[:prog.index("}")]
-    assert "flex:none" in prog
+    assert "flex:1 1 auto" in prog and "min-width:0" in prog and "overflow:hidden" in prog
     assert "@container (max-width:1400px){.pbar{width:60px}}" in css
-    narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px}}"
+    narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0;overflow:hidden}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px;min-width:0}#dbg,#exp,#imp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}}"
     assert narrow in css
+    phone = "@container (max-width:520px){#dbg,#exp,#imp,#bigTitle,.ribbon em{display:none}.pbar{width:24px}}"
+    assert phone in css
 
 
 def test_template_keeps_the_graph_visible_in_a_narrow_window():
