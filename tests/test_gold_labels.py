@@ -1085,3 +1085,229 @@ def test_build_lets_a_superseding_review_win_over_the_one_it_names(cli):
     later = {**one, "verdict": "reject", "supersedes": {"verdict": "accept", "value": "John Doe"}}
     assert build("--label", lab, "--review", write("rv.jsonl", [one]), write("rv2.jsonl", [later])) == 0
     assert not [r for r in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl") if r["field"] == "recipient"]
+
+
+# --------------------------------------------------------------------------- scripts/gold_labels.py add
+
+# DOC-2 as a second batch: the To line agrees between the passes, the sender does not.
+ADD_LABEL = {**RECIPIENT, **SENDER}
+ADD_CHECK = {"recipient": {"value": "John Doe", "evidence": ["To: John Doe\nSubject"]},
+             "sender": {"value": "John Doe", "evidence": ["To: John Doe"]}}
+
+
+def _store_bytes(tmp):
+    return {p: p.read_bytes() for d in (tmp / "gold", tmp / "supp") for p in sorted(d.iterdir())}
+
+
+def _add(cli, label_subs=None, check_subs=None, *, label="add-lab.jsonl", check="add-chk.jsonl", review=None,
+         revision="r2", extra=()):
+    mod, write, _, _ = cli
+    label_subs = [_s("DOC-2", "label", ADD_LABEL)] if label_subs is None else label_subs
+    check_subs = [{**_s("DOC-2", "check", ADD_CHECK), "labeler": {"model": "chk-model", "role": "check"}}] \
+        if check_subs is None else check_subs
+    args = ["add", "--corpus", "ignored", "--revision", revision, "--label", write(label, label_subs),
+            "--check", write(check, check_subs), *extra]
+    if review is not None:
+        args += ["--review", write("add-rv.jsonl", review)]
+    return mod.main(args)
+
+
+def _doc1_built(cli):
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    return cli[3]
+
+
+def test_add_appends_a_new_document_and_updates_the_manifest(cli, capsys):
+    tmp = _doc1_built(cli)
+    gold, supp = tmp / "gold", tmp / "supp"
+    old_gold = gl.read_jsonl(gold / "correspondence.jsonl")
+    old_manifest = json.loads((gold / "MANIFEST.json").read_text())
+    capsys.readouterr()
+    assert _add(cli, [{**_s("DOC-2", "label", ADD_LABEL), "supplementary": {"note": "second batch"}}]) == 0
+    recs = gl.read_jsonl(gold / "correspondence.jsonl")
+    assert [r for r in recs if r["doc_id"] == "DOC-1"] == old_gold              # existing records untouched
+    new = {r["field"]: r for r in recs if r["doc_id"] == "DOC-2"}
+    assert {f: r["status"] for f, r in new.items()} == {"recipient": "near_gold", "sender": "disputed"}
+    assert new["sender"]["check"]["value"] == "John Doe" and new["sender"]["check"]["agrees"] is False
+    assert {r["schema"]["dataset_revision"] for r in new.values()} == {"r2"}   # the added rows name their own revision
+    assert gl.verify_catalog(gold) == [] and gl.verify_catalog(supp) == []
+    man = json.loads((gold / "MANIFEST.json").read_text())
+    assert man["binding"] == old_manifest["binding"] and man["built_at"] == old_manifest["built_at"]
+    assert man["files"]["correspondence.jsonl"] == hashlib.sha256((gold / "correspondence.jsonl").read_bytes()).hexdigest()
+    assert man["counts"]["correspondence"]["sender"] == {"disputed": 1}
+    assert man["counts"]["correspondence"]["recipient"] == {"near_gold": 2}
+    for role, name in (("label", "add-lab.jsonl"), ("check", "add-chk.jsonl")):
+        assert man["sources"][role] == sorted({*old_manifest["sources"][role], name})
+    assert man["sources"]["review"] == old_manifest["sources"]["review"]
+    assert man["added_at"] and man["additions"] == [{
+        "added_at": man["added_at"], "builder": "scripts/gold_labels.py add",
+        "binding": {"dataset_revision": "r2"}, "documents": ["DOC-2"],
+        "sources": {"label": ["add-lab.jsonl"], "check": ["add-chk.jsonl"], "review": []}}]
+    smanifest = json.loads((supp / "MANIFEST.json").read_text())
+    assert smanifest["sources"] == man["sources"] and smanifest["additions"] == man["additions"]
+    assert [(r["kind"], r["doc_id"]) for r in gl.read_jsonl(supp / "correspondence.jsonl")] == [("notes", "DOC-2")]
+    assert smanifest["counts"]["correspondence"] == {"-": {"notes": 1}}
+    assert "added 1 documents" in capsys.readouterr().out
+
+
+def test_add_matches_what_a_full_build_given_every_source_writes(cli):
+    mod, write, build, tmp = cli
+    _doc1_built(cli)
+    assert _add(cli) == 0
+    added = {p.name: gl.read_jsonl(p) for p in sorted((tmp / "gold").glob("*.jsonl"))}
+    added_supp = {p.name: gl.read_jsonl(p) for p in sorted((tmp / "supp").glob("*.jsonl"))}
+    lab = [str(tmp / n) for n in ("lab.jsonl", "add-lab.jsonl")]
+    chk = [str(tmp / n) for n in ("chk.jsonl", "add-chk.jsonl")]
+    assert build("--label", *lab, "--check", *chk) == 0
+
+    def bare(data):  # a full build stamps one revision on every record; add keeps each its own
+        return {n: [{k: v for k, v in r.items() if k != "schema"} for r in rows] for n, rows in data.items()}
+    assert bare({p.name: gl.read_jsonl(p) for p in sorted((tmp / "gold").glob("*.jsonl"))}) == bare(added)
+    assert bare({p.name: gl.read_jsonl(p) for p in sorted((tmp / "supp").glob("*.jsonl"))}) == bare(added_supp)
+
+
+def test_add_resolves_a_review_on_a_new_document(cli):
+    tmp = _doc1_built(cli)
+    review = [{"doc_id": "DOC-2", "field": "sender", "verdict": "accept", "reviewer": OPUS, "value": "Jane Roe"}]
+    assert _add(cli, review=review) == 0
+    new = {r["field"]: r for r in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl") if r["doc_id"] == "DOC-2"}
+    assert new["sender"]["status"] == "near_gold" and new["sender"]["review"]["verdict"] == "accept"
+    man = json.loads((tmp / "gold" / "MANIFEST.json").read_text())
+    assert "add-rv.jsonl" in man["sources"]["review"]
+    assert gl.verify_catalog(tmp / "gold") == []
+
+
+def test_add_refuses_a_review_of_a_document_it_does_not_add(cli, capsys):
+    tmp = _doc1_built(cli)
+    before = _store_bytes(tmp)
+    review = [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}]
+    capsys.readouterr()
+    assert _add(cli, review=review) == 1
+    err = capsys.readouterr().err
+    assert "already has a catalog record" in err and "DOC-1" in err
+    assert _store_bytes(tmp) == before
+
+
+def test_add_refuses_a_document_that_already_has_a_catalog_record(cli, capsys):
+    tmp = _doc1_built(cli)
+    before = _store_bytes(tmp)
+    both = [_s("DOC-2", "label", ADD_LABEL), _s("DOC-1", "label", SENDER)]
+    chk = [{**_s(d, "check", ADD_CHECK), "labeler": {"model": "chk-model", "role": "check"}} for d in ("DOC-2", "DOC-1")]
+    capsys.readouterr()
+    assert _add(cli, both, chk) == 1
+    err = capsys.readouterr().err
+    assert "add refused" in err and "DOC-1: already has a catalog record" in err and "DOC-2:" not in err
+    assert _store_bytes(tmp) == before
+
+
+def test_add_refuses_a_source_file_name_the_manifest_already_lists(cli, capsys):
+    tmp = _doc1_built(cli)
+    before = _store_bytes(tmp)
+    for label, check, clash in (("lab.jsonl", "add-chk.jsonl", "lab.jsonl"), ("add-lab.jsonl", "chk.jsonl", "chk.jsonl")):
+        sub = tmp / "elsewhere"
+        sub.mkdir(exist_ok=True)
+        mod, write, _, _ = cli
+        lab = write(f"elsewhere/{label}", [_s("DOC-2", "label", ADD_LABEL)])
+        chk = write(f"elsewhere/{check}", [{**_s("DOC-2", "check", ADD_CHECK), "labeler": {"model": "chk-model", "role": "check"}}])
+        capsys.readouterr()
+        assert mod.main(["add", "--corpus", "ignored", "--revision", "r2", "--label", lab, "--check", chk]) == 1
+        assert f"{clash}: already a source of the catalog" in capsys.readouterr().err
+        assert _store_bytes(tmp) == before
+
+
+def test_add_refuses_two_files_with_one_name(cli, capsys):
+    mod, write, _, tmp = cli
+    tmp_other = tmp / "other"
+    tmp_other.mkdir()
+    lab_a = write("add-lab.jsonl", [_s("DOC-2", "label", ADD_LABEL)])
+    lab_b = write("other/add-lab.jsonl", [_s("DOC-1", "label", ADD_LABEL)])
+    chk = write("add-chk.jsonl", [{**_s(d, "check", ADD_CHECK), "labeler": {"model": "c", "role": "check"}}
+                                  for d in ("DOC-2", "DOC-1")])
+    assert mod.main(["add", "--corpus", "ignored", "--revision", "r2", "--label", lab_a, lab_b, "--check", chk]) == 1
+    assert "given twice" in capsys.readouterr().err
+    assert not (tmp / "gold").exists()
+
+
+def test_add_leaves_both_stores_alone_when_the_staged_catalog_fails(cli, capsys, monkeypatch):
+    tmp = _doc1_built(cli)
+    before = _store_bytes(tmp)
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: ["correspondence.jsonl: staged failure"]
+                        if ".gold-stage-" in str(d) else [])
+    capsys.readouterr()
+    assert _add(cli) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert _store_bytes(tmp) == before
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".")]
+
+
+def test_add_refuses_a_committed_catalog_that_already_fails_its_check(cli, capsys, monkeypatch):
+    tmp = _doc1_built(cli)
+    before = _store_bytes(tmp)
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: ["correspondence.jsonl: sha256 does not match MANIFEST"])
+    capsys.readouterr()
+    assert _add(cli) == 1
+    assert "sha256 does not match" in capsys.readouterr().err
+    assert _store_bytes(tmp) == before
+
+
+def test_add_restores_the_catalog_when_the_supplementary_swap_fails(cli, monkeypatch):
+    mod, _, _, tmp = cli
+    _doc1_built(cli)
+    before = _store_bytes(tmp)
+    real = mod._swap_in
+
+    def fail_on_supp(stage, directory):
+        if directory.name == "supp":
+            raise OSError("disk full")
+        real(stage, directory)
+    monkeypatch.setattr(mod, "_swap_in", fail_on_supp)
+    with pytest.raises(OSError):
+        _add(cli)
+    assert _store_bytes(tmp) == before
+
+
+def test_add_needs_a_catalog_to_append_to(cli, capsys):
+    capsys.readouterr()
+    assert _add(cli) == 1
+    assert "no catalog to add to" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("case, message", [
+    ("same_file", "given to both --label and --check"),
+    ("wrong_role", "a --check submission needs 'check'"),
+    ("twice", "appears twice in the --label files"),
+    ("copy", "check fields are identical to the label pass"),
+    ("no_check", "has no check pass"),
+    ("stray_check", "has a check pass but no label pass"),
+    ("unknown_doc", "DOC-9: not in the corpus"),
+])
+def test_add_keeps_every_independence_refusal(cli, capsys, case, message):
+    mod, write, _, tmp = cli
+    _doc1_built(cli)
+    before = _store_bytes(tmp)
+    chk = {**_s("DOC-2", "check", ADD_CHECK), "labeler": {"model": "chk-model", "role": "check"}}
+    lab = _s("DOC-2", "label", ADD_LABEL)
+    kw: dict = {}
+    if case == "same_file":
+        path = write("both.jsonl", [lab])
+        capsys.readouterr()
+        assert mod.main(["add", "--corpus", "x", "--revision", "r2", "--label", path, "--check", path]) == 1
+        assert message in capsys.readouterr().err
+        assert _store_bytes(tmp) == before
+        return
+    if case == "wrong_role":
+        kw = {"check_subs": [{**chk, "labeler": {"model": "x", "role": "label"}}]}
+    elif case == "twice":
+        kw = {"label_subs": [lab, lab]}
+    elif case == "copy":
+        kw = {"check_subs": [{**chk, "fields": ADD_LABEL}]}
+    elif case == "no_check":
+        kw = {"check_subs": []}
+    elif case == "stray_check":
+        kw = {"label_subs": [], "check_subs": [chk]}
+    elif case == "unknown_doc":
+        kw = {"label_subs": [lab, _s("DOC-9", "label", ADD_LABEL)], "check_subs": [chk, {**chk, "doc_id": "DOC-9"}]}
+    capsys.readouterr()
+    assert _add(cli, **kw) == 1
+    assert message in capsys.readouterr().err
+    assert _store_bytes(tmp) == before
