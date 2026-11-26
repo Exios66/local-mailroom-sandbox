@@ -109,6 +109,7 @@ what was decided at the time; the guides above say how things work now.
 | Production slice gate | [Design](design/specs/2026-11-16-production-slice-gate-design.md) and [plan](design/plans/2026-11-16-production-slice-gate.md) |
 | Floor read ranges | [Design](design/specs/2026-11-25-floor-read-ranges-design.md) and [plan](design/plans/2026-11-25-floor-read-ranges.md) |
 | Phase 1 spend safety | [Plan](design/plans/2026-11-26-phase1-spend-safety.md) |
+| Phase 2 loop governor | [Plan](design/plans/2026-11-26-phase2-governor.md) |
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
 
 New design records go in `design/<ticket>/`, or in `design/plans/` and

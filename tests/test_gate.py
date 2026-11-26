@@ -49,7 +49,8 @@ def _run(root, docs, name="slice"):
                 pred = {"stage": d.get("stage", "archived"), "extracted_data": {},
                         "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95),
                         **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {}),
-                        **({"judge_reasks": d["reasks"]} if "reasks" in d else {})}
+                        **({"judge_reasks": d["reasks"]} if "reasks" in d else {}),
+                        **{k: d[k] for k in ("governor_stop", "duplicate_of", "governor_skips") if k in d}}
                 it.write(json.dumps({"item_id": d["id"], "ok": d.get("error") is None, "error": d.get("error"),
                                      "prompt_tokens": 10, "completion_tokens": 5, "pred": pred}) + "\n")
     return run
@@ -525,3 +526,50 @@ def test_errored_never_goes_negative_on_inconsistent_counts():
     status = {"id": "d", "judge_reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 1}}}
     block = gate._judge_reask_block([status])
     assert block["errored"] == 0 and block["by_judge"]["completeness"]["errored"] == 0
+
+
+def _stop(reason, outcome="human_review"):
+    return {"reason": reason, "outcome": outcome, "node": "arbiter", "proposed": "retry_extract",
+            "calls": 9, "retries": 2, "spend_usd": 0.0}
+
+
+def test_the_gate_counts_governor_stops_by_reason(tmp_path):
+    run = _run(tmp_path, [
+        {"id": "r1", "cls": "contract", "stage": "review", "causes": ["arbiter_escalated"],
+         "governor_stop": _stop("retry_budget")},
+        {"id": "r2", "cls": "contract", "stage": "review", "governor_stop": _stop("call_budget")},
+        {"id": "a1", "cls": "contract", "score": 0.95, "governor_stop": _stop("retry_budget", "archive_with_caveats")},
+        {"id": "s1", "cls": "contract", "score": 0.95, "governor_skips": {"classify_retry": 1}},
+        {"id": "clean", "cls": "contract", "score": 0.95}])
+    block = gate.gate_report(run, Bars())["governor"]
+    assert block["stops"] == {"call_budget": {"human_review": 1},
+                              "retry_budget": {"archive_with_caveats": 1, "human_review": 1}}
+    assert block["skipped_classify_retries"] == 1 and block["duplicates"] == {}
+    assert block["docs"] == ["r1", "r2", "a1", "s1"]
+    out = {d["id"]: d for d in gate.gate_report(run, Bars())["docs"]}
+    assert out["r1"]["governor_stop"] == {"reason": "retry_budget", "outcome": "human_review"}
+    assert "governor_stop" not in out["clean"]
+
+
+def test_a_governor_stop_is_its_own_cause(tmp_path):
+    run = _run(tmp_path, [
+        {"id": "r1", "cls": "contract", "stage": "review", "causes": ["arbiter_escalated"],
+         "governor_stop": _stop("retry_budget")},
+        {"id": "r2", "cls": "contract", "stage": "review", "causes": ["near_empty"],
+         "governor_stop": {**_stop("near_empty"), "node": "intake", "proposed": None}}])
+    out = {d["id"]: d for d in gate.gate_report(run, Bars())["docs"]}
+    assert out["r1"]["cause"] == "governor:retry_budget"
+    assert out["r2"]["cause"] == "input:near_empty"
+
+
+def test_duplicates_are_counted_in_the_gate(tmp_path):
+    run = _run(tmp_path, [
+        {"id": "e1", "cls": "contract", "score": 0.95, "duplicate_of": {"doc_id": "d0", "kind": "exact", "similarity": 1.0}},
+        {"id": "n1", "cls": "contract", "score": 0.95, "duplicate_of": {"doc_id": "d0", "kind": "near", "similarity": 0.95}},
+        {"id": "n2", "cls": "contract", "score": 0.95, "duplicate_of": {"doc_id": "d1", "kind": "near", "similarity": 0.93}}])
+    block = gate.gate_report(run, Bars())["governor"]
+    assert block["duplicates"] == {"exact": 1, "near": 2} and block["stops"] == {}
+
+
+def test_a_run_without_the_governor_keeps_its_report_shape(tmp_path):
+    assert "governor" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())

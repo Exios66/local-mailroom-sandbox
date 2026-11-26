@@ -107,6 +107,34 @@ def _is_correctness_parse_failure(out: Mapping[str, Any]) -> bool:
             and out.get("extraction_correctness_label") == "inaccurate")
 
 
+#: Appended to a judge's re-ask (L3), followed by the start of the reply that did not parse.
+JUDGE_REPAIR_NOTE = ("Your previous reply could not be read as the required JSON object. Reply again with only "
+                     "that JSON object, no other text. Your previous reply began:\n")
+JUDGE_REPAIR_RAW_CHARS = 1000
+
+
+def _with_model_call(agent: Any, through: Callable[..., Any], run: Callable[[], Any]) -> Any:
+    """Run ``run`` with ``agent._call_structured`` passed through ``through(call, user_message, ...)``.
+
+    The vendored judge builds its user message inside the method HF-002 / HF-013 wrap, so the
+    only seam for the message and the raw reply is the agent's model call. The override is an
+    instance attribute on a judge the graph creates per node call, and the previous binding (a
+    class method, or an instance attribute a caller set) is put back afterwards. The call itself
+    is the agent's own, so the guard, pins and read observer still see every request.
+    """
+    had = "_call_structured" in vars(agent)
+    saved = vars(agent).get("_call_structured")
+    call = agent._call_structured
+    agent._call_structured = lambda user_message, *a, **k: through(call, user_message, *a, **k)
+    try:
+        return run()
+    finally:
+        if had:
+            agent._call_structured = saved
+        else:
+            del agent._call_structured
+
+
 def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[Mapping[str, Any]], bool],
                    self: Any, args: tuple, kwargs: dict) -> dict:
     """One judge call, re-asked once when its answer did not parse; raises when the re-ask fails too.
@@ -121,13 +149,27 @@ def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[M
     recorded when the second answer parses and ``parked`` when it does not either, so a re-ask that
     raised is neither (counts only, never document text).
     """
-    out = original(self, *args, **kwargs)
+    first: dict[str, str] = {}
+
+    def capture(call: Callable[..., Any], user_message: str, *a: Any, **k: Any) -> Any:
+        answer = call(user_message, *a, **k)
+        if isinstance(answer, Mapping) and answer.get("_parse_error"):
+            first["raw"] = str(answer.get("_raw") or "")
+        return answer
+
+    out = _with_model_call(self, capture, lambda: original(self, *args, **kwargs))
     if not failed(out):
         return out
     from mailroom_sandbox.job import call_guard
 
     call_guard.note_judge_reask(judge)
-    out = original(self, *args, **kwargs)
+    # L3 (phase 2): the re-ask says what went wrong and shows the start of the reply that failed.
+    note = JUDGE_REPAIR_NOTE + first.get("raw", "")[:JUDGE_REPAIR_RAW_CHARS]
+
+    def repair(call: Callable[..., Any], user_message: str, *a: Any, **k: Any) -> Any:
+        return call(f"{user_message}\n\n{note}", *a, **k)
+
+    out = _with_model_call(self, repair, lambda: original(self, *args, **kwargs))
     if failed(out):
         call_guard.note_judge_parked(judge)
         raise JudgeParseError(JUDGE_PARSE_FAILURE)
@@ -1188,6 +1230,62 @@ def _install_final_ruling(_module: Any, original: Callable[..., Any]) -> Callabl
     return arbitrate
 
 
+def _install_governor(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """The loop governor sees every conditional route's final answer (HF-018, phase 2).
+
+    ``decide_route`` is where the base router and every registered rule (HF-011, HF-014) have
+    already spoken; the governor may swap a round for a stop outcome. Off (no ``job.governor``) or
+    outside a document scope, ``governor.govern`` returns the answer unchanged.
+    """
+    from mailroom_sandbox import governor
+
+    @functools.wraps(original)
+    def decide_route(spec: Any, state: Any) -> str:
+        dest = original(spec, state)
+        return governor.govern(spec.node, state, dest, tuple(spec.destinations))
+
+    return decide_route
+
+
+def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """L4 (HF-019, phase 2): a re-ingested or near-identical document is linked, not sent to the Boss.
+
+    Upstream compares every extraction with the matter's archived records of the same class, so a
+    second copy of an archived document (or one a few words off) reads as a field conflict and
+    spends a boss entry. With ``job.governor`` and ``link_duplicates`` on, a conflict whose every
+    compared row is a duplicate (same ``file_sha256``, or shingle Jaccard at the threshold) is
+    recorded as ``duplicate_of`` and reported as no conflict. Any other conflict is unchanged, and
+    a failure here keeps the original answer.
+    """
+    from mailroom_sandbox import governor
+    from mailroom_sandbox.job import call_guard
+
+    @functools.wraps(original)
+    def _detect_conflict(state: dict, extracted_data: dict | None) -> tuple[bool, list[str]]:
+        found, details = original(state, extracted_data)
+        spec = governor.active()
+        if spec is None or not spec.link_duplicates:
+            return found, details
+        try:
+            matter = state.get("matter_id")
+            if found and matter:
+                from storage.catalog import get_matter_documents
+
+                dup = governor.duplicate_of(state, module._run_coro(lambda: get_matter_documents(matter)),
+                                            extracted_data)
+                if dup is not None:
+                    scope = call_guard.scope()
+                    if scope is not None:
+                        scope["duplicate_of"] = dup
+                    found, details = False, []
+        except Exception as exc:  # noqa: BLE001 — linking is best-effort; the conflict stands
+            _log.warning("HF-019 duplicate check failed: %s", exc)
+        governor.note_seen(state.get("matter_id"), state.get("doc_id"), str(state.get("doc_text") or ""))
+        return found, details
+
+    return _detect_conflict
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(id="HF-020", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
            source_sha256="7dee5e0929633efe57f7b115c4129ab33ed62a19656b986711987f304c99df86",
@@ -1391,6 +1489,30 @@ HOTFIXES: tuple[Hotfix, ...] = (
         refresh=_refresh_empty_intake_prior,
         also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
               ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
+    ),
+    Hotfix(
+        id="HF-018",
+        module="graph.route_spec",
+        attr="decide_route",
+        source_sha256="8237ef5be5e6b88376931695301b42eceaf6beac507b0830611d837d5fa7b821",
+        upstream="sandbox-only (phase 2 loop governor; upstream issue to be filed with the pilot's results)",
+        summary="with job.governor set, a route that would add a round (a retry, an arbiter call, a "
+                "boss entry) past the document's retry, call or spend budget goes to human review, or "
+                "to the archive when the current extraction passed the judge; L2 sends a sorter retry "
+                "at the measured sorter ceiling to the second opinion instead",
+        install=_install_governor,
+    ),
+    Hotfix(
+        id="HF-019",
+        module="graph.build_graph",
+        attr="_detect_conflict",
+        source_sha256="dcc08fe49223c4cb922003ad477bf47ce0520ca3cdb7e5776892888cca143f2d",
+        upstream="upstream issue to be filed (llm-mailroom: a re-ingested document reads as a matter conflict)",
+        summary="with job.governor and link_duplicates on, a matter conflict whose every compared archived "
+                "row is the same file (file_sha256) or a near copy (shingle Jaccard at the threshold) is "
+                "recorded as duplicate_of and does not go to the Boss",
+        install=_install_duplicate_link,
+        also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
     ),
 )
 

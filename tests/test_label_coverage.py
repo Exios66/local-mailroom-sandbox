@@ -128,3 +128,82 @@ def test_policy_filtered_coverage_excludes_stale_hub_but_keeps_reviewed_truth(mo
     assert intent['hub']['presence'] == intent['interim']['presence'] == 'populated'
     assert intent['hub']['scoring_presence'] == 'excluded_stale'
     assert intent['interim']['scoring_presence'] == 'populated'
+
+
+def test_cached_corpus_accepts_filename_ids_and_refuses_true_duplicates(tmp_path, monkeypatch):
+    import huggingface_hub
+    import pytest
+    from mailroom_sandbox import corpus
+
+    monkeypatch.setattr(huggingface_hub, 'hf_hub_download', lambda repo, name, **kw: tmp_path / name)
+    monkeypatch.setattr(lc, 'digest', lambda path: 'fixture-sha')
+    duplicate = False
+
+    def read(path):
+        split = path.parts[-2]
+        filename = 'same' if duplicate else split
+        return [{'filename': filename, 'doc_text': 'fixture source',
+                 'expected_doc_class': 'corporate_record', 'expected_subclass': 'other',
+                 'gt_fields': '{"entity_name": "Fixture Ltd"}'}]
+
+    monkeypatch.setattr(corpus, '_read_parquet', read)
+    rows, sources, problem = lc.cached_corpus()
+    assert problem is None and len(sources) == 4
+    assert {row['id'] for row in rows} == {'train', 'test'}
+    assert all(row['expected_fields']['entity_name'] == 'Fixture Ltd' for row in rows)
+    duplicate = True
+    with pytest.raises(ValueError, match='Duplicate corpus document IDs'):
+        lc.cached_corpus()
+
+
+def test_cached_corpus_honors_explicit_cache_precedence(tmp_path, monkeypatch):
+    import huggingface_hub
+
+    monkeypatch.setenv('HF_HOME', str(tmp_path / 'home'))
+    monkeypatch.setenv('HUGGINGFACE_HUB_CACHE', str(tmp_path / 'legacy'))
+    monkeypatch.setenv('HF_HUB_CACHE', str(tmp_path / 'explicit'))
+    seen = []
+
+    def missing(*args, **kwargs):
+        seen.append(kwargs['cache_dir'])
+        assert kwargs['local_files_only']
+        raise FileNotFoundError
+
+    monkeypatch.setattr(huggingface_hub, 'hf_hub_download', missing)
+    assert lc.cached_corpus()[2]
+    assert seen == [str(tmp_path / 'explicit')]
+    assert not (tmp_path / 'explicit').exists()
+
+
+def test_default_sandbox_cache_works_offline_in_a_fresh_process(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    import pytest
+
+    pa = pytest.importorskip('pyarrow')
+    pq = pytest.importorskip('pyarrow.parquet')
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION
+    from mailroom_sandbox.paths import repo_root
+
+    cache = tmp_path / 'data/cache/hf/hub/datasets--Lucius-Morningstar--mailroom-dataset/snapshots' / FAMILY_HF_REVISION
+    for split in ('train', 'test'):
+        for config in ('default', 'ground_truth'):
+            path = cache / f'parquet/{config}/{split}/{split}-00000-of-00001.parquet'
+            path.parent.mkdir(parents=True)
+            rows = [{'filename': f'{split}-{i}', 'doc_text': f'fixture source {split} {i}',
+                     'expected_doc_class': 'corporate_record', 'expected_subclass': 'other',
+                     'gt_fields': '{"entity_name": "Fixture Ltd"}'} for i in range(2)]
+            pq.write_table(pa.Table.from_pylist(rows), path)
+    env = dict(os.environ, SANDBOX_ROOT=str(tmp_path), HF_HUB_OFFLINE='1', HF_HUB_DISABLE_TELEMETRY='1')
+    for key in ('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE'):
+        env.pop(key, None)
+    script = ('import sys; sys.path.insert(0, ' + repr(str(repo_root() / 'src')) + '); '
+              'from mailroom_sandbox.label_coverage import cached_corpus; '
+              'rows, sources, problem = cached_corpus(); '
+              'assert problem is None, problem; '
+              'assert len(rows) == len(sources) == 4; '
+              'assert len({row["id"] for row in rows}) == 4')
+    result = subprocess.run([sys.executable, '-I', '-c', script], env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr

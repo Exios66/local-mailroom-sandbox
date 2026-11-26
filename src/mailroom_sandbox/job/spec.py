@@ -678,6 +678,34 @@ def _check_task(value: str) -> str:
     return value
 
 
+class GovernorSpec(BaseModel):
+    """Per-document loop budgets (phase 2, ``mailroom_sandbox.governor``). Off unless set.
+
+    Defaults are the design's starting values; the pilot sets the final ones. Call budgets stay
+    below the hard call ceiling (``job.call_guard.CALL_CEILING["pipeline"]``, 40), which remains
+    the backstop.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    retries: int = Field(2, ge=0)
+    calls: int = Field(30, ge=1, lt=40)
+    calls_by_class: dict[str, int] = Field(default_factory=lambda: {"merger_agreement": 36})
+    spend_usd: float | None = Field(None, gt=0)
+    sorter_ceiling: float | None = Field(None, gt=0, le=1)
+    near_empty_chars: int = Field(64, ge=0)
+    link_duplicates: bool = True
+    near_duplicate_jaccard: float = Field(0.9, gt=0, le=1)
+
+    @field_validator("calls_by_class")
+    @classmethod
+    def _class_calls_below_ceiling(cls, v: dict[str, int]) -> dict[str, int]:
+        bad = {k: n for k, n in v.items() if not 1 <= int(n) < 40}
+        if bad:
+            raise ValueError(f"governor.calls_by_class must stay in 1..39 (hard ceiling 40): {bad}")
+        return v
+
+
 class JobSpec(BaseModel):
     model_config = {"extra": "forbid"}
     mode: Literal["endpoint", "modal"] = "endpoint"
@@ -739,6 +767,19 @@ class JobSpec(BaseModel):
     # Off by default, so a Modal run and every existing YAML keep their spec_hash.
     # OpenRouter experiment create turns it on. Hashed only when set.
     require_expanded_inputs: bool = False
+    # Phase 2 loop governor: per-document retry, call and spend budgets with named stop outcomes,
+    # plus loop fixes L2, L4 and L5 (mailroom_sandbox.governor). `true` means the defaults. Off by
+    # default; hashed only when set.
+    governor: GovernorSpec | None = None
+
+    @field_validator("governor", mode="before")
+    @classmethod
+    def _governor_shorthand(cls, v: Any) -> Any:
+        if v is True:
+            return {}
+        if v is False:
+            return None
+        return v
 
     @field_validator("task")
     @classmethod
@@ -1259,6 +1300,12 @@ class RunSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _governor_in_pipeline(self) -> "RunSpec":
+        if self.job.governor is not None and self.task != "pipeline":
+            raise ValueError(f"job.governor budgets pipeline routing; task {self.task!r} runs no graph routing")
+        return self
+
+    @model_validator(mode="after")
     def _blind_in_pipeline(self) -> "RunSpec":
         if self.job.blind_routing and self.task != "pipeline":
             raise ValueError(f"job.blind_routing hides labels from pipeline routing; task {self.task!r} runs no graph routing")
@@ -1420,15 +1467,16 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first and
-        # require_expanded_inputs are hashed only when set, so older YAMLs keep their hash.
+        # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
+        # require_expanded_inputs and governor are hashed only when set, so older YAMLs keep their hash.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
                                     "require_expanded_inputs") and value is False)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
-                   and not (key == "specialist_subclass_file" and value is None)},
+                   and not (key == "specialist_subclass_file" and value is None)
+                   and not (key == "governor" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
                    if spec.job.specialist_subclass_file else {})},
         "trace": spec.trace.model_dump(),

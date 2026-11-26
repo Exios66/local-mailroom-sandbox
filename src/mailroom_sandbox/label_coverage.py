@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Any, Mapping
@@ -90,13 +91,18 @@ def cached_corpus() -> tuple[list[dict], list[dict], str | None]:
     from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
 
     spec = DatasetSpec(provider='huggingface', revision=FAMILY_HF_REVISION, split='all')
+    # Match corpus._ensure_hf_home without creating directories or depending on
+    # HF constants frozen when another notebook cell first imported the SDK.
+    hub_override = os.environ.get('HF_HUB_CACHE') or os.environ.get('HUGGINGFACE_HUB_CACHE')
+    home = Path(os.environ.get('HF_HOME') or repo_root() / 'data/cache/hf').expanduser()
+    cache_dir = Path(hub_override).expanduser() if hub_override else home / 'hub'
     parts, sources = {}, []
     for split in ('train', 'test'):
         for config in ('default', 'ground_truth'):
             name = f'parquet/{config}/{split}/{split}-00000-of-00001.parquet'
             try:
                 path = Path(hf_hub_download(spec.repo, name, revision=FAMILY_HF_REVISION,
-                                            repo_type='dataset', local_files_only=True))
+                                            repo_type='dataset', cache_dir=str(cache_dir), local_files_only=True))
             except Exception:  # cache miss: repository-only analysis remains available
                 return [], [], (f'Pinned corpus cache unavailable: {spec.repo}@{FAMILY_HF_REVISION}; '
                                 'populate all default and ground_truth train/test shards beforehand '
@@ -109,10 +115,13 @@ def cached_corpus() -> tuple[list[dict], list[dict], str | None]:
         for row in merged:
             row['split'] = split
         rows.extend(merged)
-    ids = [str(r.get('document_id') or r.get('id')) for r in rows]
+    normalized = corpus.normalize_rows(rows)
+    ids = [row['id'] for row in normalized]
+    if any(doc_id in ('', 'None') for doc_id in ids):
+        raise ValueError('Missing corpus document ID or filename; refusing ambiguous coverage')
     if len(ids) != len(set(ids)):
         raise ValueError('Duplicate corpus document IDs; refusing ambiguous coverage')
-    return corpus.normalize_rows(rows), sources, None
+    return normalized, sources, None
 
 
 def stages(rows: list[dict], interim: Mapping, near: Mapping, isha: str, nsha: str) -> dict[str, list[dict]]:

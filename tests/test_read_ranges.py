@@ -753,8 +753,15 @@ from mailroom_sandbox.job import api_budget, call_guard  # noqa: E402
 
 
 class _GuardClient:
-    def __init__(self, base_url):
+    """OpenAI-shaped: the provider-pin wrapper guards each ``chat.completions.create`` attempt (L1)."""
+
+    def __init__(self, base_url, sent):
+        def create(**kw):  # reached only by an attempt the guard admitted
+            sent.append(kw)
+            return types.SimpleNamespace(model=kw.get("model"), model_extra={"provider": "P"})
+
         self.base_url = base_url
+        self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=create))
 
 
 @pytest.fixture
@@ -762,9 +769,8 @@ def guarded_agent(monkeypatch):
     """A fake vendored agent whose ``_call_structured`` goes through the real provider-pin wrapper."""
     sent: list[dict] = []
 
-    def original(client, **kwargs):
-        sent.append(kwargs)
-        return types.SimpleNamespace(model=kwargs.get("model"), model_extra={"provider": "P"})
+    def original(client, **kwargs):  # the vendored loop: one HTTP attempt through the client
+        return client.chat.completions.create(**kwargs)
 
     retry = types.ModuleType("llm.retry")
     retry.retry_chat_completion = original
@@ -795,7 +801,7 @@ def guarded_agent(monkeypatch):
         return {"ok": True}
 
     Agent.completions = 1
-    Agent.client = _GuardClient("https://openrouter.ai/api/v1")
+    Agent.client = _GuardClient("https://openrouter.ai/api/v1", sent)
     Agent._call_structured = _call_structured
     read_ranges.install_call_observer()
     call_guard.disarm()
@@ -845,7 +851,7 @@ def test_the_per_document_ceiling_refusal_is_not_a_read_either(guarded_agent):
 
 def test_an_unguarded_chat_call_still_records_one_read(guarded_agent):
     Agent, sent = guarded_agent
-    Agent.client = _GuardClient("https://example.modal.run/v1")  # not OpenRouter: no guard in the path
+    Agent.client = _GuardClient("https://example.modal.run/v1", sent)  # not OpenRouter: no guard in the path
     _guard(cap=0.05)
     call_guard._STATE["budget"].add_usage({"prompt_tokens": 600_000, "completion_tokens": 1})
     records: list[dict] = []

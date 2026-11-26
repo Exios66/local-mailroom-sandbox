@@ -657,6 +657,9 @@ def activate(
     _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
     _ACTIVE_SPECIALIST_SUBCLASS = (str(locked_job.get("specialist_subclass") or "none"),
                                    locked_job.get("specialist_subclass_file"))
+    from mailroom_sandbox import governor
+
+    governor.activate(locked_job.get("governor"))  # a lock without the key (before phase 2): off
     try:  # every activation sets or restores the descriptions, so one run's choice never leaks
         from mailroom_sandbox.schema_guide import apply_schema_guide
 

@@ -194,8 +194,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
     ScoringHotfix(
         id="SHF-012",
         layer="sandbox",
+        # Phase 2 moved the item dict (with the subclass fields) out of _run_pipeline_doc_once into
+        # _pipeline_item, unchanged; both are pinned.
         targets=(("mailroom_sandbox.eval.runners:_run_pipeline_doc_once",
-                  "9dcf38c50ec87b64d0be008c911d1b3dba37a582c4da301c914592341ac333e2"),
+                  "d70b7b72372c0b96721ffe72a1b4ec75d1ae09869bffeeefd2824497ba6e3104"),
+                 ("mailroom_sandbox.eval.runners:_pipeline_item",
+                  "8a93d66b18188549bd57fc4df19fe4eabc3770ad459eb7a8811ebe08e0617348"),
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",
