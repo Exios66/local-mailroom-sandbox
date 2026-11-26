@@ -9677,33 +9677,37 @@
     },
     "subsidiaries": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 4,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 3,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 4
+     },
+     "verdict": "thin"
     },
     "subsidiary_jurisdictions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 4,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 3,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 4
+     },
+     "verdict": "thin"
     },
     "trustee": {
      "dojo_status": "pending_annotation",
@@ -12936,43 +12940,47 @@
       },
       "subsidiaries": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Each listed subsidiary, legal name as written.",
         "required": true,
         "where": "Subsidiary table, first column"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 3,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 4
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "subsidiary_jurisdictions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Distinct jurisdictions of organization listed for subsidiaries.",
         "required": false,
         "where": "Subsidiary table, jurisdiction column"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 3,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 4
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "intent": "other",
@@ -13005,8 +13013,8 @@
      "verdicts": {
       "constant": 3,
       "iterate": 3,
-      "no_truth": 2,
-      "not_applicable": 3
+      "not_applicable": 3,
+      "thin": 2
      }
     }
    }
@@ -20949,7 +20957,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "2be87d9b386e5fcf665388e8f94efed46ba0628891894389d142a27ff26306cb",
+  "near_gold_overlay_sha256": "8cb69fff6968c7cf8ecad79415dcb059a1e3059c3fef95a899bd73ae1e28d495",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -21060,6 +21068,18 @@
    "field": "signatories"
   },
   {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "subsidiaries"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "subsidiary_jurisdictions"
+  },
+  {
    "class": "correspondence",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
@@ -21145,8 +21165,6 @@
    "attorneys_in_fact",
    "authority_scope",
    "expiration_date",
-   "subsidiaries",
-   "subsidiary_jurisdictions",
    "instrument_kind",
    "holder",
    "rights_agent",

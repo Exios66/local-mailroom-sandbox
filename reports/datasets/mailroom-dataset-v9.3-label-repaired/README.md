@@ -131,17 +131,28 @@ and a CUAD-derived notice mapping are replaced by the reviewed bundle-specific r
 not human gold, and keep `use_as_truth: false`. The Hub revision and production overlay pin are
 unchanged; this checkpoint is not a newly staged or published overlay.
 
-**Missing-field checkpoint (2026-11-26).** Corporate records and correspondence are now the
-priority. Source-only independent passes add 38 corporate fields and four correspondence
-fields on 19 existing documents: 15 filing-number absences, 12 unsigned-record signatory
-absences, 11 record-level jurisdiction absences, and the four correspondence gaps. Two
-correspondence disagreements were adjudicated from source; clear agreements did not require
-a third model pass. Every assigned key was previously unlabeled and absent from the catalog.
-All 12,411 preexisting catalog/supplementary rows and all 9,652 existing exported field payloads
-remain unchanged; only those 42 previously unlabeled provenance cells change. The remaining
-priority backlog is 322 corporate fields and two correspondence fields held for parser or
-independence-evidence handling. These machine near-gold labels retain `use_as_truth: false`;
-no release cut or production selector is advanced.
+**Corporate subclass checkpoint (2026-11-26).** Corporate records and correspondence are the
+priority. The earlier 38 corporate absence annotations were withdrawn because those generic
+fields do not apply to the source subclasses; their original submissions remain recoverable in
+`data/labels/repair-artifacts/v93-20261126-scope-correction/`. Four correspondence absences remain
+for hallucination checks and do not count as populated extraction coverage.
+
+Dedicated runtime schemas now compose all eleven corporate subclasses from the pinned Dojo
+registry. Independent source-only label/check passes add eight previously missing registered
+entity fields on four subsidiary schedules: seven populated facts and one documented jurisdiction
+absence. All seven populated additions are present in prepared truth and produce field-scoring
+events. All 10,561 preceding catalog rows, 1,858 supplementary rows and 9,656 overlay field
+payloads are preserved. The overlay now contains 9,664 labels. Eight further pilot fields remain
+held for identical-map independence checks or an ambiguous table token; raw submissions and
+exact admission projections are committed under
+`data/labels/repair-artifacts/v93-20261126-subclass-subsidiary001/`.
+
+The missing-only corporate inventory is 1,546 registered entity fields on 444 documents (see
+`corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
+its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
+counts describe static annotation coverage, not extraction performance. Machine near-gold labels
+retain `use_as_truth: false`; no release cut or production selector is advanced. Two correspondence
+fields remain held for parser or independence-evidence handling.
 
 ## Presence codes (provenance file)
 
