@@ -200,9 +200,12 @@ the mean `overall_extraction_score`.
 | insurance_claim | 1,100 | 1.0 | 1.0 | 0.9902 | 1.0 | 150 |
 | merger_agreement | 152 | 0.0 | 0.0 | 0.0 | 0.0 | 0 |
 
-A prediction that equals the truth never moves. Contracts and mergers are scored on CUAD and
-MAUD labels, which the policy never drops; the `copy` predictor does not emit those labels, so
-its scores there are low.
+A prediction that equals the truth never moves. No merger_agreement row in the pinned corpus
+carries a stale label, and a contract's heuristic `intent` (91 drops) is not a scored contract
+field, so contract and merger scores do not move; the `copy` predictor does not emit the CUAD and
+MAUD labels those two classes are scored on, so its scores there are low. The policy does not
+exempt them: a merger_agreement's `intent` is a scored field, so a corpus revision with
+heuristic merger intents would move merger scores.
 
 Dropped labels, by field:
 
