@@ -10,7 +10,8 @@ check, not a model or pipeline measurement.
 
 Pinned: at the default floor (the class ``low``) HF-014 changes no route on either profile; with the
 floor lowered to 0.5 it changes routes on OpenRouter only (Modal/vLLM keeps 16k excerpts, so the
-rule never answers). The counts in ``EXPECTED`` are the figures the CHANGELOG and ``docs/critical-regressions.md``
+rule never answers); a floor above ``low`` (0.95) changes none either, because the rule can only
+turn a park into an archive. The counts in ``EXPECTED`` are the figures the CHANGELOG and ``docs/critical-regressions.md``
 (row 22) cite.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ from mailroom_sandbox import source_windows
 
 LOW = 0.86  # corporate_record ``low``; asserted against the taxonomy below
 FLOOR = 0.5
+ABOVE_LOW = 0.95  # a floor above the class ``low``
 CONFS = (None, 0.3, LOW - 0.01, LOW, 0.99)
 LENGTHS = (100, 20_000, 700_000)  # inside 16k, past 16k, past the widened 600,115-character window
 DECISIONS = ("accept_with_caveats", "retry_extraction", "human_review", None)
@@ -43,6 +45,10 @@ EXPECTED = {
     ("openrouter", FLOOR): {("arbiter", "human_review", "compile_report"): 96,
                             ("judge_verify", "human_review", "arbiter"): 48},
     ("modal-vllm", FLOOR): {},
+    # HF-014 only ever turns a park into an archive, and the vendored route already archives at or
+    # above ``low``: a floor above ``low`` parks nothing the vendored route archives (it is a no-op)
+    ("openrouter", ABOVE_LOW): {},
+    ("modal-vllm", ABOVE_LOW): {},
 }
 
 
@@ -71,9 +77,9 @@ def _routes(route_spec, specs):
     return out
 
 
-@pytest.mark.parametrize("floor", [None, FLOOR], ids=["default-floor", "floor-0.5"])
+@pytest.mark.parametrize("floor", [None, FLOOR, ABOVE_LOW], ids=["default-floor", "floor-0.5", "floor-above-low"])
 @pytest.mark.parametrize("profile", ["openrouter", "modal-vllm"])
-def test_hf014_moves_no_route_at_the_default_floor_and_only_on_openrouter_below_it(
+def test_hf014_moves_no_route_at_or_above_the_default_floor_and_only_on_openrouter_below_it(
         profile, floor, monkeypatch, tmp_path):
     from mailroom_sandbox import vendor_hotfixes as vh
 
