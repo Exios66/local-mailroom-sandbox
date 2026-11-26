@@ -154,7 +154,7 @@ The builder adds a `debug` object on each document row:
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
-| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason, an `unplaced` piece count and an `approx` mark on capped calls), `union` per agent, and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Read metadata only, never document text: offsets, counts and flags, plus the `text_hash` content tag below. When the records carry a `text_hash`, `text_pairing` says whether the stored working text still hashes to it (`match`, `different`, `missing`), and `text_hash` is the stored file's own content tag — the hash the document panel compares the served text against; it is a content tag, not a secret. See the document panel below. |
+| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason, an `unplaced` piece count and an `approx` mark on capped calls), `union` per agent (the viewer's lanes use `calls`, which carry the node), and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Read metadata only, never document text: offsets, counts and flags, plus the `text_hash` content tag below. When the records carry a `text_hash`, `text_pairing` says whether the stored working text still hashes to it (`match`, `different`, `missing`), and `text_hash` is the stored file's own content tag — the hash the document panel compares the served text against; it is a content tag, not a secret. See the document panel below. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
 | `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
 
@@ -169,9 +169,16 @@ ever see the text that holds it?
   badge with the verbatim share appears when the working text differs from the
   dataset row's text. Read ranges index the working text, so the original view
   draws no bands.
-- **Ranges.** One lane per agent in a minimap across the whole document, and one
-  toggle per agent that paints its ranges on the text (specialists start on). An
-  agent that ran more than once also gets a toggle per call. Only the last
+- **Ranges.** One lane per agent and node in a minimap across the whole document,
+  and one toggle per lane that paints its ranges on the text (specialists start on,
+  and so does a specialist lane that first appears while the run is live). A lane is
+  labelled with the agent alone while that agent has one lane in the document, and
+  `agent · node` once it has more, for example `arbiter` (the extraction arbiter)
+  and `arbiter · classification_arbiter`; the minimap shortens the agent name
+  before it clips the node, and the tooltip always carries the full `agent · node`.
+  A call with no recorded node, as in an older digest, or at a node named like the
+  agent falls in the agent's own lane. A lane with more than one call also gets a
+  toggle per call. Only the last
   attempt's calls are kept: a resumed or retried document starts again at call 1
   and supersedes the earlier attempt, so those earlier calls do not appear.
   Overlapping agents show as stacked stripes. Calls made
@@ -182,9 +189,20 @@ ever see the text that holds it?
   decision-model blue, the sorter and its reviewer (`sorter_reviewer`) use
   LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
   the third-system aqua, and `intake` and `jev` are neutral. The classification
-  arbiter node runs on the `arbiter` agent, so its calls are the `arbiter` lane.
-  An agent with no assigned colour gets the specialist, decision or neutral grey
-  swatch.
+  arbiter node runs on the `arbiter` agent, so it is a second `arbiter` lane
+  (`arbiter · classification_arbiter`). An agent with one lane keeps its
+  colour exactly, whatever its node. An agent with several lanes keeps its colour
+  on the lane whose call came first, and each later lane (in the order the calls
+  were recorded) is a lighter step of it: 35%, 50%, 65%, 20% and 80% lighter, so
+  lanes of one agent never share a swatch while it has six or fewer. From the
+  seventh lane on the steps repeat, and the label tells those lanes apart. A lane
+  that appears while the run is live takes the next step and does not recolour
+  the lanes already drawn. The agent's own colour comes from the figure style and
+  is not changed here; some of those colours (the decision classification blue,
+  `#1b4f94`, is 2.28:1) are dimmer than 3:1 on the minimap track. Every lighter
+  step is at least 3:1 against the track and keeps the band text readable (4.5:1
+  or better). An agent with no assigned colour gets the specialist, decision or
+  neutral grey swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to
   scroll to its occurrence; click again for the next.

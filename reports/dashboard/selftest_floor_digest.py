@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,10 @@ import tempfile
 import time
 import traceback
 from pathlib import Path
+
+# Checks that need Node and silently did nothing without it, and how many inline scripts the syntax check parsed.
+SKIPPED: set[str] = set()
+SYNTAX_CHECKED: list[int] = []
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
@@ -933,16 +938,21 @@ _RD_DOC = ("Lease between ACME   Properties and Beta Tenants.\nMonthly rent is 2
            + "\nParking fee: 75 dollars.\nGoverning   law: Ohio.\n")
 
 
-def viewer_js(body: str) -> str:
-    """Run ``body`` in Node after the template's pure READS block; "" (and a notice) without Node."""
+def viewer_js(body: str, glue: bool = False) -> str:
+    """Run ``body`` in Node after the template's pure READS block (and, with ``glue``, the DOCUMENT panel's DOM glue after it); "" (and a notice) without Node."""
     node = shutil.which("node")
     if node is None:
         print("SKIP viewer JS: node is not installed (CircleCI's node image has it)", file=sys.stderr)
+        SKIPPED.add("viewer JS")
         return ""
     html = TEMPLATE.read_text(encoding="utf-8")
     block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
     esc_line = next(line for line in html.splitlines() if line.startswith("const esc="))
     prelude = f"const DOC={json.dumps(_RD_DOC)};\n"
+    if glue:
+        # everything from the glue banner to the click listener: DOCV, rdEnsure, paintDocPanel and rdAct; the caller's body stubs the DOM
+        start = html.index("// ── DOCUMENT panel glue")
+        block += "\n" + html[start:html.index("// every panel control is a native <button>", start)]
     r = subprocess.run([node, "-e", prelude + esc_line + "\n" + block + "\n" + body],
                        capture_output=True, text=True, timeout=60, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -990,6 +1000,135 @@ for(const name of ["toString","constructor","hasOwnProperty","__proto__","valueO
 }
 A.equal(rdColor("sorter","sorter"),"#eb6834");                    // a named role keeps its colour
 A.equal(rdColor("brand_new_specialist","specialist"),RD_SPECIALIST);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_gives_each_agent_and_node_its_own_lane():
+    """Both arbiters record as agent "arbiter"; the extraction one at "arbiter", the classification one at "classification_arbiter"."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const calls=[call("arbiter","arbiter",[[0,10]]),call("arbiter","classification_arbiter",[[20,30]]),call("arbiter","classification_arbiter",[[40,50]]),
+  call("contracts_specialist","extract",[[0,5]]),call("judge","judge_verify",[[0,5]])];
+const m=rdModel(reads(calls),SP);
+const arb=m.lanes.filter(g=>g.agent==="arbiter");
+A.equal(arb.length,2);
+A.deepEqual(arb.map(g=>g.label),["arbiter","arbiter · classification_arbiter"]);   // the node equal to the agent adds nothing to the label
+A.deepEqual(m.lanes.filter(g=>g.agent!=="arbiter").map(g=>g.label),["contracts_specialist","judge"]);   // an agent with one lane keeps its bare name
+A.deepEqual(m.lanes.filter(g=>g.agent!=="arbiter").map(g=>g.full),["contracts_specialist · extract","judge · judge_verify"]);   // ... and the full name stays in the tooltip
+A.deepEqual(arb.map(g=>g.calls.length),[1,2]);
+A.notEqual(arb[0].key,arb[1].key);
+A.notEqual(arb[0].color,arb[1].color);                                            // two lanes, two swatches
+A.equal(arb[0].color,"#0f8f62");                                                  // the first keeps the agent's role colour
+A.equal(new Set(m.lanes.map(g=>g.key)).size,m.lanes.length);
+const html=rdPanelHtml({id:"d",reads:reads(calls),cls:{gt:"contract",pred:"contract"},specialists:SP,status:"unavailable",reason:"x",data:null,
+  on:[rdLaneKey("arbiter","classification_arbiter")],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.equal((html.match(/class="mm-lane/g)||[]).length,4);                           // arbiter x2, specialist, judge
+A.equal((html.match(/data-rd="agent"/g)||[]).length,4);
+const lane=(a,n)=>`data-lane="${esc(rdLaneKey(a,n))}"`;
+A.ok(html.includes(`data-rd="agent" ${lane("arbiter","classification_arbiter")}`));
+A.match(html,/arbiter · classification_arbiter ×2/);
+// the toggle states are per lane: only the classification arbiter is on here
+A.match(html,new RegExp(lane("arbiter","classification_arbiter").replace(/[\[\]]/g,"\\$&")+'[^>]*aria-pressed="true"'));
+A.match(html,new RegExp(lane("arbiter",null).replace(/[\[\]]/g,"\\$&")+'[^>]*aria-pressed="false"'));
+A.match(html,/mm-lane off" role="img" aria-label="arbiter: 1 call/);
+// only a lane that needs its node shows it, in a span of its own (the minimap clips the agent, never the node)
+A.equal((html.match(/class="mm-nd"/g)||[]).length,1);
+A.match(html,/<span class="mm-ag">arbiter<\/span><span class="mm-nd">\u00a0· classification_arbiter<\/span>/);
+A.match(html,/aria-label="contracts_specialist · extract: 1 call/);                 // the full name stays in the tooltip and the label
+A.match(html,/<span class="mm-ag">contracts_specialist<\/span><\/span>/);              // ... but a lone lane's visible text is the agent alone
+// specialists, and only specialists, start on
+const on=new Set(),seen=new Set();rdAdopt(m,seen,on);
+A.deepEqual([...on],[rdLaneKey("contracts_specialist","extract")]);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_calls_without_a_node_keep_one_lane_per_agent():
+    """An older digest has no node on its calls; a node equal to the agent is no different from none."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const legacy=[{agent:"arbiter",basis:"working",ranges:[[0,5]]},{agent:"arbiter",node:null,basis:"working",ranges:[[6,9]]},
+  {agent:"arbiter",node:"arbiter",basis:"working",ranges:[[9,12]]},{agent:"sorter",node:"",basis:"working",ranges:[[0,5]]}];
+const m=rdModel({calls:legacy,union:{},doc_chars:20},SP);
+A.deepEqual(m.lanes.map(g=>[g.key,g.label,g.calls.length]),[[rdLaneKey("sorter"),"sorter",1],[rdLaneKey("arbiter"),"arbiter",3]]);
+A.deepEqual(m.lanes.map(g=>g.color),["#eb6834","#0f8f62"]);
+A.deepEqual(m.lanes[1].calls.map(c=>c.n),[1,2,3]);
+A.equal(rdLaneKey("arbiter",null),rdLaneKey("arbiter",""));A.equal(rdLaneKey("arbiter","arbiter"),rdLaneKey("arbiter"));A.equal(rdLaneKey("arbiter",5),rdLaneKey("arbiter"));
+A.equal(rdModel(null,SP).lanes.length,0);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lane_keys_are_safe_for_hostile_agent_and_node_names():
+    """Agent and node names that are Object.prototype members, separators or markup stay plain data."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const names=["__proto__","constructor","toString","hasOwnProperty","a/b","a","b","<img src=x>"];
+const calls=[];names.forEach(a=>names.forEach(n=>calls.push(call(a,n,[[0,3]]))));
+const m=rdModel(reads(calls),SP);
+A.equal(m.lanes.length,names.length*names.length-0);                    // an agent at a node named like itself is its own lane, so 64 pairs give 64 lanes
+A.equal(new Set(m.lanes.map(g=>g.key)).size,m.lanes.length);            // "a/b" at no node is not "a" at node "b"
+A.ok(m.lanes.every(g=>/^#[0-9a-f]{6}$/i.test(g.color)),m.lanes.map(g=>g.color).join());
+const k1=rdLaneKey("a/b",null),k2=rdLaneKey("a","b");A.notEqual(k1,k2);
+const on=new Set(),seen=new Set();rdAdopt(m,seen,on);rdAdopt(m,seen,on);
+A.equal(seen.size,m.lanes.length);
+const html=rdPanelHtml({id:"d",reads:reads(calls),cls:{},specialists:["__proto__"],status:"unavailable",reason:"x",data:null,on:[...on],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.doesNotMatch(html,/<img src=x>/);A.match(html,/&lt;img src=x&gt;/);
+A.deepEqual(rdModel(reads([call("__proto__","constructor",[[0,1]])]),["__proto__"]).lanes.map(g=>[g.label,g.full,g.group]),[["__proto__","__proto__ · constructor","specialist"]]);
+// no string can take the panel down: lone surrogates, "%", quotes and separators all make a key
+const odd=["a\ud800","x\udc00","\ud800","a%2Fb","a/b","%","\"","\\","caf\u00e9","\ud83d\ude00","a\u0000b",""];
+for(const a of odd)for(const n of odd){
+ const k=rdLaneKey(a,n);A.equal(typeof k,"string");
+ const m2=rdModel(reads([call(a,n,[[0,3]])]),SP);A.equal(m2.lanes.length,1);A.equal(m2.lanes[0].key,k);
+ A.equal(typeof rdPanelHtml({id:"d",reads:reads([call(a,n,[[0,3]])]),cls:{},specialists:SP,status:"unavailable",reason:"x",data:null,on:[k],callOff:[],original:false,field:null,hit:0,cache:{}}),"string")}
+const owner=new Map();                                                    // one key per (agent, node), where a node equal to the agent (or empty) means the agent's own lane
+for(const a of odd)for(const n of odd){const id=a+"\u0001"+(n===a?"":n),k=rdLaneKey(a,n);if(owner.has(k))A.equal(owner.get(k),id);owner.set(k,id)}
+A.equal(owner.size,new Set([...owner.values()]).size);
+A.notEqual(rdLaneKey("a%2Fb",null),rdLaneKey("a/b",null));A.notEqual(rdLaneKey("a","b/c"),rdLaneKey("a/b","c"));
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_field_flags_do_not_depend_on_lanes():
+    """Splitting a specialist's retry from its first call, or adding arbiter reads, moves no flag."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const first=rangeOf("Lease between","dollars, due on the first day."),later=rangeOf("Governing","Ohio.");
+const split=[call("contracts_specialist","extract",[first]),call("contracts_specialist","retry_extract",[later])];
+const joined=[call("contracts_specialist",null,[first]),call("contracts_specialist",null,[later])];
+const arbiters=[call("arbiter","arbiter",[[0,DOC.length]]),call("arbiter","classification_arbiter",[[0,DOC.length]])];
+const f=c=>flags(run(c));
+A.deepEqual(f(split),f(joined));
+A.equal(f(split).law,"");A.equal(f(split).parking,"not read");A.equal(f(split).county,"not in text");
+A.deepEqual(f(split.concat(arbiters)),f(split));                    // the arbiters read everything, and still no field counts as read by them
+A.deepEqual(run(split).ran,["contracts_specialist"]);               // one agent, however many lanes
+A.deepEqual(flags(run([call("sorter","classify",[first])],{gt:"contract",pred:"correspondence"})),
+  flags(run([call("sorter",null,[first])],{gt:"contract",pred:"correspondence"})));
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_new_specialist_lanes_start_on():
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+// a retry lane that shows up while the run is live joins the lanes already painted; a non-specialist lane never does
+const on=new Set(),seen=new Set();
+rdAdopt(rdModel(reads([call("contracts_specialist","extract",[[0,3]]),call("arbiter","arbiter",[[0,3]])]),SP),seen,on);
+A.deepEqual([...on],[rdLaneKey("contracts_specialist","extract")]);
+on.delete(rdLaneKey("contracts_specialist","extract"));                   // the viewer turned it off ...
+rdAdopt(rdModel(reads([call("contracts_specialist","extract",[[0,3]]),call("contracts_specialist","retry_extract",[[3,6]]),call("arbiter","arbiter",[[0,3]])]),SP),seen,on);
+A.deepEqual([...on],[rdLaneKey("contracts_specialist","retry_extract")]);   // ... and a later poll does not turn it back on
 console.log("ok");
 """)
     assert out == "" or out.strip() == "ok"
@@ -1093,7 +1232,7 @@ for(const dc of [17,null]){
 }
 const mm=rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:null},cls:{gt:"contract",pred:"contract"},specialists:SP,status:"ok",reason:"",
  data:{working:w,original:w,expected:{fee:"75"},extracted:{},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:null},
- on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+ on:[rdLaneKey("contracts_specialist","extract")],callOff:[],original:false,field:null,hit:0,cache:{}});
 const lane=mm.split('class="mm-lane').find(x=>x.includes("contracts_specialist")&&x.includes("mm-r"));
 const width=+lane.match(/mm-r" style="left:([\d.]+)%;width:([\d.]+)%/)[2];
 A.ok(Math.abs(width-100*5/17)<0.01,"width "+width);   // 5/17 = 29.4% of the loaded text, not 5/30 = 16.7%
@@ -1119,7 +1258,7 @@ const A=require('node:assert/strict');
 const w=DOC,calls=[call("contracts_specialist","extract",[rangeOf("Lease between","first day.")])];
 const panel=pairing=>rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:[...w].length,...(pairing?{text_pairing:pairing}:{})},cls:{gt:"contract",pred:"contract"},specialists:SP,
  status:"ok",reason:"",data:{working:w,original:null,expected:{parking:"75"},extracted:{},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:null},
- on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+ on:[rdLaneKey("contracts_specialist","extract")],callOff:[],original:false,field:null,hit:0,cache:{}});
 A.match(panel("different"),/Bands withheld[\s\S]*different text than the one stored or served/);
 A.doesNotMatch(panel("different"),/rd-seg[^>]*linear-gradient/);A.match(panel("match"),/rd-seg[^>]*linear-gradient/);   // painted only when paired
 for(const ok of ["match","missing",""])A.doesNotMatch(panel(ok),/Bands withheld/);   // match, no text to compare, or an old store
@@ -1132,6 +1271,237 @@ console.log("ok");
     assert out == "" or out.strip() == "ok"
 
 
+# Node names of the vendored graph (plus the retry and arbiter lanes it records), and agents of every colour family.
+_RD_GRAPH_NODES = ["classify", "extract", "judge_verify", "review_classify", "retry_classify", "retry_extract",
+                   "classification_arbiter", "boss_escalation", "arbiter"]
+
+
+@test
+def viewer_single_lane_agent_keeps_its_figure_role_colour_whatever_its_node():
+    """An agent with one lane is drawn exactly as before lanes existed: rdColor(agent), not a lighter shade of it."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const NODES=%s;
+const agents=["sorter","sorter_reviewer","judge","completeness_judge","arbiter","boss","intake","jev","contracts_specialist","tier2_extractor",
+  "decisions:classification","decisions:extraction_gate","decisions:closed_field_resolver","decisions:something_new"];
+const before=a=>rdColor(a,rdGroup(a,new Set(SP)));                          // what the viewer drew before lanes: one swatch per agent
+for(const a of agents)for(const n of NODES){
+  const one=rdModel(reads([call(a,n,[[0,3]])]),SP);
+  A.equal(one.lanes.length,1);
+  A.equal(one.lanes[0].color,before(a),a+" at "+n);
+  const twice=rdModel(reads([call(a,n,[[0,3]]),call(a,n,[[4,6]])]),SP);       // several calls at one node are still one lane
+  A.equal(twice.lanes.length,1);A.equal(twice.lanes[0].color,before(a),a+" x2 at "+n)}
+// the cases that used to change: literal colours, so a change to rdColor shows here too
+const lit=[["sorter_reviewer","review_classify","#f7a98b"],["boss","boss_escalation","#898781"],["arbiter","classification_arbiter","#0f8f62"],
+  ["sorter","retry_classify","#eb6834"],["contracts_specialist","retry_extract","#1baf7a"]];
+for(const [a,n,c] of lit)A.equal(rdModel(reads([call(a,n,[[0,3]])]),SP).lanes[0].color,c,a+" at "+n);
+A.equal(rdModel(reads([call("contracts_specialist",null,[[0,3]])]),SP).lanes[0].color,RD_SPECIALIST);   // a node-less call keeps the agent's colour
+console.log("ok");
+""" % json.dumps(_RD_GRAPH_NODES))
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lanes_of_one_agent_never_share_a_swatch():
+    """Shades follow a lane's ordinal within its agent (run order), so real graph nodes cannot collide; past the shades the label tells lanes apart."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const NODES=%s;
+const agents=["contracts_specialist","sorter","sorter_reviewer","arbiter","boss","intake","decisions:classification","decisions:something_new"];
+const M=RD_SHADES.length;
+const mk=(a,ns)=>ns.map((n,i)=>call(a,n,[[i,i+1]]));
+const lanesOf=(a,ns,extra)=>rdModel(reads(mk(a,ns).concat(extra||[])),SP).lanes.filter(g=>g.agent===a);
+for(const a of agents){
+  const base=rdColor(a,rdGroup(a,new Set(SP)));
+  for(const ns of [NODES,[...NODES].reverse(),["review_classify","classify","judge_verify","extract","boss_escalation","retry_extract"]]){
+    for(let n=2;n<=Math.min(M,ns.length);n++){
+      const ls=lanesOf(a,ns.slice(0,n));
+      A.equal(ls.length,n);
+      A.equal(new Set(ls.map(g=>g.color)).size,n,a+" "+ns.slice(0,n).join()+" share a swatch: "+ls.map(g=>g.color));
+      A.equal(ls.find(g=>g.key===rdLaneKey(a,ns[0])).color,base,a+": the first lane keeps the agent's colour");     // run order, not name order
+    }
+    // past the shades: swatches repeat, labels never do
+    const all=lanesOf(a,ns);
+    if(ns.length>M){A.ok(new Set(all.map(g=>g.color)).size<all.length);A.equal(new Set(all.map(g=>g.label)).size,all.length)}
+  }
+  // a lane that turns up later never recolours the ones already drawn, and other agents' lanes do not move anyone
+  const calls=mk(a,NODES),others=[call("zz_other_specialist","extract",[[0,1]]),call("aa","retry",[[0,1]])];
+  for(let k=1;k<NODES.length;k++){
+    const before=rdModel(reads(calls.slice(0,k)),SP).lanes.filter(g=>g.agent===a);
+    const after=rdModel(reads(calls.slice(0,k+1).concat(others)),SP).lanes.filter(g=>g.agent===a);
+    for(const g of before)A.equal(after.find(x=>x.key===g.key).color,g.color,a+" lane "+g.node+" recoloured by a later lane")}
+}
+// the realistic collisions of the previous scheme: one decision agent recorded at several graph nodes
+const dc=lanesOf("decisions:classification",["classify","extract","judge_verify","retry_classify","retry_extract","classification_arbiter"]);
+A.equal(new Set(dc.map(g=>g.color)).size,6);
+console.log("ok");
+""" % json.dumps(_RD_GRAPH_NODES))
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lane_shades_stay_visible_on_the_dark_page():
+    """Every lightened lane shade is at least 3:1 against the minimap track and keeps the band text readable; shade 0 is the role colour, which this check does not hold to 3:1."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+// WCAG 2 contrast against the minimap track (#0d141d) for the swatch, and of the document text (#c5d0dc) under a band at alpha 0x55 on #070b10
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const relLum=c=>{const [r,g,b]=c.map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)});return .2126*r+.7152*g+.0722*b};
+const contrast=(a,b)=>{const x=relLum(a),y=relLum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const TRACK=rgb("#0d141d"),TEXT_BG=rgb("#070b10"),TEXT=rgb("#c5d0dc");
+const underBand=c=>c.map((v,i)=>v*0x55/255+TEXT_BG[i]*(1-0x55/255));
+A.equal(RD_SHADES[0],0);                                                    // slot 0 is the agent's own colour
+A.equal(new Set(RD_SHADES).size,RD_SHADES.length);
+for(const base of new Set([RD_SPECIALIST,RD_DECISION,RD_OTHER,...Object.values(RD_COLORS)])){
+  const cols=RD_SHADES.map(k=>rgb(rdShade(base,k)));
+  RD_SHADES.forEach((k,i)=>{
+    if(k!==0)A.ok(contrast(cols[i],TRACK)>=3,base+" "+k+" is "+contrast(cols[i],TRACK).toFixed(2)+":1 on the track");
+    A.ok(contrast(TEXT,underBand(cols[i]))>=4.5,base+" "+k+" under text "+contrast(TEXT,underBand(cols[i])).toFixed(2));
+    for(let j=i+1;j<cols.length;j++)A.ok(Math.hypot(...cols[i].map((v,a)=>v-cols[j][a]))>=18,base+" "+k+" vs "+RD_SHADES[j]+" look alike")});
+}
+// the contrast arithmetic is WCAG's: white on black is 21:1, equal colours are 1:1
+A.ok(Math.abs(contrast([255,255,255],[0,0,0])-21)<1e-9);A.equal(contrast([9,9,9],[9,9,9]),1);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+_RD_DOM_STUB = r"""
+// the glue calls run(), so this stub replaces _RD_SETUP's helper of that name with the three it needs
+const call=(agent,node,ranges)=>({agent,node,basis:"working",ranges,matched:0,request:0});
+const reads=calls=>({calls,union:{},doc_chars:[...DOC].length});
+// a minimal DOM: the panel's innerHTML is parsed back into the buttons it holds, so rdAct finds and focuses them as a browser would
+const unesc=t=>t.replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");
+const focused=[],panel={innerHTML:""},pane={scrollTop:0};
+function buttons(){
+  return [...panel.innerHTML.matchAll(/<button\b([^>]*)>/g)].map(m=>{
+    const ds={};for(const a of m[1].matchAll(/\sdata-([a-z-]+)="([^"]*)"/g))ds[a[1].replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=unesc(a[2]);
+    return {dataset:ds,pressed:(/aria-pressed="(true|false)"/.exec(m[1])||[])[1]==="true",focus(){focused.push(this)}}}).filter(b=>b.dataset.rd!==undefined)}
+const document={getElementById:id=>id==="docPanel"?panel:id==="pane"?pane:null,
+  querySelectorAll:sel=>sel==="#docPanel [data-rd]"?buttons():[]};
+const D={graph_reference:{node_agents:{}}},LIVE=false,holdLive=false;
+let selDoc="d1",CALLS=[];
+const mkDoc=id=>({id,gt:"contract",pred:"contract",debug:{reads:reads(CALLS)}});
+const run=()=>({name:"r1",docs:[mkDoc("d1"),mkDoc("d2")],replay:false,node_agents:{}});
+const lane=(a,n)=>buttons().find(b=>b.dataset.rd==="agent"&&b.dataset.lane===rdLaneKey(a,n));
+const click=b=>{if(!b)throw new Error("no such button");rdAct(b)};
+"""
+
+
+@test
+def viewer_lane_toggles_work_through_the_dom_glue():
+    """rdAct (data-lane) and rdEnsure (rdAdopt) run against a stub DOM: toggling one lane moves only that lane, and a lane that appears later starts on."""
+    out = viewer_js(_RD_DOM_STUB + r"""
+const A=require('node:assert/strict');
+CALLS=[call("contracts_specialist","extract",[[0,5]]),call("contracts_specialist","extract",[[6,9]]),call("contracts_specialist","retry_extract",[[5,9]]),
+  call("arbiter","arbiter",[[0,5]]),call("arbiter","classification_arbiter",[[9,12]])];
+paintDocPanel();
+const state=()=>Object.fromEntries(buttons().filter(b=>b.dataset.rd==="agent").map(b=>[b.dataset.lane,b.pressed]));
+const K=(a,n)=>rdLaneKey(a,n);
+// 1. a first paint adopts the specialist lanes (rdEnsure -> rdAdopt) and no other
+A.deepEqual(state(),{[K("contracts_specialist","extract")]:true,[K("contracts_specialist","retry_extract")]:true,[K("arbiter")]:false,[K("arbiter","classification_arbiter")]:false});
+// 2. a lane button toggles that lane alone (the two arbiter lanes share data-agent, so only data-lane tells them apart) and keeps focus on it
+click(lane("arbiter","classification_arbiter"));
+A.equal(state()[K("arbiter","classification_arbiter")],true);A.equal(state()[K("arbiter")],false);
+A.equal(focused.at(-1).dataset.lane,K("arbiter","classification_arbiter"));
+click(lane("contracts_specialist","retry_extract"));
+A.equal(state()[K("contracts_specialist","retry_extract")],false);A.equal(state()[K("contracts_specialist","extract")],true);
+click(lane("contracts_specialist","retry_extract"));A.equal(state()[K("contracts_specialist","retry_extract")],true);
+// 3. a per-call toggle belongs to its lane and keeps focus on that call
+const callBtn=i=>buttons().find(b=>b.dataset.rd==="call"&&b.dataset.i===String(i));
+A.equal(callBtn(0).dataset.lane,K("contracts_specialist","extract"));A.equal(callBtn(0).pressed,true);
+click(callBtn(0));A.equal(callBtn(0).pressed,false);A.equal(callBtn(1).pressed,true);A.equal(focused.at(-1).dataset.i,"0");
+click(callBtn(0));A.equal(callBtn(0).pressed,true);
+// 4. a lane that first appears on a later poll: a specialist starts on, other lanes start off, and the viewer's choices stay
+click(lane("contracts_specialist","extract"));                                   // viewer turns extract off
+CALLS=CALLS.concat([call("contracts_specialist","retry_extract_2",[[1,2]]),call("arbiter","zzz",[[1,2]])]);
+paintDocPanel();
+const s=state();
+A.equal(s[K("contracts_specialist","retry_extract_2")],true);                       // new specialist lane: on
+A.equal(s[K("arbiter","zzz")],false);                                                // new non-specialist lane: off
+A.equal(s[K("contracts_specialist","extract")],false);                              // an earlier choice survives the poll
+A.equal(s[K("arbiter","classification_arbiter")],true);
+// 5. another document starts again from its own specialists
+selDoc="d2";paintDocPanel();
+A.equal(state()[K("contracts_specialist","extract")],true);A.equal(state()[K("arbiter","classification_arbiter")],false);
+console.log("ok");
+""", glue=True)
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lane_label_shows_the_node_only_for_an_agent_with_several_lanes():
+    """One lane per agent reads as the agent name alone; the node joins the visible label once an agent has more lanes."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const one=rdModel(reads([call("sorter","classify",[[0,3]]),call("contracts_specialist","extract",[[0,3]])]),SP);
+A.deepEqual(one.lanes.map(g=>[g.label,g.shownNode]),[["sorter",""],["contracts_specialist",""]]);
+A.deepEqual(one.lanes.map(g=>g.full),["sorter · classify","contracts_specialist · extract"]);
+const many=rdModel(reads([call("contracts_specialist","extract",[[0,3]]),call("contracts_specialist","retry_extract",[[0,3]]),call("sorter","classify",[[0,3]])]),SP);
+A.deepEqual(many.lanes.map(g=>g.label),["sorter","contracts_specialist · extract","contracts_specialist · retry_extract"]);
+const html=rdPanelHtml({id:"d",reads:reads([call("contracts_specialist","extract",[[0,3]]),call("contracts_specialist","retry_extract",[[0,3]]),call("sorter","classify",[[0,3]])]),
+  cls:{},specialists:SP,status:"unavailable",reason:"x",data:null,on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.deepEqual(html.match(/<span class="mm-nd">[^<]*/g),['<span class="mm-nd">\u00a0· extract','<span class="mm-nd">\u00a0· retry_extract']);   // the node has its own span, so a long agent name is clipped and the node is not
+A.match(html,/<span class="mm-ag">sorter<\/span><\/span>/);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+# Parses stdin as a classic <script> (what the browser does with an inline script), which `node --check` does not:
+# that treats the file as a CommonJS/ESM module and accepts a top-level return, await, import and export.
+_CLASSIC_PARSE_JS = (
+    "const src=require('fs').readFileSync(0,'utf8');"
+    "try{new (require('vm').Script)(src,{filename:'inline.js'})}"
+    "catch(e){console.error(e&&e.name===undefined?String(e):e.name+': '+e.message);process.exit(1)}"
+)
+
+
+def inline_script_errors(html: str) -> list[str]:
+    """Parse every inline <script> of ``html`` as a classic script; the syntax errors found, one entry per script, [] when all parse.
+
+    The READS tests above run only the pure block, so a stray brace in the glue after it (the DOM code) parsed nowhere
+    and took the whole page down; this parses every script the browser would run, with the browser's grammar
+    (a top-level return, await, import or export is an error here, as it is in the page).
+    """
+    node = shutil.which("node")
+    if node is None:
+        print("SKIP inline script syntax: node is not installed (CircleCI's node image has it)", file=sys.stderr)
+        SKIPPED.add("inline script syntax")
+        return []
+    scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S | re.I)
+    assert scripts, "no inline script found: the pattern or the template changed"
+    errors = []
+    for n, body in enumerate(scripts):
+        r = subprocess.run([node, "-e", _CLASSIC_PARSE_JS], input=body, capture_output=True, text=True, timeout=60, check=False)
+        if r.returncode != 0:
+            lines = r.stderr.strip().splitlines()
+            errors.append(f"script {n}: " + next((x for x in lines if "Error" in x), lines[-1] if lines else "?"))
+    SYNTAX_CHECKED.append(len(scripts))
+    return errors
+
+
+@test
+def floor_template_inline_scripts_parse():
+    """The whole page script is valid JavaScript, not just the READS block the viewer tests run."""
+    html = TEMPLATE.read_text(encoding="utf-8")
+    assert inline_script_errors(html) == []
+    if shutil.which("node") is None:
+        return
+    # the check really fails on a broken script: the stray closing brace that once shipped after `scrollReset=false`
+    broken = html.replace("DOCV.scrollReset=false}\nfunction rdAct", "DOCV.scrollReset=false}}\nfunction rdAct")
+    assert broken != html, "the anchor moved: update this test"
+    found = inline_script_errors(broken)
+    assert found and "SyntaxError" in found[0], found
+    # and with the browser's grammar, not a module's: each of these is a SyntaxError in a classic <script>
+    anchor = "function rdAct(b){"
+    assert anchor in html, "the anchor moved: update this test"
+    for what, stmt in (("top-level return", "return 1;"), ("top-level await", "const awaited = await Promise.resolve(1);"),
+                       ("import", "import x from 'y';"), ("export", "export const q = 1;")):
+        found = inline_script_errors(html.replace(anchor, stmt + anchor, 1))
+        assert found and "SyntaxError" in found[0], (what, found)
+
+
 @test
 def viewer_panel_without_text_says_unavailable_and_still_draws_the_band_map():
     """File://, an imported digest or no server: say the text is unavailable, keep lanes, toggles and calls."""
@@ -1140,11 +1510,12 @@ const A=require('node:assert/strict');
 const r=reads([call("sorter","classify",[[0,40]]),call("contracts_specialist","extract",[[10,90]]),
   call("contracts_specialist","retry_extract",[[100,160]]),call("sorter","classify",[[0,5]],{basis:"raw"})]);
 const html=rdPanelHtml({id:"d1",reads:r,cls:{gt:"contract",pred:"contract"},specialists:SP,status:"unavailable",
-  reason:"no floor server",data:null,on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+  reason:"no floor server",data:null,on:[rdLaneKey("contracts_specialist","extract")],callOff:[],original:false,field:null,hit:0,cache:{}});
 A.match(html,/text unavailable/i);A.match(html,/no floor server/);
-A.equal((html.match(/class="mm-lane/g)||[]).length,2);          // one lane per agent
+A.equal((html.match(/class="mm-lane/g)||[]).length,3);          // one lane per (agent, node): sorter, and the specialist at extract and at retry_extract
 A.match(html,/data-rd="agent"[^>]*data-agent="sorter"/);
-A.match(html,/data-rd="call"[^>]*data-agent="contracts_specialist"/);   // an agent with two calls gets call toggles
+A.match(html,/data-rd="call"[^>]*data-agent="sorter"/);          // a lane with two calls gets call toggles (the raw one and the working one)
+A.match(html,/contracts_specialist · retry_extract/);
 A.match(html,/raw/);                                              // the raw-basis call is marked
 A.doesNotMatch(html,/class="rd-text"/);                           // no text pane without text
 const none=rdPanelHtml({id:"d1",reads:null,cls:{},specialists:SP,status:"unavailable",reason:"x",data:null,on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
@@ -1163,7 +1534,7 @@ const evil='<img src=x onerror=alert(1)> & "q"';
 const text=evil+" fee 75 dollars";
 const data={working:text,original:text,expected:{["<b>f</b>"]:"75"},extracted:{["<b>f</b>"]:evil},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:1};
 const r={calls:[call("contracts_specialist","extract",[[0,10]])],union:{},doc_chars:[...text].length};
-const html=rdPanelHtml({id:"<d>",reads:r,cls:data.class,specialists:SP,status:"ok",reason:"",data,on:["contracts_specialist"],callOff:[],original:false,field:"<b>f</b>",hit:0,cache:{}});
+const html=rdPanelHtml({id:"<d>",reads:r,cls:data.class,specialists:SP,status:"ok",reason:"",data,on:[rdLaneKey("contracts_specialist","extract")],callOff:[],original:false,field:"<b>f</b>",hit:0,cache:{}});
 A.doesNotMatch(html,/<img|<b>f|<d>/);A.match(html,/&lt;img src=x/);
 const ctl=[...html.matchAll(/<(\w+)[^>]*data-rd="/g)].map(m=>m[1]);
 A.ok(ctl.length>=4);A.ok(ctl.every(t=>t==="button"),ctl.join());
@@ -1249,8 +1620,16 @@ def main() -> int:
                 failures.append((fn.__name__, traceback.format_exc(limit=3)))
     for name, tb in failures:
         print(f"FAIL {name}\n{tb}", file=sys.stderr)
+    # Without Node the viewer and syntax checks silently did nothing. Locally that is a notice; in CI (the CI variable is set,
+    # as CircleCI does) it is a failure, so a runner image that lost Node cannot turn the viewer checks green by skipping them.
+    ci = os.environ.get("CI", "").strip().lower() not in ("", "0", "false")
+    if SKIPPED and ci:
+        print(f"FAIL node checks did not run ({', '.join(sorted(SKIPPED))}): Node is required when CI is set", file=sys.stderr)
+        failures.append(("node_required_in_ci", ""))
     verdict = "PASS" if not failures else "FAIL"
-    print(f"SELFTEST {passed}/{len(TESTS)} {verdict}")
+    note = f" (node checks SKIPPED, not run: {', '.join(sorted(SKIPPED))})" if SKIPPED else ""
+    parsed = f" [inline script syntax: {max(SYNTAX_CHECKED)} parsed as classic scripts]" if SYNTAX_CHECKED else ""
+    print(f"SELFTEST {passed}/{len(TESTS)} {verdict}{note}{parsed}")
     return 0 if not failures else 1
 
 

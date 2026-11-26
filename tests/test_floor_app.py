@@ -1552,11 +1552,15 @@ for (const mode of ["working", "original", "none"]) {
     class: {gt: "contract", pred: "contract"}, rewritten: false, overlap: 1.0,
     text_hash: "0123456789abcdef"};
   const out = rdPanelHtml({id: "d<1>", status: "ok", data, reads, specialists: ["contracts_specialist"],
-    on: mode === "working" ? ["contracts_specialist"] : [], callOff: [],
+    on: mode === "working" ? [rdLaneKey("contracts_specialist", "extract")] : [], callOff: [],
     original: false, field: null, hit: 0, cache: {}});
   assert.doesNotMatch(out, /<img[\s>]/, "raw <img> in " + mode + " path: " + out.slice(0, 200));
   assert.doesNotMatch(out, /<script/, "raw <script> in " + mode + " path");
   assert.ok(mode === "none" || out.includes("&lt;img"), "escaped payload kept in " + mode + " path");
+  // the working-text path must really paint a band, or the hostile text above never sat inside one
+  const bands = (out.match(/class="rd-seg/g) || []).length;
+  assert.ok(mode !== "working" || bands >= 1, "working path paints a band, got " + bands);
+  assert.ok(mode === "working" || bands === 0, mode + " path paints no band, got " + bands);
   // the field table renders the comparison from the response, working text or not
   assert.ok(out.includes("rd-ft") || mode === "none", "field table in " + mode + " path");
 }
