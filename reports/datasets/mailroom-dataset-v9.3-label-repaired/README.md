@@ -176,8 +176,10 @@ The missing-only corporate inventory is 1,483 registered entity fields on 426 do
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels
-retain `use_as_truth: false`; no release cut or production selector is advanced. Two correspondence
-fields remain held for parser or independence-evidence handling.
+retain `use_as_truth: false`; these additions are not a release cut. Two correspondence
+fields remain held for parser or independence-evidence handling. New production preparations
+select the separately verified, landed rc.10 cut; frozen locks retain their earlier selection.
+See [`rc10_selection_verification.json`](rc10_selection_verification.json).
 
 **Source-type hold.** A bounded audit of the 61 records currently typed `officer_certificate`
 found headings suggesting 53 designation/amendment instruments, seven incorporation/charter
@@ -228,13 +230,16 @@ blank in a row is absence versus unlabeled.
 - **Generated labels are not human-reviewed.** `generated_rule` labels are pattern matches, each
   with a verbatim quote, and spot checks found them right in most cases, but they are not
   gold. Filter on `chosen_source` in the provenance file if your analysis needs reviewed labels only.
-- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so their CUAD-derived fields
-  (`effective_date`, `governing_law`, `term_length`, `renewal_terms`, …) stay unlabeled. Their
+- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so no CUAD ballot labels them.
+  `effective_date`, `term_length` and `renewal_terms` stay unlabeled on all 91; `governing_law`
+  is labeled on 28 of them by a `generated_rule` pattern match and unlabeled on the other 63 (it
+  is labeled on 537 of all 600 contracts). A missing CUAD ballot is not a missing label: check
+  `presence` before discarding a field. Their
   nine scored contract fields come from the near-gold overlay instead (agent label and check
   passes plus a reviewing model, not human gold). `expiration_date` is labeled on 315 contracts,
   `termination_notice_period` on 380 and `dispute_forum` on 282. `contract_value`,
   `payment_terms`, `territory` and `party_roles` have no CUAD category, so they are labeled only on
-  the 268-document gold catalog; coverage varies by field.
+  the 268 contracts in the gold catalog.
 - **Merger agreements:** several fields are found only where the agreement states them in a
   standard form (exchange ratio, termination fees, advisors, signatories). Signature pages are
   usually missing from the text. `merger_consideration` is never labeled for the `other` subclass.

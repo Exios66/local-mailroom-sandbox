@@ -114,3 +114,17 @@ def test_catalog_refuses_a_concurrent_file_change(tmp_path, monkeypatch):
     monkeypatch.setattr(lc.gl, 'verify_catalog', verify)
     with pytest.raises(ValueError, match='changed during inspection'):
         lc.catalog()
+
+
+def test_policy_filtered_coverage_excludes_stale_hub_but_keeps_reviewed_truth(monkeypatch):
+    from mailroom_sandbox import scoring_hotfixes
+
+    monkeypatch.setattr(scoring_hotfixes, 'enabled', lambda name: name == 'SHF-015')
+    base = {'id': 'D1', 'expected_doc_class': 'corporate_record', 'expected_subclass': 'other',
+            'expected_fields': {'intent': 'governance_rules', 'intent_source': 'heuristic'}}
+    reviewed = {**base, 'interim_labels': {'fields': ['intent']}}
+    table = lc.coverage_rows({'hub': [base], 'interim': [reviewed]})
+    intent = {r['stage']: r for r in table if r['field'] == 'intent'}
+    assert intent['hub']['presence'] == intent['interim']['presence'] == 'populated'
+    assert intent['hub']['scoring_presence'] == 'excluded_stale'
+    assert intent['interim']['scoring_presence'] == 'populated'

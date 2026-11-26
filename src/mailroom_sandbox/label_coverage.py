@@ -158,6 +158,7 @@ def schema_fields(cls: str, subclass: str) -> dict[str, dict[str, Any]]:
 
 def coverage_rows(stage_rows: Mapping[str, list[dict]]) -> list[dict]:
     """One row per registered document/field; counts are unique by construction."""
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.subclass_schemas import CLASSES
 
     output = []
@@ -172,6 +173,8 @@ def coverage_rows(stage_rows: Mapping[str, list[dict]]) -> list[dict]:
             if key not in schemas:
                 schemas[key] = schema_fields(cls, sub)
             exp = il._expected(row)
+            scoring_exp, stale = (sh.drop_stale_hub_truth(cls, exp, sh.overlay_fields(row))
+                                  if sh.enabled('SHF-015') else (exp, {}))
             for field, flags in schemas[key].items():
                 near_fields = (row.get('near_gold_labels') or {}).get('fields') or []
                 interim_fields = (row.get('interim_labels') or {}).get('fields') or []
@@ -179,7 +182,9 @@ def coverage_rows(stage_rows: Mapping[str, list[dict]]) -> list[dict]:
                 source = ('near_gold' if field in near_fields else 'interim' if field in interim_fields
                           else 'none' if state == 'missing' else 'hub')
                 output.append({'stage': stage, 'doc_id': row['id'], 'class': cls, 'subclass': sub,
-                               'field': field, 'presence': state, 'source': source, **flags})
+                               'field': field, 'presence': state, 'source': source,
+                               'scoring_presence': 'excluded_stale' if field in stale else presence(scoring_exp, field),
+                               'stale_hub_reason': stale.get(field), **flags})
     return output
 
 

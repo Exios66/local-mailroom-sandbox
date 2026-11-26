@@ -5,6 +5,7 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 
 import hashlib
 import json
+import os
 import shutil
 import sys
 import threading
@@ -648,7 +649,7 @@ def test_serve_floor_uses_private_digest_storage_and_cleans_it_up(store, tmp_pat
         def server_close(self):
             """No socket was opened."""
 
-    def bind(directory, port, *, digest_dir):
+    def bind(directory, port, *, digest_dir, runs_root=None):
         """Inspect startup output while it exists, optionally failing the bind."""
         assert directory == assets and digest_dir != assets
         assert json.loads((digest_dir / "floor_digest.json").read_text())["runs"][0]["name"] == "run-1"
@@ -688,7 +689,7 @@ def test_offline_image_copies_floor_assets_and_starts_without_checkout_mount(tmp
     monkeypatch.setitem(sys.modules, "build_floor_digest", None)
     seen = []
 
-    def bind(directory, port, *, digest_dir):
+    def bind(directory, port, *, digest_dir, runs_root=None):
         """Verify the image template and generated replay digest before refusing the socket."""
         assert directory == image / "reports" / "dashboard"
         assert (directory / "floor.template.html").is_file()
@@ -1224,6 +1225,368 @@ def test_refresher_rechecks_a_running_run_even_when_nothing_changed(tmp_path, mo
     assert ref.refresh() is True, "a running checkpoint is rebuilt without an artifact change"
     (run / "checkpoint.json").write_text('{"state": "complete"}', encoding="utf-8")
     assert ref.refresh() is True and ref.refresh() is False, "a finished store goes quiet again"
+
+
+# ── GET /api/floor/doc: the only path a document's text takes to the viewer ─────
+
+_DOC_ORIGINAL = ("Lease agreement between Acme Properties and Beta Tenants for the premises at 12 Harbor Road. "
+                 "The tenant shall pay monthly rent of 2,400 dollars on the first day of each month and keep the "
+                 "premises in good repair. This lease runs for twelve months from the commencement date.")
+
+
+def _doc_store(tmp_path, *, working=None):
+    """A base with one run holding a dataset row, an item and a recorded working text for ``d1``."""
+    base = tmp_path / "base"
+    run = base / "runtime" / "runs" / "run-1"
+    (run / "doc_texts").mkdir(parents=True)
+    working = _DOC_ORIGINAL if working is None else working
+    (run / "items.jsonl").write_text(json.dumps({
+        "item_id": "d1", "ok": True, "stage": "archived", "pred": {"doc_type": "lease"},
+        "extracted_data": {"rent": "2400"}}) + "\n", encoding="utf-8")
+    (run / "dataset.jsonl").write_text(json.dumps({
+        "id": "d1", "doc_text": _DOC_ORIGINAL, "expected_doc_class": "lease",
+        "expected_fields": {"rent": "2,400"}}) + "\n", encoding="utf-8")
+    name = hashlib.sha1(b"d1", usedforsecurity=False).hexdigest()[:16] + ".txt"
+    (run / "doc_texts" / name).write_text(working, encoding="utf-8")
+    (run / "doc_texts" / "index.jsonl").write_text(json.dumps({"doc": "d1", "file": name}) + "\n", encoding="utf-8")
+    return base, run
+
+
+class _DocServer:
+    """Serve ``make_server`` on an ephemeral loopback port for one test."""
+
+    def __init__(self, tmp_path, runs_root):
+        assets = tmp_path / "assets"
+        assets.mkdir(exist_ok=True)
+        self.httpd = floor_app.make_server(assets, 0, runs_root=runs_root)
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join(timeout=3)
+
+    def get(self, target, method="GET", headers=None):
+        conn = HTTPConnection(*self.httpd.server_address, timeout=5)
+        try:
+            conn.request(method, target, headers=headers or {})
+            response = conn.getresponse()
+            return response.status, response.getheader("Content-Type"), response.read()
+        finally:
+            conn.close()
+
+
+def test_doc_endpoint_serves_text_and_fields(tmp_path):
+    """A known run and doc return the working text, the original, the fields and the class pair."""
+    base, _ = _doc_store(tmp_path)
+    with _DocServer(tmp_path, base) as srv:
+        status, ctype, body = srv.get("/api/floor/doc?run=run-1&doc=d1")
+    assert status == 200 and ctype.startswith("application/json")
+    data = json.loads(body)
+    assert set(data) == {"working", "original", "expected", "extracted", "class", "rewritten", "overlap", "text_hash"}
+    assert data["working"] == _DOC_ORIGINAL and data["original"] == _DOC_ORIGINAL
+    assert data["expected"] == {"rent": "2,400"} and data["extracted"] == {"rent": "2400"}
+    assert data["class"] == {"gt": "lease", "pred": "lease"}
+    assert data["rewritten"] is False and data["overlap"] == pytest.approx(1.0, abs=0.01)
+    # the served text carries the tag the read records use, so the viewer can pair them
+    from mailroom_sandbox.job.read_ranges import text_hash
+
+    assert data["text_hash"] == text_hash(_DOC_ORIGINAL)
+
+
+def test_doc_endpoint_flags_a_rewritten_working_text(tmp_path):
+    """A working text that differs from the row's text is rewritten, with its verbatim coverage."""
+    working = _DOC_ORIGINAL[:120] + " [REDACTED CLAUSE REWRITTEN BY AN UPSTREAM STEP] " + _DOC_ORIGINAL[120:]
+    base, _ = _doc_store(tmp_path, working=working)
+    with _DocServer(tmp_path, base) as srv:
+        data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
+    assert data["rewritten"] is True and 0.5 < data["overlap"] < 1.0
+
+
+def test_verbatim_overlap_counts_a_short_verbatim_text():
+    """Below the matcher's shingle floor, verbatim pieces still count ("Rent" over "Rent" is 1.0)."""
+    original = "The premises in good repair. The rent is due."
+    assert floor_app._verbatim_overlap(original, "premises") == 1.0
+    assert floor_app._verbatim_overlap(original, "premises nowhere") == pytest.approx(0.5)
+    assert floor_app._verbatim_overlap(original, "absent words") == 0.0
+    assert floor_app._verbatim_overlap(original, original) == 1.0
+
+
+def test_verbatim_overlap_treats_whitespace_around_and_between_pieces_as_no_content():
+    """Leading, trailing and embedded newlines or spaces never lower a verbatim short text."""
+    original = "The Rent Due is payable monthly."
+    for working in (" Rent ", "Rent\n", "\nRent", "  Rent Due  ", "Rent\nDue", "Rent \n\n Due"):
+        assert floor_app._verbatim_overlap(original, working) == 1.0, repr(working)
+    # Words out of order or partly absent keep the piece/word accounting.
+    assert floor_app._verbatim_overlap(original, "Due Rent") == pytest.approx(7 / 8)
+    assert floor_app._verbatim_overlap(original, "Rent nowhere") < 1.0
+
+
+def test_doc_endpoint_overlap_for_a_short_identical_working_text(tmp_path):
+    working = "premises"
+    base, _ = _doc_store(tmp_path, working=working)
+    with _DocServer(tmp_path, base) as srv:
+        data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
+    assert data["rewritten"] is True and data["overlap"] == 1.0
+
+
+def test_doc_endpoint_without_recorded_text_or_row_is_null_not_error(tmp_path):
+    """A doc whose text was not recorded still answers, with null working and overlap."""
+    base, run = _doc_store(tmp_path)
+    (run / "doc_texts" / "index.jsonl").write_text("", encoding="utf-8")
+    with _DocServer(tmp_path, base) as srv:
+        status, _, body = srv.get("/api/floor/doc?run=run-1&doc=d1")
+    data = json.loads(body)
+    assert status == 200 and data["working"] is None and data["overlap"] is None and data["rewritten"] is False
+    assert data["original"] == _DOC_ORIGINAL
+
+
+def test_doc_endpoint_refuses_hostile_ids(tmp_path, monkeypatch):
+    """Traversal, absolute paths and unknown ids are 404s, and nothing outside the run dir is read."""
+    base, run = _doc_store(tmp_path)
+    secret = tmp_path / "secret.txt"
+    secret.write_text("TOP SECRET OUTSIDE THE RUN", encoding="utf-8")
+    # The index line points at a path that would resolve to the sentinel if a reader followed
+    # it: the assertion below pins that, so the test cannot pass against a decoy path.
+    rel = os.path.relpath(secret.resolve(), (run / "doc_texts").resolve())
+    with open(run / "doc_texts" / "index.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"doc": "evil", "file": rel}) + "\n")
+    assert (run / "doc_texts" / rel).resolve() == secret.resolve()
+    read: list[Path] = []
+    real, real_bytes = Path.read_text, Path.read_bytes
+
+    def spy(self, *a, **k):
+        read.append(Path(self))
+        return real(self, *a, **k)
+
+    def spy_bytes(self, *a, **k):
+        read.append(Path(self))
+        return real_bytes(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_text", spy)
+    monkeypatch.setattr(Path, "read_bytes", spy_bytes)
+    with _DocServer(tmp_path, base) as srv:
+        assert srv.get("/api/floor/doc?run=run-1&doc=d1")[0] == 200  # the one legitimate read, inside the run dir
+        for target in ("/api/floor/doc?run=run-1&doc=../../etc/passwd",
+                       "/api/floor/doc?run=run-1&doc=/etc/passwd",
+                       "/api/floor/doc?run=run-1&doc=nope",
+                       "/api/floor/doc?run=missing&doc=d1",
+                       "/api/floor/doc?run=../runtime/runs/run-1&doc=d1",
+                       "/api/floor/doc?run=/etc&doc=d1"):
+            status, ctype, body = srv.get(target)
+            assert status == 404 and ctype.startswith("application/json"), target
+            json.loads(body)
+        # an index line that points outside doc_texts is never followed
+        status, _, body = srv.get("/api/floor/doc?run=run-1&doc=evil")
+        assert b"TOP SECRET" not in body
+        assert srv.get("/api/floor/doc?run=run-1")[0] == 400
+        assert srv.get("/api/floor/doc?run=run-1&doc=d1", method="POST")[0] in (404, 405, 501)
+    assert read and all(run.resolve() in p.resolve().parents for p in read), read
+    assert secret.resolve() not in {p.resolve() for p in read}
+
+
+def test_doc_endpoint_404s_without_a_runs_root(tmp_path):
+    """No runs_root (no resident store) means the endpoint is not there."""
+    with _DocServer(tmp_path, None) as srv:
+        assert srv.get("/api/floor/doc?run=run-1&doc=d1")[0] == 404
+
+
+def test_doc_endpoint_refuses_a_foreign_host_header(tmp_path):
+    """DNS rebinding: a page on another hostname that resolves to 127.0.0.1 gets 403 and no text."""
+    base, _ = _doc_store(tmp_path)
+    with _DocServer(tmp_path, base) as srv:
+        port = srv.httpd.server_address[1]
+        target = "/api/floor/doc?run=run-1&doc=d1"
+        for host in ("attacker.example", f"attacker.example:{port}", f"127.0.0.1.attacker.example:{port}",
+                     f"localhost:{port + 1}", f"127.0.0.1:{port + 1}", "", f"[::1]:{port + 1}"):
+            status, ctype, body = srv.get(target, headers={"Host": host})
+            assert status == 403, host
+            assert ctype.startswith("application/json")
+            assert json.loads(body) == {"error": "forbidden host"}
+            assert _DOC_ORIGINAL[:30].encode() not in body
+        # the static viewer and a HEAD request sit behind the same check
+        assert srv.get("/floor_digest.json", headers={"Host": "attacker.example"})[0] == 403
+        assert srv.get(target, method="HEAD", headers={"Host": "attacker.example"})[0] == 403
+
+
+def test_doc_endpoint_accepts_loopback_host_names(tmp_path):
+    """127.0.0.1, localhost and [::1] work, with this server's port or without one."""
+    base, _ = _doc_store(tmp_path)
+    with _DocServer(tmp_path, base) as srv:
+        port = srv.httpd.server_address[1]
+        for host in (f"127.0.0.1:{port}", f"localhost:{port}", f"LocalHost:{port}", f"[::1]:{port}",
+                     "127.0.0.1", "localhost", "[::1]"):
+            status, _, body = srv.get("/api/floor/doc?run=run-1&doc=d1", headers={"Host": host})
+            assert status == 200, host
+            assert json.loads(body)["working"] == _DOC_ORIGINAL
+
+
+def test_server_still_binds_loopback(tmp_path):
+    """The document endpoint does not widen the bind."""
+    httpd = floor_app.make_server(tmp_path, 0, runs_root=tmp_path)
+    try:
+        assert httpd.server_address[0] == "127.0.0.1"
+    finally:
+        httpd.server_close()
+
+
+def test_serve_floor_threads_the_resolved_base_as_runs_root(store, tmp_path, monkeypatch):
+    """serve_floor hands make_server the same base the digest is built from."""
+    base, graph, _ = store
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+    seen = {}
+
+    class Server:
+        server_address = ("127.0.0.1", 1)
+        def serve_forever(self): raise KeyboardInterrupt
+        def shutdown(self): pass
+        def server_close(self): pass
+
+    def bind(directory, port, **kwargs):
+        seen.update(kwargs)
+        return Server()
+
+    monkeypatch.setattr(floor_app, "make_server", bind)
+    assert floor_app.serve_floor(base=base, out=tmp_path, interval=3600) == 0
+    assert seen["runs_root"] == base
+
+
+def test_scan_signature_notices_a_growing_reads_file(store):
+    """reads.jsonl is a run artifact: appending a record changes the signature, so the digest rebuilds."""
+    base, _, run = store
+    before = floor_app.scan_signature(base)
+    (run / "reads.jsonl").write_text('{"doc": "d1", "call": 1}\n', encoding="utf-8")
+    assert floor_app.scan_signature(base) != before
+
+
+# ── keyboard: Enter/Space on confusion cells and on the DOCUMENT panel's controls ─────
+
+
+def _keydown_script(events: str) -> str:
+    """Node script running the template's real keydown handler against fake elements."""
+    html = _template()
+    start = html.index('document.addEventListener("keydown",e=>{')
+    end = html.index("vp.addEventListener(\"click\"", start)
+    handler = html[start:end]
+    return r"""
+const A = require("node:assert/strict");
+let handler = null;
+const document = {addEventListener(type, fn) { if (type === "keydown") handler = fn; },
+                  querySelector() { return null; }};
+const CSS = {escape: s => s};
+""" + handler + r"""
+A.ok(handler, "the template registers a keydown handler");
+""" + events
+
+
+def test_enter_and_space_activate_a_confusion_cell_but_leave_native_buttons_alone():
+    """The #411 fix (shipped by #415) is behaviour, not just a string: cells activate, buttons keep their own handling."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    import subprocess
+
+    script = _keydown_script(r"""
+for (const key of ["Enter", " "]) {
+  const cell = {click() { cell.n = (cell.n || 0) + 1; }};
+  let prevented = 0;
+  handler({key, target: {closest: sel => sel.includes("td[data-cell]") && !sel.includes("button,") ? cell : null}, preventDefault() { prevented++; }});
+  A.equal(cell.n, 1, "cell clicked for " + JSON.stringify(key));
+  A.equal(prevented, 1);
+}
+// a <button> (every control of the DOCUMENT panel) is never hijacked: the browser activates it
+let touched = 0;
+const btn = {};
+handler({key: "Enter", target: {closest: sel => sel.includes("button,input") ? btn : null}, preventDefault() { touched++; }});
+A.equal(touched, 0);
+handler({key: "a", target: {closest: () => { throw new Error("must return before looking"); }}, preventDefault() { touched++; }});
+console.log("keyboard ok");
+""")
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
+    """The panel's controls are buttons, and document text renders as text, not markup, in every path."""
+    html = _template()
+    block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
+    for control in ("agent", "call", "field", "view"):
+        assert f'data-rd="{control}"' in block
+    # every element carrying data-rd is a <button> (Enter and Space then work natively)
+    import re
+
+    assert {m.group(1) for m in re.finditer(r'<(\w+)[^>]*data-rd="', block)} == {"button"}
+    assert 'tr class="click' not in block and "data-doc" not in block
+    glue = html[html.index("function rdFetch("):html.index("function rdEnsure(")]
+    assert "/api/floor/doc" in glue and "encodeURIComponent(run().name)" in glue and "encodeURIComponent(d.id)" in glue
+    assert "!LIVE" in glue and "holdLive" in glue and "replay" in glue
+    # the endpoint's answer is reduced to known shapes before the panel sees it
+    assert "function rdCleanDoc(" in html
+
+
+def test_document_panel_renders_markup_like_document_text_as_text():
+    """Execute the panel's real renderer: hostile markup in any document text or field stays literal."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    import subprocess
+
+    html = _template()
+    block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
+    script = r'''
+const assert=require("node:assert/strict");
+const esc=s=>String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+''' + block + r'''
+const payload = '<img src=x onerror=alert(1)><b>bold</b> & <script>alert(2)</' + 'script>';
+const reads = {calls: [{agent: "contracts_specialist", node: "extract", basis: "working",
+                        ranges: [[0, 10]], matched: 10, request: 10}],
+               doc_chars: payload.length, text_pairing: "match", text_hash: "0123456789abcdef"};
+for (const mode of ["working", "original", "none"]) {
+  const data = mode === "none" ? null : {
+    working: mode === "working" ? payload : null, original: payload,
+    expected: {field: payload}, extracted: {field: payload},
+    class: {gt: "contract", pred: "contract"}, rewritten: false, overlap: 1.0,
+    text_hash: "0123456789abcdef"};
+  const out = rdPanelHtml({id: "d<1>", status: "ok", data, reads, specialists: ["contracts_specialist"],
+    on: mode === "working" ? [rdLaneKey("contracts_specialist", "extract")] : [], callOff: [],
+    original: false, field: null, hit: 0, cache: {}});
+  assert.doesNotMatch(out, /<img[\s>]/, "raw <img> in " + mode + " path: " + out.slice(0, 200));
+  assert.doesNotMatch(out, /<script/, "raw <script> in " + mode + " path");
+  assert.ok(mode === "none" || out.includes("&lt;img"), "escaped payload kept in " + mode + " path");
+  // the working-text path must really paint a band, or the hostile text above never sat inside one
+  const bands = (out.match(/class="rd-seg/g) || []).length;
+  assert.ok(mode !== "working" || bands >= 1, "working path paints a band, got " + bands);
+  assert.ok(mode === "working" || bands === 0, mode + " path paints no band, got " + bands);
+  // the field table renders the comparison from the response, working text or not
+  assert.ok(out.includes("rd-ft") || mode === "none", "field table in " + mode + " path");
+}
+// text-less but field-bearing data still renders the field comparison
+const dataless = {working: null, original: null, expected: {field: "2,400"}, extracted: {field: "2400"},
+  class: {gt: "contract", pred: "contract"}, rewritten: false, overlap: null};
+const bare = rdPanelHtml({id: "d", status: "ok", data: dataless, reads, specialists: ["contracts_specialist"],
+  on: [], callOff: [], original: false, field: null, hit: 0, cache: {}});
+assert.ok(bare.includes("rd-ft") && bare.includes("2,400") && bare.includes("2400"), "fields without text");
+assert.ok(bare.includes("not read"), "range judgments withheld, not silently claimed");
+console.log("render literal ok");
+'''
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_doc_endpoint_keeps_carriage_returns_so_read_ranges_line_up(tmp_path):
+    """Offsets count the stored characters; a CRLF text must not shrink on the way to the viewer."""
+    working = "Lease line one.\r\nRent is 2,400 dollars.\r\nLone CR here\rend."
+    base, run = _doc_store(tmp_path, working=working)
+    # write bytes: write_text would also be fine on Linux, but the file must hold the CRs verbatim
+    name = hashlib.sha1(b"d1", usedforsecurity=False).hexdigest()[:16] + ".txt"
+    (run / "doc_texts" / name).write_bytes(working.encode("utf-8"))
+    with _DocServer(tmp_path, base) as srv:
+        data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
+    assert data["working"] == working and len(data["working"]) == len(working)
 
 
 def test_shared_floor_digest_restores_its_filters_and_clears_foreign_filters():

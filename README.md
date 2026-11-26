@@ -33,9 +33,10 @@
 - [📟 At a glance](#at-a-glance)
 - [🎚️ Model tiers](#model-tiers)
 - [⌨️ CLI](#cli)
+- [🩹 Hotfixes](#hotfixes)
 - [📚 Docs](#docs)
-- [✍️ Specialist extraction rules](#specialist-extraction-rules)
 - [🗂️ Layout](#layout)
+- [📦 Vendored dependencies](#vendored-dependencies)
 - [🐳 Offline Docker and notebooks](#offline-docker--notebooks)
 - [🌌 Where it fits](#where-it-fits)
 - [❓ FAQ](#faq)
@@ -45,8 +46,6 @@
 </details>
 
 <a id="what-is-this"></a>
-
-Verified release caching and source selection: [stable dependency snapshots](docs/dependency-snapshots.md).
 
 ## 🧪 What is this?
 
@@ -59,7 +58,8 @@ This repository does **not** fork the pipeline. It ships the family code it
 needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline
 (`llm-mailroom`) and the scoring engine (`llm-dojo-scoring`) are self-contained
 copies, each pinned to an exact source commit in its `VENDOR.md`, with config,
-serving, eval and scoring overlays on top.
+serving, eval and scoring overlays on top. Fixes the experiments need before
+upstream ships them are [hotfixes](#hotfixes) in `src/`, never edits to `vendor/`.
 
 <div align="center">
 <picture>
@@ -100,7 +100,7 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # before tracked vendor files are replaced:
 # Stop every sandbox process using this checkout before refreshing vendor trees.
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
-# sandbox deps fetch --component dojo --version v0.29.0  # optional verified release cache
+# sandbox deps fetch --check --offline  # read-only: vendor pin, verified caches, selected source
 sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
 sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
 sandbox health                     # probes the deployed modal-vllm endpoint
@@ -229,45 +229,77 @@ spend. See [Providers](docs/setting-up/providers.md) and
 
 ## ⌨️ CLI
 
+Every top-level command, grouped. Flags and every subcommand are in the generated
+[CLI reference](docs/cli-reference.md).
+
 ```bash
+# Setup and serving
 sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
-sandbox up | down | health | doctor | pull-models | fetch-deps | cutover | profiles | agents
+sandbox runbook list|show <id>|check|write              # operator runbooks (catalog → docs/runbooks/)
+sandbox up | down | health | doctor | pull-models | cutover | profiles | agents
+sandbox fetch-deps | deps fetch [--check]               # refresh vendor snapshots | verified release cache
 sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough (status lists scoped sandbox-* apps too)
+sandbox modal-matrix list|show|env                      # Modal+vLLM model/GPU rows from config/models.yaml
 sandbox vllm probe|command|serve|metrics                # endpoint probe + local serving
+sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox hf whoami|download|cache|raw                    # pinned revision by default
 sandbox pipeline watcher | pipeline api
+sandbox api status | api eval [--mock|--submit]         # client for a running mailroom API + the Dojo
+
+# Smoke and evals
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
 sandbox eval specialist [TARGET] [--mock|--local]      # all five specialists, or one
 sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every class or one
 sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
+sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
 sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # default serving
 sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1 --local   # API serving
+sandbox modernbert status|eval                          # mailroom-ml ModernBERT feeder
+
+# Data, splits and labels
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
+sandbox splits build|audit|show                         # frozen dev / calibration / held-out split (offline)
+sandbox schemas build|show                              # per-subclass extraction schemas vs the truth layers
+
+# Experiments and runs (paid steps ask for initials)
 sandbox experiment designs|create|review|preflight|launch|watch|report
 sandbox experiment create NAME --task pipeline --specialist-tier base|mid|full   # stronger specialists
 sandbox experiment create NAME --task pipeline --decision-reviewer decisions:openai/gpt-6-luna-decisions --decision-class contract=0.90   # frozen Decisions reviewer, lineage frontrunner question set
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
-sandbox rescore <run> [--revision v9.3 | --dataset-file F] [--dry-run]   # re-score stored answers against new truth, no model call (docs/rescore.md)
+sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
+sandbox run routing|gate|card|suite|benchmark-check     # audits, gates and cards for finished runs
+sandbox run deploy-env|scrape-metrics|export-bt|dispose # Modal env exports, /metrics sampling, offline BT rows
+sandbox autoresearch plan|step|run|status|holdout --study PATH   # config-only lever search (docs/autoresearch.md)
+sandbox review list|show|resolve                        # human review of parked documents (needs a running API)
+
+# Scoring and reports (no model calls)
+sandbox rescore <run> [--revision v9.3 | --dataset-file F] [--dry-run]   # re-score stored answers against new truth (docs/rescore.md)
+sandbox pain-points                                     # pain-point composites per document and experiment
+sandbox scorecard                                       # TUI scorecard for a finished run
+sandbox report build --run <id> | --campaign rb1 [--check]   # campaign report tree under reports/campaigns/
+sandbox metrics compare|extrapolate|serving-record|estimate-suite   # serving metrics, cost extrapolation, GPU estimates
+
+# Watching and tracing
 sandbox web [TARGET]            # themed browser watcher; no TARGET = the SAND-032 current run if published, else the newest run, switching live (= watch --web)
 sandbox watch [TARGET]          # same in the terminal; TARGET = run ID | run YAML | run name | experiment.yaml (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox floor [RUN] [--base DIR] [--replay]   # live pipeline floor + offline replay on :8769 (docs/floor.md)
 sandbox floor --replay-run <run-dir|id>      # replay a recorded Modal/OpenRouter/Ollama run, any provider
-sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
-sandbox prompts list | show <agent> [--variant X]
-sandbox subagents list|show|sync --harness project [--check]|doctor|preflight|dispatch-check|checkpoint
-sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
-sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
-sandbox metrics compare --runs local,modal,api | --log
-sandbox tunnel --profile vllm-remote plan|up|status|down
-sandbox traces export
-sandbox tui                     # interactive operator terminal (spend gates stay on)
-sandbox doctor [--service NAME] [--live] [--publish]   # one status table for every external CLI/service; --live adds the Modal account check
-sandbox board [--tui]           # persistent job board for every mailroom.beacon/v1 job
 sandbox web --demo [--pipeline] # themed watch UI on a synthetic run (no Modal, no spend; = sandbox dev)
+sandbox board [--tui]           # persistent job board for every mailroom.beacon/v1 job
+sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
+sandbox traces export | traces pack                     # trace bookmark | zip a run's local span mirror
+sandbox tui                     # interactive operator terminal (spend gates stay on)
+
+# Prompts, agents and CI
+sandbox prompts list | show <agent> [--variant X]
+sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
+sandbox subagents list|show|packages|sync --harness project [--check]|doctor|preflight|dispatch-check|checkpoint|propagate|materialize
+sandbox circleci logs                                   # fetch failed CircleCI steps for a job or pipeline
+sandbox doctor [--service NAME] [--live] [--publish]   # one status table for every external CLI/service; --live adds the Modal account check
 ```
 
 Named datasets live in [`config/datasets.yaml`](config/datasets.yaml). Run
@@ -289,20 +321,46 @@ reference — every command, subcommand and argument — is
 `python scripts/check_cli_surface.py`); the curated on-ramp is the
 [Quickstart guide](docs/setting-up/QUICKSTART.md).
 
+<a id="hotfixes"></a>
+
+## 🩹 Hotfixes
+
+The vendored pipeline and scoring engine are never edited. When an experiment
+needs a fix before the owning repository ships it, the fix is a **hotfix**: a
+wrapper in `src/` with an id, bound by sha256 to the source it
+corrects, recorded in every run lock and checked by `sandbox run preflight`. A
+vendor refresh that changes the target marks the hotfix `stale`, and preflight
+fails until it is re-validated or retired.
+
+| Registry | Ids | Corrects | Docs |
+| :--- | :--- | :--- | :--- |
+| `src/mailroom_sandbox/vendor_hotfixes.py` | `HF-*` | Pipeline behaviour in the vendored llm-mailroom (judge retries, intake reads, arbiter roles, …) | [Vendor hotfixes](docs/vendor-hotfixes.md) |
+| `src/mailroom_sandbox/scoring_hotfixes.py` | `SHF-*` | Scoring in the vendored Dojo; every scored row also keeps the raw Dojo value under `raw_dojo` | [Scoring hotfixes](docs/scoring-hotfixes.md) |
+
+Each page lists every id with its status. When upstream ships the fix and the
+vendor pin moves past it, the hotfix is retired: its code goes, and its row
+stays in the docs, marked retired.
+
 <a id="docs"></a>
 
 ## 📚 Docs
 
 | Guide | Description |
 | :--- | :--- |
+| [**Docs index**](docs/README.md) | **Every page under `docs/`**, grouped: guides, references, hotfixes, design records, audits, archive |
 | [Experiment workflow](docs/experiments.md) | Paired designs, pipeline/hybrid agent models, initials-gated spend, smoke, observer, and reports |
 | [Autoresearch](docs/autoresearch.md) | Config-only greedy lever search over locked runs: weakness table, paired bootstrap, ledger, held-out confirmation |
-| [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
+| [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, first runs, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
 | [Experiment figures](docs/experiment-figures.md) | Per-run and H5 sorter-vs-decision figures: commands, how to read each figure, the cost rule, the linter |
 | [Decision model inputs](docs/decision-model-inputs.md) | Decisions API reference for Luna, how each role formats its request, proposed changes for question set 4.2.0, split integrity and statistical power. A draft 4.2.0 set locks its routing-code digest; resume refuses a changed digest ([design](docs/decision-model-input-design.md)) |
 | [Pipeline floor](docs/floor.md) | Live history, simulated replay, digest figures and troubleshooting |
+| [Rescore](docs/rescore.md) | Re-score a finished run against new truth, no model calls |
+| [Staged label overlay](docs/staged-label-overlay.md) | The production label overlay and its pinned versions |
+| [Critical regressions](docs/critical-regressions.md) | The silent-failure classes every PR is checked against |
+| [Extraction rules](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems) | Frozen specialist extraction rules and the registered communication types |
+| [Extraction gate](docs/EXTRACTION_GATE_VETTING.md) | The Decisions-API extraction reviewer (`task: extraction_gate`) and its vetting |
 | [Named datasets](docs/datasets/named-datasets.md) | Registry schema, paths, selection, hashes and lock migration |
 | [CI verification](.circleci/README.md) | Worker scheduling, caches, gates, artifacts and hosted runtime evidence |
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
@@ -311,89 +369,58 @@ reference — every command, subcommand and argument — is
 | [Layout contract](docs/setting-up/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
-<a id="specialist-extraction-rules"></a>
-
-## ✍️ Specialist extraction rules
-
-- `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
-  `subsidiary_list` emits `record_type: other`, the parent as `entity_name`,
-  a subsidiary listing in `subject_matter`, and subsidiary names in `keywords`.
-  `filing_number` is null unless an official filing or document number is present;
-  an exhibit ID never qualifies.
-- `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
-  `communication_type` is null when no registered token fits the visible text;
-  continue extracting sender, recipient, and date from headers. Do not invent a type.
-
-See [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
-for the registered communication types and source links.
-
-### Extraction gate (`task: extraction_gate`)
-
-The extraction gate is a Decisions-API reviewer of a specialist's extraction: it reads the
-document plus the extracted fields and answers a verdict (accept, retry the extraction, or
-human review) and a yes/no "is this field supported" probability per key field.
-
-- The run needs `reviewer.backend: decisions`, a `kind: extraction_gate` question set
-  (`config/decisions/extraction_gate_v*.yaml`) and `reviewer.handoff_run`: the finished
-  specialist run(s) whose extractions it reviews. Preflight refuses a live run without them.
-- `scripts/extraction_gate.py` builds the input rounds (`inputs`, `expand`) and calibrates a
-  finished gate run against the Dojo scores (`calibrate`, which pools rounds with `--run`
-  repeated). Reports go to `reports/extraction-gate/`.
-
 <a id="layout"></a>
 
 ## 🗂️ Layout
 
-<details>
-<summary>Directory map</summary>
-
 ```text
-config/profiles/     provider profiles (local-first defaults)
-config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
-config/prompts/      frozen prompt stems (referenced by name from run specs)
-docs/prompts/        catalog of every eval-environment prompt version: memos, changes, diffs, full text (generated)
-config/taxonomy.overlay.yaml
-config/models.yaml   OpenRouter champion → local tag map
-deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
-notebooks/           offline env setup + data prep + mock smoke + log explorer
-data/fixtures/       offline samples (see ATTRIBUTION.md)
-src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom + llm-dojo-scoring; exact source commits in each VENDOR.md)
-reports/             sandbox experiment log (not a sister-repo mirror)
-governance/          SAND-* board (README / PREFIX / TASKS / archive)
-api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
-                     (`python api-evals/run_api_evals.py`), not packaged, not in the Docker image.
-                     Run specs here are the real-spend `api-*` tasks; see docs/setting-up/LAYOUT.md.
+src/mailroom_sandbox/  the sandbox package: CLI, runtime overlay, eval, jobs, hotfixes, TUI and web viewers
+vendor/                tracked family snapshots (llm-mailroom + llm-dojo-scoring); never hand-edited
+config/                profiles, models, prices, datasets, run specs (runs/), prompts, decision question sets,
+                       splits, experiments, autoresearch studies, runbook catalog
+tests/                 the network-free suite (CI runs it all; run named files locally)
+scripts/               maintenance tools and per-campaign scripts (see scripts/README.md)
+docs/                  guides and references; design records, audits, research and archive (see docs/README.md)
+reports/               committed reports, figures and the reports hub (see reports/README.md)
+data/                  fixtures, labels, handoff sets (tracked); cache and runtime state (gitignored)
+deploy/                Dockerfile + compose + Modal vLLM and job worker + htcondor/ + conda/
+notebooks/             offline env setup + data prep + mock smoke + log explorer
+api-evals/             OpenRouter API cost harness: its own config/runs/, reports/ and CLI, not packaged
+governance/            SAND-* board (README / PREFIX / TASKS / archive)
+requirements/          generated pip mirrors of pyproject.toml extras
 ```
 
-</details>
+[`docs/setting-up/LAYOUT.md`](docs/setting-up/LAYOUT.md) is the full contract:
+which folder owns what, why the two `config/runs/` trees stay separate, and
+which paths a test freezes.
 
-Full rules — including why the two `config/runs/` trees stay separate and which
-paths are frozen by a test — are in [`docs/setting-up/LAYOUT.md`](docs/setting-up/LAYOUT.md).
-The exact snapshot commits are in
-[`vendor/llm-mailroom/VENDOR.md`](vendor/llm-mailroom/VENDOR.md) and
-[`vendor/llm-dojo-scoring/VENDOR.md`](vendor/llm-dojo-scoring/VENDOR.md).
+<a id="vendored-dependencies"></a>
 
-<!-- coderabbit-ai-generated:v1 -->
+## 📦 Vendored dependencies
 
-<!-- coderabbit-ai-generated-section:v1:9ab2954d92c2540a9b8f7ecfa14714134e2ac31afdb48a246d3df2687412a892 -->
-
-| Vendored tree | Version | Source commit | What it includes |
+| Vendored tree | Version | Source commit | Notes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.3 | `8cebcd8` (`main` after llm-mailroom #287, the v0.30.0 release line; untagged) | `abb1ccf` plus #261 (a 200 with `choices: null` is transient, not a `judge_error`), #262 (opt-in chunk-merge evidence policy), #263 (backlog fixes), #264 (routing ignores `ground_truth` unless oracle routing is on), #265 (bounded retry handoff, every attempt recorded, opt-in keep-best) and #271 (decision-reviewer backend errors recorded; correspondence typed by content, not carrier), #280 (insurance `claim_type` is the product line; a CMS table row is `health`), #281 (Dojo pin `025400f`), #283 (CMS `cms_source_table` and `supporting_documents`), #284 (opt-in interim GT overlay), #286 (routing as data) and #289/#291 (decision points, off by default) |
-| `vendor/llm-dojo-scoring/` | 0.30.1 | `7d69bbd` (`main` after llm-dojo-scoring #185; untagged, pre-release) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; #163 date, archive, Wilson, decision-lane and MAUD fixes; #166 correspondence `production_prompts` v8 candidate (content, not carrier); #169 a typed decision with no gold for its class is `no_gold`; #173 CUAD agreement and expiration dates count toward recall only; #181 the unreleased 0.30.2 scoring fixes; #185 the pain-point composites (`pipeline.pain_points`) |
+| `vendor/llm-mailroom/` | 0.9.3 | `8cebcd8` (`main` after llm-mailroom #287; untagged) | Upstream changes since the last tag are listed in [`VENDOR.md`](vendor/llm-mailroom/VENDOR.md) |
+| `vendor/llm-dojo-scoring/` | 0.30.1 | `7d69bbd` (`main` after llm-dojo-scoring #185; untagged, pre-release) | Includes the unreleased 0.30.2 fixes and the pain-point composites; see [`VENDOR.md`](vendor/llm-dojo-scoring/VENDOR.md) |
 
-<!-- /coderabbit-ai-generated:v1 -->
+Both pins are reviewed, untagged commits; each moves to a release tag once one
+is cut. `tests/test_vendor.py` keeps this table, the badges and the paragraph
+below in step with each `VENDOR.md`.
 
-Both pins are reviewed, untagged commits: llm-mailroom `8cebcd8` (llm-mailroom `main`, the v0.30.0
-release line) and Dojo `7d69bbd` (Dojo `main` after #185, ahead of the 0.30.2 release). Each moves to a
-release tag once one is cut.
+### Reviewed dependency refreshes (DMR-111)
 
-With no API token, the guard serves token-protected routes only on a loopback listener and
-answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and
-the API docs have no token check and stay open. The guard reads the listener address, not the
-remote client, so a same-host proxy that adds none of those headers looks local: set a token
-behind any proxy.
+The tracked snapshots contain pipeline 0.9.3 (llm-mailroom `main` after #287, `8cebcd8`) and
+Dojo 0.30.1 plus the unreleased 0.30.2 fixes (llm-dojo-scoring `main` after #185, `7d69bbd`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+uses workspace packages when available and retrieves the reviewed immutable
+commit or frozen release tag in standalone checkouts. Ref movement, fetch,
+layout and copy failures leave the previous snapshot intact. If installation
+and rollback both fail, the command prints the preserved recovery directory.
+
+`--visualizer` retrieves a separately reviewed exact visualizer commit. An
+existing checkout with local files or a different HEAD is preserved and rejected;
+review it and move it aside before requesting a fresh pinned checkout. Large LFS
+assets are not downloaded. Selecting a verified release cache instead of the
+snapshot is covered in [stable dependency snapshots](docs/dependency-snapshots.md).
 
 <a id="offline-docker--notebooks"></a>
 
@@ -483,6 +510,17 @@ and the `api-evals/` harness is the real-spend API path, kept outside the packag
 </details>
 
 <details>
+<summary><b>Is the mailroom API safe to run behind a proxy?</b></summary>
+
+Set a token. With no API token, the guard serves token-protected routes only on
+a loopback listener and answers 503 to requests carrying `Forwarded`,
+`X-Forwarded-For` or `X-Real-IP`. `/health` and the API docs have no token check
+and stay open. The guard reads the listener address, not the remote client, so
+a same-host proxy that adds none of those headers looks local.
+
+</details>
+
+<details>
 <summary><b>Where do I see a run?</b></summary>
 
 Traces land in Langfuse under the `document-pipeline` root name; see
@@ -536,19 +574,3 @@ The sandbox drives the vendored family code through these open-source projects.
 <sub>🧪 <i>Mock first, then local, then scored.</i> · Artwork: <a href="docs/assets/readme/README.md">design and regeneration</a></sub>
 
 </div>
-
-### Reviewed dependency refreshes (DMR-111)
-
-The tracked snapshots contain pipeline 0.9.3 (llm-mailroom `main` after #287, `8cebcd8`) and
-Dojo 0.30.1 plus the unreleased 0.30.2 fixes (llm-dojo-scoring `main` after #185, `7d69bbd`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
-uses workspace packages when available and retrieves the reviewed immutable
-commit or frozen release tag in standalone checkouts. Ref movement, fetch,
-layout and copy failures leave the previous snapshot intact. If installation
-and rollback both fail, the command prints the preserved recovery directory.
-
-`--visualizer` retrieves a separately reviewed exact visualizer commit. An
-existing checkout with local files or a different HEAD is preserved and rejected;
-review it and move it aside before requesting a fresh pinned checkout. Large LFS
-assets are not downloaded. CUAD/MAUD row and pooled headline metrics delegate to
-Dojo; null ground-truth answers are unlabelled, while genuine zero scores remain
-numeric zero. The production and evaluation corporate prompt catalogs stay distinct.

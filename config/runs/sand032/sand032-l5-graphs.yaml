@@ -1,5 +1,5 @@
 # SAND-032 Stage 1 L5 — + CUDA graphs (eager off, capture 1,2,4,8,16).
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 #
 #   modal profile activate exios66

@@ -33,6 +33,7 @@ import re
 import statistics
 import sys
 from collections import Counter
+from collections.abc import Collection, Iterator
 from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
@@ -341,13 +342,12 @@ def parse_graph(path: Path) -> dict:
 # ── artifact readers (tolerant: missing / torn files degrade, never fabricate) ──
 
 
-def read_jsonl(path: Path) -> list[dict]:
-    """Read object rows, skipping blank, malformed, and non-object lines.
+def iter_jsonl(path: Path) -> Iterator[dict]:
+    """Yield object rows one at a time, skipping blank, malformed, and non-object lines.
 
-    Missing or unreadable files yield the rows read so far; invalid UTF-8 is
-    replaced before parsing.
+    A missing or unreadable file ends the iteration after the rows already yielded; invalid UTF-8
+    is replaced before parsing.
     """
-    rows: list[dict] = []
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -359,10 +359,18 @@ def read_jsonl(path: Path) -> list[dict]:
                 except ValueError:
                     continue
                 if isinstance(row, dict):
-                    rows.append(row)
+                    yield row
     except OSError:
-        pass
-    return rows
+        return
+
+
+def read_jsonl(path: Path) -> list[dict]:
+    """Read object rows, skipping blank, malformed, and non-object lines.
+
+    Missing or unreadable files yield the rows read so far; invalid UTF-8 is
+    replaced before parsing.
+    """
+    return list(iter_jsonl(path))
 
 
 def read_json(path: Path) -> dict:
@@ -407,6 +415,165 @@ def discover_runs(base: Path) -> list[tuple[str, Path]]:
             if child.is_dir() and (child / "items.jsonl").is_file():
                 found.append((source, child))
     return found
+
+
+# ── read ranges (numbers only; the text is served by the loopback endpoint) ─────
+
+
+def _int_pair(value) -> list[int] | None:
+    """A ``[start, end)`` pair of non-negative ints with start < end, else None."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    a, b = value
+    if any(isinstance(v, bool) or not isinstance(v, int) for v in (a, b)):
+        return None
+    return [a, b] if 0 <= a < b else None
+
+
+def _clean_ranges(raw) -> list[list[int]]:
+    """Valid range pairs only; anything else is dropped."""
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [pair for pair in (_int_pair(v) for v in raw) if pair is not None]
+
+
+def _merge_ranges(ranges: list[list[int]]) -> list[list[int]]:
+    """Sort and merge overlapping or touching ``[start, end)`` pairs."""
+    merged: list[list[int]] = []
+    for start, end in sorted(ranges):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+
+def _last_call_sequence(records: list[dict]) -> list[dict]:
+    """The last call sequence of one document's read records.
+
+    Call numbers are assigned per document attempt, starting at 1. A resumed document re-appends
+    ``call=1..n``, so a record with ``call == 1`` starts a new sequence that supersedes the earlier
+    one. Any other record extends the current sequence, even when concurrent calls wrote their
+    records out of order (call 3 before call 2). Records without an integer call extend it too.
+    """
+    sequence: list[dict] = []
+    for rec in records:
+        call = rec.get("call")
+        if call == 1 and isinstance(call, int) and not isinstance(call, bool):
+            sequence = []
+        sequence.append(rec)
+    return sequence
+
+
+def _doc_reads(records: list[dict]) -> dict:
+    """``debug.reads`` for one document: calls, per-agent merged ranges, working-text length. No text.
+
+    ``doc_chars`` is the working text's length: the value on the last working-basis call of the
+    kept sequence, or None when no such call recorded one. A raw-basis call measured the raw row
+    text, which intake may have shortened, so its length never stands for the working text.
+    """
+    kept = _last_call_sequence(records)
+    calls: list[dict] = []
+    by_agent: dict[str, list[list[int]]] = {}
+    doc_chars: int | None = None
+    tag: str | None = None
+    for rec in kept:
+        agent = str(rec.get("agent") or "?")
+        ranges = _clean_ranges(rec.get("ranges"))
+        call = {
+            "agent": agent,
+            "node": rec.get("node") if isinstance(rec.get("node"), str) else None,
+            "basis": rec.get("basis") if rec.get("basis") in ("working", "raw") else None,
+            "ranges": ranges,
+            "matched": int(_num(rec.get("matched_chars")) or 0),
+            "request": int(_num(rec.get("request_chars")) or 0),
+        }
+        if isinstance(rec.get("skipped"), str) and rec["skipped"]:
+            call["skipped"] = rec["skipped"]
+        unplaced = int(_num(rec.get("unplaced_pieces")) or 0)
+        if unplaced > 0:
+            # The request was only partly measured (budget or gap size): a definitive "not read"
+            # cannot be judged against this call's coverage.
+            call["unplaced"] = unplaced
+        if rec.get("ranges_approx") is True:
+            # Capping merged unread gaps into the ranges: they locate approximately.
+            call["approx"] = True
+        calls.append(call)
+        by_agent.setdefault(agent, []).extend(ranges)
+        if call["basis"] == "working" and (_num(rec.get("doc_chars")) or 0) > 0:
+            doc_chars = int(_num(rec["doc_chars"]))
+            if isinstance(rec.get("text_hash"), str) and rec["text_hash"]:
+                tag = rec["text_hash"]
+    return {
+        "calls": calls,
+        "union": {agent: _merge_ranges(rs) for agent, rs in by_agent.items()},
+        "doc_chars": doc_chars,
+        "_text_hash": tag,  # consumed by read_ranges_by_doc, never emitted as a record hash
+    }
+
+
+def _text_hash(data: bytes) -> str:
+    """The tag read records carry (``mailroom_sandbox.job.read_ranges.text_hash``): sha1 hex[:16] of the UTF-8 bytes."""
+    return hashlib.sha1(data, usedforsecurity=False).hexdigest()[:16]
+
+
+def _stored_text_hash(path: Path, doc: str) -> str | None:
+    """The content tag of the stored working text (``doc_texts/<sha1(doc)[:16]>.txt``), or None.
+
+    A symlink is not followed and a missing file yields None, like the viewer's endpoint.
+    """
+    name = hashlib.sha1(doc.encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
+    file = path / "doc_texts" / name
+    try:
+        if file.is_symlink() or not file.is_file():
+            return None
+        return _text_hash(file.read_bytes())
+    except OSError:
+        return None
+
+
+def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[str, dict] | None:
+    """``debug.reads`` per document id from a run's ``reads.jsonl``; None when the run has none.
+
+    ``docs`` limits the work to those document ids (the rows the digest keeps): other documents'
+    records are dropped as they stream past, so they are never accumulated, merged or paired, and
+    only the kept documents' stored texts are hashed. ``None`` means every document. The entry of
+    a document is the same either way.
+
+    Torn or malformed lines are skipped (``iter_jsonl``). Only offsets and counts are read
+    out of each record, never any document text. When the kept calls carry a ``text_hash``,
+    ``text_pairing`` says whether the stored text still hashes to it (``match``, ``different`` or
+    ``missing``) — that keeps the read-record tag for range validation. ``text_hash`` itself is
+    the STORED FILE's content tag (not the records'), so the viewer pairs the text it serves
+    with the text the digest saw without mistaking a rewrite that outran its records (an
+    attempt stored the new text and died before its first read) for a stale cache; it is a
+    content tag, not a secret.
+    """
+    reads_path = path / "reads.jsonl"
+    if not reads_path.is_file():
+        return None
+    wanted = None if docs is None else {str(d) for d in docs}
+    per_doc: dict[str, list[dict]] = {}
+    for rec in iter_jsonl(reads_path):
+        if rec.get("doc") is not None:
+            doc = str(rec["doc"])
+            if wanted is None or doc in wanted:
+                per_doc.setdefault(doc, []).append(rec)
+    out: dict[str, dict] = {}
+    for doc, recs in per_doc.items():
+        reads = _doc_reads(recs)
+        tag = reads.pop("_text_hash")
+        stored = _stored_text_hash(path, doc)  # hashed once per kept document
+        if tag:  # records without a tag are from before pairing existed: the length check alone applies
+            reads["text_pairing"] = "missing" if stored is None else ("match" if stored == tag else "different")
+        if stored:
+            # The stored file's own tag, not the records': what the served text should still
+            # match. A rewrite the records do not know about (they kept the old tag, and
+            # ``text_pairing`` says ``different``) no longer trips the viewer's cache check,
+            # which would refetch the same unchanged text forever.
+            reads["text_hash"] = stored
+        out[doc] = reads
+    return out
 
 
 # ── per-run digest ──────────────────────────────────────────────────────────────
@@ -855,6 +1022,18 @@ def _review_causes(item: dict) -> list[str]:
             if len(found) >= 8:
                 return found
     return found
+
+
+def _arbiter_caveats(item: dict) -> dict | None:
+    """The HF-014 caveat marker of an archive the extraction arbiter accepted with caveats, else None.
+
+    ``{"hf014": bool, "why": str}``; ``hf014`` means the vendored route would have parked it.
+    """
+    for holder in (item, item.get("pred"), item.get("prediction")):
+        marker = holder.get("arbiter_caveats") if isinstance(holder, dict) else None
+        if isinstance(marker, dict):
+            return {"hf014": marker.get("hf014") is True, "why": _clip(str(marker.get("reasoning") or ""))}
+    return None
 
 
 def _decision_bits(decisions: list) -> str:
@@ -1617,6 +1796,8 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             "fields": _field_notes(it, ds_by_id.get(item_id)),
             "labels": _label_provenance(ds_by_id.get(item_id)),
             "review": _review_trigger(it, recs),
+            # Present only on an archive accepted with arbiter caveats (HF-014 marker).
+            **({"caveats": caveats} if (caveats := _arbiter_caveats(it)) else {}),
             "note": _error_text(it),
             "debug": _diagnose(it, recs, bucket, str(stage) if stage else None,
                                _review_trigger(it, recs), _error_text(it), _pred_class(it),
@@ -1678,6 +1859,11 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     cursor = checkpoint.get("cursor")
     routing = _routing(items, ds_class)
     kept_docs, docs_omitted, docs_omitted_healthy = _select_doc_rows(doc_rows)
+    reads_by_doc = read_ranges_by_doc(path, {row["id"] for row in kept_docs})
+    if reads_by_doc is not None:  # absent file: the viewer says "not recorded"
+        for row in kept_docs:
+            if row["id"] in reads_by_doc:
+                row["debug"]["reads"] = reads_by_doc[row["id"]]
     state = checkpoint.get("state") or "unknown"
     last_activity = _last_activity(path)
     stalled_s = None
@@ -1715,6 +1901,9 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             for agent, ref in prompt_agents.items() if isinstance(ref, dict)
         )),
         "review_routed": {"total": sum(routed.values()), "by_stage": dict(sorted(routed.items()))},
+        # Present only when an archive was accepted with arbiter caveats (HF-014 marker).
+        **({"caveat_archives": {"total": len(caveat_rows), "hf014": sum(1 for r in caveat_rows if r["caveats"]["hf014"])}}
+           if (caveat_rows := [r for r in doc_rows if "caveats" in r]) else {}),
         "tokens": _tokens(nodes, [it for _, it in items]),
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),
@@ -1747,6 +1936,17 @@ def resolve_base(arg: str | None) -> Path:
     return Path(arg or os.environ.get("MAILROOM_BASE_DIR") or "./data")
 
 
+def named_runs(runs_found: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
+    """``(digest run name, dir)`` for each discovered run; a repeated dir name gains ``(source)``."""
+    named: list[tuple[str, Path]] = []
+    used: set[str] = set()
+    for source, path in runs_found:
+        name = path.name if path.name not in used else f"{path.name} ({source})"
+        used.add(name)
+        named.append((name, path))
+    return named
+
+
 def build_digest(base: Path, graph_path: Path) -> dict:
     """Build a timestamped digest of discovered runs and their graph.
 
@@ -1766,10 +1966,7 @@ def build_digest(base: Path, graph_path: Path) -> dict:
     plain_edges = {tuple(pair) for pair in graph.get("plain_edges") or []}
     runs: list[dict] = []
     classes: set[str] = set()
-    used: set[str] = set()
-    for source, path in runs_found:
-        name = path.name if path.name not in used else f"{path.name} ({source})"
-        used.add(name)
+    for name, path in named_runs(runs_found):
         run, run_classes = build_run(name, path, edge_set, plain_edges)
         runs.append(run)
         classes |= run_classes

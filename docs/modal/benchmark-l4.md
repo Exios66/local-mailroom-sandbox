@@ -31,5 +31,5 @@ concurrency and cost caps stay in `src/mailroom_sandbox/job/specialist_posture.p
 Suite order stays in `config/runs/suites/`.
 
 Related: [`modal-serving-ops.md`](modal-serving-ops.md) (warm-once doctrine),
-[`scale-matrix.md`](../scale-matrix.md) (4×L4 cells — not the singular path),
+[`scale-matrix.md`](../design/dmr068/scale-matrix.md) (4×L4 cells — not the singular path),
 [`jobs.md`](../jobs.md) (spec / preflight / resume).

@@ -14,7 +14,8 @@ outcome and its primary cause (``job/gate_causes.py``):
    was archived under (it confirmed the error), else ``sorter``.
 6. ``classification:reviewer_unknown`` / ``reviewer_disagreement``: ``reviewer``;
    ``classification:arbiter_escalated``: ``arbiter``.
-7. ``judge:*`` (a partial verdict with retries spent, a rejected extraction): ``judge``.
+7. ``judge:arbiter_escalated`` (the extraction arbiter sent the document to a person): ``arbiter``;
+   ``judge:*`` (a partial verdict with retries spent, a rejected extraction): ``judge``.
 8. ``extraction:*`` (missing field, wrong value, out of enum, date format, CUAD/MAUD misses) and a correct
    archive scored under 1.0: the class's specialist (``contracts_specialist`` ...).
 9. Anything else: ``pipeline`` (non-actionable).
@@ -92,7 +93,7 @@ def attribute(doc: DocScore) -> tuple[str, str] | None:
         return ("reviewer" if confirmed else "sorter"), cause
     if cause in ("classification:reviewer_unknown", "classification:reviewer_disagreement"):
         return "reviewer", cause
-    if cause == "classification:arbiter_escalated":
+    if cause in ("classification:arbiter_escalated", "judge:arbiter_escalated"):
         return "arbiter", cause
     if cause.startswith("judge:"):
         return "judge", cause

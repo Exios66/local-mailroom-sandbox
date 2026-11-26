@@ -6,7 +6,7 @@ same n, so it gets its own collector. Everything here reads the committed
 ``*.card.json`` written by ``sandbox run card --config …`` — no live run, no
 network.
 
-What it adds over the SAND-037 card, per docs/BENCHMARK-PROGRAM.md §5.2:
+What it adds over the SAND-037 card, per docs/design/sand043/benchmark-program.md §5.2:
 
 * **quality with an interval** — bootstrap 95% CI over the per-document scores;
 * **reliability** — ok rate with a Wilson interval, schema-valid rate,
@@ -1110,7 +1110,7 @@ def render_comparison_md(
         lines += [
             "_Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on "
             "the same 50 correspondence documents. Until then the SAND-037/39 floor in "
-            "`docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different "
+            "`docs/design/sand043/benchmark-program.md` §3 is the prior — it was measured on a different "
             "draw, so treat it as indicative only.",
             "",
         ]
@@ -1449,7 +1449,7 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
         "",
         _draw_claim(data.get("draw_identity") or _draw_identity()),
         "Design, metric contract and acceptance rules: "
-        "[`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).",
+        "[`docs/design/sand42/experiment-design.md`](../../docs/design/sand42/experiment-design.md).",
         "",
         "## Conditions",
         "",
@@ -1574,7 +1574,7 @@ def render_master_report_md(
         "temperature / memory) and recorded per condition; vLLM `/metrics` gives the engine side "
         "(TTFT, prefix-cache hit rate, preemptions, length finishes, KV use) per replica.",
         "* Sample sizes, the noise floor and the contracts caveat: "
-        "`docs/BENCHMARK-PROGRAM.md` §3 and `docs/SAND42-EXPERIMENT-DESIGN.md` §4.",
+        "`docs/design/sand043/benchmark-program.md` §3 and `docs/design/sand42/experiment-design.md` §4.",
         "",
         *render_completeness_md(data.get("completeness") or {}),
         "## Open items",
@@ -1592,7 +1592,7 @@ def render_master_report_md(
         "* This grid shows the second L4 does not pay per GPU, but not whether that is a property "
         "of the L4s or of the client feeding them. The controlled test — data-parallel with a "
         "per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is "
-        "designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).",
+        "designed in [`docs/design/sand42/followup-design.md`](../../docs/design/sand42/followup-design.md).",
         "",
         f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
         "",

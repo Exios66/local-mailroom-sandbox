@@ -21,6 +21,20 @@ no spend:
 python scripts/pull_staged_overlay.py --version 9.3.1-rc.10
 ```
 
+**New production slice preparations select `9.3.1-rc.10`.** The cache PR
+[mailroom-issues #253](https://github.com/LLM-Mailroom-Services/mailroom-issues/pull/253)
+landed on 2026-11-26 as merge commit `acd2133ae615e77b521422b8fdba3fa097e87762`;
+its pinned source `cfc351f6` remains reachable from main. All sixteen manifest-bound files
+verify, and the rc.9 comparison changes no protected Hub, reviewed, near-gold or owner cells.
+The seven production slice configs, their test and these instructions select rc.10 together.
+The manifest pin is unchanged. This selects a verified prerelease cut; it does not publish a
+stable release, launch or deploy a run, or promote machine annotations to human gold.
+
+Existing run locks retain their approved cut. Resume must refuse a changed config/lock;
+start a deliberately new preparation generation to use rc.10 rather than editing a frozen lock.
+The later corporate repair and notebook in sandbox #425 are outside this immutable cut,
+and rc.11 has not been staged or published.
+
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
   file's sha256, and every pinned file is checked. A cache whose bytes differ from the pin is

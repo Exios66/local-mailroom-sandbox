@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import functools
 import hashlib
 import json
 import os
@@ -428,6 +429,32 @@ def _class_counts(data: dict[str, list[dict]]) -> dict[str, Any]:
     return counts
 
 
+def _one_writer(cmd):
+    """Run a store-writing command (``build``, ``add``, ``review``) as the only writer.
+
+    Each one reads the stores, stages their new contents and swaps them in. Two writers that read
+    the same catalog would each stage only their own batch, and the later swap would erase the
+    earlier batch while both reported success. A second writer is refused (exit 1, nothing
+    written) rather than queued, so it re-reads the stores when it is run again.
+    """
+    @functools.wraps(cmd)
+    def locked(args: argparse.Namespace) -> int:
+        import fcntl
+
+        lock = gl.gold_dir().parent / ".gold-labels.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with lock.open("a") as guard:
+            try:
+                fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(f"{cmd.__name__.removeprefix('cmd_')} refused: another gold_labels build, add or review "
+                      f"holds {lock}; nothing was written. Run it again once that one has finished.",
+                      file=sys.stderr)
+                return 1
+            return cmd(args)  # closing the descriptor drops the lock
+    return locked
+
+
 @contextmanager
 def _staging(directory: Path):
     """A temporary directory beside ``directory`` (same filesystem, so files move atomically)."""
@@ -513,6 +540,7 @@ def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str
                                              encoding="utf-8")
 
 
+@_one_writer
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
     missing = [p for p in [*args.label, *(args.check or []), *(args.review or []), *(args.override or [])]
@@ -698,6 +726,7 @@ def _missing_field_source_problems(labelled: list, checked: list,
     return problems
 
 
+@_one_writer
 def cmd_add(args: argparse.Namespace) -> int:
     """Append label, check and review passes for documents the catalog does not hold yet.
 
@@ -804,6 +833,7 @@ def _supersedes_problem(rec: dict, decision: dict) -> str | None:
     return None
 
 
+@_one_writer
 def cmd_review(args: argparse.Namespace) -> int:
     """Apply review files to the committed catalog in place, without the label and check passes.
 

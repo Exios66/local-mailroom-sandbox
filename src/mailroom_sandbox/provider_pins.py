@@ -77,6 +77,10 @@ _ACTIVE: dict[str, dict[str, Any]] = {}
 _LC_ORIGINAL: type | None = None
 _LC_PENDING: contextvars.ContextVar[tuple[str, dict[str, dict[str, Any]], list[str]] | None] = (
     contextvars.ContextVar("provider_pins_lc_pending", default=None))
+# S2: the reservations the LangChain requests of one ``_generate`` call made (settled when it ends);
+# None outside a ``_generate`` scope, where a request is guarded without a reservation.
+_LC_RESERVED: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar("provider_pins_lc_reserved",
+                                                                                  default=None)
 CALL_PATHS = ("retry_chat_completion", "langchain", "decisions")
 
 
@@ -96,6 +100,28 @@ def load_pins(path: Path | None = None) -> dict[str, dict[str, Any]]:
             "canonical_slug": pin.get("canonical_slug"),
         }
     return out
+
+
+def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
+    """``call_guard.before_call()``, then tell the read-range observer what the guard decided.
+
+    A request the guard refuses never goes out, so the floor must not show it as read; one it
+    admits is recorded here, once per logical request (``read_ranges`` ignores a second admit).
+    Returns the request's reservation, which the caller settles (``call_guard.settle``).
+    """
+    from mailroom_sandbox.job import call_guard, read_ranges
+
+    try:
+        held = call_guard.before_call(prompt_tokens, completion_tokens)
+    except BaseException:
+        read_ranges.refuse_pending()
+        raise
+    read_ranges.admit_pending()
+    return held
+
+
+def _output_cap(request: dict[str, Any]) -> Any:
+    return request.get("max_completion_tokens") or request.get("max_tokens")
 
 
 def _is_openrouter(client: Any) -> bool:
@@ -331,12 +357,22 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         openrouter = _is_openrouter(client)
         fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
+        held = 0.0
         if openrouter:
             from mailroom_sandbox.job import call_guard
 
-            call_guard.before_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
+            # rb1 R01 / S2: no API call past the run's cap or the document's ceiling; the request
+            # reserves its worst-case cost until it ends.
+            held = _guard_call(*call_guard.request_tokens(kwargs.get("messages"), _output_cap(kwargs)))
             kwargs = pinned_kwargs(model, kwargs, pins)
-        response = original(client, **kwargs)
+        try:
+            response = original(client, **kwargs)
+        except BaseException as exc:
+            if held:
+                call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            raise
+        if held:
+            call_guard.settle(held, billed=False)
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)
@@ -373,6 +409,16 @@ def _stamp_provider_cost(result: Any, cost: Any) -> None:
             meta["cost"] = float(cost)
 
 
+def _settle_all(holder: list[float], exc: BaseException | None) -> None:
+    """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
+    may have been billed."""
+    from mailroom_sandbox.job import call_guard
+
+    billed = exc is not None and call_guard.billed_failure(exc)
+    while holder:
+        call_guard.settle(holder.pop(), billed=billed)
+
+
 def pinned_chat_openai(parent: type) -> type:
     """A ``ChatOpenAI`` subclass of ``parent`` that pins and records OpenRouter requests.
 
@@ -389,14 +435,44 @@ def pinned_chat_openai(parent: type) -> type:
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
                 return payload
-            from mailroom_sandbox.job import call_guard
+            holder = _LC_RESERVED.get()
+            if holder is None:
+                _guard_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
+            else:  # S2: inside _generate, which settles the reservation however the request ends
+                from mailroom_sandbox.job import call_guard
 
-            call_guard.before_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
+                holder.append(_guard_call(*call_guard.request_tokens(payload.get("messages"), _output_cap(payload))))
             model = str(payload.get("model") or getattr(self, "model_name", "") or "")
             pins = _ACTIVE  # one snapshot per request, as on the retry_chat_completion path
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]
             _LC_PENDING.set((model, pins, fallback))
             return pinned_kwargs(model, payload, pins)
+
+        def _generate(self, *args: Any, **kwargs: Any) -> Any:
+            holder: list[float] = []
+            token = _LC_RESERVED.set(holder)
+            try:
+                result = super()._generate(*args, **kwargs)
+            except BaseException as exc:
+                _settle_all(holder, exc)
+                raise
+            finally:
+                _LC_RESERVED.reset(token)
+            _settle_all(holder, None)
+            return result
+
+        async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
+            holder: list[float] = []
+            token = _LC_RESERVED.set(holder)
+            try:
+                result = await super()._agenerate(*args, **kwargs)
+            except BaseException as exc:
+                _settle_all(holder, exc)
+                raise
+            finally:
+                _LC_RESERVED.reset(token)
+            _settle_all(holder, None)
+            return result
 
         def _create_chat_result(self, response: Any, generation_info: dict | None = None) -> Any:
             pending = _LC_PENDING.get()

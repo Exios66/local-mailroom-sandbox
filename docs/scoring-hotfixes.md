@@ -58,7 +58,7 @@ answer from the same question-set response, not a second request.
 | SHF-010 | sandbox | A near-gold label supersedes a conflicting interim gate gap fill (not an `original_header` fill); the replaced value is kept under `truth_overrides` and scored as raw. Precedence reads the interim overlay the row was prepared with; when that snapshot is not passed and the current overlay's fingerprint differs from the row's, nothing is superseded. | sandbox (owner decision, `data/labels/review/INTERIM_AUDIT.md` step 2) |
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 ([#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) |
-| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
+| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `subclass_raw_dojo` on a pipeline run's `score_subclass` figures, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
 | SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
 | SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. A value an interim, near-gold or staged overlay supplied (the row's `interim_labels` / `near_gold_labels` / `staged_overlay` marker lists the field) is never dropped, because an interim correction leaves `intent_source` as `heuristic`. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
 | SHF-016 | sandbox | A contract row whose `cuad_clause_labels` map names no category (an empty CUAD universe, so `cuad_presence_f1` is `None`) keeps the suite field headline instead of the `None` that left the row unscoreable: the reviewed interim / near-gold field labels merged at truth prep stand in where the Hub supplied none. The row is marked `cuad_unlabeled` and `scoring_hotfixes` names `SHF-016`; the raw side keeps the Dojo pin's `None`, so `overall_extraction_score` shows under `scoring_hotfixes_changed` for exactly these rows. A contract row with labeled CUAD categories is unchanged, and the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the suite basis is not a stand-in there). | sandbox |
@@ -77,8 +77,15 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     preflight fails) instead of moving headlines while it reads `current`.
   - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;
     `scoring_hotfixes` lists `SHF-016`, and `scoring_hotfixes_changed` includes
-    `overall_extraction_score` for exactly the rows it moves (the raw side keeps the Dojo
-    pin's `None`, so the run-level means under `raw_dojo` still exclude them).
+    `overall_extraction_score` for exactly the rows it moves. The row's own `raw_dojo` keeps
+    the Dojo pin's `None`; what a run-level raw mean does with that depends on the path:
+    - `run_extract_eval`'s run `raw_dojo` leaves the rows out (its `raw_dojo.n_scored` is lower
+      than the headline's `n_scored` by exactly these rows).
+    - An isolated eval's raw side (`eval/runners._isolated_headline`) is the pre-hotfix
+      aggregate, where a row without truth averages in as 0, so these rows count as 0 there.
+    - A rescore's `scores.json` `raw_dojo` averages the scored items' hotfixed values (it is
+      the scored-only mean of SHF-005, not a fixes-off aggregate), so it includes them at
+      their headline score.
   - Not changed: a contract row with labeled CUAD categories still scores the CUAD basis, and
     the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the
     suite basis is not a stand-in there). The Hub's own field labels also score when it labels
@@ -126,6 +133,21 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     the scored n beside every metric of [critical regression 1](critical-regressions.md); it
     appears in `scoring_hotfixes_changed` when the two sides differ. `n_scored` is additive: `n`
     keeps its meaning.
+  - A pipeline run's headline does the same for its two means: `extraction_overall_n_scored` and
+    `extraction_overall_correct_class_n_scored` are the number of documents `extraction_overall`
+    and `extraction_overall_correct_class` average (documents with a numeric
+    `overall_extraction_score`, and for the second only those routed to their true class). A count
+    is 0 when its mean is `None`. `raw_dojo` carries both counts over the raw rows, and a count
+    that differs between the two sides appears in `scoring_hotfixes_changed`. Neither count is
+    sent to Langfuse. A record written before the counts existed has neither key: read a missing
+    count as unknown, not 0. A rescore's `scores.json` already reports `n` beside each per-item mean
+    (`means.overall_extraction_score.n`, and `scored` for the items); a stale-only item has no
+    headline score there and is not counted, while its own `raw_dojo` score stays on the item.
+    So the raw counts differ for the same items. A rescore's run-level `raw_dojo` `n` leaves out
+    a stale-only item, as its headline does, and also a failed item that SHF-005 zero-fills in the
+    headline only (one ok and one failed item: headline `n` 2, `raw_dojo` `n` 1). A live run's
+    `raw_dojo.extraction_overall_n_scored` counts a stale-only document (its raw score is a
+    number). Compare raw counts only within one kind of run.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
@@ -174,7 +196,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
   - Recorded as: `subclass_corrected` on the item and `subclass_corrections_applied` on the run.
     `scoring_hotfixes` lists `SHF-013`. The Hub-truth outcome stays under
-    `raw_dojo_subclass_correct` / `raw_dojo`.
+    `raw_dojo_subclass_correct` on the item and `subclass_raw_dojo` on the run's
+    `score_subclass` figures.
 - **SHF-010** (extended). `run_extract_eval` now passes each row's `truth_overrides`, so the raw
   side scores the interim value near-gold replaced.
   - Recorded as: the run's scores carry `raw_dojo`, `scoring_hotfixes`,

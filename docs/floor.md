@@ -44,6 +44,18 @@ historical run inputs are unchanged. Replay mode also writes its own persistent
 sample run inside the selected base; viewers sharing that base still see the
 same run artifacts.
 
+The replay sample (also the default when no runs exist) plays the committed
+120-document pinned sample on a wall-clock timeline of about 66 seconds, as its
+own labeled run inside the base. It shows staggered arrivals, recorded node
+latencies, concurrent in-flight documents, failed extracts, documents parked for
+human review, and a reviewer-resolved classification that re-enters extraction.
+The digest keeps each run's `review_routed` count split by trigger stage; review
+documents stay held (`failed` means a technical failure only). Per-run prompts
+come from `prompt.lock.json` (shown for the highlighted node only). A
+`state=running` run gets RUNNING pills and live counters, and the server skips a
+rebuild when the run artifacts are unchanged. Only the sample directory resets
+on each `--replay`.
+
 Port 8769 is separate from web/watch (8765/8766) and board/demo (8767/8768).
 See the [watch guide](pretty-logging/mailroom-themed-logging.md) for document
 logs and the [job guide](jobs.md) for starting or resuming real runs.
@@ -154,8 +166,98 @@ The builder adds a `debug` object on each document row:
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
+| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason, an `unplaced` piece count and an `approx` mark on capped calls), `union` per agent (the viewer's lanes use `calls`, which carry the node), and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Read metadata only, never document text: offsets, counts and flags, plus the `text_hash` content tag below. When the records carry a `text_hash`, `text_pairing` says whether the stored working text still hashes to it (`match`, `different`, `missing`), and `text_hash` is the stored file's own content tag — the hash the document panel compares the served text against; it is a content tag, not a secret. See the document panel below. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
 | `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
+
+### Document panel: what each agent read
+
+Select a document in DEBUG and the panel opens at the top of the DEBUG tab.
+It answers one root-cause question: did the agent that had to extract a value
+ever see the text that holds it?
+
+- **Text.** The working text (what the pipeline actually read after intake) in
+  a scrollable pane, with a **Working** / **Original** switch. A **rewritten**
+  badge with the verbatim share appears when the working text differs from the
+  dataset row's text. Read ranges index the working text, so the original view
+  draws no bands.
+- **Ranges.** One lane per agent and node in a minimap across the whole document,
+  and one toggle per lane that paints its ranges on the text (specialists start on,
+  and so does a specialist lane that first appears while the run is live). A lane is
+  labelled with the agent alone while that agent has one lane in the document, and
+  `agent · node` once it has more, for example `arbiter` (the extraction arbiter)
+  and `arbiter · classification_arbiter`; the minimap shortens the agent name
+  before it clips the node, and the tooltip always carries the full `agent · node`.
+  A call with no recorded node, as in an older digest, or at a node named like the
+  agent falls in the agent's own lane. A lane with more than one call also gets a
+  toggle per call. Only the last
+  attempt's calls are kept: a resumed or retried document starts again at call 1
+  and supersedes the earlier attempt, so those earlier calls do not appear.
+  Overlapping agents show as stacked stripes. Calls made
+  before intake finished were matched against the row's raw text; they appear
+  as dashed bars and are never painted on the working text.
+- **Colours** follow the figure roles of the `experiment-figures` skill: colour
+  is the system, shade is the stage. The decision lanes (`decisions:*`) use
+  decision-model blue, the sorter and its reviewer (`sorter_reviewer`) use
+  LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
+  the third-system aqua, and `intake` and `jev` are neutral. The classification
+  arbiter node runs on the `arbiter` agent, so it is a second `arbiter` lane
+  (`arbiter · classification_arbiter`). An agent with one lane keeps its
+  colour exactly, whatever its node. An agent with several lanes keeps its colour
+  on the lane whose call came first, and each later lane (in the order the calls
+  were recorded) is a lighter step of it: 35%, 50%, 65%, 20% and 80% lighter, so
+  lanes of one agent never share a swatch while it has six or fewer. From the
+  seventh lane on the steps repeat, and the label tells those lanes apart. A lane
+  that appears while the run is live takes the next step and does not recolour
+  the lanes already drawn. The agent's own colour comes from the figure style and
+  is not changed here; some of those colours (the decision classification blue,
+  `#1b4f94`, is 2.28:1) are dimmer than 3:1 on the minimap track. Every lighter
+  step is at least 3:1 against the track and keeps the band text readable (4.5:1
+  or better). An agent with no assigned colour gets the specialist, decision or
+  neutral grey swatch.
+- **Fields.** Every expected and extracted field, with a flag computed in the
+  browser. The search is whitespace- and case-insensitive. Click a field to
+  scroll to its occurrence; click again for the next.
+
+| Flag | Meaning |
+| --- | --- |
+| `not read` | The expected value occurs in the working text, but in no range read by a specialist that ran for this document. Every call of those specialists counts, retries included. |
+| `misrouted` | No specialist for the document's true class ran, so no field was extracted for that class. It replaces `not read`. A value absent from the text stays `not in text`. |
+| `no specialist ran` | The document was classified as its true class, but no specialist ran for it, so no field was extracted. It is shown instead of `misrouted` when the predicted class equals the true class. |
+| `not in text` | The expected value does not occur in the working text at all (a label or OCR difference, or a rewrite). |
+
+"Specialist" comes from the digest: the agents seen under a graph node labelled
+`specialists …` in the run's `node_agents`, plus any name ending `_specialist`.
+A class is matched to its specialist by name (`contract` and
+`contracts_specialist`); a document whose predicted class equals the true class
+counts as routed to whichever specialist ran. When a specialist call has no exact
+range (raw basis or a size skip), or the served text length differs from the
+recorded working length (`doc_chars`; null skips the check), `not read` is not claimed and the panel says why.
+When `text_pairing` is `different`, the stored text is from another attempt than the read ranges (a resumed run rewrote it, possibly to the same length), so the bands are withheld and no `not read` is raised; `misrouted` is still shown, because it does not depend on the ranges. The endpoint response carries the `text_hash` of the exact text it served, and the panel also withholds the bands when that hash differs from the digest's stored-text tag (a rewrite the digest has not rebuilt yet), refetching once per digest generation and then keeping the response. Stores recorded before the hash existed have no `text_pairing` and keep the length check alone.
+A specialist call that reached the 64-range cap has `approx` in the digest: capping merged the smallest gaps, so a range also spans unread text and cannot prove a value was read (the call's `matched_chars` stays exact). A call with `unplaced` pieces — a request piece the matcher could not place, whose gap was too large to scan included — was only partly measured. When any specialist call is approximate or partly measured, no definitive `not read` is claimed and the panel says so.
+"matches" and "differs" beside an extracted value compare strings only. They
+are not the Dojo score.
+
+**Where the text comes from.** `debug.reads` in the digest holds offsets and
+counts only. The text is served by the floor server at
+`GET /api/floor/doc?run=<run>&doc=<doc>` on the loopback address, from the run
+store the server was started on. Opened as a file, from a static host, as an
+imported digest or for a replay run, the fetch is not made and the panel says
+**text unavailable**; the lanes, toggles and call list still render from the
+digest. A run recorded without `reads.jsonl` shows "not recorded for this run":
+older runs, runs with `job.trace_reads: false`, and remote Modal runs until the job
+worker is next deployed (unverified, a paid live step). See
+[read ranges](jobs.md#read-ranges-jobtrace_reads) for the files and the switch.
+
+**Privacy.** The digest, its JS twin and the export never contain document
+text. The text stays in the run store and is shown only by the local server,
+for the document you selected. The server answers only requests whose Host header is
+`127.0.0.1`, `localhost` or `[::1]` on its own port (otherwise 403), so a web page on
+another hostname cannot read it through DNS rebinding; reaching it through an SSH tunnel on a
+different local port needs the same port on both ends. Do not share a screenshot of a real document;
+the committed fixtures and tests use synthetic text only. Every control is a
+native button, so Tab, Enter and Space work, and all document text is inserted
+as escaped HTML.
 
 A `why` sentence quotes only a stored decision, review cause, status, error,
 or an unconditional edge (`plain_edges`, such as `catalog_write` to

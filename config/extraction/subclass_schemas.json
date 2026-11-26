@@ -21044,7 +21044,7 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
+  "labeling_guide_sha256": "c18332043c9e424514bd5d86e030598a07bacfefdb13bca1fab2221a6a879c96",
   "min_dev": 20,
   "near_gold_overlay_sha256": "0c62fc0a82f4a0c6f08b432a6f063f95bc7415a8d4dc2fa016e70b820d525fb3",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"

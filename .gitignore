@@ -23,6 +23,8 @@ data/archive/
 data/warehouse/
 data/manifests/
 data/watcher.lock
+# scripts/gold_labels.py one-writer lock (runtime)
+data/labels/.gold-labels.lock
 data/watcher_heartbeat
 data/mailroom.db
 data/checkpoints.db
@@ -137,8 +139,6 @@ data/provider_health.lock
 .venv
 
 # Pipeline output from mock and live runs
-/data/archive
-/data/warehouse
 reports/run-ledger.md.lock
 reports/run-ledger.md.tmp
 
@@ -154,3 +154,6 @@ reports/autoresearch/*/.lock
 
 # Claude Code / agent local worktrees (never commit checkout clones)
 /.claude/worktrees
+
+# Stray wheels from `pip download` in the checkout root
+/*.whl

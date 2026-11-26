@@ -9,8 +9,17 @@ precedence:
    Enron cover note whose attachment was stripped, for example), so no reviewer can do better than
    abstain. A wrong archive of such a document keeps its classification or extraction cause;
 2. ``classification``: ``wrong_class`` (the archived or reviewed class is not the expected one),
-   ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated``;
-3. ``judge``: ``partial_exhausted`` (partial verdict, retries spent), ``judge_rejected``;
+   ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated`` (the classification
+   arbiter's ``classification_arbiter_escalated``). The reviewer's own doubt (low confidence,
+   ineligible label) ranks last of these: once the extraction arbiter has ruled, the class was
+   settled past that doubt, so the doubt is stale. When the item records that the classification
+   arbiter accepted a class (``classification_arbiter_decision`` ``accept_sorter`` or
+   ``accept_reviewer``), every reviewer cause (``reviewer_unknown``, ``reviewer_disagreement``, the doubt)
+   is settled: the judge and extraction lanes below decide first, and a reviewer cause names the park
+   only when nothing there does. An item that does not carry the decision keeps the order above;
+3. ``judge``: ``arbiter_escalated`` (the extraction arbiter's ``arbiter_escalated``: it ruled last on
+   the judge lane, so it wins over the verdict beside it), ``partial_exhausted`` (partial verdict,
+   retries spent), ``judge_rejected``;
 4. ``extraction``: the type of the lowest-scoring labelled field (see ``extraction_miss``), or for
    contracts and mergers, scored on one label field, ``cuad_missed`` / ``cuad_false`` / ``maud_wrong``;
 5. ``label_suspect``: the lowest field is a heuristic ``intent`` label and the document text states
@@ -40,10 +49,14 @@ _MECHANISM = {"judge_error": "judge_error", "transient_exhausted": "transient"}
 # reviewer_doc_type "unknown" or a reviewer that gave no usable answer
 _REVIEWER_UNKNOWN = frozenset({"reviewer_unavailable", "reviewer_no_text", "unknown_class"})
 _REVIEWER_DISAGREEMENT = frozenset({"reviewer_disagreement"})
-_ARBITER = frozenset({"classification_arbiter_escalated", "arbiter_escalated"})
+_ARBITER = frozenset({"classification_arbiter_escalated"})
+# the extraction arbiter (judge lane); the classification arbiter has its own token above
+_EXTRACTION_ARBITER = frozenset({"arbiter_escalated"})
 # the reviewer's own doubt, weaker than an outright disagreement or arbiter escalation
 _REVIEWER_DOUBT = frozenset({"reviewer_ineligible_label", "reviewer_low_confidence"})
 _WRONG_CLASS_TOKENS = frozenset({"class_miss"})
+# a classification arbiter answer that let the document on to extraction (anything else leaves its own token)
+_CLASSIFICATION_ACCEPTED = frozenset({"accept_sorter", "accept_reviewer"})
 _JUDGE_REJECTED = frozenset({"judge_partial", "judge_miss", "judge_incomplete"})
 _EXTRACTION = frozenset({"extraction_miss", "low_extraction_confidence", "hollow_extraction"})
 # Below this many characters of stripped text a document carries too little content to classify or
@@ -262,13 +275,27 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "input:near_empty"
     if is_wrong_class(doc_class, pred) or have & _WRONG_CLASS_TOKENS:
         return "classification:wrong_class"
+    # A classification arbiter that accepted a class let the document on to extraction, so whatever the
+    # reviewer doubted (disagreement, no answer, an unknown class, low confidence) is settled: the judge
+    # and extraction lanes that ran after it are the likelier cause. Without the recorded decision the reviewer causes
+    # keep their precedence.
+    settled = str(pred.get("classification_arbiter_decision") or "") in _CLASSIFICATION_ACCEPTED
+    reviewer = ""
     if str(pred.get("reviewer_doc_type") or "").strip().lower() == "unknown" or have & _REVIEWER_UNKNOWN:
-        return "classification:reviewer_unknown"
-    if have & _REVIEWER_DISAGREEMENT:
-        return "classification:reviewer_disagreement"
+        reviewer = "classification:reviewer_unknown"
+    elif have & _REVIEWER_DISAGREEMENT:
+        reviewer = "classification:reviewer_disagreement"
+    if reviewer and not settled:
+        return reviewer
     if have & _ARBITER:
         return "classification:arbiter_escalated"
-    if have & _REVIEWER_DOUBT:
+    # The extraction arbiter only runs after extraction, and the vendored routes reach extraction past
+    # reviewer doubt in one way: the classification arbiter accepted a class (one that did not accept
+    # would have left its own token, handled above). Reviewer doubt beside it is stale, so the
+    # extraction arbiter's park outranks it, whether or not the decision was recorded.
+    if have & _EXTRACTION_ARBITER:
+        return "judge:arbiter_escalated"
+    if have & _REVIEWER_DOUBT and not settled:
         return "classification:reviewer_unknown"
     if "judge_partial" in have and "retries_exhausted" in have:
         return "judge:partial_exhausted"
@@ -282,4 +309,6 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
             return f"extraction:{extraction_miss(row, pred)}"
         except ScorerError:
             return "mechanism:scorer_error"
+    if settled and (reviewer or have & _REVIEWER_DOUBT):  # nothing in the judge or extraction lane explains the park
+        return reviewer or "classification:reviewer_unknown"
     return f"mechanism:unmapped:{causes[0] if causes else 'none'}"

@@ -136,7 +136,14 @@ python scripts/gold_labels.py add --corpus DIR --revision SHA \
 ```
 
 It runs the same gates as `build` on the new files (roles, independence, the gate on the
-corpus text, reconcile, review resolution) and writes nothing when any of them fails. It also
+corpus text, reconcile, review resolution). A fatal failure (an input or independence refusal,
+a document outside the corpus, an unresolved review, or extended stores that fail
+`verify_catalog`) writes nothing. A single field that fails the gate is not fatal: the
+document's valid fields are committed and the failed one is kept in the supplementary store as
+a `gate_reject` row. That document then has a catalog record, so a second `add` for it is
+refused and `review` cannot fill the field (it settles existing records only); use
+`add --missing-fields` for a corrected independent pass, or a full `build` given every source. Only one `build`, `add` or `review` writes the
+stores at a time: a second one is refused untouched and can simply be run again. It also
 refuses a document that already has a catalog record (settle those with `review`), a file name
 already listed in `sources`, a review line for a document the add does not carry, and a
 document with a label pass but no check pass, because a second add could never complete it.

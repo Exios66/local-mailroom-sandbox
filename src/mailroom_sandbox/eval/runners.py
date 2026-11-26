@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -83,17 +83,25 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     return "L4" if profile in _GPU_PROFILES else None
 
 
+# ``classification_arbiter_decision`` lets the gate's cause typing tell reviewer doubt the classification
+# arbiter settled (it accepted a class) from doubt it left standing; None when that arbiter did not run.
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
-                        "reviewer_doc_type", "reviewer_confidence")
+                        "reviewer_doc_type", "reviewer_confidence", "classification_arbiter_decision")
 # llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
 # Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
 
 
+def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
+    from mailroom_sandbox.vendor_hotfixes import arbiter_caveats
+
+    return arbiter_caveats(result)
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
-    return {
+    expect = {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
@@ -101,6 +109,12 @@ def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
+    # A pipeline mock row can force the classification arbiter's decision the same way a
+    # hand-built expect dict can: without it the mock silently uses the class-matching fallback.
+    decision = row.get("classification_arbiter_decision")
+    if decision:
+        expect["classification_arbiter_decision"] = decision
+    return expect
 
 
 def _classify_mock(row: dict[str, Any]) -> str:
@@ -124,6 +138,27 @@ def isolated_call_scope(task: str, *, mock: bool):
     return call_guard.document()
 
 
+#: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
+REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_usage", "usage_by_agent",
+                     "cached_tokens", "cache_write_tokens", "reported_cost_usd")
+
+
+def replayable(item: Mapping[str, Any] | None) -> bool:
+    """True when a persisted item holds an answer a resumed run can replay: its ``pred`` is a dict and it
+    did not fail. A failed row (a timeout, a 5xx, a guard refusal) runs again, so a resume can recover it;
+    an answer that failed to parse is a real billed answer and is replayed."""
+    return isinstance(item, Mapping) and isinstance(item.get("pred"), Mapping) and not item.get("error")
+
+
+def _replay_usage(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: item[k] for k in REPLAY_USAGE_KEYS if item.get(k) is not None}
+
+
+def _replay_window(item: Mapping[str, Any]) -> tuple[int, int] | None:
+    start, end = item.get("started_at_ns"), item.get("finished_at_ns")
+    return (start, end) if isinstance(start, int) and isinstance(end, int) else None
+
+
 def _run_rows_bounded(
     rows: list[Any],
     *,
@@ -132,6 +167,7 @@ def _run_rows_bounded(
     on_result,
     guard,
     order: list[int] | None = None,
+    skip: Collection[int] = (),
 ) -> None:
     """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
 
@@ -147,10 +183,12 @@ def _run_rows_bounded(
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-    n = len(rows)
-    queue = list(range(n)) if order is None else list(order)
-    if sorted(queue) != list(range(n)):
-        raise ValueError("order must be a permutation of the row indices")
+    skipped = set(skip)
+    wanted = [i for i in range(len(rows)) if i not in skipped]
+    queue = wanted if order is None else list(order)
+    if sorted(queue) != wanted:
+        raise ValueError("order must be a permutation of the row indices that are not skipped")
+    n = len(queue)
     if workers <= 1:
         for index in queue:
             guard(0)
@@ -296,8 +334,12 @@ def run_isolated_eval(
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
     longest_first: bool = False,
+    replay: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``replay`` maps a row id to the item an earlier attempt of this run persisted: a replayable row
+    keeps its stored answer and score (scorer and truth are locked) with no model call and no new spend.
 
     ``longest_first`` (``job.longest_first``) starts the longest ``doc_text`` first, so a
     many-window document does not decode alone at the end; rows keep their drawn index.
@@ -465,7 +507,7 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
-        if api_budget is not None:
+        if api_budget is not None and not entry.get("replayed"):  # a replayed row's spend seeds the budget
             api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
@@ -483,9 +525,23 @@ def run_isolated_eval(
             except Exception as exc:  # noqa: BLE001 — progress must never break a run
                 _log.warning("progress_cb raised — live progress may stall: %s", exc)
 
-    order = (sorted(range(len(rows)), key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
+    replayed: set[int] = set()
+    for index, row in enumerate(rows):
+        stored = (replay or {}).get((row or {}).get("id"))
+        if replayable(stored):
+            entry = {"id": row.get("id"), "pred": dict(stored["pred"]), "score": dict(stored.get("score") or {}),
+                     "error": stored.get("error"), "offline_fallback": False, "replayed": True,
+                     "latency_ms": stored.get("latency_ms"), **_replay_usage(stored)}
+            window = _replay_window(stored)
+            if window:
+                entry["started_at_ns"], entry["finished_at_ns"] = window
+            _record(index, entry)
+            replayed.add(index)
+    order = (sorted((i for i in range(len(rows)) if i not in replayed),
+                    key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
              if longest_first else None)
-    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order)
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order,
+                      skip=replayed)
 
     if rows and errors == len(rows):
         last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)
@@ -1232,21 +1288,28 @@ def _pipeline_extraction_scores(extraction_rows: Sequence[Mapping[str, Any] | No
     share of documented-absent fields a value was stated on (SHF-001).
     ``extraction_overall_correct_class`` restricts the mean to documents the sorter routed to
     their true class, so a misrouted document's partial credit is never read as specialist quality.
+    ``extraction_overall_n_scored`` and ``extraction_overall_correct_class_n_scored`` are the number
+    of documents each mean averages (0 when the mean is None), on the raw side too: a document with
+    no score (parked, or every scored label dropped by SHF-015) is not a 0 in the mean, so the count
+    is what shows the denominator (critical regression 1, ``docs/critical-regressions.md``).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
-    def overall(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> float | None:
-        vals = [float(r["overall_extraction_score"]) for i, r in enumerate(rows)
+    def scored(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> list[float]:
+        return [float(r["overall_extraction_score"]) for i, r in enumerate(rows)
                 if r and isinstance(r.get("overall_extraction_score"), (int, float))
                 and (mask is None or mask[i])]
-        return scoring.mean_or_zero(vals) if vals else None
+
+    def overall(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> dict[str, Any]:
+        vals = scored(rows, mask)
+        suffix = "" if mask is None else "_correct_class"
+        return {f"extraction_overall{suffix}": scoring.mean_or_zero(vals) if vals else None,
+                f"extraction_overall{suffix}_n_scored": len(vals)}
 
     raw = sh.raw_rows(extraction_rows)
-    fixed_part = {"extraction_overall": overall(extraction_rows),
-                  "extraction_overall_correct_class": overall(extraction_rows, class_ok),
+    fixed_part = {**overall(extraction_rows), **overall(extraction_rows, class_ok),
                   **sh.aggregate_extraction(extraction_rows)}
-    raw_part = {"extraction_overall": overall(raw), "extraction_overall_correct_class": overall(raw, class_ok),
-                **sh.aggregate_extraction(raw)}
+    raw_part = {**overall(raw), **overall(raw, class_ok), **sh.aggregate_extraction(raw)}
     used = sorted({i for r in extraction_rows if r for i in r.get("scoring_hotfixes") or []})
     keys = tuple(dict.fromkeys([*fixed_part, *raw_part]))
     return sh.merge_dual(raw_part, fixed_part, used, keys=keys)
@@ -1268,6 +1331,8 @@ def run_pipeline_eval(
     row_cb=None,
     progress_cb=None,
     node_cb=None,
+    read_cb=None,
+    text_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
     api_budget: Any = None,
@@ -1275,7 +1340,10 @@ def run_pipeline_eval(
     replicas: int = 1,
     gpu_fleet: list[tuple[str, int]] | None = None,
     concurrency: int = 1,
+    replay: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    # ``replay`` maps a row id to the item an earlier attempt of this run persisted. A replayable
+    # document is scored from that stored answer with no model call and no new spend (a resume).
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
     # ``concurrency`` (the job's ``job.concurrency``) runs that many documents at once.
@@ -1320,6 +1388,19 @@ def run_pipeline_eval(
             with node_lock:
                 raw_node_cb(record)
 
+    if read_cb is not None and workers > 1:
+        # Same for read-range records and the working-text writer.
+        read_lock, raw_read_cb, raw_text_cb = threading.Lock(), read_cb, text_cb
+
+        def read_cb(record: dict[str, Any]) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+            with read_lock:
+                raw_read_cb(record)
+
+        if raw_text_cb is not None:
+            def text_cb(doc: str, text: str) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+                with read_lock:
+                    raw_text_cb(doc, text)
+
     def _check_caps(in_flight: int = 0) -> None:
         """Refuse to START another document once a wall, GPU or API cap is reached.
 
@@ -1349,7 +1430,17 @@ def run_pipeline_eval(
         """
         before = time.monotonic()
         started_ns = time.time_ns()
+        read_stats: dict[str, Any] | None = None
         with ExitStack() as nodes:
+            if read_cb is not None:
+                # Read recording is independent of node tracking: a caller may supply read_cb
+                # alone, and records without a node are attributed to no graph node.
+                from mailroom_sandbox.job import read_ranges
+
+                read_stats = {}
+                nodes.enter_context(
+                    read_ranges.document(str(row.get("id")), row.get("doc_text"), read_cb, text_cb)
+                )
             if node_cb is not None:
                 # SAND-076: report each graph node as it starts and ends.
                 from mailroom_sandbox.job.node_trace import track_nodes
@@ -1376,6 +1467,8 @@ def run_pipeline_eval(
                     except (AttributeError, TypeError):
                         pass
                 raise
+            if read_stats is not None:
+                read_stats = read_ranges.stats()  # still inside the document scope
         latency_ms = (time.monotonic() - before) * 1000
         usage = usage_capture.usage_from_pipeline()
         calls = usage_capture.call_usage_from_pipeline()
@@ -1384,6 +1477,8 @@ def run_pipeline_eval(
         by_agent = usage_capture.usage_by_agent_from_pipeline()
         if by_agent:
             usage = {**usage, "usage_by_agent": by_agent}  # per-agent split, persisted for role-level cost
+        if read_stats is not None:
+            usage = {**usage, "reads": read_stats}  # persisted by the job runner as the item's ``reads``
         return result, usage, latency_ms, (started_ns, time.time_ns())
 
     def _count_failed(exc: BaseException) -> None:
@@ -1396,10 +1491,14 @@ def run_pipeline_eval(
     scored_by_index: dict[int, dict[str, Any] | None] = {}
 
     def _record(index: int, result: dict[str, Any], doc_usage: dict[str, Any], latency_ms: float,
-                window: tuple[int, int] | None = None) -> None:
-        """Account, score and report one finished document (main thread only)."""
+                window: tuple[int, int] | None = None, replayed: bool = False) -> None:
+        """Account, score and report one finished document (main thread only).
+
+        A ``replayed`` document was billed by an earlier attempt, whose spend already seeds the
+        budget: it is not added again (that would also lower the mean finished-document cost).
+        """
         row = rows[index]
-        if api_budget is not None:
+        if api_budget is not None and not replayed:
             api_budget.add_usage(doc_usage)
         if result.get("stage") == "failed" and not result.get("error"):
             # A run the pipeline aborted is a failed document, not a finished one.
@@ -1411,13 +1510,20 @@ def run_pipeline_eval(
             score = pipeline_item_score(row, result, scored)
             timing = {"started_at_ns": window[0], "finished_at_ns": window[1]} if window else {}
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": latency_ms, **timing, **doc_usage})
+                    "latency_ms": latency_ms, **timing, **doc_usage, **({"replayed": True} if replayed else {})})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in by_index.values())
             progress_cb(len(by_index), len(rows), len(by_index) - errors, errors)
 
+    for index, row in enumerate(rows):
+        stored = (replay or {}).get(row.get("id"))
+        if replayable(stored):
+            _record(index, dict(stored["pred"]), _replay_usage(stored), float(stored.get("latency_ms") or 0.0),
+                    _replay_window(stored), replayed=True)
+    pending = [index for index in range(len(rows)) if index not in by_index]
     if workers == 1:
-        for index, row in enumerate(rows):
+        for index in pending:
+            row = rows[index]
             _check_caps()
             try:
                 outcome = _process(row)
@@ -1431,7 +1537,7 @@ def run_pipeline_eval(
         # are recorded (they were billed), then the first error is raised.
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-        queue = iter(range(len(rows)))
+        queue = iter(pending)
         first_error: BaseException | None = None
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pipeline-doc") as pool:
             futures: dict[Any, int] = {}
@@ -1653,7 +1759,64 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
         raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+    if scope.get("judge_reasks"):
+        # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
+        # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
+        result = {**result, "judge_reasks": scope["judge_reasks"]}
     return result
+
+
+def _gate_fired_without_prep(result: Mapping[str, Any]) -> bool:
+    """Whether the vendored intake gate would have fired for this state, read from its flags (no text kept)."""
+    try:
+        from agents.intake import llm_intake_enabled, should_llm_intake  # type: ignore
+
+        return bool(llm_intake_enabled() and should_llm_intake(str(result.get("doc_text") or ""),
+                                                               {"messy": bool(result.get("intake_messy"))}))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        return False
+
+
+def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    """What the intake node did for one document, with no document text (the item record's ``intake``).
+
+    Built from the graph state's ``intake_prep``. ``gate_fired`` is True when a prep is present, or when
+    the gate (``should_llm_intake`` on the state's ``intake_messy`` flag and text length) would have
+    fired although the call raised and the node left no prep; that case is ``read_failed`` too.
+    ``read_failed`` means it ran and yielded no triage, so no
+    prior reached the sorter. ``prior_sent`` is whether the intake prior block is non-empty (the
+    ModernBERT prior, a separate channel, is not counted). ``clean_refused`` is HF-003's or HF-016's refusal. ``windows`` is None when the prep's count is malformed.
+    """
+    prep = result.get("intake_prep")
+    if not isinstance(prep, Mapping) and _gate_fired_without_prep(result):
+        # intake_node catches a failed call (a timeout, HF-010's WholeDocumentTooLong) and leaves no prep.
+        return {"gate_fired": True, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": True}
+    if not isinstance(prep, Mapping):
+        return {"gate_fired": False, "windows": 0, "triage_class": None, "triage_confidence": None,
+                "prior_sent": False, "clean_refused": False, "read_failed": False}
+    triage = prep.get("triage") if isinstance(prep.get("triage"), Mapping) else {}
+    confidence = triage.get("confidence")
+    try:
+        from agents.intake import format_intake_prior  # type: ignore
+
+        prior_sent = bool(format_intake_prior(dict(prep)))
+    except Exception:  # noqa: BLE001 — a summary never fails a document
+        prior_sent = bool(triage)
+    try:
+        windows: int | None = int(prep.get("windows") or 0)
+    except (TypeError, ValueError, OverflowError):  # a summary never fails a document
+        windows = None
+    return {
+        "gate_fired": True,
+        "windows": windows,
+        "triage_class": (str(triage["primary_doc_class"]) if triage.get("primary_doc_class") else None),
+        "triage_confidence": (float(confidence) if isinstance(confidence, (int, float))
+                              and not isinstance(confidence, bool) else None),
+        "prior_sent": prior_sent,
+        "clean_refused": bool(prep.get("clean_refused")),
+        "read_failed": not triage,
+    }
 
 
 def _run_pipeline_doc_once(
@@ -1690,6 +1853,7 @@ def _run_pipeline_doc_once(
         "stage": row.get("expected_stage"),
         "extracted_data": parse_expected_fields(row) if mock else None,
         "offline_fallback": True,
+        "intake": intake_summary({}),
     }
     try:
         from graph.build_graph import run_pipeline  # type: ignore
@@ -1782,6 +1946,11 @@ def _run_pipeline_doc_once(
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
+        # reports, the gate and the floor digest separate these from clean archives.
+        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
+        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
+        "intake": intake_summary(result),
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),

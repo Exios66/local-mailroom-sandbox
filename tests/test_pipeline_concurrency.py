@@ -82,3 +82,111 @@ def test_the_job_runner_passes_job_concurrency_to_the_pipeline(monkeypatch):
     call = source[source.index("eval_runners.run_pipeline_eval("):]
     call = call[:call.index(")\n")]
     assert "concurrency=concurrency" in call
+
+
+def test_read_sinks_are_wired_per_document_and_reported_as_item_reads(monkeypatch):
+    from mailroom_sandbox.job import read_ranges
+
+    def fake_doc(row, **_kw):
+        read_ranges.record("sorter", "Document text:\n" + row["doc_text"], node="classify")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    reads, items = [], []
+    rows = [{"id": str(i), "expected_doc_class": _cls(i), "doc_text": "t" * 80} for i in range(6)]
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False, row_cb=items.append,
+                              node_cb=lambda rec: None, read_cb=reads.append, text_cb=lambda d, t: None,
+                              concurrency=3)
+    assert sorted(r["doc"] for r in reads) == sorted(str(i) for i in range(6))
+    assert all(r["call"] == 1 and r["node"] == "classify" for r in reads)
+    assert all(item["reads"]["read_calls"] == 1 and item["reads"]["read_errors"] == 0 for item in items)
+    # no read sink: nothing recorded and no ``reads`` key
+    items.clear()
+    runners.run_pipeline_eval(profile="ollama", rows=rows[:2], mock=False, connected=False, row_cb=items.append,
+                              node_cb=lambda rec: None)
+    assert all("reads" not in item for item in items)
+
+
+def test_read_recording_works_without_node_tracking(monkeypatch):
+    """A caller may supply read_cb alone: records land and the item still reports ``reads``."""
+    from mailroom_sandbox.job import read_ranges
+
+    def fake_doc(row, **_kw):
+        read_ranges.record("sorter", "Document text:\n" + row["doc_text"], node="classify")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    reads, items = [], []
+    rows = [{"id": str(i), "expected_doc_class": _cls(i), "doc_text": "t" * 80} for i in range(4)]
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False, row_cb=items.append,
+                              read_cb=reads.append, text_cb=lambda d, t: None, concurrency=2)
+    assert sorted(r["doc"] for r in reads) == sorted(str(i) for i in range(4))
+    assert all(item["reads"]["read_calls"] == 1 for item in items)
+
+
+def _stored(i: int) -> dict:
+    """A persisted item, as items.jsonl holds it: the earlier attempt's answer and its billed tokens."""
+    pred = {"id": str(i), "doc_type": _cls(i), "stage": "archived", "extracted_data": {}}
+    return {"item_id": str(i), "pred": pred, "latency_ms": 12.0, "prompt_tokens": 100, "completion_tokens": 5}
+
+
+def test_a_replayed_document_is_scored_without_a_model_call(monkeypatch):
+    state = _install(monkeypatch, delay=0.01)
+    items: list[dict] = []
+    replay = {"0": _stored(0), "2": _stored(2)}
+    result = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                                       row_cb=items.append, concurrency=2, replay=replay)
+    assert sorted(state["started"]) == ["1", "3"]
+    assert result["scores"]["class_correct"] == 1.0 and len(result["docs"]) == 4
+    replayed = {item["id"]: item for item in items if item.get("replayed")}
+    assert sorted(replayed) == ["0", "2"]
+    assert all(item["prompt_tokens"] == 100 for item in replayed.values())
+
+
+def test_replayed_documents_are_not_added_to_the_api_budget(monkeypatch):
+    _install(monkeypatch, delay=0.0)
+
+    class Budget:
+        def __init__(self):
+            self.added: list[dict] = []
+            self.checks = 0
+
+        def add_usage(self, usage):
+            self.added.append(dict(usage or {}))
+
+        def check(self, prefix="", in_flight=0):
+            self.checks += 1
+
+    budget = Budget()
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                              api_budget=budget, replay={"0": _stored(0), "2": _stored(2)})
+    assert len(budget.added) == 2  # documents 1 and 3 only: replayed spend is already in the seeded budget
+    assert budget.checks == 2  # no cap check before a document that makes no call
+
+
+def test_a_run_that_is_all_replay_makes_no_model_call(monkeypatch):
+    state = _install(monkeypatch, delay=0.0)
+    full = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False)
+    state["started"].clear()
+    replayed = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                                         concurrency=3, replay={str(i): _stored(i) for i in range(4)})
+    assert state["started"] == []
+    assert replayed["scores"]["class_correct"] == full["scores"]["class_correct"] == 1.0
+    assert replayed["scores"]["stage_correct"] == full["scores"]["stage_correct"]
+
+
+def test_an_item_without_a_dict_pred_is_run_again(monkeypatch):
+    state = _install(monkeypatch, delay=0.0)
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
+                              replay={"0": {"item_id": "0", "pred": None}})
+    assert sorted(state["started"]) == ["0", "1"]
+
+
+def test_a_persisted_error_row_runs_again_instead_of_replaying_its_failure(monkeypatch):
+    """Final review: a resume after an outage must recover the documents that failed, not replay the failure."""
+    state = _install(monkeypatch, delay=0.0)
+    failed = {**_stored(0), "error": "ReadTimeout: no response"}
+    parse_failed = {**_stored(1), "score": {"parse_error": True}}  # a real billed answer: replayed
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
+                              replay={"0": failed, "1": parse_failed})
+    assert state["started"] == ["0"]

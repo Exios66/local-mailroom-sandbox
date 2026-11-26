@@ -26,6 +26,30 @@ def response(schema, extra=None):
     return result
 
 
+def test_runtime_activation_installs_distinct_corporate_and_main_hotfixes(monkeypatch, tmp_path):
+    from mailroom_sandbox import runtime
+
+    monkeypatch.setenv('MAILROOM_BASE_DIR', str(tmp_path))
+    runtime.activate('ollama', load_env_file=False)
+    from agents.arbiter import ArbiterAgent
+    from agents.corporate_records_specialist import CorporateRecordsSpecialist as Native
+    from agents.judge import CompletenessJudge
+    from graph import routing
+    from langchain_agents.specialist_agents import CorporateRecordsSpecialist as LangChain
+    fixes = vendor_hotfixes.HOTFIXES
+    assert len({fix.id for fix in fixes}) == len(fixes)
+    for method, fix_id in (
+        (CompletenessJudge.judge_extraction_correctness, 'HF-013'),
+        (ArbiterAgent.arbitrate, 'HF-015'),
+        (Native.extract, 'HF-018'),
+        (LangChain.extract, 'HF-019'),
+        (LangChain.extract_chunked, 'HF-020'),
+    ):
+        assert getattr(method, '_sandbox_hotfix', None) == fix_id
+    assert vendor_hotfixes.apply_hotfixes()['HF-014'] == 'applied'
+    assert routing.after_arbiter is not None
+
+
 def test_registry_schemas():
     assert registry_matches()
     assert len(registry.SUBCLASS_SCHEMAS) == 11
@@ -41,7 +65,7 @@ def test_registry_schemas():
 def test_native_actual_requests_concurrent_and_no_truth():
     from agents.corporate_records_specialist import CorporateRecordsSpecialist
     from graph.build_graph import _build_handoff_context
-    assert vendor_hotfixes.apply_hotfixes()['HF-013'] == 'applied'
+    assert vendor_hotfixes.apply_hotfixes()['HF-018'] == 'applied'
     def run(subtype):
         agent = object.__new__(CorporateRecordsSpecialist)
         agent._configured_max_input_chars = lambda: 5000
@@ -145,7 +169,9 @@ def test_registry_drift_and_runlock_identity(monkeypatch):
     assert description['corporate_extraction_sha256']
     monkeypatch.setattr(corporate_extraction, 'registry_matches', lambda: False)
     statuses = vendor_hotfixes.apply_hotfixes()
-    assert all(statuses[fix] == 'stale' for fix in ('HF-013', 'HF-014', 'HF-015'))
+    assert all(statuses[fix] == 'stale' for fix in ('HF-018', 'HF-019', 'HF-020'))
+    # Corporate registry drift must not disable main's judge/arbiter fixes.
+    assert all(statuses[fix] == 'applied' for fix in ('HF-013', 'HF-014', 'HF-015'))
 
 
 @pytest.mark.parametrize('omitted', [False, True])

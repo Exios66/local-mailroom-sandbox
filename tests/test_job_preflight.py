@@ -854,3 +854,51 @@ def test_openrouter_engine_needs_the_key_without_routes(mock, key, expect_error,
     monkeypatch.setenv("OPENROUTER_API_KEY", key)
     errors = preflight._engine_errors(spec)
     assert any("OPENROUTER_API_KEY" in e for e in errors) is expect_error
+
+
+def _pipeline_spec(tmp_path, run_id, *, trace_reads):
+    spec = _run_spec(tmp_path, run_id=run_id)
+    spec.task = "pipeline"
+    spec.job.mock = True
+    spec.job.trace_reads = trace_reads
+    return spec
+
+
+def test_toggling_trace_reads_on_a_prepared_run_is_reported_not_silently_ignored(tmp_path, job_data_dir):
+    """job.trace_reads is not hashed, so the lock keeps its value; preflight must say so."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    first = preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-reads", trace_reads=True), offline=True)
+    assert first["status"] == "prepared", first
+    assert not [c for c in first["checks"] if c["name"] == "trace_reads"]
+
+    toggled = _pipeline_spec(tmp_path, "pf-trace-reads", trace_reads=False)
+    assert toggled.spec_hash() == _pipeline_spec(tmp_path, "pf-trace-reads", trace_reads=True).spec_hash()
+    second = preflight.preflight(toggled, offline=True)
+    assert second["status"] == "prepared" and second["spec_hash"] == first["spec_hash"]
+    notes = [c for c in second["checks"] if c["name"] == "trace_reads"]
+    assert len(notes) == 1 and notes[0]["ok"] is True
+    assert "keeps true" in notes[0]["detail"] and "--force" in notes[0]["detail"]
+    assert RunStore(run_dir("pf-trace-reads")).read_lock()["job"]["trace_reads"] is True  # the lock won
+
+    # An unchanged value stays quiet, and --force really applies the new one.
+    same = preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-reads", trace_reads=True), offline=True)
+    assert not [c for c in same["checks"] if c["name"] == "trace_reads"]
+    forced = preflight.preflight(toggled, offline=True, force=True)
+    assert forced["status"] == "prepared" and not [c for c in forced["checks"] if c["name"] == "trace_reads"]
+    assert RunStore(run_dir("pf-trace-reads")).read_lock()["job"]["trace_reads"] is False
+
+
+def test_a_lock_without_the_trace_reads_key_counts_as_recording(tmp_path, job_data_dir):
+    """Locks written before the switch existed record by default; only a false spec value differs."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    assert preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-old", trace_reads=True), offline=True)["status"] == "prepared"
+    store = RunStore(run_dir("pf-trace-old"))
+    lock = json.loads(store.lock_path.read_text())
+    del lock["job"]["trace_reads"]
+    store.lock_path.write_text(json.dumps(lock, indent=2, sort_keys=True))
+    on = preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-old", trace_reads=True), offline=True)
+    off = preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-old", trace_reads=False), offline=True)
+    assert not [c for c in on["checks"] if c["name"] == "trace_reads"]
+    assert [c for c in off["checks"] if c["name"] == "trace_reads"]

@@ -1047,7 +1047,7 @@ def test_build_writes_nothing_when_the_built_catalog_fails(cli, capsys, monkeypa
     assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 1
     assert "nothing was written" in capsys.readouterr().err
     assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before
-    assert not [p for p in tmp.iterdir() if p.name.startswith(".")]
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".") and p.name != ".gold-labels.lock"]
 
 
 def test_build_restores_the_catalog_when_the_supplementary_swap_fails(cli, monkeypatch):
@@ -1252,7 +1252,7 @@ def test_add_leaves_both_stores_alone_when_the_staged_catalog_fails(cli, capsys,
     assert _add(cli) == 1
     assert "nothing was written" in capsys.readouterr().err
     assert _store_bytes(tmp) == before
-    assert not [p for p in tmp.iterdir() if p.name.startswith(".")]
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".") and p.name != ".gold-labels.lock"]
 
 
 def test_add_refuses_a_committed_catalog_that_already_fails_its_check(cli, capsys, monkeypatch):
@@ -1326,3 +1326,28 @@ def test_add_keeps_every_independence_refusal(cli, capsys, case, message):
     assert _add(cli, **kw) == 1
     assert message in capsys.readouterr().err
     assert _store_bytes(tmp) == before
+
+
+@pytest.mark.parametrize("command", ["add", "build", "review"])
+def test_a_second_store_writer_is_refused_and_writes_nothing(cli, capsys, command):
+    """Two writers that read one catalog would each stage only their own batch; the later swap would
+    erase the earlier one. While a writer holds the lock, every other writer is refused untouched."""
+    import fcntl
+
+    mod, write, build, tmp = cli
+    _doc1_built(cli)
+    before = {p.name: p.read_bytes() for d in (tmp / "gold", tmp / "supp") for p in sorted(d.iterdir())}
+    capsys.readouterr()
+    with (tmp / ".gold-labels.lock").open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if command == "add":
+            rc = _add(cli)
+        elif command == "build":
+            rc = _built(cli, RECIPIENT, RECIPIENT2)
+        else:
+            rc = mod.main(["review", "--corpus", "ignored", "--review", write("rv.jsonl", [])])
+        assert rc == 1
+        assert f"{command} refused: another gold_labels build, add or review holds" in capsys.readouterr().err
+        after = {p.name: p.read_bytes() for d in (tmp / "gold", tmp / "supp") for p in sorted(d.iterdir())}
+        assert after == before
+    assert _add(cli) == 0  # the lock is released with its holder

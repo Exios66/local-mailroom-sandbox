@@ -1,5 +1,5 @@
 # Production slice gate, 500 documents (the 100 and 250 slices nest inside it).
-# Spec: docs/superpowers/specs/2026-11-16-production-slice-gate-design.md
+# Spec: docs/design/specs/2026-11-16-production-slice-gate-design.md
 #
 # Bars (sandbox run gate; config/production/bars.yaml):
 #   - quality >= 0.90 per scorable document on its labelled fields
@@ -60,8 +60,8 @@ dataset:
   require_task_gt: true     # every document can be scored
   # Staged v10 label repairs from mailroom-issues mailroom_cache (pinned in config/staged_overlays.yaml):
   # the merged Hub + interim + near-gold + reviewed master, so it replaces interim_labels / near_gold_labels.
-  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.9 (docs/staged-label-overlay.md).
-  staged_overlay: 9.3.1-rc.9
+  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.10 (docs/staged-label-overlay.md).
+  staged_overlay: 9.3.1-rc.10
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
   draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 

@@ -663,7 +663,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "sec_per_doc": {"low": 5.0, "likely": 15.0, "high": 60.0},
         "rationale": (
             "SAND-032 ladder / scale-out / sweep "
-            "(docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md)"
+            "(docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md)"
         ),
     }
     SPECIALIST_LIMIT_BY_RUN[_rid] = _n
@@ -974,7 +974,7 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
 # The 2×L4 cells are NOT a per-replica-load twin of the 1×L4 cells (C8/2 = 4,
 # C16/2 = 8 per replica); the matched-load pairs are 1×L4 C8 vs 2×L4 C16 and
 # 1×L4 C16 vs 2×L4 C32 (8 and 16 per replica each). See
-# docs/SAND42-EXPERIMENT-DESIGN.md §3.
+# docs/design/sand42/experiment-design.md §3.
 #
 # C32 is the admitted amendment (SAND-047): 32 total = 16 per replica = the
 # engine's own ``max_num_seqs``, i.e. the admission ceiling, and the exact
@@ -1151,7 +1151,7 @@ SAND42_ONE_GPU_RUNS: frozenset[str] = SAND42_RUNS - SAND42_TWO_GPU_RUNS
 
 # Noise-floor leg: a second identical run of one cell on the same 50 documents, so
 # the run-to-run SD of the difference is re-measured on the SAND-042 draw before
-# any delta is quoted (docs/SAND42-EXPERIMENT-DESIGN.md §4).
+# any delta is quoted (docs/design/sand42/experiment-design.md §4).
 SAND42_NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
 SPECIALIST_POSTURE[SAND42_NOISE_FLOOR_RUN] = {
     **SPECIALIST_POSTURE[sand42_run_id("1l4-c8", "correspondence")],

@@ -287,3 +287,11 @@ def test_cost_cap_rejects_nan_and_non_positive():
     for bad in (float("nan"), 0, -1.0):
         with pytest.raises(ValidationError, match="cost_cap_usd"):
             JobSpec(cost_cap_usd=bad)
+
+
+def test_trace_reads_knob():
+    assert _spec().job.trace_reads is True  # absent means on
+    assert _spec(job={"trace_reads": False}).job.trace_reads is False
+    for bad in ("false", "no", 0, 1, None):
+        with pytest.raises(ValidationError):
+            _spec(job={"trace_reads": bad})

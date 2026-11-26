@@ -13,7 +13,7 @@
 #             mailroom-dataset ff4ca546 + interim and near-gold label overlays
 #   prompt  = merger_agreement_specialist_maud_v2, the merger frontrunner: its answer catalog is
 #             generated from the scorer's own MAUD classes. The shorter simplified stem lists no
-#             answers and scored MAUD accuracy 0.027 on SAND-042 (docs/SAND42-SCHEMA-ADHERENCE-RCA.md),
+#             answers and scored MAUD accuracy 0.027 on SAND-042 (docs/design/sand42/schema-adherence-rca.md),
 #             so it would make every agreement miss the target and the AUROC meaningless.
 #   posture = SAND-040/042 merger posture: 47,000-char windows, 6,500 overlap, 6,144 output cap,
 #             Qwen3 sampling (0.7 / 0.8 / 20 / presence 1.0), one length re-sample.

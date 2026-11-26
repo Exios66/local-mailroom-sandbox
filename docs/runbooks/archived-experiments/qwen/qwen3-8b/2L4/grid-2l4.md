@@ -61,7 +61,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.
 - Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding.
 - grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell.
-- Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
+- Full cell status and the aligned spec: docs/design/sand037/specialist-grid-plan.md.
 
 ## Do not
 

@@ -201,10 +201,12 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
                 upload = Path(tmp) / store.run_id
                 upload.mkdir()
                 for name in ("spec.lock.json", "prompt.lock.json", "dataset.jsonl", "checkpoint.json",
-                             "items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl"):
+                             "items.jsonl", "nodes.jsonl", "reads.jsonl", "events.jsonl", "cold_boot.json",
+                             "experiment_log.jsonl"):
                     source = store.dir / name
                     if source.is_file():
                         shutil.copy2(source, upload / name)
+                _copy_plain_files(store.dir / "doc_texts", upload / "doc_texts")
                 rc, err = upload_run_dir(upload, run_path=run_path)
             if rc != 0:
                 raise RuntimeError(f"modal volume put failed (no overwrite): {err or rc}")
@@ -333,6 +335,28 @@ def read_progress(store: RunStore) -> dict | None:
     return store.read_checkpoint()
 
 
+def _copy_plain_files(src: Path, dest: Path, *, stage: bool = False) -> None:
+    """Copy the regular files directly inside ``src`` into ``dest``; no-op when ``src`` is no directory.
+
+    Symlinks and subdirectories are skipped: the remote volume is less trusted than the local
+    store, and only the flat ``doc_texts/`` layout is ever written. With ``stage`` each file is
+    copied to ``<name>.pull.tmp`` beside its destination and then replaced into place.
+    """
+    if src.is_symlink() or not src.is_dir():
+        return
+    dest.mkdir(parents=True, exist_ok=True)
+    for entry in sorted(src.iterdir()):
+        if entry.is_symlink() or not entry.is_file() or entry.name.endswith(".pull.tmp"):
+            continue
+        target = dest / entry.name
+        if stage:
+            staged_file = target.with_name(target.name + ".pull.tmp")
+            shutil.copy2(entry, staged_file)
+            staged_file.replace(target)
+        else:
+            shutil.copy2(entry, target)
+
+
 def pull_run_dir(store: RunStore) -> tuple[int, str]:
     """Validate fetched terminal artifacts in staging before replacing local results.
 
@@ -410,9 +434,16 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                 checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
                 checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
                 (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
-                for name in ("items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
+                for name in ("items.jsonl", "nodes.jsonl", "reads.jsonl", "events.jsonl", "cold_boot.json",
+                             "experiment_log.jsonl", "doc_texts", "checkpoint.json"):
                     item = source / name
-                    if item.is_file():
+                    if name == "doc_texts":
+                        # The pulled index replaces the cached one (checkpoint.py clears it for
+                        # the same reason when a generation is archived): a cached index would
+                        # keep the pulled text_hash beside a newly written text file.
+                        store._doc_index = None
+                        _copy_plain_files(item, store.dir / name, stage=True)
+                    elif item.is_file():
                         # Replace each file from a local staging file; checkpoint last.
                         dest = store.dir / name
                         staged_file = dest.with_name(dest.name + ".pull.tmp")

@@ -2,7 +2,7 @@
 
 This runbook covers how a production run is approved. Each run is a CLI-launched pipeline run over a fixed, held-out slice of the Hugging Face mailroom dataset (pin `ff4ca546`, Hub tag v9.3, 3,302 rows), and it passes the **slice gate** before the next, larger slice runs.
 
-- Design: [`docs/superpowers/specs/2026-11-16-production-slice-gate-design.md`](../superpowers/specs/2026-11-16-production-slice-gate-design.md)
+- Design: [`docs/design/specs/2026-11-16-production-slice-gate-design.md`](../design/specs/2026-11-16-production-slice-gate-design.md)
 - Tracker: Exios66/local-mailroom-sandbox#305
 - Fix backlog: Exios66/local-mailroom-sandbox#306
 - Current state and next actions: [`production-readiness-handoff.md`](production-readiness-handoff.md) (2026-11-16)
@@ -21,7 +21,7 @@ All slices keep r3's (`config/runs/pipeline-qwen-flash-25-fit-r3.yaml`) agent ro
 
 The settings the slices run with:
 
-- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.9`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.9`, see [the staged overlay guide](../staged-label-overlay.md));
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.10`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.10`, see [the staged overlay guide](../staged-label-overlay.md); new preparations use the verified, landed rc.10 cut; existing run locks retain their approved version);
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;
@@ -94,10 +94,12 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    |---|---|---|
    | 1 | mechanism | `judge_error`, `crashed`, `transient` |
    | 2 | input | `input:near_empty` (reviews only: document text under 200 characters) |
-   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` |
-   | 4 | judge | `partial_exhausted`, `judge_rejected` |
+   | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` (the classification arbiter) |
+   | 4 | judge | `arbiter_escalated` (the extraction arbiter, which ruled last on the judge lane), `partial_exhausted`, `judge_rejected` |
    | 5 | label | `label_suspect` (a heuristic `intent` label only: never one an interim, staged or near-gold overlay supplied) |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
+
+   A reviewer cause (`reviewer_unknown`, `reviewer_disagreement`, the reviewer's low confidence) is settled when the item records that the classification arbiter accepted a class (`classification_arbiter_decision` is `accept_sorter` or `accept_reviewer`): extraction ran only after that acceptance, so rows 4 to 6 decide first and the reviewer cause names the bucket only when none of them applies. An item without the decision keeps the order in the table, with one exception: the extraction arbiter outranks the reviewer's low-confidence doubt.
 
    Two mechanism buckets sit outside this order:
    - `mechanism:scorer_error`: a Dojo failure while typing the extraction miss.

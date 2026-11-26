@@ -7,7 +7,7 @@
 #   prompt  = eval-environment frozen v1 simplified stem
 #   decode  = max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS
 #             (JSON-schema grammar class: 0.1 looped to every cap — 4096/8192/16384;
-#             see docs/SPECIALIST-GRID-PLAN.md)
+#             see docs/design/sand037/specialist-grid-plan.md)
 # Runbook: sandbox runbook show grid-2l4
 schema: sandbox.run/v1
 run_id: grid-20-merger-specialist-awq-2l4

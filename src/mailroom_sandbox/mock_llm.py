@@ -74,6 +74,35 @@ def oracle_extraction(fields: dict[str, Any], doc_type: str, subclass: str | Non
     return pred
 
 
+def _answer_block(text: str, header: str) -> dict[str, Any]:
+    """The JSON object on the line after ``header`` in the classification arbiter's prompt."""
+    _, found, rest = text.partition(f"{header}\n")
+    if not found:
+        return {}
+    try:
+        parsed = json.loads(rest.split("\n", 1)[0])
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _classification_arbiter_answer(text: str, expect: dict[str, Any], doc_type: str, conf: Any) -> dict[str, Any]:
+    """A decision from the classification arbiter's own set (``agents.arbiter.CLASSIFICATION_DECISIONS``).
+
+    The answer that names the expected class is accepted, the sorter's first; when neither does, the
+    document goes to a person. ``expect["classification_arbiter_decision"]`` forces a decision.
+    """
+    decision = expect.get("classification_arbiter_decision")
+    if not decision:
+        if _answer_block(text, "SORTER ANSWER").get("doc_type") == doc_type:
+            decision = "accept_sorter"
+        elif _answer_block(text, "REVIEWER ANSWER").get("doc_type") == doc_type:
+            decision = "accept_reviewer"
+        else:
+            decision = "human_review"
+    return {"decision": decision, "confidence": conf, "reasoning": "mock"}
+
+
 def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[str, Any]:
     doc_type = expect.get("doc_type") or expect.get("expected_doc_class") or "contract"
     conf = expect.get("conf")
@@ -99,6 +128,15 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
             "reasoning": "mock",
             "resolution_notes": "",
         }
+    if text.startswith("Audit the factual accuracy"):  # CompletenessJudge.judge_extraction_correctness
+        score = expect.get("correctness_score")
+        return {
+            "extraction_correctness": 0.98 if score is None else score,
+            "extraction_correctness_label": expect.get("correctness_label") or "accurate",
+            "reasoning": "mock",
+        }
+    if "SORTER ANSWER" in text:  # the classification arbiter (decision review parked)
+        return _classification_arbiter_answer(text, expect, doc_type, conf)
     if "JUDGE VERDICT" in text or "Arbiter" in text:
         return {
             "decision": expect.get("arbiter_decision") or expect.get("expected_decision") or "accept_with_caveats",
