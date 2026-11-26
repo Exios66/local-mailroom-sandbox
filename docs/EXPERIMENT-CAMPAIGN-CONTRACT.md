@@ -54,6 +54,8 @@ The complete implementations and upstream retirement conditions live in
 | HF-004 | Price each returned call once; refuse later calls at spend/call ceilings. Decisions responses are priced in the transport, not again by the usage wrapper. Isolated decision tasks use the per-document ceiling | `test_call_guard.py` |
 | HF-005 | Hold files at saturated filesystem bins without dropping them; bound inbox waits and unfinished uploads | `test_backpressure.py` |
 | HF-006 | Preserve explicit zero confidence in single and chunked specialist extraction | `test_vendor_hotfixes.py` |
+| HF-016 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
+| HF-017 | A failed intake read sends the sorter no prior; an invented subclass is not printed | `test_vendor_hotfixes.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |
@@ -84,7 +86,8 @@ path includes confidence retries plus arbiter-requested retries. Every judge pas
 LLM calls: completeness and, for a complete verdict, source correctness. A separate high-confidence
 retry scenario shows the extra judge call from `judge_rejudge_retry`, respecting the class
 override and judge pass cap; a cap of one leaves no retry scenario. `keep_best_attempt` selects stored attempts and adds no calls.
-Output tokens, intake, classification and transport retries are outside this input estimate;
+The intake read of each document whose gate fires (messy, or over the sorter budget) is inside it, priced on the intake
+model; output tokens, classification and transport retries are outside this input estimate;
 compare measured per-class costs before the 500-document and full slices (#330).
 
 From the intended checkout and its own environment, run these offline checks after caching
