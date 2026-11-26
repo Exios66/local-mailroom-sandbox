@@ -70,20 +70,33 @@ def document() -> Iterator[dict[str, Any]]:
         _DOC.reset(token)
 
 
-def note_judge_reask(judge: str, *, recovered: bool) -> None:
-    """Record, in the current document's scope, that the HF-002/HF-013 wrapper re-asked a judge.
+def _judge_reask_block(judge: str) -> dict[str, int] | None:
+    doc = _DOC.get()
+    if doc is None:
+        return None
+    return doc.setdefault("judge_reasks", {}).setdefault(judge, {"asked": 0, "recovered": 0})
+
+
+def note_judge_reask(judge: str) -> None:
+    """Record, in the current document's scope, that the HF-002/HF-013 wrapper is re-asking a judge.
 
     ``judge`` is ``completeness`` or ``correctness``; the scope gains
     ``judge_reasks = {judge: {"asked": n, "recovered": m}}`` (counts only, never document text),
-    which the runner copies onto the document's pipeline result. Outside a document scope it is a
-    no-op. It does not depend on the run being armed: the re-ask is visible on every run.
+    which the runner copies onto the document's pipeline result. Called before the second call is
+    made, so a re-ask that raises (transport error, guard refusal) still counts as asked. A re-ask
+    outside a document scope is not counted (a no-op). It does not depend on the run being armed:
+    the re-ask is visible on every run.
     """
-    doc = _DOC.get()
-    if doc is None:
-        return
-    block = doc.setdefault("judge_reasks", {}).setdefault(judge, {"asked": 0, "recovered": 0})
-    block["asked"] += 1
-    block["recovered"] += int(bool(recovered))
+    block = _judge_reask_block(judge)
+    if block is not None:
+        block["asked"] += 1
+
+
+def note_judge_recovered(judge: str) -> None:
+    """Record that the re-ask of ``judge`` returned an answer that parsed (no-op outside a document scope)."""
+    block = _judge_reask_block(judge)
+    if block is not None:
+        block["recovered"] += 1
 
 
 def budget_error(reason: str) -> Exception:

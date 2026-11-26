@@ -116,17 +116,20 @@ def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[M
     parsed, however low, is a verdict. The re-ask is the same vendored method with the same
     arguments, so it passes the API call guard, the provider pins, usage capture and the spend caps
     like any call. It is made at most once per call, so a pass holds at most two calls per judge
-    method. ``note_judge_reask`` records whether it recovered (counts only, never document text).
+    method. The re-ask is recorded as ``asked`` before it is made, so one that raises (transport
+    error, guard refusal) still counts, and the error propagates unchanged; ``recovered`` is
+    recorded only when the second answer parses (counts only, never document text).
     """
     out = original(self, *args, **kwargs)
     if not failed(out):
         return out
-    out = original(self, *args, **kwargs)
     from mailroom_sandbox.job import call_guard
 
-    call_guard.note_judge_reask(judge, recovered=not failed(out))
+    call_guard.note_judge_reask(judge)
+    out = original(self, *args, **kwargs)
     if failed(out):
         raise JudgeParseError(JUDGE_PARSE_FAILURE)
+    call_guard.note_judge_recovered(judge)
     return out
 
 

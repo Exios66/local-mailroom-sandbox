@@ -113,7 +113,10 @@ Every hotfix added or changed after a run was locked changes that lock's `vendor
   in a lock changes with this edit. Each re-ask is counted per judge (`asked`, `recovered`) in the
   document's call-guard scope, copied onto the run item as `judge_reasks` (only when one happened, no
   document text) and totalled in the gate report's `judge_reasks` block, so a first live run measures the
-  parse-failure rate and how often the second answer parses.
+  parse-failure rate and how often the second answer parses. `asked` is recorded before the second call
+  is made, so a re-ask that raises (a transport error, or the guard's refusal) still counts as asked and
+  not recovered, and the error propagates unchanged. A re-ask outside a document scope (the standalone
+  per-agent `judge` eval in `eval/agents.py`) is made but not counted; no shipped config runs that path.
 - **HF-014** (`graph.routing.after_arbiter`, with three helper predicates bound by `also`) and **HF-015**
   (`agents.arbiter.ArbiterAgent.arbitrate`) change routes and requests only where
   `confidence.arbiter_full_source` is `true` and context fit widened the arbiter's source window, that
@@ -132,6 +135,11 @@ same vendor refresh.
 
 ### Known limits
 
+- **The re-ask count rests on the judge methods being the only retry.** The HF-002 and HF-013
+  fingerprints cover `judge_completeness` and `judge_extraction_correctness`, not
+  `BaseAgent._call_structured`. If llm-mailroom ever adds its own parse retry there, a pass would make
+  more calls than the four priced per pass without a stale fingerprint; re-check the envelope at the
+  next vendor refresh.
 - **A judge that fails to parse twice still parks the document.** HF-002 and HF-013 ask once more, so a
   single unparseable answer no longer parks a correct document, but two in a row still raise
   `JudgeParseError` (human review, counted by the gate). The re-ask repeats the same request at

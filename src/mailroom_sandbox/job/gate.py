@@ -430,8 +430,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     return {
         # Present only when a judge answer that did not parse was asked once more (HF-002 / HF-013):
         # how often, and how often the second answer parsed. ``parked`` re-asks failed again and
-        # are counted under ``judge_errors`` above. Counts only; the live parse-failure rate is
-        # ``asked`` over the judge calls of the run.
+        # are counted under ``judge_errors`` above. Counts only; the block carries no judge-call
+        # denominator, so the live parse-failure rate needs the run's judge calls from its usage.
         **({"judge_reasks": _judge_reask_block(reasked)} if reasked else {}),
         # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
         **({"decision_slots": slots} if slots is not None else {}),

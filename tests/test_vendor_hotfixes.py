@@ -686,8 +686,8 @@ def test_a_transport_error_is_not_asked_again_here(which):
 
 
 @pytest.mark.parametrize("which", sorted(JUDGES))
-def test_a_re_ask_is_a_call_through_the_vendored_method_so_the_guard_sees_it(which):
-    """The wrapper wraps ``judge.<method>``; every call goes through ``_call_structured`` like the first."""
+def test_a_re_ask_calls_the_vendored_method_again_and_is_recorded_on_the_scope(which):
+    """The wrapper calls ``_call_structured`` twice; guard and usage on the real path are held by the live-path tests."""
     from mailroom_sandbox.job import call_guard
 
     vh.apply_hotfixes()
@@ -714,6 +714,108 @@ def test_a_re_ask_is_recorded_on_the_document_scope_with_counts_only():
         _ask(_scripted_judge(ACCURATE), "correctness")
     assert "judge_reasks" not in quiet
     _ask(_scripted_judge(PARSE, COMPLETE), "completeness")  # outside a document scope: no error, no record
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+@pytest.mark.parametrize("failure", [ConnectionError("provider blip"), RuntimeError("per-document ceiling 1")],
+                         ids=["transport_error", "guard_refusal"])
+def test_a_re_ask_that_raises_still_counts_as_asked_and_the_error_propagates_unchanged(which, failure):
+    """The second call was made (and may be billed) even when it raises, so it is ``asked``, never ``recovered``."""
+    from mailroom_sandbox.job import call_guard
+
+    vh.apply_hotfixes()
+    judge = _scripted_judge(PARSE, failure)
+    with call_guard.document() as scope:
+        with pytest.raises(type(failure)) as caught:
+            _ask(judge, which)
+    assert caught.value is failure  # not wrapped, not replaced by JudgeParseError
+    assert len(judge._call_structured.calls) == 2
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0}}
+
+
+class _FakeOpenRouter:
+    """The client boundary only: an OpenRouter-URL client whose ``create`` returns scripted message contents."""
+
+    base_url = "https://openrouter.ai/api/v1"
+
+    def __init__(self, *contents):
+        import types
+
+        self.contents, self.requests = list(contents), []
+        self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        import types
+
+        self.requests.append(kwargs)
+        content = self.contents[min(len(self.requests), len(self.contents)) - 1]
+        return types.SimpleNamespace(
+            model=kwargs["model"], usage=types.SimpleNamespace(prompt_tokens=1000, completion_tokens=100),
+            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=content))])
+
+
+def _live_path_judge(client):
+    from agents.judge import CompletenessJudge
+
+    judge = CompletenessJudge.__new__(CompletenessJudge)
+    judge.client, judge.model, judge.agent_name = client, "test/model", "judge"
+    return judge
+
+
+def _run_live_path(which, contents, *, ceiling=40):
+    """Run one judge method through the real ``_call_llm``, ``retry_chat_completion``, pins and HF-004 usage capture."""
+    import json
+
+    from mailroom_sandbox import provider_pins
+    from mailroom_sandbox.job import api_budget, call_guard
+    from pipeline import limits
+
+    assert vh.apply_hotfixes()["HF-004"] == "applied"
+    provider_pins.apply_provider_pins({})
+    budget = api_budget.ApiBudget(100.0, 1.0, 1.0, ["test/model"])
+    call_guard.arm(budget, ceiling)
+    client = _FakeOpenRouter(*[c if isinstance(c, str) else json.dumps(c) for c in contents])
+    outcome = None
+    try:
+        limits.reset_run_usage()
+        with call_guard.document() as scope:
+            try:
+                outcome = _ask(_live_path_judge(client), which)
+            except Exception as exc:  # noqa: BLE001 - the test inspects what propagated
+                outcome = exc
+        usage = limits.usage_summary()
+    finally:
+        call_guard.disarm()
+    return client, budget, scope, usage, outcome
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_re_ask_through_the_real_call_path_passes_the_guard_and_is_priced_once_per_response(which):
+    """Both HTTP calls go through the call guard; usage is captured once per response, never twice."""
+    _, good, _, field = JUDGES[which]
+    _, single_budget, single_scope, _, _ = _run_live_path(which, [good])
+    client, budget, scope, usage, outcome = _run_live_path(which, ["not json", good])
+    assert outcome[field] == good[field]
+    assert len(client.requests) == 2  # the re-ask is a second HTTP call, with the same request
+    assert client.requests[0] == client.requests[1]
+    assert single_scope["calls"] == 1 and scope["calls"] == 2  # guard saw each call once
+    assert usage["calls"] == 2 and usage["by_agent"]["judge"]["calls"] == 2
+    assert (usage["prompt_tokens"], usage["completion_tokens"]) == (2000, 200)
+    assert budget.live_usd == pytest.approx(2 * single_budget.live_usd) and budget.live_usd > 0
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1}}
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_re_ask_the_guard_refuses_is_asked_not_recovered_and_makes_no_second_request(which):
+    """A per-document ceiling of one lets the first call through and refuses the re-ask before it is sent."""
+    from pipeline import limits
+
+    _, good, _, _ = JUDGES[which]
+    client, _, scope, usage, outcome = _run_live_path(which, ["not json", good], ceiling=1)
+    assert isinstance(outcome, limits.RunBudgetExceeded) and "per-document ceiling 1" in str(outcome)
+    assert len(client.requests) == 1 and usage["calls"] == 1  # the refused call never reached the client
+    assert scope["refused"] and scope["calls"] == 1
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0}}
 
 
 def _judge_node(monkeypatch, completeness, correctness):
