@@ -796,7 +796,6 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not key:
         raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
-    _record_decision_read(body)  # once per logical request: never per transport retry
     run_deadline = limits.get_run_deadline()
     call_timeout = min(timeout, limits.get_call_timeout_seconds()) if run_deadline is not None else timeout
     deadline = time.monotonic() + call_timeout
@@ -812,6 +811,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
     last: Exception | None = None
     count = attempts
+    recorded = False
     for attempt in range(count):
         # Decisions calls bypass the chat provider wrappers; enforce the same run guard
         # before each HTTP attempt, including retries.
@@ -819,6 +819,9 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
         attempt_timeout = remaining()
         call_guard.before_call()
+        if not recorded:  # once per logical request, and only once the guard and deadline let it go out
+            _record_decision_read(body)
+            recorded = True
         resp = None
         try:
             resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=attempt_timeout,

@@ -190,6 +190,63 @@ def test_unsent_request_is_not_recorded(monkeypatch, transport):
     assert out == []
 
 
+def test_request_refused_by_the_call_guard_is_not_recorded(monkeypatch, transport):
+    """A request the call guard stops before sending leaves no read record."""
+    from mailroom_sandbox.job import call_guard, read_ranges
+
+    _, calls, _ = transport
+    doc = _read_doc()
+
+    def refuse():
+        raise RuntimeError("call ceiling reached")
+
+    monkeypatch.setattr(call_guard, "before_call", refuse)
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        with pytest.raises(RuntimeError, match="call ceiling"):
+            db._post_decision({"model": "m", "state": {"document": doc}, "questions": {}},
+                              timeout=120, attempts=3)
+    assert out == [] and calls == []
+
+
+def test_request_past_the_run_deadline_is_not_recorded(monkeypatch, transport):
+    """An expired run deadline stops the request before sending, so nothing is recorded."""
+    from mailroom_sandbox.job import read_ranges
+
+    _, calls, _ = transport
+    doc = _read_doc()
+    monkeypatch.setattr(limits, "get_run_deadline", lambda: 99.0)
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        with pytest.raises(limits.RunDeadlineExceeded):
+            db._post_decision({"model": "m", "state": {"document": doc}, "questions": {}},
+                              timeout=120, attempts=3)
+    assert out == [] and calls == []
+
+
+def test_request_sent_once_then_refused_on_retry_is_recorded_once(monkeypatch, transport):
+    """The first attempt passed the guard and went out, so it counts, once, even if a retry is refused."""
+    from mailroom_sandbox.job import call_guard, read_ranges
+
+    _, calls, _ = transport
+    doc = _read_doc()
+    real = call_guard.before_call
+    seen = []
+
+    def guard():
+        seen.append(1)
+        if len(seen) > 1:
+            raise RuntimeError("call ceiling reached")
+        real()
+
+    monkeypatch.setattr(call_guard, "before_call", guard)
+    out: list[dict] = []
+    with read_ranges.document("d1", doc, out.append):
+        with pytest.raises(RuntimeError, match="call ceiling"):
+            db._post_decision({"model": "m", "state": {"document": doc}, "questions": {}}, timeout=120, attempts=3)
+    assert len(calls) == 1 and len(out) == 1
+
+
 def test_masked_digits_leave_a_gap_not_an_error(monkeypatch, transport):
     from mailroom_sandbox.job import read_ranges
 
