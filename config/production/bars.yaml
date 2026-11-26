@@ -1,4 +1,4 @@
-# Production slice gate bars (docs/superpowers/specs/2026-11-16-production-slice-gate-design.md).
+# Production slice gate bars (docs/design/specs/2026-11-16-production-slice-gate-design.md).
 # Pass rule, pooled over the gated classes: wrong-archive rate <= wrong_archive_max, review rate
 # <= review_max, 0 run errors, 0 judge_error. A correct archive scores >= quality on the labelled
 # fields. merger_agreement is reported but never gated. Per-class bars apply only from a slice of

@@ -7,7 +7,7 @@
 5 conditions — {1×L4, 2×L4} × {client concurrency 8, 16} plus the 2×L4 C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on the SAND-037 aligned spec.
 
 All 5 cells score the **identical 250 documents** (5 specialists × 50 documents, one subclass-stratified draw per class), so every cell-to-cell delta below is **paired**: the unit of analysis is the per-document score difference. Intervals are 95% percentile bootstrap over documents; the last column is the paired n that Δ = 0.05 would need at 80% power.
-Design, metric contract and acceptance rules: [`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).
+Design, metric contract and acceptance rules: [`docs/design/sand42/experiment-design.md`](../../docs/design/sand42/experiment-design.md).
 
 ## Conditions
 

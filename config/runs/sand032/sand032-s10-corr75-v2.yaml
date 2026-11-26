@@ -1,6 +1,6 @@
 # SAND-032 Stage 10: eval-environment v2 prompt (correspondence_specialist_v2_evalenv), n=75, 1×L4 c8, frozen engine. Paired vs sand032-s3-corr50 on the nested first 50.
 # SAND-032 Stage 3 — correspondence n=50 (slice of the 100 draw) on the warm 2-replica fleet.
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 # Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
 # rewrites this block if a rung is reverted — fp8 KV stays regardless).

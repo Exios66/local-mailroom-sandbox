@@ -6,7 +6,7 @@ Four cells = **{1×L4, 2×L4} × {client concurrency 8, 16}**. Each cell is one 
 documents and every cell-to-cell delta is paired.
 
 **Design, metric contract, sample-size maths and acceptance rules:**
-[`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).
+[`docs/design/sand42/experiment-design.md`](../../docs/design/sand42/experiment-design.md).
 
 ## Cells
 
@@ -67,7 +67,7 @@ reports/SAND42/
 Specialist folders: `correspondence`, `insurance_claims`, `corporate_records`, `contracts`,
 `merger_agreement`. SAND-042 writes its own tree; the SAND-37/39/40 tree is untouched.
 
-The condition card carries the scorecard groups from `docs/BENCHMARK-PROGRAM.md` §5.2: quality with
+The condition card carries the scorecard groups from `docs/design/sand043/benchmark-program.md` §5.2: quality with
 a bootstrap 95% CI, reliability (Wilson ok rate, schema-valid rate, length-capped share),
 document goodput at the class SLO, `$`/1k ok documents and `$`/1k **schema-valid** documents,
 engine + GPU telemetry.
@@ -87,6 +87,6 @@ estimates. Estimates: ≈ 30–45 min warm on one L4 per cell, ≈ 20–35 min o
 
 `sand42-noise-floor` is **blocked** until spend is approved separately: it only measures the
 run-to-run noise floor, and until it runs the SAND-037/39 floor in
-`docs/BENCHMARK-PROGRAM.md` §3 is a prior measured on a *different* draw.
+`docs/design/sand043/benchmark-program.md` §3 is a prior measured on a *different* draw.
 
 **No SAND-042 delta is real until it clears the noise floor and its interval excludes 0.**

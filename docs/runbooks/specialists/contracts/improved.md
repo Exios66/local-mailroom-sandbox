@@ -903,7 +903,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ### Notes
 
-- See docs/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
+- See docs/design/dmr068/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
 - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
 - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
 - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.

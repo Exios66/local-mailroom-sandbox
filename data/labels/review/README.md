@@ -186,7 +186,7 @@ labelled `demand` (35) or `attorney_demand` (2), none `email`, so the Hub label 
 
 ## R03 gold audit
 
-Evaluation runbook row R03 (`docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md`, Task 4) adjudicates about 100 v0-vs-gold disagreements per lineage, correspondence first. Gate: gold is wrong on at most 15% of the audited documents, or the labels are corrected as a new labels version.
+Evaluation runbook row R03 (`docs/design/rb1/2026-11-18-evaluation-runbook-plan.md`, Task 4) adjudicates about 100 v0-vs-gold disagreements per lineage, correspondence first. Gate: gold is wrong on at most 15% of the audited documents, or the labels are corrected as a new labels version.
 
 1. The owner launches the v0 passes at the spend gate (`sandbox run preflight`, then `sandbox run start ... --initials <XX>`): `config/runs/rb1-r03-sorter-v0-dev.yaml` and one config per specialist lineage, `config/runs/rb1-r03-{insurance,correspondence,corporate,contracts,merger}-v0-dev.yaml`. Each runs on its class's dev documents of `config/splits/runbook-v2` (dataset v9.3) with the interim and near-gold overlays; each header gives its cost estimate and caps.
 2. Build the sheet from the finished run (no model call):

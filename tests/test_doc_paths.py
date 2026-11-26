@@ -82,6 +82,19 @@ _STALE_DOC_PATHS = (
     "docs/runbooks/baseline.md",
     "docs/runbooks/improved.md",
     "docs/PROMPT-ENHANCEMENT-PLAN.md",
+    # 2026-11-26 reorganization: designs under docs/design/<ticket>/, plans and
+    # specs under docs/design/, superseded notes under docs/archive/.
+    "docs/SAND42-EXPERIMENT-DESIGN.md",
+    "docs/SAND42-FOLLOWUP-DESIGN.md",
+    "docs/SAND42-SCHEMA-ADHERENCE-RCA.md",
+    "docs/SAND42-ISSUE-UPDATES.md",
+    "docs/SPECIALIST-GRID-PLAN.md",
+    "docs/BENCHMARK-PROGRAM.md",
+    "docs/scale-matrix.md",
+    "docs/rb1-evaluation-design-v2.md",
+    "docs/sand214-window-learnings.md",
+    "docs/roadmaps/",
+    "docs/superpowers/",
 )
 
 

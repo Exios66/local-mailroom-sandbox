@@ -22,7 +22,7 @@ inspector.
   `tui/floor_app.py`'s `http.server`.
 - Playwright for screenshots.
 
-**Spec:** `docs/superpowers/specs/2026-11-25-floor-read-ranges-design.md` (approved, rev 2).
+**Spec:** `docs/design/specs/2026-11-25-floor-read-ranges-design.md` (approved, rev 2).
 
 ## Global Constraints
 

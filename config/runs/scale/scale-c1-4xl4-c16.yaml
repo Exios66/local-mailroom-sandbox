@@ -1,5 +1,5 @@
 # DMR-068 — scale matrix cell C1: 4xL4, concurrency 16, bf16 baseline.
-# Fixed-doc-size fixture (2k/6k/12k char buckets) — see docs/scale-matrix.md.
+# Fixed-doc-size fixture (2k/6k/12k char buckets) — see docs/design/dmr068/scale-matrix.md.
 # Deploy the fleet PINNED for measurement:
 #   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \

@@ -141,8 +141,6 @@ data/provider_health.lock
 .venv
 
 # Pipeline output from mock and live runs
-/data/archive
-/data/warehouse
 reports/run-ledger.md.lock
 reports/run-ledger.md.tmp
 
@@ -158,3 +156,6 @@ reports/autoresearch/*/.lock
 
 # Claude Code / agent local worktrees (never commit checkout clones)
 /.claude/worktrees
+
+# Stray wheels from `pip download` in the checkout root
+/*.whl

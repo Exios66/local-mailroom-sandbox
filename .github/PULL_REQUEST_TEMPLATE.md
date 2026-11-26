@@ -37,6 +37,17 @@ guard that covers it and its output from this head, or say why it does not apply
 - [ ] Explicit numeric confidence of zero stays zero (12)
 - [ ] A Decisions response is charged once (13)
 
+## Docs
+
+<!--
+tests/test_docs_drift.py fails when one of these is missing; tick what this PR touched.
+-->
+
+- [ ] A new or moved page is linked from `docs/README.md` (old paths added to `_STALE_DOC_PATHS`)
+- [ ] A new or retired hotfix has its row in `docs/vendor-hotfixes.md` or `docs/scoring-hotfixes.md`
+- [ ] A new top-level `sandbox` command is in the README CLI block
+- [ ] A new top-level directory is in the `docs/setting-up/LAYOUT.md` table
+
 ## Risks / follow-ups
 
 <!-- Known limitations, follow-up issues/PRs, and rollback notes. -->

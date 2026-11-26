@@ -63,6 +63,19 @@ historical run inputs are unchanged. Replay mode also writes its own persistent
 sample run inside the selected base; viewers sharing that base still see the
 same run artifacts.
 
+The replay sample (also the default when no runs exist) plays the committed
+120-document pinned sample on a wall-clock timeline of about 66 seconds, as its
+own labeled run inside the base. It shows staggered arrivals, recorded node
+latencies, and concurrent in-flight documents. Every document takes one pass
+and archives under its ground-truth class. The sample's lock records the
+checkout's active vendor hotfixes.
+The digest keeps each run's `review_routed` count split by trigger stage; review
+documents stay held (`failed` means a technical failure only). Per-run prompts
+come from `prompt.lock.json` (shown for the highlighted node only). A
+`state=running` run gets RUNNING pills and live counters, and the server skips a
+rebuild when the run artifacts are unchanged. Only the sample directory resets
+on each `--replay`.
+
 Port 8769 is separate from web/watch (8765/8766) and board/demo (8767/8768).
 See the [watch guide](pretty-logging/mailroom-themed-logging.md) for document
 logs and the [job guide](jobs.md) for starting or resuming real runs.

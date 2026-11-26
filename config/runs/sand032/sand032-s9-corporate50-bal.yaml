@@ -1,7 +1,7 @@
 # SAND-032 Stage 9 (balanced B): max_inputs 32 = max_num_seqs so Modal's router splits c64 32/32 (s7 sent 97/100 to one replica).
 # SAND-032 Stage 7 (B fleet): max_num_seqs 32 + CUDA graphs to 32, c64 — compare with sand032-s3-corporate50.
 # SAND-032 Stage 3 — corporate_records n=50 on the warm 2-replica fleet.
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 # Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
 # rewrites this block if a rung is reverted — fp8 KV stays regardless).

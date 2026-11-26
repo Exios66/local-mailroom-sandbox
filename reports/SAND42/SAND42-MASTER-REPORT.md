@@ -521,7 +521,7 @@ _Generated 2026-10-13T04:33:20+00:00 by `sandbox run card --runbook sand42`._
 * One warm fleet per condition (`min_containers = max_containers = replicas`), five specialists chained, teardown after the fifth: one cold boot per condition.
 * Quality intervals are percentile bootstraps over per-document scores; deltas are paired on the shared 250 documents; ok rates use a Wilson interval.
 * GPU hardware telemetry is sampled inside the serving replica (nvidia-smi util / power / temperature / memory) and recorded per condition; vLLM `/metrics` gives the engine side (TTFT, prefix-cache hit rate, preemptions, length finishes, KV use) per replica.
-* Sample sizes, the noise floor and the contracts caveat: `docs/BENCHMARK-PROGRAM.md` §3 and `docs/SAND42-EXPERIMENT-DESIGN.md` §4.
+* Sample sizes, the noise floor and the contracts caveat: `docs/design/sand043/benchmark-program.md` §3 and `docs/design/sand42/experiment-design.md` §4.
 
 ## Metric completeness
 
@@ -551,6 +551,6 @@ boot` is the fleet window having recorded `ready_ts`.
 * Mid-run KV / queue is unsampled for `2l4-c8` and for four of the five `2l4-c32` runs. Both are re-runnable without changing the design; the completeness table above is generated from the run store, so it cannot go stale when they land.
 * Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an interval, never a ranking.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
-* This grid shows the second L4 does not pay per GPU, but not whether that is a property of the L4s or of the client feeding them. The controlled test — data-parallel with a per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).
+* This grid shows the second L4 does not pay per GPU, but not whether that is a property of the L4s or of the client feeding them. The controlled test — data-parallel with a per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is designed in [`docs/design/sand42/followup-design.md`](../../docs/design/sand42/followup-design.md).
 
 _Generated 2026-10-13T04:33:18+00:00 by `sandbox run card --runbook sand42`._

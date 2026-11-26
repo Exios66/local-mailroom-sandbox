@@ -2,7 +2,7 @@
 
 R03 adjudicates about 100 v0-vs-gold disagreements per lineage as ``model_wrong``, ``gold_wrong``
 or ``ambiguous``. Its gate: gold is wrong on at most 15% of the audited documents, or the labels are
-corrected as a new labels version (``docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md``,
+corrected as a new labels version (``docs/design/rb1/2026-11-18-evaluation-runbook-plan.md``,
 Task 4).
 
 ``build_sheet`` reads one finished v0 run (its locked ``dataset.jsonl``, the truth it was scored on

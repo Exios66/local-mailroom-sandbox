@@ -82,7 +82,7 @@ complete their verbatim `/metrics` coverage. This issue can close once those two
 **Title:** SAND-042 follow-up: does a controlled feed restore per-GPU parity on 2×L4? (feed-controlled
 scale-out experiment)
 
-**Body:** see [`docs/SAND42-FOLLOWUP-DESIGN.md`](SAND42-FOLLOWUP-DESIGN.md). In one line: hold the
+**Body:** see [`docs/design/sand42/followup-design.md`](../design/sand42/followup-design.md). In one line: hold the
 engine, draw, prompts and workload fixed and vary only **how work reaches two GPUs** — data-parallel
 as-is (control), data-parallel with a per-request feed, **tensor-parallel on one endpoint**, and
 data-parallel with a raised admission ceiling — to decide whether "the second L4 does not pay" is a

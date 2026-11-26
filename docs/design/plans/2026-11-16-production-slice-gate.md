@@ -20,7 +20,7 @@ mechanism bugs are diagnosed.
 **Tech Stack:** Python 3.11+, pydantic v2 (`RunSpec`), argparse CLI (`src/mailroom_sandbox/cli.py`),
 pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 
-**Spec:** `docs/superpowers/specs/2026-11-16-production-slice-gate-design.md`
+**Spec:** `docs/design/specs/2026-11-16-production-slice-gate-design.md`
 
 ## Global Constraints
 

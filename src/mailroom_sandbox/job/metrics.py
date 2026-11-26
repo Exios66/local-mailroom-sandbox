@@ -1898,7 +1898,7 @@ def estimate_suite(
         "Specialists ≈1 LLM call/doc (vs sorter ~5); per-doc GPU $ should beat "
         "run-50 sorter ≈$0.16/doc if doc length is similar",
         "Anchors: run-50 sorter ~77 min / ~$8 on 2–3×L4; L4 gen ≈8.7–13.9 tok/s "
-        "(docs/scale-matrix.md); Modal L4 ≈$0.80/GPU-hr",
+        "(docs/design/dmr068/scale-matrix.md); Modal L4 ≈$0.80/GPU-hr",
         "Alternate ceiling: sorter ≈$0.032–0.05 per LLM-call × 150 docs ≈ "
         "$4.80–$7.50 if specialist docs match run-50 filing length and decode "
         "tails (use HIGH band + this ceiling when budgeting credits)",
@@ -2148,7 +2148,7 @@ def _estimate_optimizations(
             "expected_usd_saved": awq_save,
             "safe_now": False,
             "note": (
-                "Gate: ≥1.5× docs/min AND ≥98% accuracy (docs/scale-matrix.md). "
+                "Gate: ≥1.5× docs/min AND ≥98% accuracy (docs/design/dmr068/scale-matrix.md). "
                 "Do not swap the default bf16 suite until gated; optional path: "
                 'eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"'
             ),

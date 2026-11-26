@@ -1,6 +1,6 @@
 # DMR-068 / SAND-022 — scale matrix cell E1: 4xL4, concurrency 16, published FP8 on L4.
 # A/B delta vs D1 AWQ: same fleet + fixture; tests native Ada FP8 ($0.80/hr) vs AWQ.
-# Fixed-doc-size fixture — see docs/scale-matrix.md.
+# Fixed-doc-size fixture — see docs/design/dmr068/scale-matrix.md.
 # Deploy the fleet PINNED for measurement:
 #   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \

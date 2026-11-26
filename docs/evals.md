@@ -244,6 +244,10 @@ the dojo suite only sees in-schema, non-empty events. Trace-only keys
 `peel_non_extraction_fields` still sees them.
 
 Numeric zero (`0`, `0.0`, `$0`) is a stated value and still scores.
+A null ground-truth answer, by contrast, is unlabelled: it is not scored as a
+zero. CUAD and MAUD row metrics and the pooled headline metrics are delegated
+to the Dojo; sandbox corrections to them are [scoring hotfixes](scoring-hotfixes.md).
+The production and evaluation corporate prompt catalogs stay separate.
 
 Offline lock: `tests/test_extraction_scope.py`.
 

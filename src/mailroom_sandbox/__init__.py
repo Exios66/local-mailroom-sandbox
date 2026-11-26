@@ -48,5 +48,5 @@ def prefer_own_venv_tools() -> None:
 
 from mailroom_sandbox.runtime import activate
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = ["activate", "__version__"]
