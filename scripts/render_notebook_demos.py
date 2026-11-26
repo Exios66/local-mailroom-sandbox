@@ -18,6 +18,9 @@ NOTEBOOKS = sorted((ROOT / "notebooks").glob("0*.ipynb"))
 DEMOS = ROOT / "notebooks" / "demos"
 BINARY_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif",
                 "image/bmp", "image/tiff", "application/pdf", "application/octet-stream"}
+# Parent for the render's TemporaryDirectory: a private, uniquely named mkdtemp folder, so a
+# fixed parent carries no predictable-path risk; it is short so paths fit display widths.
+SHORT_TEMP_BASE = "/tmp"  # nosec B108 -- parent of a private mkdtemp folder, not a fixed file
 # Pandas truncates long cells ("/var/folders/...") before sanitization sees them, so a
 # truncated machine path would no longer match its replacement and would leak.
 KERNEL_SETUP = (
@@ -99,7 +102,7 @@ def find_path_leaks(nb, markers: list[str]) -> list[str]:
 
 def _short_temp_base() -> str | None:
     """Prefer ``/tmp`` over macOS's long ``$TMPDIR`` so paths fit display widths."""
-    return "/tmp" if os.name == "posix" and Path("/tmp").is_dir() else None
+    return SHORT_TEMP_BASE if os.name == "posix" and Path(SHORT_TEMP_BASE).is_dir() else None
 
 
 def main() -> int:
