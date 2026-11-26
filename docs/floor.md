@@ -389,9 +389,11 @@ sandbox floor --replay-run /tmp/exported-run --base /tmp/floor-base --replay-spe
 The [sample provenance and files](../data/fixtures/floor/replay/README.md)
 describe 120 public document IDs and metadata, 24 per live class. No document
 text is included. Decisions, scores, token counts and latencies are simulated.
-The roughly 66-second trace includes concurrent arrivals, technical failures,
-parked human reviews and a resolved classification review that re-enters
-extraction. Use it for UI verification, never as experiment evidence.
+The roughly 66-second trace includes concurrent arrivals. Every document
+archives under its ground-truth class. Output-cap truncation, judge parks,
+arbiter re-extraction and class mismatches from earlier samples are not in
+this timeline; it assumes the checkout's active vendor hotfixes. Use it for
+UI verification, never as experiment evidence.
 
 The sample is written to
 `<base>/runtime/runs/replay-mailroom-sample` and persists after shutdown. Only
