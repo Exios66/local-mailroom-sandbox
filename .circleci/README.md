@@ -1,7 +1,7 @@
 # CI checks and runtime verification
 
 [`config.yml`](config.yml) runs one workflow: `lint`
-(`small`), `checks` (`small`), `test` (`medium`, 4 parallel containers),
+(`small`), `checks` (`small`), `test` (`medium`, 8 parallel containers),
 `notebook-regressions` (`small`), `coverage` (`small`, runs after `test`) and `no-session-links` (`small`; fails
 on claude.ai links, Claude-Session trailers or Claude Code footers in commits or
 the PR description). The jobs use `cimg/python:3.11-node` except `no-session-links`,
@@ -19,8 +19,8 @@ branch protection.
 | `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint CLI2 0.18.1. Tool versions are pinned in [`lint-requirements.txt`](lint-requirements.txt); rule exclusions live in the repository config files (`pyproject.toml`, `.yamllint.yaml`, `.shellcheckrc`, `.markdownlint-cli2.yaml`). |
 | `checks` | Committed generated files match their generators: the reports-hub snapshot (`build_hub.py --check`), the requirements mirrors (`sync_requirements.py --check`), the CLI reference (`check_cli_surface.py --check`) and the runbook catalog pins plus generated `docs/runbooks/` (`sandbox runbook check`), and the campaign report indexes (`sandbox report build --campaign rb1 --check`). Network-free; it needs the dev virtualenv but waits for no other job. |
 | `notebook-regressions` | Dedicated offline execution and bootstrap checks in `tests/test_notebook.py`, `tests/test_notebooks.py` and `tests/test_prep.py`, with the notebook dependencies installed. This complements the full-suite and coverage gates. |
-| `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. JUnit results are stored even when a shard fails, so the timing split keeps its data. |
-| `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total and stores coverage XML. |
+| `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 8 containers (`parallelism: 8`) using recorded timings. Each container writes its own coverage data file. JUnit results are stored even when a shard fails, so the timing split keeps its data. |
+| `coverage` | Combines the 8 coverage data files (fails unless all 8 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total and stores coverage XML. |
 
 These are the configured jobs. There is no dedicated full-corpus campaign or
 serial/parallel runtime-benchmark job; passing `lint` and `test` does not establish
@@ -46,6 +46,21 @@ divides a file between containers. In particular,
 union and then checks aggregate graph-edge coverage. Splitting its scenarios
 between workers invalidates that assertion. Preserve file scheduling unless
 the test contract itself is deliberately redesigned.
+
+The one exception is `PER_TEST_XDIST_FILES` in `tests/conftest.py`. Its
+`pytest_xdist_make_scheduler` hook returns a `LoadFileScheduling` subclass whose
+`_split_scope` gives each test in those files its own scope, so their tests
+spread over both workers. Every other file keeps one scope. The hook changes no
+node IDs. (`--dist loadgroup` is not a substitute: with pytest 9.2 and
+pytest-xdist 3.8 its `xdist_group` suffix is written to `_nodeid`, which pytest
+no longer reads, so every test is scheduled singly.) The listed files are the
+slowest ones, and their tests use only function-scoped fixtures. On one worker,
+`tests/test_arbiter_termination.py` (260 tests, about 218 seconds) set the floor
+for a whole container, so adding containers could not shorten the job. Add a
+file only after checking that none of its tests reads state that another test
+leaves behind.
+`tests/test_regression_guards.py::test_loadfile_scheduler_splits_only_files_whose_tests_share_no_state`
+fails if the routing matrix is listed or the split leaks to other files.
 
 Every worker independently collects the entire suite before scheduling, even
 with `loadfile`. Keep parametrized case order and IDs deterministic: sort
@@ -115,6 +130,21 @@ That is a 51.3% pytest-step and 47.6% total-job reduction for these hosted
 runs. It demonstrates wall-time improvement, not reduced credit consumption
 or a guarantee for every push. Recheck the current feature stack's gates;
 this prerequisite comparison does not certify later code changes.
+
+The 8-container change with per-test scheduling for `PER_TEST_XDIST_FILES` was
+compared against the 36 most recent successful 4-container workflows (medians).
+Both sides had venv cache hits and the same combined 89% coverage. The new run
+had 6,261 passed and 41 skipped, which is the baseline's 6,257 plus the 4 guard
+tests the change adds.
+
+| Hosted run | Containers | `test` job | Slowest pytest step | Workflow | `test` container-seconds |
+| --- | --- | --- | --- | --- | --- |
+| 36 runs before, median ([4044](https://circleci.com/gh/Exios66/local-mailroom-sandbox/4044) shown) | 4 | 284 s | 276 s (4044) | 319 s | 1,073 (4044) |
+| [4066](https://circleci.com/gh/Exios66/local-mailroom-sandbox/4066), `64e1831` | 8 | 182 s | 158 s | 221 s | 1,203 |
+
+That is a 36% shorter `test` job and a 31% shorter workflow for about 12% more
+`test` container time. This is one run, and it is the first with 8 containers,
+so the timing split had no 8-way history.
 
 ## Local verification policy
 

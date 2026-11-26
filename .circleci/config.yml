@@ -1,6 +1,6 @@
 version: 2.1
 
-# One workflow: lint, generated-file checks, a 4-way parallel test job, a
+# One workflow: lint, generated-file checks, an 8-way parallel test job, a
 # notebook execution job, coverage gate and the no-session-links guard (.circleci/check_no_session_links.sh).
 # lint, checks, test, notebooks and no-session-links start together; coverage waits for test.
 #
@@ -9,11 +9,14 @@ version: 2.1
 # fresh `pip install` (about 50s). Now:
 #   - the installed virtualenv is cached, keyed on pyproject.toml, so a cache
 #     hit skips the install;
-#   - the test job runs on 4 parallel containers. CircleCI splits test files
+#   - the test job runs on 8 parallel containers. CircleCI splits test files
 #     by their recorded timings (file-name split on the first run), and each
 #     container runs two pytest-xdist workers with --dist loadfile, so
 #     process-local unions such as test_pipeline_routing_matrix.WALKED stay
-#     on one worker;
+#     on one worker. tests/conftest.py's scheduler hands out single tests
+#     only for PER_TEST_XDIST_FILES, whose tests share no state: on one
+#     worker test_arbiter_termination.py alone (about 220s) set the floor
+#     for the whole job;
 #   - each container writes its own coverage data file; the `coverage` job
 #     combines them and enforces fail_under from pyproject.toml (84, unchanged).
 #     The per-container --cov-fail-under=0 only stops a partial file from
@@ -140,7 +143,7 @@ jobs:
   test:
     executor: py
     resource_class: medium
-    parallelism: 4
+    parallelism: 8
     steps:
       - checkout
       - venv
@@ -204,7 +207,7 @@ jobs:
           name: Combine coverage from every test container and enforce fail_under
           command: |
             ls -A coverage-data/
-            test "$(ls -A coverage-data | grep -c '^\.coverage\.')" -eq 4
+            test "$(ls -A coverage-data | grep -c '^\.coverage\.')" -eq 8
             coverage combine coverage-data/
             coverage report
             coverage xml -o coverage/coverage.xml

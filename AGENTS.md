@@ -330,7 +330,7 @@ first, then run a bounded local reproduction only when needed.
 
 CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
 markdownlint), a `checks` job for committed generated files (reports hub,
-requirements mirrors, CLI reference, runbook docs, campaign report indexes), the full pytest suite (4 parallel
+requirements mirrors, CLI reference, runbook docs, campaign report indexes), the full pytest suite (8 parallel
 containers), dedicated offline notebook execution, and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending
@@ -356,9 +356,11 @@ and clear cached parent-package attributes when needed. Replacing the mapping
 can miss imports or fail inside CPython. For an import guard, also run a
 negative control that deliberately imports the prohibited module.
 
-CI splits test files across 4 parallel `test` containers by recorded timings;
+CI splits test files across 8 parallel `test` containers by recorded timings;
 each runs two xdist workers with `--dist loadfile`, keeping process-local routing
-scenario coverage on one worker. The `coverage` job combines every container's
+scenario coverage on one worker. The scheduler in `tests/conftest.py` hands out
+single tests only for `PER_TEST_XDIST_FILES`, whose tests share no state; add a
+file there only after checking that none of its tests reads another's leftovers. The `coverage` job combines every container's
 data and enforces the 84% floor. Preserve the full network-free suite and the
 84% combined coverage gate. Compare completed job and pytest-step durations with
 the same coverage settings before claiming a speedup; a faster no-coverage
