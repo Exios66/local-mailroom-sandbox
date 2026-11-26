@@ -1232,21 +1232,28 @@ def _pipeline_extraction_scores(extraction_rows: Sequence[Mapping[str, Any] | No
     share of documented-absent fields a value was stated on (SHF-001).
     ``extraction_overall_correct_class`` restricts the mean to documents the sorter routed to
     their true class, so a misrouted document's partial credit is never read as specialist quality.
+    ``extraction_overall_n_scored`` and ``extraction_overall_correct_class_n_scored`` are the number
+    of documents each mean averages (0 when the mean is None), on the raw side too: a document with
+    no score (parked, or every scored label dropped by SHF-015) is not a 0 in the mean, so the count
+    is what shows the denominator (critical regression 1, ``docs/critical-regressions.md``).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
-    def overall(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> float | None:
-        vals = [float(r["overall_extraction_score"]) for i, r in enumerate(rows)
+    def scored(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> list[float]:
+        return [float(r["overall_extraction_score"]) for i, r in enumerate(rows)
                 if r and isinstance(r.get("overall_extraction_score"), (int, float))
                 and (mask is None or mask[i])]
-        return scoring.mean_or_zero(vals) if vals else None
+
+    def overall(rows: Sequence[Mapping[str, Any] | None], mask: Sequence[bool] | None = None) -> dict[str, Any]:
+        vals = scored(rows, mask)
+        suffix = "" if mask is None else "_correct_class"
+        return {f"extraction_overall{suffix}": scoring.mean_or_zero(vals) if vals else None,
+                f"extraction_overall{suffix}_n_scored": len(vals)}
 
     raw = sh.raw_rows(extraction_rows)
-    fixed_part = {"extraction_overall": overall(extraction_rows),
-                  "extraction_overall_correct_class": overall(extraction_rows, class_ok),
+    fixed_part = {**overall(extraction_rows), **overall(extraction_rows, class_ok),
                   **sh.aggregate_extraction(extraction_rows)}
-    raw_part = {"extraction_overall": overall(raw), "extraction_overall_correct_class": overall(raw, class_ok),
-                **sh.aggregate_extraction(raw)}
+    raw_part = {**overall(raw), **overall(raw, class_ok), **sh.aggregate_extraction(raw)}
     used = sorted({i for r in extraction_rows if r for i in r.get("scoring_hotfixes") or []})
     keys = tuple(dict.fromkeys([*fixed_part, *raw_part]))
     return sh.merge_dual(raw_part, fixed_part, used, keys=keys)

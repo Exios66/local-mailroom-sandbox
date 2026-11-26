@@ -50,7 +50,9 @@ the gold audit read that layout.
   reported. On the headline, an item whose run failed (`ok` false: a timeout, parse failure or
   crash) scores 0 on each headline key (SHF-005), so failures stay in the denominator;
   `failed` and `failed_scored_zero` count them. `raw_dojo` holds the plain means over the scored
-  items only, and `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. A task
+  items only, and `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. Each
+  mean carries its `n`, the items that have the key: an item SHF-015 left with no
+  `overall_extraction_score` is not in that `n` (`scored` counts the items). A task
   runner's own run summary can hold other statistics (macro-F1, intervals), which a rescore does
   not recompute.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores

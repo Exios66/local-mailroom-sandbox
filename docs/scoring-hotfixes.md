@@ -109,6 +109,15 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     the scored n beside every metric of [critical regression 1](critical-regressions.md); it
     appears in `scoring_hotfixes_changed` when the two sides differ. `n_scored` is additive: `n`
     keeps its meaning.
+  - A pipeline run's headline does the same for its two means: `extraction_overall_n_scored` and
+    `extraction_overall_correct_class_n_scored` are the number of documents `extraction_overall`
+    and `extraction_overall_correct_class` average (documents with a numeric
+    `overall_extraction_score`, and for the second only those routed to their true class). A count
+    is 0 when its mean is `None`. `raw_dojo` carries both counts over the raw rows, and a count
+    that differs between the two sides appears in `scoring_hotfixes_changed`. Neither count is
+    sent to Langfuse. A rescore's `scores.json` already reports `n` beside each per-item mean
+    (`means.overall_extraction_score.n`, and `scored` for the items); a stale-only item has no
+    headline score there and is not counted, while its own `raw_dojo` score stays on the item.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
