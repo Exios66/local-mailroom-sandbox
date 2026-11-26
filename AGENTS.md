@@ -291,7 +291,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 ## Specialist extraction guidance
 
 - Corporate runtime requests compose each registered subclass's core and entity fields from
-  the selected Dojo registry through `mailroom_sandbox.corporate_extraction` (HF-018–HF-020).
+  the selected Dojo registry through `mailroom_sandbox.corporate_extraction` (HF-020–HF-022).
   Connected runs use the observed sorter handoff, never expected ground truth. Unknown explicit
   subclasses are refused; missing routing retains the explicit core-only fallback. Keep label
   collection aligned with applicable subclass targets and verify the actual request fields with

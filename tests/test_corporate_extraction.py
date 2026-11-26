@@ -41,9 +41,9 @@ def test_runtime_activation_installs_distinct_corporate_and_main_hotfixes(monkey
     for method, fix_id in (
         (CompletenessJudge.judge_extraction_correctness, 'HF-013'),
         (ArbiterAgent.arbitrate, 'HF-015'),
-        (Native.extract, 'HF-018'),
-        (LangChain.extract, 'HF-019'),
-        (LangChain.extract_chunked, 'HF-020'),
+        (Native.extract, 'HF-020'),
+        (LangChain.extract, 'HF-021'),
+        (LangChain.extract_chunked, 'HF-022'),
     ):
         assert getattr(method, '_sandbox_hotfix', None) == fix_id
     assert vendor_hotfixes.apply_hotfixes()['HF-014'] == 'applied'
@@ -65,7 +65,7 @@ def test_registry_schemas():
 def test_native_actual_requests_concurrent_and_no_truth():
     from agents.corporate_records_specialist import CorporateRecordsSpecialist
     from graph.build_graph import _build_handoff_context
-    assert vendor_hotfixes.apply_hotfixes()['HF-018'] == 'applied'
+    assert vendor_hotfixes.apply_hotfixes()['HF-020'] == 'applied'
     def run(subtype):
         agent = object.__new__(CorporateRecordsSpecialist)
         agent._configured_max_input_chars = lambda: 5000
@@ -169,7 +169,7 @@ def test_registry_drift_and_runlock_identity(monkeypatch):
     assert description['corporate_extraction_sha256']
     monkeypatch.setattr(corporate_extraction, 'registry_matches', lambda: False)
     statuses = vendor_hotfixes.apply_hotfixes()
-    assert all(statuses[fix] == 'stale' for fix in ('HF-018', 'HF-019', 'HF-020'))
+    assert all(statuses[fix] == 'stale' for fix in ('HF-020', 'HF-021', 'HF-022'))
     # Corporate registry drift must not disable main's judge/arbiter fixes.
     assert all(statuses[fix] == 'applied' for fix in ('HF-013', 'HF-014', 'HF-015'))
 

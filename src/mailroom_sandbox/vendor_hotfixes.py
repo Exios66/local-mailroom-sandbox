@@ -1189,13 +1189,13 @@ def _install_final_ruling(_module: Any, original: Callable[..., Any]) -> Callabl
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
-    Hotfix(id="HF-018", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
+    Hotfix(id="HF-020", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
            source_sha256="7dee5e0929633efe57f7b115c4129ab33ed62a19656b986711987f304c99df86",
            upstream="Exios66/llm-mailroom#322", summary="Select corporate schema from observed subclass", install=_install_corporate_native),
-    Hotfix(id="HF-019", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract",
+    Hotfix(id="HF-021", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract",
            source_sha256="6485a75a43f73b60a04180a88438246563d646dd90d549a2df5ee5e02361bd3d",
            upstream="Exios66/llm-mailroom#322", summary="Select corporate schema for LangChain extraction", install=_install_corporate_langchain),
-    Hotfix(id="HF-020", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract_chunked",
+    Hotfix(id="HF-022", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract_chunked",
            source_sha256="6e7ac75666a140570b6b6f8308b3a914494fcbddc3538597f53d58c08ae0a349",
            upstream="Exios66/llm-mailroom#322", summary="Select corporate schema for chunked extraction", install=_install_corporate_langchain),
     Hotfix(
@@ -1413,7 +1413,7 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
     installed) or ``unavailable`` (the vendored module cannot be imported here).
     """
     for fix in hotfixes:
-        if fix.id in {"HF-018", "HF-019", "HF-020"}:
+        if fix.id in {"HF-020", "HF-021", "HF-022"}:
             from mailroom_sandbox.corporate_extraction import registry_matches
             if not registry_matches():
                 _STATUS[fix.id] = "stale"
