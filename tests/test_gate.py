@@ -47,7 +47,8 @@ def _run(root, docs, name="slice"):
                 continue
             for _ in range(d.get("repeat", 1)):
                 pred = {"stage": d.get("stage", "archived"), "extracted_data": {},
-                        "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95)}
+                        "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95),
+                        **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {})}
                 it.write(json.dumps({"item_id": d["id"], "ok": d.get("error") is None, "error": d.get("error"),
                                      "prompt_tokens": 10, "completion_tokens": 5, "pred": pred}) + "\n")
     return run
@@ -83,6 +84,25 @@ def test_outcomes_follow_score_and_stage(tmp_path):
     assert out["rev"]["outcome"] == "review" and out["rev"]["stage"] == "review"
     assert out["few"]["outcome"] == "unscorable_archive" and out["few"]["scorable"] is False
     assert out["ok"]["class"] == "contract" and out["ok"]["tokens"] == 15
+
+
+def test_caveat_archives_are_marked_counted_and_scored(tmp_path):
+    """HF-014: an archive the arbiter accepted with caveats is scored like any other, and shown apart."""
+    marker = {"decision": "accept_with_caveats", "judge_verdict": "partial", "whole_source": True, "hf014": True}
+    run = _run(tmp_path, [{"id": "cav", "cls": "contract", "score": 0.95, "caveats": marker},
+                          {"id": "old", "cls": "contract", "score": 0.6, "caveats": {**marker, "hf014": False}},
+                          {"id": "clean", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    out = {d["id"]: d for d in report["docs"]}
+    assert out["cav"]["arbiter_caveats"] and out["cav"]["caveats_hf014"] and out["cav"]["outcome"] == "correct_archive"
+    assert out["old"]["outcome"] == "wrong_archive" and not out["old"]["caveats_hf014"]
+    assert "arbiter_caveats" not in out["clean"]
+    assert report["arbiter_caveats"] == {"archives": 2, "hf014": 1, "docs": ["cav", "old"]}
+    assert report["pooled"]["scorable"] == 3  # caveat archives stay in the score denominators
+
+
+def test_a_run_without_caveat_archives_keeps_its_report_shape(tmp_path):
+    assert "arbiter_caveats" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
 
 
 def test_bar_edge_is_inclusive(tmp_path):
