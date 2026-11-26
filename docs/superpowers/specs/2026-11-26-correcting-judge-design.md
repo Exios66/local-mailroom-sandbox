@@ -14,6 +14,10 @@ Status: draft for owner review · approach chosen by the owner: build in the san
   quote the source document, and code checks the quote before the fix is used.
 - **Limit.** At most two judge rulings and one retry per document. A document that reaches the limit
   goes to human review, so it stays in the scored results.
+- **Loop governor.** A new per-document governor caps all retries, model calls and spend across the
+  whole pipeline (classify retries, extraction retries, arbiter, boss), not just the judge. When a
+  document runs out, the governor sends it to a clear outcome instead of another round, so a runaway
+  document ends as a scored review, not a crash or an endless loop.
 - **Better information.** The judge also sees earlier attempts, the labeling guide, and how similar
   documents were labeled. The examples come from the `calibration` and `pool` sets only, using
   near-gold and interim labels, and those sets are never used for testing.
@@ -51,7 +55,9 @@ Status: draft for owner review · approach chosen by the owner: build in the san
 ## What will not change
 
 - Which documents reach the judge.
-- The classification judge, the boss, the global call limit, scoring rules and labels.
+- The classification judge's and the boss's own logic, scoring rules and labels. (The governor
+  limits how often retries and the boss can run, but does not change what they decide.)
+- The existing hard call ceiling stays as the last-resort backstop; the governor acts before it.
 - Any run without the `judge:` section, including all past runs.
 
 ## How it works
@@ -87,6 +93,45 @@ Preflight refuses the run if:
   - If the judge says a field is wrong but has no verified fix for it, the document cannot be
     archived: it is retried on the first ruling, or sent to a person on the second.
 - **Matter conflicts.** These still go to the boss, as today. Each one is counted.
+
+### The loop governor (whole pipeline)
+
+**The problem it fixes.** Each loop has its own limit today: `retry_max`, `arbiter_retry_max`,
+`judge_max_passes`, `transient_retry_max` and the classify retries. Nothing limits them together, so
+one document can stack them. The only overall stop is the hard call ceiling (40 calls for a pipeline
+document, `job/call_guard.py`). When it trips, the document crashes and drops out of the scores.
+
+**The governor** keeps one budget per document, counted across every node:
+
+| Budget | Counts | Default (my call; the pilot sets the final values) |
+|---|---|---|
+| Retries | classify retries, extraction retries, judge-requested retries, arbiter retries, boss entries | 2 per document |
+| Model calls | every LLM call for the document | 30 (below the hard ceiling of 40); mergers 36 |
+| Spend | priced calls for the document, using the live call guard | off until the pilot measures cost per type |
+
+Transient provider errors keep their own small limit (`transient_retry_max: 1`) and also count
+toward the call and spend budgets.
+
+**When a budget runs out,** the governor checks before each step that would add a round (a retry, an
+arbiter call, a second ruling, a boss entry) and routes the document to one of these outcomes
+instead:
+
+| Outcome | When | Result |
+|---|---|---|
+| `archive_with_caveats` | the current extraction already passed the judge or the fix checks | archived, marked `governor_stop`, scored |
+| `human_review: retry_budget` | the retry budget is spent | sent to a person, scored as review |
+| `human_review: call_budget` | the call budget is spent | sent to a person, scored as review |
+| `human_review: spend_budget` | the spend budget is spent | sent to a person, scored as review |
+| `human_review: boss_repeat` | a second boss entry is requested | sent to a person, scored as review |
+
+The hard ceiling stays as a backstop, so a crash now means the governor has a bug. Every stop is
+recorded on the result (`governor_stop`: reason, node, calls, retries and spend so far).
+
+**How it is built.** The governor is part of the same sandbox patch. It uses routing rules on the
+pipeline's existing routers (the method the repo's earlier routing fixes use), plus the call
+guard's per-document counters. It is switched on by `job.governor` in the run config, which is saved
+in the lock. It is off for existing runs and on in every new test version and, after the test, in
+production. It works with or without the new judge.
 
 ### What the judge reads
 
@@ -149,6 +194,7 @@ is already pinned.
 | Rulings and retries per judged document | shows the loop is gone |
 | Model calls and cost per document | shows the saving |
 | Review rate and wrong-archive rate | shows nothing got worse |
+| Governor stops by reason and type; crashes | shows runaway documents now end cleanly |
 
 Scores that include judge fixes are labelled "after judge". Judge-corrected documents are counted,
 and stay in every total.
@@ -161,12 +207,15 @@ passes, and every version keeps today's tightened loop limits (`judge_max_passes
 
 | Stage | What runs | Cost | Must pass before the next stage |
 |---|---|---|---|
-| 0. Offline proof | the pipeline with fake model answers | free | every path ends within two rulings and one retry; call counts per path match the design |
-| 1. Pilot | `dev-look1` (302 documents): today's judge vs the new judge with examples, plus the new judge without examples | small | the new judge makes at least 50% fewer judge-related calls; no extra crashes; cost per judged document no higher than today |
+| 0. Offline proof | the pipeline with fake model answers | free | every path ends within two rulings and one retry; every governor outcome is reached and ends cleanly; call counts per path match the design |
+| 1. Pilot | `dev-look1` (302 documents): today's judge with the governor off and on, the new judge with examples, and the new judge without examples | small | the new judge makes at least 50% fewer judge-related calls; no extra crashes; cost per judged document no higher than today |
 | 2. Full test | `dev` (900 documents): today's judge vs the new judge with examples | larger | the success rules below |
 
 The "without examples" version runs only in the pilot, to show cheaply what the examples add. The
-earlier "today's judge on the stronger model" version is dropped to save cost.
+earlier "today's judge on the stronger model" version is dropped to save cost. Every version runs
+with the governor on, including today's judge, so loop savings from the governor and from the new
+judge can be told apart. The pilot also adds "today's judge, governor off" as the plain baseline,
+and its call counts per document type set the governor's final budgets.
 
 **Success (full test):**
 
@@ -175,6 +224,7 @@ earlier "today's judge on the stronger model" version is dropped to save cost.
 - on judged documents, an extraction score at most 2 points below today, with a paired bootstrap
   interval (owner decision);
 - no more wrong archives;
+- no crashes from the hard call ceiling;
 - no leaks.
 
 Each paid stage needs a person's initials at the spend gate. Its spend cap is worked out from the
@@ -215,14 +265,16 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
    `evidence_support`).
 4. **New judge.** The sandbox patch: the one-step ruling, the arbiter pass-through, the field-only
    retry, and the two-ruling limit. Tests on the offline pipeline prove every path ends.
-5. **Extra information.** Earlier attempts and guide definitions. The reference pool builder reads
+5. **Loop governor.** The `job.governor` switch, the per-document retry, call and spend budgets,
+   the routing outcomes, and the `governor_stop` record. Offline tests reach every outcome.
+6. **Extra information.** Earlier attempts and guide definitions. The reference pool builder reads
    near-gold and interim labels for `calibration` and `pool`, with its leak checks.
-6. **Reports.** Before and after scores, fix accuracy, calls, cost and rulings in the gate and
-   routing reports.
-7. **Models and tests.** Add the provider pin for `qwen/qwen3.7-plus`, the per-class judge model,
+7. **Reports.** Before and after scores, fix accuracy, calls, cost, rulings and governor stops in
+   the gate and routing reports.
+8. **Models and tests.** Add the provider pin for `qwen/qwen3.7-plus`, the per-class judge model,
    and the document-first prompt order for caching. Write the stage 1 and stage 2 configs and their
    spend caps.
-8. **Hand over.** Open a PR, draft the upstream issues, and hand each paid stage to you to launch.
+9. **Hand over.** Open a PR, draft the upstream issues, and hand each paid stage to you to launch.
 
 ## Decisions made by the owner (2026-11-26)
 
@@ -231,6 +283,8 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
    models, caching and the staged test above are the design's answer.
 3. Score margin: at most 2 points below today on judged documents, tested on the full `dev` set.
 4. The test design is reworked to cut repeat judge and arbiter loops and wasted calls.
+5. A governor on the whole pipeline's retries, with clear routing outcomes, to stop excess spend
+   loops.
 
 ## Calls I made
 
@@ -243,6 +297,10 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
   disagree, near-gold wins.
 - Judge models: `qwen/qwen3.7-plus` by default, `deepseek/deepseek-v4.1-flash-1017` for mergers.
 - The test runs in three stages; the "model only" version is dropped.
+- Governor starting budgets: 2 retries, 30 calls (mergers 36), spend off until measured. The pilot
+  sets the final values. The governor is off for existing runs and on for every new test version.
+- A document whose current extraction already passed the checks is archived with caveats when the
+  governor stops it; every other stop goes to human review.
 
 ## Left to the builder
 
