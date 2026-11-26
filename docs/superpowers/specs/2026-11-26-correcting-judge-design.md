@@ -30,6 +30,9 @@ Status: draft for owner review · approach chosen by the owner: build in the san
   test shows it works.
 - **Where.** Built as a sandbox patch (the repo's approved way to change the pipeline without
   editing `vendor/`). Issues for the permanent `llm-mailroom` fix are written at the end.
+- **Wider hardening.** Nine more known weak points are fixed the same way, sandbox first, in five
+  phases. Spend safety comes first, then loops, then the judge, then long documents (see "The
+  hardening programme").
 
 ## The problem
 
@@ -243,6 +246,49 @@ per-ruling costs above with the repo's 1.5x margin.
 
   The sandbox patch is removed once upstream ships.
 
+## The hardening programme
+
+The owner asked for every known weak point to be fixed in the sandbox first, so the production
+experiment deployments get the fixes before upstream does. Vendor fixes go into
+`vendor_hotfixes.py`; harness fixes go into `src/mailroom_sandbox/`. Each item gets its own upstream
+issue where the pipeline owns it.
+
+### The fixes
+
+| # | Weak point (evidence) | Fix | Kind |
+|---|---|---|---|
+| S1 | A resumed run re-runs and re-bills every finished document (`job/runner.py:326-329`) | On resume, pass only unfinished documents to the run | harness |
+| S2 | Spend can overshoot the cap by one call per concurrent document; transport retries and timeouts ignore node deadlines (`job/call_guard.py:17`, `docs/audits/2026-11-25-openrouter-deployment.md:108-118`) | Reserve each in-flight document's estimated cost before starting another; cap the transport timeout at the node deadline; include transient and transport retries in the preflight cost estimate | harness |
+| L1 | Retry layers stack: 5 wrapper attempts, plus the SDK's own retries, plus a node re-run, and nothing counts single HTTP attempts (`llm/retry.py:326`) | One retry layer only (SDK retries off under the wrapper); every HTTP attempt counts toward the call guard and the governor | vendor |
+| L2 | The classify retry is a guaranteed wasted call: the sorter tops out at 0.95, below the 0.98 contract band, and returns the same answer (`docs/audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md:73`) | Skip the classify retry when it cannot change the outcome (same prompt, confidence already at the model's measured ceiling); go straight to the reviewer | vendor |
+| L3 | A judge parse failure is re-asked with the same request at temperature 0, so it fails the same way; a contract's second pass raises `TypeError` and parks (`docs/audits/2026-11-15-contract-recall-routing-ladder.md:261-263`) | Re-ask with a repair request that includes the parse error; fix the `TypeError`; applies to both judge modes | vendor |
+| L4 | Near-duplicate documents in the same matter are compared against archived copies and escalate to the boss (`reports/dashboard/FLOOR_RUN_REPORT.md:84-97`) | Link exact and near-duplicate text as duplicates before the conflict check, with no boss call | vendor |
+| L5 | Near-empty documents (32-56 characters) run the whole pipeline, then park (`docs/runbooks/production-slices.md:169-172`) | Route documents below a size floor straight to human review (`near_empty`) before any model call; scored as review | vendor |
+| D1 | Mergers and long documents cost the most for the least: MAUD 0.10 at about 410k tokens per document; on Modal and local routes, chunking, 16k judge and arbiter excerpts, low output caps and full-extraction retry priming remain (`docs/audits/2026-11-15-contract-recall-routing-ladder.md:259-260`) | Bring the API route's whole-document fixes to Modal and local routes where the context allows; raise output caps; prime retries only with the fields under retry | vendor |
+| D2 | Chunk merging takes the most confident window, unions list fields with no precision check (+20 false clauses), and the last attempt always wins (`governance/TASKS.md:53-54`) | Keep a list item only when its quote is found; take scalars from the best-supported window; keep the best-judged attempt, not the last | vendor |
+
+Already fixed in the sandbox, upstream issue only: label-assisted routing (`llm-mailroom` #207).
+`job.blind_routing` is on by default for pipeline runs (`job/spec.py:1265-1267`).
+
+Follow-up, not a hotfix: Modal idle and cold-boot cost (SAND-028). The instrumentation is blocked,
+so it stays on the task board.
+
+### The phases
+
+Each phase is its own PR, with tests and CircleCI green, and is live in the sandbox before the next
+phase starts.
+
+| Phase | Contents | Why this order |
+|---|---|---|
+| 1. Spend safety | S1, S2 | they protect every paid run, including the judge tests |
+| 2. Loop governor and loop fixes | the governor, L1-L5 | they stop runaway calls in today's pipeline, with or without the new judge |
+| 3. Correcting judge | the judge design above | it builds on the governor and its counters |
+| 4. Long documents and merging | D1, D2 | larger; each gets a short design of its own first |
+| 5. Production adoption | the switches in production configs, the Modal worker redeploy | after the staged test passes |
+
+The staged test (stages 0-2) runs once phases 1-3 are in. Every version has phases 1 and 2 on, so
+the test measures the judge on top of the hardened pipeline.
+
 ## Safety rules
 
 - No edits to `vendor/`.
@@ -255,7 +301,9 @@ per-ruling costs above with the repo's 1.5x margin.
 
 ## Plan
 
-Each step is its own commit with tests. The full test suite runs in CircleCI.
+Phases 1 and 2 come first (see "The phases"); each gets its own step-by-step plan. The steps below
+are phase 3, the judge. Each step is its own commit with tests. The full test suite runs in
+CircleCI.
 
 1. **Switch.** Add the `judge:` config section, the lock entry and the preflight refusals. Existing
    configs are unchanged.
@@ -285,6 +333,8 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
 4. The test design is reworked to cut repeat judge and arbiter loops and wasted calls.
 5. A governor on the whole pipeline's retries, with clear routing outcomes, to stop excess spend
    loops.
+6. Every known weak point is fixed as a sandbox hotfix first, so production experiment
+   deployments get it before upstream does.
 
 ## Calls I made
 
@@ -301,6 +351,8 @@ Each step is its own commit with tests. The full test suite runs in CircleCI.
   sets the final values. The governor is off for existing runs and on for every new test version.
 - A document whose current extraction already passed the checks is archived with caveats when the
   governor stops it; every other stop goes to human review.
+- The order of the hardening phases: spend safety first, long documents last.
+- D1 and D2 each get a short design before any code, because each changes extraction itself.
 
 ## Left to the builder
 
