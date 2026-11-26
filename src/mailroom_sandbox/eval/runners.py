@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -165,6 +165,7 @@ def _run_rows_bounded(
     on_result,
     guard,
     order: list[int] | None = None,
+    skip: Collection[int] = (),
 ) -> None:
     """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
 
@@ -180,10 +181,12 @@ def _run_rows_bounded(
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-    n = len(rows)
-    queue = list(range(n)) if order is None else list(order)
-    if sorted(queue) != list(range(n)):
-        raise ValueError("order must be a permutation of the row indices")
+    skipped = set(skip)
+    wanted = [i for i in range(len(rows)) if i not in skipped]
+    queue = wanted if order is None else list(order)
+    if sorted(queue) != wanted:
+        raise ValueError("order must be a permutation of the row indices that are not skipped")
+    n = len(queue)
     if workers <= 1:
         for index in queue:
             guard(0)
@@ -329,8 +332,12 @@ def run_isolated_eval(
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
     longest_first: bool = False,
+    replay: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``replay`` maps a row id to the item an earlier attempt of this run persisted: a replayable row
+    keeps its stored answer and score (scorer and truth are locked) with no model call and no new spend.
 
     ``longest_first`` (``job.longest_first``) starts the longest ``doc_text`` first, so a
     many-window document does not decode alone at the end; rows keep their drawn index.
@@ -498,7 +505,7 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
-        if api_budget is not None:
+        if api_budget is not None and not entry.get("replayed"):  # a replayed row's spend seeds the budget
             api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
@@ -516,9 +523,23 @@ def run_isolated_eval(
             except Exception as exc:  # noqa: BLE001 — progress must never break a run
                 _log.warning("progress_cb raised — live progress may stall: %s", exc)
 
-    order = (sorted(range(len(rows)), key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
+    replayed: set[int] = set()
+    for index, row in enumerate(rows):
+        stored = (replay or {}).get((row or {}).get("id"))
+        if replayable(stored):
+            entry = {"id": row.get("id"), "pred": dict(stored["pred"]), "score": dict(stored.get("score") or {}),
+                     "error": stored.get("error"), "offline_fallback": False, "replayed": True,
+                     "latency_ms": stored.get("latency_ms"), **_replay_usage(stored)}
+            window = _replay_window(stored)
+            if window:
+                entry["started_at_ns"], entry["finished_at_ns"] = window
+            _record(index, entry)
+            replayed.add(index)
+    order = (sorted((i for i in range(len(rows)) if i not in replayed),
+                    key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
              if longest_first else None)
-    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order)
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order,
+                      skip=replayed)
 
     if rows and errors == len(rows):
         last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)

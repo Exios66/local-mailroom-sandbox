@@ -363,6 +363,44 @@ def test_bounded_scheduler_starts_rows_in_the_given_order(workers):
                           run_one=lambda i, row: row, on_result=lambda i, out: None)
 
 
+@pytest.mark.parametrize("workers", [1, 3])
+def test_run_rows_bounded_skips_indices(workers):
+    from mailroom_sandbox.eval.runners import _run_rows_bounded
+
+    started, guards = [], []
+    _run_rows_bounded(["a", "b", "c"], workers=workers, guard=guards.append, skip={1},
+                      run_one=lambda i, row: started.append(i) or row, on_result=lambda i, out: None)
+    assert sorted(started) == [0, 2]
+    assert len(guards) <= 2 + (workers > 1)  # a skipped row never starts, so it is never guarded alone
+    with pytest.raises(ValueError):
+        _run_rows_bounded(["a", "b"], workers=1, guard=lambda n: None, order=[0, 1], skip={1},
+                          run_one=lambda i, row: row, on_result=lambda i, out: None)
+
+
+def test_an_isolated_replay_keeps_the_stored_answer_and_score(monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    calls = []
+    real = eval_runners._predict_spec
+
+    def _spy(spec, row, **kwargs):
+        calls.append(row["id"])
+        return real(spec, row, **kwargs)
+
+    monkeypatch.setattr(eval_runners, "_predict_spec", _spy)
+    rows = [{"id": f"d{i}", "doc_text": "x", "expected": "contract"} for i in range(3)]
+    stored = {"item_id": "d0", "pred": {"doc_class": "contract", "stored": True}, "score": {"match": 1.0},
+              "error": None, "latency_ms": 7.0, "prompt_tokens": 50}
+    seen = []
+    result = eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, row_cb=seen.append,
+                                            replay={"d0": stored})
+    assert calls == ["d1", "d2"]
+    assert result["scores"]["n"] == 3
+    replayed = next(entry for entry in seen if entry["id"] == "d0")
+    assert replayed["replayed"] is True and replayed["score"] == {"match": 1.0}
+    assert replayed["pred"]["stored"] is True and replayed["prompt_tokens"] == 50
+
+
 def test_isolated_eval_dispatches_the_longest_document_first(monkeypatch):
     from mailroom_sandbox.eval import runners as eval_runners
 

@@ -136,22 +136,22 @@ Any agent can pick this up where the last one stopped. The owner approved the de
 - Produces: `_run_rows_bounded(..., skip: Collection[int] = ())`. Skipped indices never start and never call
   `guard`. `order`, when given, must be a permutation of the indices that are not skipped.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_run_rows_bounded_skips_indices` (workers 1 and 3): `skip={1}`; assert `run_one` saw only 0 and 2, and
     `guard` was called twice at most.
   - `test_an_isolated_replay_keeps_the_stored_answer_and_score`. Monkeypatch `eval_runners._predict_spec` to
     count calls. Use 3 sorter fixture rows with row 0 replayed (`pred`, `score` `{"match": 1.0}`, `error: None`).
     Assert one fewer predict call, `scores["n"] == 3`, and that the replayed entry's score is the stored one.
-- [ ] **Step 2: Run and see them fail**
+- [x] **Step 2: Run and see them fail**
   `.venv/bin/python -m pytest -q tests/test_job_runner.py -k "run_rows_bounded or isolated_replay" -n 0
   --no-cov`.
-- [ ] **Step 3: Implement.** Before `_run_rows_bounded`, record each replayable row on the main thread with
+- [x] **Step 3: Implement.** Before `_run_rows_bounded`, record each replayable row on the main thread with
   `_record(index, entry, replayed=True)`. The entry is `{"id", "pred", "score", "error",
   "offline_fallback": False, "replayed": True, latency and usage from the item}`; the stored score is kept
   because the scorer and truth are locked. `_record` skips `api_budget.add_usage` when replayed. Then pass
   `skip=` the replayed indices.
-- [ ] **Step 4: Run the tests again; they pass.**
-- [ ] **Step 5: Commit** `feat(resume): replay persisted isolated rows instead of re-running them (phase1 task 2)`.
+- [x] **Step 4: Run the tests again; they pass.**
+- [x] **Step 5: Commit** `feat(resume): replay persisted isolated rows instead of re-running them (phase1 task 2)`.
 
 ### Task 3: The job runner passes the replay map, and replayed rows are not re-billed
 
