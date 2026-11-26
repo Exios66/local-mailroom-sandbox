@@ -862,3 +862,61 @@ def test_shf003_other_dollar_currencies_do_not_match_a_us_dollar_amount():
         from llm_dojo_scoring.scoring import field_scoring as fs
 
         assert fs.score_money_field("1,000 dollars", "$1,000") == 1.0
+
+
+# --- SHF-003: a dollar sign qualified by a space or a currency adjective -------------------------
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("US $5,000 (C$6,800)", {"USD", "CAD"}), ("US $5,000", {"USD"}), ("U.S. $5,000", {"USD"}),
+    ("Canadian $5,000", {"CAD"}), ("Australian $5", {"AUD"}), ("Singapore $5", {"SGD"}),
+    ("Hong Kong $5", {"HKD"}), ("New Zealand $5", {"NZD"}), ("canadian$5", {"CAD"}),
+    # adjacency and the other readings are unchanged
+    ("US$5", {"USD"}), ("USD$5", {"USD"}), ("C$5", {"CAD"}), ("A$5", {"AUD"}), ("S$5", {"SGD"}),
+    ("HK$5", {"HKD"}), ("NZ$5", {"NZD"}), ("CA$ 5", {"CAD"}), ("CAD $1,000", {"CAD"}),
+    ("$1,000 CAD", {"CAD"}), ("$5", {"USD"}), ("a $5", {"USD"}), ("Mexican pesos $5", {"USD"}),
+    # a single letter or a state code before a spaced dollar sign is not a currency ("Plan A $5,000")
+    ("Plan A $5,000", {"USD"}), ("Option C $5", {"USD"}), ("San Jose, CA $5,000", {"USD"}),
+    ("＄1,000", set()), ("﹩1,000", set()), ("💲1", set()), ("RS$100", set()), ("BUS$100", set()),
+])
+def test_shf003_a_qualified_dollar_sign_reads_as_its_currency(text, expected):
+    assert sh.currencies(text) == expected
+
+
+def _equal(pred, exp, embedding=None):
+    return 1.0
+
+
+def test_shf003_a_us_amount_with_a_converted_figure_still_matches_the_plain_amount():
+    assert sh.fixed_money_score(_equal, "US $5,000 (C$6,800)", "$5,000") == 1.0
+    assert sh.fixed_money_score(_equal, "Canadian $5,000", "C$5,000") == 1.0
+    assert sh.fixed_money_score(_equal, "$5,000", "US $5,000") == 1.0
+
+
+@pytest.mark.parametrize(("pred", "exp"), [
+    ("C$5,000", "US$5,000"), ("Canadian $5,000", "US$5,000"), ("C$5,000", "US $5,000"),
+    ("Australian $5,000", "$5,000"), ("Hong Kong $5", "New Zealand $5"), ("S$5", "5 euros"),
+])
+def test_shf003_a_real_currency_mismatch_still_lowers(pred, exp):
+    assert sh.fixed_money_score(_equal, pred, exp) == 0.0
+
+
+@pytest.mark.parametrize("base", [0.0, 0.4, 0.9, 1.0])
+@pytest.mark.parametrize(("pred", "exp"), [
+    ("US $5,000 (C$6,800)", "$5,000"), ("Canadian $5,000", "US$5,000"), ("C$5,000", "US$5,000"),
+    ("US$", "USD$"), ("A$5", "AUD 5"), ("S$5", "SGD 5"), ("HK$5", "NZ$5"), ("＄5", "C$5"), ("5", "5"),
+])
+def test_shf003_never_raises_a_score(base, pred, exp):
+    def stub(p, e, embedding=None):
+        return base
+
+    assert sh.fixed_money_score(stub, pred, exp) <= base
+
+
+def test_shf003_reading_a_very_long_string_is_fast():
+    import time
+
+    for text in ("US " * 70_000, " " * 200_000 + "US", "$" * 200_000, "Canadian " * 22_000, "HONG KONG " * 20_000,
+                 "US" + " " * 200_000 + "$", "x" * 200_000):
+        start = time.perf_counter()
+        sh.currencies(text)
+        assert time.perf_counter() - start < 1.0, text[:12]

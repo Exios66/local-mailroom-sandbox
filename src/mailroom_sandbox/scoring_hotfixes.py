@@ -569,8 +569,21 @@ _CURRENCY_WORDS = (
 )
 
 
+# Adjectives that qualify a dollar sign when they stand right before it ("Canadian $5,000").
+_DOLLAR_ADJECTIVES = (
+    (r"U\.?S\.?", "USD"), (r"CANADIAN", "CAD"), (r"AUSTRALIAN", "AUD"), (r"HONG\s+KONG", "HKD"),
+    (r"NEW\s+ZEALAND", "NZD"), (r"SINGAPORE", "SGD"),
+)
+
+
 def currencies(text: Any) -> set[str]:
-    """Explicit currencies a money string states (ISO code, symbol or name); empty when none."""
+    """Explicit currencies a money string states (ISO code, symbol or name); empty when none.
+
+    A ``$`` takes the currency of a prefix attached to it (``C$``, ``HK$``) or of an adjective right
+    before it (``US $``, ``Canadian $``, ``Hong Kong $``). Any other ``$``, and a bare "dollars",
+    reads as USD only when the string states no other currency: beside one it adds nothing
+    (``CAD $1,000`` and ``$1,000 CAD`` are CAD, ``$1,000 (approx. EUR 900)`` is EUR).
+    """
     t = str(text or "").upper()
     found = set(re.findall(rf"(?<![A-Z])({_ISO})(?![A-Z])", t))
     for symbol, code in (("€", "EUR"), ("£", "GBP"), ("¥", "JPY")):
@@ -582,6 +595,12 @@ def currencies(text: Any) -> set[str]:
     for prefix, code in (("US", "USD"), ("C", "CAD"), ("CA", "CAD"), ("A", "AUD"), ("AU", "AUD"),
                          ("HK", "HKD"), ("NZ", "NZD"), ("S", "SGD")):
         if re.search(rf"(?<![A-Z]){prefix}\$", t):
+            found.add(code)
+    # A currency adjective right before the sign names the dollar, with up to two spaces between:
+    # "US $5,000", "Canadian $5,000". Only the whole word, never a single letter or a state code
+    # ("Plan A $5,000", "San Jose, CA $5,000" stay a plain dollar).
+    for adjective, code in _DOLLAR_ADJECTIVES:
+        if re.search(rf"(?<![A-Z])(?:{adjective})\s{{0,2}}\$", t):
             found.add(code)
     # A bare "$" or "dollars" means USD only when the string states no other currency ("CAD $1,000" is CAD).
     if not found and re.search(r"(?<![A-Z])\$|(?<![A-Z])DOLLARS?(?![A-Z])", t):

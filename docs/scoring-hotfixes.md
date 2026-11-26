@@ -48,7 +48,7 @@ answer from the same question-set response, not a second request.
 | --- | --- | --- | --- |
 | SHF-001 | sandbox | A value predicted on a field the truth documents as absent (`gt_presence: schema_documented_absence`) is a false positive on every class, not only `corporate_record`, and counts as a hallucination. Re-validated at the Dojo `7d69bbd` refresh: `extraction_binary_metrics` now skips a contract's v1 parse-compat keys (`merger_consideration`, `maud_clauses`), which the sandbox's contract scope never restores, so the fix holds unchanged. | sandbox (`extraction_scope`); Dojo D-1 ([#188](https://github.com/Exios66/llm-dojo-scoring/issues/188)) |
 | SHF-002 | dojo | A name whose tokens are a strict subset or superset of the truth's (after legal-suffix, "the", honorific and initial removal) is a partial match (token Jaccard), not an exact 1.0. | Dojo D-2 ([#189](https://github.com/Exios66/llm-dojo-scoring/issues/189)) |
-| SHF-003 | dojo | Two amounts in different currencies do not match. A currency counts as stated by its ISO code, its symbol or its name in words (`euros`, `sterling`, `yen`, `US / Canadian / Australian dollars`; a bare `dollars` is USD only when nothing else is stated, as a bare `$` is; a bare `pounds` is not read). | Dojo D-3 ([#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) |
+| SHF-003 | dojo | Two amounts in different currencies do not match. A currency counts as stated by its ISO code, its symbol or its name in words (`euros`, `sterling`, `yen`, `US / Canadian / Australian dollars`; a bare `dollars` is USD only when nothing else is stated, as a bare `$` is; a bare `pounds` is not read). A `$` takes the currency of a prefix attached to it (`C$`, `HK$`, `US$`) or of a currency adjective right before it, with up to two spaces between (`US $5,000`, `Canadian $5,000`, `Hong Kong $5`); any other `$` is USD when nothing else is stated and adds nothing beside another stated currency. | Dojo D-3 ([#190](https://github.com/Exios66/llm-dojo-scoring/issues/190)) |
 | SHF-004 | dojo | Identifiers equal once every non-alphanumeric character is removed match (`CLM12345` = `CLM-12345`). | Dojo D-4 ([#191](https://github.com/Exios66/llm-dojo-scoring/issues/191)) |
 | SHF-005 | sandbox | A row that errored (timeout, parse failure, crash) scores 0 in the run headline instead of leaving the denominator: in isolated evals, in the job-runner sorter scores, and in a rescore's `scores.json`, where a failed item scores 0 on the headline keys (`rescore.HEADLINE_KEYS`) of its own first score, else of its truth class, else of the run. | sandbox |
 | SHF-006 | sandbox | A row with no truth is left out of the run mean and counted (`n_no_truth`) instead of averaging in as 0, in isolated evals and the job-runner sorter scores. | sandbox |
@@ -178,6 +178,28 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
   Another dollar (Taiwan, Jamaican and so on) is still read as USD. Measured on the 3,302 cached
   Hub rows with both overlays applied: 98,872 truth strings, one containing "dollar", none read
   differently than before.
+  - How a `$` is read: it takes the currency of a prefix attached to it (`US$`, `C$`, `A$`, `S$`,
+    `CA$`, `AU$`, `HK$`, `NZ$`) or of a whole currency adjective right before it, with up to two
+    spaces between (`US $5,000`, `U.S. $5`, `Canadian $5,000`, `Australian $5`, `Hong Kong $5`,
+    `New Zealand $5`, `Singapore $5`). A single letter or a state code before a spaced sign is not
+    a currency (`Plan A $5,000`, `San Jose, CA $5,000` are USD). Any other `$` reads as USD when the
+    string states no other currency, and adds nothing beside one (`CAD $1,000` and `$1,000 CAD`
+    are CAD). So `US $5,000 (C$6,800)` states USD and CAD, and still matches `$5,000`. The check
+    only lowers: an amount the Dojo scored below 1.0 is never raised, and a real mismatch
+    (`C$5,000` against `US$5,000`) still scores 0.0 when the Dojo called the amounts equal.
+    Re-measured on the same 98,872 truth strings: none read differently than before.
+  - Known limits:
+    1. An adjective after the amount (`$5,000 Canadian`, `$5,000 (Canadian)`) is not read, so the
+       `$` reads as USD.
+    2. A `$` beside another stated currency adds nothing, so `$1,000 (approx. EUR 900)` states
+       EUR only and does not match `$1,000`.
+    3. When the Dojo cannot parse an amount numerically (`US $5,000 (C$6,800)`, `US$1,000`), it
+       falls back to its fuzzy name match, and under SHF-002 that match scores a token subset or
+       superset as a partial match. A correct multi-currency amount can therefore still score
+       below 1.0 on the hotfixed headline (`US $5,000 (C$6,800)` against `$5,000` scores 0.3333
+       with SHF-002 on and 1.0 with only SHF-003 on) although SHF-003 reads its currencies right.
+       SHF-003 does not cause that score; whether SHF-002 should apply inside the money fallback
+       is open.
   - Recorded as: the gate report and the calibration report name the fixes in force.
 - **Per-item and report provenance.**
   - `pipeline_item_score` adds `raw_dojo` (the item's raw extraction values) and
