@@ -281,7 +281,12 @@ the judge. It also suggests a `judge_band_high` from the recorded
 evidence, not settings. Apply them through the run's locked `confidence` block,
 then confirm with the next run's audit. Preflight's `context_plan` prices the
 longest document of each class three ways: a clean pass, one judged pass, and
-the worst-case loop the thresholds allow.
+the worst-case loop the thresholds allow. Each figure includes the intake read of
+the class's costliest document whose intake gate fires; the plan's `intake` block
+counts every gated document (`docs_gated`, `calls`, `input_usd`). It prices windows HF-010 would refuse on an API
+route, so it errs high there, and a gated document on an unpriced intake model makes the envelope null.
+Item records carry `pred.intake` (`gate_fired`, `read_failed`, `prior_sent`, ...); `gate_fired` is true when a prep
+is present or the gate would have fired although the call raised.
 
 A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,

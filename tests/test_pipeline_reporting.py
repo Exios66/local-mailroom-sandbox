@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox.job import grid_cards, sand42_cards
 from mailroom_sandbox.job.checkpoint import RunStore
 
@@ -237,3 +239,102 @@ def test_settle_waits_for_writers_started_while_joining():
     threading.Thread(target=scan, name="relations-scan", daemon=True).start()
     assert settle_mailroom_writers(timeout=5) == []
     assert finished == ["scan", "worker"]
+
+
+# --- the intake block of an item result ---------------------------------------------------------
+
+_NO_INTAKE = {"gate_fired": False, "windows": 0, "triage_class": None, "triage_confidence": None,
+              "prior_sent": False, "clean_refused": False, "read_failed": False}
+
+
+def test_intake_summary_when_the_gate_did_not_fire():
+    from mailroom_sandbox.eval import runners
+
+    assert runners.intake_summary({}) == _NO_INTAKE
+    assert runners.intake_summary({"intake_prep": None}) == _NO_INTAKE
+
+
+def test_mock_pipeline_import_fallback_keeps_the_intake_result_contract(monkeypatch):
+    import builtins
+
+    from mailroom_sandbox.eval import runners
+
+    original = builtins.__import__
+
+    def without_graph(name, *args, **kwargs):
+        if name == "graph.build_graph":
+            raise ImportError("pipeline unavailable")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_graph)
+    result = runners._run_pipeline_doc({"id": "fallback", "doc_text": "A short letter.",
+                                        "expected_doc_class": "correspondence", "expected_stage": "archived"},
+                                       mock=True)
+    assert result["offline_fallback"] is True
+    assert result["intake"] == _NO_INTAKE
+
+
+def test_intake_summary_reports_a_real_read_without_any_text():
+    from mailroom_sandbox.eval import runners
+
+    prep = {"triage": {"primary_doc_class": "contract", "confidence": 0.91, "gist": "SECRET GIST",
+                       "keywords": ["k"]}, "windows": 1, "sections": [{"heading": "H"}],
+            "cleaned": "CLEANED TEXT"}
+    out = runners.intake_summary({"intake_prep": prep})
+    assert out == {"gate_fired": True, "windows": 1, "triage_class": "contract", "triage_confidence": 0.91,
+                   "prior_sent": True, "clean_refused": False, "read_failed": False}
+    assert "SECRET" not in str(out) and "CLEANED" not in str(out)
+
+
+def test_intake_summary_marks_a_failed_read_and_a_refused_clean():
+    from mailroom_sandbox.eval import runners
+
+    failed = runners.intake_summary({"intake_prep": {"triage": {}, "windows": 1, "sections": []}})
+    assert failed["gate_fired"] and failed["read_failed"] and not failed["prior_sent"]
+    assert failed["triage_class"] is None and failed["triage_confidence"] is None
+    refused = runners.intake_summary({"intake_prep": {"triage": {"primary_doc_class": "unknown", "confidence": 0.2,
+                                                                 "gist": "g"}, "windows": 2,
+                                                      "clean_refused": "cleaned_text kept 3 of 90 characters"}})
+    assert refused["clean_refused"] is True and refused["windows"] == 2 and not refused["read_failed"]
+
+
+def test_pipeline_doc_result_carries_the_intake_block(tmp_path, monkeypatch):
+    import graph.build_graph as bg
+    from mailroom_sandbox.eval import runners
+
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    outcome = {"doc_type": "contract", "stage": "archived",
+               "intake_prep": {"triage": {"primary_doc_class": "contract", "confidence": 0.8, "gist": "g"},
+                               "windows": 1, "sections": []}}
+    monkeypatch.setattr(bg, "run_pipeline", lambda *a, **k: outcome)
+    row = {"id": "a", "doc_text": "text", "expected_doc_class": "contract"}
+    result = runners._run_pipeline_doc(row, mock=False)
+    assert result["intake"]["gate_fired"] is True and result["intake"]["triage_class"] == "contract"
+    assert "intake_prep" not in result  # the text-bearing prep never reaches an item record
+    monkeypatch.setattr(bg, "run_pipeline", lambda *a, **k: {"doc_type": "contract", "stage": "archived"})
+    assert runners._run_pipeline_doc(row, mock=False)["intake"] == _NO_INTAKE
+
+
+def test_intake_summary_sees_a_call_that_raised_inside_the_node(monkeypatch):
+    """intake_node sets intake_prep None when the call raises; the gate is read from the state's flags."""
+    from agents import intake
+    from mailroom_sandbox.eval import runners
+
+    monkeypatch.setenv("MAILROOM_LLM_INTAKE", "1")
+    raised = runners.intake_summary({"intake_prep": None, "intake_messy": True, "doc_text": "messy text"})
+    assert raised["gate_fired"] is True and raised["read_failed"] is True and raised["prior_sent"] is False
+    assert raised["windows"] == 0 and raised["triage_class"] is None
+    assert runners.intake_summary({"intake_prep": None, "intake_messy": False, "doc_text": "short"}) == _NO_INTAKE
+    monkeypatch.setenv("MAILROOM_LLM_INTAKE", "0")
+    assert runners.intake_summary({"intake_prep": None, "intake_messy": True, "doc_text": "x"}) == _NO_INTAKE
+    assert intake.should_llm_intake("x", {"messy": True})  # the gate itself is unchanged
+
+
+@pytest.mark.parametrize("windows", [[1], "x", {"n": 1}, float("inf"), float("nan")])
+def test_intake_summary_never_raises_on_a_malformed_window_count(windows):
+    from mailroom_sandbox.eval import runners
+
+    prep = {"triage": {"primary_doc_class": "contract", "confidence": 0.8, "gist": "g"}, "windows": windows}
+    out = runners.intake_summary({"intake_prep": prep})
+    assert out["windows"] is None and out["gate_fired"] is True and out["triage_class"] == "contract"
+    assert runners.intake_summary({"intake_prep": {**prep, "windows": "3"}})["windows"] == 3
