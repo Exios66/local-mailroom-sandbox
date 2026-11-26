@@ -18,6 +18,25 @@ resume.
 
 **Spec:** `docs/superpowers/specs/2026-11-26-correcting-judge-design.md`, "The hardening programme", rows S1 and S2.
 
+## Resuming this work
+
+Any agent can pick this up where the last one stopped. The owner approved the design. Execution is native
+(`superpowers:executing-plans`), chosen to save usage.
+
+- **Branch:** `claude/phase1-spend-safety`; the draft PR points here. Work only on this branch. Never push to
+  `main`, and never merge without the owner.
+- **Where it stopped:** every task commits on its own, ticks its boxes in this file in the same commit, and puts
+  `(phase1 task N)` in the commit subject. `git log --oneline origin/main..HEAD` shows the last finished task.
+  The first task with an unticked box is next.
+- **Confirm before continuing:** run the "Run the tests again" command of the last ticked task. If it fails,
+  fix that task before starting the next one.
+- **Uncommitted changes:** a task left half done shows in `git status`. Read its diff against the task's steps,
+  then finish it or discard it (`git stash`) and redo it from Step 1.
+- **Context to read first:** `CLAUDE.md`, the spec section named above, then this file from "Global
+  constraints". Line numbers here are from `e344b0b`, so search by name if they have moved.
+- **When every task is ticked:** do the hand-over steps at the end, then ask the owner whether to mark the PR
+  ready for review.
+
 ## Global constraints
 
 - Never launch paid or live work. Every test is offline: fakes for `_run_pipeline_doc`, `_predict_spec` and the
@@ -100,7 +119,7 @@ resume.
   - Both loops iterate only the indices not yet in `by_index`, and `_check_caps` runs only before those.
   - `results`, the scores and the experiment-log record are unchanged: they read `by_index` for every index.
 - [ ] **Step 4: Run the tests again; they pass.** Run the same command plus `tests/test_dojo_cost_alignment.py`.
-- [ ] **Step 5: Commit** `feat(resume): replay persisted pipeline documents instead of re-running them`.
+- [ ] **Step 5: Commit** `feat(resume): replay persisted pipeline documents instead of re-running them (phase1 task 1)`.
 
 ### Task 2: Replay persisted rows in `run_isolated_eval`
 
@@ -132,7 +151,7 @@ resume.
   because the scorer and truth are locked. `_record` skips `api_budget.add_usage` when replayed. Then pass
   `skip=` the replayed indices.
 - [ ] **Step 4: Run the tests again; they pass.**
-- [ ] **Step 5: Commit** `feat(resume): replay persisted isolated rows instead of re-running them`.
+- [ ] **Step 5: Commit** `feat(resume): replay persisted isolated rows instead of re-running them (phase1 task 2)`.
 
 ### Task 3: The job runner passes the replay map, and replayed rows are not re-billed
 
@@ -167,7 +186,7 @@ resume.
   - `_row_sink` does not echo replayed rows; progress still moves.
   - Update the comment at :327-329.
 - [ ] **Step 4: Run the tests again; they pass.** Also run `tests/test_console_log.py`.
-- [ ] **Step 5: Commit** `fix(resume): stop re-billing finished documents on a whole-run resume (S1)`.
+- [ ] **Step 5: Commit** `fix(resume): stop re-billing finished documents on a whole-run resume (S1) (phase1 task 3)`.
 
 ### Task 4: `ApiBudget` reservations and unreported charges
 
@@ -199,7 +218,7 @@ resume.
 - [ ] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_api_budget.py -n 0 --no-cov`.
 - [ ] **Step 3: Implement** under the existing `self._lock`.
 - [ ] **Step 4: Run the tests again; they pass.**
-- [ ] **Step 5: Commit** `feat(api-budget): reserve in-flight calls and keep unreported charges`.
+- [ ] **Step 5: Commit** `feat(api-budget): reserve in-flight calls and keep unreported charges (phase1 task 4)`.
 
 ### Task 5: The call guard reserves before a request and settles after it
 
@@ -242,7 +261,7 @@ resume.
 - [ ] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_call_guard.py -n 0 --no-cov`.
 - [ ] **Step 3: Implement.** `_refusal` takes the estimate. The ceiling check is unchanged.
 - [ ] **Step 4: Run the tests again; they pass.** Also run `tests/test_api_budget.py`.
-- [ ] **Step 5: Commit** `feat(call-guard): reserve each request's worst-case cost before it goes out (S2)`.
+- [ ] **Step 5: Commit** `feat(call-guard): reserve each request's worst-case cost before it goes out (S2) (phase1 task 5)`.
 
 ### Task 6: Wire the reservation into the three guarded transports
 
@@ -279,11 +298,11 @@ resume.
 - [ ] **Step 5: Gates.** Run `ruff check src tests scripts deploy reports notebooks` and `npx --yes
   markdownlint-cli2@0.18.1` on the changed docs; both must be clean. If any doc is in the CLI reference or the
   runbooks, run `python scripts/check_cli_surface.py --check` and `sandbox runbook check`.
-- [ ] **Step 6: Commit** `feat(spend): reserve and settle every guarded OpenRouter and Decisions request (S2)`.
+- [ ] **Step 6: Commit** `feat(spend): reserve and settle every guarded OpenRouter and Decisions request (S2) (phase1 task 6)`.
 
 ### Hand-over
 
-- [ ] Push `claude/phase1-spend-safety`. Open the PR only when the owner asks; fill the template's Critical
+- [ ] Push `claude/phase1-spend-safety` and update the draft PR description; fill the template's Critical
   regressions section with rows 5 and 9 and the tests above.
 - [ ] Note in the PR that unfinished runs locked before this change resume under the lock's own checks, and
   that a lock that refuses the new code needs a new run, as for any code change.
