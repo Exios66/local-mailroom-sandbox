@@ -110,8 +110,12 @@ Preflight refuses `mode: correct` when:
   `allow_fallbacks: false` in `config/provider_pins.yaml`;
 - `references: train_pool` names no pool file, or the pool's sha256 differs from its manifest;
 - the run's drawn ids intersect the pool, or share a leak component with it (see section 4);
-- `references: catalog` is set on a run whose `job.mock` is false and whose draw is not marked as
-  production (`catalog` is for production only).
+- `references: catalog` is set on a run whose draw has ground truth (any scored run, production
+  slices included). `catalog` is only for unlabeled real mail, so no production flag is needed: the
+  refusal keys on "this draw is scored" (my call). Production slices use `train_pool` or `off`, so
+  their gate scores stay comparable with `config/production/bars.yaml`.
+- `mode: correct` is set on a run whose judge is not served by OpenRouter: it needs a priced,
+  pinned API model, so it is OpenRouter-only (my call).
 
 The judge's model is also set as `agent_routes.judge` (or checked against it) so the provider pin,
 served-model ledger, call guard and API budget all see the same id. The lock records the block, the
@@ -159,8 +163,13 @@ locked `judge.mode` is `correct`.
 
   A passing fix overwrites `extracted_data[field]` and is recorded as
   `{field, before, after, quote, start, end}` in `judge_fixes`. A failing fix is recorded in
-  `judge_fixes_rejected` with the check that failed, and is not applied. If every proposed fix fails
-  on an `accept` ruling whose findings say a field is wrong, the ruling becomes `human_review`.
+  `judge_fixes_rejected` with the check that failed, and is not applied.
+- **No blanking by fix, and no partial accept (my calls).** `evidence_support` treats an empty value
+  as supported without a quote (`gold_labels.py:635-667`), so a fix may never set a field to empty:
+  a judge that thinks a value is made up names that field as wrong. Whenever any field the judge
+  calls wrong is left without a verified fix (a rejected fix, or a value it wants removed), an
+  `accept` is not allowed to archive it: on the first ruling those fields become `retry_fields`; on
+  the final ruling the document goes to `human_review` with the fields named.
 - **Ruling → existing routes** (no new graph edges; `judge_verify` can only reach `compile_report`,
   `arbiter` and `human_review`, `route_spec.py:189-196`):
   - `accept`: sets `judge_verdict: complete` and `judge_corrected` (true when fixes were applied), so
@@ -172,6 +181,16 @@ locked `judge.mode` is `correct`.
 - **Targeted retry by merge.** The vendored retry re-extracts the whole document. In correct mode the
   hotfix keeps every field from the pre-retry extraction (with fixes applied) and takes only the
   `retry_fields` values from the new attempt. The judge then gives its second, final ruling.
+- **The retry always returns to the judge (my call).** After a judge-requested retry, the vendored
+  `after_retry_extraction_gated` / `after_extraction` routers (`routing.py:316-458, 549-576`) would
+  re-check schema, hollow, coverage and confidence, and could send the document to `human_review`
+  or `boss_escalation` before the second ruling. HF-018 registers a `route_spec` rule on
+  `retry_extract` (the HF-011 pattern; `judge_verify` is already one of its destinations) that
+  answers `judge_verify` for a judge-requested retry. The guardrail results ride along as findings
+  for the final ruling. The one exception is a matter conflict, which still goes to
+  `boss_escalation` (the boss path is out of scope) and is counted as a lane exit. The merged record
+  keeps the confidence of the extraction the judge first ruled on (fixes and merges never rewrite
+  confidence; row 12).
 - **Lane bound.** The hotfix counts rulings in state. A third entry into the node, or a second retry
   request, goes to `human_review` with `escalation_reason: judge_lane_exhausted`. HF-011's
   judge-exhausted rules and HF-014/HF-015's arbiter behaviour have no effect in correct mode, because
@@ -186,8 +205,12 @@ locked `judge.mode` is `correct`.
 - `judge_mode`, `judge_ruling` (per ruling), `judge_rulings` (count), `judge_corrected`;
 - `judge_fixes`, `judge_fixes_rejected`;
 - `judge_lane_exhausted`;
-- `extraction_pre_judge`: the fields of the first extraction attempt (`extraction_attempt_history[0]`),
-  so a pre-judge score can be computed.
+- `extraction_pre_judge`: the fields of the extraction the judge **first ruled on**, captured on
+  entry to the first ruling (my call). With the overlay's `retry_max: 1`, a low-confidence document
+  gets a vendored retry before it reaches the judge, so attempt 0 is not always what the judge saw;
+  using it would credit that earlier retry to the judge.
+- `extraction_first_attempt`: `extraction_attempt_history[0]`'s fields, kept separately so the
+  effect of the pre-judge vendored retry can still be reported.
 
 These fields are written in both modes where they apply, so the verify arm of an A/B also gets a
 pre-judge score.
@@ -195,9 +218,11 @@ pre-judge score.
 ### 4. Reference labels without leakage
 
 - **`train_pool` (experiments).** A pool file built by a new script from
-  `data/labels/gold/*.jsonl` (`near_gold` records only), restricted to the documents of one split set,
-  by default runbook-v2 `pool` (402 documents, `config/splits/runbook-v2/pool.ids`). The pool file has
-  its own manifest with the source sha256s. Preflight refuses a run whose prepared ids intersect the
+  `data/labels/gold/*.jsonl` (`near_gold` records only), restricted to the documents of named
+  runbook-v2 split sets that are never evaluation sets. The pool file has its own manifest with the
+  source sha256s. Which sets feed it is open question 1: the `pool` set holds only insurance (208)
+  and correspondence (194) documents, and outside dev and heldout the only labeled contracts and
+  corporate records are in `calibration` (25 contracts, 112 corporate records, 356 correspondence). Preflight refuses a run whose prepared ids intersect the
   pool or share any leak component the split uses (matter, group, email subject, identical text,
   content hash; row 3), reusing the split assignments' `component` field. The judged document itself
   can never be in the pool, by construction.
@@ -243,9 +268,17 @@ post-correction (row 15).
 
 ### 7. The A/B and what counts as success
 
-Two arms on the same draw, seed and prompts: `judge.mode: verify` (today) and `judge.mode: correct`.
-They run on runbook-v2 `dev-look1`, mock first, then paid only with a human's initials at the spend
-gate.
+Arms on the same draw, seed and prompts, all copied from the production lineage
+(`pipeline-qwen-flash-25-fit-r3.yaml`), so the winner can be adopted by the slices as is (my calls):
+
+1. today: `verify`, judge on `qwen/qwen3.7-flash`;
+2. model only: `verify`, judge on the stronger model;
+3. mode only: `correct`, stronger model, `references: off`;
+4. full: `correct`, stronger model, `references: train_pool`.
+
+Arms 2 and 3 separate the model's effect from the mode's, and arm 4 shows what references add. All
+arms are OpenRouter. They run mock first, then paid only with a human's initials at the spend gate.
+The draw size and split are settled with the margin (open question 3).
 
 Success (my proposal, for the owner to confirm):
 
@@ -304,6 +337,33 @@ upstream ships.
   pre-judge score is computed on a fixture.
 - Gates: ruff, `check_hotfixes.py`, `build_hub.py --check`, the CLI-surface and runbook checks, and
   CircleCI green.
+
+## Open questions for the owner
+
+1. **Where reference labels come from.** Recommended: the `calibration` and `pool` sets, with
+   preflight refusing `train_pool` on any run that draws from those sets. Alternatives: label more
+   training-side contracts first, or start with references for correspondence only.
+2. **Cost per judged document and the caps.** At about $0.55 per merger ruling on
+   `qwen/qwen3.7-plus`, `slice-0100` ($2 for 100 documents) and r3 ($1.25 for 25) would trip on
+   mergers alone. Options: raise the caps with a cost success criterion; use a cheaper judge for
+   mergers (`by_class`); or bound the merger judge's source read.
+3. **The non-inferiority margin for extraction.** The repo has margins only for the sorter (H5:
+   2 points macro-F1, 4 points unit accuracy). Proposed: 2 points on the judged-document extraction
+   mean, with a paired bootstrap interval, on the full `dev` set (900 documents) rather than
+   `dev-look1`, for power.
+
+## Calls made in this design (check while reading)
+
+- `catalog` references are refused on any scored draw; production slices use `train_pool` or `off`.
+- `mode: correct` is OpenRouter-only.
+- A fix may never blank a field, and an accept with an unfixed wrong field cannot archive.
+- A judge-requested retry always returns to the judge, except a matter conflict, which still goes to
+  the boss.
+- The pre-judge baseline is the extraction the judge first ruled on; attempt 0 is kept separately.
+- Four A/B arms copied from the r3 production lineage, separating the model, the mode and the
+  references.
+- Reference selection by class and subclass, at most two examples.
+- `qwen/qwen3.7-plus` as the judge model.
 
 ## Left to the builder
 
