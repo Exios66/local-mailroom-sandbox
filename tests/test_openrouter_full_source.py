@@ -109,6 +109,13 @@ def test_openrouter_judge_and_arbiters_read_the_whole_long_document(activated, p
     assert judge_mod.CompletenessJudge._truncate(LONG_DOC) == LONG_DOC
     applied = (lock.get("context_fit") or {}).get("applied") or {}
     assert {"judge", "arbiter"} <= set(applied), sorted(applied)
+    # The figures docs/jobs.md quotes. The judge runs on a different model than the other agents, so its
+    # window is wider than the arbiters' and the specialists'.
+    assert windows == {"judge": 2_487_552, "arbiter": 600_115, "classification_arbiter": 600_115}, windows
+    assert {agent: applied[agent]["model"] for agent in ("judge", "arbiter", "contracts_specialist")} == {
+        "judge": "deepseek/deepseek-v4-flash", "arbiter": "qwen/qwen3.5-9b",
+        "contracts_specialist": "qwen/qwen3.5-9b"}, applied
+    assert applied["contracts_specialist"]["after"] == 570_624, applied["contracts_specialist"]
 
     ruling = _exercise(install, LONG_DOC)
     assert len(seen["judge"]) == 2 and len(seen["arbiter"]) == 1

@@ -391,8 +391,9 @@ locked prompts/models/knobs rather than later ambient generation settings.
    input that needs more than one window (HF-010). Judge and arbiter
    source excerpts are outside those hotfixes and can still truncate long
    input to their fitted windows; intake failures keep the clerk output. On
-   `qwen/qwen3.5-9b` the fitted windows are 2,487,552 characters (judge) and
-   600,115 (extraction and classification arbiters), above the specialist's
+   an engine of `qwen/qwen3.5-9b` the fitted windows are 2,487,552 characters (judge, which the
+   profile serves on `deepseek/deepseek-v4-flash`, a 1,048,576-token context) and
+   600,115 (extraction and classification arbiters, on qwen), above the specialist's
    570,624, so any document that passes extraction reaches all three whole;
    `tests/test_openrouter_full_source.py` checks a 250k-character document
    end to end and that Modal/vLLM stays at 16,000. A document longer than the

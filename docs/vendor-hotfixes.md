@@ -121,6 +121,12 @@ same vendor refresh.
 
 ### Known limits
 
+- **HF-013 gives a transient accuracy-judge parse failure no second look.** A document whose extraction
+  is correct but whose accuracy judge once returned unparseable output now parks for human review as a
+  judge error, where before it took an arbiter call, a re-extraction and a second judge pass (which could
+  archive it). One re-ask of the judge before raising `JudgeParseError` is a possible follow-up; it is
+  unmeasured offline (the harness answers its own scripted verdicts, so it cannot say how often a live judge
+  fails to parse and recovers on a repeat), and HF-013 does not do it.
 - **HF-014 answers before any later `decision_point:*` route rule.** `graph.route_spec.decide_route`
   returns the first rule that answers, and HF-014's rule is registered right after HF-011's, ahead of the
   `decision_point:*` rules that `graph.decision_points` appends. A veto from such a rule on the
