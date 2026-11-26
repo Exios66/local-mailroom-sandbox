@@ -69,7 +69,8 @@ def test_an_unarmed_process_is_untouched():
     with call_guard.document() as doc:
         call_guard.before_call()
         call_guard.after_call({"prompt_tokens": 10**9, "completion_tokens": 10**9})
-    assert doc == {"calls": 0, "refused": None}
+    assert (doc["calls"], doc["refused"]) == (0, None)  # no ceiling count, no refusal
+    assert doc["llm_calls"] == 1 and doc["spend_usd"] == 0.0  # the governor still sees the call
 
 
 def test_a_document_the_guard_cut_short_is_an_error_row_not_a_score(monkeypatch):
@@ -329,3 +330,56 @@ def test_concurrent_requests_cannot_all_pass_the_check_before_any_reserves(monke
     for thread in threads:
         thread.join()
     assert len(admitted) == 1 and len(refused) == 7
+
+
+def test_unarmed_calls_still_count_for_the_governor():
+    with call_guard.document() as scope:
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 1})
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 1})
+    assert scope["llm_calls"] == 2 and scope["calls"] == 0
+    assert scope["governor"] == {"retries": 0, "boss": 0, "skipped_classify_retries": 0}
+
+
+def test_armed_calls_add_their_price_to_document_spend():
+    budget = _armed(cap=1.0)
+    with call_guard.document() as scope:
+        call_guard.after_call({"prompt_tokens": 100_000, "completion_tokens": 0})
+    assert scope["spend_usd"] == pytest.approx(budget.estimate_call_usd(100_000, 0))
+
+
+def test_a_billed_failure_adds_its_charge_to_document_spend():
+    _armed(cap=1.0)
+    with call_guard.document() as scope:
+        held = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
+        call_guard.settle(held, billed=True)
+    assert scope["spend_usd"] == pytest.approx(held) and held > 0
+
+
+def test_note_failed_attempt_counts_toward_the_ceiling():
+    _armed(cap=1.0)
+    with call_guard.document() as scope:
+        call_guard.note_failed_attempt()
+        assert call_guard.scope() is scope
+    assert (scope["calls"], scope["llm_calls"]) == (1, 1)
+    assert call_guard.scope() is None
+
+
+def test_two_threads_keep_separate_governor_counters():
+    import threading
+
+    seen = {}
+    barrier = threading.Barrier(2)
+
+    def work(name, n):
+        with call_guard.document():
+            for _ in range(n):
+                call_guard.scope()["governor"]["retries"] += 1
+            barrier.wait()
+            seen[name] = call_guard.scope()["governor"]["retries"]
+
+    threads = [threading.Thread(target=work, args=(name, n)) for name, n in (("a", 1), ("b", 3))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert seen == {"a": 1, "b": 3}

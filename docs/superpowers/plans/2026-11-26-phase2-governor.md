@@ -208,7 +208,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     - `duplicate_of` (from Task 6);
     - `governor_skips` (`{"classify_retry": n}`, when n > 0).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_unarmed_calls_still_count_for_the_governor`: in a document scope with no budget armed,
     `after_call(usage)` twice gives `llm_calls == 2` and `calls == 0`.
   - `test_a_billed_failure_adds_its_charge_to_document_spend`;
@@ -217,13 +217,13 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     `scope()["governor"]["retries"]`, and each sees only its own;
   - `test_the_runner_merges_governor_stop_into_the_result`: a fake `_run_pipeline_doc` sets
     `call_guard.scope()["governor_stop"]`, and the item carries it.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_call_guard.py
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_call_guard.py
   tests/test_governor.py`.
-- [ ] **Step 3: Implement** the scope fields, `scope()`, `note_failed_attempt()`, the counting in `after_call` and
+- [x] **Step 3: Implement** the scope fields, `scope()`, `note_failed_attempt()`, the counting in `after_call` and
   `settle`, and the result merge next to `judge_reasks`.
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_job_runner.py
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_job_runner.py
   tests/test_api_budget.py`.
-- [ ] **Step 5: Commit** `feat(call-guard): per-document calls, spend and governor counters (phase2 task 2)`.
+- [x] **Step 5: Commit** `feat(call-guard): per-document calls, spend and governor counters (phase2 task 2)`.
 
 ### Task 3: L1 — one retry layer, every HTTP attempt counted, timeout capped at the run deadline
 

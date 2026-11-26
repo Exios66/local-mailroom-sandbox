@@ -176,11 +176,12 @@ class ApiBudget:
             self._live_base = self.spent_usd
             self.live_usd = 0.0
 
-    def add_live(self, prompt_tokens: Any, completion_tokens: Any) -> None:
-        """Add one API call's usage as it returns (documents still in flight included)."""
+    def add_live(self, prompt_tokens: Any, completion_tokens: Any) -> float:
+        """Add one API call's usage as it returns (documents still in flight included); returns its cost."""
         cost = self._cost(prompt_tokens, completion_tokens, 1)
         with self._lock:
             self.live_usd += cost
+        return cost
 
     def live_total_usd(self) -> float:
         """Spend observed call by call since ``start_live`` on top of the spend before it (0 when off)."""

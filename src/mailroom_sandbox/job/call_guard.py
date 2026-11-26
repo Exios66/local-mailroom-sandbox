@@ -104,13 +104,32 @@ def request_tokens(messages: Any, max_tokens: Any) -> tuple[int, int]:
 
 @contextlib.contextmanager
 def document() -> Iterator[dict[str, Any]]:
-    """One document's scope: its call count and, if the guard refused a call, why."""
-    state: dict[str, Any] = {"calls": 0, "refused": None}
+    """One document's scope: its call count and, if the guard refused a call, why.
+
+    ``calls`` counts guarded calls while a budget is armed (the hard ceiling reads it).
+    ``llm_calls`` and ``spend_usd`` count every call and its priced spend, armed or not, and
+    ``governor`` holds the loop governor's round counters (phase 2, ``mailroom_sandbox.governor``).
+    """
+    state: dict[str, Any] = {"calls": 0, "refused": None, "llm_calls": 0, "spend_usd": 0.0,
+                             "governor": {"retries": 0, "boss": 0, "skipped_classify_retries": 0}}
     token = _DOC.set(state)
     try:
         yield state
     finally:
         _DOC.reset(token)
+
+
+def scope() -> dict[str, Any] | None:
+    """The current document's scope (``None`` outside :func:`document`)."""
+    return _DOC.get()
+
+
+def note_failed_attempt() -> None:
+    """Count an HTTP attempt that returned no usage (L1): it counts toward the ceiling and the governor."""
+    doc = _DOC.get()
+    if doc is not None:
+        doc["calls"] += 1
+        doc["llm_calls"] += 1
 
 
 def _judge_reask_block(judge: str) -> dict[str, int] | None:
@@ -217,6 +236,9 @@ def settle(reserved_usd: float, *, billed: bool) -> None:
     budget.release(reserved_usd)
     if billed:
         budget.charge_unreported(reserved_usd)
+        doc = _DOC.get()
+        if doc is not None:
+            doc["spend_usd"] += float(reserved_usd)
 
 
 def _status_code(exc: BaseException) -> int | None:
@@ -259,6 +281,9 @@ def _count(value: Any) -> int:
 def after_call(usage: Any) -> None:
     """Price one returned call (OpenAI ``usage`` object or LangChain usage dict) and count it."""
     budget = _STATE["budget"]
+    doc = _DOC.get()
+    if doc is not None:
+        doc["llm_calls"] += 1  # the governor counts every call, armed or not
     if budget is None:
         return
     if isinstance(usage, Mapping):
@@ -267,7 +292,7 @@ def after_call(usage: Any) -> None:
     else:
         prompt = getattr(usage, "prompt_tokens", None)
         completion = getattr(usage, "completion_tokens", None)
-    budget.add_live(_count(prompt), _count(completion))
-    doc = _DOC.get()
+    cost = budget.add_live(_count(prompt), _count(completion))
     if doc is not None:
         doc["calls"] += 1
+        doc["spend_usd"] += float(cost or 0.0)

@@ -63,3 +63,30 @@ def test_merger_call_budget_is_36():
     assert governor.call_budget("merger_agreement") == 36
     assert governor.call_budget("contract") == 30
     assert governor.call_budget(None) == 30
+
+
+def test_the_runner_merges_governor_stop_into_the_result(monkeypatch):
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.job import call_guard
+
+    stop = {"reason": "retry_budget", "outcome": "human_review", "node": "arbiter", "proposed": "retry_extract",
+            "calls": 9, "retries": 2, "spend_usd": 0.0}
+
+    def fake(row, **_):
+        call_guard.scope()["governor_stop"] = dict(stop)
+        call_guard.scope()["duplicate_of"] = {"doc_id": "d0", "kind": "exact", "similarity": 1.0}
+        call_guard.scope()["governor"]["skipped_classify_retries"] = 1
+        return {"id": row["id"], "stage": "review"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", fake)
+    result = runners._run_pipeline_doc({"id": "d1"})
+    assert result["governor_stop"] == stop
+    assert result["duplicate_of"]["kind"] == "exact"
+    assert result["governor_skips"] == {"classify_retry": 1}
+
+
+def test_the_runner_adds_no_governor_fields_when_nothing_happened(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", lambda row, **_: {"id": row["id"], "stage": "archived"})
+    assert runners._run_pipeline_doc({"id": "d1"}) == {"id": "d1", "stage": "archived"}

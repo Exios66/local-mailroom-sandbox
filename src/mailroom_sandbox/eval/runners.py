@@ -1763,6 +1763,14 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
         # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
         result = {**result, "judge_reasks": scope["judge_reasks"]}
+    # Phase 2 governor marks, present only when they happened (critical regression 22: a routing
+    # change that moves a document between review and the archive carries a mark).
+    for key in ("governor_stop", "duplicate_of"):
+        if scope.get(key):
+            result = {**result, key: scope[key]}
+    skipped = int(scope["governor"]["skipped_classify_retries"])
+    if skipped:
+        result = {**result, "governor_skips": {"classify_retry": skipped}}
     return result
 
 
