@@ -15,6 +15,7 @@ from mailroom_sandbox.datasets import (
     load_manifest,
     parse_expected_fields,
 )
+from mailroom_sandbox import scoring_hotfixes
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
@@ -729,6 +730,26 @@ def run_sorter_eval(
     return {**plan, "scores": scores, "record": record}
 
 
+def _extract_run_headline(scored_rows: Sequence[Mapping[str, Any]], n: int) -> dict[str, Any]:
+    """Run headline of ``run_extract_eval``, dual reported (``docs/scoring-hotfixes.md``).
+
+    ``overall_extraction_score`` is the mean row score over rows that produced one (0.0 when none),
+    on the hotfixed rows and, under ``raw_dojo``, on each row's raw Dojo-pin value; the fixes that
+    were on for any row are named, with the headline basis. ``n`` counts the rows and ``n_scored``
+    the rows the mean averaged (a row whose every scored label SHF-015 dropped has no score), on
+    both sides: the scored n belongs beside every metric (critical regression 1).
+    """
+    def scored(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, Any]:
+        vals = [float(r["overall_extraction_score"]) for r in rows
+                if r and isinstance(r.get("overall_extraction_score"), (int, float))]
+        return {"overall_extraction_score": sum(vals) / len(vals) if vals else 0.0, "n_scored": len(vals)}
+
+    used = sorted({i for r in scored_rows for i in r.get("scoring_hotfixes") or []})
+    dual = scoring_hotfixes.merge_dual(scored(scoring_hotfixes.raw_rows(scored_rows)), scored(scored_rows), used,
+                                       keys=("overall_extraction_score", "n_scored"))
+    return {**dual, "n": n, "headline_basis": scoring_hotfixes.headline_basis()}
+
+
 def run_extract_eval(
     *,
     mock: bool = True,
@@ -757,7 +778,6 @@ def run_extract_eval(
         from mailroom_sandbox.prompt_lineage import apply_eval_defaults
 
         apply_eval_defaults("extract")
-    overall: list[float] = []
     schema_rows: list[dict[str, Any]] = []
     for row in rows:
         expected_fields = parse_expected_fields(row) or {}
@@ -775,13 +795,12 @@ def run_extract_eval(
             # Per-subclass scoring (sandbox #145): the row's GT subclass drives
             # the vendored corporate-record alignment (see scoring.py).
             expected_subclass=row.get("expected_subclass"),
+            # SHF-010: the interim truth near-gold replaced is scored as raw, and the fix named.
+            truth_overrides=row.get("truth_overrides"),
+            overlay_fields=scoring_hotfixes.overlay_fields(row),
         )
         schema_rows.append(scored)
-        value = scored.get("overall_extraction_score")
-        if isinstance(value, (int, float)):
-            overall.append(float(value))
-    mean = sum(overall) / len(overall) if overall else 0.0
-    scores = {"overall_extraction_score": mean, "n": len(rows)}
+    scores = _extract_run_headline(schema_rows, len(rows))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
@@ -1163,6 +1182,8 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
         # drives the vendored corporate-record alignment.
         expected_subclass=row.get("expected_subclass"),
         truth_overrides=row.get("truth_overrides"),
+        # SHF-015: the overlay markers say which labels are reviewed, never dropped as stale Hub labels.
+        overlay_fields=scoring_hotfixes.overlay_fields(row),
     )
 
 
@@ -1182,10 +1203,31 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
     score.update({k: v for k, v in (scored or {}).items()
                   if isinstance(v, (int, float)) and not isinstance(v, bool)})
     # SHF-012: the document's subclass outcome, hotfixed and raw (docs/scoring-hotfixes.md).
+    # SHF-013: a reviewed subclass correction replaces the Hub subclass on the hotfixed side.
     sub = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
-                                   result.get("doc_type"), scoring.predicted_subclass(result))
+                                   result.get("doc_type"), scoring.predicted_subclass(result),
+                                   doc_id=row.get("id"))
+    fixes = set((scored or {}).get("scoring_hotfixes") or [])
     if sub is not None:
         score["subclass_correct"], score["raw_dojo_subclass_correct"] = sub[1], sub[0]
+        if sub[0] != sub[1]:
+            fixes.add("SHF-012")
+        if scoring.corrected_subclass_truth(row.get("id"), row.get("expected_doc_class"),
+                                            row.get("expected_subclass")) is not None:
+            score["subclass_corrected"] = True
+            fixes.add("SHF-013")
+    # Per-document dual provenance (docs/scoring-hotfixes.md): the raw Dojo-pin extraction values
+    # and the fixes that moved this document's scores, so a report can show both sides per item.
+    # SHF-015: the Hub labels dropped as stale, by field and reason, so items.jsonl says which
+    # fields the headline did not score (absent when none were dropped).
+    stale = (scored or {}).get("stale_hub_labels")
+    if stale:
+        score["stale_hub_labels"] = dict(stale)
+    raw_side = {k: v for k, v in ((scored or {}).get("raw_dojo") or {}).items()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if raw_side:
+        score["raw_dojo"] = raw_side
+    score["scoring_hotfixes"] = sorted(fixes)
     # The pain-point penalty points of this document (eval/pain_points.py), headline side.
     from mailroom_sandbox.eval import pain_points
 
@@ -1490,7 +1532,7 @@ def run_pipeline_eval(
     extraction = _pipeline_extraction_scores(extraction_rows, [e == p for e, p in zip(expected, predicted)])
     subclass_scores = scoring.score_subclass(
         expected, [r.get("expected_subclass") for r in rows], predicted,
-        [scoring.predicted_subclass(r) for r in results])
+        [scoring.predicted_subclass(r) for r in results], doc_ids=[r.get("id") for r in rows])
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)

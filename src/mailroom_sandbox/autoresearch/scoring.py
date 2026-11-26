@@ -173,6 +173,8 @@ class RunScores:
 
     def metrics(self) -> dict[str, Any]:
         """The ledger's metrics block."""
+        from mailroom_sandbox import scoring_hotfixes as sh
+
         by_role = self.cost_by_role()
         return {
             "n": self.n, "mean_utility": round(self.mean_utility, 6),
@@ -184,6 +186,8 @@ class RunScores:
             "oversight_cost_share": None if self.oversight_cost_share is None else round(self.oversight_cost_share, 4),
             "cost_split": "by_agent" if self.split_available else "totals_only",
             "price_model": self.price_model, "unpriced": self.unpriced,
+            # Utility reads the gate outcomes, which score the hotfixed headline (docs/scoring-hotfixes.md).
+            "headline_basis": sh.headline_basis(),
         }
 
     def to_dict(self) -> dict[str, Any]:

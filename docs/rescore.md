@@ -46,10 +46,20 @@ the gold audit read that layout.
 - `items.jsonl`: each answered item with its new `score`. The first score it ever had is kept in
   `score_original`, including when a rescore is itself re-scored. Errored and unparseable items
   have no answer to score and are copied unchanged.
-- `scores.json`: run-level means of every numeric per-item score, overall and by class. These are
-  plain means. A task runner's own run summary can hold other statistics (macro-F1, intervals),
-  which a rescore does not recompute.
-- `rescore.json`: the provenance, the digest the command prints, and the same run-level scores.
+- `scores.json`: run-level means of every numeric per-item score, overall and by class, dual
+  reported. On the headline, while SHF-005 is current, a failed item (`ok` false: a timeout,
+  parse failure or crash) scores 0 on each headline key its own first score carries or, failing that,
+  that its truth class's scored items carry (any scored item's keys when its class has none); a
+  failure with no such key anywhere — for example when every item failed — is left out and
+  `failed_scored_zero` stays 0. With SHF-005 stale or unavailable nothing is zero-filled: the
+  headline means are the scored-only means and `failed_scored_zero` is 0. `failed` counts every failure. `raw_dojo` holds the plain means
+  over the scored items only, over the same top-level per-item scores the headline aggregates:
+  it is not a fixes-off aggregate (a scored item's fixes-off values sit on its own record under
+  its `raw_dojo` key). `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. A
+  task runner's own run summary can hold other statistics (macro-F1, intervals), which a rescore
+  does not recompute.
+- `rescore.json`: the provenance, the digest the command prints, and the same run-level scores
+  as `scores.json` (headline and `raw_dojo`).
 - `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
   derived lock's run, spec and generation identity, retaining its original content under
   `source_checkpoint`. Its state is preserved, including a non-terminal `paused` or `running`

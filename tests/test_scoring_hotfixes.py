@@ -126,7 +126,8 @@ def test_fixes_are_off_outside_a_hotfixed_block_and_per_thread():
 def test_dual_row_names_the_fixes_and_the_moved_keys():
     row = score_extraction_row("correspondence", {"sender": "Jane Doe", "recipient": "Bob"},
                                {"sender": "Jane Doe", "recipient": None, "gt_presence": _presence(recipient=ABSENT)})
-    assert row["scoring_hotfixes"] == sorted(sh.EXTRACTION_FIXES - {"SHF-010"})
+    # SHF-010 needs truth_overrides and SHF-015 the row's overlay provenance; this call passes neither.
+    assert row["scoring_hotfixes"] == sorted(sh.EXTRACTION_FIXES - {"SHF-010", "SHF-015"})
     assert "extraction_precision" in row["scoring_hotfixes_changed"]
     assert row["raw_dojo"]["extraction_precision"] == 1.0
     assert sh.headline_basis()["headline"] == "hotfixed"
@@ -763,3 +764,159 @@ def test_changed_keys_names_every_moved_headline_including_the_field_f1_mean():
     raw = {"extraction_f1_mean": 0.5556, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
     fixed = {"extraction_f1_mean": 0.3333, "extraction_f1_n": 3, "hallucination_rate": float("nan")}
     assert sh.changed_keys(raw, fixed, fixed) == ["extraction_f1_mean"]
+
+
+def test_shf007_per_item_runner_folds_labels_and_leaves_no_truth_rows_out():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["correspondence", "Contract", "", "insurance_claim"],
+                           ["correspondence", "contract", "contract", "insurance-claim"],
+                           {0: True, 1: True, 2: True, 3: True}, 4)
+    assert scores["raw_dojo"]["accuracy"] == 0.5  # defect: case, hyphen and a blank truth count wrong
+    assert scores["accuracy"] == 1.0 and scores["n"] == 3 and scores["n_no_truth"] == 1
+    assert scores["scoring_hotfixes"] == ["SHF-006", "SHF-007"]
+
+
+def test_shf007_per_item_runner_keeps_a_failed_row_wrong_after_folding():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["Contract", "contract", ""], ["contract", "", ""],
+                           {0: True, 1: False, 2: False}, 3)
+    assert scores["accuracy"] == 0.5 and scores["n_errored_scored_wrong"] == 1 and scores["n_no_truth"] == 1
+    assert scores["scoring_hotfixes"] == ["SHF-005", "SHF-006", "SHF-007"]
+
+
+def _without(monkeypatch, *ids):
+    """Run with the current fixes except ``ids`` (as if those were stale)."""
+    remaining = sh.current_ids() - set(ids)
+    monkeypatch.setattr(sh, "current_ids", lambda: remaining)
+
+
+def test_shf006_alone_still_leaves_a_no_truth_row_out_of_the_job_runner_mean(monkeypatch):
+    """SHF-006 (a no-truth row is counted, not averaged as 0) holds without SHF-007's folding."""
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-007")
+    scores = _scored_pairs("sorter", ["contract", "", "insurance_claim"], ["contract", "contract", "insurance-claim"],
+                           {0: True, 1: True, 2: True}, 3)
+    assert scores["n"] == 2 and scores["n_no_truth"] == 1
+    assert scores["accuracy"] == 0.5  # no folding: "insurance-claim" still differs from "insurance_claim"
+    assert scores["scoring_hotfixes"] == ["SHF-006"]
+
+
+def test_shf007_alone_still_leaves_a_no_truth_row_out_and_names_itself(monkeypatch):
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-006")
+    scores = _scored_pairs("sorter", ["contract", ""], ["contract", "contract"], {0: True, 1: True}, 2)
+    assert scores["n"] == 1 and scores["n_no_truth"] == 1 and scores["scoring_hotfixes"] == ["SHF-007"]
+
+
+def test_neither_no_truth_fix_leaves_the_raw_job_runner_scores(monkeypatch):
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    _without(monkeypatch, "SHF-006", "SHF-007")
+    scores = _scored_pairs("sorter", ["contract", ""], ["contract", "contract"], {0: True, 1: True}, 2)
+    assert scores["scoring_hotfixes"] == [] and "n_no_truth" not in scores and scores["accuracy"] == 0.5
+
+
+def test_per_item_runner_without_a_moved_score_names_no_fix():
+    from mailroom_sandbox.job.runner import _scored_pairs
+
+    scores = _scored_pairs("sorter", ["contract"], ["contract"], {0: True}, 1)
+    assert scores["scoring_hotfixes"] == [] and "n_no_truth" not in scores
+
+
+def test_shf003_currencies_named_in_words_count_as_stated():
+    row = score_extraction_row("contract", {"contract_value": "1,000 euros"}, {"contract_value": "$1,000.00"})
+    assert row["raw_dojo"]["extraction_f1"] == 1.0  # defect: a currency in words read as unstated
+    assert row["extraction_f1"] == 0.0
+    same = score_extraction_row("contract", {"contract_value": "EUR 1,000"}, {"contract_value": "1,000 euros"})
+    assert same["extraction_f1"] == same["raw_dojo"]["extraction_f1"]  # the same currency is never zeroed
+    assert sh.currencies("1,000 dollars") == {"USD"} and sh.currencies("CAD 1,000 dollars") == {"CAD"}
+    assert sh.currencies("£5 sterling") == {"GBP"} and sh.currencies("5,000 Canadian dollars") == {"CAD"}
+    assert sh.currencies("10 pounds of grain") == set() and sh.currencies("Eurostar fare 40") == set()
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("Hong Kong dollars 1,000", {"HKD"}), ("HK dollars 1,000", {"HKD"}), ("HK$1,000", {"HKD"}),
+    ("5 New Zealand dollars", {"NZD"}), ("NZ dollars 5", {"NZD"}), ("NZ$5", {"NZD"}), ("NZD 5", {"NZD"}),
+    ("Singapore dollars 7", {"SGD"}), ("S$7", {"SGD"}), ("1,000 dollars Canadian", {"CAD"}),
+    ("CA dollars 3", {"CAD"}), ("5 Australian dollars", {"AUD"}), ("1,000 dollars Australian", {"AUD"}),
+    ("1,000 dollars", {"USD"}), ("5 million dollars", {"USD"}), ("US dollars 5", {"USD"}),
+])
+def test_shf003_a_bare_dollar_is_usd_only_when_no_other_dollar_is_named(text, expected):
+    assert sh.currencies(text) == expected
+
+
+def test_shf003_other_dollar_currencies_do_not_match_a_us_dollar_amount():
+    # the vendored scorer's base value is stubbed to 1.0 (amount equal), so only the currency check acts
+    def equal(pred, exp, embedding=None):
+        return 1.0
+
+    assert sh.fixed_money_score(equal, "Hong Kong dollars 1,000", "$1,000") == 0.0
+    assert sh.fixed_money_score(equal, "1,000 New Zealand dollars", "1,000 dollars") == 0.0
+    assert sh.fixed_money_score(equal, "Hong Kong dollars 1,000", "HKD 1,000") == 1.0
+    assert sh.fixed_money_score(equal, "1,000 dollars", "$1,000") == 1.0
+    with sh.hotfixed():
+        from llm_dojo_scoring.scoring import field_scoring as fs
+
+        assert fs.score_money_field("1,000 dollars", "$1,000") == 1.0
+
+
+# --- SHF-003: a dollar sign qualified by a space or a currency adjective -------------------------
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("US $5,000 (C$6,800)", {"USD", "CAD"}), ("US $5,000", {"USD"}), ("U.S. $5,000", {"USD"}),
+    ("Canadian $5,000", {"CAD"}), ("Australian $5", {"AUD"}), ("Singapore $5", {"SGD"}),
+    ("Hong Kong $5", {"HKD"}), ("New Zealand $5", {"NZD"}), ("canadian$5", {"CAD"}),
+    # adjacency and the other readings are unchanged
+    ("US$5", {"USD"}), ("USD$5", {"USD"}), ("C$5", {"CAD"}), ("A$5", {"AUD"}), ("S$5", {"SGD"}),
+    ("HK$5", {"HKD"}), ("NZ$5", {"NZD"}), ("CA$ 5", {"CAD"}), ("CAD $1,000", {"CAD"}),
+    ("$1,000 CAD", {"CAD"}), ("$5", {"USD"}), ("a $5", {"USD"}), ("Mexican pesos $5", {"USD"}),
+    # a single letter or a state code before a spaced dollar sign is not a currency ("Plan A $5,000")
+    ("Plan A $5,000", {"USD"}), ("Option C $5", {"USD"}), ("San Jose, CA $5,000", {"USD"}),
+    ("＄1,000", set()), ("﹩1,000", set()), ("💲1", set()), ("RS$100", set()), ("BUS$100", set()),
+])
+def test_shf003_a_qualified_dollar_sign_reads_as_its_currency(text, expected):
+    assert sh.currencies(text) == expected
+
+
+def _equal(pred, exp, embedding=None):
+    return 1.0
+
+
+def test_shf003_a_us_amount_with_a_converted_figure_still_matches_the_plain_amount():
+    assert sh.fixed_money_score(_equal, "US $5,000 (C$6,800)", "$5,000") == 1.0
+    assert sh.fixed_money_score(_equal, "Canadian $5,000", "C$5,000") == 1.0
+    assert sh.fixed_money_score(_equal, "$5,000", "US $5,000") == 1.0
+
+
+@pytest.mark.parametrize(("pred", "exp"), [
+    ("C$5,000", "US$5,000"), ("Canadian $5,000", "US$5,000"), ("C$5,000", "US $5,000"),
+    ("Australian $5,000", "$5,000"), ("Hong Kong $5", "New Zealand $5"), ("S$5", "5 euros"),
+])
+def test_shf003_a_real_currency_mismatch_still_lowers(pred, exp):
+    assert sh.fixed_money_score(_equal, pred, exp) == 0.0
+
+
+@pytest.mark.parametrize("base", [0.0, 0.4, 0.9, 1.0])
+@pytest.mark.parametrize(("pred", "exp"), [
+    ("US $5,000 (C$6,800)", "$5,000"), ("Canadian $5,000", "US$5,000"), ("C$5,000", "US$5,000"),
+    ("US$", "USD$"), ("A$5", "AUD 5"), ("S$5", "SGD 5"), ("HK$5", "NZ$5"), ("＄5", "C$5"), ("5", "5"),
+])
+def test_shf003_never_raises_a_score(base, pred, exp):
+    def stub(p, e, embedding=None):
+        return base
+
+    assert sh.fixed_money_score(stub, pred, exp) <= base
+
+
+def test_shf003_reading_a_very_long_string_is_fast():
+    import time
+
+    for text in ("US " * 70_000, " " * 200_000 + "US", "$" * 200_000, "Canadian " * 22_000, "HONG KONG " * 20_000,
+                 "US" + " " * 200_000 + "$", "x" * 200_000):
+        start = time.perf_counter()
+        sh.currencies(text)
+        assert time.perf_counter() - start < 1.0, text[:12]

@@ -80,6 +80,8 @@ for it in items:
         # `expected_subclass`, and rescored numbers were numerically verified
         # identical old-vs-new across all 3,302 rows — the kwarg only routes
         # corporate_record rows through the dojo's own subclass alignment.
+        # No `overlay_fields`: SHF-015 (stale Hub labels) is off here by design, so this output is
+        # not comparable to the hotfixed headline (docs/scoring-hotfixes.md).
         fresh = score_extraction_row(row["expected_doc_class"], pred, row["expected_fields"],
                                      doc_text=row.get("doc_text"),
                                      expected_subclass=row.get("expected_subclass"))

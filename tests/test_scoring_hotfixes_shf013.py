@@ -213,3 +213,49 @@ def test_a_corrections_file_removed_after_validation_stops_scoring(monkeypatch, 
     # Never validated as current (unavailable from the start): no corrections, no error.
     monkeypatch.setattr(sh, "_STATUS", {"SHF-013": "unavailable"})
     assert sh.subclass_corrections() == {}
+
+
+# --- the pipeline item and run-level subclass scores take the same corrections -----------------
+
+PIPELINE_CORRECTED = [("DOC-59d072355f2c3b14", "corporate_record", "board_resolution", "charter_amendment"),
+                      ("DOC-cf1ba08690065ad0", "merger_agreement", "other", "all_cash")]
+
+
+@pytest.mark.parametrize("doc_id,cls,hub,fixed", PIPELINE_CORRECTED)
+def test_a_pipeline_item_scores_the_reviewed_subclass(doc_id, cls, hub, fixed):
+    from mailroom_sandbox.eval import runners
+
+    row = {"id": doc_id, "expected_doc_class": cls, "expected_subclass": hub}
+    score = runners.pipeline_item_score(row, {"doc_type": cls, "doc_subclass": fixed, "stage": "archived"}, None)
+    assert score["subclass_correct"] == 1.0 and score["raw_dojo_subclass_correct"] == 0.0
+    assert score["subclass_corrected"] is True
+    hub_answer = runners.pipeline_item_score(row, {"doc_type": cls, "doc_subclass": hub, "stage": "archived"}, None)
+    assert hub_answer["subclass_correct"] == 0.0 and hub_answer["raw_dojo_subclass_correct"] == 1.0
+
+
+def test_a_pipeline_item_keeps_the_hub_subclass_when_the_correction_does_not_bind():
+    from mailroom_sandbox.eval import scoring
+
+    # a Hub relabel (different Hub value) or a missing id never takes the reviewed correction
+    assert scoring.subclass_correct("corporate_record", "bylaws", "corporate_record", "charter_amendment",
+                                    doc_id="DOC-59d072355f2c3b14") == (0.0, 0.0)
+    assert scoring.subclass_correct("corporate_record", "board_resolution", "corporate_record",
+                                    "charter_amendment") == (0.0, 0.0)
+    # a rejected entry (verdict held/rejected) is never applied
+    assert scoring.subclass_correct("correspondence", "demand", "correspondence", "email",
+                                    doc_id="DOC-f4ce492b979c34e3") == (0.0, 0.0)
+
+
+def test_pipeline_run_subclass_scores_take_the_corrections_and_keep_the_hub_raw():
+    from mailroom_sandbox.eval.scoring import score_subclass
+
+    ids = [d for d, *_ in PIPELINE_CORRECTED]
+    classes = [c for _, c, _, _ in PIPELINE_CORRECTED]
+    out = score_subclass(classes, [h for *_, h, _ in PIPELINE_CORRECTED], classes,
+                         [f for *_, f in PIPELINE_CORRECTED], doc_ids=ids)
+    assert out["subclass_accuracy"] == 1.0 and out["subclass_raw_dojo"]["subclass_accuracy"] == 0.0
+    assert out["subclass_corrections_applied"] == 2
+    assert out["subclass_scoring_hotfixes"] == ["SHF-012", "SHF-013"]
+    plain = score_subclass(classes, [h for *_, h, _ in PIPELINE_CORRECTED], classes,
+                           [f for *_, f in PIPELINE_CORRECTED])
+    assert plain["subclass_accuracy"] == 0.0 and "subclass_corrections_applied" not in plain

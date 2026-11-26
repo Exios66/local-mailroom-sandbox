@@ -124,6 +124,7 @@ def test_cost_split_by_role_and_the_oversight_share():
     assert scores.agent_usage()["judge"] == {"calls": 3, "prompt_tokens": 15, "completion_tokens": 3, "models": ["m", "n"]}
     m = scores.metrics()
     assert m["cost_split"] == "by_agent" and m["oversight_cost_share"] == 0.375
+    assert m["headline_basis"]["headline"] == "hotfixed"  # utility reads the hotfixed gate outcomes
     assert m["cost_by_role"]["worker"] == 0.04
 
 

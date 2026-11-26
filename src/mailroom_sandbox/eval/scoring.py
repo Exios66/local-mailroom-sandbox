@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 
 from llm_dojo_scoring import (
     Emitter,
@@ -33,7 +33,7 @@ from mailroom_sandbox.eval.schema_adherence import (
     merge_schema_adherence,
 )
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
-from mailroom_sandbox.eval.cuad_scoring import score_cuad
+from mailroom_sandbox.eval.cuad_scoring import gt_categories, score_cuad
 from mailroom_sandbox.eval.maud_scoring import score_maud
 
 from mailroom_sandbox.paths import reports_dir
@@ -114,6 +114,7 @@ def score_extraction_row(
     *,
     field_scores: bool = False,
     truth_overrides: Mapping[str, Any] | None = None,
+    overlay_fields: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Dual-reported row scoring: the hotfixed headline plus the raw Dojo-pin values.
 
@@ -123,6 +124,13 @@ def score_extraction_row(
     ``scoring_hotfixes_changed`` the keys whose value they moved (``docs/scoring-hotfixes.md``).
     ``truth_overrides`` (a prepared row's ``truth_overrides``) restores the truth SHF-010 replaced
     for the raw side.
+
+    ``overlay_fields`` (``scoring_hotfixes.overlay_fields(row)``: the fields a label overlay
+    supplied on the prepared row) turns on SHF-015: the headline drops the Hub labels the Dojo's
+    label policy calls stale (heuristic ``intent``, templated ``subject_matter`` / metadata
+    ``keywords``) from both sides, never a field an overlay supplied, and names them under
+    ``stale_hub_labels``. ``None`` means the caller does not know the row's provenance, so SHF-015
+    stays off rather than risk dropping a reviewed correction.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -134,11 +142,20 @@ def score_extraction_row(
         on = on & sh.EXTRACTION_FIXES
         if not (truth_overrides or {}).get("SHF-010"):
             on = on - {"SHF-010"}
+        if overlay_fields is None:
+            on = on - {"SHF-015"}
         # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
         # the headline scores the restored truth too, so nothing moves without being named.
         fixed_expected = expected if "SHF-010" in on else raw_expected
-        fixed = _score_extraction_row_once(doc_type, predicted, fixed_expected, doc_text, doc_subclass,
+        fixed_predicted = predicted
+        stale: dict[str, str] = {}
+        if "SHF-015" in on:
+            fixed_expected, stale = sh.drop_stale_hub_truth(doc_type, fixed_expected, overlay_fields or ())
+            fixed_predicted = {k: v for k, v in (predicted or {}).items() if k not in stale}
+        fixed = _score_extraction_row_once(doc_type, fixed_predicted, fixed_expected, doc_text, doc_subclass,
                                            expected_subclass, field_scores=field_scores)
+        if stale:
+            fixed["stale_hub_labels"] = stale
     out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")
@@ -319,12 +336,19 @@ def _score_extraction_row_once(
         payload["scoring_method"] = f"{scoring_method}+maud"
     if doc_type == "contract" and raw_expected.get("cuad_clause_labels"):
         # SAND-032: contract GT is CUAD clause spans only; headline = CUAD
-        # category-detection F1 within the row's labeled universe.
-        cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
-        payload.update(cuad)
-        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
-        payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
-        payload["scoring_method"] = f"{scoring_method}+cuad"
+        # category-detection F1 within the row's labeled universe. SHF-016: a row whose CUAD
+        # label map names no category has an empty universe, so the F1 is None and would
+        # overwrite the suite headline, leaving the row unscoreable even when its reviewed
+        # field labels (merged at truth prep) score it. The suite headline stands in and the
+        # row is marked ``cuad_unlabeled``; the raw side keeps the Dojo pin's None.
+        if sh.is_active("SHF-016") and not gt_categories(raw_expected["cuad_clause_labels"]):
+            payload["cuad_unlabeled"] = True
+        else:
+            cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
+            payload.update(cuad)
+            payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+            payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
+            payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
 
 
@@ -361,12 +385,27 @@ def _dojo_subclass_match(expected: Any, predicted: Any) -> bool:
     return bool(pipeline_subclass_match(expected, predicted))
 
 
+def corrected_subclass_truth(doc_id: Any, expected_class: Any, expected_subclass: Any) -> str | None:
+    """SHF-013: the reviewed subclass that replaces this document's Hub subclass, or None.
+
+    Only while SHF-013 is current (``scoring_hotfixes.corrected_subclass``: the correction must
+    name the row's class and the Hub value it was reviewed against). Applied on the canonical
+    (SHF-012) side only; the raw Dojo-pin side always keeps the Hub truth.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if doc_id is None or not sh.enabled("SHF-013"):
+        return None
+    return sh.corrected_subclass(doc_id, expected_class, expected_subclass)
+
+
 def subclass_correct(expected_class: Any, expected_subclass: Any, predicted_class: Any,
-                     predicted_subclass: Any) -> tuple[float, float] | None:
+                     predicted_subclass: Any, *, doc_id: Any = None) -> tuple[float, float] | None:
     """``(raw Dojo-pin, hotfixed)`` subclass correctness of one document; None without truth.
 
     Hotfixed (SHF-012): right class and the same canonical subclass token. Raw: the Dojo's
-    class-blind exact string match.
+    class-blind exact string match. With ``doc_id``, SHF-013's reviewed subclass correction
+    replaces the Hub subclass on the hotfixed side, as in isolated sorter scoring.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -375,8 +414,9 @@ def subclass_correct(expected_class: Any, expected_subclass: Any, predicted_clas
     raw = float(_dojo_subclass_match(expected_subclass, predicted_subclass))
     if not sh.enabled("SHF-012"):
         return raw, raw
+    truth = corrected_subclass_truth(doc_id, expected_class, expected_subclass) or expected_subclass
     ok = (_norm_label(expected_class) == _norm_label(predicted_class)
-          and _subclass_token(expected_class, expected_subclass)
+          and _subclass_token(expected_class, truth)
           == _subclass_token(predicted_class, predicted_subclass))
     return raw, float(ok)
 
@@ -386,15 +426,18 @@ def score_subclass(
     expected_subclass: Sequence[Any],
     predicted_class: Sequence[Any],
     predicted_subclass: Sequence[Any],
+    doc_ids: Sequence[Any] | None = None,
 ) -> dict[str, Any]:
-    """Subclass accuracy and macro-F1, joint with the class, dual reported (SHF-012).
+    """Subclass accuracy and macro-F1, joint with the class, dual reported (SHF-012, SHF-013).
 
     Each label is ``class/subclass`` on the canonical subclass token, so a document whose class
     is wrong has a wrong subclass (it stays in the denominator), two classes' ``other``
     subclasses never match, and ``Distributor`` meets ``distributor``. A row without a truth
     subclass is left out and counted (``subclass_n_no_truth``). ``subclass_accuracy_given_class``
     is the conditional figure over class-correct rows, named so it is never read as the joint one.
-    ``raw_dojo`` holds the Dojo pin's class-blind raw-string figures.
+    ``raw_dojo`` holds the Dojo pin's class-blind raw-string figures. With ``doc_ids``, SHF-013's
+    reviewed subclass corrections replace the Hub subclass on the canonical side (counted under
+    ``subclass_corrections_applied``); the raw side keeps the Hub truth.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.experiment_stats import macro_f1
@@ -402,19 +445,25 @@ def score_subclass(
     n = len(expected_class)
     if not (len(expected_subclass) == len(predicted_class) == len(predicted_subclass) == n):
         raise ValueError("subclass vectors differ in length")
+    if doc_ids is not None and len(doc_ids) != n:
+        raise ValueError("subclass vectors differ in length")
     fixed_on = sh.enabled("SHF-012")
+    ids = list(doc_ids) if doc_ids is not None else [None] * n
+    corrected = [corrected_subclass_truth(i, ec, es) if fixed_on and str(es or "").strip() else None
+                 for i, ec, es in zip(ids, expected_class, expected_subclass)]
 
     def compute(canonical: bool) -> dict[str, Any]:
         truth: list[str] = []
         pred: list[str] = []
         given: list[bool] = []
         no_truth = 0
-        for ec, es, pc, ps in zip(expected_class, expected_subclass, predicted_class, predicted_subclass):
+        for ec, es, pc, ps, fix in zip(expected_class, expected_subclass, predicted_class, predicted_subclass,
+                                       corrected):
             if not str(es or "").strip():
                 no_truth += 1
                 continue
             if canonical:
-                truth.append(f"{_norm_label(ec)}/{_subclass_token(ec, es)}")
+                truth.append(f"{_norm_label(ec)}/{_subclass_token(ec, fix or es)}")
                 pred.append(f"{_norm_label(pc)}/{_subclass_token(pc, ps)}")
                 if _norm_label(ec) == _norm_label(pc):
                     given.append(truth[-1] == pred[-1])
@@ -438,8 +487,12 @@ def score_subclass(
 
     raw = compute(False)
     fixed = compute(True) if fixed_on else raw
+    applied = sum(1 for c in corrected if c is not None)
+    if fixed_on and doc_ids is not None:
+        fixed["subclass_corrections_applied"] = applied
     keys = ("subclass_accuracy", "subclass_f1_macro", "subclass_accuracy_given_class", "subclass_n")
-    dual = sh.merge_dual(raw, fixed, ["SHF-012"] if fixed_on else [], keys=keys)
+    used = (["SHF-012"] if fixed_on else []) + (["SHF-013"] if applied else [])
+    dual = sh.merge_dual(raw, fixed, used, keys=keys)
     return {**{k: v for k, v in dual.items() if k not in ("raw_dojo", "scoring_hotfixes",
                                                           "scoring_hotfixes_changed")},
             "subclass_raw_dojo": dual["raw_dojo"], "subclass_scoring_hotfixes": dual["scoring_hotfixes"],

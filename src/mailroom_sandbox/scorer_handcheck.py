@@ -695,7 +695,9 @@ def score_case(record: Mapping[str, Any], row: Mapping[str, Any], table: Mapping
     out["class"] = _score_class(dict(row), {"doc_type": pred["doc_type"]})["match"]
     out["subclass_unit"] = float(unit_correct(str(row["expected_doc_class"]), row.get("expected_subclass"),
                                               pred["doc_type"], pred.get("doc_subclass"), table))
-    scored = _score_extract(dict(row), dict(fields), field_scores=True)
+    # The hand-check verifies the per-field scorer, so it replays on the basis the sheet lists: every
+    # field the truth names. SHF-015 (stale Hub labels dropped from the headline) stays off here.
+    scored = _score_extract(dict(row), dict(fields), field_scores=True, stale_labels=False)
     for name, value in (scored.get("field_scores") or {}).items():
         out[f"field:{name}"] = value
     out["doc_score"] = scored.get("overall_extraction_score")

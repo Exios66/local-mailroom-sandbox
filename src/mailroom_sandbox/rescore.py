@@ -17,7 +17,9 @@ and the gold audit read:
 * ``dataset.jsonl``: the new truth rows of the scored documents, in item order;
 * ``items.jsonl``: the source items, ``score`` re-computed and the first score kept in
   ``score_original``;
-* ``scores.json``: run-level means of every numeric per-item score, overall and by class;
+* ``scores.json``: run-level means of every numeric per-item score, overall and by class, dual
+  reported: failed items score 0 on the headline (SHF-005) and the scored-only means sit under
+  ``raw_dojo`` (``docs/scoring-hotfixes.md``);
 * ``rescore.json``: the provenance and the before/after digest that the CLI prints;
 * ``events.jsonl`` and ``prompt.lock.json`` copied when present; ``checkpoint.json`` uses the
   derived lock's identity and retains the original checkpoint under ``source_checkpoint``.
@@ -280,7 +282,18 @@ def run_scores(items: Sequence[Mapping[str, Any]], truth: Mapping[str, Mapping[s
 
     These are plain means over the items that carry each key. A task runner's own run summary can
     hold other statistics (macro-F1, confidence intervals), which a rescore does not recompute.
+
+    Dual reported (``docs/scoring-hotfixes.md``). Both sections aggregate the same top-level
+    per-item scores (the headline values); ``raw_dojo`` holds the means over the scored items
+    only. It is not a fixes-off aggregate: a scored item's fixes-off values sit on its own record
+    under its ``raw_dojo`` key. SHF-005: on the headline, an item whose run failed (``ok`` false:
+    a timeout, parse failure or crash) scores 0 on each headline key (``HEADLINE_KEYS``) its own
+    first score carries or, failing that, that the scored items of its truth class carry (any
+    scored item's keys when its class has none). A failure with no such key anywhere — for
+    example when every item failed — is left out, and ``failed_scored_zero`` stays 0.
     """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
     def means(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
         vals: dict[str, list[float]] = defaultdict(list)
         for it in rows:
@@ -289,17 +302,48 @@ def run_scores(items: Sequence[Mapping[str, Any]], truth: Mapping[str, Mapping[s
                     vals[key].append(num)
         return {k: {"n": len(v), "mean": sum(v) / len(v)} for k, v in sorted(vals.items())}
 
+    def cls(it: Mapping[str, Any]) -> str:
+        return _truth_key(truth.get(str(it.get("item_id"))))[0]
+
+    def headline_keys(rows: Iterable[Mapping[str, Any]]) -> set[str]:
+        return {k for it in rows for k, v in (it.get("score") or {}).items()
+                if k in HEADLINE_KEYS and _num(v) is not None}
+
     scored = [i for i in items if i.get("ok") and isinstance(i.get("score"), Mapping)]
     groups: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for it in scored:
-        groups[_truth_key(truth.get(str(it.get("item_id"))))[0]].append(it)
+        groups[cls(it)].append(it)
+    raw = {"means": means(scored), "by_class": {c: means(rows) for c, rows in sorted(groups.items())}}
+
+    failed = [i for i in items if not i.get("ok")]
+    on = "SHF-005" in sh.current_ids()
+    zeros: list[Mapping[str, Any]] = []
+    if on:
+        every = headline_keys(scored)
+        for it in failed:
+            own = headline_keys([{"score": it.get("score_original", it.get("score"))}])
+            keys = own or headline_keys(groups.get(cls(it), ())) or every
+            if keys:
+                zeros.append({"item_id": it.get("item_id"), "score": dict.fromkeys(sorted(keys), 0.0)})
+    fixed_groups: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for it in [*scored, *zeros]:
+        fixed_groups[cls(it)].append(it)
+    fixed = {"means": means([*scored, *zeros]),
+             "by_class": {c: means(rows) for c, rows in sorted(fixed_groups.items())}}
+    changed = sorted(k for k in set(raw["means"]) | set(fixed["means"])
+                     if raw["means"].get(k) != fixed["means"].get(k))
     return {
         "source": "mean of the re-scored per-item scores (sandbox rescore)",
         "items": len(items),
         "scored": len(scored),
         "unscored": len(items) - len(scored),
-        "means": means(scored),
-        "by_class": {cls: means(rows) for cls, rows in sorted(groups.items())},
+        "failed": len(failed),
+        "failed_scored_zero": len(zeros),
+        **fixed,
+        "raw_dojo": raw,
+        "scoring_hotfixes": ["SHF-005"] if zeros else [],
+        "scoring_hotfixes_changed": changed,
+        "headline_basis": sh.headline_basis(),
     }
 
 

@@ -160,19 +160,28 @@ def _unit_labels(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
-def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
+def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = True) -> int:
     """Labelled units of a row: what the Dojo scores it on, after dropping the templated fields.
 
     Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
     field: the count is its number of categories (the scored universe) when at least one carries
-    gold, else 0. Other classes count non-empty expected values after class scoping.
+    gold, else 0. Other classes count non-empty expected values after class scoping. SHF-015: a
+    stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
+    score does not score it (``docs/scoring-hotfixes.md``). ``hotfixed=False`` counts as the Dojo pin
+    does, with no SHF-015 drop: ``_status`` records that as ``labelled_raw`` beside it.
     """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
     unit_field = _UNIT_FIELD.get(doc_class)
     if unit_field:
         labels = _unit_labels(_fields(row).get(unit_field))
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
-    _, expected = scope_extraction_pair(doc_class, {}, _fields(row))
-    drop = TEMPLATED_FIELDS.get(doc_class, ())
+    raw = _fields(row)
+    stale: dict[str, str] = {}
+    if hotfixed and sh.enabled("SHF-015"):
+        _, stale = sh.drop_stale_hub_truth(doc_class, raw, sh.overlay_fields(row))
+    _, expected = scope_extraction_pair(doc_class, {}, raw)
+    drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale}
     scored = scored_fields(doc_class)
     return sum(1 for key, value in expected.items()
                if key not in drop and key not in _NOT_LABELS and not _blank(value)
@@ -250,6 +259,11 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out: dict[str, Any] = {"id": str(row.get("id")), "class": doc_class, "stage": "crashed", "score": None,
                            "scorable": False, "outcome": "crashed", "tokens": 0, "judge_error": False,
                            "labelled": labelled_count(row, doc_class)}
+    # SHF-015: the count before the stale-label drop, recorded only when the drop changed it, so a
+    # class that fell below min_labelled shows which documents moved and by how much.
+    raw_labelled = labelled_count(row, doc_class, hotfixed=False)
+    if raw_labelled != out["labelled"]:
+        out["labelled_raw"] = raw_labelled
     if item is None:
         return out
     pred = item.get("pred") or {}  # an absent or empty prediction reads as before
@@ -317,6 +331,12 @@ def _load(run_dir: Path) -> list[dict[str, Any]]:
         doc_id = str(row.get("id"))
         docs.append(arm.get(doc_id) or {"row": row, "item": None, "nodes": []})
     return docs
+
+
+def _unscorable_by_shf015(statuses: Collection[Mapping[str, Any]], bars: Bars) -> int:
+    """Archived documents that SHF-015 alone made unscorable: enough labels before the stale drop, too few after."""
+    return sum(1 for s in statuses
+               if s["outcome"] == "unscorable_archive" and s["labelled"] < bars.min_labelled <= s.get("labelled_raw", 0))
 
 
 def _counts(docs: list[dict[str, Any]]) -> dict[str, int]:
@@ -415,7 +435,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for status in statuses:
         by_class[status["class"]].append(status)
-    classes = {cls: {**_class_rates(_counts(docs)), "gated": cls in bars.gated}
+    classes = {cls: {**_class_rates(_counts(docs)), "gated": cls in bars.gated,
+                     "unscorable_by_shf015": _unscorable_by_shf015(docs, bars)}
                for cls, docs in sorted(by_class.items())}
     pooled_docs = [s for s in statuses if s["class"] in bars.gated]
     pooled = _counts(pooled_docs)
@@ -461,6 +482,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     gated = [(d, s) for d, s in doc_pairs if s["class"] in bars.gated]
     slots = decision_slot_report([d for d, _ in gated], [s for _, s in gated],
                                  max_wrong_archive_rate=bars.wrong_archive_max)
+    from mailroom_sandbox import scoring_hotfixes as sh
+
     caveated = [s for s in statuses if s.get("arbiter_caveats")]
     reasked = [s for s in statuses if s.get("judge_reasks")]
     return {
@@ -479,11 +502,14 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
                                 "hf014": sum(1 for s in caveated if s.get("caveats_hf014")),
                                 "docs": [s["id"] for s in caveated]}} if caveated else {}),
         "run_id": run_dir.name, "n": len(statuses), "bars": {**asdict(bars), "gated": list(bars.gated)},
+        # The document scores are the hotfixed headline; these are the fixes in force when scored.
+        "headline_basis": sh.headline_basis(), "scoring_hotfixes": sorted(sh.current_ids()),
         "classes": classes,
         "pooled": {"review_rate": review_rate, "wrong_archive_rate": wrong_rate,
                    "review_upper95": _wilson_upper(pooled["review"], pooled["n"]),
                    "wrong_archive_upper95": _wilson_upper(pooled["wrong"], scorable),
                    "scorable": scorable, "unscorable": pooled["unscorable"],
+                   "unscorable_by_shf015": _unscorable_by_shf015(pooled_docs, bars),
                    "crashes": crashes, "judge_errors": judge_errors},
         "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
         "audit": trail,

@@ -5,8 +5,10 @@ code that calls it. A scoring defect the experiments cannot wait for is correcte
 id (``SHF-001`` ...), and never silently:
 
 - **Bound to the code it corrects.** Each fix lists its targets (``module:qualname``) with the
-  sha256 of the target's source (``inspect.getsource``) it was validated against, or
-  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads. When a vendor
+  sha256 of the target's source (``inspect.getsource``) it was validated against,
+  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads, or
+  ``value:<module>:<name>`` with the sha256 of a module constant's value (a regex, a set of
+  tokens, a dispatch table: it has no source text to hash). When a vendor
   refresh or an edit changes a target, the fix is ``stale``: it is not applied, and
   ``sandbox run preflight`` fails on the ``scoring_hotfixes`` check until the fix is re-validated
   or retired.
@@ -14,18 +16,22 @@ id (``SHF-001`` ...), and never silently:
   Dojo-pin value, under ``raw_dojo``) and once with the current fixes on (the headline).
   ``scoring_hotfixes`` names the fixes that were on and ``scoring_hotfixes_changed`` the headline
   keys whose value differs, so no number changes without the record saying why.
+  A report built on the headline also records :func:`headline_basis`.
 - **Recorded in every run lock** (``scoring_hotfixes``: this module's sha256 and each fix's id and
-  target fingerprints). A resume refuses a lock whose set differs.
-- **Tracked upstream.** Each fix names the upstream it belongs to (a drafted, unfiled
-  llm-dojo-scoring issue in ``docs/scoring-hotfixes.md``, or ``sandbox`` when the defect is in
-  this repository's own scoring code).
+  target fingerprints). A resume refuses a lock whose set differs, and so does the executing
+  process; any edit here changes the sha, so a new run locks the new set and an older lock needs
+  ``--force`` to re-lock.
+- **Tracked upstream.** Each fix names the upstream it belongs to (an llm-dojo-scoring issue,
+  D-1 to D-5 filed as Exios66/llm-dojo-scoring#188 to #192, see ``docs/scoring-hotfixes.md``, or
+  ``sandbox`` when the defect is in this repository's own scoring code).
 
-Outside a :func:`hotfixed` block every scoring-call fix is off, so a scorer that does not opt in
-gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
-threads never see each other's mode. Three fixes act outside a scoring call and are on whenever
-they are current: SHF-010 during truth preparation (``gold_labels.apply_near_gold``) and SHF-009
-in the Decisions routing contract (``decision_backends``), and SHF-013 in isolated subclass
-scoring and sorter-arm comparisons. See ``docs/scoring-hotfixes.md``.
+Outside a :func:`hotfixed` block every per-row scoring-call fix is off, so a scorer that does not
+opt in gets the Dojo pin's behaviour unchanged. The switch is a ``ContextVar``: concurrent scoring
+threads never see each other's mode. The other fixes act outside a scoring call and are on whenever
+they are current: the run aggregation fixes (SHF-005/006/007/008/011), SHF-010 during truth
+preparation (``gold_labels.apply_near_gold``), SHF-009 in the Decisions routing contract
+(``decision_backends``), SHF-012 in subclass scoring, SHF-013 in isolated and pipeline subclass
+scoring and sorter-arm comparisons, and SHF-015's gate label count. See ``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations
@@ -70,7 +76,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("llm_dojo_scoring.scoring.extraction_metrics:extraction_binary_metrics",
              "a5b4378e11861c07c7218913056f7120c280b7a51f985a27669ab68de76fbd1c"),
         ),
-        upstream="sandbox (extraction_scope); Dojo draft issue D-1 in docs/scoring-hotfixes.md",
+        upstream="sandbox (extraction_scope); Dojo D-1, Exios66/llm-dojo-scoring#188",
         summary="a value predicted on a field the truth documents as absent (gt_presence "
                 "schema_documented_absence) is a false positive on every class, not only "
                 "corporate_record, and is counted as a hallucination",
@@ -80,7 +86,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_name_field",
                   "2858ef5f4d580f3e7f0f2f4ab220d12b423b299072b595bd306bece00c07787e"),),
-        upstream="llm-dojo-scoring draft issue D-2 (docs/scoring-hotfixes.md), not filed",
+        upstream="llm-dojo-scoring D-2, Exios66/llm-dojo-scoring#189",
         summary="a name whose tokens are a strict subset or superset of the truth's (after "
                 "legal-suffix, 'the', honorific and initial removal) is a partial match "
                 "(token Jaccard), not an exact 1.0",
@@ -90,15 +96,16 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_money_field",
                   "25ea35162ccef237c2c7f9aa655c810176305270ac279dcc101c636f1c9b087f"),),
-        upstream="llm-dojo-scoring draft issue D-3 (docs/scoring-hotfixes.md), not filed",
-        summary="two amounts that state different currencies do not match",
+        upstream="llm-dojo-scoring D-3, Exios66/llm-dojo-scoring#190",
+        summary="two amounts that state different currencies (code, symbol or name in words) "
+                "do not match",
     ),
     ScoringHotfix(
         id="SHF-004",
         layer="dojo",
         targets=(("llm_dojo_scoring.scoring.field_scoring:score_id_field",
                   "4ed5c2db371ebf14f322810f44d6828721e293482a4f9e0badf3bbbcfdbac1c3"),),
-        upstream="llm-dojo-scoring draft issue D-4 (docs/scoring-hotfixes.md), not filed",
+        upstream="llm-dojo-scoring D-4, Exios66/llm-dojo-scoring#191",
         summary="identifiers equal once every non-alphanumeric character is removed match "
                 "(CLM12345 = CLM-12345)",
     ),
@@ -108,19 +115,23 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
-                  "f0337d2c98e3ac779c2dcfb0202e886151f57200a5c96ce34bdd25a07130bd7e")),
+                  "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0"),
+                 ("mailroom_sandbox.rescore:run_scores", "a4a04eb263e02eb2dddd93a8334f3dd1c52b71b5aa0e5f8ea43ee7729345a0a1")),
         upstream="sandbox",
         summary="a row that errored (timeout, parse failure, crash) scores 0 in the run "
-                "headline instead of leaving the denominator",
+                "headline instead of leaving the denominator (isolated evals, the job-runner "
+                "sorter and a rescore's scores.json)",
     ),
     ScoringHotfix(
         id="SHF-006",
         layer="sandbox",
         targets=(("mailroom_sandbox.eval.runners:_isolated_headline",
-                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),),
+                  "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0")),
         upstream="sandbox",
         summary="a row with no truth to score is left out of the run mean and counted "
-                "(n_no_truth) instead of averaging in as 0",
+                "(n_no_truth) instead of averaging in as 0 (isolated evals and the job-runner "
+                "sorter)",
     ),
     ScoringHotfix(
         id="SHF-007",
@@ -131,11 +142,14 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.agents:_fold",
                   "c332fba81b273d2b661944556f62bbc6fa6271ae132b6ef38ea5b75a991164e4"),
                  ("mailroom_sandbox.eval.agents:_class_answer",
-                  "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984")),
+                  "63b7b99518c62b86292eb7d05deac93cce40123b36a43dffac28dab40e796984"),
+                 # the job-runner sorter scores folded labels and leaves no-truth rows out
+                 ("mailroom_sandbox.job.runner:_scored_pairs", "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0")),
         upstream="sandbox",
-        summary="class labels compare case- and whitespace-folded; a row without a truth "
-                "class is unscored, not a match; an abstention is its own outcome "
-                "(abstain=True, scored wrong, routed to review)",
+        summary="class labels compare case-, hyphen- and whitespace-folded; a row without a "
+                "truth class is unscored, not a match; an abstention is its own outcome "
+                "(abstain=True, scored wrong, routed to review); the job-runner sorter "
+                "folds and leaves no-truth rows out the same way",
     ),
     ScoringHotfix(
         id="SHF-008",
@@ -185,8 +199,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
                   "f692ca8d94ccdf8cc04ec35b8a40e3508c4ace9da0c3a5dbc5ab3b521d059451"),
                  ("mailroom_sandbox.eval.scoring:score_subclass",
-                  "e5bcf80dfa6598718cba4b7fd363f016e21d15cd73d8b5f0d530171824427f59")),
-        upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: draft issue D-5)",
+                  "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed")),
+        upstream="sandbox (the Dojo's pipeline_subclass_match ignores the class: D-5, "
+                 "Exios66/llm-dojo-scoring#192)",
         summary="pipeline items record the final sorter/reviewer subclass and score it joint with the "
                 "class on the canonical subclass token (normalize_corpus_subclass), not the Dojo's "
                 "class-blind raw-string match",
@@ -198,6 +213,10 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                   "37caf94d1d496885350500ac13164b5c94125ceb3eb7df6b626a974c52649ad0"),
                  ("mailroom_sandbox.eval.scoring:sorter_subclass_scores",
                   "bd8cf8c068f34108b2bca7dfc2eeb0110c4183cbec29797feb791df72d925b9f"),
+                 # the pipeline item and run-level subclass scores take the same corrections
+                 ("mailroom_sandbox.eval.scoring:corrected_subclass_truth", "27cf68dd20c665c87e7f56948570a3748c7b345435a99de0d60e7114c0dc6cfc"),
+                 ("mailroom_sandbox.eval.scoring:subclass_correct", "630d2adcfe049b3b9004dc69854298bfb2415d7a2b4eeedbec21339f40bfbcd5"),
+                 ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
                   "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3")),
@@ -205,15 +224,85 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
         summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "
                 "canonical subclass token (subclass_scored, subclass_match, subclass_by_class); a reviewed "
-                "subclass correction replaces the Hub truth for subclass and unit scoring, the Hub-truth "
-                "figures stay under raw_dojo and the corrected documents are counted "
+                "subclass correction replaces the Hub truth for subclass and unit scoring, and for the "
+                "pipeline's per-item subclass_correct and run-level subclass scores (SHF-012 side), the "
+                "Hub-truth figures stay under raw_dojo and the corrected documents are counted "
                 "(subclass_corrections_applied)",
+    ),
+    ScoringHotfix(
+        id="SHF-015",
+        layer="sandbox",
+        targets=(
+            # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
+            ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "71d73e914c9fd31ec17a82313c6819b4b4290df7d0d27dcd64ff00961c2f517f"),
+            # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
+            # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
+            # changes one of them makes the fix stale). A live monkeypatch of a function is not source
+            # drift and is not seen. tests/test_scoring_hotfix_fingerprint.py walks the call graph and
+            # fails when a callee is missing here.
+            ("llm_dojo_scoring.schemas.corporate_record_schema:_keywords", "a651ec0dc05054218d9ad7e47bcb1dfd9ed9f8606062095ce29cec40b764d440"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:_keyword_list", "86679982c9b3fca87449aa953b8a7f3ab1a5b3e6aaa0628febd4c25f01b012ce"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:_norm_token", "3250fe41754b808b2ebeafb264b42d6a84822a1451494da87daf451a9281438d"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:is_templated_subject_matter", "13c32d90add368aa1428a526c0647c8000f153085eb30c0837a2bdb32bea1a98"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:metadata_keyword_kind", "e50d0a4959fe4891083fbf64a9c134921b2274f4f71db8c54a77f2a6acbebd66"),
+            ("llm_dojo_scoring.schemas.gt_metadata:is_empty_value", "2ce53a21d97504cd3d23be843be571f270e7dfaa0c4e806c15f6feeedfcbe0cf"),
+            ("llm_dojo_scoring.schemas.gt_metadata:parse_gt_fields", "2110f6425b2a6a2fe9dcedf40215c629e481d9e7e9839cd4b7fe090eebe007bd"),
+            ("llm_dojo_scoring.schemas.gt_metadata:parse_json_container", "7659a64ece4fa57f9b88caa33744e0aa2b90a845d2e24ab9f759df0a2b0d7885"),
+            ("llm_dojo_scoring.schemas.label_policy:_class", "45d438fc79c5f28cda61df07b3aedd2c7aa25277523ceda6e2b743d7867ba9d6"),
+            ("llm_dojo_scoring.schemas.label_policy:_corporate_stale", "65de264759beb5b282dc79cbe69d2dc1a5c3fdba7a5ae52ca83a1526d7d0fe6c"),
+            ("llm_dojo_scoring.schemas.label_policy:_correspondence_stale", "af434deecfe68e0153549d06011e14220217ea9605f7c7010bac0f7040f92990"),
+            ("llm_dojo_scoring.schemas.label_policy:_fields", "1330ec0d50c6e371283a5c9d18675abe5136742ffb3ba4ffbc0d6680265d41f1"),
+            ("llm_dojo_scoring.schemas.label_policy:stale_hub_labels", "3e8141ca126dcf8df58defa78e18f0f1a35ee833cfe53c0d9828333b7301fdbd"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_CIK_KEYWORD", "b1f91ef1f1f428b9abaee509679408bc66032a725c57399978514e89acf1114f"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_ID_KEYWORD", "72cb0568e72cbff1ac05e07a287146a167e2a205896716de6111af98b6e07fb2"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_TEMPLATE_MARK", "928549eb271fe98a6f8c6cae549c63684e262f38eb182ff191fe0532529dfe71"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_COMMUNICATION_TYPES", "59c43d6a5942ff13a11cc71b1538dcbe603c29db8da3854985bfdce78e02e72c"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_CONTENT_LIKE_FOLDERS", "cf7c116d050f34ff98ca388870da85ccd59b34bab20d0d9211d02514f007fffc"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_DATE_OR_TIME", "c8415f3aef32a226981c44bb4c985aa62e9b2a0f0ec6aa63df8aa88c03e5ef58"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_EMAIL", "750d61faddfa542c367f4cc505c9dced6846b9ae488eaef30346899c00df9575"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_FOLDER_NAMES", "4b48410321f98f66b09562e0bd8898368f16a92a8c95338d960ea617814d4f2f"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_MAILBOX_ID", "5e92ca8075beb1a6eb7be6d695dab38913c868c1e8907a5b8aad40b858b73d23"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_SNAKE_TOKEN", "a7cf2b12dd54a86bb54dab12dbeeb0a834225dd1f9ef80921a27e3d0261620fd"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TEMPLATE_FRAME", "1ee500b686d47bad993ce9f84e37ce0a2a15bb97eadc6c6026475d7dedf9ba0e"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TIMESTAMP", "f1649d013d3d3c075f889fbeb709f03383f67a740e5bbbbe4bc4ee564319adf7"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TOPIC_KEYS", "0968d3d06ffcbeb417935bc920c2c03c8a8064e203d47aba3ef1b9eb74babed0"),
+            ("value:llm_dojo_scoring.schemas.gt_metadata:_NULL_TOKENS", "bf830f6ef10243a290dd314059c18cf88f3e63dbbfffb0596141e0305a9575c1"),
+            ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
+            ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
+            # the gate counts toward min_labelled only the labels the headline scores
+            ("mailroom_sandbox.job.gate:labelled_count", "b3bc1a48335464a5f08cbae2e07573cba79e0d97259a79a2661a881a8b0742a8"),
+        ),
+        upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
+                 "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
+        summary="the headline drops the Hub labels the Dojo's label policy calls stale (a heuristic intent; "
+                "templated correspondence and corporate subject_matter / metadata keywords) from both sides, "
+                "so a correct answer is not scored against a template; a value an interim, near-gold or "
+                "staged overlay supplied is never dropped, and the dropped fields are named "
+                "(stale_hub_labels); the gate does not count a dropped label toward min_labelled",
+    ),
+    ScoringHotfix(
+        id="SHF-016",
+        layer="sandbox",
+        targets=(
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "58a46935f75805f9b6da6475982e169e1efd01e5fa8ced2e32acf0aa6c660165"),
+            # the Dojo reader decides the row's labeled universe; a refresh that changes it
+            # makes the fix stale
+            ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
+            ("llm_dojo_scoring.pipeline.sandbox_scoring:score_cuad", "8c30a637efbf0139bd12bf6283dff62507223ce7e8d90183692854d16a07f106"),
+        ),
+        upstream="sandbox",
+        summary="a contract row whose CUAD label map names no category keeps the suite field "
+                "headline (the reviewed interim / near-gold field labels merged at truth prep "
+                "stand in where the Hub supplied none) instead of the empty-universe CUAD F1 "
+                "that left the row unscoreable; the row is marked cuad_unlabeled and the "
+                "raw side keeps the Dojo pin's None",
     ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
 #: The fixes a row extraction score can depend on.
-EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010"})
+EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016"})
 _ACTIVE: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "sandbox_scoring_hotfixes_active", default=frozenset())
 _STATUS: dict[str, str] = {}
@@ -291,7 +380,34 @@ def data_path(rel: str) -> Path | None:
     return next((path for path in candidates if path.is_file()), None)
 
 
+VALUE_TARGET = "value:"
+
+
+def _canonical(value: Any) -> str:
+    """A stable text form of a constant: sets and mappings sorted, a regex as pattern plus flags."""
+    if isinstance(value, re.Pattern):
+        return f"re({value.pattern!r}, {int(value.flags)})"
+    if isinstance(value, (set, frozenset)):
+        return "set(" + ",".join(sorted(_canonical(v) for v in value)) + ")"
+    if isinstance(value, Mapping):
+        return "map(" + ",".join(sorted(f"{_canonical(k)}:{_canonical(v)}" for k, v in value.items())) + ")"
+    if isinstance(value, (list, tuple)):
+        return type(value).__name__ + "(" + ",".join(_canonical(v) for v in value) + ")"
+    if callable(value):  # a dispatch table lists functions: name them, never print an address
+        return f"callable({getattr(value, '__module__', '')}:{getattr(value, '__qualname__', repr(value))})"
+    return repr(value)
+
+
+def value_sha(value: Any) -> str:
+    """sha256 of :func:`_canonical` ``(value)``: what a ``value:`` target records."""
+    return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
+
+
 def target_sha(target: str) -> str:
+    if target.startswith(VALUE_TARGET):
+        # The live value, not file text: a constant has no source of its own and may be derived from
+        # another module's data (``frozenset(CORRESPONDENCE_TOPICS)``), so its value is what decides.
+        return value_sha(_resolve(target[len(VALUE_TARGET):]))
     if target.startswith(FILE_TARGET):
         path = data_path(target[len(FILE_TARGET):])
         if path is None:
@@ -451,22 +567,59 @@ def fixed_name_score(original: Callable[..., float], pred: Any, exp: Any, embedd
     return score
 
 
-_ISO = r"USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
+_ISO = r"USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
+
+
+# Currency names a money string can state in words. A bare "pound(s)" is left out (a weight), and a
+# bare "dollar(s)" means USD only when nothing else is stated, as a bare "$" does. A qualified dollar
+# names its own currency: Canadian, Australian, Hong Kong, New Zealand and Singapore dollars, before
+# or after the word ("1,000 dollars Canadian") and by abbreviation ("HK dollars").
+_CURRENCY_WORDS = (
+    (r"EUROS?", "EUR"), (r"(?:POUNDS?\s+)?STERLING|BRITISH\s+POUNDS?", "GBP"), (r"YEN", "JPY"),
+    (r"U\.?S\.?\s+DOLLARS?", "USD"),
+    (r"(?:CANADIAN|CA)\s+DOLLARS?|DOLLARS?\s+CANADIAN", "CAD"),
+    (r"(?:AUSTRALIAN|AU)\s+DOLLARS?|DOLLARS?\s+AUSTRALIAN", "AUD"),
+    (r"(?:HONG\s+KONG|HK)\s+DOLLARS?|DOLLARS?\s+HONG\s+KONG", "HKD"),
+    (r"(?:NEW\s+ZEALAND|NZ)\s+DOLLARS?|DOLLARS?\s+NEW\s+ZEALAND", "NZD"),
+    (r"(?:SINGAPORE|SG)\s+DOLLARS?|DOLLARS?\s+SINGAPORE", "SGD"),
+)
+
+
+# Adjectives that qualify a dollar sign when they stand right before it ("Canadian $5,000").
+_DOLLAR_ADJECTIVES = (
+    (r"U\.?S\.?", "USD"), (r"CANADIAN", "CAD"), (r"AUSTRALIAN", "AUD"), (r"HONG\s+KONG", "HKD"),
+    (r"NEW\s+ZEALAND", "NZD"), (r"SINGAPORE", "SGD"),
+)
 
 
 def currencies(text: Any) -> set[str]:
-    """Explicit currencies a money string states (ISO code or symbol); empty when none."""
+    """Explicit currencies a money string states (ISO code, symbol or name); empty when none.
+
+    A ``$`` takes the currency of a prefix attached to it (``C$``, ``HK$``) or of an adjective right
+    before it (``US $``, ``Canadian $``, ``Hong Kong $``). Any other ``$``, and a bare "dollars",
+    reads as USD only when the string states no other currency: beside one it adds nothing
+    (``CAD $1,000`` and ``$1,000 CAD`` are CAD, ``$1,000 (approx. EUR 900)`` is EUR).
+    """
     t = str(text or "").upper()
     found = set(re.findall(rf"(?<![A-Z])({_ISO})(?![A-Z])", t))
     for symbol, code in (("€", "EUR"), ("£", "GBP"), ("¥", "JPY")):
         if symbol in t:
             found.add(code)
+    for word, code in _CURRENCY_WORDS:
+        if re.search(rf"(?<![A-Z])(?:{word})(?![A-Z])", t):
+            found.add(code)
     for prefix, code in (("US", "USD"), ("C", "CAD"), ("CA", "CAD"), ("A", "AUD"), ("AU", "AUD"),
-                         ("HK", "HKD"), ("S", "SGD")):
+                         ("HK", "HKD"), ("NZ", "NZD"), ("S", "SGD")):
         if re.search(rf"(?<![A-Z]){prefix}\$", t):
             found.add(code)
-    # A bare "$" means USD only when the string states no other currency ("CAD $1,000" is CAD).
-    if not found and re.search(r"(?<![A-Z])\$", t):
+    # A currency adjective right before the sign names the dollar, with up to two spaces between:
+    # "US $5,000", "Canadian $5,000". Only the whole word, never a single letter or a state code
+    # ("Plan A $5,000", "San Jose, CA $5,000" stay a plain dollar).
+    for adjective, code in _DOLLAR_ADJECTIVES:
+        if re.search(rf"(?<![A-Z])(?:{adjective})\s{{0,2}}\$", t):
+            found.add(code)
+    # A bare "$" or "dollars" means USD only when the string states no other currency ("CAD $1,000" is CAD).
+    if not found and re.search(r"(?<![A-Z])\$|(?<![A-Z])DOLLARS?(?![A-Z])", t):
         found.add("USD")
     return found
 
@@ -597,6 +750,70 @@ def revert_truth_overrides(expected: Mapping[str, Any], overrides: Mapping[str, 
     return out
 
 
+# --- SHF-015: stale Hub labels are not truth ---------------------------------------------------
+
+#: The row markers each label overlay writes, naming the fields it supplied (``interim_labels``,
+#: ``gold_labels.apply_near_gold``, ``staged_overlay``); ``gold_audit.label_source`` reads the same.
+OVERLAY_MARKERS: tuple[str, ...] = ("interim_labels", "near_gold_labels", "staged_overlay")
+_PENDING = "pending_annotation"
+
+
+def overlay_fields(row: Mapping[str, Any] | None) -> frozenset[str]:
+    """The fields a label overlay (interim, near-gold or staged) supplied on this prepared row.
+
+    Read from the markers the overlays write (a mapping, or the JSON string a parquet shard
+    carries). A staged row marked ``stale`` lists no field. Same provenance as
+    ``gold_audit.label_source`` / ``job.gate_causes._overlay_supplied``.
+    """
+    out: set[str] = set()
+    for key in OVERLAY_MARKERS:
+        marker = (row or {}).get(key)
+        if isinstance(marker, str):
+            try:
+                marker = json.loads(marker) if marker.strip() else None
+            except json.JSONDecodeError:
+                marker = None
+        if isinstance(marker, Mapping):
+            fields = marker.get("fields") or ()
+            if isinstance(fields, str):  # one field name, never its characters
+                fields = (fields,)
+            elif not isinstance(fields, (list, tuple, set, frozenset)):
+                fields = ()
+            out.update(str(f) for f in fields)
+    return frozenset(out)
+
+
+def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
+                         keep: Iterable[str]) -> tuple[dict[str, Any], dict[str, str]]:
+    """SHF-015: ``(expected, dropped)`` with the Hub labels the Dojo's label policy calls stale removed.
+
+    The policy is the vendored ``llm_dojo_scoring.schemas.label_policy.stale_hub_labels``: a
+    heuristic ``intent`` (``intent_source == "heuristic"``), and the templated ``subject_matter`` /
+    metadata ``keywords`` of corporate records and correspondence. A field in ``keep`` (one an
+    overlay supplied: an interim correction leaves ``intent_source`` as it was) is never dropped.
+    A dropped field's ``gt_presence`` code becomes ``pending_annotation`` (unlabelled), as
+    ``drop_stale_hub_labels`` does, so SHF-001 never restores it as an expected-empty field.
+    """
+    from llm_dojo_scoring.schemas.label_policy import stale_hub_labels
+
+    out = dict(expected or {})
+    kept = set(keep)
+    found = stale_hub_labels(doc_type, out)
+    if not isinstance(found, Mapping):  # no stale labels (None or any other shape), never an error
+        found = {}
+    dropped = {f: why for f, why in found.items() if f not in kept}
+    if not dropped:
+        return out, {}
+    for name in dropped:
+        out.pop(name, None)
+    if "gt_presence" in out:
+        original = out["gt_presence"]
+        pres = presence_map(out)
+        pres.update(dict.fromkeys(dropped, _PENDING))
+        out["gt_presence"] = json.dumps(pres, sort_keys=True) if isinstance(original, str) else pres
+    return out, dict(sorted(dropped.items()))
+
+
 # --- SHF-013: reviewed subclass corrections ----------------------------------------------------
 
 SUBCLASS_CORRECTIONS = "data/labels/review/subclass_corrections.jsonl"
@@ -723,7 +940,8 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
 __all__ = [
     "HOTFIXES", "HEADLINE_KEYS", "SUBCLASS_CORRECTIONS", "ScoringHotfix", "aggregate_extraction",
     "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
-    "dual", "enabled", "hallucination_counts", "headline_basis", "subclass_corrections",
-    "hotfixed", "install", "is_active", "merge_dual", "module_sha256", "raw", "raw_rows",
-    "restore_documented_absences", "revert_truth_overrides", "source_sha", "stale", "status",
+    "drop_stale_hub_truth", "dual", "enabled", "hallucination_counts", "headline_basis",
+    "subclass_corrections", "hotfixed", "install", "is_active", "merge_dual", "module_sha256",
+    "overlay_fields", "raw", "raw_rows", "restore_documented_absences", "revert_truth_overrides",
+    "source_sha", "stale", "status",
 ]

@@ -60,6 +60,19 @@ def _pooled_line(report: Mapping[str, Any]) -> str:
             f"crashes {p['crashes']}, judge_error {p['judge_errors']}.")
 
 
+def _shf015_line(report: Mapping[str, Any]) -> list[str]:
+    """One line naming the archived documents SHF-015 alone made unscorable; nothing when there are none."""
+    pooled = (report.get("pooled") or {}).get("unscorable_by_shf015") or 0
+    by_class = {cls: c["unscorable_by_shf015"] for cls, c in report["classes"].items() if c.get("unscorable_by_shf015")}
+    if not pooled and not by_class:
+        return []
+    where = ", ".join(f"{cls} {n}" for cls, n in by_class.items())
+    return ["", f"SHF-015: {pooled} archived document(s) in the gated classes are unscorable only because a stale Hub "
+                f"label was dropped (enough labels before the drop, fewer than `min_labelled` after); all classes: "
+                f"{where or 'none'}. Their `labelled_raw` is in `gate.json`; "
+                "see docs/scoring-hotfixes.md."]
+
+
 def _audit_lines(report: Mapping[str, Any]) -> list[str]:
     audit = report.get("audit")
     if audit is None:
@@ -164,7 +177,7 @@ def render_markdown(report: Mapping[str, Any], out_dir: Path | None = None) -> s
     if verdict.get("warnings"):
         lines += ["## Warnings", "", *[f"- {w}" for w in verdict["warnings"]], ""]
     bars = report["bars"]
-    lines += ["## Classes", "", *_class_table(report), "", _pooled_line(report), "",
+    lines += ["## Classes", "", *_class_table(report), "", _pooled_line(report), *_shf015_line(report), "",
               f"Bars: quality {bars['quality']:g}, wrong-archive max {bars['wrong_archive_max']:g}, review max "
               f"{bars['review_max']:g}; per-class bars apply from n={bars['per_class_from_n']} "
               f"(this slice: {report['n']}).", "",

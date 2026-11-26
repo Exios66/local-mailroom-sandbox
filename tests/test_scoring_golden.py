@@ -127,7 +127,9 @@ def test_golden_field_f1_and_hallucination_are_dual_reported(golden):
     assert scores["hallucination_rate"] == 1.0 and scores["n_documented_absent"] == 1
     assert scores["extraction_overall"] == pytest.approx(0.5) and raw["extraction_overall"] == pytest.approx(0.5)
     assert scores["extraction_overall_correct_class"] == pytest.approx(2 / 3, abs=1e-4)
-    assert set(scores["scoring_hotfixes"]) == {"SHF-001", "SHF-002", "SHF-003", "SHF-004"}  # active on the rows
+    # active on the rows (SHF-015 is on, it finds no stale Hub label here; SHF-016 is on, the
+    # rows here have no empty-universe CUAD map)
+    assert set(scores["scoring_hotfixes"]) == {"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-015", "SHF-016"}
     for key in ("extraction_fp", "hallucination_rate", "extraction_f1_mean"):
         assert key in scores["scoring_hotfixes_changed"]
     assert scores["headline_basis"]["headline"] == "hotfixed"
@@ -204,3 +206,29 @@ def test_golden_windowed_run_bills_every_window_and_intake_and_scores_the_vote(t
     prompt = sum(300 + 1000 * len(r) + 800 for r in windows.values())
     completion = sum(30 + 20 * len(r) + 200 for r in windows.values())
     assert rec["estimated_cost_usd"] == pytest.approx((prompt + completion) / 1e6)
+
+
+def test_a_fresh_lock_and_its_outputs_carry_the_current_hotfix_set(golden):
+    """A new run locks the current module_sha256 and every fix with its targets (SHF-015 and the
+    extended SHF-005/006/007/013 paths included), runs on it, and names the fixes in its outputs. A
+    lock from before a hotfix change is refused by the executing process (re-lock with --force)."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.job.preflight import _hotfix_drift_detail
+
+    store, scores = golden
+    lock = store.read_lock()["scoring_hotfixes"]
+    assert lock == sh.describe() and lock["module_sha256"] == sh.module_sha256()
+    targets = {f["id"]: {t["target"] for t in f["targets"]} for f in lock["fixes"]}
+    assert "mailroom_sandbox.job.gate:labelled_count" in targets["SHF-015"]
+    assert "mailroom_sandbox.rescore:run_scores" in targets["SHF-005"]
+    assert {"SHF-006", "SHF-007"} <= {i for i, t in targets.items() if "mailroom_sandbox.job.runner:_scored_pairs" in t}
+    assert "mailroom_sandbox.eval.scoring:score_subclass" in targets["SHF-013"]
+    assert set(targets) <= sh.current_ids() | set(sh.stale())
+    runner.verify_locked_hotfixes(store.read_lock())  # the locked set is the one in effect
+    assert "SHF-015" in scores["scoring_hotfixes"] and scores["headline_basis"] == sh.headline_basis()
+    assert all("scoring_hotfixes" in item["score"] for item in store.load_items())
+
+    older = {**lock, "module_sha256": "0" * 64, "fixes": [f for f in lock["fixes"] if f["id"] != "SHF-015"]}
+    with pytest.raises(RuntimeError, match="re-lock with --force"):
+        runner.verify_locked_hotfixes({**store.read_lock(), "scoring_hotfixes": older})
+    assert "use --force to re-lock" in _hotfix_drift_detail({"scoring_hotfixes": older}, store)

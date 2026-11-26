@@ -424,6 +424,69 @@ def test_load_bars_rejects_a_duplicate_key(tmp_path):
         gate.load_bars(custom)
 
 
+def test_a_stale_hub_label_is_no_label_under_shf015(tmp_path):
+    """SHF-015: the headline does not score a heuristic intent no overlay supplied, so the gate does
+    not count it toward ``min_labelled``; an interim correction makes it a label again."""
+    fields = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    row = {"expected_doc_class": "correspondence", "expected_fields": json.dumps(fields)}
+    assert gate.labelled_count(row, "correspondence") == 1
+    reviewed = {**row, "interim_labels": {"fields": ["intent"], "overlay_sha256": "x"}}
+    assert gate.labelled_count(reviewed, "correspondence") == 2
+    llm = {"expected_fields": json.dumps({**fields, "intent_source": "llm_zero_shot"})}
+    assert gate.labelled_count(llm, "correspondence") == 2
+    (doc,) = gate.gate_report(_run(tmp_path, [{"id": "c0", "cls": "correspondence", "expected": fields}]),
+                              Bars())["docs"]
+    assert doc["outcome"] == "unscorable_archive" and doc["labelled"] == 1
+
+
+def test_the_gate_report_names_its_headline_basis(tmp_path):
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    report = gate.gate_report(_run(tmp_path, _docs(2)), Bars())
+    assert report["headline_basis"] == sh.headline_basis()
+    assert "SHF-015" in report["scoring_hotfixes"] and report["scoring_hotfixes"] == sorted(sh.current_ids())
+
+
+def test_shf015_records_the_label_count_before_the_drop_and_pools_the_documents_it_made_unscorable(tmp_path):
+    """A document whose stale intent was its second label is unscorable now; the report says so."""
+    stale = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    kept = {**stale, "intent_source": "llm_zero_shot"}
+    report = gate.gate_report(_run(tmp_path, [{"id": "s0", "cls": "correspondence", "expected": stale},
+                                              {"id": "k0", "cls": "correspondence", "expected": kept},
+                                              {"id": "m0", "cls": "contract"}]), Bars())
+    docs = {d["id"]: d for d in report["docs"]}
+    assert docs["s0"]["labelled"] == 1 and docs["s0"]["labelled_raw"] == 2
+    assert docs["s0"]["outcome"] == "unscorable_archive"
+    assert "labelled_raw" not in docs["k0"] and docs["k0"]["outcome"] == "correct_archive"
+    assert "labelled_raw" not in docs["m0"]
+    assert report["classes"]["correspondence"]["unscorable_by_shf015"] == 1
+    assert report["classes"]["contract"]["unscorable_by_shf015"] == 0
+    assert report["pooled"]["unscorable_by_shf015"] == 1
+
+
+def test_shf015_pool_ignores_a_document_unscorable_for_another_reason(tmp_path):
+    """A document short of labels before and after the drop, or whose scorer failed, is not SHF-015's."""
+    few = {"intent": "payment_demand", "intent_source": "heuristic"}  # 1 label raw, 0 after: unscorable either way
+    report = gate.gate_report(_run(tmp_path, [{"id": "f0", "cls": "correspondence", "expected": few}]), Bars())
+    assert report["docs"][0]["outcome"] == "unscorable_archive"
+    assert report["pooled"]["unscorable_by_shf015"] == 0
+
+
+def test_the_rendered_gate_summary_names_the_documents_shf015_made_unscorable(tmp_path):
+    from mailroom_sandbox.job.gate_render import render_markdown
+
+    stale = {"sender": "A. Smith", "intent": "payment_demand", "intent_source": "heuristic"}
+    kept = {**stale, "intent_source": "llm_zero_shot"}
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    report = gate.gate_report(_run(tmp_path / "a", [{"id": "s0", "cls": "correspondence", "expected": stale},
+                                                    {"id": "k0", "cls": "correspondence", "expected": kept}]), Bars())
+    md = render_markdown(report)
+    assert "SHF-015" in md and "1 archived document" in md and "correspondence 1" in md
+    clean = gate.gate_report(_run(tmp_path / "b", [{"id": "k0", "cls": "correspondence", "expected": kept}]), Bars())
+    assert "SHF-015" not in render_markdown(clean)
+
+
 @pytest.mark.parametrize("item", [
     {"error": "x", "pred": "boom"}, {"error": "x", "pred": ["a"]}, {"ok": False, "pred": 3},
     {"error": "x", "pred": None}])

@@ -63,7 +63,7 @@ When the diff touches campaigns, draws, labels, scoring hotfixes, or rb1
 contracts, also read:
 
 1. `docs/campaign-preparation-regressions.md` — **CP-01…CP-18**
-2. `docs/scoring-hotfixes.md` — SHF-001…013 dual-report rules
+2. `docs/scoring-hotfixes.md` — SHF-001…015 dual-report rules
 3. `docs/vendor-hotfixes.md` — HF-001…006 fingerprint rules
 4. `docs/dependency-snapshots.md` — fetch ≠ select; lock digests
 5. `vendor/llm-dojo-scoring/VENDOR.md` and `vendor/llm-mailroom/VENDOR.md`

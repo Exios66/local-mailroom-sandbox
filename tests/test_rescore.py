@@ -322,8 +322,39 @@ def test_the_derived_run_carries_run_level_scores(tmp_path):
     scores = json.loads((Path(report["out"]) / "scores.json").read_text())
     assert scores == report["scores"]
     assert (scores["items"], scores["scored"], scores["unscored"]) == (2, 1, 1)
-    assert scores["means"]["match"] == {"n": 1, "mean": 1.0}
-    assert scores["by_class"]["contract"]["match"]["n"] == 1
+    assert scores["raw_dojo"]["means"]["match"] == {"n": 1, "mean": 1.0}
+    assert scores["raw_dojo"]["by_class"]["contract"]["match"]["n"] == 1
+    # SHF-005: the timed-out item stays in the headline denominator as a 0.
+    assert scores["means"]["match"] == {"n": 2, "mean": 0.5}
+    assert scores["by_class"]["contract"]["match"]["n"] == 2
+    assert (scores["failed"], scores["failed_scored_zero"], scores["scoring_hotfixes"]) == (1, 1, ["SHF-005"])
+    assert scores["scoring_hotfixes_changed"] == ["match"] and scores["headline_basis"]["raw_key"] == "raw_dojo"
+
+
+def test_run_scores_scores_a_failed_item_zero_on_its_class_keys_only(monkeypatch):
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    truth = {"A": _row("A", "contract"), "B": _row("B", "contract"), "C": _row("C", "correspondence"),
+             "D": _row("D", "correspondence")}
+    items = [{"item_id": "A", "ok": True, "score": {"match": 1.0, "overall_extraction_score": 0.8, "n_fields": 5}},
+             {"item_id": "B", "ok": False, "error": "timeout", "score": None},
+             {"item_id": "C", "ok": True, "score": {"match": 1.0}},
+             {"item_id": "D", "ok": False, "error": "parse", "score": {"match": 0.0}, "score_original": {"match": 0.0}}]
+    scores = rs.run_scores(items, truth)
+    assert scores["means"]["match"] == {"n": 4, "mean": 0.5}
+    assert scores["means"]["overall_extraction_score"] == {"n": 2, "mean": 0.4}
+    assert scores["means"]["n_fields"] == {"n": 1, "mean": 5.0}  # not a headline key: never zero-filled
+    assert scores["by_class"]["correspondence"] == {"match": {"n": 2, "mean": 0.5}}
+    assert scores["raw_dojo"]["means"]["match"] == {"n": 2, "mean": 1.0}
+    # A stale SHF-005 (its target changed) leaves the headline on the raw means.
+    monkeypatch.setattr(sh, "current_ids", lambda: frozenset())
+    assert rs.run_scores(items, truth)["means"] == scores["raw_dojo"]["means"]
+
+
+def test_run_scores_without_failures_names_no_fix():
+    scores = rs.run_scores([{"item_id": "A", "ok": True, "score": {"match": 1.0}}], {"A": _row("A", "contract")})
+    assert scores["means"] == scores["raw_dojo"]["means"]
+    assert (scores["scoring_hotfixes"], scores["scoring_hotfixes_changed"], scores["failed"]) == ([], [], 0)
 
 
 def test_agent_truth_keys_survive_into_the_rescore(tmp_path):

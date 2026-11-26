@@ -129,23 +129,52 @@ def _scored_pairs(task: str, expected: list[str], predicted: list[str], ok_by_in
                   n_rows: int) -> dict[str, Any]:
     """Per-item run scores, dual reported (``docs/scoring-hotfixes.md``).
 
-    Raw (DMR-049 F4): only completed, ok rows are scored, so a failed row leaves the denominator.
+    Raw (DMR-049 F4): only completed, ok rows are scored, so a failed row leaves the denominator,
+    and labels compare exactly.
     SHF-005: a failed row is scored as a wrong prediction (``__errored__``), so timeouts and
     parse failures cannot raise the accuracy; the raw value stays under ``raw_dojo``.
+    SHF-006/007: labels compare case-, hyphen- and whitespace-folded (``agents._fold``), as the
+    isolated sorter eval scores them, and a row with no truth class is left out and counted under
+    ``n_no_truth`` instead of scoring every answer wrong.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.eval.agents import _fold
 
     ok_pairs = [(expected[i], predicted[i]) for i in range(n_rows)
                 if ok_by_index.get(i, False) and predicted[i] != ""]
     raw_scores = _score(task, [e for e, _ in ok_pairs], [p for _, p in ok_pairs]) if ok_pairs else {}
-    if "SHF-005" not in sh.current_ids():
+    on = sh.current_ids()
+    used: set[str] = set()
+    pairs = [(expected[i], predicted[i] if ok_by_index.get(i, False) and predicted[i] != "" else ERRORED_PREDICTION)
+             for i in range(n_rows)]
+    if "SHF-005" not in on:
+        pairs = [(e, p) for e, p in pairs if p != ERRORED_PREDICTION]
+    n_no_truth = 0
+    # SHF-006 and SHF-007 both define the no-truth drop (a row with no truth class is left out and
+    # counted), so either one turns it on; only SHF-007 folds the labels. Each is named in
+    # ``used`` when it is on and moved the score (docs/scoring-hotfixes.md).
+    drop_no_truth = bool(on & {"SHF-006", "SHF-007"})
+    if drop_no_truth:
+        kept = [(e, p) for e, p in pairs if str(e or "").strip()]
+        n_no_truth = len(pairs) - len(kept)
+        if "SHF-007" in on:
+            folded = [(_fold(e), p if p == ERRORED_PREDICTION else _fold(p)) for e, p in kept]
+            if folded != kept:
+                used.add("SHF-007")
+        else:
+            folded = kept
+        if n_no_truth:
+            used.update(on & {"SHF-006", "SHF-007"})
+        pairs = folded
+    fixed = _score(task, [e for e, _ in pairs], [p for _, p in pairs]) if pairs else {}
+    n_errored = sum(1 for _, p in pairs if p == ERRORED_PREDICTION)
+    if n_errored:
+        used.add("SHF-005")
+    if not used:
         return sh.merge_dual(raw_scores, raw_scores, [])
-    all_pairs = [(expected[i], predicted[i] if ok_by_index.get(i, False) and predicted[i] != "" else ERRORED_PREDICTION)
-                 for i in range(n_rows)]
-    fixed = _score(task, [e for e, _ in all_pairs], [p for _, p in all_pairs]) if all_pairs else {}
-    fixed["n_errored_scored_wrong"] = sum(1 for _, p in all_pairs if p == ERRORED_PREDICTION)
-    used = ["SHF-005"] if fixed["n_errored_scored_wrong"] else []
-    return sh.merge_dual(raw_scores, fixed if used else raw_scores, used)
+    fixed["n_errored_scored_wrong"] = n_errored
+    fixed["n_no_truth"] = n_no_truth
+    return sh.merge_dual(raw_scores, fixed, sorted(used))
 
 
 def _task_defaults(store: RunStore) -> dict[str, Any]:

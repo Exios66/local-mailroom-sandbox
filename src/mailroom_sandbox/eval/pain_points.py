@@ -96,7 +96,8 @@ def subclass_flags(rows: Sequence[Mapping[str, Any]], results: Sequence[Mapping[
     flags: list[bool | None] = []
     for row, result in zip(rows, results):
         pair = scoring.subclass_correct(row.get("expected_doc_class"), row.get("expected_subclass"),
-                                        result.get("doc_type"), scoring.predicted_subclass(result))
+                                        result.get("doc_type"), scoring.predicted_subclass(result),
+                                        doc_id=row.get("id"))
         flags.append(None if pair is None else bool(pair[side]))
     return flags
 

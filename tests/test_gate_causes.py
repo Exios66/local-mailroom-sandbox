@@ -489,3 +489,18 @@ def test_every_non_passing_outcome_has_exactly_one_cause(fake_score):
             assert isinstance(s["cause"], str) and s["cause"]
         else:
             assert "cause" not in s
+
+
+def test_field_scores_type_a_miss_as_the_hotfixed_headline_scores_it():
+    """SHF-004: ``CLM12345`` is the claim number ``CLM-12345``; the gate cause must not call it the
+    lowest field while the run headline scores it right."""
+    from mailroom_sandbox.eval.scoring import score_extraction_row
+
+    expected = {"insurer": "Acme Widgets Trading", "claim_number": "CLM-12345", "policy_number": "POL-9"}
+    answer = {"insurer": "Acme Widgets", "claim_number": "CLM12345", "policy_number": "POL-9"}
+    row = {"expected_doc_class": "insurance_claim", "expected_fields": expected}
+    scores = gate_causes._field_scores(row, {"extracted_data": answer})
+    assert scores["claim_number"] == 1.0
+    headline = score_extraction_row("insurance_claim", answer, expected, field_scores=True)["field_scores"]
+    assert scores == {k: headline[k] for k in scores}
+    assert gate_causes.lowest_field(row, {"extracted_data": answer})[0] == "insurer"
