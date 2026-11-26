@@ -83,3 +83,4 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-24T01:04:57Z | JJB | start | sorter-vs-decision-smoke-llm-qwen3.7-flash | config/runs/sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml | af4f39f05f83 | 5 | 1.0 | ✓ |
 | 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-decision-luna | config/runs/sorter-vs-decision-500-decision-luna.yaml | 911495e1db93 | 500 | 5.0 | ✓ |
 | 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-llm-qwen3.7-flash | config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml | aed6bd904510 | 500 | 6.0 | ✓ |
+| 2026-11-26T21:54:30Z | JJB | start | production-slice-0100 | config/runs/production/slice-0100.yaml | f77c64d9de80 | 100 | 2.0 |   |
