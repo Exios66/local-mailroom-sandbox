@@ -8,7 +8,9 @@ the sandbox hotfixes all take part. Intake, human review, report, catalog, archi
 SQLite checkpoint are real. A decision reviewer can be registered with its HTTP transport down,
 so the decision lane's retry loop (``decision_backends._post_decision``) runs for real.
 
-Used by ``test_arbiter_full_source.py`` and ``test_arbiter_termination.py``.
+Used by the ``test_arbiter_*`` modules. Each applies ``pytestmark = pytest.mark.usefixtures("arbiter_harness_state")``
+(imported from here): ``activate_profile`` and ``run`` rebuild the process-wide compiled graph and widen the
+vendored source windows, and neither is undone by ``monkeypatch``, so the fixture puts both back after every test.
 """
 from __future__ import annotations
 
@@ -31,6 +33,24 @@ SHORT = _LINE.format(n=1)
 LONG = "".join(_LINE.format(n=n) for n in range(3000))
 REVIEWER = {"backend": "decisions", "model": "openai/gpt-6-luna-decisions",
             "questions": "reviewer_decisions_v4.2.0", "classes": {"corporate_record": 0.9}}
+
+
+@pytest.fixture
+def arbiter_harness_state(monkeypatch):
+    """Leave the compiled graph and the vendored source windows as the test found them.
+
+    ``monkeypatch`` undoes ``bg.<node>_node``, but the module-level compiled graph keeps the scripted
+    wrappers it was built from, and ``apply_source_windows`` rewrites vendored constants directly.
+    Without this, a later test in the same process (``test_mock_llm``) runs the scripted graph.
+    """
+    import graph.build_graph as bg
+
+    from mailroom_sandbox import source_windows
+
+    bg.reset_compiled_graph()
+    yield
+    bg.reset_compiled_graph()
+    source_windows.apply_source_windows({})
 
 
 class Blip(RuntimeError):

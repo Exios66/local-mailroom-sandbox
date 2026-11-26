@@ -6,9 +6,12 @@ review causes the vendored pipeline derives from its final state are fed to the 
 """
 from __future__ import annotations
 
-from _arbiter_harness import Script, activate_profile, run
+import pytest
+from _arbiter_harness import Script, activate_profile, run, arbiter_harness_state  # noqa: F401 (fixture)
 
 from mailroom_sandbox import source_windows
+
+pytestmark = pytest.mark.usefixtures("arbiter_harness_state")
 
 JUDGE_PARTIAL = [("partial", "accurate")]
 

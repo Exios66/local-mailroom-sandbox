@@ -20,10 +20,12 @@ from __future__ import annotations
 import itertools
 
 import pytest
-from _arbiter_harness import LONG, SHORT, VISIT_BOUND, Script, activate_profile, run
+from _arbiter_harness import LONG, SHORT, VISIT_BOUND, Script, activate_profile, run, arbiter_harness_state  # noqa: F401 (fixture)
 
 from mailroom_sandbox import source_windows
 from mailroom_sandbox import vendor_hotfixes as vh
+
+pytestmark = pytest.mark.usefixtures("arbiter_harness_state")
 
 JUDGE = {"complete": [("complete", "accurate")], "partial": [("partial", "accurate")],
          "incomplete": [("incomplete", "accurate")], "parse_c": ["parse_c"], "parse_a": ["parse_a"],

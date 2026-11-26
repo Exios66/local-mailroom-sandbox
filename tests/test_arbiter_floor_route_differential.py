@@ -21,9 +21,11 @@ from collections import Counter
 from types import MappingProxyType
 
 import pytest
-from _arbiter_harness import activate_profile
+from _arbiter_harness import activate_profile, arbiter_harness_state  # noqa: F401 (fixture)
 
 from mailroom_sandbox import source_windows
+
+pytestmark = pytest.mark.usefixtures("arbiter_harness_state")
 
 LOW = 0.86  # corporate_record ``low``; asserted against the taxonomy below
 FLOOR = 0.5

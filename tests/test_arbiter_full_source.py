@@ -7,10 +7,12 @@ widens the arbiter's source window; Modal/vLLM keeps the vendored 16k excerpt an
 from __future__ import annotations
 
 import pytest
-from _arbiter_harness import DATA, LONG, SHORT, Script, activate_profile, run
+from _arbiter_harness import DATA, LONG, SHORT, Script, activate_profile, run, arbiter_harness_state  # noqa: F401 (fixture)
 
 from mailroom_sandbox import source_windows
 from mailroom_sandbox import vendor_hotfixes as vh
+
+pytestmark = pytest.mark.usefixtures("arbiter_harness_state")
 
 UNSURE = [0.5] * 6  # below the class ``low`` band (corporate_record 0.86) on every attempt
 IN_BAND = [0.88] * 6  # at or above ``low``, below ``judge_band_high``: judged, then caveated
