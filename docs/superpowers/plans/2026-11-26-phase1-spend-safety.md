@@ -209,16 +209,16 @@ Any agent can pick this up where the last one stopped. The owner approved the de
   `add_usage` adds a record's `unreported_usd` without counting a document when `kind == "unreported_charge"`.
   The live window of a resumed run is unaffected: `start_live` keeps reading `spent_usd`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_a_reservation_counts_against_the_cap_until_released`;
   - `test_extra_usd_refuses_a_call_that_would_pass_the_cap`;
   - `test_an_unreported_charge_is_spend_and_survives_a_resume`. Use a store event with `unreported_usd: 0.05`,
     so `budget_for(lock, usage_records(store)).spent_usd == 0.05` and `documents == 0`;
   - `test_release_never_goes_below_zero`.
-- [ ] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_api_budget.py -n 0 --no-cov`.
-- [ ] **Step 3: Implement** under the existing `self._lock`.
-- [ ] **Step 4: Run the tests again; they pass.**
-- [ ] **Step 5: Commit** `feat(api-budget): reserve in-flight calls and keep unreported charges (phase1 task 4)`.
+- [x] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_api_budget.py -n 0 --no-cov`.
+- [x] **Step 3: Implement** under the existing `self._lock`.
+- [x] **Step 4: Run the tests again; they pass.**
+- [x] **Step 5: Commit** `feat(api-budget): reserve in-flight calls and keep unreported charges (phase1 task 4)`.
 
 ### Task 5: The call guard reserves before a request and settles after it
 

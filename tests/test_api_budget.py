@@ -274,3 +274,50 @@ def test_spec_api_models_drops_profile_agents_a_single_agent_task_never_calls(ta
 
     assert "deepseek/deepseek-v4-flash" in {a.get("model") for a in describe(spec).values()}
     assert api_budget.spec_api_models(spec) == ["qwen/qwen3.7-flash"]
+
+
+def _live_budget(cap=0.05):
+    budget = api_budget.ApiBudget(cap, 0.10, 0.25, ["qwen/qwen3.5-9b"])
+    budget.start_live()
+    return budget
+
+
+def test_a_reservation_counts_against_the_cap_until_released():
+    budget = _live_budget()
+    budget.reserve(0.06)
+    assert "reserved" in (budget.exceeded() or "")
+    budget.release(0.06)
+    assert budget.exceeded() is None and budget.reserved_usd == 0.0
+
+
+def test_extra_usd_refuses_a_call_that_would_pass_the_cap():
+    budget = _live_budget()
+    budget.reserve(0.03)
+    assert budget.exceeded(extra_usd=0.01) is None
+    assert budget.exceeded(extra_usd=0.03) is not None  # 0.03 reserved + 0.03 more passes 0.05
+
+
+def test_estimate_call_usd_prices_one_call_at_the_models_tier():
+    budget = _live_budget()
+    assert budget.estimate_call_usd(600_000, 0) == pytest.approx(budget._cost(600_000, 0, 1))
+    assert budget.estimate_call_usd(600_000, 0) > 0
+
+
+def test_an_unreported_charge_is_spend_and_survives_a_resume(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    budget = _live_budget(cap=1.0)
+    budget.charge_unreported(0.05)
+    assert budget.unreported_usd == pytest.approx(0.05)
+    assert budget.live_total_usd() == pytest.approx(0.05)
+    store = RunStore(tmp_path / "run")
+    store.append_event(api_budget.UNREPORTED_CHARGE_EVENT, "warning", kind="unreported_charge",
+                       unreported_usd=0.05)
+    resumed = api_budget.budget_for(_lock(), api_budget.usage_records(store))
+    assert resumed.spent_usd == pytest.approx(0.05) and resumed.documents == 0
+
+
+def test_release_never_goes_below_zero():
+    budget = _live_budget()
+    budget.release(0.01)
+    assert budget.reserved_usd == 0.0

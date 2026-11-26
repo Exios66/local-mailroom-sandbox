@@ -149,6 +149,8 @@ class ApiBudget:
         self.spent_usd = 0.0
         self.documents = 0
         self.live_usd = 0.0  # per-call spend since start_live()
+        self.reserved_usd = 0.0  # worst-case cost of requests sent but not yet settled (call_guard)
+        self.unreported_usd = 0.0  # failed requests that may have been billed, charged at their reservation
         self._live_base: float | None = None  # spent_usd when live tracking started
         self._lock = threading.Lock()
 
@@ -184,9 +186,34 @@ class ApiBudget:
         with self._lock:
             return 0.0 if self._live_base is None else self._live_base + self.live_usd
 
+    def estimate_call_usd(self, prompt_tokens: float, completion_tokens: float) -> float:
+        """The cost of one call of this size, at the dearest model's tier (``call_guard`` sizes requests)."""
+        return self._cost(prompt_tokens, completion_tokens, 1)
+
+    def reserve(self, usd: float) -> None:
+        """Hold ``usd`` against the cap while a request is in flight."""
+        with self._lock:
+            self.reserved_usd += max(0.0, float(usd))
+
+    def release(self, usd: float) -> None:
+        """Drop a settled request's reservation (never below zero)."""
+        with self._lock:
+            self.reserved_usd = max(0.0, self.reserved_usd - max(0.0, float(usd)))
+
+    def charge_unreported(self, usd: float) -> None:
+        """Charge a request that failed without usage but may have been billed (its reservation)."""
+        usd = max(0.0, float(usd))
+        with self._lock:
+            self.live_usd += usd
+            self.unreported_usd += usd
+
     def add_usage(self, usage: Mapping[str, Any] | None) -> None:
-        """Add one finished (or failed) document's token usage."""
+        """Add one finished (or failed) document's token usage, or a persisted unreported charge."""
         usage = usage or {}
+        if usage.get("kind") == "unreported_charge":  # UNREPORTED_CHARGE_EVENT: spend, not a document
+            with self._lock:
+                self.spent_usd += max(0.0, float(usage.get("unreported_usd") or 0.0))
+            return
         self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("llm_calls") or 1)
         with self._lock:
             self.documents += 1
@@ -197,16 +224,23 @@ class ApiBudget:
             mean = self.spent_usd / self.documents if self.documents else 0.0
             return self.spent_usd + max(0, int(in_flight)) * mean
 
-    def exceeded(self, in_flight: int = 0) -> str | None:
+    def exceeded(self, in_flight: int = 0, extra_usd: float = 0.0) -> str | None:
         """Why no further document may start, or None.
 
         ``in_flight`` documents have started but not finished: their spend is not in the total yet,
-        so concurrent runs count each at the mean finished-document cost.
+        so concurrent runs count each at the mean finished-document cost. Requests in flight hold their
+        reservation (``reserved_usd``), and ``extra_usd`` is the next request's own estimate.
         """
         # Per-call spend bounds documents still running; the projection covers the rest.
-        projected = max(self.projected_usd(in_flight), self.live_total_usd())
+        with self._lock:
+            reserved = self.reserved_usd
+        projected = max(self.projected_usd(in_flight), self.live_total_usd() + reserved + max(0.0, extra_usd))
         if projected >= self.cap_usd:
             pending = f", {in_flight} in flight" if in_flight else ""
+            if reserved:
+                pending += f", ${reserved:.4f} reserved"
+            if extra_usd:
+                pending += f", next call est ${extra_usd:.4f}"
             return (f"api_cost_cap_usd={self.cap_usd} reached (est_api_usd={projected:.4f}{pending} "
                     f"at ${self.usd_per_m_in}/${self.usd_per_m_out} per 1M tokens) — aborting to protect spend")
         return None
@@ -221,12 +255,15 @@ class ApiBudget:
 FAILED_USAGE_EVENT = "api_usage_of_failed_document"
 #: A resume re-ran (and re-billed) a document an earlier attempt had already persisted as an item.
 RERUN_USAGE_EVENT = "api_usage_of_rerun_document"
+#: Requests that failed without usage but may have been billed (call_guard), charged at their reservation.
+UNREPORTED_CHARGE_EVENT = "api_unreported_charge"
 
 
 def usage_records(store: Any) -> list[dict[str, Any]]:
-    """Every persisted item, plus each paid call without an item row: a document that raised, a resumed re-run."""
+    """Every persisted item, plus each paid call without an item row: a document that raised, a resumed
+    re-run, an unreported charge."""
     extra = [event.get("detail") or {} for event in store.events()
-             if event.get("event") in (FAILED_USAGE_EVENT, RERUN_USAGE_EVENT)]
+             if event.get("event") in (FAILED_USAGE_EVENT, RERUN_USAGE_EVENT, UNREPORTED_CHARGE_EVENT)]
     return [*store.load_items(), *extra]
 
 
