@@ -58,6 +58,7 @@ The complete implementations and upstream retirement conditions live in
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |
 | SHF-011–013 | Score failed paired items correctly and score subclasses jointly with class, retaining raw Hub truth | `test_scoring_hotfixes.py`, `test_scoring_hotfixes_shf013.py` |
+| SHF-015 | Leave the Dojo's stale Hub labels out of the extraction headline and the gate's label count, keeping overlay-supplied values | `test_scoring_hotfix_stale_labels.py` |
 
 Pipeline fixes install at activation. Required unavailable or stale fixes fail preflight;
 the executing local or Modal worker also checks its hotfix identities against the lock.

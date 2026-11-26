@@ -425,6 +425,7 @@ def test_calibration_keeps_a_stale_key_field_on_the_gate_s_basis():
     key = report["keyfields"]["correspondence"]
     assert key["n"] == 1 and key["all_right_rate"] == 0.0  # the wrong stale intent still counts against it
     assert key["mean_fraction_right"] == 0.5  # intent judged with sender: one of two key fields
-    assert report["skipped"] == {"stale_key_field_kept:correspondence:intent": 1}
+    assert report["skipped"] == {}  # the stale label is kept as truth, so nothing is skipped
+    assert report["stale_key_fields_kept"] == {"correspondence:intent": 1}
     assert "SHF-015" not in report["field_truth_hotfixes"] and "shf015_scope" in report
     assert "SHF-015" not in "".join(eg._field_truth_fixes())

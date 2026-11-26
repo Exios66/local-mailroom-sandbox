@@ -59,8 +59,8 @@ answer from the same question-set response, not a second request.
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 ([#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) |
 | SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
-| SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. A value an interim, near-gold or staged overlay supplied (the row's `interim_labels` / `near_gold_labels` / `staged_overlay` marker lists the field) is never dropped, because an interim correction leaves `intent_source` as `heuristic`. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
 | SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
+| SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. A value an interim, near-gold or staged overlay supplied (the row's `interim_labels` / `near_gold_labels` / `staged_overlay` marker lists the field) is never dropped, because an interim correction leaves `intent_source` as `heuristic`. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
 
 ## Where the new and extended fixes apply
 
@@ -133,8 +133,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
        the per-field entries match what the gate was asked, and the target is the one it was
        before SHF-015. Dropping a key field from the truth alone would score the gate's product of
        supports over fields the target no longer holds. The report's `shf015_scope` says so, and
-       `skipped["stale_key_field_kept:<class>:<field>"]` counts each stale key-field label that was
-       kept. A calibration on the headline basis needs its own question set and a rerun of the
+       `stale_key_fields_kept["<class>:<field>"]` counts each stale key-field label that was
+       kept (nothing is skipped for it). A calibration on the headline basis needs its own question set and a rerun of the
        gate.
     5. The R02 scorer hand-check (`scorer_handcheck.score_case`) scores the raw per-field basis,
        not the SHF-015 headline: it verifies the per-field scorer against hand-computed truth, and
@@ -142,9 +142,14 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
        SHF-015 is a label-policy layer over the headline and is checked by its own tests.
     6. Compare like with like. A run scored before SHF-015 and one scored after differ on
        `corporate_record`, `correspondence` and `insurance_claim` headline extraction scores by
-       construction (tables below). Rescore older runs (`sandbox rescore`) on the current
-       hotfixes before comparing their extraction headlines across the SHF-015 boundary, or
-       compare their `raw_dojo` figures, which SHF-015 does not touch.
+       construction (tables below). For a run that stores per-document answers (pipeline,
+       isolated and paired runs), rescore it (`sandbox rescore`) on the current hotfixes before
+       comparing its extraction headline across the SHF-015 boundary, or compare `raw_dojo`
+       figures, which SHF-015 does not touch. `extract`, `chained`, `local_vs_api` and
+       `sorter_vs_modernbert` runs cannot be rescored (they keep only run-level scores; see
+       [rescore](rescore.md)), and a `run_extract_eval` headline from before this change carries
+       no `raw_dojo`. Their pre-SHF-015 extraction headlines are not comparable with later ones:
+       rerun them instead.
 - **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
   - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.

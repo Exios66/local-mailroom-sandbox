@@ -469,6 +469,7 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
     keyed: dict[str, dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": [], "frac": [], "verdict": [], "fs": []})
     fields: dict[tuple[str, str], dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": []})
     skipped = collections.Counter()
+    stale_kept = collections.Counter()  # SHF-015 scope: stale key-field labels kept as truth, not skipped
     for item in items:
         pred, score = item.get("pred") or {}, item.get("score") or {}
         p, s = pred.get("accept_probability"), score.get("extraction_score")
@@ -495,7 +496,7 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
         wanted = key_fields(qset, cls)
         if doc_id in rows:
             for stale_field in _stale_key_fields(cls, rows[doc_id], wanted):
-                skipped[f"stale_key_field_kept:{cls}:{stale_field}"] += 1
+                stale_kept[f"{cls}:{stale_field}"] += 1
         key_truth = [ok for f, ok in truth.items() if f in wanted]
         if key_truth:
             support = pred.get("field_support") or {}
@@ -519,6 +520,7 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
                 fields[(cls, field)]["p"].append(float(prob))
                 fields[(cls, field)]["y"].append(ok)
     report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped),
+                              "stale_key_fields_kept": dict(stale_kept),
                               "field_truth": "dojo+gt-corrections" if corrected else "dojo",
                               "field_truth_hotfixes": _field_truth_fixes(), "shf015_scope": SHF015_SCOPE, "classes": {}}
     for cls, d in sorted(per.items()):
