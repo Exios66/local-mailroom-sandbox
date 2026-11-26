@@ -283,22 +283,22 @@ Any agent can pick this up where the last one stopped. The owner approved the de
   `test_a_resumed_pipeline_run_bills_only_unfinished_documents`.
 - Test: `tests/test_provider_pins.py`, `tests/test_call_guard.py`, `tests/test_decision_transport.py`
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_pinned_chat_completion_releases_on_success_and_charges_on_timeout`. Use a fake `original` that
     returns, then raises `httpx.ReadTimeout`; assert `reserved_usd == 0` after both and `unreported_usd > 0`
     after the timeout only;
   - `test_langchain_reservation_is_settled_when_generate_raises`. Use the existing LangChain fake in
     `tests/test_provider_pins.py`;
   - `test_decisions_attempt_reserves_and_settles` in `tests/test_decision_transport.py`.
-- [ ] **Step 2: Run and see them fail.** `.venv/bin/python -m pytest -q tests/test_provider_pins.py
+- [x] **Step 2: Run and see them fail.** `.venv/bin/python -m pytest -q tests/test_provider_pins.py
   tests/test_decision_transport.py tests/test_call_guard.py -n 0 --no-cov`.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run the tests again; they pass**, together with `tests/test_vendor_hotfixes.py -k hf004` and the
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run the tests again; they pass**, together with `tests/test_vendor_hotfixes.py -k hf004` and the
   files from Tasks 1-5.
-- [ ] **Step 5: Gates.** Run `ruff check src tests scripts deploy reports notebooks` and `npx --yes
+- [x] **Step 5: Gates.** Run `ruff check src tests scripts deploy reports notebooks` and `npx --yes
   markdownlint-cli2@0.18.1` on the changed docs; both must be clean. If any doc is in the CLI reference or the
   runbooks, run `python scripts/check_cli_surface.py --check` and `sandbox runbook check`.
-- [ ] **Step 6: Commit** `feat(spend): reserve and settle every guarded OpenRouter and Decisions request (S2) (phase1 task 6)`.
+- [x] **Step 6: Commit** `feat(spend): reserve and settle every guarded OpenRouter and Decisions request (S2) (phase1 task 6)`.
 
 ### Hand-over
 
