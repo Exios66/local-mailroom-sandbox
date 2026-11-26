@@ -64,7 +64,8 @@ class Script:
     sorter: float | None = HIGH          # None: medium band, so the reviewer runs
     confs: list[float] = field(default_factory=lambda: [0.95])
     extract_extra: dict[str, Any] = field(default_factory=dict)  # merged into every extraction update
-    # per judge pass: (completeness_label, accuracy_label), "parse_c", "parse_a" or "blip"
+    # per judge pass: (completeness_label, accuracy_label), "blip", or a parse failure: "parse_c" / "parse_a"
+    # (never parses: HF-002 / HF-013 re-ask once, then park) and "parse_c_once" / "parse_a_once" (the re-ask parses)
     judge: list[Any] = field(default_factory=lambda: [("complete", "accurate")])
     arbiter: list[str] = field(default_factory=list)   # per call: a decision or "blip"
     carb: tuple[str, float] | None = None              # classification arbiter answer
@@ -118,29 +119,36 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
     original_transient = retry.is_transient_error
     monkeypatch.setattr(retry, "is_transient_error",
                         lambda exc: isinstance(exc, Blip) or original_transient(exc))
-    calls: dict[str, Any] = {"judge_c": 0, "judge_a": 0, "arbiter": 0, "carb": 0, "decisions_posts": 0, "boss": 0,
-                             "arbiter_prompts": [], "arbiter_schemas": []}
+    calls: dict[str, Any] = {"judge_c": 0, "judge_a": 0, "judge_c_reasks": 0, "judge_a_reasks": 0, "arbiter": 0,
+                             "carb": 0, "decisions_posts": 0, "boss": 0, "arbiter_prompts": [], "arbiter_schemas": []}
     passes = {"n": 0}
+    # HF-002 / HF-013 ask a judge once more after a parse failure: the call that follows a parse
+    # failure of the same method is its re-ask, not a new pass.
+    after_parse = {"c": False, "a": False}
 
     def pick(policy: list[Any], i: int) -> Any:
         return policy[min(i, len(policy) - 1)]
 
     def judge_call(self, user_message, *a, **k):
-        if user_message.startswith("Evaluate extraction completeness"):
-            calls["judge_c"] += 1
-            passes["n"] += 1
-            policy = pick(script.judge, passes["n"] - 1)
-            if policy == "blip":
-                raise Blip("provider blip")
-            if policy == "parse_c":
-                return {"_raw": "garbage", "_parse_error": True}
-            label = "complete" if policy == "parse_a" else policy[0]
-            return {"completeness": 0.9, "completeness_label": label, "reasoning": "harness"}
-        calls["judge_a"] += 1
+        kind = "c" if user_message.startswith("Evaluate extraction completeness") else "a"
+        reask, after_parse[kind] = after_parse[kind], False
+        if reask:
+            calls[f"judge_{kind}_reasks"] += 1
+        else:
+            calls[f"judge_{kind}"] += 1
+            if kind == "c":
+                passes["n"] += 1
         policy = pick(script.judge, passes["n"] - 1)
-        if policy == "parse_a":
+        if kind == "c" and policy == "blip":
+            raise Blip("provider blip")
+        # parse_c / parse_a never parse; parse_c_once / parse_a_once parse on the re-ask
+        if policy in (f"parse_{kind}", f"parse_{kind}_once") and not (reask and policy.endswith("_once")):
+            after_parse[kind] = not reask
             return {"_raw": "garbage", "_parse_error": True}
-        return {"extraction_correctness": 0.9, "extraction_correctness_label": policy[1] or "inaccurate",
+        labels = ("complete", "accurate") if isinstance(policy, str) else policy
+        if kind == "c":
+            return {"completeness": 0.9, "completeness_label": labels[0], "reasoning": "harness"}
+        return {"extraction_correctness": 0.9, "extraction_correctness_label": labels[1] or "inaccurate",
                 "reasoning": "harness"}
 
     def arbiter_call(self, user_message, schema=None, *a, **k):

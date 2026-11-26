@@ -29,6 +29,7 @@ pytestmark = pytest.mark.usefixtures("arbiter_harness_state")
 
 JUDGE = {"complete": [("complete", "accurate")], "partial": [("partial", "accurate")],
          "incomplete": [("incomplete", "accurate")], "parse_c": ["parse_c"], "parse_a": ["parse_a"],
+         "parse_c_once": ["parse_c_once"], "parse_a_once": ["parse_a_once"],
          "blip_partial": ["blip", ("partial", "accurate")]}
 ARBITER = {"accept": ["accept_with_caveats"], "retry_accept": ["retry_extraction", "accept_with_caveats"],
            "retry": ["retry_extraction"], "blip": ["blip"]}
@@ -38,7 +39,8 @@ CONF = {"sure": ([0.95] * 6, None), "mid": ([0.88] * 6, None), "unsure": ([0.5] 
 # OpenRouter: the whole product. Modal/vLLM: the unsure cases, where HF-014 would act if it leaked.
 CASES = ([("openrouter", *c) for c in itertools.product(JUDGE, ARBITER, CONF)]
          + [("modal-vllm", j, a, c) for j, a, c in itertools.product(
-             ("partial", "incomplete", "blip_partial", "parse_a"), ARBITER, ("unsure", "unsure_floor"))])
+             ("partial", "incomplete", "blip_partial", "parse_a", "parse_a_once"), ARBITER,
+             ("unsure", "unsure_floor"))])
 BOSS = ("approve", "reject", "blip")
 CONFLICT_CASES = ([("openrouter", *c) for c in itertools.product(
                       ("complete", "partial", "incomplete"), ("accept", "retry_accept"),
@@ -68,6 +70,10 @@ def _assert_terminates(out: dict) -> None:
     # per-lane budgets: 1 extraction + 1 confidence retry + 1 arbiter retry; 2 judge passes + 1
     # transient re-run; 1 arbiter retry ruling + its final ruling; one classification ruling
     assert out["extract_calls"] <= 3 and out["judge_passes"] <= 3, out["path"]
+    # HF-002 / HF-013: a parse failure is re-asked once, so a judge method makes at most two model
+    # calls per pass (``judge_c`` / ``judge_a`` count first asks, the ``*_reasks`` keys the re-asks)
+    assert out["judge_c_reasks"] <= out["judge_c"] and out["judge_a_reasks"] <= out["judge_a"], out["path"]
+    assert out["judge_c"] + out["judge_c_reasks"] <= 2 * out["judge_c"], out["path"]
     assert out["arbiter"] <= 2 and out["carb"] <= 1, out["path"]
     state = out["state"]
     if out["stage"] == "archived":
@@ -103,8 +109,14 @@ def test_every_judge_and_arbiter_path_terminates(profile, judge, arbiter, conf, 
         source_windows.apply_source_windows({})
     _assert_terminates(out)
     state = out["state"]
-    if judge.startswith("parse"):  # HF-002 / HF-013: a judge that never answered is never archived
+    if judge in ("parse_c", "parse_a"):  # HF-002 / HF-013: a judge that never answered is never archived
         assert out["stage"] == "review" and state.get("judge_verdict") == "judge_error"
+        assert out[f"judge_{judge[-1]}_reasks"] == 1, out["path"]  # asked once more, then parked
+    elif judge.endswith("_once"):  # the re-ask parsed: a verdict like any other, and exactly one re-ask
+        assert state.get("judge_verdict") != "judge_error", out["path"]
+        assert out[f"judge_{judge[-6]}_reasks"] == 1, out["path"]
+    else:
+        assert out["judge_c_reasks"] == out["judge_a_reasks"] == 0, out["path"]
     _assert_marker(out, profile, conf, marker)
     if profile == "modal-vllm":  # HF-015 never touches a Modal/vLLM request
         assert not any(vh.RETRY_CLOSED_NOTE in p for p in out["arbiter_prompts"])
@@ -165,3 +177,43 @@ def test_a_mid_band_sorter_meets_every_classification_ruling(profile, lane, carb
     assert out["carb"] == 1 and "classification_arbiter" in out["path"], out["path"]
     if carb in ("human_review", "low"):  # no confident classification ruling, no archive
         assert out["stage"] == "review", out["path"]
+
+
+@pytest.mark.parametrize("profile", ["openrouter", "modal-vllm"])
+@pytest.mark.parametrize("failing", ["c", "a"])
+def test_a_judge_parse_failure_followed_by_a_parsed_answer_continues_as_if_it_parsed_first(
+        failing, profile, monkeypatch, tmp_path):
+    """HF-002 / HF-013: one unparseable answer no longer parks a document the judge would have passed."""
+    bg = activate_profile(monkeypatch, tmp_path, profile)
+    try:
+        control = run(bg, monkeypatch, Script(judge=[("complete", "accurate")]))
+        control_path = list(control["path"])  # a second run re-wraps the nodes and keeps appending to this list
+        once = run(bg, monkeypatch, Script(judge=[f"parse_{failing}_once"]))
+    finally:
+        source_windows.apply_source_windows({})
+    _assert_terminates(control)
+    _assert_terminates(once)
+    assert control["stage"] == "archived" and control["judge_c_reasks"] == control["judge_a_reasks"] == 0
+    assert once["stage"] == "archived" and once["path"] == control_path
+    assert once["state"]["judge_verdict"] == control["state"]["judge_verdict"] == "complete"
+    assert once[f"judge_{failing}_reasks"] == 1 and once[f"judge_{'a' if failing == 'c' else 'c'}_reasks"] == 0
+    assert once["judge_passes"] == control["judge_passes"] == 1  # a re-ask is not a pass
+    assert once["arbiter"] == 0 and once["extract_calls"] == control["extract_calls"] == 1
+
+
+@pytest.mark.parametrize("profile", ["openrouter", "modal-vllm"])
+@pytest.mark.parametrize("failing", ["c", "a"])
+def test_two_judge_parse_failures_park_as_judge_error_with_two_calls_for_that_judge(
+        failing, profile, monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, profile)
+    try:
+        out = run(bg, monkeypatch, Script(judge=[f"parse_{failing}"], arbiter=["accept_with_caveats"]))
+    finally:
+        source_windows.apply_source_windows({})
+    _assert_terminates(out)
+    assert out["stage"] == "review" and out["state"]["judge_verdict"] == "judge_error", out["path"]
+    assert out["path"][-2:] == ["judge_verify", "human_review"] and out["arbiter"] == 0, out["path"]
+    assert out[f"judge_{failing}"] + out[f"judge_{failing}_reasks"] == 2  # never a third call
+    # The graph state has no ``review_causes`` (the run item derives them); the parse failure is
+    # recorded as the escalation reason the judge node writes.
+    assert out["judge_passes"] == 1 and "JudgeParseError" in str(out["state"].get("escalation_reason")), out["state"]

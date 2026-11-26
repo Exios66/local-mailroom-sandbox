@@ -1654,6 +1654,10 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
         raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+    if scope.get("judge_reasks"):
+        # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
+        # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
+        result = {**result, "judge_reasks": scope["judge_reasks"]}
     return result
 
 

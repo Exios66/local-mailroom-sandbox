@@ -353,6 +353,12 @@ def _calls_cost(model: str | None, calls: int, chars: int) -> float | None:
     return call_cost(model, calls * tokens, 0, calls=calls)
 
 
+#: Judge calls one pass can make at most: completeness and correctness, each re-asked once when its
+#: answer did not parse (HF-002 / HF-013). A second parse failure parks the document, so no node run has
+#: more. Transient HF-012 node re-runs (up to two more) are not included, like transport retries.
+JUDGE_WORST_CALLS_PER_PASS = 4
+
+
 def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longest: int, per_pass: int,
                    window: tuple[int, int], judge_w: int | None, arbiter_w: int | None,
                    models: Mapping[str, Any], intake_usd: float | None = 0.0) -> dict[str, Any] | None:
@@ -360,7 +366,8 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
 
     ``clean`` is one extraction pass with the judge skipped. ``judged`` adds one
     passing judge pass (completeness plus correctness). ``worst`` is every pass the thresholds allow:
-    ``1 + retry_max + arbiter_retry_max`` extractions, two calls per judge pass and up
+    ``1 + retry_max + arbiter_retry_max`` extractions, four calls per judge pass (completeness
+    and correctness, each asked once more after a parse failure, HF-002 / HF-013) and up
     to ``arbiter_retry_max + 1`` arbiter calls. Prompt sizes use 2.4 chars/token
     plus 8k tokens of prompt, so these are upper bounds. Tiered API prices apply
     per call. None when an agent is not token-billed (Modal/vLLM GPU-hour serving)
@@ -387,7 +394,9 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     if None in (extract, judge, arbiter, intake_usd):  # a gated document on an unpriced intake model
         return None
     extract_passes = 1 + confidence_retries + retries
-    worst = extract_passes * extract + judge_passes * judge + min(judge_passes, retries + 1) * arbiter
+    judge_worst = _calls_cost(_model(taxonomy, "judge", models), JUDGE_WORST_CALLS_PER_PASS,
+                              min(longest, judge_w or longest))
+    worst = extract_passes * extract + judge_passes * judge_worst + min(judge_passes, retries + 1) * arbiter
     # A high-confidence retry used to archive without another judge call. With rejudge enabled
     # that same path owes a new verdict, subject to the judge pass cap. Keep this named scenario
     # separate from the worst-case bound: an ambiguous retry can reach the judge even with the
@@ -399,7 +408,7 @@ def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longe
     worst += intake_usd
     return {"clean": round(extract + intake_usd, 5), "judged": round(extract + judge + intake_usd, 5),
             "worst": round(worst, 5), "intake": round(intake_usd, 5),
-            "worst_calls": {"extract_passes": extract_passes, "judge": 2 * judge_passes,
+            "worst_calls": {"extract_passes": extract_passes, "judge": JUDGE_WORST_CALLS_PER_PASS * judge_passes,
                             "arbiter": min(judge_passes, retries + 1)},
             "high_confidence_retry": {"input_usd": round(retry_cost, 5) if retry_cost is not None else None,
                                       "judge_calls": 2 * (1 + int(rejudge)) if can_retry else None},

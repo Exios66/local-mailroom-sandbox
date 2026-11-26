@@ -49,12 +49,12 @@ The complete implementations and upstream retirement conditions live in
 | Layer | Required behavior | Regression evidence |
 | --- | --- | --- |
 | HF-001 | Fill a missing corporate record type from every registered subclass | `test_vendor_hotfixes.py` |
-| HF-002 | A judge parse failure is an error and review route, never a genuine incomplete verdict | `test_scoring_hotfixes.py` |
+| HF-002 | A completeness-judge parse failure is asked once more; a second one is an error and review route, never a genuine incomplete verdict | `test_vendor_hotfixes.py`, `test_arbiter_termination.py` |
 | HF-003 | Refuse intake cleaning that drops source length or ordered content | `test_vendor_hotfixes.py` |
 | HF-004 | Price each returned call once; refuse later calls at spend/call ceilings. Decisions responses are priced in the transport, not again by the usage wrapper. Isolated decision tasks use the per-document ceiling | `test_call_guard.py` |
 | HF-005 | Hold files at saturated filesystem bins without dropping them; bound inbox waits and unfinished uploads | `test_backpressure.py` |
 | HF-006 | Preserve explicit zero confidence in single and chunked specialist extraction | `test_vendor_hotfixes.py` |
-| HF-013 | The same for the accuracy judge: a correctness parse failure is a judge error, never an "inaccurate" answer that reads as incomplete | `test_vendor_hotfixes.py` |
+| HF-013 | The same for the accuracy judge: a correctness parse failure is asked once more; a second one is a judge error, never an "inaccurate" answer that reads as incomplete | `test_vendor_hotfixes.py`, `test_arbiter_termination.py` |
 | HF-014 | On a context-fitted route, an arbiter acceptance from a whole-source reading archives with a visible `arbiter_caveats` marker once the extraction confidence reaches `confidence.arbiter_full_source_min_confidence` (unset: the class `low`, so no route changes); lost chunks, conflicts and 16k-excerpt routes still park | `test_arbiter_full_source.py`, `test_gate.py` |
 | HF-015 | On a context-fitted route, an arbiter with no re-extraction budget left is never offered a retry | `test_arbiter_full_source.py`, `test_arbiter_termination.py` |
 | HF-016 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
@@ -85,8 +85,10 @@ version number alone never proves a fix is incorporated.
 ## Cost and readiness
 
 The context plan reports input-only upper bounds, not a full-run quote. The worst extraction
-path includes confidence retries plus arbiter-requested retries. Every judge pass budgets two
-LLM calls: completeness and, for a complete verdict, source correctness. A separate high-confidence
+path includes confidence retries plus arbiter-requested retries. The `clean` figure is extraction
+only (no judge call); `judged` counts two judge calls per pass: completeness and, for a complete verdict, source correctness. The `worst`
+figure budgets four per pass (per node run, not counting transient HF-012 re-runs), because each judge is asked once more after a parse failure (HF-002,
+HF-013). A separate high-confidence
 retry scenario shows the extra judge call from `judge_rejudge_retry`, respecting the class
 override and judge pass cap; a cap of one leaves no retry scenario. `keep_best_attempt` selects stored attempts and adds no calls.
 The intake read of each document whose gate fires (messy, or over the sorter budget) is inside it, priced on the intake
