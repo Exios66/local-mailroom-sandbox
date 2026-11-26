@@ -19,6 +19,25 @@ Open the printed URL yourself; Ctrl-C stops the server and replay worker.
 The bind address is always `127.0.0.1`. The dashboard directory is served, so
 keep access local when the run data contains sensitive metadata.
 
+## Browser debug from committed logs
+
+`scripts/floor_browser.py` serves this viewer for interface debugging. The
+default source is the committed sample in `data/fixtures/floor/replay`,
+copied into the scratch base `data/runtime/floor-browser` (gitignored). The
+printed URL includes `debug=1`. That sample is simulated and is not model
+evidence. The script does not start a model, Modal, or a billed run. To
+inspect a finished run, including one recorded earlier by a billed job, pass
+`--replay-run` with that run directory.
+
+```bash
+python scripts/floor_browser.py
+python scripts/floor_browser.py --dry-run
+python scripts/floor_browser.py --replay-run data/runtime/runs/my-run --replay-speed 20
+```
+
+`.claude/launch.json` names this `mailroom-floor-debug` (port 8769). The
+`mailroom-floor` launch config still serves the operator data store.
+
 ## Options and run discovery
 
 | Option | Behavior |

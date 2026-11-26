@@ -117,9 +117,35 @@ def test_base_resolution_flag_then_env_then_repo_data(monkeypatch, tmp_path):
 
 
 def test_floor_url_deep_selects_a_run():
-    """The printed URL deep-selects a run and quotes its name."""
+    """The printed URL deep-selects a run, quotes its name, and can open debug mode."""
     assert floor_app.floor_url(8769) == "http://127.0.0.1:8769/floor.template.html"
     assert floor_app.floor_url(1, "a b/c") == "http://127.0.0.1:1/floor.template.html?run=a%20b%2Fc"
+    assert floor_app.floor_url(8769, debug=True) == "http://127.0.0.1:8769/floor.template.html?debug=1"
+    assert floor_app.floor_url(8769, "replay-mailroom-sample", debug=True) == (
+        "http://127.0.0.1:8769/floor.template.html?run=replay-mailroom-sample&debug=1"
+    )
+
+
+def test_serve_floor_prints_the_debug_url(store, monkeypatch, capsys):
+    """``debug=True`` is the query the page reads, on the URL printed after the first build."""
+    base, graph, _run = store
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+
+    class Server:
+        server_address = ("127.0.0.1", 8769)
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def shutdown(self):
+            pass
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(floor_app, "make_server", lambda *args, **kwargs: Server())
+    assert floor_app.serve_floor(base=base, port=8769, run="run-1", debug=True) == 0
+    assert capsys.readouterr().out.splitlines()[0] == floor_app.floor_url(8769, "run-1", debug=True)
 
 
 # ── digest build API ────────────────────────────────────────────────────────────
@@ -733,6 +759,29 @@ def test_template_class_deep_link_uses_the_rails_per_run_guard():
     assert "classView(rr,c)" in html, "the class rail must use the shared helper"
     deep = html[html.index('c=q.get("class")'):html.index("function run()")]
     assert "hasClasses(dr)" in deep and "dr.per_class[c]" in deep and "!classView(dr,c).why" in deep
+
+
+def test_ribbon_keeps_the_digest_clock_visible():
+    """The class name, progress text and digest clock stay whole; the slogan and mode ellipsize."""
+    css = _template()
+    css = css[:css.index("</style>")]
+    clock = css[css.index(".ribbon .z{"):]
+    clock = clock[:clock.index("}")]
+    assert "flex:none" in clock
+    mode = css[css.index(".ribbon em{"):]
+    mode = mode[:mode.index("}")]
+    assert "min-width:0" in mode and "text-overflow:ellipsis" in mode
+    title = css[css.index("#bigTitle.on{"):]
+    title = title[:title.index("}")]
+    assert "flex:none" in title and "max-width:280px" in title
+    brand = css[css.index(".ribbon b{"):]
+    brand = brand[:brand.index("}")]
+    assert "flex:none" in brand
+    prog = css[css.index("\n.prog{"):]
+    prog = prog[:prog.index("}")]
+    assert "flex:none" in prog
+    assert "@container (max-width:1400px){.pbar{width:60px}}" in css
+    assert "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:48px}}" in css
 
 
 def test_template_keeps_the_graph_visible_in_a_narrow_window():
