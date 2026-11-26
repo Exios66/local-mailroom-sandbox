@@ -16,6 +16,8 @@ data/runtime/runs/<run_id>/
 ├── items.jsonl          # append-only per-item results (progress truth)
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
+├── reads.jsonl          # pipeline runs: one offsets-only record per LLM call (job.trace_reads)
+├── doc_texts/           # pipeline runs: each document's working text + index.jsonl (local only)
 └── run.lock             # advisory local-filesystem writer flock
 ```
 
@@ -457,6 +459,36 @@ above 1 while `engine.vllm.max_inputs` is 0 (mock runs are not checked). The
 reviewer gets its own checks: `local` must be in-house and a different model from
 the sorter, `api` needs an OpenRouter `sorter_reviewer` route, and `jev` is refused
 for mock runs and Modal jobs.
+
+## Read ranges (`job.trace_reads`)
+
+A `task: pipeline` run records which character ranges of each document's working
+text (the text after intake) every LLM or decision call contained, so the
+[floor viewer's DOCUMENT panel](floor.md#document-panel-what-each-agent-read) can
+show whether the agent that had to extract a value ever saw it. It is on by
+default; set `job.trace_reads: false` to turn it off. The key must be a boolean and
+is never hashed, because recording does not change items, routes, scores or costs.
+
+- `reads.jsonl` gets one line per call:
+  `{doc, call, agent, node, ts, basis, ranges, request_chars, matched_chars, doc_chars}`
+  plus `unplaced_pieces`, and `skipped` when matching was skipped. `ranges` are
+  half-open `[start, end)` offsets into the working text. There is no text in it.
+- `doc_texts/<sha1(doc)[:16]>.txt` holds each document's working text, written once;
+  `doc_texts/index.jsonl` maps the document id to the file name. This text stays in
+  the local run store. It never reaches the floor digest, its export, Langfuse or git.
+- A call made before intake finished is matched against the dataset row's raw text
+  and marked `basis: "raw"`. A document above the matcher's size limit is not
+  matched (`skipped: "size"`).
+- Chat agents record only the document-bearing part of the request: the user message
+  plus a system prompt passed as a plain string. `request_chars` and `matched_chars`
+  are measured over that portion, not the full request on the wire. Decision requests
+  mask card numbers, which show up as small gaps in the ranges.
+- A pipeline run's `nodes.jsonl` now also carries records for documents that reach
+  `classification_arbiter`, which was not tracked before.
+- Remote (Modal) runs upload and pull `reads.jsonl` and `doc_texts/`, but the job
+  worker records them only after it is next deployed. Until then a remote run shows
+  "not recorded". Unverified: that redeploy is a paid, live step.
+- Run stores made before this feature show "not recorded for this run".
 
 ## Checkpoint / resume
 

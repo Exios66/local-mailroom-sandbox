@@ -201,7 +201,10 @@ counts only. The text is served by the floor server at
 store the server was started on. Opened as a file, from a static host, as an
 imported digest or for a replay run, the fetch is not made and the panel says
 **text unavailable**; the lanes, toggles and call list still render from the
-digest. A run recorded without `reads.jsonl` shows "not recorded for this run".
+digest. A run recorded without `reads.jsonl` shows "not recorded for this run":
+older runs, runs with `job.trace_reads: false`, and remote Modal runs until the job
+worker is next deployed (unverified, a paid live step). See
+[read ranges](jobs.md#read-ranges-jobtrace_reads) for the files and the switch.
 
 **Privacy.** The digest, its JS twin and the export never contain document
 text. The text stays in the run store and is shown only by the local server,
