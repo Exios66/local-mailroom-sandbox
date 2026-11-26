@@ -169,9 +169,32 @@ class _AttemptGuardedCompletions:
                 call_guard.settle(held, billed=call_guard.billed_failure(exc))
             call_guard.note_failed_attempt()
             raise
+        if _no_usable_choice(response):
+            # The vendored loop rejects this reply and tries again, and nothing prices it: it is a
+            # failed attempt that reached the provider, so it may have been billed (L1).
+            if held:
+                call_guard.settle(held, billed=True)
+            call_guard.note_failed_attempt()
+            return response
         if held:
             call_guard.settle(held, billed=False)
         return response
+
+
+def _no_usable_choice(response: Any) -> bool:
+    """The vendored ``validate_completion`` rule: ``choices`` is present and null or empty, or its
+    first entry has no ``message``. A reply without a ``choices`` attribute is left to the caller."""
+    choices = getattr(response, "choices", _NO_CHOICES)
+    if choices is _NO_CHOICES:
+        return False
+    if choices is None:
+        return True
+    if isinstance(choices, (list, tuple)):
+        return not choices or getattr(choices[0], "message", None) is None
+    return False
+
+
+_NO_CHOICES = object()
 
 
 class _AttemptGuardedClient:

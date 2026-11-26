@@ -1425,7 +1425,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         refresh=_refresh_empty_intake_prior,
         also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
               ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
-    ),    Hotfix(
+    ),
+    Hotfix(
         id="HF-018",
         module="graph.route_spec",
         attr="decide_route",

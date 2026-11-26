@@ -831,9 +831,11 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
                               headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
         except httpx.TransportError as exc:
             call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            call_guard.note_failed_attempt()  # L1: an attempt with no usage still counts
             last = exc
         except BaseException as exc:
             call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            call_guard.note_failed_attempt()
             raise
         else:
             # Settled before the body is read: a 200 is priced by after_call below, a 5xx may have been billed.
@@ -846,6 +848,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
                 # payload with no usage keys still takes one ceiling slot.
                 call_guard.after_call((data or {}).get("usage") or {})
                 return data
+            call_guard.note_failed_attempt()
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
                 raise last

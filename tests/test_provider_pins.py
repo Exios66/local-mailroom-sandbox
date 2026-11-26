@@ -538,7 +538,10 @@ def _loop(attempts=3):
     def original(client, timeout=600.0, **kwargs):
         for attempt in range(1, attempts + 1):
             try:
-                return client.chat.completions.create(**kwargs, timeout=timeout)
+                response = client.chat.completions.create(**kwargs, timeout=timeout)
+                if getattr(response, "choices", None) == []:  # as the vendored validate_completion does
+                    raise RuntimeError("LLM response had no usable completion")
+                return response
             except Exception:
                 if attempt == attempts:
                     raise
@@ -640,6 +643,23 @@ def test_each_http_attempt_reserves_and_settles_once(vendored, monkeypatch, arme
     assert armed_budget.reserved_usd == 0.0  # every reservation ended
     assert armed_budget.unreported_usd == pytest.approx(2 * armed_budget.estimate_call_usd(1000, 100))
     assert (scope["calls"], scope["llm_calls"]) == (2, 2)  # the returned call is priced by after_call (HF-004)
+
+
+class _EmptyResp:
+    """A 200 whose ``choices`` is empty: the vendored ``validate_completion`` rejects it."""
+    model, choices, model_extra = "qwen/qwen3.7-flash", [], {}
+
+
+def test_a_reply_with_no_usable_choice_counts_as_a_failed_attempt(vendored, monkeypatch, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("https://openrouter.ai/api/v1", [_EmptyResp(), _Resp("qwen/qwen3.7-flash", "Alibaba")])
+    with call_guard.document() as scope:
+        call(client, **_REQUEST)
+    assert len(client.sent) == 2 and armed_budget.reserved_usd == 0.0
+    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))  # may be billed
+    assert (scope["calls"], scope["llm_calls"]) == (1, 1)  # the empty reply; the returned call is priced later
 
 
 def test_sdk_retries_are_off_under_the_wrapper(vendored, monkeypatch):
