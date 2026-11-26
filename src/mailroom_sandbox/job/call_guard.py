@@ -14,13 +14,22 @@ armed here:
 - the document scope (``document()``) records the refusal, and the runner turns that document
   into an error row: a document cut short by the guard is never scored as a pipeline outcome.
 
-Spend therefore stops within one call per concurrent document of the cap.
+- every guarded request reserves its worst-case cost before it goes out (``before_call`` with the
+  request's size, ``request_tokens``) and is settled when it ends (``settle``): a success releases the
+  reservation (``after_call`` then prices the real usage); a failure that may have been billed (a
+  timeout, a 5xx, a dropped response) is charged at its reservation; a request the provider rejected
+  (HTTP 4xx) or that never connected is released. A request whose estimate would pass the cap, with
+  every reservation in flight, is refused before it goes out.
+
+Spend therefore stops at the cap, within the size estimate's error (0.25 tokens per character; the
+output cap, or ``DEFAULT_COMPLETION_RESERVE_TOKENS`` when a request sets none).
 """
 
 from __future__ import annotations
 
 import contextlib
 import contextvars
+import math
 import threading
 from collections.abc import Iterator, Mapping
 from typing import Any
@@ -30,6 +39,10 @@ from typing import Any
 #: a dozen), far below a windowed or looping document (R01 merger documents: 100+).
 CALL_CEILING = {"pipeline": 40}
 DEFAULT_CALL_CEILING = 16
+#: Request sizing: the shared 0.25 tokens-per-character estimate (``decision_backends.DECISIONS_TOKENS_PER_CHAR``).
+TOKENS_PER_CHAR = 0.25
+#: Output tokens reserved for a request that sets no output cap of its own.
+DEFAULT_COMPLETION_RESERVE_TOKENS = 4096
 
 _LOCK = threading.Lock()
 _STATE: dict[str, Any] = {"budget": None, "ceiling": None}
@@ -57,6 +70,36 @@ def disarm() -> None:
 
 def armed() -> bool:
     return _STATE["budget"] is not None
+
+
+def current_budget() -> Any:
+    """The armed run's ``ApiBudget``, or None."""
+    return _STATE["budget"]
+
+
+def _text_chars(content: Any) -> int:
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, Mapping):
+        text = content.get("text")
+        return len(text) if isinstance(text, str) else _text_chars(content.get("content"))
+    if isinstance(content, (list, tuple)):
+        return sum(_text_chars(part) for part in content)
+    return 0
+
+
+def request_tokens(messages: Any, max_tokens: Any) -> tuple[int, int]:
+    """A request's (prompt, completion) token estimate: its text at ``TOKENS_PER_CHAR``, its output cap."""
+    chars = 0
+    for message in messages or ():
+        chars += _text_chars(message.get("content") if isinstance(message, Mapping)
+                             else getattr(message, "content", None))
+    prompt = math.ceil(chars * TOKENS_PER_CHAR)
+    try:
+        completion = int(max_tokens)
+    except (TypeError, ValueError):
+        completion = 0
+    return prompt, completion if completion > 0 else DEFAULT_COMPLETION_RESERVE_TOKENS
 
 
 @contextlib.contextmanager
@@ -125,11 +168,11 @@ def budget_error(reason: str) -> Exception:
     return _EXC[0](reason)
 
 
-def _refusal() -> str | None:
+def _refusal(estimate_usd: float = 0.0) -> str | None:
     budget, ceiling = _STATE["budget"], _STATE["ceiling"]
     if budget is None:
         return None
-    reason = budget.exceeded()
+    reason = budget.exceeded(extra_usd=estimate_usd)
     if reason:
         return f"call refused: {reason}"
     doc = _DOC.get()
@@ -138,14 +181,64 @@ def _refusal() -> str | None:
     return None
 
 
-def before_call() -> None:
-    """Raise before an API call that would pass the run's cap or the document's call ceiling."""
-    reason = _refusal()
+def before_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
+    """Raise before an API call that would pass the run's cap or the document's call ceiling.
+
+    A sized request (``request_tokens``) reserves its estimated cost, which this returns; the caller
+    passes it to ``settle`` when the request ends. Unarmed, or with no size, nothing is reserved (0.0).
+    """
+    budget = _STATE["budget"]
+    estimate = (budget.estimate_call_usd(prompt_tokens, completion_tokens)
+                if budget is not None and (prompt_tokens or completion_tokens) else 0.0)
+    reason = _refusal(estimate)
     if reason:
         doc = _DOC.get()
         if doc is not None and not doc["refused"]:
             doc["refused"] = reason
         raise budget_error(reason)
+    if budget is not None and estimate:
+        budget.reserve(estimate)
+    return estimate if budget is not None else 0.0
+
+
+def settle(reserved_usd: float, *, billed: bool) -> None:
+    """End a request's reservation; ``billed`` charges it (a failure the provider may have billed)."""
+    budget = _STATE["budget"]
+    if budget is None or not reserved_usd:
+        return
+    budget.release(reserved_usd)
+    if billed:
+        budget.charge_unreported(reserved_usd)
+
+
+def _status_code(exc: BaseException) -> int | None:
+    for source in (exc, getattr(exc, "response", None)):
+        code = getattr(source, "status_code", None)
+        if isinstance(code, int) and not isinstance(code, bool):
+            return code
+    return None
+
+
+def billed_failure(exc: BaseException) -> bool:
+    """Whether a failed request may have been billed: not when the provider rejected it (HTTP 4xx) or it
+    never connected; yes for a timeout, a 5xx, a dropped response or anything unknown."""
+    try:
+        import httpx
+
+        never_sent: tuple[type, ...] = (httpx.ConnectError, httpx.ConnectTimeout)
+    except Exception:  # noqa: BLE001 — httpx is a dependency; stay conservative without it
+        never_sent = ()
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        code = _status_code(current)
+        if code is not None:
+            return code >= 500
+        if never_sent and isinstance(current, never_sent):
+            return False
+        current = current.__cause__ or current.__context__
+    return True
 
 
 def _count(value: Any) -> int:

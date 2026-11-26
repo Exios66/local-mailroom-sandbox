@@ -206,3 +206,95 @@ def test_decisions_rechecks_budget_before_retry(monkeypatch):
         with pytest.raises(Exception, match="api_cost_cap_usd"):
             db._post_decision({}, timeout=1, attempts=3)
     assert len(calls) == 1
+
+
+# S2 (phase 1): each request reserves its worst-case cost before it goes out.
+
+
+def _armed(cap=0.05):
+    budget = _budget(cap=cap)  # qwen/qwen3.5-9b: $0.10 per 1M prompt tokens
+    call_guard.arm(budget, None)
+    return budget
+
+
+def test_a_call_whose_estimate_passes_the_cap_is_refused_before_it_goes_out():
+    budget = _armed(cap=0.05)
+    with pytest.raises(Exception, match="next call est"):
+        call_guard.before_call(prompt_tokens=600_000, completion_tokens=0)  # about $0.06
+    assert budget.reserved_usd == 0.0 and budget.live_total_usd() == 0.0
+
+
+def test_concurrent_reservations_stop_the_next_call_below_the_cap():
+    budget = _armed(cap=0.05)
+    first = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)  # about $0.03 held
+    assert first == pytest.approx(budget.estimate_call_usd(300_000, 0)) and first > 0
+    with pytest.raises(Exception, match="reserved"):
+        call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+
+
+def test_a_settled_success_releases_and_after_call_prices_the_real_usage():
+    budget = _armed(cap=1.0)
+    held = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
+    call_guard.settle(held, billed=False)
+    assert budget.reserved_usd == 0.0 and budget.unreported_usd == 0.0
+    call_guard.after_call({"prompt_tokens": 100_000, "completion_tokens": 0})
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(100_000, 0))
+
+
+class _Status(Exception):
+    def __init__(self, status_code):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+@pytest.mark.parametrize("exc, billed", [
+    (lambda: __import__("httpx").ReadTimeout("read timed out"), True),
+    (lambda: _Status(500), True),
+    (lambda: _Status(400), False),
+    (lambda: __import__("httpx").ConnectError("refused"), False),
+])
+def test_a_timeout_is_charged_and_a_4xx_is_released(exc, billed):
+    budget = _armed(cap=1.0)
+    error = exc()
+    assert call_guard.billed_failure(error) is billed
+    held = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
+    call_guard.settle(held, billed=call_guard.billed_failure(error))
+    assert budget.reserved_usd == 0.0
+    assert budget.unreported_usd == (pytest.approx(held) if billed else 0.0)
+
+
+def test_a_connect_error_wrapped_by_the_sdk_is_not_charged():
+    import httpx
+
+    wrapped = RuntimeError("Connection error.")
+    wrapped.__cause__ = httpx.ConnectError("refused")
+    assert call_guard.billed_failure(wrapped) is False
+
+
+def test_request_tokens_counts_text_parts_and_defaults_the_output_cap():
+    messages = [{"role": "system", "content": "x" * 400},
+                {"role": "user", "content": [{"type": "text", "text": "y" * 400}, {"type": "image_url"}]}]
+    assert call_guard.request_tokens(messages, None) == (200, call_guard.DEFAULT_COMPLETION_RESERVE_TOKENS)
+    assert call_guard.request_tokens(messages, 512) == (200, 512)
+    assert call_guard.request_tokens(None, 0) == (0, call_guard.DEFAULT_COMPLETION_RESERVE_TOKENS)
+
+
+def test_an_unarmed_guard_reserves_nothing():
+    assert call_guard.before_call(prompt_tokens=10**9, completion_tokens=10**9) == 0.0
+    call_guard.settle(0.0, billed=True)  # a no-op
+
+
+def test_the_runner_persists_unreported_charges_when_it_disarms(tmp_path):
+    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    budget = _armed(cap=1.0)
+    budget.charge_unreported(0.02)
+    store = RunStore(tmp_path / "r")
+    runner._persist_unreported_charges(store)
+    events = [e for e in store.events() if e.get("event") == api_budget.UNREPORTED_CHARGE_EVENT]
+    assert len(events) == 1
+    assert api_budget.usage_records(store)[-1]["unreported_usd"] == pytest.approx(0.02)
+    call_guard.disarm()
+    runner._persist_unreported_charges(store)  # unarmed: nothing more is written
+    assert len([e for e in store.events() if e.get("event") == api_budget.UNREPORTED_CHARGE_EVENT]) == 1

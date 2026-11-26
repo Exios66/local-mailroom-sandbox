@@ -248,7 +248,7 @@ Any agent can pick this up where the last one stopped. The owner approved the de
     of an `openai.APIConnectionError`. It is True otherwise;
   - `current_budget() -> ApiBudget | None`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_a_call_whose_estimate_passes_the_cap_is_refused_before_it_goes_out`. Cap 0.05, nothing spent, one
     call estimated at about $0.06; the reason names the estimate;
   - `test_concurrent_reservations_stop_the_next_call_below_the_cap`. Two reservations of $0.03 under cap $0.05
@@ -258,10 +258,10 @@ Any agent can pick this up where the last one stopped. The owner approved the de
     `status_code=500`, `status_code=400` and `httpx.ConnectError`;
   - `test_request_tokens_counts_text_parts_and_defaults_the_output_cap`;
   - `test_the_runner_persists_unreported_charges_when_it_disarms`.
-- [ ] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_call_guard.py -n 0 --no-cov`.
-- [ ] **Step 3: Implement.** `_refusal` takes the estimate. The ceiling check is unchanged.
-- [ ] **Step 4: Run the tests again; they pass.** Also run `tests/test_api_budget.py`.
-- [ ] **Step 5: Commit** `feat(call-guard): reserve each request's worst-case cost before it goes out (S2) (phase1 task 5)`.
+- [x] **Step 2: Run and see them fail** `.venv/bin/python -m pytest -q tests/test_call_guard.py -n 0 --no-cov`.
+- [x] **Step 3: Implement.** `_refusal` takes the estimate. The ceiling check is unchanged.
+- [x] **Step 4: Run the tests again; they pass.** Also run `tests/test_api_budget.py`.
+- [x] **Step 5: Commit** `feat(call-guard): reserve each request's worst-case cost before it goes out (S2) (phase1 task 5)`.
 
 ### Task 6: Wire the reservation into the three guarded transports
 

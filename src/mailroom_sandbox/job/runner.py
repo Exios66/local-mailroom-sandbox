@@ -621,6 +621,18 @@ def _api_budget(store: RunStore):
     return budget
 
 
+def _persist_unreported_charges(store: RunStore) -> None:
+    """S2: keep the armed budget's charges for failed, possibly billed requests, so a resume counts them."""
+    from mailroom_sandbox.job import call_guard
+    from mailroom_sandbox.job.api_budget import UNREPORTED_CHARGE_EVENT
+
+    budget = call_guard.current_budget()
+    usd = float(getattr(budget, "unreported_usd", 0.0) or 0.0) if budget is not None else 0.0
+    if usd > 0:
+        store.append_event(UNREPORTED_CHARGE_EVENT, "warning", kind="unreported_charge", unreported_usd=round(usd, 6))
+        budget.unreported_usd = 0.0  # written once, even if the guard is disarmed later than expected
+
+
 def _max_wall_seconds(store: RunStore) -> int | None:
     raw = _task_defaults(store).get("max_wall_seconds")
     if raw is None or raw == "":
@@ -1141,6 +1153,7 @@ def run_job(
                 set_run_context(None)
                 from mailroom_sandbox.job import call_guard
 
+                _persist_unreported_charges(store)
                 call_guard.disarm()
     except BaseException:
         finish({"state": "failed"})
