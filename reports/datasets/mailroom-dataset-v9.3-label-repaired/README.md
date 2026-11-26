@@ -104,8 +104,8 @@ unverified until a dated rebuild records them in `summary.json` / provenance.
 the previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
 Hub source changed value or presence:
 
-- **Near-gold contract labels** (542 cells, all in the 61 empty-CUAD contracts listed in
-  `tests/fixtures/empty_cuad_contract_ids.txt`): 324 previously unlabeled cells, 182 unreviewed
+- **Near-gold contract labels** (542 cells, all in the 61 empty-CUAD contracts that had no
+  near-gold record; `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91 empty-CUAD rows): 324 previously unlabeled cells, 182 unreviewed
   gold candidates promoted to `near_gold_reviewed`, and 36 `generated_rule` cells replaced by
   near-gold.
 - **Event-defined dates are no longer absences** (109 cells in 91 other contracts): the builder
