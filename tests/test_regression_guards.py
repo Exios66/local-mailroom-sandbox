@@ -119,7 +119,17 @@ class _DistConfig:
         self.dist = dist
 
     def getvalue(self, name):
-        return self.dist if name == "dist" else None
+        return {"dist": self.dist, "tx": ["2*popen"]}.get(name)
+
+
+def test_ci_s_loadfile_mode_gets_the_per_test_scheduler():
+    """Without this, a hook that stopped answering for `loadfile` would silently bring back the
+    one-worker floor while every other guard still passed."""
+    import conftest
+
+    sched = conftest.pytest_xdist_make_scheduler(config=_DistConfig("loadfile"), log=None)
+    assert isinstance(sched, conftest.PerTestLoadFileScheduling)
+    assert sched.numnodes == 2
 
 
 @pytest.mark.parametrize("dist", ["load", "loadgroup", "no"])
