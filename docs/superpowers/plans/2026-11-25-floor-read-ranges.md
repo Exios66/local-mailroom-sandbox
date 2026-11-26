@@ -176,7 +176,9 @@ inspector.
 
 - [ ] **Step 3: Implement the context, recorder and writers.**
   - In `_process`, enter `read_ranges.document(row id, row["doc_text"], ...)` inside the same
-    `ExitStack`, only when `node_cb is not None` and `trace_reads` is on.
+    `ExitStack` whenever `read_cb is not None` (and `trace_reads` is on). Recording is
+    independent of node tracking: a caller may supply `read_cb` alone, and records then carry
+    no node attribution. Node tracking is installed separately, when `node_cb is not None`.
   - Pass the sinks from `runner.py` next to `_node_sink`.
   - After the document finishes, merge `stats()` into the item's metrics through the existing
     `merge_item_metrics` path in `usage_capture`, under the key `reads`.
@@ -355,11 +357,14 @@ inspector.
 **Interfaces:**
 
 - Consumes: `debug.reads` and `/api/floor/doc` from Task 6.
-- Flags, computed client-side:
+- Flags, computed client-side (each guard is documented in `docs/floor.md`; the viewer never
+  claims a definitive flag while a guard holds):
   - `not read`: the expected value occurs (whitespace- and case-insensitive) in the working text, but
-    in no union range of the specialist agents that ran.
+    in no union range of the specialist agents that ran. Withheld while a specialist call is
+    approximate or only partly measured, while the text pairing or the served-text hash fails,
+    or while the served length differs from the recorded working length.
   - `misrouted`: no specialist for `class.gt` ran; this replaces `not read`.
-  - `not in text`: the expected value has no occurrence in the working text.
+  - `not in text`: the expected value has no occurrence in the working text; needs the working text.
 
 - [ ] **Step 1: Write the failing selftest cases**
   - A synthetic doc with a value outside every specialist range is `not read`.

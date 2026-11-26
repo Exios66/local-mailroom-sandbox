@@ -88,8 +88,9 @@ which is what every later agent's window is cut from.
 - **New module** `src/mailroom_sandbox/job/read_ranges.py`. It holds a per-document `ContextVar`
   (doc id, working text, and a shingle index built lazily once the working text is known), the
   matcher, and a sink.
-- **Document scope:** `eval/runners.py:_process` enters it beside `track_nodes` for pipeline documents,
-  only when a node sink is set (the same condition as node tracking).
+- **Document scope:** `eval/runners.py:_process` enters it for pipeline documents whenever
+  `read_cb` is set (independently of node tracking: a read sink alone records, with no node
+  attribution); node tracking keeps its own `node_cb` condition.
 - **Working-text capture:** `NodeTracker.on_chain_end` already receives node outputs. When the intake
   node's output carries the working text, the tracker hands it to the read-range context. Calls made
   before that, such as the intake agent's own request, are matched against the raw row text and marked
@@ -177,13 +178,16 @@ which is what every later agent's window is cut from.
 - **Field rows:**
   - Expected and extracted value per field. Occurrences are found with whitespace- and
     case-insensitive search in the working text; clicking a field scrolls to them.
-  - Flags:
+  - Flags (each guard is documented in [floor.md](../../floor.md#document-panel-what-each-agent-read); the viewer never claims a definitive flag while a guard holds):
     - **not read:** the expected value occurs in the working text, but in no range read by a specialist
-      that ran for this document. All of that specialist's calls count, retries included.
+      that ran for this document. All of that specialist's calls count, retries included. Withheld
+      when a specialist call is approximate (a capped range list), only partly measured (`unplaced`
+      pieces), when the text pairing or served-text hash fails, or when the served length differs
+      from the recorded working length — the panel says which guard holds.
     - **misrouted:** the document's true class's specialist never ran, so no field was extracted for
-      that class. This replaces "not read" in that case.
+      that class. This replaces "not read" in that case; it does not depend on the ranges.
     - **not in text:** the expected value does not occur in the working text at all, for example after
-      a label or OCR difference.
+      a label or OCR difference. Needs the working text.
 - **Accessibility:** keyboard reachable. The open #411 finding (Enter/Space on confusion cells) is
   fixed in passing.
 

@@ -176,6 +176,9 @@ def test_text_pairing_flags_equal_length_different_text(tmp_path):
     reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
     assert reads["text_pairing"] == "different"
     assert reads["doc_chars"] == len(WORKING)
+    # the emitted hash is the STORED file's tag, not the records': a rewrite that outran its
+    # records must not trip the viewer's served-text cache check
+    assert reads["text_hash"] == _tag(WORKING)
 
 
 def test_text_pairing_missing_text_and_old_stores(tmp_path):
@@ -190,6 +193,8 @@ def test_text_pairing_missing_text_and_old_stores(tmp_path):
     run_dir = _reads_run(old, reads=[_read(1, "sorter", [[0, 60]])], text=WORKING.replace("Orion", "Ozone"))
     reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
     assert "text_pairing" not in reads and reads["calls"][0]["ranges"] == [[0, 60]]
+    # the stored file's own tag is still emitted for the viewer's served-text pairing
+    assert reads["text_hash"] == _tag(WORKING.replace("Orion", "Ozone"))
 
 
 def _many_docs_run(root: Path, n: int) -> Path:
