@@ -1035,7 +1035,8 @@ class DecisionSlotsSpec(BaseModel):
 
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
 # arbiter_full_source_min_confidence (HF-014): the extraction confidence a whole-source arbiter
-# acceptance needs to archive; unset, the class's own ``low``.
+# acceptance needs to archive; unset, the class's own ``low``. It can only lower the bar: the
+# vendored route already archives at ``low``, so a floor above it changes nothing.
 _THRESHOLD_UNIT = ("high", "low", "judge_band_high", "arbiter_full_source_min_confidence")
 # transient_retry_max (HF-012): node-level re-runs after a transient provider error.
 _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "transient_retry_max")

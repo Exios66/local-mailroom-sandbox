@@ -402,7 +402,8 @@ locked prompts/models/knobs rather than later ambient generation settings.
    extraction confidence reaches `confidence.arbiter_full_source_min_confidence`;
    unset, that floor is the class's own `low` band, where the vendored route
    already archives, so HF-014 changes no route until a run lowers it (for
-   example to 0.5). Modal,
+   example to 0.5). The floor can only lower the bar: one above `low` changes
+   nothing, because the vendored route already archives at `low`. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`
