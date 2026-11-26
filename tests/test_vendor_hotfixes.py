@@ -818,6 +818,15 @@ def test_a_re_ask_through_the_real_call_path_passes_the_guard_and_is_priced_once
 
 
 @pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_second_answer_of_the_wrong_shape_counts_as_recovered_a_known_limit(which):
+    """The wrapper sees only the vendored method's processed dict, which has no raw keys to check, so a
+    second answer that parses as JSON but lacks the method's keys is ``recovered`` (documented limit)."""
+    client, _, scope, _, outcome = _run_live_path(which, ["not json", "{}"])
+    assert len(client.requests) == 2 and isinstance(outcome, dict)
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1, "parked": 0}}
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
 def test_a_re_ask_the_guard_refuses_is_asked_not_recovered_and_makes_no_second_request(which):
     """A per-document ceiling of one lets the first call through and refuses the re-ask before it is sent."""
     from pipeline import limits
