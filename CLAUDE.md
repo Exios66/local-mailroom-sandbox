@@ -6,7 +6,7 @@ evals and calibration against a **vendored** copy of `llm-mailroom` and
 default trace sink. It does **not** reimplement the pipeline. Python 3.11+.
 
 Open [`AGENTS.md`](AGENTS.md) at task start; it is the full command reference and
-is **not** auto-loaded. Follow its
+is **not** auto-loaded. Every docs page is indexed in [`docs/README.md`](docs/README.md). Follow its
 [routine instruction validation](AGENTS.md#instruction-validation-routine):
 validate relevant facts in this file, `AGENTS.md`, scoped rules and skills against
 current evidence, including after long experiments, feature/configuration updates
@@ -30,14 +30,12 @@ draws, models or costs) and fill the template's **Critical regressions** section
 
 ## Dependency source selection
 
-`sandbox deps fetch` caches stable releases without rewriting vendor snapshots or
-pins. Read [the snapshot guide](docs/dependency-snapshots.md) before selecting a
-cache via `SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`. Fetching a release
-is separate from selecting it: restart the process after selection, preserve
-`dependency_sources` in run locks, and restore the original source on drift.
-Never substitute latest stable for an experiment's frozen commit. For remote
-Modal jobs, bundle the same selected snapshots when deploying the job worker;
-require matching provenance before accepting its results.
+Fetching a release (`sandbox deps fetch`) never rewrites vendor snapshots or pins, and
+selecting one (`SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`) is a separate step.
+Never substitute latest stable for an experiment's frozen commit, and preserve
+`dependency_sources` in run locks. Read [the snapshot guide](docs/dependency-snapshots.md)
+before selecting; the full rules (restart after selection, source order, remote Modal
+bundling and provenance) are in [`AGENTS.md`](AGENTS.md#dependency-source-selection).
 
 ## Setup and checks (all network-free)
 
@@ -95,8 +93,11 @@ sandbox doctor                                              # offline status of 
   (byte-identity). Change the owning repo first (`llm-mailroom` for pipeline,
   `llm-dojo-scoring` for scoring), then refresh with `python scripts/sync_vendor.py`
   or `sandbox fetch-deps`. Pins live in `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`.
-  A pipeline fix experiments need before upstream ships it goes in
-  `src/mailroom_sandbox/vendor_hotfixes.py` ([guide](docs/vendor-hotfixes.md)), never in `vendor/`.
+  A fix experiments need before upstream ships it is a hotfix, never a `vendor/` edit:
+  pipeline fixes (`HF-*`) go in `src/mailroom_sandbox/vendor_hotfixes.py`
+  ([guide](docs/vendor-hotfixes.md)), scoring fixes (`SHF-*`) in
+  `src/mailroom_sandbox/scoring_hotfixes.py` ([guide](docs/scoring-hotfixes.md)). Add or
+  retire the doc row in the same change.
 - `requirements/*.txt` — generated: edit `pyproject.toml`, then
   `python scripts/sync_requirements.py`. The one exception is
   `requirements/dojo-release.txt` (DMR-057, kept out of `pyproject.toml`): it is moved

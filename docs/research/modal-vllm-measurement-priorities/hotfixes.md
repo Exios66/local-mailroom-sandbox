@@ -1,5 +1,9 @@
 # Vendor hotfixes on the production Modal experiment path
 
+> **Snapshot.** This list was taken on 2026-11-20 and is not maintained. The current
+> registry is [Vendor hotfixes](../../vendor-hotfixes.md) (`HF-*`) and
+> [Scoring hotfixes](../../scoring-hotfixes.md) (`SHF-*`).
+
 Checkout inspected 2026-11-20: `fedda378` (`fix(decisions): lock 4.2.0 routing identity on resume (#388)`, commit time 2026-11-20 07:48:31 -0600). Read-only. `scripts/check_hotfixes.py` was not run, so live `applied` / `stale` / `unavailable` was not observed. No paid or live Modal/vLLM command was launched.
 
 Pipeline hotfixes and scoring hotfixes are different modules. Both are locked and re-checked on `sandbox run` execution, including the Modal job worker. Neither is loaded by the `sandbox-vllm` server process.

@@ -19,14 +19,17 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | `config/` | Serving profiles, run specs, named-dataset registry, runbook catalog, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
 | `.circleci/` | Hosted checks, caches, explicit pytest worker scheduling; [CI guide](../../.circleci/README.md) | CI configuration and operator documentation. |
 | `deploy/` | Dockerfile, compose profiles, Modal vLLM + Modal job worker, htcondor, conda | **Frozen path** — `deploy/modal_vllm.py`, `deploy/teardown_vllm.sh` etc. are cited by runbooks, docs, and the board. |
-| `docs/` | Guides (`setting-up/` onboarding, `pretty-logging/` Tray TUI watch, runbooks, modal) | **Frozen path** (add freely; keep the nested trees). |
-| `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
+| `docs/` | Guides and references at the root; `setting-up/` onboarding, `pretty-logging/` watch, `runbooks/` and `prompts/` (generated), `modal/`, `datasets/`, `gold-labels/`; `design/<ticket>/` and `design/plans\|specs/` design records, `research/`, `audits/` (dated), `archive/`, `releases/`, `assets/`. Every page is listed in [`docs/README.md`](../README.md) | **Frozen path** (add freely; index each new page; keep the nested trees). |
+| `scripts/` | Repo tooling (`sync_vendor.py` and friends), per-campaign scripts (`sand032/`, `sand42/`) and retired campaign scripts (`archive/`); see [`scripts/README.md`](../../scripts/README.md) | **Frozen path.** |
 | `governance/` | `SAND-*` board + prefix cheat-sheet + archives | **Governed surface** — asserted by `tests/test_governance_sand.py`. |
 | `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`, runtime-generated and gitignored) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) and the [pipeline floor](../floor.md) (`build_floor_digest.py`, `floor.template.html`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
-| `data/` | `fixtures/` tracked; `cache/` (including [verified dependency snapshots](../dependency-snapshots.md)), `runtime/`, `memory/`, `data/mailroom.db` and `data/checkpoints.db` gitignored runtime state; other database paths need explicit ignore rules | Layout is stable by design. |
+| `data/` | `fixtures/`, `labels/` (gold, overlay, interim and review labels), `handoff/` (training handoff sets) and `cache/README.md` tracked; `cache/` (including [verified dependency snapshots](../dependency-snapshots.md)), `runtime/`, `memory/`, `data/mailroom.db` and `data/checkpoints.db` gitignored runtime state; other database paths need explicit ignore rules | Layout is stable by design. |
 | `notebooks/` | Offline env setup, data prep, mock smoke and log explorer; see [`notebooks/README.md`](../../notebooks/README.md) | **Frozen path.** |
 | `api-evals/` | Self-contained OpenRouter API cost harness (own config tree + own CLI) | See [Two config trees](#two-config-trees). |
 | `.cursor/skills/`, `.opencode/agents/` | Agent skill + subagent surfaces | **Frozen** — see [Frozen surfaces](#frozen-surfaces-dont-move-these). |
+| `.claude/` | Claude Code settings, hooks, rules, skills and the three subagent wrappers over `.opencode/agents/` | Project harness config. |
+| `.github/` | Pull request template and Dependabot config | No workflows: CI is CircleCI only. |
+| `requirements/`, `requirements.txt` | Pip mirrors of the `pyproject.toml` extras | **Generated** by `scripts/sync_requirements.py` (except `dojo-release.txt`). |
 
 ## Two config trees
 
