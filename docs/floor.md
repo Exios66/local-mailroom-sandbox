@@ -195,9 +195,11 @@ ever see the text that holds it?
   node look the same in every document: the agent's own lane and the usual first
   nodes (`extract`, `classify`, `judge_verify`) keep the agent's colour,
   `retry_extract`, `retry_classify` and `classification_arbiter` are 35% lighter,
-  `retry_extract_2` is 30% darker, and any other node name is hashed into one of
-  five fixed shades (two unrelated nodes of one agent can then share a shade; the
-  label tells them apart). An agent with no assigned colour gets the
+  `retry_extract_2` is 50% lighter, and any other node name is hashed into one of
+  five fixed lighter shades (20% to 80%; two unrelated nodes of one agent can
+  then share a shade, and the label tells them apart). No shade is darker than
+  the agent's colour, so every derived shade keeps at least 3:1 contrast on the
+  dark page. An agent with no assigned colour gets the
   specialist, decision or neutral grey swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to

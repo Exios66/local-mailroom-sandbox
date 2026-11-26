@@ -1285,9 +1285,24 @@ for(const n of ["extract","retry_extract","retry_extract_2","aa","zz_retry","x/y
   A.equal(colour(alone,"contracts_specialist",n),colour(crowd,"contracts_specialist",n),n)}
 function nodesCrowd(n){return ["extract","retry_extract","a","b","c","d","e","f",n].map(x=>call("contracts_specialist",x,[[0,3]]))}
 A.equal(rdModel(reads([call("contracts_specialist",null,[[0,3]])]),SP).lanes[0].color,RD_SPECIALIST);   // a node-less call keeps the agent's colour
-// every shade of every role colour stays readable on the dark page
-const lum=h=>{const v=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);return .2126*v[0]+.7152*v[1]+.0722*v[2]};
-for(const base of [RD_SPECIALIST,RD_DECISION,RD_OTHER,...Object.values(RD_COLORS)])for(const k of RD_SHADES)A.ok(lum(rdShade(base,k))>.12,base+" "+k);
+// every shade of every role colour stays visible on the dark page (WCAG 2 contrast against the minimap track, #0d141d)
+// and readable under the document text (#c5d0dc over a band at alpha 0x55 on #070b10), and the six shades stay apart
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const relLum=c=>{const [r,g,b]=c.map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)});return .2126*r+.7152*g+.0722*b};
+const contrast=(a,b)=>{const x=relLum(a),y=relLum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const TRACK=rgb("#0d141d"),TEXT_BG=rgb("#070b10"),TEXT=rgb("#c5d0dc");
+const underBand=c=>c.map((v,i)=>v*0x55/255+TEXT_BG[i]*(1-0x55/255));
+A.equal(new Set(RD_SHADES).size,RD_SHADES.length);
+for(const base of new Set([RD_SPECIALIST,RD_DECISION,RD_OTHER,...Object.values(RD_COLORS)])){
+  const cols=RD_SHADES.map(k=>rgb(rdShade(base,k)));
+  // k=0 is the agent's own colour, fixed by the figure roles; only the derived shades are held to the 3:1 floor
+  RD_SHADES.forEach((k,i)=>{
+    if(k!==0)A.ok(contrast(cols[i],TRACK)>=3,base+" "+k+" is "+contrast(cols[i],TRACK).toFixed(2)+":1 on the track");
+    A.ok(contrast(TEXT,underBand(cols[i]))>=4.5,base+" "+k+" under text "+contrast(TEXT,underBand(cols[i])).toFixed(2));
+    for(let j=i+1;j<cols.length;j++)A.ok(Math.hypot(...cols[i].map((v,a)=>v-cols[j][a]))>=18,base+" "+k+" vs "+RD_SHADES[j]+" look alike")});
+}
+// the contrast arithmetic is WCAG's: white on black is 21:1, equal colours are 1:1
+A.ok(Math.abs(contrast([255,255,255],[0,0,0])-21)<1e-9);A.equal(contrast([9,9,9],[9,9,9]),1);
 console.log("ok");
 """)
     assert out == "" or out.strip() == "ok"

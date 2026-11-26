@@ -778,9 +778,9 @@ function rdColor(agent,group){return (Object.prototype.hasOwnProperty.call(RD_CO
 function rdShade(hex,k){
  const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex);if(!m)return hex;
  return "#"+[m[1],m[2],m[3]].map(x=>{const v=parseInt(x,16),t=k<0?0:255,r=Math.round(v+(t-v)*Math.abs(k));return (r<16?"0":"")+r.toString(16)}).join("")}
-/** Shade of a lane = a function of its node alone, never of which other lanes the document has: 0 keeps the agent's colour, the rest are lighter or darker (a darker swatch sinks into the dark page, so none goes near black).
+/** Shade of a lane = a function of its node alone, never of which other lanes the document has: 0 keeps the agent's colour, the rest are lighter steps of it (a darker swatch sinks into the dark page: every shade here is at least 3:1 against the track, #0d141d, for every role colour, and the band text stays at 4.5:1 or better).
  *  Known nodes have a fixed slot (the common first attempts keep the agent's colour); any other node name hashes into slots 1-5, so two unrelated nodes of one agent can share a shade (the label still tells them apart). */
-const RD_SHADES=[0,0.35,-0.3,0.6,-0.45,0.8];
+const RD_SHADES=[0,0.35,0.5,0.65,0.2,0.8];
 const RD_NODE_SLOT={extract:0,classify:0,judge_verify:0,retry_extract:1,retry_classify:1,classification_arbiter:1,retry_extract_2:2};
 function rdHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 const rdLaneShade=node=>!node?0:RD_SHADES[Object.prototype.hasOwnProperty.call(RD_NODE_SLOT,node)?RD_NODE_SLOT[node]:1+rdHash(node)%5];
