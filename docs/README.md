@@ -121,8 +121,8 @@ folder (the superpowers plugin uses one under `docs/`) move here before merging.
 
 ## Audits
 
-Point-in-time reviews, named `YYYY-MM-DD-<topic>.md`. They are not updated
-after the fact.
+Point-in-time reviews, named `YYYY-MM-DD-<topic>.md`. Their findings are not
+revised later; an outcome is appended as a dated section.
 
 | Date | Audit |
 | --- | --- |

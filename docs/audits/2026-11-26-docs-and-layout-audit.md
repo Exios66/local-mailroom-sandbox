@@ -304,3 +304,31 @@ Process changes:
    convention. Renaming touches code, tests, the hub and the catalog for no functional gain.
 6. **Release cut.** `[Unreleased]` holds about 1,290 lines since 0.3.0. Cutting 0.4.0 after Phase 3
    would give the docs a stable reference point.
+
+## Outcome (2026-11-26, same branch)
+
+The maintainer chose: keep the release CSVs (E7), do the full `docs/` reorganization
+(decision 1), add the extra `--check` gates to CI (E9), and cut 0.4.0 (decision 6).
+Decision 2 had no answer, so the unreferenced campaign scripts were archived, as
+recommended, not deleted. Decision 5 (ticket folder spelling) took the recommended
+default: kept, and documented in `reports/README.md`.
+
+Where the work differs from the plan above:
+
+- **Two docs stay at the root.** `EXTRACTION_GATE_VETTING.md` and
+  `rb1-r13b-smoke-review.md` are cited by `config/decisions/` question sets, which are
+  byte-hashed into run locks (`questions_sha256`), and by committed campaign config copies
+  under `reports/campaigns/`. Editing those citations would change a frozen identity, so
+  both are indexed in place. Run-config comments were safe to edit: `spec_hash` is computed
+  from the parsed spec, not the file bytes.
+- **The serving-ladder spec moved after all**, with the other superpowers plans and specs: its 31
+  run-config citations are comments.
+- **`export_hub_reports.py --check` is not in CI.** It compares against a sibling
+  `mailroom-issues` checkout. `scripts/sand032/rerender.py --check` crashed on the
+  committed tree (its glob reached other generators' figure folders) and was fixed first.
+- **The agent-name check is narrower.** The docs-audit router now names real owners. The
+  old assignee names in `governance/TASKS.md` are board history and were left as they are.
+  `tests/test_docs_drift.py` checks the `.claude/agents` wrappers but not free-text agent
+  names.
+- **`uv.lock` was stale** against `pyproject.toml` (#403, #404) and was regenerated in its
+  own commit before the version bump.
