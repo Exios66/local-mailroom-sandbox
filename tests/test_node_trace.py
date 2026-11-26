@@ -424,9 +424,18 @@ def test_tracker_keeps_the_current_node_for_read_ranges():
 
 
 def test_classification_arbiter_is_tracked():
-    assert node_trace.NODE_AGENTS["classification_arbiter"] == "classification_arbiter"
+    """The node is tracked, and its record carries the model of the ``arbiter`` agent it runs on."""
+    assert node_trace.NODE_AGENTS["classification_arbiter"] == "arbiter"
     records: list[dict] = []
-    tracker = node_trace.NodeTracker("d1", records.append)
+    tracker = node_trace.NodeTracker("d1", records.append, models={"arbiter": "arbiter-model"})
     _start_end(tracker, "classification_arbiter", {"stage": "classified"})
     assert [r["status"] for r in records] == ["running", "done"]
     assert {r["node"] for r in records} == {"classification_arbiter"}
+    assert {(r["agent"], r["model"]) for r in records} == {("arbiter", "arbiter-model")}
+
+
+def test_classification_arbiter_node_agent_is_a_real_agent_name():
+    """Every agent a node maps to is an ``agent_name`` the vendored pipeline reports (no invented keys)."""
+    from agents.arbiter import ClassificationArbiterAgent
+
+    assert node_trace.NODE_AGENTS["classification_arbiter"] == ClassificationArbiterAgent.agent_name

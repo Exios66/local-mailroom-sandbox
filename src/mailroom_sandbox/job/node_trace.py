@@ -54,7 +54,7 @@ NODE_AGENTS: dict[str, str | None] = {
     "retry_extract": "specialist",
     "judge_verify": "judge",
     "arbiter": "arbiter",
-    "classification_arbiter": "classification_arbiter",
+    "classification_arbiter": "arbiter",  # ClassificationArbiterAgent: agent_name "arbiter", the arbiter route and model
     "human_review": None,
     "boss_escalation": "boss",
     "compile_report": None,

@@ -751,10 +751,10 @@ function debugPane(){
  return h}
 // READS:BEGIN — pure helpers for the DOCUMENT panel: no DOM and no globals but esc(). The floor selftest runs this block under Node.
 // Offsets in digest.debug.reads are Python code points into the WORKING text; a JS string indexes UTF-16, so they are converted once.
-const RD_ORDER=["intake","sorter","reviewer","classification_arbiter","specialist","judge","arbiter","decisions","jev","other"];
+const RD_ORDER=["intake","sorter","reviewer","specialist","judge","arbiter","decisions","jev","other"];
 // Band colours follow the experiment-figures roles (figure_style.py): colour = system, shade = stage.
 const RD_COLORS={intake:"#b4b2a9",                                 // neutral reference
- sorter:"#eb6834",sorter_reviewer:"#f7a98b",classification_arbiter:"#b8431c",   // LLM sorter orange (slot 2), tints and shade for its verifiers
+ sorter:"#eb6834",sorter_reviewer:"#f7a98b",                                   // LLM sorter orange (slot 2) and a tint for its reviewer
  judge:"#7fdcb9",completeness_judge:"#7fdcb9",arbiter:"#0f8f62",               // third-system aqua (slot 3) for the extraction verifiers
  "decisions:closed_field_resolver":"#2a78d6","decisions:extraction_gate":"#6aa5ec","decisions:classification":"#1b4f94",   // decision model blue (slot 1)
  jev:"#898781"};                                                    // muted neutral
@@ -764,7 +764,6 @@ function rdGroup(agent,specSet){
  if(a==="intake")return "intake";
  if(a==="sorter")return "sorter";
  if(a==="sorter_reviewer")return "reviewer";
- if(a==="classification_arbiter")return "classification_arbiter";
  if(a==="judge"||a==="completeness_judge")return "judge";
  if(a==="arbiter")return "arbiter";
  if(a.startsWith("decisions:"))return "decisions";
