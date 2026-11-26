@@ -422,3 +422,26 @@ def test_load_bars_rejects_a_duplicate_key(tmp_path):
     custom.write_text("quality: 0.9\nquality: 0.5\n")
     with pytest.raises(ValueError, match="duplicate bar key 'quality'"):
         gate.load_bars(custom)
+
+
+@pytest.mark.parametrize("item", [
+    {"error": "x", "pred": "boom"}, {"error": "x", "pred": ["a"]}, {"ok": False, "pred": 3},
+    {"error": "x", "pred": None}])
+def test_an_error_row_with_a_malformed_pred_stays_crashed(item):
+    """The base returned ``crashed`` before touching ``pred``; the re-ask read must not raise first."""
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": item}, Bars())
+    assert status["outcome"] == "crashed" and "judge_reasks" not in status
+
+
+@pytest.mark.parametrize("asked", ["x", "1.5", [1], float("inf"), float("nan")])
+def test_a_malformed_re_ask_count_is_skipped_not_raised(asked):
+    pred = {"stage": "review", "judge_reasks": {"completeness": {"asked": asked},
+                                                "correctness": {"asked": 1, "recovered": 1}}}
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": {"pred": pred}}, Bars())
+    assert status["judge_reasks"] == {"correctness": {"asked": 1, "recovered": 1, "parked": 0}}
+
+
+def test_errored_never_goes_negative_on_inconsistent_counts():
+    status = {"id": "d", "judge_reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 1}}}
+    block = gate._judge_reask_block([status])
+    assert block["errored"] == 0 and block["by_judge"]["completeness"]["errored"] == 0

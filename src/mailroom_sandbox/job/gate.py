@@ -201,8 +201,15 @@ def is_wrong_class(expected_class: str, pred: Mapping[str, Any]) -> bool:
 
 def _judge_reask_counts(raw: Any) -> dict[str, dict[str, int]]:
     """A pipeline result's ``judge_reasks`` as plain ints: ``{judge: {"asked", "recovered", "parked"}}``."""
-    return {str(judge): {key: int((counts or {}).get(key) or 0) for key in ("asked", "recovered", "parked")}
-            for judge, counts in raw.items() if isinstance(counts, Mapping)}
+    out: dict[str, dict[str, int]] = {}
+    for judge, counts in raw.items():
+        if not isinstance(counts, Mapping):
+            continue
+        try:
+            out[str(judge)] = {key: int(counts.get(key) or 0) for key in ("asked", "recovered", "parked")}
+        except (TypeError, ValueError, OverflowError):
+            continue  # a hand-edited or corrupt count: skip that judge, never raise out of the gate
+    return out
 
 
 def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
@@ -219,7 +226,7 @@ def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
             total = by_judge.setdefault(judge, {"asked": 0, "recovered": 0, "parked": 0, "errored": 0})
             for key in ("asked", "recovered", "parked"):
                 total[key] += counts[key]
-            total["errored"] += counts["asked"] - counts["recovered"] - counts["parked"]
+            total["errored"] += max(0, counts["asked"] - counts["recovered"] - counts["parked"])
     totals = {key: sum(c[key] for c in by_judge.values()) for key in ("asked", "recovered", "parked", "errored")}
     return {"documents": len(reasked), **totals, "by_judge": dict(sorted(by_judge.items())),
             "docs": [s["id"] for s in reasked]}
@@ -233,7 +240,12 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
                            "labelled": labelled_count(row, doc_class)}
     if item is None:
         return out
-    pred = item.get("pred") or {}
+    pred = item.get("pred")
+    if not isinstance(pred, Mapping):
+        # A malformed ``pred`` (hand-edited items.jsonl): an error row stays ``crashed`` as before.
+        if item.get("error") or item.get("ok") is False:
+            return out
+        pred = {}
     if isinstance(pred.get("judge_reasks"), Mapping):
         # HF-002 / HF-013: a judge answer was asked twice. Read before the crash returns below: a document
         # the run returned as failed still made (and billed) its re-asks.
