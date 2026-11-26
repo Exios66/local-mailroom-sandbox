@@ -278,3 +278,99 @@ def test_l2_off_keeps_the_classify_retry(monkeypatch, tmp_path):
     out, scope = _harness(monkeypatch, tmp_path, Script(sorter=0.95, confs=[0.88] * 6), spec=GovernorSpec())
     assert out["path"][:3] == ["intake", "classify", "retry_classify"]
     assert scope["governor"]["skipped_classify_retries"] == 0 and scope["governor"]["retries"] == 1
+
+
+# --- Task 6: L4, duplicates are linked before the conflict check (HF-019) -----------------------------------
+
+import types  # noqa: E402
+
+_WORDS = [f"w{n}" for n in range(300)]
+_TEXT = " ".join(_WORDS)
+
+
+def _row(doc_id, sha, governing_law="New York", doc_type="contract", stage="archived"):
+    return types.SimpleNamespace(doc_id=doc_id, doc_type=doc_type, stage=stage, file_sha256=sha,
+                                 extracted_data={"governing_law": governing_law})
+
+
+def _conflict(monkeypatch, rows, *, state=None, spec=GovernorSpec()):
+    """HF-019's ``_detect_conflict`` against a catalog holding ``rows``; returns (result, scope)."""
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    assert vh.apply_hotfixes()["HF-019"] == "applied"
+    import graph.build_graph as bg
+    import storage.catalog as catalog
+
+    async def matter_rows(matter_id):
+        return list(rows)
+
+    monkeypatch.setattr(catalog, "get_matter_documents", matter_rows)
+    governor.activate(spec)
+    doc = {"matter_id": "M1", "doc_id": "d1", "doc_type": "contract", "file_sha256": "sha-new", "doc_text": _TEXT,
+           **(state or {})}
+    with call_guard.document() as scope:
+        result = bg._detect_conflict(doc, {"governing_law": "Delaware"})
+    return result, scope
+
+
+def test_an_exact_re_ingestion_is_linked_not_escalated(monkeypatch):
+    (found, details), scope = _conflict(monkeypatch, [_row("d0", "sha-new")])
+    assert (found, details) == (False, [])
+    assert scope["duplicate_of"] == {"doc_id": "d0", "kind": "exact", "similarity": 1.0}
+
+
+def test_a_near_duplicate_is_linked(monkeypatch):
+    governor.activate(GovernorSpec())
+    edited = " ".join(["changed" if i == 150 else w for i, w in enumerate(_WORDS)])
+    governor.note_seen("M1", "d0", _TEXT)
+    monkeypatch.setattr(governor, "activate", lambda spec: None)  # keep the index the archived document left
+    (found, _), scope = _conflict(monkeypatch, [_row("d0", "sha-old")], state={"doc_text": edited})
+    assert found is False
+    assert scope["duplicate_of"]["kind"] == "near" and scope["duplicate_of"]["similarity"] >= 0.9
+
+
+def test_a_conflict_with_a_non_duplicate_row_still_escalates(monkeypatch):
+    (found, details), scope = _conflict(monkeypatch, [_row("d0", "sha-new"), _row("d2", "sha-other")])
+    assert found is True and details and "duplicate_of" not in scope
+
+
+def test_duplicates_are_not_linked_with_the_governor_off(monkeypatch):
+    (found, _), scope = _conflict(monkeypatch, [_row("d0", "sha-new")], spec=None)
+    assert found is True and "duplicate_of" not in scope
+
+
+def test_duplicates_are_not_linked_when_link_duplicates_is_off(monkeypatch):
+    (found, _), scope = _conflict(monkeypatch, [_row("d0", "sha-new")], spec=GovernorSpec(link_duplicates=False))
+    assert found is True and "duplicate_of" not in scope
+
+
+def test_other_types_and_unarchived_rows_do_not_block_a_link(monkeypatch):
+    rows = [_row("d0", "sha-new"), _row("d3", "sha-x", doc_type="corporate_record"), _row("d4", "sha-y", stage="review")]
+    (found, _), scope = _conflict(monkeypatch, rows)
+    assert found is False and scope["duplicate_of"]["doc_id"] == "d0"
+
+
+def test_the_near_duplicate_index_is_safe_across_threads():
+    import threading
+
+    governor.activate(GovernorSpec())
+    threads = [threading.Thread(target=lambda n=n: [governor.note_seen("M", f"d{n}-{i}", f"{_TEXT} {n} {i}")
+                                                     for i in range(25)]) for n in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert all(governor.seen("M", f"d{n}-{i}") for n in range(8) for i in range(25))
+    governor.activate(GovernorSpec())
+    assert not governor.seen("M", "d0-0")  # activation starts a fresh index
+
+
+def test_shingles_are_word_5_grams_of_the_casefolded_collapsed_text():
+    assert governor.shingles("A b  C\nd E f") == frozenset({"a b c d e", "b c d e f"})
+    assert governor.shingles("one two") == frozenset({"one two"}) and governor.shingles("  ") == frozenset()
+
+
+def test_a_long_document_keeps_a_bounded_sketch():
+    governor.activate(GovernorSpec())
+    governor.note_seen("M", "long", " ".join(f"w{n}" for n in range(50_000)))
+    assert len(governor.seen("M", "long")) == governor.SKETCH_SIZE

@@ -1393,7 +1393,7 @@ def test_hf018_is_registered_with_a_pinned_source():
     import graph.route_spec as rs
 
     fix = next(f for f in vh.HOTFIXES if f.id == "HF-018")
-    assert [f.id for f in vh.HOTFIXES][-1] == "HF-018"
+    assert "HF-018" in [f.id for f in vh.HOTFIXES]
     assert (fix.module, fix.attr) == ("graph.route_spec", "decide_route")
     assert fix.source_sha256 == vh._source_sha(rs.decide_route)
     assert vh.apply_hotfixes()["HF-018"] == "applied"
@@ -1449,3 +1449,14 @@ def test_a_reask_that_fails_again_still_parks_with_the_note_sent():
     with pytest.raises(vh.JudgeParseError):
         judge.judge_completeness("contract", {"parties": ["A"]}, "t")
     assert sent[1].endswith(vh.JUDGE_REPAIR_NOTE + "a")
+
+
+def test_hf019_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-019")
+    assert [f.id for f in vh.HOTFIXES][-2:] == ["HF-018", "HF-019"]
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_detect_conflict")
+    assert fix.source_sha256 == vh._source_sha(bg._detect_conflict)
+    assert dict(fix.also)["_fetch_matter_context"] == vh._source_sha(bg._fetch_matter_context)
+    assert vh.apply_hotfixes()["HF-019"] == "applied"

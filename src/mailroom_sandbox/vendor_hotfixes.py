@@ -1193,6 +1193,44 @@ def _install_governor(_module: Any, original: Callable[..., Any]) -> Callable[..
     return decide_route
 
 
+def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """L4 (HF-019, phase 2): a re-ingested or near-identical document is linked, not sent to the Boss.
+
+    Upstream compares every extraction with the matter's archived records of the same class, so a
+    second copy of an archived document (or one a few words off) reads as a field conflict and
+    spends a boss entry. With ``job.governor`` and ``link_duplicates`` on, a conflict whose every
+    compared row is a duplicate (same ``file_sha256``, or shingle Jaccard at the threshold) is
+    recorded as ``duplicate_of`` and reported as no conflict. Any other conflict is unchanged, and
+    a failure here keeps the original answer.
+    """
+    from mailroom_sandbox import governor
+    from mailroom_sandbox.job import call_guard
+
+    @functools.wraps(original)
+    def _detect_conflict(state: dict, extracted_data: dict | None) -> tuple[bool, list[str]]:
+        found, details = original(state, extracted_data)
+        spec = governor.active()
+        if spec is None or not spec.link_duplicates:
+            return found, details
+        try:
+            matter = state.get("matter_id")
+            if found and matter:
+                from storage.catalog import get_matter_documents
+
+                dup = governor.duplicate_of(state, module._run_coro(lambda: get_matter_documents(matter)))
+                if dup is not None:
+                    scope = call_guard.scope()
+                    if scope is not None:
+                        scope["duplicate_of"] = dup
+                    found, details = False, []
+        except Exception as exc:  # noqa: BLE001 — linking is best-effort; the conflict stands
+            _log.warning("HF-019 duplicate check failed: %s", exc)
+        governor.note_seen(state.get("matter_id"), state.get("doc_id"), str(state.get("doc_text") or ""))
+        return found, details
+
+    return _detect_conflict
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -1398,6 +1436,18 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "to the archive when the current extraction passed the judge; L2 sends a sorter retry "
                 "at the measured sorter ceiling to the second opinion instead",
         install=_install_governor,
+    ),
+    Hotfix(
+        id="HF-019",
+        module="graph.build_graph",
+        attr="_detect_conflict",
+        source_sha256="dcc08fe49223c4cb922003ad477bf47ce0520ca3cdb7e5776892888cca143f2d",
+        upstream="upstream issue to be filed (llm-mailroom: a re-ingested document reads as a matter conflict)",
+        summary="with job.governor and link_duplicates on, a matter conflict whose every compared archived "
+                "row is the same file (file_sha256) or a near copy (shingle Jaccard at the threshold) is "
+                "recorded as duplicate_of and does not go to the Boss",
+        install=_install_duplicate_link,
+        also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
     ),
 )
 

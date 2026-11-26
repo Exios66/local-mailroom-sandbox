@@ -388,7 +388,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     - on a match it records `scope["duplicate_of"]` and returns `(False, [])`;
     - it always calls `note_seen` for the current document.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_an_exact_re_ingestion_is_linked_not_escalated`: the same `file_sha256` gives no boss call,
     `duplicate_of.kind == "exact"`, and an archived stage.
   - `test_a_near_duplicate_is_linked`: one word changed in a 300-word document gives `kind == "near"` and
@@ -399,12 +399,12 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   - `test_the_near_duplicate_index_is_safe_across_threads`: 8 threads each call `note_seen`, and every entry
     is present.
   - `test_hf019_is_registered_with_a_pinned_source`.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py
   tests/test_vendor_hotfixes.py`.
-- [ ] **Step 3: Implement** `shingles`, `note_seen`, `duplicate_of` and HF-019 (pinned source of
+- [x] **Step 3: Implement** `shingles`, `note_seen`, `duplicate_of` and HF-019 (pinned source of
   `_detect_conflict`).
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py`.
-- [ ] **Step 5: Commit** `feat(governor): HF-019 links exact and near duplicates before the conflict check (phase2 task 6)`.
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py`.
+- [x] **Step 5: Commit** `feat(governor): HF-019 links exact and near duplicates before the conflict check (phase2 task 6)`.
 
 ### Task 7: L5 — near-empty documents go to review before any model call
 
