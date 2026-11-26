@@ -778,7 +778,7 @@ function rdModel(reads,specialists){
   const a=String(c.agent);
   if(!by.has(a))by.set(a,{agent:a,group:rdGroup(a,spec),color:"",calls:[]});
   by.get(a).calls.push({i,n:by.get(a).calls.length+1,node:c.node||"",basis:c.basis||"",ranges:Array.isArray(c.ranges)?c.ranges:[],
-   matched:+c.matched||0,request:+c.request||0,skipped:c.skipped||""})});
+   matched:+c.matched||0,request:+c.request||0,skipped:c.skipped||"",unplaced:+c.unplaced||0,approx:c.approx===true})});
  const agents=[...by.values()].sort((x,y)=>RD_ORDER.indexOf(x.group)-RD_ORDER.indexOf(y.group)||(x.agent<y.agent?-1:x.agent>y.agent?1:0));
  agents.forEach(g=>{g.color=rdColor(g.agent,g.group)});
  return {agents}}
@@ -789,7 +789,7 @@ function rdCpMap(text){
  for(let i=0;i<text.length;i++){idx.push(i);const c=text.charCodeAt(i);
   if(c>=0xd800&&c<0xdc00&&i+1<text.length){const d=text.charCodeAt(i+1);if(d>=0xdc00&&d<0xe000)i++}}
  idx.push(text.length);return {len:idx.length-1,map:idx}}
-function rdToU16(cp,r){if(!cp.map)return [r[0],r[1]];const f=x=>cp.map[Math.max(0,Math.min(cp.len,x))];return [f(r[0]),f(r[1])]}
+function rdToU16(cp,r){if(!cp||!cp.map)return [r[0],r[1]];const f=x=>cp.map[Math.max(0,Math.min(cp.len,x))];return [f(r[0]),f(r[1])]}
 function rdMerge(rs){
  const a=rs.filter(r=>r&&r[1]>r[0]).map(r=>[r[0],r[1]]).sort((x,y)=>x[0]-y[0]||x[1]-y[1]),out=[];
  for(const r of a){const l=out[out.length-1];if(l&&r[0]<=l[1]){if(r[1]>l[1])l[1]=r[1]}else out.push(r)}
@@ -814,6 +814,15 @@ function rdFind(nt,needle,cap){
  while(out.length<cap){const k=nt.norm.indexOf(needle,from);if(k<0)break;
   out.push([nt.map[k],nt.map[k+needle.length-1]+1]);from=k+needle.length}
  return out}
+/** True when any occurrence of any leaf — beyond the navigation cap too — is covered by `merged`.
+ *  Stops at the first covered occurrence, so a needle repeated past the cap is still judged fully. */
+function rdCoveredAny(nt,leaves,merged){
+ if(!nt)return false;
+ for(const l of leaves){const n=rdNormalize(l).norm;if(!n)continue;let from=0;
+  for(;;){const k=nt.norm.indexOf(n,from);if(k<0)break;
+   if(rdCovers(merged,nt.map[k],nt.map[k+n.length-1]+1))return true;
+   from=k+n.length}}
+ return false}
 function rdLeaves(v,out,depth){
  out=out||[];depth=depth||0;
  if(out.length>=24||depth>4||v==null||typeof v==="boolean")return out;
@@ -830,31 +839,45 @@ const rdSing=t=>t.length>3&&t.endsWith("s")&&!t.endsWith("ss")?t.slice(0,-1):t;
 const rdStem=n=>String(n).replace(/_specialist$/,"").split("_").map(rdSing).join("_");
 /** Per-field flags for one document. Everything the flags use is in `a`; `a.cache` keeps the normalised text between repaints. */
 function rdAnalyse(a){
+ const hasText=a.hasText!==false&&typeof a.text==="string"&&a.text.length>0;
  const text=a.text||"",cache=a.cache||{};
- if(cache.text!==text){cache.text=text;cache.nt=rdNormalize(text);cache.cp=rdCpMap(text)}
- const nt=cache.nt,cp=cache.cp,reads=a.reads,model=rdModel(reads,a.specialists);
+ if(hasText&&cache.text!==text){cache.text=text;cache.nt=rdNormalize(text);cache.cp=rdCpMap(text)}
+ const nt=hasText?cache.nt:null,cp=cache.cp,reads=a.reads,model=rdModel(reads,a.specialists);
  const noReads=!reads||!Array.isArray(reads.calls);
- const lengthMismatch=!noReads&&reads.doc_chars>0&&cp.len!==reads.doc_chars;
- /** The digest hashed the stored text against the tag on the kept read records: ranges from another attempt. */
- const textMismatch=!noReads&&reads.text_pairing==="different";
+ const lengthMismatch=!noReads&&hasText&&reads.doc_chars>0&&cp.len!==reads.doc_chars;
+ /** The digest hashed the stored text against the tag on the kept read records, and the endpoint
+  *  hashed the text it served against the same tag: ranges from another text never paint. */
+ const servedHash=typeof a.textHash==="string"?a.textHash:null;
+ const digestHash=reads&&typeof reads.text_hash==="string"?reads.text_hash:null;
+ const textMismatch=!noReads&&(reads.text_pairing==="different"||(servedHash!==null&&digestHash!==null&&servedHash!==digestHash));
  const spec=model.agents.filter(g=>g.group==="specialist"),exact=[];let unknown=0;
- spec.forEach(g=>g.calls.forEach(c=>{if(c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>exact.push(rdToU16(cp,r)));else unknown++}));
+ if(hasText)spec.forEach(g=>g.calls.forEach(c=>{if(c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>exact.push(rdToU16(cp,r)));else unknown++}));
  const merged=rdMerge(exact),ran=spec.map(g=>g.agent),cls=a.cls||{},gt=cls.gt,pred=cls.pred;
  const forGt=!gt||ran.some(n=>rdStem(n)===rdStem(gt))||(pred===gt&&ran.length>0);
  const misrouted=!noReads&&!forGt,canJudgeRange=!noReads&&!lengthMismatch&&!textMismatch&&unknown===0;
+ /** A capped call (unread gaps merged in) or one with unplaced pieces is only partly measured:
+  *  a definitive "not read" cannot be judged while any specialist call is. */
+ const incomplete=!noReads&&spec.some(g=>g.calls.some(c=>c.unplaced>0||c.approx));
  const expected=a.expected||{},extracted=a.extracted||{},names=[];
+ // Overlay selection is not an input: the analysis is reused across agent/call toggles and
+ // invalidated when the text, the fields, the class pair, the specialist set or the reads change.
+ const sig=JSON.stringify([hasText,expected,extracted,cls.gt||null,cls.pred||null,(a.specialists||[]).join(","),
+  reads&&Array.isArray(reads.calls)?reads.calls.length:-1,reads&&reads.doc_chars||null,reads&&reads.text_pairing||null,digestHash,servedHash]);
+ if(cache.analysis&&cache.analysisSig===sig&&cache.analysisText===text)return cache.analysis;
  Object.keys(expected).concat(Object.keys(extracted)).forEach(k=>{if(!names.includes(k))names.push(k)});
  const rows=names.map(field=>{
   const ev=expected[field],xv=extracted[field],leaves=rdLeaves(ev);
   const hasExpected=ev!=null&&ev!=="",hasExtracted=xv!=null&&xv!=="";
-  const occ=leaves.length?rdOccurrences(nt,leaves):[];let flag="";
+  const occ=hasText&&leaves.length?rdOccurrences(nt,leaves):[];let flag="";
   if(leaves.length){
-   if(!occ.length)flag="not in text";
+   if(hasText&&!occ.length)flag="not in text";
    else if(misrouted)flag=ran.length===0&&pred===gt?"no specialist ran":"misrouted";
-   else if(canJudgeRange&&!occ.some(r=>rdCovers(merged,r[0],r[1])))flag="not read"}
+   else if(hasText&&canJudgeRange&&!incomplete&&!rdCoveredAny(nt,leaves,merged))flag="not read"}
   const result=hasExpected&&hasExtracted?(rdNormalize(rdShow(ev)).norm===rdNormalize(rdShow(xv)).norm?"matches":"differs"):hasExpected?"no value":"";
   return {field,expected:rdShow(ev),extracted:rdShow(xv),hasExpected,hasExtracted,leaves,occ,flag,result}});
- return {rows,misrouted,ran,unknown,noReads,lengthMismatch,textMismatch,merged}}
+ const out={rows,misrouted,ran,unknown,noReads,lengthMismatch,textMismatch,incomplete,hasText,merged};
+ cache.analysisSig=sig;cache.analysisText=text;cache.analysis=out;
+ return out}
 /** Cut [0,len) at every range boundary in one sweep; each segment lists the layers covering it. Layers are arrays of [start,end). */
 function rdSegments(len,layers){
  const ev=[];
@@ -877,7 +900,7 @@ function rdTextHtml(text,segs,colors){
   h+=`<span class="rd-seg${g.act.includes(nb)?" rd-hit":""}${g.act.includes(nb+1)?" rd-cur":""}"${st}>${raw}</span>`}
  return h}
 const rdPct=x=>(x*100).toFixed(3);
-function rdMinimapHtml(model,callOff,on,total){
+function rdMinimapHtml(model,callOff,on,total,allowPos){
  let h="";
  for(const g of model.agents){
   const shown=g.calls.filter(c=>!callOff.has(c.i)),cov=[];let bars="";
@@ -885,7 +908,7 @@ function rdMinimapHtml(model,callOff,on,total){
    const raw=c.basis!=="working";
    c.ranges.forEach(r=>{
     if(!raw&&!c.skipped)cov.push(r);
-    if(total>0&&r[1]>r[0]){const l=Math.max(0,r[0])/total,w=(Math.min(total,r[1])-Math.max(0,r[0]))/total;
+    if(allowPos&&total>0&&r[1]>r[0]){const l=Math.max(0,r[0])/total,w=(Math.min(total,r[1])-Math.max(0,r[0]))/total;
      bars+=`<i class="mm-r" style="left:${rdPct(l)}%;width:${rdPct(Math.max(0,w))}%;${raw?`background:transparent;border:1px dashed ${g.color}`:`background:${g.color}`}"></i>`}})});
   const m=rdMerge(cov),chars=m.reduce((t,r)=>t+r[1]-r[0],0);
   const label=`${g.agent}: ${g.calls.length} call${g.calls.length===1?"":"s"}, `+(total>0?`${Math.round(100*chars/total)}% of ${total.toLocaleString("en-US")} characters in exact ranges`:"document length unknown");
@@ -901,19 +924,32 @@ function rdTogglesHtml(model,on,callOff){
    return `<button type="button" data-rd="call" data-agent="${esc(g.agent)}" data-i="${c.i}" aria-pressed="${!callOff.has(c.i)}" title="${esc(g.agent)} call ${c.n}${c.node?" at "+esc(c.node):""}${t?" ("+esc(t)+")":""}">#${c.n}${t?` <small class="mut">${esc(t)}</small>`:""}</button>`}).join("")+`</span>`;
   h+=`</span>`}
  return h}
-const RD_FLAG_TITLE={"not read":"The value occurs in the working text, but in no range a specialist read (every specialist call counts, retries included).",
+const RD_FLAG_TITLE={"not read":"The value occurs in the working text, but in no range a specialist read (every specialist call counts, retries included; withheld while a specialist call is only partly measured).",
  "misrouted":"No specialist for this document's true class ran, so no field was extracted for it.",
  "no specialist ran":"The document was classified correctly, but no specialist ran for it, so no field was extracted.",
- "not in text":"The value does not occur in the working text at all (a label or OCR difference, or a rewritten text)."};
-const rdTrunc=(s,n)=>s.length>n?s.slice(0,n-1)+"…":s;
+ "not in text":"The value does not occur in the working text at all (a label or OCR difference, or a rewritten text)."};const rdTrunc=(s,n)=>s.length>n?s.slice(0,n-1)+"…":s;
 /** The whole panel as escaped HTML. `v` is plain data (see rdView in the glue); nothing in it is trusted. */
+/** The field table, shared by the text pane and the text-less layout. `occ` is the selected field's occurrence list. */
+function rdFieldsHtml(an,v,occ){
+ if(an&&an.rows.length){
+  let h=`<table class="t rd-ft"><tr><th>field</th><th>expected</th><th>extracted</th><th>flag</th></tr>`+an.rows.slice(0,300).map(r=>{
+   const sel=v.field===r.field,k=sel&&occ.length?` <small class="mut">${(((v.hit||0)%occ.length)+occ.length)%occ.length+1} of ${occ.length}</small>`:r.occ.length?` <small class="mut">×${r.occ.length}</small>`:"";
+   const fl=r.flag?`<span class="rd-flag rd-${r.flag.replace(/ /g,"-")}" title="${esc(RD_FLAG_TITLE[r.flag])}">${esc(r.flag)}</span>`:"";
+   return `<tr data-f="${esc(r.field)}"${sel?' class="sel"':""}><td><button type="button" class="rd-go" data-rd="field" data-f="${esc(r.field)}" title="Scroll to this value in the text">${esc(r.field)}</button></td><td class="rd-v" title="${esc(r.expected)}">${esc(rdTrunc(r.expected,60))}${k}</td><td class="rd-v" title="${esc(r.extracted)}">${esc(rdTrunc(r.extracted,60))}${r.result?` <small class="${r.result==="matches"?"ok":"warn"}">${r.result}</small>`:""}</td><td>${fl}</td></tr>`}).join("")+`</table>`;
+  h+=`<p class="secnote">Flags are computed here from the stored text and ranges: <b>not read</b>, <b>misrouted</b>, <b>no specialist ran</b>, <b>not in text</b>. "matches" and "differs" compare the strings only (whitespace and case ignored); they are not the Dojo score.`+(an.unknown?` ${an.unknown} specialist call${an.unknown===1?"":"s"} ha${an.unknown===1?"s":"ve"} no exact range (raw basis or size skip), so <b>not read</b> is not claimed.`:"")+(an.incomplete?` A specialist call was only partly measured (unplaced pieces or a capped range list), so <b>not read</b> is not claimed.`:"")+(an.noReads?" No reads were recorded, so only <b>not in text</b> can be judged.":"")+(an.hasText?"":" No working text is available, so <b>not in text</b> and <b>not read</b> cannot be judged.")+`</p>`;
+  return h}
+ if(an)return `<p class="secnote">The dataset row has no expected fields and the item stored no extraction.</p>`;
+ return ""}
 function rdPanelHtml(v){
  const data=v.status==="ok"&&v.data?v.data:null,reads=v.reads,model=rdModel(reads,v.specialists);
  const on=new Set(v.on||[]),callOff=new Set((v.callOff||[]).map(Number)),cls=v.cls||{},cache=v.cache||{};
  const working=data&&typeof data.working==="string"?data.working:null,original=data&&typeof data.original==="string"?data.original:null;
  const useOrig=original!==null&&(!!v.original||working===null),text=useOrig?original:working;
- const an=working!==null?rdAnalyse({text:working,expected:data.expected,extracted:data.extracted,reads,cls,specialists:v.specialists,cache}):null;
- const total=an?cache.cp.len:(reads&&reads.doc_chars>0?reads.doc_chars:0);   // loaded working text wins; doc_chars only scales a text-less map
+ const an=data?rdAnalyse({text:working||"",hasText:working!==null,expected:data.expected,extracted:data.extracted,reads,cls,
+  specialists:v.specialists,textHash:data.text_hash,cache}):null;
+ const total=an&&an.hasText?cache.cp.len:(reads&&reads.doc_chars>0?reads.doc_chars:0);   // loaded working text wins; doc_chars only scales a text-less map
+ const pairingOff=!(!reads||!Array.isArray(reads.calls))&&reads.text_pairing==="different";
+ const bandsOff=pairingOff||(an&&an.textMismatch);
  let h=`<div class="rd"><div class="rd-head"><b>DOCUMENT</b><span>${esc(v.id)}</span>`;
  if(cls.gt||cls.pred)h+=`<span class="mut">class ${esc(cls.gt||"?")} → ${esc(cls.pred||"—")}</span>`;
  if(total>0)h+=`<span class="mut">${total.toLocaleString("en-US")} characters</span>`;
@@ -925,11 +961,11 @@ function rdPanelHtml(v){
  else if(text===null)h+=`<p class="secnote"><span class="warn">Text unavailable</span> — the run store holds no text for this document.</p>`;
  if(!reads||!Array.isArray(reads.calls))h+=`<p class="secnote">Read ranges: not recorded for this run.</p>`;
  else if(!model.agents.length)h+=`<p class="secnote">Read ranges: this document has no recorded agent call.</p>`;
- if(an&&an.textMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The read ranges are from a different attempt than the stored working text (a resumed run rewrote it), so they would not line up.</p>`;
+ if(bandsOff)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The read ranges are from a different text than the one stored or served (a resumed run rewrote it, possibly to the same length), so they would not line up.</p>`;
  else if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served working text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded a working text of ${reads.doc_chars.toLocaleString("en-US")} characters; its ranges would not line up.</p>`;
  if(model.agents.length){
   h+=`<div class="rd-tog" role="group" aria-label="Agents whose reads are painted on the text">${rdTogglesHtml(model,on,callOff)}</div>`;
-  h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total)}</div>`;
+  h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total,!bandsOff)}</div>`;
   if(model.agents.some(g=>g.calls.some(c=>c.basis!=="working")))h+=`<p class="secnote">Dashed bars (raw): calls made before intake finished, matched against the row's raw text. They are not painted on the working text.</p>`}
  if(text!==null){
   const rowFor=an&&v.field!=null?an.rows.find(r=>r.field===v.field):null;
@@ -947,19 +983,12 @@ function rdPanelHtml(v){
   h+=`<div class="rd-main"><div><div id="rdText" class="rd-text" tabindex="0" role="region" aria-label="${useOrig?"Original":"Working"} text of ${esc(v.id)}">${rdTextHtml(shown,segs,colors)}</div>`;
   if(text.length>RD_MAX_CHARS)h+=`<p class="secnote">Showing the first ${RD_MAX_CHARS.toLocaleString("en-US")} of ${text.length.toLocaleString("en-US")} characters.</p>`;
   if(useOrig)h+=`<p class="secnote">Original row text. Read ranges index the working text, so no bands are drawn here.</p>`;
-  h+=`</div><div class="rd-fields">`;
-  if(an&&an.rows.length){
-   h+=`<table class="t rd-ft"><tr><th>field</th><th>expected</th><th>extracted</th><th>flag</th></tr>`+an.rows.slice(0,300).map(r=>{
-    const sel=v.field===r.field,k=sel&&occ.length?` <small class="mut">${(((v.hit||0)%occ.length)+occ.length)%occ.length+1} of ${occ.length}</small>`:r.occ.length?` <small class="mut">×${r.occ.length}</small>`:"";
-    const fl=r.flag?`<span class="rd-flag rd-${r.flag.replace(/ /g,"-")}" title="${esc(RD_FLAG_TITLE[r.flag])}">${esc(r.flag)}</span>`:"";
-    return `<tr data-f="${esc(r.field)}"${sel?' class="sel"':""}><td><button type="button" class="rd-go" data-rd="field" data-f="${esc(r.field)}" title="Scroll to this value in the text">${esc(r.field)}</button></td><td class="rd-v" title="${esc(r.expected)}">${esc(rdTrunc(r.expected,60))}${k}</td><td class="rd-v" title="${esc(r.extracted)}">${esc(rdTrunc(r.extracted,60))}${r.result?` <small class="${r.result==="matches"?"ok":"warn"}">${r.result}</small>`:""}</td><td>${fl}</td></tr>`}).join("")+`</table>`;
-   h+=`<p class="secnote">Flags are computed here from the stored text and ranges: <b>not read</b>, <b>misrouted</b>, <b>no specialist ran</b>, <b>not in text</b>. "matches" and "differs" compare the strings only (whitespace and case ignored); they are not the Dojo score.`+(an.unknown?` ${an.unknown} specialist call${an.unknown===1?"":"s"} ha${an.unknown===1?"s":"ve"} no exact range (raw basis or size skip), so <b>not read</b> is not claimed.`:"")+(an.noReads?" No reads were recorded, so only <b>not in text</b> can be judged.":"")+`</p>`}
-  else if(an)h+=`<p class="secnote">The dataset row has no expected fields and the item stored no extraction.</p>`;
-  h+=`</div></div>`}
+  h+=`</div><div class="rd-fields">${rdFieldsHtml(an,v,occ)}</div></div>`}
+ else if(data)h+=`<div class="rd-fields">${rdFieldsHtml(an,v,[])}</div>`;
  return h+`</div>`}
 // READS:END
 // ── DOCUMENT panel glue: the only part that touches the DOM, fetch and the selected run ──
-const DOCV={key:"",status:"idle",reason:"",retry:false,data:null,on:new Set(),callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,epoch:0};
+const DOCV={key:"",status:"idle",reason:"",retry:false,data:null,on:new Set(),callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,epoch:0,scrollReset:false};
 /** Agents that are specialists by the digest's own data: those observed under a graph node labelled "specialists …". Names ending _specialist are caught in rdGroup. */
 function rdSpecialistNames(){
  const out=new Set(),na=D.graph_reference.node_agents||{},seen=run().node_agents||{};
@@ -972,7 +1001,8 @@ function rdCleanDoc(x){
  if(!x||typeof x!=="object"||Array.isArray(x))return null;
  const c=rdObj(x.class);
  return {working:rdStr(x.working),original:rdStr(x.original),expected:rdObj(x.expected),extracted:rdObj(x.extracted),
-  class:{gt:rdStr(c.gt),pred:rdStr(c.pred)},rewritten:x.rewritten===true,overlap:typeof x.overlap==="number"&&isFinite(x.overlap)?x.overlap:null}}
+  class:{gt:rdStr(c.gt),pred:rdStr(c.pred)},rewritten:x.rewritten===true,overlap:typeof x.overlap==="number"&&isFinite(x.overlap)?x.overlap:null,
+  text_hash:rdStr(x.text_hash)}}
 function rdFetch(d){
  const why=!LIVE?"no floor server: this page is a file or a static copy, so the document text cannot be fetched"
   :holdLive?"this is an imported digest, and text is only served for the live run store"
@@ -987,6 +1017,14 @@ function rdFetch(d){
   .catch(err=>fail(err instanceof TypeError?"the floor server did not answer":String(err&&err.message||err)))}
 function rdEnsure(d){
  const key=run().name+"\u0000"+d.id+"\u0000"+(holdLive?"snapshot":"live");
+ const reads=(d.debug&&d.debug.reads)||null;
+ const storeHash=reads&&typeof reads.text_hash==="string"?reads.text_hash:null;
+ const served=DOCV.data&&typeof DOCV.data.text_hash==="string"?DOCV.data.text_hash:null;
+ if(DOCV.key===key&&served&&storeHash&&served!==storeHash){
+  // The run store rewrote this document's text since the response was served (a resumed
+  // attempt): the cached response no longer describes the stored text. Refetch, keeping the
+  // panel's toggles and selection but dropping the text-derived analysis cache.
+  DOCV.status="idle";DOCV.data=null;DOCV.cache={};DOCV.scroll=0}
  if(DOCV.key!==key){
   Object.assign(DOCV,{key,status:"idle",reason:"",retry:false,data:null,callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false});
   DOCV.epoch++;
@@ -1003,18 +1041,19 @@ function paintDocPanel(){
  const d=selDoc&&(run().docs||[]).find(x=>x.id===selDoc);
  if(!d){el.innerHTML="";return}
  rdEnsure(d);
- const old=document.getElementById("rdText");if(old)DOCV.scroll=old.scrollTop;
+ const old=document.getElementById("rdText");if(old&&!DOCV.scrollReset)DOCV.scroll=old.scrollTop;
  el.innerHTML=rdPanelHtml(rdView(d));
  const tx=document.getElementById("rdText");
  if(tx){const cur=DOCV.jump?tx.querySelector(".rd-cur"):null;
   if(cur){const a=cur.getBoundingClientRect().top-tx.getBoundingClientRect().top;tx.scrollTop=Math.max(0,tx.scrollTop+a-tx.clientHeight/3)}
   else tx.scrollTop=DOCV.scroll;
-  DOCV.jump=false}}
+  DOCV.jump=false}
+ DOCV.scrollReset=false}}
 function rdAct(b){
  const k=b.dataset.rd,a=b.dataset.agent,i=b.dataset.i,view=b.dataset.view,f=b.dataset.f;
  if(k==="agent"){if(DOCV.on.has(a))DOCV.on.delete(a);else DOCV.on.add(a)}
  else if(k==="call"){const n=Number(i);if(DOCV.callOff.has(n))DOCV.callOff.delete(n);else DOCV.callOff.add(n)}
- else if(k==="view"){DOCV.original=view==="original";DOCV.scroll=0;DOCV.hit=0}
+ else if(k==="view"){DOCV.original=view==="original";DOCV.scroll=0;DOCV.hit=0;DOCV.scrollReset=true}
  else if(k==="field"){if(DOCV.field===f)DOCV.hit++;else{DOCV.field=f;DOCV.hit=0}DOCV.jump=true}
  else if(k==="retry"){DOCV.status="idle";DOCV.cache={}}
  paintDocPanel();

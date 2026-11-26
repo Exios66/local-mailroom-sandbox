@@ -490,6 +490,14 @@ def _doc_reads(records: list[dict]) -> dict:
         }
         if isinstance(rec.get("skipped"), str) and rec["skipped"]:
             call["skipped"] = rec["skipped"]
+        unplaced = int(_num(rec.get("unplaced_pieces")) or 0)
+        if unplaced > 0:
+            # The request was only partly measured (budget or gap size): a definitive "not read"
+            # cannot be judged against this call's coverage.
+            call["unplaced"] = unplaced
+        if rec.get("ranges_approx") is True:
+            # Capping merged unread gaps into the ranges: they locate approximately.
+            call["approx"] = True
         calls.append(call)
         by_agent.setdefault(agent, []).extend(ranges)
         if call["basis"] == "working" and (_num(rec.get("doc_chars")) or 0) > 0:
@@ -500,7 +508,7 @@ def _doc_reads(records: list[dict]) -> dict:
         "calls": calls,
         "union": {agent: _merge_ranges(rs) for agent, rs in by_agent.items()},
         "doc_chars": doc_chars,
-        "_text_hash": tag,  # consumed by read_ranges_by_doc, never emitted
+        "_text_hash": tag,  # consumed by read_ranges_by_doc, never emitted as a record hash
     }
 
 
@@ -537,7 +545,8 @@ def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[
     Torn or malformed lines are skipped (``iter_jsonl``). Only offsets and counts are read
     out of each record, never any document text. When the kept calls carry a ``text_hash``,
     ``text_pairing`` says whether the stored text still hashes to it (``match``, ``different`` or
-    ``missing``); the hash itself is not emitted.
+    ``missing``) and the same digest-side content tag is emitted as ``text_hash`` for the
+    viewer's served-vs-stored comparison; it is a content tag, not a secret.
     """
     reads_path = path / "reads.jsonl"
     if not reads_path.is_file():
@@ -555,6 +564,10 @@ def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[
         tag = reads.pop("_text_hash")
         if tag:  # records without a tag are from before pairing existed: the length check alone applies
             reads["text_pairing"] = _text_pairing(path, doc, tag)
+            # The digest-side content tag (read_ranges.text_hash over the stored file): the viewer
+            # compares it with the endpoint response's tag over the served text, so a rewrite the
+            # digest has not rebuilt yet still refetches/withholds. It is a content tag, not a secret.
+            reads["text_hash"] = tag
         out[doc] = reads
     return out
 

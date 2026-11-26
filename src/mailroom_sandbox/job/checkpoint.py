@@ -85,8 +85,11 @@ def _read_json(path: Path, *, strict: bool = False) -> dict[str, Any] | None:
         return None
 
 
-def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
-    """Drop an unparseable newline-less tail; keep a parseable final record."""
+def truncate_torn_tail(items_path: Path, events_path: Path, *, event: str = "items_truncated") -> int:
+    """Drop an unparseable newline-less tail; keep a parseable final record.
+
+    ``event`` names the logged truncation (``reads.jsonl`` repairs report ``reads_truncated``).
+    """
     if not items_path.is_file():
         return 0
     data = items_path.read_bytes()
@@ -108,7 +111,7 @@ def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
                     json.dumps(
                         {
                             "ts": utc_now(),
-                            "event": "items_truncated",
+                            "event": event,
                             "level": "warn",
                             "detail": {"dropped_chars": len(tail)},
                         }
@@ -586,7 +589,24 @@ class RunStore:
 
     # ── read ranges (offsets only; the text lives in doc_texts/) ─────────────
     def append_read(self, record: dict[str, Any]) -> None:
-        """Append one LLM-call read-range record (``job.read_ranges``)."""
+        """Append one LLM-call read-range record (``job.read_ranges``) after repairing a torn tail.
+
+        Same contract as :meth:`append_item`: preserve a parseable unterminated record and
+        separate it with a newline, discard an unparseable fragment. The digest reads
+        ``call == 1`` as the attempt boundary, so a resumed attempt's first record must land on
+        its own line — appended raw onto a torn tail, it would be lost with the fragment and the
+        previous attempt's ranges would stay in the digest. Writes are serialized by the runner's
+        read lock; the caller does not hold ``acquire()``.
+        """
+        if self.reads_path.is_file() and self.reads_path.stat().st_size:
+            with self.reads_path.open("rb") as tail:
+                tail.seek(-1, 2)
+                terminated = tail.read(1) == b"\n"
+            if not terminated:
+                truncate_torn_tail(self.reads_path, self.events_path, event="reads_truncated")
+                if self.reads_path.stat().st_size:
+                    with self.reads_path.open("ab") as tail:
+                        tail.write(b"\n")
         with open(self.reads_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
             fh.flush()

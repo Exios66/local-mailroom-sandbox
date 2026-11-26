@@ -1324,6 +1324,15 @@ def run_pipeline_eval(
         started_ns = time.time_ns()
         read_stats: dict[str, Any] | None = None
         with ExitStack() as nodes:
+            if read_cb is not None:
+                # Read recording is independent of node tracking: a caller may supply read_cb
+                # alone, and records without a node are attributed to no graph node.
+                from mailroom_sandbox.job import read_ranges
+
+                read_stats = {}
+                nodes.enter_context(
+                    read_ranges.document(str(row.get("id")), row.get("doc_text"), read_cb, text_cb)
+                )
             if node_cb is not None:
                 # SAND-076: report each graph node as it starts and ends.
                 from mailroom_sandbox.job.node_trace import track_nodes
@@ -1337,13 +1346,6 @@ def run_pipeline_eval(
                     # The review node is answered by the decision backend, not the sorter_reviewer chat route.
                     models["sorter_reviewer"] = reviewer["model"]
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
-                if read_cb is not None:
-                    from mailroom_sandbox.job import read_ranges
-
-                    read_stats = {}
-                    nodes.enter_context(
-                        read_ranges.document(str(row.get("id")), row.get("doc_text"), read_cb, text_cb)
-                    )
             usage_capture.reset_usage()
             try:
                 result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)

@@ -9,8 +9,12 @@ trimmed of leading and trailing whitespace. ``matched_chars`` is the number of d
 request characters covered by a placed match (whitespace trimmed from a match edge is not
 counted); a request character is never counted twice. ``unplaced_pieces`` counts request
 pieces of at least 12 non-whitespace characters that could not be placed, either because
-they are not in the document or because the per-request lookup budget
-(``MAX_UNANCHORED_LOOKUPS``) ran out; downstream shows such requests as partly measured.
+they are not in the document, because the per-request lookup budget
+(``MAX_UNANCHORED_LOOKUPS``) ran out, or because their blank-line gap was too large to
+scan (``_MAX_GAP_CHARS``); downstream shows such requests as partly measured.
+``ranges_approx`` is true when more than ``MAX_RANGES`` disjoint matches forced the
+smallest gaps closed: a merged range then also spans unread text, so the ranges locate
+approximately what was read (``matched_chars`` stays exact).
 
 Sections: matcher, document context, recorder. Call seams are appended after them.
 
@@ -54,6 +58,7 @@ class MatchResult(TypedDict):
     doc_chars: int
     unplaced_pieces: int  # pieces of >= 12 non-whitespace chars left unplaced
     skipped: str | None  # "size", "no_text" or None
+    ranges_approx: bool  # True when capping merged unread gaps into the ranges
 
 
 class ShingleIndex:
@@ -176,6 +181,11 @@ def _fill_gaps(
     scanned = 0
     for req_lo, req_hi, doc_lo, doc_hi in gaps:
         if req_hi - req_lo <= 0 or req_hi - req_lo > _MAX_GAP_CHARS:
+            if req_hi - req_lo > _MAX_GAP_CHARS:
+                # Too large to scan: its pieces stay unmeasured, so the request is reported
+                # as partly measured instead of silently looking fully covered.
+                for piece in _pieces(request, req_lo, req_hi):
+                    unplaced += _substantial(piece)
             continue
         anchored = has_anchor and doc_hi >= doc_lo
         cursor = doc_lo
@@ -223,6 +233,7 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         "doc_chars": index.doc_chars,
         "unplaced_pieces": 0,
         "skipped": index.skipped,
+        "ranges_approx": False,
     }
     if index.skipped:
         return result
@@ -249,7 +260,11 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         best_doc = 0
         best_req = 0
         k = bisect_left(cands, prev_doc_end)
-        for j in (cands[k:] + cands[:k])[:_MAX_CANDIDATES]:
+        # First _MAX_CANDIDATES of the rotated list, without copying the whole list per match.
+        sel = cands[k : k + _MAX_CANDIDATES]
+        if len(sel) < _MAX_CANDIDATES:
+            sel = sel + cands[: _MAX_CANDIDATES - len(sel)]
+        for j in sel:
             right = _common_prefix(request, i + SHINGLE, doc, j + SHINGLE)
             left = _common_suffix(request, i, doc, j, i - floor)
             length = SHINGLE + left + right
@@ -272,7 +287,10 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         matched += e - s
     filled, result["unplaced_pieces"] = _fill_gaps(doc, request, bulk, found)
     matched += filled
-    result["ranges"] = _cap_ranges(_merge_ranges(found))
+    merged = _merge_ranges(found)
+    capped = _cap_ranges(merged)
+    result["ranges"] = capped
+    result["ranges_approx"] = len(capped) < len(merged)
     result["matched_chars"] = matched
     return result
 
@@ -430,6 +448,8 @@ def record(agent: str, request: str, *, node: str | None = None) -> None:
             "request_chars": result["request_chars"], "matched_chars": result["matched_chars"],
             "doc_chars": result["doc_chars"], "unplaced_pieces": result["unplaced_pieces"],
         }
+        if result["ranges_approx"]:
+            rec["ranges_approx"] = True  # capping merged unread gaps: the ranges are approximate
         if result["skipped"]:
             rec["skipped"] = result["skipped"]
         if basis == "working" and state.text_hash:

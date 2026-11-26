@@ -54,6 +54,26 @@ def test_unparseable_fragment_truncated(store, tmp_path):
     assert any(e["event"] == "items_truncated" for e in events)
 
 
+def test_append_read_repairs_a_torn_tail_before_appending(store):
+    """A resumed attempt's first read record must land on its own line: the digest resets on call 1."""
+    store.append_read({"doc": "d", "call": 1, "agent": "a"})
+    with open(store.reads_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"doc": "d", "call": 2, "agent": "a"}))  # parseable, unterminated
+    store.append_read({"doc": "d", "call": 3, "agent": "a"})
+    rows = [json.loads(x) for x in store.reads_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert [r["call"] for r in rows] == [1, 2, 3]
+
+
+def test_append_read_drops_an_unparseable_fragment_and_logs_it(store):
+    store.append_read({"doc": "d", "call": 1, "agent": "a"})
+    with open(store.reads_path, "a", encoding="utf-8") as fh:
+        fh.write('{"doc": "d", "cal')  # torn
+    store.append_read({"doc": "d", "call": 2, "agent": "a"})
+    rows = [json.loads(x) for x in store.reads_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert [r["call"] for r in rows] == [1, 2]
+    assert any(e["event"] == "reads_truncated" for e in store.events())
+
+
 def test_torn_events_tail_is_repaired_on_read(store):
     """#268: a killed run must not wedge resume/budget-seed/report reads."""
     store.append_event("start", task="sorter")

@@ -5,6 +5,7 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 
 import hashlib
 import json
+import os
 import shutil
 import sys
 import threading
@@ -1245,7 +1246,7 @@ def _doc_store(tmp_path, *, working=None):
     (run / "dataset.jsonl").write_text(json.dumps({
         "id": "d1", "doc_text": _DOC_ORIGINAL, "expected_doc_class": "lease",
         "expected_fields": {"rent": "2,400"}}) + "\n", encoding="utf-8")
-    name = hashlib.sha1(b"d1").hexdigest()[:16] + ".txt"
+    name = hashlib.sha1(b"d1", usedforsecurity=False).hexdigest()[:16] + ".txt"
     (run / "doc_texts" / name).write_text(working, encoding="utf-8")
     (run / "doc_texts" / "index.jsonl").write_text(json.dumps({"doc": "d1", "file": name}) + "\n", encoding="utf-8")
     return base, run
@@ -1286,11 +1287,15 @@ def test_doc_endpoint_serves_text_and_fields(tmp_path):
         status, ctype, body = srv.get("/api/floor/doc?run=run-1&doc=d1")
     assert status == 200 and ctype.startswith("application/json")
     data = json.loads(body)
-    assert set(data) == {"working", "original", "expected", "extracted", "class", "rewritten", "overlap"}
+    assert set(data) == {"working", "original", "expected", "extracted", "class", "rewritten", "overlap", "text_hash"}
     assert data["working"] == _DOC_ORIGINAL and data["original"] == _DOC_ORIGINAL
     assert data["expected"] == {"rent": "2,400"} and data["extracted"] == {"rent": "2400"}
     assert data["class"] == {"gt": "lease", "pred": "lease"}
     assert data["rewritten"] is False and data["overlap"] == pytest.approx(1.0, abs=0.01)
+    # the served text carries the tag the read records use, so the viewer can pair them
+    from mailroom_sandbox.job.read_ranges import text_hash
+
+    assert data["text_hash"] == text_hash(_DOC_ORIGINAL)
 
 
 def test_doc_endpoint_flags_a_rewritten_working_text(tmp_path):
@@ -1300,6 +1305,23 @@ def test_doc_endpoint_flags_a_rewritten_working_text(tmp_path):
     with _DocServer(tmp_path, base) as srv:
         data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
     assert data["rewritten"] is True and 0.5 < data["overlap"] < 1.0
+
+
+def test_verbatim_overlap_counts_a_short_verbatim_text():
+    """Below the matcher's shingle floor, verbatim pieces still count ("Rent" over "Rent" is 1.0)."""
+    original = "The premises in good repair. The rent is due."
+    assert floor_app._verbatim_overlap(original, "premises") == 1.0
+    assert floor_app._verbatim_overlap(original, "premises nowhere") == pytest.approx(0.5)
+    assert floor_app._verbatim_overlap(original, "absent words") == 0.0
+    assert floor_app._verbatim_overlap(original, original) == 1.0
+
+
+def test_doc_endpoint_overlap_for_a_short_identical_working_text(tmp_path):
+    working = "premises"
+    base, _ = _doc_store(tmp_path, working=working)
+    with _DocServer(tmp_path, base) as srv:
+        data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
+    assert data["rewritten"] is True and data["overlap"] == 1.0
 
 
 def test_doc_endpoint_without_recorded_text_or_row_is_null_not_error(tmp_path):
@@ -1318,8 +1340,12 @@ def test_doc_endpoint_refuses_hostile_ids(tmp_path, monkeypatch):
     base, run = _doc_store(tmp_path)
     secret = tmp_path / "secret.txt"
     secret.write_text("TOP SECRET OUTSIDE THE RUN", encoding="utf-8")
+    # The index line points at a path that would resolve to the sentinel if a reader followed
+    # it: the assertion below pins that, so the test cannot pass against a decoy path.
+    rel = os.path.relpath(secret.resolve(), (run / "doc_texts").resolve())
     with open(run / "doc_texts" / "index.jsonl", "a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"doc": "evil", "file": "../../../secret.txt"}) + "\n")
+        fh.write(json.dumps({"doc": "evil", "file": rel}) + "\n")
+    assert (run / "doc_texts" / rel).resolve() == secret.resolve()
     read: list[Path] = []
     real, real_bytes = Path.read_text, Path.read_bytes
 
@@ -1475,7 +1501,7 @@ console.log("keyboard ok");
 
 
 def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
-    """The panel's controls are buttons, text enters the page through esc(), and the fetch is gated."""
+    """The panel's controls are buttons, and document text renders as text, not markup, in every path."""
     html = _template()
     block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
     for control in ("agent", "call", "field", "view"):
@@ -1485,8 +1511,6 @@ def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
 
     assert {m.group(1) for m in re.finditer(r'<(\w+)[^>]*data-rd="', block)} == {"button"}
     assert 'tr class="click' not in block and "data-doc" not in block
-    # document text reaches HTML only through esc(); nothing sets innerHTML from the endpoint's strings directly
-    assert "esc(text.slice(" in block and "textContent" not in block
     glue = html[html.index("function rdFetch("):html.index("function rdEnsure(")]
     assert "/api/floor/doc" in glue and "encodeURIComponent(run().name)" in glue and "encodeURIComponent(d.id)" in glue
     assert "!LIVE" in glue and "holdLive" in glue and "replay" in glue
@@ -1494,12 +1518,57 @@ def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
     assert "function rdCleanDoc(" in html
 
 
+def test_document_panel_renders_markup_like_document_text_as_text():
+    """Execute the panel's real renderer: hostile markup in any document text or field stays literal."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    import subprocess
+
+    html = _template()
+    block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
+    script = r'''
+const assert=require("node:assert/strict");
+const esc=s=>String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+''' + block + r'''
+const payload = '<img src=x onerror=alert(1)><b>bold</b> & <script>alert(2)</' + 'script>';
+const reads = {calls: [{agent: "contracts_specialist", node: "extract", basis: "working",
+                        ranges: [[0, 10]], matched: 10, request: 10}],
+               doc_chars: payload.length, text_pairing: "match", text_hash: "0123456789abcdef"};
+for (const mode of ["working", "original", "none"]) {
+  const data = mode === "none" ? null : {
+    working: mode === "working" ? payload : null, original: payload,
+    expected: {field: payload}, extracted: {field: payload},
+    class: {gt: "contract", pred: "contract"}, rewritten: false, overlap: 1.0,
+    text_hash: "0123456789abcdef"};
+  const out = rdPanelHtml({id: "d<1>", status: "ok", data, reads, specialists: ["contracts_specialist"],
+    on: mode === "working" ? ["contracts_specialist"] : [], callOff: [],
+    original: false, field: null, hit: 0, cache: {}});
+  assert.doesNotMatch(out, /<img[\s>]/, "raw <img> in " + mode + " path: " + out.slice(0, 200));
+  assert.doesNotMatch(out, /<script/, "raw <script> in " + mode + " path");
+  assert.ok(mode === "none" || out.includes("&lt;img"), "escaped payload kept in " + mode + " path");
+  // the field table renders the comparison from the response, working text or not
+  assert.ok(out.includes("rd-ft") || mode === "none", "field table in " + mode + " path");
+}
+// text-less but field-bearing data still renders the field comparison
+const dataless = {working: null, original: null, expected: {field: "2,400"}, extracted: {field: "2400"},
+  class: {gt: "contract", pred: "contract"}, rewritten: false, overlap: null};
+const bare = rdPanelHtml({id: "d", status: "ok", data: dataless, reads, specialists: ["contracts_specialist"],
+  on: [], callOff: [], original: false, field: null, hit: 0, cache: {}});
+assert.ok(bare.includes("rd-ft") && bare.includes("2,400") && bare.includes("2400"), "fields without text");
+assert.ok(bare.includes("not read"), "range judgments withheld, not silently claimed");
+console.log("render literal ok");
+'''
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_doc_endpoint_keeps_carriage_returns_so_read_ranges_line_up(tmp_path):
     """Offsets count the stored characters; a CRLF text must not shrink on the way to the viewer."""
     working = "Lease line one.\r\nRent is 2,400 dollars.\r\nLone CR here\rend."
     base, run = _doc_store(tmp_path, working=working)
     # write bytes: write_text would also be fine on Linux, but the file must hold the CRs verbatim
-    name = hashlib.sha1(b"d1").hexdigest()[:16] + ".txt"
+    name = hashlib.sha1(b"d1", usedforsecurity=False).hexdigest()[:16] + ".txt"
     (run / "doc_texts" / name).write_bytes(working.encode("utf-8"))
     with _DocServer(tmp_path, base) as srv:
         data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])

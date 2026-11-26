@@ -480,7 +480,10 @@ included). A lock written before the key existed counts as `true`.
 
 - `reads.jsonl` gets one line per call:
   `{doc, call, agent, node, ts, basis, ranges, request_chars, matched_chars, doc_chars}`
-  plus `unplaced_pieces`, `skipped` when matching was skipped, and, on working-basis
+  plus `unplaced_pieces`, `skipped` when matching was skipped, `ranges_approx` when more
+  than 64 disjoint matches forced the smallest gaps closed (a merged range then also spans
+  unread text, so the ranges locate approximately what was read — `matched_chars` stays
+  exact), and, on working-basis
   calls, `text_hash` (sha1 of the working text's UTF-8 bytes, first 16 hex characters). `ranges` are
   half-open `[start, end)` offsets into the working text. There is no text in it.
 - `doc_texts/<sha1(doc)[:16]>.txt` holds each document's working text. The last write
@@ -507,6 +510,11 @@ included). A lock written before the key existed counts as `true`.
   plus a system prompt passed as a plain string. `request_chars` and `matched_chars`
   are measured over that portion, not the full request on the wire. Decision requests
   mask card numbers, which show up as small gaps in the ranges.
+- `unplaced_pieces` counts the request's blank-line pieces of at least 12 non-whitespace
+  characters that could not be placed — not in the document, the per-request uniqueness
+  budget spent, or the piece's gap too large to scan — so such a request is shown as
+  partly measured rather than fully covered. A capped call (`ranges_approx`) keeps
+  `matched_chars` exact but its merged ranges span unread text.
 - A pipeline run's `nodes.jsonl` now also carries records for documents that reach
   `classification_arbiter`, which was not tracked before, whether or not
   `job.trace_reads` is on. That node runs on the `arbiter` agent, so its records

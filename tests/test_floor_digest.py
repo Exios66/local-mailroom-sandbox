@@ -126,7 +126,24 @@ def test_text_pairing_matches_when_the_stored_text_is_the_one_the_agents_saw(tmp
     reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
     assert reads["text_pairing"] == "match"
     assert reads["calls"][0]["ranges"] == [[0, 60]]
-    assert _tag(WORKING) not in json.dumps(reads), "the hash itself is not emitted"
+    # the digest-side content tag is emitted so the viewer can pair the served text with the
+    # ranges (a rewrite the digest has not rebuilt yet still refetches); not a secret
+    assert reads["text_hash"] == _tag(WORKING)
+    assert WORKING not in json.dumps(reads), "no text reaches the digest"
+
+
+def test_digest_carries_unplaced_pieces_and_approximate_ranges(tmp_path):
+    """A partly measured or capped call keeps its evidence about the coverage it cannot claim."""
+    builder = floor_app.load_builder()
+    run_dir = _reads_run(tmp_path, reads=[
+        _read(1, "sorter", [[0, 60]], unplaced_pieces=2),
+        _read(2, "sorter", [[0, 60]], ranges_approx=True),
+        _read(3, "sorter", [[0, 60]]),
+    ])
+    calls = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]["calls"]
+    assert calls[0]["unplaced"] == 2 and "approx" not in calls[0]
+    assert calls[1]["approx"] is True and "unplaced" not in calls[1]
+    assert "unplaced" not in calls[2] and "approx" not in calls[2]
 
 
 def test_text_pairing_flags_equal_length_different_text(tmp_path):

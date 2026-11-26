@@ -25,7 +25,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, quote, urlsplit
 
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.job.read_ranges import ShingleIndex, match_ranges
+from mailroom_sandbox.job.read_ranges import SHINGLE, ShingleIndex, match_ranges, text_hash
 from mailroom_sandbox.paths import data_dir, repo_root
 from mailroom_sandbox.tui.floor_replay import is_replay_run as _is_replay_run
 from mailroom_sandbox.tui.floor_replay import prepare_recorded_replay
@@ -206,7 +206,23 @@ def _verbatim_overlap(original: str, working: str) -> float | None:
     result = match_ranges(ShingleIndex(original), working)
     if result["skipped"]:
         return None
-    return round(min(1.0, result["matched_chars"] / len(working)), 4)
+    matched = result["matched_chars"]
+    if matched < len(working) and len(working) < SHINGLE:
+        # Below the matcher's shingle floor a short working text cannot be placed by the bulk
+        # matcher and stays under the unanchored threshold; its blank-line pieces still count
+        # toward the overlap when they occur verbatim in the original ("Rent" over "Rent" is 1.0).
+        counted = 0
+        for piece in working.split("\n"):
+            piece = piece.strip()
+            if not piece:
+                continue
+            if piece in original:
+                counted += len(piece)
+                continue
+            # A partial piece keeps its word-level verbatim hits instead of falling to zero.
+            counted += sum(len(word) for word in piece.split() if word in original)
+        matched = max(matched, counted)
+    return round(min(1.0, matched / len(working)), 4)
 
 
 def doc_view(runs_root: Path, run: str, doc: str) -> dict | None:
@@ -232,6 +248,15 @@ def doc_view(runs_root: Path, run: str, doc: str) -> dict | None:
     original = row.get("doc_text") if isinstance(row.get("doc_text"), str) else None
     both = working is not None and original is not None
     gt = row.get("expected_doc_class") or item.get("expected_doc_class") or item.get("expected")
+    served_hash = None
+    if working is not None:
+        # The tag the read records carry (read_ranges.text_hash) over the exact bytes served:
+        # the viewer compares it with the digest's tag and refetches/withholds when the stored
+        # text was rewritten after the digest (or the panel's cache) was built.
+        try:
+            served_hash = text_hash(working)
+        except Exception:  # noqa: BLE001 - e.g. a lone surrogate; the viewer then keeps the length check
+            served_hash = None
     return {
         "working": working,
         "original": original,
@@ -240,6 +265,7 @@ def doc_view(runs_root: Path, run: str, doc: str) -> dict | None:
         "class": {"gt": str(gt) if gt else None, "pred": builder._pred_class(item)},
         "rewritten": bool(both and _normalise_text(working) != _normalise_text(original)),
         "overlap": _verbatim_overlap(original, working) if both else None,
+        "text_hash": served_hash,
     }
 
 
