@@ -606,3 +606,158 @@ def test_a_fresh_run_lock_records_every_hotfix_including_hf013(tmp_path, monkeyp
     assert fixes["HF-015"]["target"] == "agents.arbiter.ArbiterAgent.arbitrate"
     assert fixes["HF-015"]["source_sha256"] == vh._source_sha(
         __import__("agents.arbiter", fromlist=["ArbiterAgent"]).ArbiterAgent.arbitrate)
+
+
+# --- HF-002 / HF-013: a judge answer that did not parse is asked once more --------------------------
+
+PARSE = {"_raw": "garbage", "_parse_error": True}
+COMPLETE = {"completeness": 0.97, "completeness_label": "complete", "reasoning": "ok"}
+ACCURATE = {"extraction_correctness": 0.97, "extraction_correctness_label": "accurate", "reasoning": "ok"}
+LOW_COMPLETENESS = {"completeness": 0.0, "completeness_label": "incomplete", "reasoning": "nothing captured"}
+LOW_CORRECTNESS = {"extraction_correctness": 0.0, "extraction_correctness_label": "inaccurate", "reasoning": "r"}
+#: (method name, a parsed verdict, a parsed verdict of the lowest score, the verdict field)
+JUDGES = {"completeness": ("judge_completeness", COMPLETE, LOW_COMPLETENESS, "completeness"),
+          "correctness": ("judge_extraction_correctness", ACCURATE, LOW_CORRECTNESS, "extraction_correctness")}
+
+
+class _Answers:
+    """A scripted ``_call_structured``: answers in order (an exception instance is raised), and records the calls."""
+
+    def __init__(self, *answers):
+        self.answers, self.calls = list(answers), []
+
+    def __call__(self, user_message, *args, **kwargs):
+        self.calls.append((user_message, args, kwargs))
+        answer = self.answers[min(len(self.calls), len(self.answers)) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def _scripted_judge(*answers):
+    from agents.judge import CompletenessJudge
+
+    judge = CompletenessJudge.__new__(CompletenessJudge)
+    judge._call_structured = _Answers(*answers)
+    return judge
+
+
+def _ask(judge, which):
+    return getattr(judge, JUDGES[which][0])("contract", {"parties": ["A"]}, "Cedar Sample Ltd agreement.")
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_judge_parse_failure_is_asked_once_more_and_a_parsed_answer_is_the_verdict(which):
+    assert vh.apply_hotfixes()["HF-002"] == vh.apply_hotfixes()["HF-013"] == "applied"
+    _, good, _, field = JUDGES[which]
+    judge = _scripted_judge(PARSE, good)
+    out = _ask(judge, which)
+    assert out[field] == good[field] and out["reasoning"] == "ok"
+    assert len(judge._call_structured.calls) == 2
+    first, second = judge._call_structured.calls
+    assert first == second  # the same request: prompt, schema, temperature and system prompt
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_two_judge_parse_failures_are_a_judge_error_after_exactly_two_calls(which):
+    vh.apply_hotfixes()
+    judge = _scripted_judge(PARSE, PARSE, COMPLETE if which == "completeness" else ACCURATE)
+    with pytest.raises(vh.JudgeParseError):
+        _ask(judge, which)
+    assert len(judge._call_structured.calls) == 2  # never a third
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_parsed_low_answer_is_a_verdict_and_is_never_asked_again(which):
+    vh.apply_hotfixes()
+    _, good, low, field = JUDGES[which]
+    judge = _scripted_judge(low, good)
+    assert _ask(judge, which)[field] == 0.0
+    assert len(judge._call_structured.calls) == 1
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_transport_error_is_not_asked_again_here(which):
+    vh.apply_hotfixes()
+    judge = _scripted_judge(ConnectionError("provider blip"), PARSE, PARSE)
+    with pytest.raises(ConnectionError):
+        _ask(judge, which)
+    assert len(judge._call_structured.calls) == 1  # HF-012 bounds transient errors at node level
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_re_ask_is_a_call_through_the_vendored_method_so_the_guard_sees_it(which):
+    """The wrapper wraps ``judge.<method>``; every call goes through ``_call_structured`` like the first."""
+    from mailroom_sandbox.job import call_guard
+
+    vh.apply_hotfixes()
+    _, good, _, _ = JUDGES[which]
+    judge = _scripted_judge(PARSE, good)
+    with call_guard.document() as scope:
+        _ask(judge, which)
+    assert len(judge._call_structured.calls) == 2
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1}}
+
+
+def test_a_re_ask_is_recorded_on_the_document_scope_with_counts_only():
+    from mailroom_sandbox.job import call_guard
+
+    vh.apply_hotfixes()
+    with call_guard.document() as scope:
+        _ask(_scripted_judge(PARSE, COMPLETE), "completeness")
+        with pytest.raises(vh.JudgeParseError):
+            _ask(_scripted_judge(PARSE, PARSE), "correctness")
+        _ask(_scripted_judge(COMPLETE), "completeness")  # parsed first time: not recorded
+    assert scope["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1},
+                                     "correctness": {"asked": 1, "recovered": 0}}
+    with call_guard.document() as quiet:
+        _ask(_scripted_judge(ACCURATE), "correctness")
+    assert "judge_reasks" not in quiet
+    _ask(_scripted_judge(PARSE, COMPLETE), "completeness")  # outside a document scope: no error, no record
+
+
+def _judge_node(monkeypatch, completeness, correctness):
+    vh.apply_hotfixes()
+    import graph.build_graph as bg
+    from agents.judge import CompletenessJudge
+
+    asks = {"c": 0, "a": 0}
+
+    def call(self, user_message, *a, **k):
+        which = "c" if user_message.startswith("Evaluate extraction completeness") else "a"
+        asks[which] += 1
+        answers = completeness if which == "c" else correctness
+        return answers[min(asks[which], len(answers)) - 1]
+
+    monkeypatch.setattr(CompletenessJudge, "_call_structured", call)
+    monkeypatch.setattr(CompletenessJudge, "__init__", lambda self: None)
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    state = {"doc_id": "d", "doc_type": "contract", "doc_text": "Cedar Sample Ltd agreement.",
+             "extracted_data": {"parties": ["Cedar Sample Ltd"]}, "extraction_confidence": 0.99}
+    return bg.judge_verify_node(state), asks
+
+
+def test_the_judge_node_keeps_a_document_whose_second_answer_parses(monkeypatch):
+    out, asks = _judge_node(monkeypatch, [PARSE, COMPLETE], [PARSE, ACCURATE])
+    assert out["judge_verdict"] == "complete" and out["judge_pass_count"] == 1
+    assert "escalation_reason" not in out and asks == {"c": 2, "a": 2}
+
+
+def test_the_judge_node_parks_a_document_whose_second_answer_does_not_parse(monkeypatch):
+    out, asks = _judge_node(monkeypatch, [COMPLETE], [PARSE, PARSE])
+    assert out["judge_verdict"] == "judge_error" and "JudgeParseError" in out["escalation_reason"]
+    assert asks == {"c": 1, "a": 2}
+
+
+def test_the_re_ask_reaches_the_run_item_through_the_document_scope(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    def once(row, **kwargs):
+        _judge_node(monkeypatch, [PARSE, COMPLETE], [ACCURATE])
+        return {"id": row["id"], "stage": "archived"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", once)
+    item = runners._run_pipeline_doc({"id": "d0"}, mock=False)
+    assert item["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1}}
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", lambda row, **kw: {"id": row["id"], "stage": "archived"})
+    assert "judge_reasks" not in runners._run_pipeline_doc({"id": "d1"}, mock=False)  # present only when it happened

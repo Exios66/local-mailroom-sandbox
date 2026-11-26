@@ -98,17 +98,47 @@ class JudgeParseError(RuntimeError):
     """A judge's answer did not parse: no verdict was reached (HF-002 completeness, HF-013 accuracy)."""
 
 
+def _is_completeness_parse_failure(out: Mapping[str, Any]) -> bool:
+    return str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0
+
+
+def _is_correctness_parse_failure(out: Mapping[str, Any]) -> bool:
+    return (str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("extraction_correctness") == 0.0
+            and out.get("extraction_correctness_label") == "inaccurate")
+
+
+def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[Mapping[str, Any]], bool],
+                   self: Any, args: tuple, kwargs: dict) -> dict:
+    """One judge call, re-asked once when its answer did not parse; raises when the re-ask fails too.
+
+    Only the vendored parse-failure sentinel triggers the re-ask: a transport or provider error
+    raises out of ``original`` untouched (HF-012 bounds those at node level), and an answer that
+    parsed, however low, is a verdict. The re-ask is the same vendored method with the same
+    arguments, so it passes the API call guard, the provider pins, usage capture and the spend caps
+    like any call. It is made at most once per call, so a pass holds at most two calls per judge
+    method. ``note_judge_reask`` records whether it recovered (counts only, never document text).
+    """
+    out = original(self, *args, **kwargs)
+    if not failed(out):
+        return out
+    out = original(self, *args, **kwargs)
+    from mailroom_sandbox.job import call_guard
+
+    call_guard.note_judge_reask(judge, recovered=not failed(out))
+    if failed(out):
+        raise JudgeParseError(JUDGE_PARSE_FAILURE)
+    return out
+
+
 def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(original)
     def judge_completeness(self: Any, *args: Any, **kwargs: Any) -> dict:
-        out = original(self, *args, **kwargs)
         # Upstream turns a parse failure into a real "incomplete 0.0" verdict, which sends the
         # document to the arbiter as if the extraction were judged incomplete and is never counted
-        # as a judge error. Raising takes the graph's own hard-failure path: judge_verdict
-        # "judge_error", routed to human review and counted by the gate.
-        if str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("completeness") == 0.0:
-            raise JudgeParseError(JUDGE_PARSE_FAILURE)
-        return out
+        # as a judge error. A single unparseable answer is asked once more; when the second one
+        # fails too, raising takes the graph's own hard-failure path: judge_verdict "judge_error",
+        # routed to human review and counted by the gate.
+        return _ask_once_more("completeness", original, _is_completeness_parse_failure, self, args, kwargs)
 
     return judge_completeness
 
@@ -116,15 +146,12 @@ def _install_judge_parse_error(_module: Any, original: Callable[..., Any]) -> Ca
 def _install_judge_correctness_parse_error(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(original)
     def judge_extraction_correctness(self: Any, *args: Any, **kwargs: Any) -> dict:
-        out = original(self, *args, **kwargs)
         # HF-002's gap: the accuracy judge runs after a "complete" completeness verdict, and its
         # parse failure becomes "inaccurate 0.0", which judge_verify turns into an "incomplete"
-        # verdict that spends an arbiter call and a re-extraction. No verdict was reached, so it
-        # takes the same judge_error path as a completeness parse failure (HF-002).
-        if (str(out.get("reasoning") or "") == JUDGE_PARSE_FAILURE and out.get("extraction_correctness") == 0.0
-                and out.get("extraction_correctness_label") == "inaccurate"):
-            raise JudgeParseError(JUDGE_PARSE_FAILURE)
-        return out
+        # verdict that spends an arbiter call and a re-extraction. No verdict was reached, so it is
+        # asked once more and, failing again, takes the same judge_error path as a completeness
+        # parse failure (HF-002).
+        return _ask_once_more("correctness", original, _is_correctness_parse_failure, self, args, kwargs)
 
     return judge_extraction_correctness
 
@@ -919,8 +946,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="CompletenessJudge.judge_completeness",
         source_sha256="880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9",
         upstream="Exios66/llm-mailroom#315",
-        summary="a completeness-judge parse failure is a judge error (human review, counted), "
-                "not an 'incomplete 0.0' verdict",
+        summary="a completeness-judge parse failure is asked once more; a second failure is a judge "
+                "error (human review, counted), not an 'incomplete 0.0' verdict",
         install=_install_judge_parse_error,
     ),
     Hotfix(
@@ -1035,8 +1062,9 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="CompletenessJudge.judge_extraction_correctness",
         source_sha256="dd2b8dae82df4c789b9636c694dd35ca1bd16212dbdd14788530d41aad0b4634",
         upstream="to file (Exios66/llm-mailroom)",
-        summary="an accuracy-judge parse failure is a judge error (human review, counted), "
-                "not an 'inaccurate 0.0' answer that reads as an incomplete verdict",
+        summary="an accuracy-judge parse failure is asked once more; a second failure is a judge "
+                "error (human review, counted), not an 'inaccurate 0.0' answer that reads as an "
+                "incomplete verdict",
         install=_install_judge_correctness_parse_error,
     ),
     Hotfix(

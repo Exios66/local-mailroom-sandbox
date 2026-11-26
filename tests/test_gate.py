@@ -48,7 +48,8 @@ def _run(root, docs, name="slice"):
             for _ in range(d.get("repeat", 1)):
                 pred = {"stage": d.get("stage", "archived"), "extracted_data": {},
                         "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95),
-                        **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {})}
+                        **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {}),
+                        **({"judge_reasks": d["reasks"]} if "reasks" in d else {})}
                 it.write(json.dumps({"item_id": d["id"], "ok": d.get("error") is None, "error": d.get("error"),
                                      "prompt_tokens": 10, "completion_tokens": 5, "pred": pred}) + "\n")
     return run
@@ -103,6 +104,30 @@ def test_caveat_archives_are_marked_counted_and_scored(tmp_path):
 
 def test_a_run_without_caveat_archives_keeps_its_report_shape(tmp_path):
     assert "arbiter_caveats" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
+
+
+def test_judge_re_asks_are_counted_with_their_recovery(tmp_path):
+    """HF-002 / HF-013: a re-asked judge shows how often it happened and whether the second answer parsed."""
+    run = _run(tmp_path, [
+        {"id": "ok", "cls": "contract", "score": 0.95, "reasks": {"completeness": {"asked": 1, "recovered": 1}}},
+        {"id": "both", "cls": "contract", "score": 0.95,
+         "reasks": {"completeness": {"asked": 1, "recovered": 1}, "correctness": {"asked": 1, "recovered": 0}}},
+        {"id": "parked", "cls": "contract", "stage": "review", "causes": ["judge_error"],
+         "reasks": {"correctness": {"asked": 1, "recovered": 0}}},
+        {"id": "clean", "cls": "contract", "score": 0.95}])
+    report = gate.gate_report(run, Bars())
+    assert report["judge_reasks"] == {
+        "documents": 3, "asked": 4, "recovered": 2, "parked": 2,
+        "by_judge": {"completeness": {"asked": 2, "recovered": 2}, "correctness": {"asked": 2, "recovered": 0}},
+        "docs": ["ok", "both", "parked"]}
+    out = {d["id"]: d for d in report["docs"]}
+    assert out["ok"]["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1}}
+    assert "judge_reasks" not in out["clean"]
+    assert report["pooled"]["judge_errors"] == 1  # the unrecovered re-ask that parked a document
+
+
+def test_a_run_without_judge_re_asks_keeps_its_report_shape(tmp_path):
+    assert "judge_reasks" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
 
 
 def test_bar_edge_is_inclusive(tmp_path):

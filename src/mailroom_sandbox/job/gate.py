@@ -199,6 +199,20 @@ def is_wrong_class(expected_class: str, pred: Mapping[str, Any]) -> bool:
     return bool(got) and got != str(expected_class).strip().lower()
 
 
+def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """Totals of the documents whose judge was re-asked: per judge and overall ``asked`` / ``recovered``."""
+    by_judge: dict[str, dict[str, int]] = {}
+    for status in reasked:
+        for judge, counts in status["judge_reasks"].items():
+            total = by_judge.setdefault(judge, {"asked": 0, "recovered": 0})
+            total["asked"] += counts["asked"]
+            total["recovered"] += counts["recovered"]
+    asked = sum(c["asked"] for c in by_judge.values())
+    recovered = sum(c["recovered"] for c in by_judge.values())
+    return {"documents": len(reasked), "asked": asked, "recovered": recovered, "parked": asked - recovered,
+            "by_judge": dict(sorted(by_judge.items())), "docs": [s["id"] for s in reasked]}
+
+
 def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     row, item = doc["row"], doc.get("item")
     doc_class = str(row.get("expected_doc_class"))
@@ -212,6 +226,10 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
+    if isinstance(pred.get("judge_reasks"), Mapping):  # HF-002 / HF-013: a judge answer was asked twice
+        out["judge_reasks"] = {str(k): {"asked": int((v or {}).get("asked") or 0),
+                                        "recovered": int((v or {}).get("recovered") or 0)}
+                               for k, v in pred["judge_reasks"].items() if isinstance(v, Mapping)}
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
         out["archived_class"] = str(pred.get("doc_type") or "").strip().lower() or None
@@ -408,7 +426,13 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     slots = decision_slot_report([d for d, _ in gated], [s for _, s in gated],
                                  max_wrong_archive_rate=bars.wrong_archive_max)
     caveated = [s for s in statuses if s.get("arbiter_caveats")]
+    reasked = [s for s in statuses if s.get("judge_reasks")]
     return {
+        # Present only when a judge answer that did not parse was asked once more (HF-002 / HF-013):
+        # how often, and how often the second answer parsed. ``parked`` re-asks failed again and
+        # are counted under ``judge_errors`` above. Counts only; the live parse-failure rate is
+        # ``asked`` over the judge calls of the run.
+        **({"judge_reasks": _judge_reask_block(reasked)} if reasked else {}),
         # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
         **({"decision_slots": slots} if slots is not None else {}),
         # Present only when an archive was accepted with arbiter caveats (HF-014 marker). These
