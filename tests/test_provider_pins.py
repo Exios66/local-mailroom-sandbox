@@ -512,6 +512,7 @@ class _SdkClient:
 
     def __init__(self, base_url, outcomes, options=True):
         self.base_url, self.outcomes, self.sent, self.options = base_url, list(outcomes), [], []
+        self.max_retries = 2  # the OpenAI SDK default
         outer = self
 
         class _Completions:
@@ -670,6 +671,17 @@ def test_no_attempt_is_sent_past_the_run_deadline(vendored, monkeypatch, run_dea
         call(client, **_REQUEST)
     assert client.sent == []
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
+
+
+def test_a_mock_client_keeps_its_scripted_create(vendored, monkeypatch):
+    from unittest.mock import MagicMock
+
+    call = _install(monkeypatch, _loop())
+    client = MagicMock()  # the mock pilot's client: with_options would return a new, unscripted mock
+    client.base_url = "http://vllm.invalid/v1"
+    client.chat.completions.create.side_effect = lambda **kw: _Resp(kw["model"], "p")
+    assert call(client, model="m", messages=[]).model == "m"
+    client.with_options.assert_not_called()
 
 
 def test_a_client_without_with_options_still_works(vendored, monkeypatch):

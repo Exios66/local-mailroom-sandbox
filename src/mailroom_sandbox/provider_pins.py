@@ -136,6 +136,19 @@ def _deadline_capped(request: dict[str, Any]) -> dict[str, Any]:
     return {**request, "timeout": left}
 
 
+def _without_sdk_retries(client: Any) -> Any:
+    """``client`` with the OpenAI SDK's own retries off: the vendored loop is the one retry layer (L1).
+
+    Only a client that reports SDK retries (an integer ``max_retries`` above 0) and can copy itself
+    (``with_options``) is copied; any other client (one already at 0, a test double) is used as is.
+    """
+    retries = getattr(client, "max_retries", None)
+    with_options = getattr(client, "with_options", None)
+    if isinstance(retries, int) and not isinstance(retries, bool) and retries > 0 and callable(with_options):
+        return with_options(max_retries=0)
+    return client
+
+
 class _AttemptGuardedCompletions:
     def __init__(self, client: Any, guarded: bool):
         self._client, self._guarded = client, guarded
@@ -148,8 +161,7 @@ class _AttemptGuardedCompletions:
         # worst-case cost until it ends.
         held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)))
                 if self._guarded else 0.0)
-        with_options = getattr(self._client, "with_options", None)
-        sender = with_options(max_retries=0) if callable(with_options) else self._client
+        sender = _without_sdk_retries(self._client)
         try:
             response = sender.chat.completions.create(**request)
         except BaseException as exc:
