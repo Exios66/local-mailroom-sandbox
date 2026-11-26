@@ -73,7 +73,7 @@ label a requirement as a quotation. `User description` is not a problem
 statement: explain the problem in your own words.
 
 Use the PR template: `Summary`, `Changes`, `Validation`, `Critical regressions`,
-`Risks / follow-ups`. Check every diff against
+`Docs`, `Risks / follow-ups`. Check every diff against
 [`docs/critical-regressions.md`](docs/critical-regressions.md): silent empty ground
 truth, selection drift, tuning/evaluation leakage, model or provider substitution,
 spend-guard bypass, wrong code or vendor revision, credential misrouting, simulated
@@ -370,7 +370,7 @@ first, then run a bounded local reproduction only when needed.
 
 CircleCI currently runs lint (pinned in `.circleci/lint-requirements.txt`, plus
 markdownlint), a `checks` job for committed generated files (reports hub,
-requirements mirrors, CLI reference, runbook docs, campaign report indexes), the full pytest suite (4 parallel
+requirements mirrors, CLI reference, runbook docs, campaign report indexes, Decisions-reviewer report, SAND-032 figures), the full pytest suite (4 parallel
 containers), dedicated offline notebook execution, and a combined coverage gate. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending

@@ -56,7 +56,7 @@ sandbox doctor                                              # offline status of 
   CI. Use focused single-worker checks without coverage locally; require passing
   current-head hosted gates before merging. CircleCI currently runs lint (pinned tools plus
   markdownlint), a `checks` job for committed generated files (reports hub,
-  requirements, CLI reference, runbooks, campaign reports), pytest, offline notebook
+  requirements, CLI reference, runbooks, campaign reports, decisions report, SAND-032 figures), pytest, offline notebook
   execution (`notebook-regressions`), `no-session-links` and coverage; it has no dedicated campaign
   or runtime-benchmark jobs. If those are needed, arrange scoped hosted verification
   and keep the result unverified until it runs. See [CI guidance](.circleci/README.md).

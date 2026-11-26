@@ -117,7 +117,7 @@ folder (the superpowers plugin uses one under `docs/`) move here before merging.
 
 | Page | What it covers |
 | --- | --- |
-| [Modal vLLM measurement priorities](research/modal-vllm-measurement-priorities/summary.md) | Which Modal vLLM measurements to take first, with [measurements](research/modal-vllm-measurement-priorities/measurements.md), [deployment pipeline](research/modal-vllm-measurement-priorities/modal_pipeline.md) and [model survey](research/modal-vllm-measurement-priorities/models.md) |
+| [Modal vLLM measurement priorities](research/modal-vllm-measurement-priorities/summary.md) | Which Modal vLLM measurements to take first, with [measurements](research/modal-vllm-measurement-priorities/measurements.md), [deployment pipeline](research/modal-vllm-measurement-priorities/modal_pipeline.md), [model survey](research/modal-vllm-measurement-priorities/models.md) and a [2026-11-20 hotfix snapshot](research/modal-vllm-measurement-priorities/hotfixes.md) |
 
 ## Audits
 

@@ -18,6 +18,7 @@ a release/service fact you did not check.
 
 | Claim or job | Check / tool | Owning source or specialist |
 | --- | --- | --- |
+| Docs index, hotfix rows, README commands, layout table, cited docs paths | `pytest -q tests/test_docs_drift.py -n 0 --no-cov` | `docs/README.md`, the hotfix docs, README CLI block, `LAYOUT.md` |
 | Relative links, moved paths, generated runbook links | `pytest -q tests/test_doc_paths.py -n 0 --no-cov`; check hidden/excluded files and anchor fragments separately (the test skips both) | The target file on disk; a layout move also updates `_STALE_DOC_PATHS` in the test |
 | CLI command, flag, default or subcommand | `python scripts/check_cli_surface.py --check`; spot-check `sandbox <cmd> --help` | `src/mailroom_sandbox/cli.py` and the parser/handler, never the reference alone |
 | `docs/cli-reference.md` is stale | `python scripts/check_cli_surface.py` (regenerates) | Generated file — never hand-edit |
@@ -52,7 +53,7 @@ a release/service fact you did not check.
    and objective:
 
    ```bash
-   pytest -q tests/test_doc_paths.py -n 0 --no-cov
+   pytest -q tests/test_doc_paths.py tests/test_docs_drift.py -n 0 --no-cov
    python scripts/check_cli_surface.py --check
    python scripts/sync_requirements.py --check
    python reports/dashboard/build_hub.py --check

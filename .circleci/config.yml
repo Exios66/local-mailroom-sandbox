@@ -136,6 +136,12 @@ jobs:
       - run:
           name: Campaign report indexes (reports/campaigns/rb1)
           command: sandbox report build --campaign rb1 --check
+      - run:
+          name: Decisions-reviewer report outputs (reports/decisions)
+          command: python reports/decisions/build_decisions_report.py --check
+      - run:
+          name: SAND-032 figures match the chart kit (scripts/sand032/rerender.py)
+          command: python scripts/sand032/rerender.py --check
 
   test:
     executor: py
