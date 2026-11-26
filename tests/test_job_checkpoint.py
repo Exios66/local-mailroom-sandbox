@@ -54,6 +54,26 @@ def test_unparseable_fragment_truncated(store, tmp_path):
     assert any(e["event"] == "items_truncated" for e in events)
 
 
+def test_append_read_repairs_a_torn_tail_before_appending(store):
+    """A resumed attempt's first read record must land on its own line: the digest resets on call 1."""
+    store.append_read({"doc": "d", "call": 1, "agent": "a"})
+    with open(store.reads_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"doc": "d", "call": 2, "agent": "a"}))  # parseable, unterminated
+    store.append_read({"doc": "d", "call": 3, "agent": "a"})
+    rows = [json.loads(x) for x in store.reads_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert [r["call"] for r in rows] == [1, 2, 3]
+
+
+def test_append_read_drops_an_unparseable_fragment_and_logs_it(store):
+    store.append_read({"doc": "d", "call": 1, "agent": "a"})
+    with open(store.reads_path, "a", encoding="utf-8") as fh:
+        fh.write('{"doc": "d", "cal')  # torn
+    store.append_read({"doc": "d", "call": 2, "agent": "a"})
+    rows = [json.loads(x) for x in store.reads_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert [r["call"] for r in rows] == [1, 2]
+    assert any(e["event"] == "reads_truncated" for e in store.events())
+
+
 def test_torn_events_tail_is_repaired_on_read(store):
     """#268: a killed run must not wedge resume/budget-seed/report reads."""
     store.append_event("start", task="sorter")
@@ -149,3 +169,26 @@ def test_corrupt_prompt_lock_raises_loud(store):
     store.prompt_lock_path.write_text("{nope", encoding="utf-8")
     with pytest.raises(RuntimeError, match="corrupt JSON"):
         store.read_prompt_lock()
+
+def test_archive_generation_moves_read_ranges_and_doc_texts(store):
+    """A forced re-lock must not leave the old generation's reads or text beside the new one."""
+    store.write_lock({"spec_hash": "abc", "task": "sorter"})
+    store.append_item({"index": 0, "item_id": "d0", "ok": True})
+    store.append_read({"doc": "d0", "agent": "sorter", "call": 1, "ranges": [[0, 5]], "text_hash": "h"})
+    store.write_doc_text("d0", "OLD-GEN text")
+
+    archive = store.archive_generation()
+
+    assert archive is not None
+    assert not store.reads_path.exists()
+    assert not store.doc_texts_dir.exists()
+    assert (archive / "reads.jsonl").is_file()
+    assert [p.read_text(encoding="utf-8") for p in (archive / "doc_texts").glob("*.txt")] == ["OLD-GEN text"]
+    assert (archive / "doc_texts" / "index.jsonl").is_file()
+
+    # The same store object writes the next generation: its text index must start empty,
+    # not remember the archived generation's entry (a stale cache would skip the index line).
+    store.write_doc_text("d0", "NEW-GEN text")
+    index = [json.loads(line) for line in (store.doc_texts_dir / "index.jsonl").read_text().splitlines()]
+    assert [row["doc"] for row in index] == ["d0"]
+    assert [p.read_text(encoding="utf-8") for p in store.doc_texts_dir.glob("*.txt")] == ["NEW-GEN text"]

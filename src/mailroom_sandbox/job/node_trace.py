@@ -54,6 +54,7 @@ NODE_AGENTS: dict[str, str | None] = {
     "retry_extract": "specialist",
     "judge_verify": "judge",
     "arbiter": "arbiter",
+    "classification_arbiter": "arbiter",  # ClassificationArbiterAgent: agent_name "arbiter", the arbiter route and model
     "human_review": None,
     "boss_escalation": "boss",
     "compile_report": None,
@@ -145,6 +146,16 @@ def agent_for(node: str, doc_type: str | None) -> str | None:
     return agent
 
 
+def _read_ranges_call(fn: str, *args: Any) -> None:
+    """Call a ``read_ranges`` hook; the tracker must never raise because of read ranges."""
+    try:
+        from mailroom_sandbox.job import read_ranges
+
+        getattr(read_ranges, fn)(*args)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class NodeTracker(BaseCallbackHandler):
     """Report graph-node starts and ends for one document to ``sink``."""
 
@@ -180,6 +191,7 @@ class NodeTracker(BaseCallbackHandler):
             self._step += 1
             self._open[run_id] = (node, time.monotonic())
             step = self._step
+        _read_ranges_call("_enter_node", node)
         self._emit(node, "running", step=step)
 
     def on_chain_end(self, outputs: Any, *, run_id: UUID, **kwargs: Any) -> None:
@@ -189,6 +201,11 @@ class NodeTracker(BaseCallbackHandler):
             return
         node, t0 = opened
         out = outputs if isinstance(outputs, dict) else {}
+        if node == "intake":
+            text = out.get("doc_text")
+            if isinstance(text, str) and text:
+                _read_ranges_call("set_working_text", text)
+        _read_ranges_call("_exit_node", node)
         if out.get("doc_type"):
             self.doc_type = str(out["doc_type"])
         self._emit(node, "done", ms=round((time.monotonic() - t0) * 1000, 1),
@@ -200,6 +217,7 @@ class NodeTracker(BaseCallbackHandler):
         if opened is None:
             return
         node, t0 = opened
+        _read_ranges_call("_exit_node", node)
         ms = round((time.monotonic() - t0) * 1000, 1)
         if type(error).__name__ == "GraphInterrupt":
             # interrupt() parks the document for a human; it is a pause, not a failure.

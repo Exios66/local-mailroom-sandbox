@@ -160,7 +160,9 @@ def jev_backend(
             model_settings={"max_retries": 0},
             retries=0,
         )
-        result = agent.run_sync(doc_text[:max_input_chars])
+        prompt = doc_text[:max_input_chars]
+        _record_read("jev", prompt)
+        result = agent.run_sync(prompt)
         picked = result.output
         return _answer(
             getattr(picked, "doc_type", None),
@@ -733,6 +735,44 @@ def _decision_retry_delay(response: Any, attempt: int) -> float:
     return max(delay, wait) if math.isfinite(wait) else delay
 
 
+def _record_read(agent: str, request: str) -> None:
+    """Record the request's read ranges; building or recording it can never raise into the call."""
+    try:
+        from mailroom_sandbox.job import read_ranges
+
+        read_ranges.record(agent, request)
+    except Exception:
+        pass
+
+
+def _decision_lane(state: Any) -> str:
+    """The Decisions lane, from the state shape (the body carries no lane key)."""
+    if isinstance(state, Mapping):
+        if "closed_field_handoff" in state:
+            return CLOSED_FIELD_RESOLVER
+        if "extraction_handoff" in state:
+            return "extraction_gate"
+    return "classification"
+
+
+def _record_decision_read(body: Mapping[str, Any]) -> None:
+    """Record one Decisions request: the document, the handoff if any and the questions."""
+    try:
+        state = body.get("state")
+        parts: list[str] = []
+        if isinstance(state, Mapping):
+            parts.append(str(state.get("document") or ""))
+            for key in ("closed_field_handoff", "extraction_handoff"):
+                if key in state:
+                    parts.append(json.dumps(state[key], default=str))
+        else:
+            parts.append(str(state or ""))
+        parts.append(json.dumps(body.get("questions"), default=str))
+        _record_read(f"decisions:{_decision_lane(state)}", "\n".join(parts))
+    except Exception:
+        pass
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
@@ -771,6 +811,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
     last: Exception | None = None
     count = attempts
+    recorded = False
     for attempt in range(count):
         # Decisions calls bypass the chat provider wrappers; enforce the same run guard
         # before each HTTP attempt, including retries.
@@ -778,6 +819,9 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
         attempt_timeout = remaining()
         call_guard.before_call()
+        if not recorded:  # once per logical request, and only once the guard and deadline let it go out
+            _record_decision_read(body)
+            recorded = True
         resp = None
         try:
             resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=attempt_timeout,
