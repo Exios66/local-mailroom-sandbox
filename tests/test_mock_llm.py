@@ -75,6 +75,15 @@ def test_a_fixture_can_force_the_classification_arbiters_decision(monkeypatch, t
     assert fake_structured_payload(prompt, forced)["decision"] == "human_review"
 
 
+def test_a_pipeline_mock_row_forwards_the_forced_classification_arbiter_decision():
+    """``_expect_from_row`` carries the row's forced decision into the mock's expect dict."""
+    from mailroom_sandbox.eval.runners import _expect_from_row
+
+    row = {"id": "d", "expected_doc_class": "corporate_record", "classification_arbiter_decision": "human_review"}
+    assert _expect_from_row(row)["classification_arbiter_decision"] == "human_review"
+    assert "classification_arbiter_decision" not in _expect_from_row({"id": "d", "expected_doc_class": "contract"})
+
+
 def test_the_extraction_arbiter_keeps_its_own_vocabulary():
     payload = fake_structured_payload("DOCUMENT TYPE: contract\n\nJUDGE VERDICT: partial\n", {"doc_type": "contract"})
     assert payload["decision"] == "accept_with_caveats" and "fields_to_fix" in payload

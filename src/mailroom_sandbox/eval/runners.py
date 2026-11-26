@@ -100,7 +100,7 @@ def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
-    return {
+    expect = {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
@@ -108,6 +108,12 @@ def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
+    # A pipeline mock row can force the classification arbiter's decision the same way a
+    # hand-built expect dict can: without it the mock silently uses the class-matching fallback.
+    decision = row.get("classification_arbiter_decision")
+    if decision:
+        expect["classification_arbiter_decision"] = decision
+    return expect
 
 
 def _classify_mock(row: dict[str, Any]) -> str:

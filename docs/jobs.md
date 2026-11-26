@@ -398,11 +398,13 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `tests/test_openrouter_full_source.py` checks a 250k-character document
    end to end and that Modal/vLLM stays at 16,000. A document longer than the
    arbiter window but inside the specialist budget (another model) is still
-   excerpted for the arbiter, and an acceptance from it stays parked. An
-   acceptance from a whole-source reading archives (HF-014) only when the
-   extraction confidence reaches `confidence.arbiter_full_source_min_confidence`;
-   unset, that floor is the class's own `low` band, where the vendored route
-   already archives, so HF-014 changes no route until a run lowers it (for
+   excerpted for the arbiter. An acceptance from an excerpted reading parks only while the
+   extraction is still unsure — confidence missing or under the class `low` band with no
+   source-verified judge verdict — and archives at or above the band. An acceptance from a
+   whole-source reading archives (HF-014) even below that band when the extraction confidence
+   reaches `confidence.arbiter_full_source_min_confidence`; unset, that floor is the class's
+   own `low` band, where the vendored route already archives, so HF-014 changes no route until
+   a run lowers it (for
    example to 0.5). The floor can only lower the bar: one above `low` changes
    nothing, because the vendored route already archives at `low`. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
