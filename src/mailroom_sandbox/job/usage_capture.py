@@ -265,9 +265,20 @@ def merge_item_metrics(
     latency_ms: float | None = None,
     usage: Mapping[str, Any] | None = None,
     ttft_ms: float | None = None,
+    reads: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the per-item metrics block persisted to ``items.jsonl``."""
     out: dict[str, Any] = {}
+    if reads:
+        slot: dict[str, Any] = {}
+        for key, cast in (("read_calls", int), ("read_errors", int), ("read_ms", float)):
+            try:
+                if reads.get(key) is not None:
+                    slot[key] = cast(reads[key])
+            except (TypeError, ValueError):
+                continue
+        if slot:
+            out["reads"] = slot
     if latency_ms is not None:
         out["latency_ms"] = float(latency_ms)
     if ttft_ms is not None:

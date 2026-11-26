@@ -524,3 +524,12 @@ def test_lock_gpu_fleet_openrouter_base_bills_no_phantom_gpu():
                             "modal": {"gpu": "L4", "max_containers": 1}}}
     assert lock_gpu_fleet(no_routes) == []
     assert routed_gpu_fleet(no_routes) is None
+
+
+def test_merge_item_metrics_carries_read_stats():
+    from mailroom_sandbox.job.usage_capture import merge_item_metrics
+
+    out = merge_item_metrics(latency_ms=5, reads={"read_calls": "3", "read_errors": 0, "read_ms": 1.5, "x": 9})
+    assert out["reads"] == {"read_calls": 3, "read_errors": 0, "read_ms": 1.5}
+    assert "reads" not in merge_item_metrics(latency_ms=5)
+    assert "reads" not in merge_item_metrics(reads={})

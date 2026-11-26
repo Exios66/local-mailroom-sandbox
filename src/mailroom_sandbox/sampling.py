@@ -283,16 +283,29 @@ def apply_sampling_overrides(agent_knobs: Mapping[str, Any] | None) -> dict[str,
         except Exception as exc:  # noqa: BLE001 — optional (pipeline extra)
             _log.debug("%s unavailable — temperature override skipped: %s", key, exc)
             continue
-        original = cls.__dict__.get("_call_structured")
+        # The read-range observer is the outermost layer: look through it, patch
+        # beneath it, and put it back on top.
+        from mailroom_sandbox.job.read_ranges import is_observer, observe_class, strip_observer
+
+        had_observer = is_observer(cls.__dict__.get("_call_structured"))
+        original = strip_observer(cls.__dict__.get("_call_structured"))
+        if had_observer:
+            cls._call_structured = original
         if original is None or getattr(original, "__sandbox_sampling__", False):
+            if had_observer:
+                observe_class(cls)
             _PATCHED.add(key)
             continue
         if "temperature" not in inspect.signature(original).parameters:
             _log.warning("%s._call_structured has no temperature parameter — not patched", key)
+            if had_observer:
+                observe_class(cls)
             continue
         cls._call_structured = _wrap(
             original, native_endpoint=module_name.startswith("langchain_agents")
         )
+        if had_observer:
+            observe_class(cls)
         _PATCHED.add(key)
     _log.info("specialist sampling overrides active: temperature %s · extra %s", _OVERRIDES, _EXTRA)
     return dict(_OVERRIDES)
