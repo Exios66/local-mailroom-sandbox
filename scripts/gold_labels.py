@@ -25,7 +25,7 @@ agent sessions that read the batch files and write submission JSONL.
     #                 "entry" is written, build takes it from the check submission and gates it.
     #                 The record keeps verdict "accept_check" and value_source.kind "check_pass"
     #                 (a correct verdict gives value_source.kind "review_correction"); the
-    #                 overlay basis is near_gold:opus_reviewed_accept_check.
+    #                 overlay records the actual reviewer and review verdict.
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…] [--override O.jsonl…]
     # apply accept/correct review lines to the committed catalog in place (no label or check

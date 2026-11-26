@@ -80,8 +80,9 @@ Write one JSON object per document, one per line (JSONL):
 
 ## Independent passes
 
-A label becomes `near_gold` when a second, independent agent pass agrees, or when Opus reviews
-it. Independent means the check labeler works from the document alone and never sees the label
+A label becomes `near_gold` when a second, independent agent pass agrees, or when a reviewing
+model accepts or corrects it. Record the actual reviewing model; machine review is not human
+gold. Independent means the check labeler works from the document alone and never sees the label
 pass; the same model family may write both. `build` refuses to run when a file is given as both
 `--label` and `--check`, when a submission's `labeler.role` is not `label` (label and override
 files) or `check` (check files), or when one document appears twice among the label files,
@@ -96,7 +97,7 @@ store.
 
 ## Review decisions
 
-Opus settles a disputed (or single-pass) field with one JSON object per line in a review file (wrapped here for reading):
+A reviewing model settles a disputed (or single-pass) field with one JSON object per line in a review file (wrapped here for reading):
 
 ```json
 {"doc_id": "DOC-…", "field": "urgency", "verdict": "correct",
@@ -114,7 +115,7 @@ The reviewer needs a non-empty `model` and `role`; a missing verdict, a `correct
 | `accept` | the label stands and becomes `near_gold`. On a field an `--override` relabel replaced, the line must also give `value`, equal to the current label (`{"doc_id": "DOC-…", "field": "sender", "verdict": "accept", "value": "Jane Roe", "reviewer": {…}}`); a stale accept stops the build |
 | `reject` | the label is dropped to the supplementary store |
 | `correct` | `entry` (`value` and `evidence`, as in a submission) replaces the label; it must pass the gate. `value_source` is `review_correction` by the reviewer |
-| `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check` and the overlay basis is `near_gold:opus_reviewed_accept_check` |
+| `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check`. The overlay records the actual `reviewer` and uses `near_gold:reviewed_accept_check` (`near_gold:opus_reviewed_accept_check` for an Opus reviewer). |
 
 A corrected or adopted record keeps the label it replaced under `review.original`. The
 catalog check (`gold_labels.py check`) requires every `near_gold` record to rest on an agreeing

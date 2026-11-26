@@ -1135,7 +1135,9 @@ def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> l
             continue
         review = rec.get("review") or {}
         if review:
-            basis = f"near_gold:opus_reviewed_{review.get('verdict')}"
+            model = str((review.get("reviewer") or {}).get("model", ""))
+            kind = "opus_reviewed" if re.search(r"(?:^|[/_-])opus(?:$|[-_])", model.casefold()) else "reviewed"
+            basis = f"near_gold:{kind}_{review.get('verdict')}"
         else:
             basis = "near_gold:two_pass_agree"
         out = docs.setdefault(rec["doc_id"], {
@@ -1152,6 +1154,8 @@ def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> l
             "absent_reason": rec.get("absent_reason"), "label_id": rec.get("label_id"),
             "labeler": rec.get("labeler"), "near_empty": bool(rec.get("near_empty")),
             "value_source": rec.get("value_source")}
+        if review:
+            out["labels"][rec["field"]]["reviewer"] = review.get("reviewer")
     return [docs[k] for k in sorted(docs)]
 
 
