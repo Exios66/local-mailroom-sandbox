@@ -61,11 +61,28 @@ answer from the same question-set response, not a second request.
 | SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
 | SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
 | SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. A value an interim, near-gold or staged overlay supplied (the row's `interim_labels` / `near_gold_labels` / `staged_overlay` marker lists the field) is never dropped, because an interim correction leaves `intent_source` as `heuristic`. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
+| SHF-016 | sandbox | A contract row whose `cuad_clause_labels` map names no category (an empty CUAD universe, so `cuad_presence_f1` is `None`) keeps the suite field headline instead of the `None` that left the row unscoreable: the reviewed interim / near-gold field labels merged at truth prep stand in where the Hub supplied none. The row is marked `cuad_unlabeled` and `scoring_hotfixes` names `SHF-016`; the raw side keeps the Dojo pin's `None`, so `overall_extraction_score` shows under `scoring_hotfixes_changed` for exactly these rows. A contract row with labeled CUAD categories is unchanged, and the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the suite basis is not a stand-in there). | sandbox |
 
 ## Where the new and extended fixes apply
 
 Each entry gives what the fix changes, the code paths that apply it, and how a run records it.
 
+- **SHF-016** (new). Changes the extraction headline for the empty-universe contract rows.
+  - Paths: every caller of `eval/scoring._score_extraction_row_once` — pipeline runs, rescore,
+    pair reports, the gate's document score, `run_extract_eval` and the isolated `extract`
+    scorer — through the row seam, like SHF-001.
+  - What its fingerprint covers: the seam (`_score_extraction_row_once`) and the Dojo readers
+    that decide the row's labeled universe (`gt_categories`, `score_cuad`). A vendor refresh or
+    `SANDBOX_DOJO_SNAPSHOT` that changes one of them makes SHF-016 `stale` (not applied,
+    preflight fails) instead of moving headlines while it reads `current`.
+  - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;
+    `scoring_hotfixes` lists `SHF-016`, and `scoring_hotfixes_changed` includes
+    `overall_extraction_score` for exactly the rows it moves (the raw side keeps the Dojo
+    pin's `None`, so the run-level means under `raw_dojo` still exclude them).
+  - Not changed: a contract row with labeled CUAD categories still scores the CUAD basis, and
+    the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the
+    suite basis is not a stand-in there). The Hub's own field labels also score when it labels
+    a scored field; only the missing CUAD universe needed the seam change.
 - **SHF-015** (new). Changes the extraction headline as described in the table.
   - What its fingerprint covers: the sandbox seam (`applicable_expected_fields`,
     `score_extraction_row`, `job/gate.labelled_count`), the Dojo's `stale_hub_labels` and
@@ -153,8 +170,10 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
        `corporate_record`, `correspondence` and `insurance_claim` headline extraction scores by
        construction (tables below). For a run that stores per-document answers (pipeline,
        isolated and paired runs), rescore it (`sandbox rescore`) on the current hotfixes before
-       comparing its extraction headline across the SHF-015 boundary, or compare `raw_dojo`
-       figures, which SHF-015 does not touch. `extract`, `chained`, `local_vs_api` and
+       comparing its extraction headline across the SHF-015 boundary, or compare the per-item
+       `raw_dojo` values each scored row records, which SHF-015 does not touch (a rescore's
+       run-level `raw_dojo` section is not those values; see [rescore](rescore.md)).
+       `extract`, `chained`, `local_vs_api` and
        `sorter_vs_modernbert` runs cannot be rescored (they keep only run-level scores; see
        [rescore](rescore.md)), and a `run_extract_eval` headline from before this change carries
        no `raw_dojo`. Their pre-SHF-015 extraction headlines are not comparable with later ones:
@@ -173,7 +192,9 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
   `scores.json`.
   - Recorded as: the scored-only means sit under `raw_dojo`, with `failed`,
     `failed_scored_zero`, `scoring_hotfixes` (`["SHF-005"]` when a failure was zero-filled),
-    `scoring_hotfixes_changed` and `headline_basis`.
+    `scoring_hotfixes_changed` and `headline_basis`. That run-level `raw_dojo` aggregates the
+    same top-level per-item scores the headline uses, not the per-row fixes-off values each
+    scored item records under its own `raw_dojo` key (the rescore guide says so).
 - **SHF-006 / SHF-007** (extended). `job/runner._scored_pairs`, the per-item job runner's sorter
   scores, folds labels and leaves blank-truth rows out.
   - Coupling: both fixes define the no-truth drop for these scores, so the drop is on when
@@ -243,6 +264,17 @@ the mean `overall_extraction_score`.
 | correspondence | 1,000 | 1.0 | 1.0 | 0.7525 | 1.0 | 904 |
 | insurance_claim | 1,100 | 1.0 | 1.0 | 0.9902 | 1.0 | 150 |
 | merger_agreement | 152 | 0.0 | 0.0 | 0.0 | 0.0 | 0 |
+
+`n` counts the rows that carry a score; every column averages the same rows, so the
+before/after means stay paired. The per-class `n` values sum to 3,211, not 3,302: the 91
+missing contract rows are in no column, because their CUAD label map labels no category, so the
+contract headline returned no score for them when this table was measured, with SHF-015 off or
+on (the same rows carry the heuristic `material_agreement` intent the policy would drop). Every
+other class's `n` equals its corpus size. SHF-016 now scores the 30 of these rows whose
+reviewed near-gold field labels stand in on the suite basis, so a rerun of this table with
+SHF-016 current has `n` 539 for contract; the other 61 keep no score until a reviewed label
+fills a scored field for them (the gold catalog's entries for them are `use_as_truth: false`
+candidates, not truth).
 
 A prediction that equals the truth never moves. No merger_agreement row in the pinned corpus
 carries a stale label, and a contract's heuristic `intent` (91 drops) is not a scored contract

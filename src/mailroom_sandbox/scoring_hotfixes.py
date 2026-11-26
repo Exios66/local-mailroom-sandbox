@@ -31,8 +31,7 @@ threads never see each other's mode. The other fixes act outside a scoring call 
 they are current: the run aggregation fixes (SHF-005/006/007/008/011), SHF-010 during truth
 preparation (``gold_labels.apply_near_gold``), SHF-009 in the Decisions routing contract
 (``decision_backends``), SHF-012 in subclass scoring, SHF-013 in isolated and pipeline subclass
-scoring and sorter-arm comparisons, and SHF-015's gate label count and extraction-gate field truth.
-See ``docs/scoring-hotfixes.md``.
+scoring and sorter-arm comparisons, and SHF-015's gate label count. See ``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations
@@ -117,7 +116,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                   "60bb19972b6a93aa7979413306c914c037dd1fb384995769e52e657f1747717e"),
                  ("mailroom_sandbox.job.runner:_scored_pairs",
                   "7f917c03e3b9b11a0d56bd2c385e877f15bff91ad645bf221c4f0b1b97e78ce0"),
-                 ("mailroom_sandbox.rescore:run_scores", "74498e99c35f8e067732a71670c944f22cd291fb2fdf4c2439e9d676ec57c9c6")),
+                 ("mailroom_sandbox.rescore:run_scores", "a4a04eb263e02eb2dddd93a8334f3dd1c52b71b5aa0e5f8ea43ee7729345a0a1")),
         upstream="sandbox",
         summary="a row that errored (timeout, parse failure, crash) scores 0 in the run "
                 "headline instead of leaving the denominator (isolated evals, the job-runner "
@@ -282,11 +281,28 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "staged overlay supplied is never dropped, and the dropped fields are named "
                 "(stale_hub_labels); the gate does not count a dropped label toward min_labelled",
     ),
+    ScoringHotfix(
+        id="SHF-016",
+        layer="sandbox",
+        targets=(
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "58a46935f75805f9b6da6475982e169e1efd01e5fa8ced2e32acf0aa6c660165"),
+            # the Dojo reader decides the row's labeled universe; a refresh that changes it
+            # makes the fix stale
+            ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
+            ("llm_dojo_scoring.pipeline.sandbox_scoring:score_cuad", "8c30a637efbf0139bd12bf6283dff62507223ce7e8d90183692854d16a07f106"),
+        ),
+        upstream="sandbox",
+        summary="a contract row whose CUAD label map names no category keeps the suite field "
+                "headline (the reviewed interim / near-gold field labels merged at truth prep "
+                "stand in where the Hub supplied none) instead of the empty-universe CUAD F1 "
+                "that left the row unscoreable; the row is marked cuad_unlabeled and the "
+                "raw side keeps the Dojo pin's None",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
 #: The fixes a row extraction score can depend on.
-EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015"})
+EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016"})
 _ACTIVE: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "sandbox_scoring_hotfixes_active", default=frozenset())
 _STATUS: dict[str, str] = {}

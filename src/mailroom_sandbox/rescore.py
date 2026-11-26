@@ -283,11 +283,14 @@ def run_scores(items: Sequence[Mapping[str, Any]], truth: Mapping[str, Mapping[s
     These are plain means over the items that carry each key. A task runner's own run summary can
     hold other statistics (macro-F1, confidence intervals), which a rescore does not recompute.
 
-    Dual reported (``docs/scoring-hotfixes.md``). ``raw_dojo`` holds the means over the scored
-    items only. SHF-005: on the headline, an item whose run failed (``ok`` false: a timeout, parse
-    failure or crash) scores 0 on each headline key (``HEADLINE_KEYS``) its own first score carries
-    or, failing that, that the scored items of its truth class carry (any scored item's keys when
-    its class has none), so failures stay in the denominator.
+    Dual reported (``docs/scoring-hotfixes.md``). Both sections aggregate the same top-level
+    per-item scores (the headline values); ``raw_dojo`` holds the means over the scored items
+    only. It is not a fixes-off aggregate: a scored item's fixes-off values sit on its own record
+    under its ``raw_dojo`` key. SHF-005: on the headline, an item whose run failed (``ok`` false:
+    a timeout, parse failure or crash) scores 0 on each headline key (``HEADLINE_KEYS``) its own
+    first score carries or, failing that, that the scored items of its truth class carry (any
+    scored item's keys when its class has none). A failure with no such key anywhere — for
+    example when every item failed — is left out, and ``failed_scored_zero`` stays 0.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
