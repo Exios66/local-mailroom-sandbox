@@ -1,0 +1,137 @@
+{
+  "admitted": 15,
+  "documented_absence": 0,
+  "documents": 7,
+  "existing_catalog_rows_preserved": {
+    "gold": 10584,
+    "gold-supplementary": 1868
+  },
+  "existing_overlay_fields_preserved": 9679,
+  "measurement": "Static source/truth/scoring eligibility checks; no model inference or performance claim",
+  "overlay_fields_after": 9694,
+  "populated": 15,
+  "populated_scoring_events": 15,
+  "records": [
+    {
+      "doc_id": "DOC-01ccf3f1ee5f4163",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "aa4d10aa3e8f059b7385c07cff8bf5eb821391877d60d02ec881562209ac3bd5"
+    },
+    {
+      "doc_id": "DOC-01ccf3f1ee5f4163",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "aa4d10aa3e8f059b7385c07cff8bf5eb821391877d60d02ec881562209ac3bd5"
+    },
+    {
+      "doc_id": "DOC-076807b2c574e2c1",
+      "effective_truth_matches": true,
+      "field": "exercise_price",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "8f4a9839688d1d2bcf881903f828931d5a4147a636f9928458d1e7050543c000"
+    },
+    {
+      "doc_id": "DOC-076807b2c574e2c1",
+      "effective_truth_matches": true,
+      "field": "instrument_kind",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "8f4a9839688d1d2bcf881903f828931d5a4147a636f9928458d1e7050543c000"
+    },
+    {
+      "doc_id": "DOC-076807b2c574e2c1",
+      "effective_truth_matches": true,
+      "field": "securities_covered",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "8f4a9839688d1d2bcf881903f828931d5a4147a636f9928458d1e7050543c000"
+    },
+    {
+      "doc_id": "DOC-30ce0f05432fc57f",
+      "effective_truth_matches": true,
+      "field": "holder",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e0b1bb6011d9aa62335726782d380dd57e8eac99039180f9e8214580161d9d1d"
+    },
+    {
+      "doc_id": "DOC-30ce0f05432fc57f",
+      "effective_truth_matches": true,
+      "field": "instrument_kind",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e0b1bb6011d9aa62335726782d380dd57e8eac99039180f9e8214580161d9d1d"
+    },
+    {
+      "doc_id": "DOC-6aed2864c5ee6706",
+      "effective_truth_matches": true,
+      "field": "securities_series",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e6a5a4daaa672b936c54b6da0198f5d3343c998e4d81882e91c0b99d61d600ef"
+    },
+    {
+      "doc_id": "DOC-6aed2864c5ee6706",
+      "effective_truth_matches": true,
+      "field": "trustee",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e6a5a4daaa672b936c54b6da0198f5d3343c998e4d81882e91c0b99d61d600ef"
+    },
+    {
+      "doc_id": "DOC-b68ca8a66c41650f",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "886b0ee61d115da14f540c98a0d763319ad29d3ac2740eb586f9e6aac948011e"
+    },
+    {
+      "doc_id": "DOC-b68ca8a66c41650f",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "886b0ee61d115da14f540c98a0d763319ad29d3ac2740eb586f9e6aac948011e"
+    },
+    {
+      "doc_id": "DOC-e12651c80e736fb8",
+      "effective_truth_matches": true,
+      "field": "securities_series",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "3c9c089bd8f693c56f59a2ee49de6bcff2d3c826c8e0bd10983897cfef139cde"
+    },
+    {
+      "doc_id": "DOC-e12651c80e736fb8",
+      "effective_truth_matches": true,
+      "field": "trustee",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "3c9c089bd8f693c56f59a2ee49de6bcff2d3c826c8e0bd10983897cfef139cde"
+    },
+    {
+      "doc_id": "DOC-e478fa89043a29e3",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b55f563a1698209c58d372dc45bd7b4a06e7a745e82c49d0acd3c180893ccee0"
+    },
+    {
+      "doc_id": "DOC-e478fa89043a29e3",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b55f563a1698209c58d372dc45bd7b4a06e7a745e82c49d0acd3c180893ccee0"
+    }
+  ],
+  "schema": "mailroom.missing-subclass-admission-audit/v1"
+}

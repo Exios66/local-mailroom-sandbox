@@ -152,11 +152,16 @@ documents pass source, missing-only and scoring checks: 14 independent agreement
 source-reviewed wording dispute. A multiple-grantor `principal` remains held because its
 single-name schema does not represent both grantors cleanly. Their raw passes and exact
 admission projections are in `data/labels/repair-artifacts/v93-20261126-subclass-diverse001/`.
-The two admissions total **23 registered entity fields on 10 documents: 22 populated scoring
-targets and one documented absence**. The overlay now has **9,679 labels**. The notebook evidence
+A third admission adds 15 populated facts on seven incorporation, indenture and rights-instrument
+documents (14 independent agreements and one source-reviewed exercise-price representation).
+The three admissions total **38 registered entity fields on 17 documents: 37 populated scoring
+targets and one documented absence**. The overlay now has **9,694 labels**. The third batch
+preserves original raw bytes in private checkpoints; its public exports normalize only source-path
+metadata, preserving every field payload and labeler identity. Its archive is
+`data/labels/repair-artifacts/v93-20261126-subclass-diverse002/`. The notebook evidence
 checker now uses the corporate subclass and retains strict per-member/type/identity checks.
 
-The missing-only corporate inventory is 1,531 registered entity fields on 442 documents (see
+The missing-only corporate inventory is 1,516 registered entity fields on 442 documents (see
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels

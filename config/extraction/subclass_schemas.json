@@ -9158,18 +9158,20 @@
     },
     "authorized_capital": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "certified_matter": {
      "dojo_status": "pending_annotation",
@@ -9252,18 +9254,20 @@
     },
     "exercise_price": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "expiration_date": {
      "dojo_status": "pending_annotation",
@@ -9321,18 +9325,20 @@
     },
     "holder": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "incorporators": {
      "dojo_status": "pending_annotation",
@@ -9351,18 +9357,20 @@
     },
     "instrument_kind": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "intent": {
      "dojo_status": "scored",
@@ -9569,18 +9577,20 @@
     },
     "registered_agent": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "resolutions": {
      "dojo_status": "pending_annotation",
@@ -9616,33 +9626,37 @@
     },
     "securities_covered": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "securities_series": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "signatories": {
      "dojo_status": "pending_annotation",
@@ -9727,18 +9741,20 @@
     },
     "trustee": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     }
    },
    "output_schema_fields": [
@@ -9788,23 +9804,25 @@
      "fields": {
       "authorized_capital": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Authorized share classes and counts, as written.",
         "required": false,
         "where": "Capital stock article"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -9993,23 +10011,25 @@
       },
       "registered_agent": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Registered agent for service of process.",
         "required": true,
         "where": "'Registered Agent' / 'Resident Agent' article"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -10090,7 +10110,8 @@
      "verdicts": {
       "constant": 3,
       "iterate": 6,
-      "no_truth": 3
+      "no_truth": 1,
+      "thin": 2
      }
     },
     "board_resolution": {
@@ -11442,23 +11463,25 @@
       },
       "securities_series": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Designation of the notes, e.g. '5.25% Senior Notes due 2030'.",
         "required": true,
         "where": "Title and Section 2.01"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -11508,23 +11531,25 @@
       },
       "trustee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Indenture trustee.",
         "required": true,
         "where": "Preamble, 'as Trustee'"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "intent": "investor_rights",
@@ -11563,8 +11588,9 @@
      "verdicts": {
       "constant": 2,
       "iterate": 6,
-      "no_truth": 5,
-      "not_applicable": 1
+      "no_truth": 3,
+      "not_applicable": 1,
+      "thin": 2
      }
     },
     "officer_certificate": {
@@ -12473,23 +12499,25 @@
       },
       "exercise_price": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Exercise/strike price, as written.",
         "required": false,
         "where": "Exercise clause"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
@@ -12512,43 +12540,47 @@
       },
       "holder": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Registered holder or beneficiary, when a named party.",
         "required": false,
         "where": "Face of warrant / schedule"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "instrument_kind": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Kind of instrument: warrant / rights plan / preferred stock / registration rights / specimen stock.",
         "required": true,
         "where": "Title and first recital"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "intent": {
        "dojo_status": "scored",
@@ -12665,23 +12697,25 @@
       },
       "securities_covered": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Class and number of securities, as written.",
         "required": false,
         "where": "Operative grant"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -12766,9 +12800,9 @@
      "verdicts": {
       "constant": 2,
       "iterate": 3,
-      "no_truth": 5,
+      "no_truth": 1,
       "not_applicable": 1,
-      "thin": 3
+      "thin": 7
      }
     },
     "subsidiary_list": {
@@ -20988,7 +21022,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "506d5022ca03a1b97003f48c51829627ee746fa67ba814495a99a3075db8bf13",
+  "near_gold_overlay_sha256": "a02e66672cef89065d5010589ed60415ba9f6ae9b572cbcfeb16cf2d9474f5f5",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -21114,7 +21148,31 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "authorized_capital"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "effective_date"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "exercise_price"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "holder"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "instrument_kind"
   },
   {
    "class": "corporate_record",
@@ -21138,7 +21196,25 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "registered_agent"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "resolutions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "securities_covered"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "securities_series"
   },
   {
    "class": "corporate_record",
@@ -21157,6 +21233,12 @@
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
    "field": "subsidiary_jurisdictions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "trustee"
   },
   {
    "class": "correspondence",
@@ -21234,19 +21316,11 @@
    "certifying_officer",
    "last_amended_date",
    "incorporators",
-   "registered_agent",
-   "authorized_capital",
    "organizers",
    "approval_date",
    "expiration_date",
-   "instrument_kind",
-   "holder",
    "rights_agent",
-   "securities_covered",
-   "exercise_price",
-   "trustee",
    "guarantors",
-   "securities_series",
    "principal_amount",
    "maturity_date",
    "officer_title",

@@ -1,8 +1,8 @@
 {
   "by_subclass_field": {
-    "articles_of_incorporation.authorized_capital": 54,
+    "articles_of_incorporation.authorized_capital": 51,
     "articles_of_incorporation.incorporators": 54,
-    "articles_of_incorporation.registered_agent": 54,
+    "articles_of_incorporation.registered_agent": 51,
     "board_resolution.acting_body": 30,
     "board_resolution.action_approved": 30,
     "board_resolution.resolutions": 30,
@@ -14,8 +14,8 @@
     "indenture.guarantors": 57,
     "indenture.maturity_date": 57,
     "indenture.principal_amount": 57,
-    "indenture.securities_series": 57,
-    "indenture.trustee": 57,
+    "indenture.securities_series": 55,
+    "indenture.trustee": 55,
     "officer_certificate.addressee": 61,
     "officer_certificate.certified_matter": 61,
     "officer_certificate.certifying_officer": 61,
@@ -24,20 +24,20 @@
     "powers_of_attorney.authority_scope": 24,
     "powers_of_attorney.expiration_date": 26,
     "powers_of_attorney.principal": 25,
-    "rights_instrument.exercise_price": 49,
-    "rights_instrument.holder": 49,
-    "rights_instrument.instrument_kind": 49,
+    "rights_instrument.exercise_price": 48,
+    "rights_instrument.holder": 48,
+    "rights_instrument.instrument_kind": 47,
     "rights_instrument.rights_agent": 49,
-    "rights_instrument.securities_covered": 49,
+    "rights_instrument.securities_covered": 48,
     "subsidiary_list.subsidiaries": 49,
     "subsidiary_list.subsidiary_jurisdictions": 49
   },
   "corporate_entity_repair_progress": {
     "documented_absence": 1,
-    "documents": 10,
+    "documents": 17,
     "held_fields": 9,
-    "populated_scored_fields": 22,
-    "registered_entity_fields": 23
+    "populated_scored_fields": 37,
+    "registered_entity_fields": 38
   },
   "documents": 442,
   "inputs": {
@@ -45,25 +45,28 @@
       "corporate_record_schema": "2f5a070a3d26b4bde90305d3824443e6c2ef6a55d257e30050eb84b12dd1ab39",
       "doc_classes": "6f6bea610e3850fcd824b6d2414c6e63acdc9547343ab744b06cc86c804cfc2e"
     },
-    "gold_manifest_sha256": "bd47b3cb446489c2d07a4a781816d5733dce7688d3fec1ba70b573a0ec968fd0",
+    "gold_manifest_sha256": "3d1b7958fb75aebc795e91edbd1fc4533daf64bd11718157702bf3c22824f135",
     "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-    "near_gold_overlay_sha256": "506d5022ca03a1b97003f48c51829627ee746fa67ba814495a99a3075db8bf13",
+    "near_gold_overlay_sha256": "a02e66672cef89065d5010589ed60415ba9f6ae9b572cbcfeb16cf2d9474f5f5",
     "normalized_corpus_sha256": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
   },
   "latest_admission": {
-    "artifact": "data/labels/repair-artifacts/v93-20261126-subclass-diverse001",
+    "artifact": "data/labels/repair-artifacts/v93-20261126-subclass-diverse002",
     "documented_absence": 0,
-    "documents": 6,
-    "held_fields": 1,
+    "documents": 7,
+    "held_fields": 0,
     "populated_scored_fields": 15,
     "registered_entity_fields": 15
   },
   "measurement": "Static missing-field inventory, not model inference or extraction performance",
-  "missing_registered_entity_fields": 1531,
+  "missing_registered_entity_fields": 1516,
   "protected_known_entity_fields": {
+    "articles_of_incorporation": 6,
     "board_resolution": 6,
     "charter_amendment": 4,
+    "indenture": 4,
     "powers_of_attorney": 5,
+    "rights_instrument": 5,
     "subsidiary_list": 8
   },
   "registry": "vendor/llm-dojo-scoring/src/llm_dojo_scoring/schemas/corporate_record_schema.py",

@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T17:23:32Z",
+  "added_at": "2026-11-26T17:37:44Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -199,6 +199,64 @@
           "subclass-diverse001-parent-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-26T17:37:43Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-01ccf3f1ee5f4163",
+        "DOC-076807b2c574e2c1",
+        "DOC-30ce0f05432fc57f",
+        "DOC-b68ca8a66c41650f",
+        "DOC-e12651c80e736fb8",
+        "DOC-e478fa89043a29e3"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse002-existing13-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse002-existing13-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse002-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T17:37:44Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-6aed2864c5ee6706"
+      ],
+      "sources": {
+        "check": [
+          "subclass-diverse002-new2-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse002-new2-label.jsonl"
+        ],
+        "review": []
+      }
     }
   ],
   "binding": {
@@ -275,11 +333,23 @@
       "authority_scope": {
         "near_gold": 2
       },
+      "authorized_capital": {
+        "near_gold": 3
+      },
       "effective_date": {
         "near_gold": 425
       },
       "entity_name": {
         "near_gold": 38
+      },
+      "exercise_price": {
+        "near_gold": 1
+      },
+      "holder": {
+        "near_gold": 1
+      },
+      "instrument_kind": {
+        "near_gold": 2
       },
       "jurisdiction": {
         "near_gold": 372
@@ -290,7 +360,16 @@
       "prior_entity_name": {
         "near_gold": 2
       },
+      "registered_agent": {
+        "near_gold": 3
+      },
       "resolutions": {
+        "near_gold": 2
+      },
+      "securities_covered": {
+        "near_gold": 1
+      },
+      "securities_series": {
         "near_gold": 2
       },
       "signatories": {
@@ -301,6 +380,9 @@
       },
       "subsidiary_jurisdictions": {
         "near_gold": 4
+      },
+      "trustee": {
+        "near_gold": 2
       }
     },
     "correspondence": {
@@ -329,7 +411,7 @@
   },
   "files": {
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
-    "corporate_record.jsonl": "d42ada36f5ae7341e373fc68dd5204602df1ac103ce2227b87981e3637016266",
+    "corporate_record.jsonl": "95d20ad58ff4c2a37850a7eb119bdb55ad1666500a3a846d77a6ad9e3e468ae2",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d"
   },
   "reviewed_at": "2026-11-26T04:16:57Z",
@@ -388,6 +470,8 @@
       "check-correspondence-040.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
+      "subclass-diverse002-existing13-check.jsonl",
+      "subclass-diverse002-new2-check.jsonl",
       "subclass-subsidiary001-ready8-check.jsonl",
       "tail-001-check.jsonl"
     ],
@@ -601,6 +685,8 @@
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
+      "subclass-diverse002-existing13-label.jsonl",
+      "subclass-diverse002-new2-label.jsonl",
       "subclass-subsidiary001-ready8-label.jsonl",
       "tail-001-label.jsonl"
     ],
@@ -626,6 +712,7 @@
       "review-promo-actions.jsonl",
       "review-promo-urgency.jsonl",
       "subclass-diverse001-parent-review.jsonl",
+      "subclass-diverse002-parent-review.jsonl",
       "tail-001-review.jsonl"
     ]
   },
