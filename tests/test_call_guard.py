@@ -313,18 +313,19 @@ def test_concurrent_requests_cannot_all_pass_the_check_before_any_reserves(monke
         real_reserve(usd)
 
     monkeypatch.setattr(budget, "reserve", slow_reserve)
-    admitted, start = [], threading.Barrier(8)
+    admitted, refused, start = [], [], threading.Barrier(8)
+    refusal = type(call_guard.budget_error("probe"))
 
     def request():
         start.wait()
         try:
             admitted.append(call_guard.before_call(prompt_tokens=300_000, completion_tokens=0))  # ~$0.03 each
-        except Exception:  # noqa: BLE001 — refused
-            pass
+        except refusal as exc:
+            refused.append(str(exc))
 
     threads = [threading.Thread(target=request) for _ in range(8)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    assert len(admitted) == 1
+    assert len(admitted) == 1 and len(refused) == 7
