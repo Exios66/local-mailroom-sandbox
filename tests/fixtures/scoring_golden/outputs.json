@@ -2803,8 +2803,8 @@
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
-   "schema_adherence": 1.0,
-   "schema_valid": true,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
    "scoring_method": "suite",
    "unlabeled_fields": [
     "filing_number"
@@ -2839,7 +2839,7 @@
     "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
-    "schema_adherence": 1.0
+    "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
    "task": "extract",
@@ -3265,8 +3265,8 @@
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
-   "schema_adherence": 1.0,
-   "schema_valid": true,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
    "scoring_method": "suite",
    "unlabeled_fields": []
   },
@@ -3299,7 +3299,7 @@
     "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
-    "schema_adherence": 1.0
+    "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
    "task": "extract",
@@ -3545,8 +3545,8 @@
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
-   "schema_adherence": 1.0,
-   "schema_valid": true,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
    "scoring_method": "suite",
    "unlabeled_fields": [
     "filing_number"
@@ -3581,7 +3581,7 @@
     "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
-    "schema_adherence": 1.0
+    "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
    "task": "extract",
@@ -3977,8 +3977,8 @@
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
-   "schema_adherence": 1.0,
-   "schema_valid": true,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
    "scoring_method": "suite",
    "unlabeled_fields": [
     "filing_number"
@@ -4013,7 +4013,7 @@
     "extraction_precision": 1.0,
     "extraction_recall": 0.9167,
     "overall_extraction_score": 0.9167,
-    "schema_adherence": 1.0
+    "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
    "task": "extract",

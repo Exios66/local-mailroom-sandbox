@@ -114,6 +114,22 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
+    if "Extract structured data from this corporate record:" in text and "JSON schema:\n" in text:
+        # Native corporate requests carry the selected runtime schema in the
+        # prompt. Follow that schema, including after a human changes class.
+        from mailroom_sandbox.corporate_extraction import validate_response
+
+        schema = json.JSONDecoder().raw_decode(text.split("JSON schema:\n", 1)[1])[0]
+        title = schema.get("title", "")
+        prefix = "CorporateRecordExtraction_"
+        subclass = title[len(prefix):] if title.startswith(prefix) else None
+        fields = oracle_extraction(fields, "corporate_record", subclass)
+        payload = {}
+        for key, spec in schema["properties"].items():
+            default = [] if spec.get("type") == "array" else None
+            value = conf if key == "confidence" else fields.get(key, default)
+            payload[key] = value if validate_response(value, spec) else default
+        return payload
     if "Extract this document's fields" in text:  # the in-graph specialist
         return {"confidence": conf, **oracle_extraction(fields, doc_type, expect.get("expected_subclass"))}
     payload = {"confidence": conf, "mock_extraction": True}
