@@ -1007,7 +1007,9 @@ const f=flags(run([wrong],{gt:"contract",pred:"merger_agreement"}));
 A.deepEqual([f.rent,f.parking,f.law,f.party],["misrouted","misrouted","misrouted","misrouted"]);
 A.equal(f.county,"not in text");
 const none=run([call("sorter","classify",[[0,10]])],{gt:"contract",pred:"contract"});
-A.equal(flags(none).rent,"misrouted");                          // no specialist ran at all
+A.equal(flags(none).rent,"no specialist ran");                  // classified correctly, but no specialist ran at all
+A.equal(flags(run([call("sorter","classify",[[0,10]])],{gt:"contract",pred:"letter"})).rent,"misrouted");   // wrong class and no specialist: still misrouted
+A.equal(flags(none).county,"not in text");                       // an absent value keeps its own flag
 A.equal(flags(run([call("contracts_specialist","extract",[[0,DOC.length]])],{gt:"contract",pred:"letter"})).rent,"");  // the gt class's specialist ran: not misrouted
 console.log("ok");
 """)

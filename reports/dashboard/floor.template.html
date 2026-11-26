@@ -133,6 +133,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 .rd-flag{display:inline-block;font-size:9px;padding:0 6px;border-radius:8px;border:1px solid;white-space:nowrap}
 .rd-not-read{color:#fab219;border-color:#fab219}
 .rd-misrouted{color:#ee7b7b;border-color:#d03b3b}
+.rd-no-specialist-ran{color:#e0a458;border-color:#b9803a}
 .rd-not-in-text{color:#b4b2a9;border-color:#898781}
 .drawer button:focus-visible,table.t tr.click:focus-visible{outline:2px solid #7fd0a2;outline-offset:-2px}
 /* narrow window (e.g. an IDE side pane): stack graph above the rails instead of squeezing it to 0px — last in the sheet so it wins over .ribbon and the rails */
@@ -848,7 +849,7 @@ function rdAnalyse(a){
   const occ=leaves.length?rdOccurrences(nt,leaves):[];let flag="";
   if(leaves.length){
    if(!occ.length)flag="not in text";
-   else if(misrouted)flag="misrouted";
+   else if(misrouted)flag=ran.length===0&&pred===gt?"no specialist ran":"misrouted";
    else if(canJudgeRange&&!occ.some(r=>rdCovers(merged,r[0],r[1])))flag="not read"}
   const result=hasExpected&&hasExtracted?(rdNormalize(rdShow(ev)).norm===rdNormalize(rdShow(xv)).norm?"matches":"differs"):hasExpected?"no value":"";
   return {field,expected:rdShow(ev),extracted:rdShow(xv),hasExpected,hasExtracted,leaves,occ,flag,result}});
@@ -901,6 +902,7 @@ function rdTogglesHtml(model,on,callOff){
  return h}
 const RD_FLAG_TITLE={"not read":"The value occurs in the working text, but in no range a specialist read (every specialist call counts, retries included).",
  "misrouted":"No specialist for this document's true class ran, so no field was extracted for it.",
+ "no specialist ran":"The document was classified correctly, but no specialist ran for it, so no field was extracted.",
  "not in text":"The value does not occur in the working text at all (a label or OCR difference, or a rewritten text)."};
 const rdTrunc=(s,n)=>s.length>n?s.slice(0,n-1)+"…":s;
 /** The whole panel as escaped HTML. `v` is plain data (see rdView in the glue); nothing in it is trusted. */
@@ -949,7 +951,7 @@ function rdPanelHtml(v){
     const sel=v.field===r.field,k=sel&&occ.length?` <small class="mut">${(((v.hit||0)%occ.length)+occ.length)%occ.length+1} of ${occ.length}</small>`:r.occ.length?` <small class="mut">×${r.occ.length}</small>`:"";
     const fl=r.flag?`<span class="rd-flag rd-${r.flag.replace(/ /g,"-")}" title="${esc(RD_FLAG_TITLE[r.flag])}">${esc(r.flag)}</span>`:"";
     return `<tr data-f="${esc(r.field)}"${sel?' class="sel"':""}><td><button type="button" class="rd-go" data-rd="field" data-f="${esc(r.field)}" title="Scroll to this value in the text">${esc(r.field)}</button></td><td class="rd-v" title="${esc(r.expected)}">${esc(rdTrunc(r.expected,60))}${k}</td><td class="rd-v" title="${esc(r.extracted)}">${esc(rdTrunc(r.extracted,60))}${r.result?` <small class="${r.result==="matches"?"ok":"warn"}">${r.result}</small>`:""}</td><td>${fl}</td></tr>`}).join("")+`</table>`;
-   h+=`<p class="secnote">Flags are computed here from the stored text and ranges: <b>not read</b>, <b>misrouted</b>, <b>not in text</b>. "matches" and "differs" compare the strings only (whitespace and case ignored); they are not the Dojo score.`+(an.unknown?` ${an.unknown} specialist call${an.unknown===1?"":"s"} ha${an.unknown===1?"s":"ve"} no exact range (raw basis or size skip), so <b>not read</b> is not claimed.`:"")+(an.noReads?" No reads were recorded, so only <b>not in text</b> can be judged.":"")+`</p>`}
+   h+=`<p class="secnote">Flags are computed here from the stored text and ranges: <b>not read</b>, <b>misrouted</b>, <b>no specialist ran</b>, <b>not in text</b>. "matches" and "differs" compare the strings only (whitespace and case ignored); they are not the Dojo score.`+(an.unknown?` ${an.unknown} specialist call${an.unknown===1?"":"s"} ha${an.unknown===1?"s":"ve"} no exact range (raw basis or size skip), so <b>not read</b> is not claimed.`:"")+(an.noReads?" No reads were recorded, so only <b>not in text</b> can be judged.":"")+`</p>`}
   else if(an)h+=`<p class="secnote">The dataset row has no expected fields and the item stored no extraction.</p>`;
   h+=`</div></div>`}
  return h+`</div>`}

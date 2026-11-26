@@ -189,6 +189,7 @@ ever see the text that holds it?
 | --- | --- |
 | `not read` | The expected value occurs in the working text, but in no range read by a specialist that ran for this document. Every call of those specialists counts, retries included. |
 | `misrouted` | No specialist for the document's true class ran, so no field was extracted for that class. It replaces `not read`. A value absent from the text stays `not in text`. |
+| `no specialist ran` | The document was classified as its true class, but no specialist ran for it, so no field was extracted. It is shown instead of `misrouted` when the predicted class equals the true class. |
 | `not in text` | The expected value does not occur in the working text at all (a label or OCR difference, or a rewrite). |
 
 "Specialist" comes from the digest: the agents seen under a graph node labelled
