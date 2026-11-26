@@ -29,37 +29,37 @@
     "rights_instrument.instrument_kind": 47,
     "rights_instrument.rights_agent": 49,
     "rights_instrument.securities_covered": 48,
-    "subsidiary_list.subsidiaries": 49,
-    "subsidiary_list.subsidiary_jurisdictions": 49
+    "subsidiary_list.subsidiaries": 33,
+    "subsidiary_list.subsidiary_jurisdictions": 32
   },
   "corporate_entity_repair_progress": {
-    "documented_absence": 1,
-    "documents": 17,
-    "held_fields": 9,
-    "populated_scored_fields": 37,
-    "registered_entity_fields": 38
+    "documented_absence": 2,
+    "documents": 34,
+    "held_fields": 16,
+    "populated_scored_fields": 69,
+    "registered_entity_fields": 71
   },
-  "documents": 442,
+  "documents": 426,
   "inputs": {
     "corporate_registry_sha256": {
       "corporate_record_schema": "2f5a070a3d26b4bde90305d3824443e6c2ef6a55d257e30050eb84b12dd1ab39",
       "doc_classes": "6f6bea610e3850fcd824b6d2414c6e63acdc9547343ab744b06cc86c804cfc2e"
     },
-    "gold_manifest_sha256": "3d1b7958fb75aebc795e91edbd1fc4533daf64bd11718157702bf3c22824f135",
+    "gold_manifest_sha256": "da01899d810600cb2a05d73394fb799408761406ac4a09255894950802b337ea",
     "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-    "near_gold_overlay_sha256": "a02e66672cef89065d5010589ed60415ba9f6ae9b572cbcfeb16cf2d9474f5f5",
+    "near_gold_overlay_sha256": "0c62fc0a82f4a0c6f08b432a6f063f95bc7415a8d4dc2fa016e70b820d525fb3",
     "normalized_corpus_sha256": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f"
   },
   "latest_admission": {
-    "artifact": "data/labels/repair-artifacts/v93-20261126-subclass-diverse002",
-    "documented_absence": 0,
-    "documents": 7,
-    "held_fields": 0,
-    "populated_scored_fields": 15,
-    "registered_entity_fields": 15
+    "artifact": "data/labels/repair-artifacts/v93-20261126-subclass-subsidiary002",
+    "documented_absence": 1,
+    "documents": 17,
+    "held_fields": 7,
+    "populated_scored_fields": 32,
+    "registered_entity_fields": 33
   },
   "measurement": "Static missing-field inventory, not model inference or extraction performance",
-  "missing_registered_entity_fields": 1516,
+  "missing_registered_entity_fields": 1483,
   "protected_known_entity_fields": {
     "articles_of_incorporation": 6,
     "board_resolution": 6,
@@ -67,7 +67,7 @@
     "indenture": 4,
     "powers_of_attorney": 5,
     "rights_instrument": 5,
-    "subsidiary_list": 8
+    "subsidiary_list": 41
   },
   "registry": "vendor/llm-dojo-scoring/src/llm_dojo_scoring/schemas/corporate_record_schema.py",
   "runtime_schema_fields": {
@@ -229,6 +229,14 @@
   "schema": "mailroom.corporate-subclass-missing-coverage/v1",
   "scope": "Only registered corporate subclass extension entities missing in Hub, interim, near-gold and catalog; no label values supplied.",
   "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "source_type_hold": {
+    "artifact": "corporate_source_fit_officer_certificate.json",
+    "documents": 61,
+    "entity_field_opportunities": 244,
+    "full_sources_read": 3,
+    "status": "bounded scout, corpus subtype adjudication pending; not absence labels",
+    "subclass": "officer_certificate"
+  },
   "subclass_documents": {
     "articles_of_incorporation": 54,
     "board_resolution": 32,

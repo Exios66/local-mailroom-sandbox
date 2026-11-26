@@ -154,19 +154,45 @@ single-name schema does not represent both grantors cleanly. Their raw passes an
 admission projections are in `data/labels/repair-artifacts/v93-20261126-subclass-diverse001/`.
 A third admission adds 15 populated facts on seven incorporation, indenture and rights-instrument
 documents (14 independent agreements and one source-reviewed exercise-price representation).
-The three admissions total **38 registered entity fields on 17 documents: 37 populated scoring
-targets and one documented absence**. The overlay now has **9,694 labels**. The third batch
+Those three admissions total 38 registered entity fields on 17 documents. The third batch
 preserves original raw bytes in private checkpoints; its public exports normalize only source-path
 metadata, preserving every field payload and labeler identity. Its archive is
 `data/labels/repair-artifacts/v93-20261126-subclass-diverse002/`. The notebook evidence
 checker now uses the corporate subclass and retains strict per-member/type/identity checks.
 
-The missing-only corporate inventory is 1,516 registered entity fields on 442 documents (see
+A fourth admission adds **33 fields on 17 subsidiary schedules: 32 populated scoring targets
+and one documented jurisdiction absence**. Thirty-one independent agreements and two source
+reviews support these additions. The reviews adopt the check pass's legal names, keeping
+ownership and trade-name qualifications in evidence. Seven fields remain held for identical
+maps or ambiguous source interpretation; neither evidence nor independence guards were changed.
+Byte-identical raw passes, exact field projections and the preservation/scoring audit are in
+`data/labels/repair-artifacts/v93-20261126-subclass-subsidiary002/`.
+
+The four admissions total **71 registered entity fields on 34 documents: 69 populated scoring
+targets and two documented absences**. The overlay now has **9,727 labels**. Sixteen corporate
+fields remain held across these admissions.
+
+The missing-only corporate inventory is 1,483 registered entity fields on 426 documents (see
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels
 retain `use_as_truth: false`; no release cut or production selector is advanced. Two correspondence
 fields remain held for parser or independence-evidence handling.
+
+**Source-type hold.** A bounded audit of the 61 records currently typed `officer_certificate`
+found headings suggesting 53 designation/amendment instruments, seven incorporation/charter
+instruments and one board resolution with an embedded designation. These are heuristic groups,
+not corrected subtypes: only three sources were read fully. All 61 source hashes match the pin.
+The four officer fields (244 opportunities) remain unassigned until corpus owners adjudicate
+instrument type and compound-document boundaries. An officer's filing attestation does not by
+itself turn a designation into a standalone officer certificate. See the source excerpts,
+inspection ranges and acceptance limits in
+[`corporate_source_fit_officer_certificate.json`](corporate_source_fit_officer_certificate.json).
+
+[`05_label_coverage_eda.ipynb`](../../../notebooks/05_label_coverage_eda.ipynb) inspects current
+interim and near-gold snapshots at execution, with optional pinned cached-corpus comparisons,
+subclass applicability, runtime field support and evidence drill-down. It reports populated
+values and documented absences separately and makes no model-performance claim.
 
 ## Presence codes (provenance file)
 

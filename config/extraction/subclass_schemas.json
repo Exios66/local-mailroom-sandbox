@@ -9707,35 +9707,47 @@
     },
     "subsidiaries": {
      "dojo_status": "pending_annotation",
+     "dominant": {
+      "kind": "value",
+      "share": 0.05,
+      "value": [
+       "PlanVista Solutions, Inc."
+      ]
+     },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 4,
+     "labeled": 20,
      "labeled_by_set": {
-      "calibration": 1,
-      "dev": 0,
-      "heldout": 3,
+      "calibration": 4,
+      "dev": 8,
+      "heldout": 8,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 4
+      "near_gold": 20
      },
      "verdict": "thin"
     },
     "subsidiary_jurisdictions": {
      "dojo_status": "pending_annotation",
+     "dominant": {
+      "kind": "value",
+      "share": 0.095,
+      "value": []
+     },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 4,
+     "labeled": 21,
      "labeled_by_set": {
-      "calibration": 1,
-      "dev": 0,
-      "heldout": 3,
+      "calibration": 5,
+      "dev": 8,
+      "heldout": 8,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 4
+      "near_gold": 21
      },
      "verdict": "thin"
     },
@@ -13005,6 +13017,13 @@
       },
       "subsidiaries": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.05,
+        "value": [
+         "PlanVista Solutions, Inc."
+        ]
+       },
        "effective_status": "scored",
        "entity": {
         "description": "Each listed subsidiary, legal name as written.",
@@ -13012,21 +13031,26 @@
         "where": "Subsidiary table, first column"
        },
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
-        "heldout": 3,
+        "calibration": 4,
+        "dev": 8,
+        "heldout": 8,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 20
        },
        "type": "entity_list:name",
        "verdict": "thin"
       },
       "subsidiary_jurisdictions": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.095,
+        "value": []
+       },
        "effective_status": "scored",
        "entity": {
         "description": "Distinct jurisdictions of organization listed for subsidiaries.",
@@ -13034,15 +13058,15 @@
         "where": "Subsidiary table, jurisdiction column"
        },
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 21,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 0,
-        "heldout": 3,
+        "calibration": 5,
+        "dev": 8,
+        "heldout": 8,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 21
        },
        "type": "entity_list:name",
        "verdict": "thin"
@@ -21022,7 +21046,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "a02e66672cef89065d5010589ed60415ba9f6ae9b572cbcfeb16cf2d9474f5f5",
+  "near_gold_overlay_sha256": "0c62fc0a82f4a0c6f08b432a6f063f95bc7415a8d4dc2fa016e70b820d525fb3",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],

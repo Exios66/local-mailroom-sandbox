@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T17:37:44Z",
+  "added_at": "2026-11-26T22:56:05Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -257,6 +257,50 @@
         ],
         "review": []
       }
+    },
+    {
+      "added_at": "2026-11-26T22:56:05Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-02e5b3d7ea700ab0",
+        "DOC-0636dbc980a43715",
+        "DOC-204c3c7c0ba021cd",
+        "DOC-210d34e7c0e3f65d",
+        "DOC-417996c5cc3d91f5",
+        "DOC-4a2d6dad6cf09052",
+        "DOC-4fd55e720ac8b708",
+        "DOC-729ea9a3c924614e",
+        "DOC-74b0b6beecc8c0ad",
+        "DOC-a1bf2ddf032e38ea",
+        "DOC-a2be49cc07e80dd8",
+        "DOC-abd090f0f36ec76d",
+        "DOC-b07d6254886c7038",
+        "DOC-c4c08df19a3d9526",
+        "DOC-c80ef83120793a69",
+        "DOC-cdf8ee802f599662",
+        "DOC-e3af62d905e5bc55"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-subsidiary002-ready33-check.jsonl"
+        ],
+        "label": [
+          "subclass-subsidiary002-ready33-label.jsonl"
+        ],
+        "review": [
+          "subclass-subsidiary002-parent-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -376,10 +420,10 @@
         "near_gold": 372
       },
       "subsidiaries": {
-        "near_gold": 4
+        "near_gold": 20
       },
       "subsidiary_jurisdictions": {
-        "near_gold": 4
+        "near_gold": 21
       },
       "trustee": {
         "near_gold": 2
@@ -411,7 +455,7 @@
   },
   "files": {
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
-    "corporate_record.jsonl": "95d20ad58ff4c2a37850a7eb119bdb55ad1666500a3a846d77a6ad9e3e468ae2",
+    "corporate_record.jsonl": "7d4cb22cd16254a80eeb2e2ee842f91f5b88f3e1dbc531498197f59a012121ae",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d"
   },
   "reviewed_at": "2026-11-26T04:16:57Z",
@@ -473,6 +517,7 @@
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
       "subclass-subsidiary001-ready8-check.jsonl",
+      "subclass-subsidiary002-ready33-check.jsonl",
       "tail-001-check.jsonl"
     ],
     "label": [
@@ -688,6 +733,7 @@
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
       "subclass-subsidiary001-ready8-label.jsonl",
+      "subclass-subsidiary002-ready33-label.jsonl",
       "tail-001-label.jsonl"
     ],
     "override": [
@@ -713,6 +759,7 @@
       "review-promo-urgency.jsonl",
       "subclass-diverse001-parent-review.jsonl",
       "subclass-diverse002-parent-review.jsonl",
+      "subclass-subsidiary002-parent-review.jsonl",
       "tail-001-review.jsonl"
     ]
   },
