@@ -154,6 +154,56 @@ def test_text_pairing_missing_text_and_old_stores(tmp_path):
     assert "text_pairing" not in reads and reads["calls"][0]["ranges"] == [[0, 60]]
 
 
+def _many_docs_run(root: Path, n: int) -> Path:
+    """A run with ``n`` documents, each with a stored text, a hashed read record and a torn tail."""
+    run = root / "runtime" / "runs" / "run-many"
+    (run / "doc_texts").mkdir(parents=True)
+    lines = []
+    for i in range(n):
+        doc = f"doc{i}"
+        text = f"{WORKING} number {i}"
+        name = hashlib.sha1(doc.encode()).hexdigest()[:16] + ".txt"
+        (run / "doc_texts" / name).write_text(text, encoding="utf-8")
+        lines.append({**_read(1, "sorter", [[0, 10 + i]], text_hash=_tag(text)), "doc": doc})
+        lines.append({**_read(2, "judge", [[5, 20 + i]], text_hash=_tag(text)), "doc": doc})
+    (run / "reads.jsonl").write_text("".join(json.dumps(r) + "\n" for r in lines) + "{torn\n")
+    return run
+
+
+def test_reads_are_built_only_for_the_kept_documents(tmp_path, monkeypatch):
+    """The digest keeps at most DOC_ROW_CAP rows: other documents are neither merged nor hashed."""
+    builder = floor_app.load_builder()
+    run_dir = _many_docs_run(tmp_path, 6)
+    everyone = builder.read_ranges_by_doc(run_dir)
+    assert set(everyone) == {f"doc{i}" for i in range(6)}
+
+    hashed: list[int] = []
+    real = builder._text_hash
+    monkeypatch.setattr(builder, "_text_hash", lambda data: hashed.append(1) or real(data))
+    kept = builder.read_ranges_by_doc(run_dir, {"doc1", "doc4", "not-in-the-file"})
+    assert set(kept) == {"doc1", "doc4"} and len(hashed) == 2
+    assert kept == {d: everyone[d] for d in ("doc1", "doc4")}  # identical output for a kept document
+    assert builder.read_ranges_by_doc(run_dir, set()) == {}  # nothing kept: nothing built
+    assert builder.read_ranges_by_doc(tmp_path, {"doc1"}) is None  # no reads.jsonl stays "not recorded"
+
+
+def test_build_run_asks_only_for_the_kept_rows(tmp_path, monkeypatch):
+    builder = floor_app.load_builder()
+    seen: list = []
+    real = builder.read_ranges_by_doc
+
+    def spy(path, docs=None):
+        seen.append(docs)
+        return real(path, docs)
+
+    monkeypatch.setattr(builder, "read_ranges_by_doc", spy)
+    run_dir = _reads_run(tmp_path, reads=[_read(1, "sorter", [[0, 60]], text_hash=_tag(WORKING)),
+                                          {**_read(1, "sorter", [[0, 9]]), "doc": "other-doc"}])
+    run, _ = builder.build_run("run-r", run_dir, set())
+    assert seen == [{row["id"] for row in run["docs"]}]
+    assert _doc_row(run)["debug"]["reads"]["text_pairing"] == "match"
+
+
 def test_digest_and_recorder_hash_the_same_way():
     from mailroom_sandbox.job import read_ranges
 

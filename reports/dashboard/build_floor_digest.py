@@ -33,6 +33,7 @@ import re
 import statistics
 import sys
 from collections import Counter
+from collections.abc import Collection, Iterator
 from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
@@ -341,13 +342,12 @@ def parse_graph(path: Path) -> dict:
 # ── artifact readers (tolerant: missing / torn files degrade, never fabricate) ──
 
 
-def read_jsonl(path: Path) -> list[dict]:
-    """Read object rows, skipping blank, malformed, and non-object lines.
+def iter_jsonl(path: Path) -> Iterator[dict]:
+    """Yield object rows one at a time, skipping blank, malformed, and non-object lines.
 
-    Missing or unreadable files yield the rows read so far; invalid UTF-8 is
-    replaced before parsing.
+    A missing or unreadable file ends the iteration after the rows already yielded; invalid UTF-8
+    is replaced before parsing.
     """
-    rows: list[dict] = []
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -359,10 +359,18 @@ def read_jsonl(path: Path) -> list[dict]:
                 except ValueError:
                     continue
                 if isinstance(row, dict):
-                    rows.append(row)
+                    yield row
     except OSError:
-        pass
-    return rows
+        return
+
+
+def read_jsonl(path: Path) -> list[dict]:
+    """Read object rows, skipping blank, malformed, and non-object lines.
+
+    Missing or unreadable files yield the rows read so far; invalid UTF-8 is
+    replaced before parsing.
+    """
+    return list(iter_jsonl(path))
 
 
 def read_json(path: Path) -> dict:
@@ -518,10 +526,15 @@ def _text_pairing(path: Path, doc: str, tag: str) -> str:
         return "missing"
 
 
-def read_ranges_by_doc(path: Path) -> dict[str, dict] | None:
+def read_ranges_by_doc(path: Path, docs: Collection[str] | None = None) -> dict[str, dict] | None:
     """``debug.reads`` per document id from a run's ``reads.jsonl``; None when the run has none.
 
-    Torn or malformed lines are skipped (``read_jsonl``). Only offsets and counts are read
+    ``docs`` limits the work to those document ids (the rows the digest keeps): other documents'
+    records are dropped as they stream past, so they are never accumulated, merged or paired, and
+    only the kept documents' stored texts are hashed. ``None`` means every document. The entry of
+    a document is the same either way.
+
+    Torn or malformed lines are skipped (``iter_jsonl``). Only offsets and counts are read
     out of each record, never any document text. When the kept calls carry a ``text_hash``,
     ``text_pairing`` says whether the stored text still hashes to it (``match``, ``different`` or
     ``missing``); the hash itself is not emitted.
@@ -529,10 +542,13 @@ def read_ranges_by_doc(path: Path) -> dict[str, dict] | None:
     reads_path = path / "reads.jsonl"
     if not reads_path.is_file():
         return None
+    wanted = None if docs is None else {str(d) for d in docs}
     per_doc: dict[str, list[dict]] = {}
-    for rec in read_jsonl(reads_path):
+    for rec in iter_jsonl(reads_path):
         if rec.get("doc") is not None:
-            per_doc.setdefault(str(rec["doc"]), []).append(rec)
+            doc = str(rec["doc"])
+            if wanted is None or doc in wanted:
+                per_doc.setdefault(doc, []).append(rec)
     out: dict[str, dict] = {}
     for doc, recs in per_doc.items():
         reads = _doc_reads(recs)
@@ -1812,7 +1828,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     cursor = checkpoint.get("cursor")
     routing = _routing(items, ds_class)
     kept_docs, docs_omitted, docs_omitted_healthy = _select_doc_rows(doc_rows)
-    reads_by_doc = read_ranges_by_doc(path)
+    reads_by_doc = read_ranges_by_doc(path, {row["id"] for row in kept_docs})
     if reads_by_doc is not None:  # absent file: the viewer says "not recorded"
         for row in kept_docs:
             if row["id"] in reads_by_doc:
