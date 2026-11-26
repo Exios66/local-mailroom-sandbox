@@ -11,7 +11,7 @@ TEXT = "Subsidiaries: Acme Inc; Beta LLC. Trustee: Trust Co. Price $50."
 
 
 def gate(field, value, evidence=None, subclass="subsidiary_list"):
-    entry = {"value": value, "evidence": evidence or [TEXT], "absent": "full read"}
+    entry = {"value": value, "evidence": [TEXT] if evidence is None else evidence, "absent": "full read"}
     result = gl.validate_submission({"doc_id": "D", "fields": {field: entry}}, TEXT,
                                     "corporate_record", subclass)
     return result.fields[field]
@@ -82,3 +82,9 @@ def test_cli_uses_corpus_subclass_and_refuses_unknown(tmp_path, monkeypatch):
         row["expected_subclass"] = bad
         with pytest.raises(SystemExit):
             cli._validate_all(tmp_path, [str(path)])
+
+
+def test_populated_subclass_field_requires_evidence():
+    result = gate("subsidiaries", ["Acme Inc"], [])
+    assert not result.ok
+    assert "evidence" in result.reason

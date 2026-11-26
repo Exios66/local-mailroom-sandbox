@@ -300,3 +300,42 @@ def test_add_missing_fields_keeps_the_independence_gate(cli, capsys):
     assert _add(cli, [_s("DOC-1", "label", copy)], [_s("DOC-1", "check", copy)]) == 1
     assert "identical to the label pass" in capsys.readouterr().err
     assert _store_bytes(tmp) == before
+
+
+@pytest.mark.parametrize("new_subclass, expected", [("subsidiary_list", 0), ("indenture", 1)])
+def test_missing_fields_corporate_subclass_identity_is_atomic(cli, monkeypatch, capsys, new_subclass, expected):
+    mod, write, build, tmp = cli
+    text = "Acme Inc is the parent. Subsidiaries: Beta LLC. Trustee: Trust Co."
+    row = {"document_id": "DOC-1", "filename": "corp.txt", "expected": "corporate_record",
+           "expected_subclass": "subsidiary_list", "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+    monkeypatch.setattr(mod, "_load_corpus", lambda _: ([row], {"corp.txt": text}))
+    label = write("corp-lab.jsonl", [_s("DOC-1", "label", {"entity_name": {"value": "Acme Inc", "evidence": ["Acme Inc"]}})])
+    check = write("corp-chk.jsonl", [_s("DOC-1", "check", {"entity_name": {"value": "Acme Inc", "evidence": ["Acme Inc is the parent"]}})])
+    assert build("--label", label, "--check", check) == 0
+    before = _store_bytes(tmp)
+    row["expected_subclass"] = new_subclass
+    fields = {"subsidiaries": {"value": ["Beta LLC"], "evidence": ["Beta LLC"]}}
+    check_fields = {"subsidiaries": {"value": ["Beta LLC"], "evidence": ["Subsidiaries: Beta LLC"]}}
+    assert _add(cli, [_s("DOC-1", "label", fields)], [_s("DOC-1", "check", check_fields)]) == expected
+    if expected:
+        assert "subclass differs" in capsys.readouterr().err
+        assert _store_bytes(tmp) == before
+    else:
+        records = gl.read_jsonl(tmp / "gold" / "corporate_record.jsonl")
+        assert {r["schema"]["dataset_revision"] for r in records} == {"r", "r2"}
+
+
+def test_missing_fields_source_identity_allows_legacy_missing_subclass(cli):
+    mod, _, _, _ = cli
+    doc = {"doc_id": "D", "doc_class": "corporate_record", "subclass": "indenture",
+           "filename": "d", "content_sha256": "hash"}
+    class Result:
+        payload_error = None
+        fields = {"subject_matter": object()}
+    held = {"corporate_record": [{"doc_id": "D", "doc_class": "corporate_record", "filename": "d",
+                                  "content_sha256": "hash", "doc_sha": gl.doc_sha("text")}]}
+    submitted = [(doc, {"fields": {"subject_matter": {}}}, Result(), "text")]
+    assert mod._missing_field_source_problems(submitted, [], held) == []
+    held["corporate_record"].extend([{**held["corporate_record"][0], "subclass": "subsidiary_list"},
+                                     {**held["corporate_record"][0], "subclass": "indenture"}])
+    assert mod._missing_field_source_problems(submitted, [], held)

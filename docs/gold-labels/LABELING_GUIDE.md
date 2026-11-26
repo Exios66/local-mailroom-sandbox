@@ -172,7 +172,8 @@ written. A key that already has a record refuses the whole add: even when the su
 equals the stored one, even when only the check pass carries it, and even when a review rejects
 it. Settle an existing record with `review`; never re-add it. The document's class,
 `content_sha256`, `doc_sha` and source filename must still match the records already in the
-catalog, so fields are never mixed across revisions, texts or classes under one `doc_id`. The
+catalog, so fields are never mixed across source texts or classes under one `doc_id`. Schema
+revision bindings may differ when that source identity is unchanged. The
 add still needs both independent passes for each document.
 
 Existing records and their schema bindings are not rewritten. New rows carry the `--revision`
@@ -263,7 +264,9 @@ documenting absence on these inapplicable fields. For an indenture, a permitted 
 
 Every populated scalar and every list member needs a short verbatim source quote. Lists
 must cover the relevant document content, rather than an arbitrary first row. Keep source
-spelling and qualifications; do not compute dates, amounts or inferred relationships.
+spelling and qualifications; do not calculate new dates, totals or inferred relationships.
+The currency-phrase rule above permits formatting the same stated amount as a plain dollar
+figure (including expanding a scale word), while preserving the original quote.
 An absent applicable field requires a documented source read, and is reported separately
 from populated field-level scoring coverage.
 
@@ -308,7 +311,8 @@ pipeline's `ContractExtraction` v2 fields.
 Short documents (under about 40,000 characters) are read in full. For a longer one, read the
 first 15,000 and the last 15,000 characters in full, then search the rest (Grep on the file)
 for each missing field's anchors: execution blocks ("IN WITNESS WHEREOF", "By:", "/s/",
-"Name:"), dates ("dated as of", "effective", "as of the", "day of"), organisation ("organized
+"Name:"), official identifiers ("File No.", "File Number", "Document No.", "charter number"),
+dates ("dated as of", "effective", "as of the", "day of"), organisation ("organized
 under", "incorporated under", "a Delaware", "State of"), and for contracts "terminate", "notice",
 "term", "territory", "fee", "payment", "arbitration", "courts of". Read the passages around each
 hit. Declare a field absent only when the full read or this search finds nothing, and say in the

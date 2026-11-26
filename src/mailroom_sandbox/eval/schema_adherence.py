@@ -154,10 +154,10 @@ def schema_keys_for(doc_type: str, doc_subclass: str | None = None) -> frozenset
     registry errors propagate; pipeline schema lookup errors use fallbacks.
     """
     resolved = str(doc_type or "").strip()
-    if resolved == "corporate_record" and doc_subclass:
+    if "corporate_record" in resolved and doc_subclass:
         from llm_dojo_scoring.corporate_record_schema import entity_field_types
 
-        return _FALLBACK_SCHEMA_KEYS[resolved] | frozenset(entity_field_types(doc_subclass))
+        return _FALLBACK_SCHEMA_KEYS["corporate_record"] | frozenset(entity_field_types(doc_subclass))
     try:
         from schemas.documents import get_extraction_schema
 
@@ -274,7 +274,7 @@ def _pydantic_valid(
     can be loaded. Corporate registry and core schema lookup errors outside
     the import guard propagate.
     """
-    if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
+    if "corporate_record" in str(doc_type or "").strip() and doc_subclass:
         from llm_dojo_scoring.corporate_record_schema import entity_field_types
 
         # The core Pydantic model ignores extension keys. Their source schema
@@ -306,7 +306,7 @@ def _pydantic_valid(
         model_payload = dict(payload)
         # Dojo permits null for inapplicable corporate list fields; the legacy
         # core Pydantic model requires lists. Both representations mean empty.
-        if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
+        if "corporate_record" in str(doc_type or "").strip() and doc_subclass:
             from llm_dojo_scoring.schemas.corporate_record_schema import corporate_record_json_schema
 
             properties = corporate_record_json_schema(doc_subclass)["properties"]
@@ -352,7 +352,7 @@ def assess_extraction_payload(
             # known schema (or unknown doc type → any dict that parsed).
             schema_valid = bool(payload) and (not keys or not extra or set(public) & keys)
         else:
-            schema_valid = bool(typed) and (str(doc_type or "").strip() != "corporate_record" or not extra)
+            schema_valid = bool(typed) and ("corporate_record" not in str(doc_type or "").strip() or not extra)
     elif payload is not None and parse_error:
         # Flagged parse_error: never schema_valid, even if a dict remains.
         schema_valid = False

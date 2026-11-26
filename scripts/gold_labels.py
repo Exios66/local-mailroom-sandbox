@@ -709,6 +709,10 @@ def _missing_field_source_problems(labelled: list, checked: list,
                             "rebuild the catalog before adding fields")
             continue
         cls, content_sha, doc_sha, filename = next(iter(identities))
+        if cls == "corporate_record":
+            subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
+            if len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+                problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
         if cls != doc["doc_class"]:
             problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
                             f"record's {cls!r}")
