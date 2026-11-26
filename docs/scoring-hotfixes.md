@@ -133,6 +133,21 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     the scored n beside every metric of [critical regression 1](critical-regressions.md); it
     appears in `scoring_hotfixes_changed` when the two sides differ. `n_scored` is additive: `n`
     keeps its meaning.
+  - A pipeline run's headline does the same for its two means: `extraction_overall_n_scored` and
+    `extraction_overall_correct_class_n_scored` are the number of documents `extraction_overall`
+    and `extraction_overall_correct_class` average (documents with a numeric
+    `overall_extraction_score`, and for the second only those routed to their true class). A count
+    is 0 when its mean is `None`. `raw_dojo` carries both counts over the raw rows, and a count
+    that differs between the two sides appears in `scoring_hotfixes_changed`. Neither count is
+    sent to Langfuse. A record written before the counts existed has neither key: read a missing
+    count as unknown, not 0. A rescore's `scores.json` already reports `n` beside each per-item mean
+    (`means.overall_extraction_score.n`, and `scored` for the items); a stale-only item has no
+    headline score there and is not counted, while its own `raw_dojo` score stays on the item.
+    So the raw counts differ for the same items. A rescore's run-level `raw_dojo` `n` leaves out
+    a stale-only item, as its headline does, and also a failed item that SHF-005 zero-fills in the
+    headline only (one ok and one failed item: headline `n` 2, `raw_dojo` `n` 1). A live run's
+    `raw_dojo.extraction_overall_n_scored` counts a stale-only document (its raw score is a
+    number). Compare raw counts only within one kind of run.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the

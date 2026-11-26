@@ -55,9 +55,11 @@ the gold audit read that layout.
   headline means are the scored-only means and `failed_scored_zero` is 0. `failed` counts every failure. `raw_dojo` holds the plain means
   over the scored items only, over the same top-level per-item scores the headline aggregates:
   it is not a fixes-off aggregate (a scored item's fixes-off values sit on its own record under
-  its `raw_dojo` key). `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. A
-  task runner's own run summary can hold other statistics (macro-F1, intervals), which a rescore
-  does not recompute.
+  its `raw_dojo` key). `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. Each
+  mean carries its `n`, the items that have the key: an item SHF-015 left with no
+  `overall_extraction_score` is not in that `n` (`scored` counts the items). A task runner's own
+  run summary can hold other statistics (macro-F1, intervals), which a rescore does not
+  recompute.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores
   as `scores.json` (headline and `raw_dojo`).
 - `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the
