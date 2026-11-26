@@ -142,12 +142,21 @@ registry. Independent source-only label/check passes add eight previously missin
 entity fields on four subsidiary schedules: seven populated facts and one documented jurisdiction
 absence. All seven populated additions are present in prepared truth and produce field-scoring
 events. All 10,561 preceding catalog rows, 1,858 supplementary rows and 9,656 overlay field
-payloads are preserved. The overlay now contains 9,664 labels. Eight further pilot fields remain
+payloads are preserved. The first subsidiary admission brought the overlay to 9,664 labels. Eight further pilot fields remain
 held for identical-map independence checks or an ambiguous table token; raw submissions and
 exact admission projections are committed under
 `data/labels/repair-artifacts/v93-20261126-subclass-subsidiary001/`.
 
-The missing-only corporate inventory is 1,546 registered entity fields on 444 documents (see
+A further 15 populated entity facts on six board-resolution, power-of-attorney and charter-amendment
+documents pass source, missing-only and scoring checks: 14 independent agreements and one
+source-reviewed wording dispute. A multiple-grantor `principal` remains held because its
+single-name schema does not represent both grantors cleanly. Their raw passes and exact
+admission projections are in `data/labels/repair-artifacts/v93-20261126-subclass-diverse001/`.
+The two admissions total **23 registered entity fields on 10 documents: 22 populated scoring
+targets and one documented absence**. The overlay now has **9,679 labels**. The notebook evidence
+checker now uses the corporate subclass and retains strict per-member/type/identity checks.
+
+The missing-only corporate inventory is 1,531 registered entity fields on 442 documents (see
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels

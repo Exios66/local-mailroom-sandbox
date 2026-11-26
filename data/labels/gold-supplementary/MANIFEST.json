@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T17:10:33Z",
+  "added_at": "2026-11-26T17:23:32Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -166,6 +166,39 @@
         ],
         "review": []
       }
+    },
+    {
+      "added_at": "2026-11-26T17:23:32Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0b61fce5b8a05518",
+        "DOC-1fe073843dcc9442",
+        "DOC-443542beadaf2839",
+        "DOC-78f2456f571403a9",
+        "DOC-dae485695eb01169",
+        "DOC-eee7c0d4e99e5be4"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse001-ready15-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse001-ready15-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse001-parent-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -198,7 +231,7 @@
     },
     "corporate_record": {
       "-": {
-        "notes": 424
+        "notes": 430
       }
     },
     "correspondence": {
@@ -224,7 +257,7 @@
   },
   "files": {
     "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
-    "corporate_record.jsonl": "63eb73691748994c8543bcd2cb2c8e19c63305cc52664adb32ce73638eadd09b",
+    "corporate_record.jsonl": "ff22d0e2ebef25be0a76a739c2b9257811e9d0a39f6f506104d55b68e769d465",
     "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
@@ -282,6 +315,7 @@
       "check-correspondence-039.jsonl",
       "check-correspondence-040.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
+      "subclass-diverse001-ready15-check.jsonl",
       "subclass-subsidiary001-ready8-check.jsonl",
       "tail-001-check.jsonl"
     ],
@@ -494,6 +528,7 @@
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
+      "subclass-diverse001-ready15-label.jsonl",
       "subclass-subsidiary001-ready8-label.jsonl",
       "tail-001-label.jsonl"
     ],
@@ -514,6 +549,7 @@
       "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
       "review-promo-urgency.jsonl",
+      "subclass-diverse001-parent-review.jsonl",
       "tail-001-review.jsonl"
     ]
   },

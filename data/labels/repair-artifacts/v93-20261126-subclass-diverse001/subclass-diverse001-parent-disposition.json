@@ -1,0 +1,17 @@
+{
+  "candidate_fields": 15,
+  "candidate_populated": 15,
+  "held": [
+    {
+      "doc_id": "DOC-0b61fce5b8a05518",
+      "field": "principal",
+      "reason": "Multiple individual grantors cannot be faithfully represented as a single-name principal; labeler omitted and check proposed joined names; preserve raw entries unadmitted pending registry representation review."
+    }
+  ],
+  "independent_agreement": 14,
+  "projection": "Only principal omitted from check fields; surviving values/evidence/roles untouched.",
+  "raw_submissions_unchanged": true,
+  "schema": "mailroom.source-review-disposition/v1",
+  "source_reviewed_accept": 1,
+  "status": "ready15_admitted_after_audit"
+}

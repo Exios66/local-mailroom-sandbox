@@ -9043,33 +9043,37 @@
    "fields": {
     "acting_body": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "action_approved": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "addressee": {
      "dojo_status": "pending_annotation",
@@ -9088,18 +9092,20 @@
     },
     "amended_provisions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 1,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "approval_date": {
      "dojo_status": "pending_annotation",
@@ -9118,33 +9124,37 @@
     },
     "attorneys_in_fact": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "authority_scope": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "authorized_capital": {
      "dojo_status": "pending_annotation",
@@ -9488,18 +9498,20 @@
     },
     "principal": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "principal_amount": {
      "dojo_status": "pending_annotation",
@@ -9518,18 +9530,20 @@
     },
     "prior_entity_name": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 1,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "record_type": {
      "dojo_status": "derived",
@@ -9570,18 +9584,20 @@
     },
     "resolutions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "rights_agent": {
      "dojo_status": "pending_annotation",
@@ -10081,43 +10097,47 @@
      "fields": {
       "acting_body": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Body that acted: board of directors / committee / stockholders.",
         "required": true,
         "where": "Heading / first recital"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "action_approved": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "What was resolved, one grounded sentence.",
         "required": true,
         "where": "'RESOLVED' clauses"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -10281,23 +10301,25 @@
       },
       "resolutions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Each separate resolution.",
         "required": false,
         "where": "'RESOLVED' clauses"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "entity_list:free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -10380,9 +10402,8 @@
      ],
      "verdicts": {
       "constant": 2,
-      "no_truth": 3,
       "not_applicable": 1,
-      "thin": 6
+      "thin": 9
      }
     },
     "bylaws": {
@@ -10888,23 +10909,25 @@
      "fields": {
       "amended_provisions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Each charter article/section amended and what changes (one item per provision).",
         "required": true,
         "where": "'Article X is hereby amended to read'"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "entity_list:free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "approval_date": {
        "dojo_status": "pending_annotation",
@@ -11070,23 +11093,25 @@
       },
       "prior_entity_name": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Former legal name when the amendment changes the name.",
         "required": false,
         "where": "Name-change article"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -11189,8 +11214,8 @@
      "verdicts": {
       "constant": 3,
       "iterate": 3,
-      "no_truth": 3,
-      "thin": 3
+      "no_truth": 1,
+      "thin": 5
      }
     },
     "indenture": {
@@ -12060,43 +12085,47 @@
      "fields": {
       "attorneys_in_fact": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Persons empowered to act.",
         "required": true,
         "where": "'hereby constitutes and appoints'"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "authority_scope": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "What the attorney-in-fact may do.",
         "required": false,
         "where": "Grant clause"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -12258,23 +12287,25 @@
       },
       "principal": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Person or entity granting the authority.",
         "required": true,
         "where": "'The undersigned' / signature block"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -12384,9 +12415,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "no_truth": 4,
+      "no_truth": 1,
       "not_applicable": 1,
-      "thin": 6
+      "thin": 9
      }
     },
     "rights_instrument": {
@@ -20957,7 +20988,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "8cb69fff6968c7cf8ecad79415dcb059a1e3059c3fef95a899bd73ae1e28d495",
+  "near_gold_overlay_sha256": "506d5022ca03a1b97003f48c51829627ee746fa67ba814495a99a3075db8bf13",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -21053,6 +21084,36 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "acting_body"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "action_approved"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "amended_provisions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "attorneys_in_fact"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "authority_scope"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "effective_date"
   },
   {
@@ -21060,6 +21121,24 @@
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
    "field": "jurisdiction"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "principal"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "prior_entity_name"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "resolutions"
   },
   {
    "class": "corporate_record",
@@ -21158,12 +21237,7 @@
    "registered_agent",
    "authorized_capital",
    "organizers",
-   "amended_provisions",
    "approval_date",
-   "prior_entity_name",
-   "principal",
-   "attorneys_in_fact",
-   "authority_scope",
    "expiration_date",
    "instrument_kind",
    "holder",
@@ -21175,9 +21249,6 @@
    "securities_series",
    "principal_amount",
    "maturity_date",
-   "acting_body",
-   "action_approved",
-   "resolutions",
    "officer_title",
    "certified_matter",
    "addressee"
