@@ -1316,6 +1316,16 @@ def test_verbatim_overlap_counts_a_short_verbatim_text():
     assert floor_app._verbatim_overlap(original, original) == 1.0
 
 
+def test_verbatim_overlap_treats_whitespace_around_and_between_pieces_as_no_content():
+    """Leading, trailing and embedded newlines or spaces never lower a verbatim short text."""
+    original = "The Rent Due is payable monthly."
+    for working in (" Rent ", "Rent\n", "\nRent", "  Rent Due  ", "Rent\nDue", "Rent \n\n Due"):
+        assert floor_app._verbatim_overlap(original, working) == 1.0, repr(working)
+    # Words out of order or partly absent keep the piece/word accounting.
+    assert floor_app._verbatim_overlap(original, "Due Rent") == pytest.approx(7 / 8)
+    assert floor_app._verbatim_overlap(original, "Rent nowhere") < 1.0
+
+
 def test_doc_endpoint_overlap_for_a_short_identical_working_text(tmp_path):
     working = "premises"
     base, _ = _doc_store(tmp_path, working=working)

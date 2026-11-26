@@ -867,3 +867,25 @@ def test_an_unguarded_chat_call_that_raises_is_still_recorded(guarded_agent):
         with pytest.raises(RuntimeError, match="endpoint down"):
             Agent()._call_structured(_DOC[:300], {})
     assert len(records) == 1  # the request went out; only a guard refusal means it did not
+
+
+def test_short_candidate_lists_try_each_doc_position_once(monkeypatch):
+    """The rotated candidate window never re-takes a position already in its suffix."""
+    seen: list[tuple[int, int]] = []
+    real = read_ranges._common_prefix
+
+    def counting(a, ai, b, bi):
+        seen.append((ai, bi))
+        return real(a, ai, b, bi)
+
+    monkeypatch.setattr(read_ranges, "_common_prefix", counting)
+    size, stride = read_ranges.SHINGLE, read_ranges.STRIDE
+    shingle = ("the quick brown fox jumps over the lazy dog " * 4)[:size]
+    gap = "#" * (-(size + 7) % stride + 7)  # the second copy starts on the index's stride grid too
+    doc = shingle + gap + shingle  # two indexed positions for the same shingle
+    assert len(read_ranges.ShingleIndex(doc).table[shingle]) == 2
+    request = "zz " + shingle + " yy"
+    result = read_ranges.match_ranges(read_ranges.ShingleIndex(doc), request)
+    assert result["ranges"] and result["matched_chars"] > 0
+    assert seen and len(seen) == len(set(seen)), seen
+

@@ -178,7 +178,7 @@ inspector.
   - In `_process`, enter `read_ranges.document(row id, row["doc_text"], ...)` inside the same
     `ExitStack` whenever `read_cb is not None` (and `trace_reads` is on). Recording is
     independent of node tracking: a caller may supply `read_cb` alone, and records then carry
-    no node attribution. Node tracking is installed separately, when `node_cb is not None`.
+    no automatic node attribution (an explicit `node` passed to `record()` is kept). Node tracking is installed separately, when `node_cb is not None`.
   - Pass the sinks from `runner.py` next to `_node_sink`.
   - After the document finishes, merge `stats()` into the item's metrics through the existing
     `merge_item_metrics` path in `usage_capture`, under the key `reads`.
@@ -220,7 +220,12 @@ inspector.
   - `test_observer_sees_every_call_and_changes_nothing`:
     - Patch a fake `BaseAgent`, and assert the wrapped function receives identical args and kwargs.
     - The return value is the same object.
-    - One read record per call.
+    - One read record per call that reaches the provider.
+  - `test_a_chat_call_the_guard_refuses_records_no_read` and
+    `test_the_per_document_ceiling_refusal_is_not_a_read_either`: a guard-refused request leaves
+    no record.
+  - `test_an_unguarded_chat_call_that_raises_is_still_recorded`: with no guard, a call that
+    raises is still recorded.
   - `test_observer_stays_outermost_across_reactivation`:
     - Call activate with no sampling overrides, then with overrides, then with none again.
     - Each time the attribute's outermost layer is the observer, and exactly one sampling layer sits
@@ -358,7 +363,7 @@ inspector.
 
 - Consumes: `debug.reads` and `/api/floor/doc` from Task 6.
 - Flags, computed client-side (each guard is documented in `docs/floor.md`; the viewer never
-  claims a definitive flag while a guard holds):
+  claims a definitive `not read` while a guard holds):
   - `not read`: the expected value occurs (whitespace- and case-insensitive) in the working text, but
     in no union range of the specialist agents that ran. Withheld while a specialist call is
     approximate or only partly measured, while the text pairing or the served-text hash fails,

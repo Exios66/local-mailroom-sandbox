@@ -89,8 +89,8 @@ which is what every later agent's window is cut from.
   (doc id, working text, and a shingle index built lazily once the working text is known), the
   matcher, and a sink.
 - **Document scope:** `eval/runners.py:_process` enters it for pipeline documents whenever
-  `read_cb` is set (independently of node tracking: a read sink alone records, with no node
-  attribution); node tracking keeps its own `node_cb` condition.
+  `read_cb` is set (independently of node tracking: a read sink alone records, with no automatic node
+  attribution; an explicit `node` passed to `record()` is kept); node tracking keeps its own `node_cb` condition.
 - **Working-text capture:** `NodeTracker.on_chain_end` already receives node outputs. When the intake
   node's output carries the working text, the tracker hands it to the read-range context. Calls made
   before that, such as the intake agent's own request, are matched against the raw row text and marked
@@ -178,7 +178,7 @@ which is what every later agent's window is cut from.
 - **Field rows:**
   - Expected and extracted value per field. Occurrences are found with whitespace- and
     case-insensitive search in the working text; clicking a field scrolls to them.
-  - Flags (each guard is documented in [floor.md](../../floor.md#document-panel-what-each-agent-read); the viewer never claims a definitive flag while a guard holds):
+  - Flags (each guard is documented in [floor.md](../../floor.md#document-panel-what-each-agent-read); the viewer never claims a definitive `not read` while a guard holds):
     - **not read:** the expected value occurs in the working text, but in no range read by a specialist
       that ran for this document. All of that specialist's calls count, retries included. Withheld
       when a specialist call is approximate (a capped range list), only partly measured (`unplaced`
