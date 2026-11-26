@@ -1827,6 +1827,78 @@ def intake_summary(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pipeline_item(row: dict[str, Any], result: Mapping[str, Any], outcome: Mapping[str, Any],
+                   src: Any) -> dict[str, Any]:
+    """The item a pipeline document becomes: ``result`` is the graph's state, ``outcome`` adds the review manifest."""
+    return {
+        "id": row.get("id"),
+        "doc_type": result.get("doc_type"),
+        "stage": result.get("stage"),
+        "extracted_data": result.get("extracted_data"),
+        "classification_confidence": result.get("classification_confidence"),
+        # The judge gate's input: routing calibration needs it beside the score.
+        "extraction_confidence": result.get("extraction_confidence"),
+        **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
+        # SHF-012: the final subclass (the sorter's, or the reviewer's when it overrode the class) is
+        # recorded on every item, so pipeline runs can score subclass; the reviewer's own answer too.
+        "doc_subclass": result.get("doc_subclass"),
+        "contract_subtype": result.get("contract_subtype"),
+        "reviewer_doc_subclass": outcome.get("reviewer_doc_subclass"),
+        "reviewer_contract_subtype": outcome.get("reviewer_contract_subtype"),
+        # Present only when a pipeline extraction gate is registered (advisory).
+        **({"extraction_gate": result.get("extraction_gate")}
+           if result.get("extraction_gate") is not None else {}),
+        # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
+        **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
+        # reports, the gate and the floor digest separate these from clean archives.
+        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
+        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
+        "intake": intake_summary(result),
+        "error": result.get("error") or result.get("errors"),
+        # The agent exception the graph failed soft on (the run-level engine guard reads it).
+        "error_message": result.get("error_message"),
+        "offline_fallback": False,
+        "mailroom_src": str(src) if src else None,
+    }
+
+
+def _near_empty_text(row: dict[str, Any]) -> str | None:
+    """The row's text when it is known before intake (inline, or a text fixture); ``None`` for a binary source."""
+    for key in ("doc_text", "text"):
+        if isinstance(row.get(key), str):
+            return row[key]
+    try:
+        source = fixture_file(row)
+    except Exception:  # noqa: BLE001 — no fixture: _materialize_row raises for it, as before
+        return None
+    if source.suffix.lower() not in _TEXT_SUFFIXES:
+        return None
+    try:
+        return source.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _near_empty_item(row: dict[str, Any], src: Any) -> dict[str, Any] | None:
+    """L5 (phase 2): with the governor on, a near-empty document is a review item before any model call."""
+    from mailroom_sandbox import governor
+
+    spec = governor.active()
+    if spec is None or spec.near_empty_chars <= 0:
+        return None
+    text = _near_empty_text(row)
+    if text is None or len(text.strip()) >= spec.near_empty_chars:
+        return None
+    chars = len(text.strip())
+    item = _pipeline_item(row, {"stage": "review"}, {
+        "review_causes": ["near_empty"],
+        "escalation_reason": f"near-empty document ({chars} characters, floor {spec.near_empty_chars})"}, src)
+    item["governor_stop"] = {"reason": "near_empty", "outcome": "human_review", "node": "intake", "proposed": None,
+                             "calls": 0, "retries": 0, "spend_usd": 0.0}
+    return item
+
+
 def _run_pipeline_doc_once(
     row: dict[str, Any],
     *,
@@ -1884,6 +1956,9 @@ def _run_pipeline_doc_once(
                 pass
         return fallback
 
+    near_empty = _near_empty_item(row, src)
+    if near_empty is not None:
+        return near_empty
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
     queued = _materialize_row(row, inbox)
@@ -1934,34 +2009,4 @@ def _run_pipeline_doc_once(
 
         manifest = load_manifest(result["doc_id"]).model_dump(mode="json")
         outcome.update({key: manifest.get(key) for key in REVIEW_OUTCOME_FIELDS if manifest.get(key) is not None})
-    return {
-        "id": row.get("id"),
-        "doc_type": result.get("doc_type"),
-        "stage": result.get("stage"),
-        "extracted_data": result.get("extracted_data"),
-        "classification_confidence": result.get("classification_confidence"),
-        # The judge gate's input: routing calibration needs it beside the score.
-        "extraction_confidence": result.get("extraction_confidence"),
-        **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
-        # SHF-012: the final subclass (the sorter's, or the reviewer's when it overrode the class) is
-        # recorded on every item, so pipeline runs can score subclass; the reviewer's own answer too.
-        "doc_subclass": result.get("doc_subclass"),
-        "contract_subtype": result.get("contract_subtype"),
-        "reviewer_doc_subclass": outcome.get("reviewer_doc_subclass"),
-        "reviewer_contract_subtype": outcome.get("reviewer_contract_subtype"),
-        # Present only when a pipeline extraction gate is registered (advisory).
-        **({"extraction_gate": result.get("extraction_gate")}
-           if result.get("extraction_gate") is not None else {}),
-        # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
-        **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
-        # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
-        # reports, the gate and the floor digest separate these from clean archives.
-        **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),
-        # What intake did (gate, windows, triage class, whether a prior reached the sorter): no text.
-        "intake": intake_summary(result),
-        "error": result.get("error") or result.get("errors"),
-        # The agent exception the graph failed soft on (the run-level engine guard reads it).
-        "error_message": result.get("error_message"),
-        "offline_fallback": False,
-        "mailroom_src": str(src) if src else None,
-    }
+    return _pipeline_item(row, result, outcome, src)

@@ -374,3 +374,77 @@ def test_a_long_document_keeps_a_bounded_sketch():
     governor.activate(GovernorSpec())
     governor.note_seen("M", "long", " ".join(f"w{n}" for n in range(50_000)))
     assert len(governor.seen("M", "long")) == governor.SKETCH_SIZE
+
+
+# --- Task 7: L5, near-empty documents go to review before any model call -------------------------------------
+
+def _doc_row(text):
+    return {"id": "n0", "filename": "n0.txt", "doc_text": text, "expected_doc_class": "contract"}
+
+
+@pytest.fixture
+def pipeline_spy(monkeypatch, job_data_dir):
+    """``run_pipeline`` replaced by a spy that archives; returns the list of calls."""
+    import graph.build_graph as bg
+
+    calls = []
+
+    def fake(*a, **k):
+        calls.append(a)
+        return {"stage": "archived", "doc_type": "contract", "extracted_data": {}}
+
+    monkeypatch.setattr(bg, "run_pipeline", fake)
+    return calls
+
+
+def test_a_40_character_document_goes_to_review_with_no_model_call(pipeline_spy):
+    from mailroom_sandbox.eval import runners
+
+    governor.activate(GovernorSpec())
+    item = runners._run_pipeline_doc_once(_doc_row("x" * 40), mock=False)
+    assert pipeline_spy == []
+    assert (item["stage"], item["review_causes"]) == ("review", ["near_empty"])
+    assert item["governor_stop"] == {"reason": "near_empty", "outcome": "human_review", "node": "intake",
+                                     "proposed": None, "calls": 0, "retries": 0, "spend_usd": 0.0}
+    assert item["offline_fallback"] is False and item["id"] == "n0"
+
+
+def test_a_64_character_document_runs_normally(pipeline_spy):
+    from mailroom_sandbox.eval import runners
+
+    governor.activate(GovernorSpec())
+    item = runners._run_pipeline_doc_once(_doc_row("  " + "x" * 64 + "\n"), mock=False)
+    assert len(pipeline_spy) == 1 and item["stage"] == "archived" and "governor_stop" not in item
+
+
+def test_near_empty_is_off_with_the_governor_off(pipeline_spy):
+    from mailroom_sandbox.eval import runners
+
+    item = runners._run_pipeline_doc_once(_doc_row("x" * 40), mock=False)
+    assert len(pipeline_spy) == 1 and item["stage"] == "archived"
+    governor.activate(GovernorSpec(near_empty_chars=0))  # 0 turns the floor off
+    item = runners._run_pipeline_doc_once(_doc_row("x"), mock=False)
+    assert len(pipeline_spy) == 2 and item["stage"] == "archived"
+
+
+def test_a_row_with_no_inline_text_is_not_judged_near_empty_here(pipeline_spy, monkeypatch, tmp_path):
+    """A binary source (a PDF) has no text before intake reads it: L5 leaves it to the pipeline."""
+    from mailroom_sandbox.eval import runners
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 tiny")
+    monkeypatch.setattr(runners, "fixture_file", lambda row: pdf)
+    governor.activate(GovernorSpec())
+    item = runners._run_pipeline_doc_once({"id": "p0", "filename": "scan.pdf", "subdir": "x"}, mock=False)
+    assert len(pipeline_spy) == 1 and item["stage"] == "archived"
+
+
+def test_near_empty_rows_are_scored_as_review(pipeline_spy):
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.job import gate
+
+    governor.activate(GovernorSpec())
+    row = _doc_row("   tiny   ")
+    item = runners._run_pipeline_doc_once(row, mock=False)
+    status = gate.doc_status({"row": row, "item": {"pred": item, "ok": True}, "nodes": []}, gate.load_bars())
+    assert status["outcome"] == "review" and status["stage"] == "review"

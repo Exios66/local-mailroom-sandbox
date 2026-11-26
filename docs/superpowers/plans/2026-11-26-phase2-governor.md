@@ -425,17 +425,17 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
 
   It goes through the same item builder as every pipeline result.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_a_40_character_document_goes_to_review_with_no_model_call`: `run_pipeline` is a fake that fails if
     called.
   - `test_a_64_character_document_runs_normally`;
   - `test_near_empty_is_off_with_the_governor_off`;
   - `test_near_empty_rows_are_scored_as_review`: `job/gate.py` gives the outcome `review` for the row.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py`.
-- [ ] **Step 3: Implement** the floor check and the review item.
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_job_runner.py
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py`.
+- [x] **Step 3: Implement** the floor check and the review item.
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_job_runner.py
   tests/test_pipeline_concurrency.py`.
-- [ ] **Step 5: Commit** `feat(governor): L5 near-empty documents go to review before any model call (phase2 task 7)`.
+- [x] **Step 5: Commit** `feat(governor): L5 near-empty documents go to review before any model call (phase2 task 7)`.
 
 ### Task 8: Gate report, docs and hand-over
 
