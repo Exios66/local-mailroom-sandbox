@@ -206,10 +206,22 @@ def _judge_reask_counts(raw: Any) -> dict[str, dict[str, int]]:
         if not isinstance(counts, Mapping):
             continue
         try:
-            out[str(judge)] = {key: int(counts.get(key) or 0) for key in ("asked", "recovered", "parked")}
+            out[str(judge)] = {key: _reask_count(counts.get(key)) for key in ("asked", "recovered", "parked")}
         except (TypeError, ValueError, OverflowError):
             continue  # a hand-edited or corrupt count: skip that judge, never raise out of the gate
     return out
+
+
+def _reask_count(value: Any) -> int:
+    """A non-negative whole count; a negative, fractional or boolean value is corrupt (ValueError)."""
+    if value is None:
+        return 0
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValueError(f"not a whole count: {value!r}")
+    count = int(value)
+    if count < 0:
+        raise ValueError(f"negative count: {value!r}")
+    return count
 
 
 def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
@@ -240,12 +252,11 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
                            "labelled": labelled_count(row, doc_class)}
     if item is None:
         return out
-    pred = item.get("pred")
+    pred = item.get("pred") or {}  # an absent or empty prediction reads as before
     if not isinstance(pred, Mapping):
-        # A malformed ``pred`` (hand-edited items.jsonl): an error row stays ``crashed`` as before.
-        if item.get("error") or item.get("ok") is False:
-            return out
-        pred = {}
+        # A malformed ``pred`` (hand-edited items.jsonl) is never read as an archive or a review:
+        # the row stays ``crashed``, error row or not.
+        return out
     if isinstance(pred.get("judge_reasks"), Mapping):
         # HF-002 / HF-013: a judge answer was asked twice. Read before the crash returns below: a document
         # the run returned as failed still made (and billed) its re-asks. A document that raises (the API

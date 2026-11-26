@@ -441,6 +441,23 @@ def test_a_malformed_re_ask_count_is_skipped_not_raised(asked):
     assert status["judge_reasks"] == {"correctness": {"asked": 1, "recovered": 1, "parked": 0}}
 
 
+@pytest.mark.parametrize("asked", [-1, 1.5, True])
+def test_a_negative_fractional_or_boolean_re_ask_count_is_skipped(asked):
+    """``int()`` would accept these and understate or flip the totals."""
+    pred = {"stage": "review", "judge_reasks": {"completeness": {"asked": asked},
+                                                "correctness": {"asked": 2.0, "recovered": 2}}}
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"}, "item": {"pred": pred}}, Bars())
+    assert status["judge_reasks"] == {"correctness": {"asked": 2, "recovered": 2, "parked": 0}}
+
+
+@pytest.mark.parametrize("pred", ["boom", ["a"], 3])
+def test_an_ok_row_with_a_malformed_pred_is_crashed_not_archived(pred):
+    """A corrupted prediction must not count as an archive (a silent wrong outcome)."""
+    status = gate._status({"row": {"id": "d", "expected_doc_class": "contract"},
+                           "item": {"ok": True, "pred": pred}}, Bars())
+    assert status["outcome"] == "crashed" and status["stage"] == "crashed"
+
+
 def test_errored_never_goes_negative_on_inconsistent_counts():
     status = {"id": "d", "judge_reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 1}}}
     block = gate._judge_reask_block([status])

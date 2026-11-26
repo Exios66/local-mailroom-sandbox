@@ -214,4 +214,6 @@ def test_two_judge_parse_failures_park_as_judge_error_with_two_calls_for_that_ju
     assert out["stage"] == "review" and out["state"]["judge_verdict"] == "judge_error", out["path"]
     assert out["path"][-2:] == ["judge_verify", "human_review"] and out["arbiter"] == 0, out["path"]
     assert out[f"judge_{failing}"] + out[f"judge_{failing}_reasks"] == 2  # never a third call
-    assert out["judge_passes"] == 1 and "judge_error" in out["state"].get("review_causes", ["judge_error"])
+    # The graph state has no ``review_causes`` (the run item derives them); the parse failure is
+    # recorded as the escalation reason the judge node writes.
+    assert out["judge_passes"] == 1 and "JudgeParseError" in str(out["state"].get("escalation_reason")), out["state"]
