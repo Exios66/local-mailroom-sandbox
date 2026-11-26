@@ -434,6 +434,73 @@ def test_doc_text_files_never_use_the_raw_doc_id(tmp_path):
     assert sorted(p.name for p in d.iterdir()) == sorted([name, "index.jsonl"])
 
 
+def _index_rows(store):
+    path = store.doc_texts_dir / "index.jsonl"
+    return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
+
+
+def _stored_text(store, doc):
+    import hashlib
+
+    name = hashlib.sha1(doc.encode(), usedforsecurity=False).hexdigest()[:16] + ".txt"
+    return (store.doc_texts_dir / name).read_bytes().decode("utf-8")
+
+
+def test_resumed_document_keeps_the_last_attempts_text_and_one_index_entry(tmp_path):
+    """Two attempts (a resume opens a new store object) leave attempt 2's text, paired with its doc_chars."""
+    from mailroom_sandbox.tui import floor_app
+
+    first, second = _doc(480, seed=11), _doc(920, seed=12)
+    run_dir = tmp_path / "run"
+    for attempt, text in ((1, first), (2, second)):
+        store = RunStore(run_dir)  # a resume is a new process: a new store object over the same directory
+        with read_ranges.document("d1", text, store.append_read, store.write_doc_text):
+            read_ranges.set_working_text(text)
+            read_ranges.record("sorter", "Document text:\n" + text[10:300])
+    store = RunStore(run_dir)
+    assert _stored_text(store, "d1") == second
+    assert [r["doc"] for r in _index_rows(store)] == ["d1"]
+    assert sorted(p.name for p in store.doc_texts_dir.iterdir()) == sorted(
+        [_index_rows(store)[0]["file"], "index.jsonl"]), "no temp file is left behind"
+    # the digest keeps attempt 2's sequence, so its doc_chars is the stored text's length
+    (run_dir / "items.jsonl").write_text(json.dumps({"item_id": "d1", "ok": True}) + "\n")
+    (run_dir / "nodes.jsonl").write_text("")
+    (run_dir / "dataset.jsonl").write_text(json.dumps({"id": "d1", "doc_text": second}) + "\n")
+    run, _ = floor_app.load_builder().build_run("run", run_dir, set())
+    reads = next(r for r in run["docs"] if r["id"] == "d1")["debug"]["reads"]
+    assert reads["doc_chars"] == len(_stored_text(store, "d1")) == 920
+
+
+def test_missing_index_entry_is_repaired_without_duplicating(tmp_path):
+    """An index append lost in a crash is added by the next write; a third write adds nothing."""
+    run_dir = tmp_path / "run"
+    store = RunStore(run_dir)
+    store.write_doc_text("d1", "first")
+    store.write_doc_text("d2", "other")
+    (store.doc_texts_dir / "index.jsonl").write_text("")  # the crash lost both appends
+    resumed = RunStore(run_dir)
+    resumed.write_doc_text("d1", "second")
+    assert [r["doc"] for r in _index_rows(resumed)] == ["d1"]
+    resumed.write_doc_text("d1", "third")
+    RunStore(run_dir).write_doc_text("d1", "fourth")
+    assert [r["doc"] for r in _index_rows(resumed)] == ["d1"]
+    assert _stored_text(resumed, "d1") == "fourth"
+    # a torn last line (no newline) is not glued to the next entry
+    (resumed.doc_texts_dir / "index.jsonl").write_text('{"doc": "d9", "fi')
+    RunStore(run_dir).write_doc_text("d2", "x")
+    rows = [ln for ln in (resumed.doc_texts_dir / "index.jsonl").read_text().splitlines()]
+    assert json.loads(rows[-1])["doc"] == "d2" and rows[0] == '{"doc": "d9", "fi'
+
+
+def test_doc_text_is_written_newline_exact(tmp_path):
+    """CRLF and lone CR survive the write byte for byte, so offsets cannot shift on any platform."""
+    store = RunStore(tmp_path / "run")
+    text = "a\r\nb\rc\nd\u2028e \u00e9"
+    store.write_doc_text("d1", text)
+    assert _stored_text(store, "d1") == text
+    assert (store.doc_texts_dir / _index_rows(store)[0]["file"]).read_bytes() == text.encode("utf-8")
+
+
 # --- call observer ------------------------------------------------------------
 import sys  # noqa: E402
 import types  # noqa: E402

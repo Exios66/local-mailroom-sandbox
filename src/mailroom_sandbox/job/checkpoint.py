@@ -17,6 +17,7 @@ import fcntl
 import io
 import json
 import os
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,6 +153,8 @@ class RunStore:
         self.cancel_path = self.dir / "cancel.request.json"
         self.cancel_ack_path = self.dir / "cancel.ack.json"
         self.run_id = self.dir.name
+        self._doc_texts_lock = threading.Lock()
+        self._doc_index: set[str] | None = None  # ids listed in doc_texts/index.jsonl, loaded lazily
 
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
@@ -582,23 +585,66 @@ class RunStore:
             fh.flush()
 
     def write_doc_text(self, doc: str, text: str) -> None:
-        """Write a document's working text once, as ``doc_texts/<sha1(doc)[:16]>.txt``.
+        """Record a document's working text as ``doc_texts/<sha1(doc)[:16]>.txt``; the last write wins.
 
-        The raw document id is never used as a path; ``doc_texts/index.jsonl`` maps it to the file.
+        A resumed document hands over its text again, and the digest keeps the ranges of the last
+        attempt, so the stored text is replaced (temp file, then rename) to stay paired with them.
+        The bytes are written as UTF-8 with no newline translation, so offsets stay exact on every
+        platform. The raw document id is never used as a path; ``doc_texts/index.jsonl`` maps it to
+        the file and holds exactly one line per document: a missing line (an append lost in a crash)
+        is added on the next write, and a rewrite never duplicates it.
         """
         import hashlib
 
         name = hashlib.sha1(str(doc).encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
         path = self.doc_texts_dir / name
-        if path.exists():
-            return
-        self.doc_texts_dir.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(path)
-        with open(self.doc_texts_dir / "index.jsonl", "a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"doc": str(doc), "file": name}) + "\n")
-            fh.flush()
+        with self._doc_texts_lock:
+            self.doc_texts_dir.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(text.encode("utf-8"))
+            tmp.replace(path)
+            indexed = self._indexed_docs()
+            if str(doc) in indexed:
+                return
+            index = self.doc_texts_dir / "index.jsonl"
+            line = json.dumps({"doc": str(doc), "file": name}) + "\n"
+            if not self._index_ends_with_newline(index):
+                line = "\n" + line  # a torn last line must not swallow the new entry
+            with open(index, "ab") as fh:
+                fh.write(line.encode("utf-8"))
+                fh.flush()
+            indexed.add(str(doc))
+
+    def _indexed_docs(self) -> set[str]:
+        """The document ids ``doc_texts/index.jsonl`` lists, read from disk once per store object."""
+        if self._doc_index is None:
+            docs: set[str] = set()
+            try:
+                with open(self.doc_texts_dir / "index.jsonl", encoding="utf-8", errors="replace") as fh:
+                    for raw in fh:
+                        try:
+                            row = json.loads(raw)
+                        except ValueError:
+                            continue
+                        if isinstance(row, dict) and isinstance(row.get("doc"), str):
+                            docs.add(row["doc"])
+            except OSError:
+                pass
+            self._doc_index = docs
+        return self._doc_index
+
+    @staticmethod
+    def _index_ends_with_newline(index: Path) -> bool:
+        """True when the index file is empty or its last byte is a newline."""
+        try:
+            with open(index, "rb") as fh:
+                size = fh.seek(0, 2)
+                if not size:
+                    return True
+                fh.seek(size - 1)
+                return fh.read(1) == b"\n"
+        except OSError:
+            return True
 
     def nodes(self, *, tail_bytes: int = 256_000) -> list[dict[str, Any]]:
         """The latest node records; a torn or corrupt line is skipped."""
