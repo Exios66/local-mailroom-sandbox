@@ -170,9 +170,12 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             # from `sandbox run routing`.
   arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
   judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes,
+                            #   transient_retry_max, arbiter_full_source_min_confidence
+                            #   (HF-014 floor, [0, 1]; unset: each class's `low`),
                             #   and the true/false flags judge_rejudge_retry,
                             #   judge_complete_archives, arbiter_accept_archives,
-                            #   judge_clears_low_confidence
+                            #   judge_clears_low_confidence, judge_exhausted_to_arbiter,
+                            #   arbiter_full_source
   judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
                             # whose earlier attempt was judged, while judge passes remain
   judge_complete_archives: false  # llm-mailroom #309 archive checks (need the vendor refresh: the
@@ -394,7 +397,12 @@ locked prompts/models/knobs rather than later ambient generation settings.
    `tests/test_openrouter_full_source.py` checks a 250k-character document
    end to end and that Modal/vLLM stays at 16,000. A document longer than the
    arbiter window but inside the specialist budget (another model) is still
-   excerpted for the arbiter, and an acceptance from it stays parked. Modal,
+   excerpted for the arbiter, and an acceptance from it stays parked. An
+   acceptance from a whole-source reading archives (HF-014) only when the
+   extraction confidence reaches `confidence.arbiter_full_source_min_confidence`;
+   unset, that floor is the class's own `low` band, where the vendored route
+   already archives, so HF-014 changes no route until a run lowers it (for
+   example to 0.5). Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`

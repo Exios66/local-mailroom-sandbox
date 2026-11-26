@@ -81,6 +81,9 @@ confidence:
   # acceptance from a whole-source reading archives with its caveats, and a ruling with no
   # re-extraction budget left is final. Inert on Modal/vLLM and local routes (16k excerpts).
   arbiter_full_source: true
+  # HF-014's confidence floor: an acceptance archives only at or above it. Unset, it is each
+  # class's own `low` band (so HF-014 then changes no route); a run may set it lower, e.g.
+  # arbiter_full_source_min_confidence: 0.5, to let the arbiter's ruling count below `low`.
 
 # DMR-072: run-level limits — 900s was too high for idle; 600s holds L4
 # saturation bursts (queue + decode under concurrency 4–5). The vendored

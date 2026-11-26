@@ -29,6 +29,7 @@ import hashlib
 import importlib
 import inspect
 import logging
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -648,6 +649,9 @@ def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Call
 #: Run ``confidence`` key that turns on HF-014 and HF-015 (overlay default ``true``). Both stay inert
 #: unless context fit widened the arbiter's source window, so Modal/vLLM and local routes are unchanged.
 FULL_SOURCE_KEY = "arbiter_full_source"
+#: Run ``confidence`` key: the extraction confidence an HF-014 acceptance needs. Unset (the
+#: overlay default) it is the class's own ``low`` band, read the way routing reads it.
+FULL_SOURCE_FLOOR_KEY = "arbiter_full_source_min_confidence"
 #: Route-rule name of HF-014 (``graph.route_spec`` registry, ``arbiter`` node).
 FULL_SOURCE_RULE = "HF-014:arbiter_full_source_accepts"
 #: The note HF-015 adds to the arbiter's request when no re-extraction budget is left.
@@ -701,11 +705,32 @@ def arbiter_read_whole_source(routing: Any, state: Mapping[str, Any]) -> bool:
     return not routing._chunks_lost(state) and not routing._unadjudicated_conflict(state)
 
 
+def full_source_floor(routing: Any, state: Mapping[str, Any]) -> float:
+    """HF-014's confidence floor for ``state``'s class: ``confidence.arbiter_full_source_min_confidence``,
+    else the class's ``low`` band (by-class overrides included, vendored default 0.70)."""
+    thresholds = routing._thresholds_for(state)
+    raw = thresholds.get(FULL_SOURCE_FLOOR_KEY)
+    return float(raw if raw is not None else thresholds.get("low", 0.70))
+
+
+def confidence_floor_met(routing: Any, state: Mapping[str, Any]) -> bool:
+    """Whether the extraction confidence reaches HF-014's floor (missing or non-finite: it does not)."""
+    confidence = state.get("extraction_confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not math.isfinite(confidence):
+        return False
+    return confidence >= full_source_floor(routing, state)
+
+
+def full_source_accepts(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-014: an ``accept_with_caveats`` on ``state`` archives (whole source read, floor reached)."""
+    return arbiter_read_whole_source(routing, state) and confidence_floor_met(routing, state)
+
+
 def acceptance_parks(routing: Any, state: Mapping[str, Any]) -> bool:
     """Whether ``after_arbiter`` (with HF-014 when it is registered) parks an ``accept_with_caveats``."""
     if not (routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state)):
         return False
-    return not (_full_source_rule_registered() and arbiter_read_whole_source(routing, state))
+    return not (_full_source_rule_registered() and full_source_accepts(routing, state))
 
 
 def full_source_accept_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
@@ -717,7 +742,10 @@ def full_source_accept_rule(routing: Any) -> Callable[[Mapping[str, Any], str], 
     Where the arbiter read all of it, its acceptance is the ruling the judge/arbiter lane exists
     for, so the document archives with its caveats on record (``arbiter_decision`` and
     ``arbiter_reasoning`` in the manifest and the matter report; ``arbiter_caveats`` on the
-    sandbox item). Lost chunks and an unadjudicated conflict still park.
+    sandbox item). The extraction confidence must still reach a floor
+    (``confidence.arbiter_full_source_min_confidence``, else the class ``low`` band): below it,
+    or with none recorded, the document parks as before. Lost chunks and an unadjudicated
+    conflict still park. The judge verdict is not gated.
     """
 
     def decide(state: Mapping[str, Any], proposed: str) -> str | None:
@@ -725,7 +753,7 @@ def full_source_accept_rule(routing: Any) -> Callable[[Mapping[str, Any], str], 
             return None
         if state.get("arbiter_decision") != "accept_with_caveats":
             return None
-        return "compile_report" if arbiter_read_whole_source(routing, state) else None
+        return "compile_report" if full_source_accepts(routing, state) else None
 
     return decide
 
@@ -768,7 +796,7 @@ def arbiter_caveats(state: Mapping[str, Any]) -> dict[str, Any] | None:
     try:
         routing = importlib.import_module("graph.routing")
         whole = arbiter_read_whole_source(routing, state)
-        unsure = bool(routing._extraction_still_unsure(state))
+        unsure = bool(routing._extraction_still_unsure(state)) and confidence_floor_met(routing, state)
     except Exception:  # noqa: BLE001 — the marker never fails a record
         whole, unsure = False, False
     return {"decision": "accept_with_caveats",
@@ -1017,8 +1045,9 @@ HOTFIXES: tuple[Hotfix, ...] = (
         source_sha256="6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529",
         upstream="to file (Exios66/llm-mailroom)",
         summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter "
-                "accept_with_caveats from a whole-source reading archives with its caveats instead of "
-                "parking an extraction that is still unsure; lost chunks and conflicts still park",
+                "accept_with_caveats from a whole-source reading archives with its caveats when the "
+                "extraction confidence reaches confidence.arbiter_full_source_min_confidence (unset: the "
+                "class low, so no route changes); below it, lost chunks and conflicts still park",
         install=_install_full_source_accept,
         refresh=_register_full_source_rule,
         also=(("_extraction_still_unsure", "21700548d1be504e6bd7ce93164d6630fc25e05a86a82df8585d1b8bd3d5bd67"),

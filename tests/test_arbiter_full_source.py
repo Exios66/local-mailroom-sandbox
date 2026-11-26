@@ -1,4 +1,4 @@
-"""On a full-source route the extraction arbiter's acceptance counts (HF-014) and its last ruling is final (HF-015).
+"""On a full-source route the extraction arbiter's acceptance counts at or above a confidence floor (HF-014) and its last ruling is final (HF-015).
 
 Network-free: the real compiled graph with the judge and arbiter nodes real and their model
 calls scripted (``_arbiter_harness``). OpenRouter is activated as a run would be, so context fit
@@ -12,7 +12,8 @@ from _arbiter_harness import DATA, LONG, SHORT, Script, activate_profile, run
 from mailroom_sandbox import source_windows
 from mailroom_sandbox import vendor_hotfixes as vh
 
-UNSURE = [0.5] * 6  # below the class ``low`` band on every attempt: acceptance used to park
+UNSURE = [0.5] * 6  # below the class ``low`` band (corporate_record 0.86) on every attempt
+IN_BAND = [0.88] * 6  # at or above ``low``, below ``judge_band_high``: judged, then caveated
 
 
 @pytest.fixture
@@ -24,15 +25,80 @@ def profile_graph(monkeypatch, tmp_path):
     source_windows.apply_source_windows({})
 
 
-def _unsure_accept(doc: str = SHORT, **extra) -> Script:
-    return Script(doc=doc, confs=UNSURE, judge=[("complete", "partial")] * 3,
-                  arbiter=["accept_with_caveats"] * 3, **extra)
+def _unsure_accept(doc: str = SHORT, *, floor: float | None = 0.5, confs=UNSURE, **extra) -> Script:
+    """An acceptance of an unsure extraction; ``floor`` is the run's HF-014 floor (None: class ``low``)."""
+    return Script(doc=doc, confs=confs, judge=[("complete", "partial")] * 3,
+                  arbiter=["accept_with_caveats"] * 3, floor=floor, **extra)
 
 
-# --- HF-014: an acceptance from a whole-source reading archives ------------------------------------
+# --- HF-014: an acceptance from a whole-source reading archives at or above the floor --------------
 
 @pytest.mark.parametrize("doc", [SHORT, LONG], ids=["short", "long"])
-def test_openrouter_full_source_acceptance_archives(doc, profile_graph, monkeypatch):
+def test_openrouter_acceptance_below_the_default_floor_parks(doc, profile_graph, monkeypatch):
+    """Unset, the floor is the class ``low``: a 0.5 extraction parks after the acceptance, as before."""
+    out = run(profile_graph("openrouter"), monkeypatch, _unsure_accept(doc, floor=None))
+    assert out["stage"] == "review", out["path"]
+    assert out["path"][-2:] == ["arbiter", "human_review"] and out["arbiter"] == 1
+    assert not vh.full_source_accepts(__import__("graph.routing", fromlist=["x"]), out["state"])
+
+
+def test_openrouter_acceptance_at_the_default_floor_archives_with_the_marker(profile_graph, monkeypatch):
+    out = run(profile_graph("openrouter"), monkeypatch, _unsure_accept(floor=None, confs=IN_BAND))
+    assert out["stage"] == "archived", out["path"]
+    assert out["path"][-4:] == ["arbiter", "compile_report", "catalog_write", "archive"]
+    # The vendored route already archives at ``low``: caveated and whole-source, but not HF-014's.
+    assert vh.arbiter_caveats(out["state"]) == {"decision": "accept_with_caveats", "reasoning": "harness",
+                                                "judge_verdict": "partial", "whole_source": True,
+                                                "hf014": False}
+
+
+@pytest.mark.parametrize(("floor", "stage"), [(0.5, "archived"), (0.6, "review")])
+def test_the_override_moves_the_floor(floor, stage, profile_graph, monkeypatch):
+    out = run(profile_graph("openrouter"), monkeypatch, _unsure_accept(floor=floor))
+    assert out["stage"] == stage, out["path"]
+    marker = vh.arbiter_caveats(out["state"])
+    assert (marker or {}).get("hf014", False) is (stage == "archived")
+
+
+@pytest.mark.parametrize("confidence", [None, float("nan"), True, "0.9", 0.49])
+def test_a_missing_or_unusable_confidence_never_reaches_the_floor(confidence):
+    class Routing:
+        @staticmethod
+        def _thresholds_for(_state):
+            return {"low": 0.86, vh.FULL_SOURCE_FLOOR_KEY: 0.5}
+
+    assert not vh.confidence_floor_met(Routing, {"extraction_confidence": confidence})
+    assert vh.confidence_floor_met(Routing, {"extraction_confidence": 0.5})
+
+
+def test_the_floor_falls_back_to_the_class_low_band():
+    class Routing:
+        thresholds: dict = {"low": 0.9}
+
+        @classmethod
+        def _thresholds_for(cls, _state):
+            return cls.thresholds
+
+    assert vh.full_source_floor(Routing, {}) == 0.9
+    Routing.thresholds = {}
+    assert vh.full_source_floor(Routing, {}) == 0.70  # the vendored ``_extraction_still_unsure`` default
+
+
+@pytest.mark.parametrize(("value", "ok"), [(0.5, True), (0, True), (1, True), (1.01, False), (-0.1, False),
+                                           (True, False), ("0.5", False)])
+def test_the_floor_is_a_unit_threshold_in_a_run_spec(value, ok):
+    from mailroom_sandbox.job import spec
+
+    block = {vh.FULL_SOURCE_FLOOR_KEY: value}
+    if ok:
+        spec._check_thresholds("confidence", block)
+    else:
+        with pytest.raises(ValueError, match=vh.FULL_SOURCE_FLOOR_KEY):
+            spec._check_thresholds("confidence", block)
+
+
+@pytest.mark.parametrize("doc", [SHORT, LONG], ids=["short", "long"])
+def test_openrouter_full_source_acceptance_archives_at_a_lowered_floor(doc, profile_graph, monkeypatch):
     out = run(profile_graph("openrouter"), monkeypatch, _unsure_accept(doc))
     assert out["stage"] == "archived", out["path"]
     assert out["path"][-4:] == ["arbiter", "compile_report", "catalog_write", "archive"]
@@ -75,10 +141,17 @@ def test_the_flag_turns_the_rule_off(profile_graph, monkeypatch):
     assert out["stage"] == "review"
 
 
-def test_hf011_asks_the_arbiter_when_its_acceptance_now_archives(profile_graph, monkeypatch):
-    """A partial last pass on an unsure extraction: HF-011 used to skip the arbiter (acceptance parked)."""
+def test_hf011_still_skips_the_arbiter_below_the_default_floor(profile_graph, monkeypatch):
     script = Script(confs=UNSURE, judge=[("partial", "accurate")] * 3,
                     arbiter=["retry_extraction", "accept_with_caveats"])
+    out = run(profile_graph("openrouter"), monkeypatch, script)
+    assert out["stage"] == "review" and out["arbiter"] == 1 and out["path"][-2:] == ["judge_verify", "human_review"]
+
+
+def test_hf011_asks_the_arbiter_when_its_acceptance_now_archives(profile_graph, monkeypatch):
+    """A partial last pass under a lowered floor: HF-011 used to skip the arbiter (acceptance parked)."""
+    script = Script(confs=UNSURE, judge=[("partial", "accurate")] * 3,
+                    arbiter=["retry_extraction", "accept_with_caveats"], floor=0.5)
     out = run(profile_graph("openrouter"), monkeypatch, script)
     assert out["stage"] == "archived", out["path"]
     assert out["arbiter"] == 2 and out["judge_passes"] == 2

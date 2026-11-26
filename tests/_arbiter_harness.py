@@ -53,6 +53,8 @@ class Script:
     # classify / extract nodes run and meet this error from the reader they call.
     classify_raises: Exception | None = None
     extract_raises: Exception | None = None
+    # HF-014 confidence floor, as a run's confidence block would set it (None: the class ``low``).
+    floor: float | None = None
 
 
 def activate_profile(monkeypatch, tmp_path, profile: str, *, reviewer: bool = False):
@@ -155,6 +157,7 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
                 "extraction_attempts": int(state.get("extraction_attempts") or 0) + 1,
                 "stage": "extracted", "transient_error": False, **script.extract_extra}
 
+
     scripted = {"classify": classify, "retry_classify": lambda s: classify(s, attempt=2),
                 "extract": extract, "retry_extract": extract,
                 "boss_escalation": lambda s: pytest.fail("boss unexpected")}
@@ -192,6 +195,12 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
         monkeypatch.setattr(bg, f"{name}_node", wrap(name, fn))
     for name in REAL_NODES:
         monkeypatch.setattr(bg, f"{name}_node", wrap(name, getattr(bg, f"{name}_node")))
+    if script.floor is not None:
+        import graph.routing as routing
+
+        original = routing._thresholds_for  # the key a run's ``confidence`` block would carry
+        monkeypatch.setattr(routing, "_thresholds_for",
+                            lambda state: {**original(state), "arbiter_full_source_min_confidence": script.floor})
     if script.deadline_passed:
         from pipeline import limits
 

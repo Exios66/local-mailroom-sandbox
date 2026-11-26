@@ -585,6 +585,7 @@ def test_a_fresh_run_lock_records_every_hotfix_including_hf013(tmp_path, monkeyp
     assert fixes["HF-014"]["target"] == "graph.routing.after_arbiter"
     assert fixes["HF-014"]["source_sha256"] == vh._source_sha(__import__("graph.routing", fromlist=["x"]).after_arbiter)
     assert lock["effective_confidence"]["arbiter_full_source"] is True
+    assert "arbiter_full_source_min_confidence" not in lock["effective_confidence"]  # unset: class ``low``
     # HF-015: the arbiter's request wrapper
     assert fixes["HF-015"]["target"] == "agents.arbiter.ArbiterAgent.arbitrate"
     assert fixes["HF-015"]["source_sha256"] == vh._source_sha(
