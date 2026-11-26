@@ -143,6 +143,10 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     assert "cause" not in next(d for d in report["docs"] if d["id"] == "f")  # a correct archive has no cause
 
 
+ACCEPT_SORTER = {"classification_arbiter_decision": "accept_sorter"}
+ACCEPT_REVIEWER = {"classification_arbiter_decision": "accept_reviewer"}
+
+
 # --- precedence and mapping --------------------------------------------------------------------
 
 
@@ -181,6 +185,26 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     (["reviewer_unavailable", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
     (["unknown_class", "reviewer_low_confidence", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
     (["reviewer_low_confidence", "judge_partial"], {}, "classification:reviewer_unknown"),
+    # The item records that the classification arbiter accepted a class: every reviewer cause is settled,
+    # so the judge lane decides first, whichever reviewer cause was left on the item ...
+    (["reviewer_disagreement", "judge_partial", "arbiter_escalated"], ACCEPT_SORTER, "judge:arbiter_escalated"),
+    (["reviewer_unavailable", "arbiter_escalated"], ACCEPT_SORTER, "judge:arbiter_escalated"),
+    (["unknown_class", "reviewer_low_confidence", "arbiter_escalated"], ACCEPT_REVIEWER, "judge:arbiter_escalated"),
+    (["arbiter_escalated"], {**ACCEPT_SORTER, "reviewer_doc_type": "unknown"}, "judge:arbiter_escalated"),
+    (["reviewer_disagreement", "judge_partial", "retries_exhausted"], ACCEPT_SORTER, "judge:partial_exhausted"),
+    (["reviewer_unavailable", "judge_incomplete"], ACCEPT_REVIEWER, "judge:judge_rejected"),
+    (["reviewer_low_confidence", "judge_incomplete"], ACCEPT_SORTER, "judge:judge_rejected"),
+    # ... a reviewer cause names the park only when nothing in the judge lane does ...
+    (["reviewer_disagreement"], ACCEPT_SORTER, "classification:reviewer_disagreement"),
+    (["reviewer_unavailable"], ACCEPT_SORTER, "classification:reviewer_unknown"),
+    (["reviewer_low_confidence"], ACCEPT_SORTER, "classification:reviewer_unknown"),
+    # ... a wrong class is not settled by it ...
+    (["class_miss", "reviewer_disagreement", "arbiter_escalated"], ACCEPT_SORTER, "classification:wrong_class"),
+    # ... and an answer that is not an acceptance (or no answer) leaves the reviewer causes in force.
+    (["reviewer_disagreement", "arbiter_escalated"], {"classification_arbiter_decision": "human_review"},
+     "classification:reviewer_disagreement"),
+    (["reviewer_unavailable", "judge_partial", "retries_exhausted"], {"classification_arbiter_decision": None},
+     "classification:reviewer_unknown"),
 ])
 def test_review_cause_mapping(causes, extra, expected):
     assert cause_of(review(causes, **extra)) == expected

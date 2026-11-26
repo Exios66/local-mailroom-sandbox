@@ -43,13 +43,14 @@ def arbiter_harness_state(monkeypatch):
     wrappers it was built from, and ``apply_source_windows`` rewrites vendored constants directly.
     Without this, a later test in the same process (``test_mock_llm``) runs the scripted graph.
     """
-    import graph.build_graph as bg
+    import sys
 
+    yield
+    bg = sys.modules.get("graph.build_graph")  # absent when the test failed before activating a profile
+    if bg is not None:
+        bg.reset_compiled_graph()
     from mailroom_sandbox import source_windows
 
-    bg.reset_compiled_graph()
-    yield
-    bg.reset_compiled_graph()
     source_windows.apply_source_windows({})
 
 
@@ -79,6 +80,9 @@ class Script:
     boss: str = "approve"
     # HF-014 confidence floor, as a run's confidence block would set it (None: the class ``low``).
     floor: float | None = None
+    # What the sorter reviewer answers when the sorter is in the medium band (``sorter=None``).
+    reviewer_causes: list[str] = field(default_factory=lambda: ["reviewer_low_confidence"])
+    reviewer_doc_type: str = "corporate_record"
 
 
 def activate_profile(monkeypatch, tmp_path, profile: str, *, reviewer: bool = False):
@@ -217,8 +221,8 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
     if not script.decisions_down:
         scripted["review_classify"] = lambda s: {
             "review_verdict": "decision_parks", "review_route": "human_review", "reviewer_confidence": 0.4,
-            "reviewer_doc_type": "corporate_record", "reviewer_doc_subclass": "minutes",
-            "reviewer_causes": ["reviewer_low_confidence"], "transient_error": False}
+            "reviewer_doc_type": script.reviewer_doc_type, "reviewer_doc_subclass": "minutes",
+            "reviewer_causes": list(script.reviewer_causes), "transient_error": False}
     visited: list[str] = []
 
     def wrap(name, fn):

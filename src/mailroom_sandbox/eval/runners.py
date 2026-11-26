@@ -82,8 +82,10 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     return "L4" if profile in _GPU_PROFILES else None
 
 
+# ``classification_arbiter_decision`` lets the gate's cause typing tell reviewer doubt the classification
+# arbiter settled (it accepted a class) from doubt it left standing; None when that arbiter did not run.
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
-                        "reviewer_doc_type", "reviewer_confidence")
+                        "reviewer_doc_type", "reviewer_confidence", "classification_arbiter_decision")
 # llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
 # Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
