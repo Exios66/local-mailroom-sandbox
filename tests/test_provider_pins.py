@@ -497,3 +497,74 @@ def test_preimported_pdf_transcriber_uses_pinned_guarded_transport(vendored, mon
     pdf.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash")
     assert seen[-1]["extra_body"]["provider"]["order"] == ["Alibaba"]
     assert len(pp.ledger()) == 1
+
+
+# S2 (phase 1): the guarded transports reserve each request's cost and always settle it.
+
+
+@pytest.fixture
+def armed_budget():
+    from mailroom_sandbox.job import api_budget, call_guard
+
+    budget = api_budget.ApiBudget(1.0, 0.10, 0.25, ["qwen/qwen3.5-9b"])
+    call_guard.arm(budget, None)
+    yield budget
+    call_guard.disarm()
+
+
+def test_pinned_chat_completion_releases_on_success_and_charges_on_timeout(vendored, monkeypatch, armed_budget):
+    import httpx
+
+    outcomes = ["ok", "timeout"]
+
+    def original(client, **kwargs):
+        if outcomes.pop(0) == "timeout":
+            raise httpx.ReadTimeout("no response")
+        return _Resp(kwargs["model"], "Alibaba")
+
+    monkeypatch.setattr(sys.modules["llm.retry"], "retry_chat_completion", original)
+    monkeypatch.setattr(sys.modules["agents.base"], "retry_chat_completion", original)
+    pp.apply_provider_pins(PINS)
+    base = sys.modules["agents.base"]
+    client = _Client("https://openrouter.ai/api/v1")
+    request = {"model": "qwen/qwen3.7-flash", "messages": [{"role": "user", "content": "x" * 4000}], "max_tokens": 100}
+    base.retry_chat_completion(client, **request)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
+    with pytest.raises(httpx.ReadTimeout):
+        base.retry_chat_completion(client, **request)
+    assert armed_budget.reserved_usd == 0.0
+    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))
+
+
+def test_langchain_reservation_is_settled_on_success_and_on_failure(lc_pins, armed_budget):
+    import httpx
+    from langchain_openai import ChatOpenAI
+
+    fail = []
+
+    def handler(request):
+        if fail:
+            raise httpx.ReadTimeout("no response")
+        body = {**_completion("qwen/qwen3.7-flash", "Alibaba"), "id": "gen-1", "object": "chat.completion",
+                "created": 0, "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}}
+        return httpx.Response(200, json=body)
+
+    cls = pp.pinned_chat_openai(ChatOpenAI)
+    llm = cls(model="qwen/qwen3.7-flash", api_key="test-key", base_url="https://openrouter.ai/api/v1",
+              max_retries=0, max_tokens=50, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert llm.invoke("x" * 400).content == "ok"
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
+    fail.append(True)
+    with pytest.raises(Exception):
+        llm.invoke("x" * 400)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0
+
+
+def test_a_langchain_request_too_dear_for_the_cap_never_goes_out(lc_pins, armed_budget):
+    sent = []
+    llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba")], sent,
+                       max_tokens=50)
+    armed_budget.reserve(0.999999)  # the rest of the cap is held by requests in flight
+    with pytest.raises(Exception, match="call refused"):
+        llm.invoke("x" * 400)
+    assert sent == []

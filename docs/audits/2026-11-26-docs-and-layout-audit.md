@@ -308,7 +308,7 @@ Process changes:
 ## Outcome (2026-11-26, same branch)
 
 The maintainer chose: keep the release CSVs (E7), do the full `docs/` reorganization
-(decision 1), add the extra `--check` gates to CI (E9), and cut 0.4.0 (decision 6).
+(decision 1), add the extra `--check` gates to CI (E9), and release a new version (decision 6).
 Decision 2 had no answer, so the unreferenced campaign scripts were archived, as
 recommended, not deleted. Decision 5 (ticket folder spelling) took the recommended
 default: kept, and documented in `reports/README.md`.
@@ -332,3 +332,9 @@ Where the work differs from the plan above:
   names.
 - **`uv.lock` was stale** against `pyproject.toml` (#403, #404) and was regenerated in its
   own commit before the version bump.
+- **No new release was cut.** This audit missed that `v0.3.5` (2026-10-30) and `v0.4.0`
+  (2026-11-18) had already been published on GitHub without CHANGELOG sections or a version
+  bump; the clone was shallow and had no tags. The CHANGELOG now has a `[0.4.0] - 2026-11-18`
+  heading at the tag's boundary, this work stays under `[Unreleased]`, and the package
+  version reads 0.4.0 to match the published release. The v0.3.5 boundary could not be
+  placed reliably, so it has no heading.
