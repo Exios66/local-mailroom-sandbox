@@ -47,12 +47,16 @@ the gold audit read that layout.
   `score_original`, including when a rescore is itself re-scored. Errored and unparseable items
   have no answer to score and are copied unchanged.
 - `scores.json`: run-level means of every numeric per-item score, overall and by class, dual
-  reported. On the headline, an item whose run failed (`ok` false: a timeout, parse failure or
-  crash) scores 0 on each headline key (SHF-005), so failures stay in the denominator;
-  `failed` and `failed_scored_zero` count them. `raw_dojo` holds the plain means over the scored
-  items only, and `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. A task
-  runner's own run summary can hold other statistics (macro-F1, intervals), which a rescore does
-  not recompute.
+  reported. On the headline, a failed item (`ok` false: a timeout, parse failure or
+  crash) scores 0 on each headline key (SHF-005) its own first score carries or, failing that,
+  that its truth class's scored items carry (any scored item's keys when its class has none); a
+  failure with no such key anywhere — for example when every item failed — is left out and
+  `failed_scored_zero` stays 0. `failed` counts every failure. `raw_dojo` holds the plain means
+  over the scored items only, over the same top-level per-item scores the headline aggregates:
+  it is not a fixes-off aggregate (a scored item's fixes-off values sit on its own record under
+  its `raw_dojo` key). `scoring_hotfixes` lists `SHF-005` when any failed item was scored 0. A
+  task runner's own run summary can hold other statistics (macro-F1, intervals), which a rescore
+  does not recompute.
 - `rescore.json`: the provenance, the digest the command prints, and the same run-level scores
   as `scores.json` (headline and `raw_dojo`).
 - `events.jsonl` and `prompt.lock.json`, copied when present. `checkpoint.json` uses the

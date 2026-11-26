@@ -33,7 +33,7 @@ from mailroom_sandbox.eval.schema_adherence import (
     merge_schema_adherence,
 )
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
-from mailroom_sandbox.eval.cuad_scoring import score_cuad
+from mailroom_sandbox.eval.cuad_scoring import gt_categories, score_cuad
 from mailroom_sandbox.eval.maud_scoring import score_maud
 
 from mailroom_sandbox.paths import reports_dir
@@ -336,12 +336,19 @@ def _score_extraction_row_once(
         payload["scoring_method"] = f"{scoring_method}+maud"
     if doc_type == "contract" and raw_expected.get("cuad_clause_labels"):
         # SAND-032: contract GT is CUAD clause spans only; headline = CUAD
-        # category-detection F1 within the row's labeled universe.
-        cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
-        payload.update(cuad)
-        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
-        payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
-        payload["scoring_method"] = f"{scoring_method}+cuad"
+        # category-detection F1 within the row's labeled universe. SHF-016: a row whose CUAD
+        # label map names no category has an empty universe, so the F1 is None and would
+        # overwrite the suite headline, leaving the row unscoreable even when its reviewed
+        # field labels (merged at truth prep) score it. The suite headline stands in and the
+        # row is marked ``cuad_unlabeled``; the raw side keeps the Dojo pin's None.
+        if sh.is_active("SHF-016") and not gt_categories(raw_expected["cuad_clause_labels"]):
+            payload["cuad_unlabeled"] = True
+        else:
+            cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
+            payload.update(cuad)
+            payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+            payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
+            payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
 
 

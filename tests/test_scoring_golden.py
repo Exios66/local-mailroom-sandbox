@@ -127,8 +127,9 @@ def test_golden_field_f1_and_hallucination_are_dual_reported(golden):
     assert scores["hallucination_rate"] == 1.0 and scores["n_documented_absent"] == 1
     assert scores["extraction_overall"] == pytest.approx(0.5) and raw["extraction_overall"] == pytest.approx(0.5)
     assert scores["extraction_overall_correct_class"] == pytest.approx(2 / 3, abs=1e-4)
-    # active on the rows (SHF-015 is on, it finds no stale Hub label here)
-    assert set(scores["scoring_hotfixes"]) == {"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-015"}
+    # active on the rows (SHF-015 is on, it finds no stale Hub label here; SHF-016 is on, the
+    # rows here have no empty-universe CUAD map)
+    assert set(scores["scoring_hotfixes"]) == {"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-015", "SHF-016"}
     for key in ("extraction_fp", "hallucination_rate", "extraction_f1_mean"):
         assert key in scores["scoring_hotfixes_changed"]
     assert scores["headline_basis"]["headline"] == "hotfixed"
