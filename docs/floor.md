@@ -148,7 +148,7 @@ The builder adds a `debug` object on each document row:
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
-| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason), `union` per agent, and `doc_chars`. Numbers only. See the document panel below. |
+| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason), `union` per agent, and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Numbers only. See the document panel below. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
 | `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
 
@@ -191,7 +191,7 @@ A class is matched to its specialist by name (`contract` and
 `contracts_specialist`); a document whose predicted class equals the true class
 counts as routed to whichever specialist ran. When a specialist call has no exact
 range (raw basis or a size skip), or the served text length differs from the
-recorded `doc_chars`, `not read` is not claimed and the panel says why.
+recorded working length (`doc_chars`; null skips the check), `not read` is not claimed and the panel says why.
 "matches" and "differs" beside an extracted value compare strings only. They
 are not the Dojo score.
 

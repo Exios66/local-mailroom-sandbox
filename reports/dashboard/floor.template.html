@@ -902,7 +902,7 @@ function rdPanelHtml(v){
  const working=data&&typeof data.working==="string"?data.working:null,original=data&&typeof data.original==="string"?data.original:null;
  const useOrig=original!==null&&(!!v.original||working===null),text=useOrig?original:working;
  const an=working!==null?rdAnalyse({text:working,expected:data.expected,extracted:data.extracted,reads,cls,specialists:v.specialists,cache}):null;
- const total=reads&&reads.doc_chars>0?reads.doc_chars:(an?cache.cp.len:0);
+ const total=an?cache.cp.len:(reads&&reads.doc_chars>0?reads.doc_chars:0);   // loaded working text wins; doc_chars only scales a text-less map
  let h=`<div class="rd"><div class="rd-head"><b>DOCUMENT</b><span>${esc(v.id)}</span>`;
  if(cls.gt||cls.pred)h+=`<span class="mut">class ${esc(cls.gt||"?")} → ${esc(cls.pred||"—")}</span>`;
  if(total>0)h+=`<span class="mut">${total.toLocaleString("en-US")} characters</span>`;
@@ -914,7 +914,7 @@ function rdPanelHtml(v){
  else if(text===null)h+=`<p class="secnote"><span class="warn">Text unavailable</span> — the run store holds no text for this document.</p>`;
  if(!reads||!Array.isArray(reads.calls))h+=`<p class="secnote">Read ranges: not recorded for this run.</p>`;
  else if(!model.agents.length)h+=`<p class="secnote">Read ranges: this document has no recorded agent call.</p>`;
- if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded ${reads.doc_chars.toLocaleString("en-US")}; its ranges would not line up.</p>`;
+ if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served working text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded a working text of ${reads.doc_chars.toLocaleString("en-US")} characters; its ranges would not line up.</p>`;
  if(model.agents.length){
   h+=`<div class="rd-tog" role="group" aria-label="Agents whose reads are painted on the text">${rdTogglesHtml(model,on,callOff)}</div>`;
   h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total)}</div>`;

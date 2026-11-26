@@ -1057,6 +1057,43 @@ console.log("ok");
 
 
 @test
+def viewer_raw_length_neither_withholds_flags_nor_scales_the_minimap():
+    """Working text of 17 characters with calls [raw 30, working 17]: flags stand, a [0,5) band sits at 5/17."""
+    out = viewer_js(r"""
+const A=require('node:assert/strict');
+const w="fee 75 dollars  x".slice(0,17);
+A.equal([...w].length,17);
+const calls=[{agent:"intake",node:"intake",basis:"raw",ranges:[[0,30]],matched:0,request:0},
+ {agent:"contracts_specialist",node:"extract",basis:"working",ranges:[[0,5]],matched:0,request:0}];
+const SP=["contracts_specialist"];
+// the builder's doc_chars is 17 (working-basis calls only), or null when none recorded one: neither withholds
+for(const dc of [17,null]){
+ const a=rdAnalyse({text:w,expected:{fee:"75",none:"zzz"},extracted:{},reads:{calls,union:{},doc_chars:dc},cls:{gt:"contract",pred:"contract"},specialists:SP});
+ A.equal(a.lengthMismatch,false);
+ A.equal(a.rows[0].flag,"not read");            // "75" is at 4..6, outside [0,5): judged, not withheld
+ A.equal(a.rows[1].flag,"not in text");
+}
+const mm=rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:null},cls:{gt:"contract",pred:"contract"},specialists:SP,status:"ok",reason:"",
+ data:{working:w,original:w,expected:{fee:"75"},extracted:{},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:null},
+ on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+const lane=mm.split('class="mm-lane').find(x=>x.includes("contracts_specialist")&&x.includes("mm-r"));
+const width=+lane.match(/mm-r" style="left:([\d.]+)%;width:([\d.]+)%/)[2];
+A.ok(Math.abs(width-100*5/17)<0.01,"width "+width);   // 5/17 = 29.4% of the loaded text, not 5/30 = 16.7%
+const mm17=rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:17},cls:{},specialists:SP,status:"ok",reason:"",data:{working:w,original:null,expected:{},extracted:{},class:{},rewritten:false,overlap:null},on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.doesNotMatch(mm17,/Bands withheld/);
+const nt=rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:30},cls:{},specialists:SP,status:"unavailable",reason:"x",data:null,on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.ok(/width:16\.667%/.test(nt));                     // no text loaded: doc_chars is the fallback scale
+A.doesNotMatch(mm,/Bands withheld/);
+// a real difference between the served working text and the recorded working length still withholds, naming the working text
+const bad=rdPanelHtml({id:"d",reads:{calls,union:{},doc_chars:17},cls:{},specialists:SP,status:"ok",reason:"",
+ data:{working:w+"zz",original:null,expected:{},extracted:{},class:{},rewritten:false,overlap:null},on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.match(bad,/Bands withheld[\s\S]*served working text has 19[\s\S]*working text of 17/);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
 def viewer_panel_without_text_says_unavailable_and_still_draws_the_band_map():
     """File://, an imported digest or no server: say the text is unavailable, keep lanes, toggles and calls."""
     out = viewer_js(_RD_SETUP + r"""
@@ -1117,6 +1154,24 @@ A.ok(html.length<n*3);
 console.log("ok");
 """)
     assert out == "" or out.strip() == "ok"
+
+
+@test
+def doc_chars_is_the_working_length_not_the_raw_one():
+    """debug.reads.doc_chars comes from working-basis calls; only raw calls give null."""
+    with tempfile.TemporaryDirectory() as tmp:
+        run = Path(tmp) / "run-r"
+        run.mkdir()
+        _jsonl(run / "items.jsonl", [{"item_id": "d1", "ok": True, "stage": "archived"}])
+        base = {"doc": "d1", "node": "classify", "request_chars": 5, "matched_chars": 5, "ranges": [[0, 5]]}
+        recs = [{**base, "call": 1, "agent": "intake", "basis": "raw", "doc_chars": 30},
+                {**base, "call": 2, "agent": "sorter", "basis": "working", "doc_chars": 17}]
+        (run / "reads.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs), encoding="utf-8")
+        row, _ = bfd.build_run("run-r", run, set())
+        assert row["docs"][0]["debug"]["reads"]["doc_chars"] == 17
+        (run / "reads.jsonl").write_text(json.dumps(recs[0]) + "\n", encoding="utf-8")
+        row, _ = bfd.build_run("run-r", run, set())
+        assert row["docs"][0]["debug"]["reads"]["doc_chars"] is None
 
 
 def main() -> int:

@@ -96,3 +96,24 @@ def test_digest_dedupes_resumed_call_sequences(tmp_path):
     reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
     assert [(c["agent"], c["ranges"]) for c in reads["calls"]] == [("sorter", [[5, 50]]), ("specialist", [[60, 80]])]
     assert set(reads["union"]) == {"sorter", "specialist"}
+
+
+def test_doc_chars_comes_from_working_basis_calls_only(tmp_path):
+    """A raw-basis call indexes the raw text; its length must not stand for the working text."""
+    builder = floor_app.load_builder()
+    raw = _read(1, "intake", [[0, 5]], basis="raw", doc_chars=30)
+    working = _read(2, "sorter", [[0, 5]], doc_chars=17)
+    run_dir = _reads_run(tmp_path, reads=[raw, working])
+    assert _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]["doc_chars"] == 17
+    # the final working call of the kept sequence wins when working calls disagree
+    other = tmp_path / "other"
+    run_dir = _reads_run(other, reads=[raw, _read(2, "sorter", [[0, 5]], doc_chars=17), _read(3, "judge", [[0, 5]], doc_chars=19)])
+    assert _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]["doc_chars"] == 19
+
+
+def test_doc_chars_is_null_without_a_working_basis_call(tmp_path):
+    """Only raw calls: the working length is unknown, so null (never the raw length)."""
+    builder = floor_app.load_builder()
+    run_dir = _reads_run(tmp_path, reads=[_read(1, "intake", [[0, 5]], basis="raw", doc_chars=30)])
+    reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
+    assert reads["doc_chars"] is None

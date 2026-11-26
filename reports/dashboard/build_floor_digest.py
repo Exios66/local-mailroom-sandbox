@@ -461,11 +461,16 @@ def _last_call_sequence(records: list[dict]) -> list[dict]:
 
 
 def _doc_reads(records: list[dict]) -> dict:
-    """``debug.reads`` for one document: calls, per-agent merged ranges, doc length. No text."""
+    """``debug.reads`` for one document: calls, per-agent merged ranges, working-text length. No text.
+
+    ``doc_chars`` is the working text's length: the value on the last working-basis call of the
+    kept sequence, or None when no such call recorded one. A raw-basis call measured the raw row
+    text, which intake may have shortened, so its length never stands for the working text.
+    """
     kept = _last_call_sequence(records)
     calls: list[dict] = []
     by_agent: dict[str, list[list[int]]] = {}
-    doc_chars = 0
+    doc_chars: int | None = None
     for rec in kept:
         agent = str(rec.get("agent") or "?")
         ranges = _clean_ranges(rec.get("ranges"))
@@ -481,7 +486,8 @@ def _doc_reads(records: list[dict]) -> dict:
             call["skipped"] = rec["skipped"]
         calls.append(call)
         by_agent.setdefault(agent, []).extend(ranges)
-        doc_chars = max(doc_chars, int(_num(rec.get("doc_chars")) or 0))
+        if call["basis"] == "working" and (_num(rec.get("doc_chars")) or 0) > 0:
+            doc_chars = int(_num(rec["doc_chars"]))
     return {
         "calls": calls,
         "union": {agent: _merge_ranges(rs) for agent, rs in by_agent.items()},
