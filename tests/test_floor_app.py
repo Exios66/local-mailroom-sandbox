@@ -1108,6 +1108,7 @@ def test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_fil
     render_prefix = html[html.index("function render(){"):html.index(" for(const [id,xy] of Object.entries(POS))")]
     arrivals = html[html.index("function arrivalGroups("):html.index("function markTab(")]
     node_diag = html[html.index("function paintNodeDiag("):html.index("function pickDoc(")]
+    sync = html[html.index("function syncDebug("):html.index("function render(){")]
     nodes_pane = html[html.index("function nodesPane("):html.index("function debugPane(")]
     selected_details = html[html.index(' const sel=selNode||""'):html.index(' paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();')]
     selected_details = 'function paintSelected(){const r=run();'+selected_details+'}'
@@ -1122,7 +1123,8 @@ const unrelated={id:"old-class",gt:"contract",pred:"contract",path:["intake","hu
   debug:{loops:[{node:"intake",visits:9,why:"wrong repeat"}],
     hops:[{from:"intake",to:"classify",why:"unrelated arrival"}],
     archive:{reached:false,why:"unrelated archive miss"}}};
-const run=()=>({docs:[selected,unrelated],node_agents:{classify:{sorter:7}},node_ms_p50:{},
+let omitted=0;
+const run=()=>({docs_truncated:omitted,docs:[selected,unrelated],node_agents:{classify:{sorter:7}},node_ms_p50:{},
   aborts_by_last_node:{},tokens:{prompt:0,completion:0},engine:{model:"test"},node_outcomes:{}});
 const D={graph_reference:{node_agents:{classify:"sorter"},edges:[["START","intake"],["intake","classify"],
   ["classify","archive"],["classify","human_review"],["archive","END"]]}};
@@ -1135,16 +1137,17 @@ const selDocPath=()=>null;
 const endSources=()=>["archive"];
 const panel={innerHTML:""};
 const elements={};
-const document={getElementById:id=>id==="nodeDiag"?panel:(elements[id]??={})};
+const document={getElementById:id=>id==="nodeDiag"?panel:(elements[id]??={classList:{toggle(){}},setAttribute(){}})};
 let CLASS="contract";
 const POS={classify:[0,0]};
 const OUTC={ship:["ok"],held:["warn"],failed:["bad"],open:["mut"]};
 const isLLM=()=>true;
 const nodeOutcomeText=()=>"";
+const markTab=()=>{},location={protocol:"file:"};
 const hasDebug=()=>true;
 const esc=s=>String(s);
 let selNode="classify";
-'''+cells+focus+arrivals+node_diag+render_prefix+' return {ev,neighbors};}'+nodes_pane+selected_details+r'''
+'''+cells+focus+arrivals+node_diag+render_prefix+' return {ev,neighbors};}'+nodes_pane+selected_details+sync+r'''
 const highlighted=render().neighbors;
 assert.ok(highlighted.has("archive"));
 assert.ok(!highlighted.has("human_review"));
@@ -1154,6 +1157,18 @@ assert.match(nodesPane(),/pair view/);
 paintSelected();
 assert.equal(elements.kF.textContent,"1 (pair)");
 assert.match(elements.selExtra.textContent,/agents observed in run: sorter 7/);
+omitted=7;
+paintSelected();
+assert.equal(elements.kF.textContent,"1 (pair, retained docs)");
+assert.match(nodesPane(),/pair, retained docs view/);
+assert.match(cellCoverageNote(),/7 run document/);
+assert.match(cellCoverageNote(),/retained documents only/);
+syncDebug();
+assert.match(elements.hud.innerHTML,/PARTIAL PAIR VIEW/);
+omitted=0;
+assert.equal(cellCoverageNote(),"");
+syncDebug();
+assert.doesNotMatch(elements.hud.innerHTML,/PARTIAL PAIR VIEW/);
 assert.equal(focusSets(),null);
 assert.deepEqual([...pairFocus().nodes],["intake","classify","archive"]);
 assert.equal(cellEndpoint("START"),1);
@@ -1220,13 +1235,19 @@ def test_shared_floor_digest_restores_its_filters_and_clears_foreign_filters():
         pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
     html = _template()
     share = html[html.index("function shareFocus("):html.index("function usableDigest(")]
-    apply = html[html.index("function applyShareFocus("):html.index("function takeDigest(")]
+    apply = html[html.index("function applyShareFocus("):html.index("function floorShareText(")]
     script = r'''
 const assert=require("node:assert/strict");
 let runIdx=0,CLASS=null,selNode=null,selDoc=null,DEBUG=false,ISSUE="problems",MODE=null,TAB="docs";
 const ISSUE_IDS=["problems","all"];
 const DF={cell:{gt:"letter",pred:"contract"},dec:"retry",outcome:"held",miss:true,q:"doc"};
-const D={generated_utc:"2026-11-25T00:00:00Z",classes:[],runs:[{name:"source",docs:[]}]};
+let D={generated_utc:"2026-11-25T00:00:00Z",classes:[],runs:[{name:"source",docs:[]}],
+  graph_reference:{node_agents:{classify:"sorter"},edges:[["intake","classify"]]}};
+const POS={intake:[],classify:[],departed:[]};
+let shareEpoch=0,holdLive=false;
+const window={};
+const document={getElementById:()=>({textContent:"",classList:{add(){},remove(){}}})};
+const setGen=()=>{},menus=()=>{},render=()=>{};
 const run=()=>D.runs[runIdx];
 const hasClasses=()=>false;
 const classView=()=>({why:""});
@@ -1236,6 +1257,16 @@ DF.cell={gt:"foreign",pred:"unknown"};DF.dec="foreign";DF.outcome="failed";DF.mi
 applyShareFocus(saved);
 assert.deepEqual(DF,{cell:{gt:"letter",pred:"contract"},dec:"retry",outcome:"held",miss:true,q:"doc"});
 assert.equal(TAB,"docs");
+takeDigest(D,null,false); // returning to LIVE retains the current document filters
+assert.deepEqual(DF,saved.filters);
+applyShareFocus({run:"source",node:"departed"});
+assert.equal(selNode,null); // old graph node no longer exists in the imported graph
+applyShareFocus({run:"source",node:"classify"});
+assert.equal(selNode,"classify");
+applyShareFocus({run:"source",node:"intake"});
+assert.equal(selNode,"intake"); // graph edge endpoints can be deterministic nodes
+applyShareFocus({run:"source",node:"missing"});
+assert.equal(selNode,null);
 applyShareFocus({run:"source"}); // older exports have no document filters
 assert.deepEqual(DF,{cell:null,dec:"",outcome:"",miss:false,q:""});
 applyShareFocus({run:"source",filters:{cell:{gt:[],pred:1},dec:2,outcome:"bogus",miss:"false",q:{}}});

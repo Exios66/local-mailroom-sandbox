@@ -31,6 +31,15 @@ and selected-node details, checks matching pair/class counts and confirms that
 aggregate agent counts say they are from the whole run. The table explains
 that outcomes, p50 and aborts retain run scope.
 
+A later review identified additional presentation limits and import cases.
+Pair traffic is computed from the retained document list, which is capped at
+5,000 rows. Capped views now show a PARTIAL PAIR VIEW notice; rail and NODES
+counts say retained docs, since omitted documents may add traffic and neighbors.
+No full-pair aggregate was invented. The export/import regression also executes
+the actual `takeDigest` LIVE return and checks filter preservation. Imported
+node focus must exist in the current graph and displayed layout; stale names
+are refused. Focused floor checks remain **91 passed** after these repairs.
+
 ## OpenRouter reconciliation
 
 - #413 remains present with invalid attempt/timeout refusal, one transport budget,

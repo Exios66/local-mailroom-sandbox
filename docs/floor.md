@@ -88,7 +88,9 @@ and the current view stays. The ribbon keeps SNAPSHOT beside the refusal. After 
 SNAPSHOT and live polling pauses. A fetch that was already open does not
 replace that snapshot when it returns. LIVE returns to the digest this page
 opened with: the server digest over HTTP, or the `floor_digest.js` beside
-the page for `file://`. A replay digest stays labelled replay.
+the page for `file://`, retaining the current document filters. Imported node
+focus must exist in the current graph and its displayed layout. A replay digest
+stays labelled replay.
 
 ## Reading the figures
 
@@ -179,7 +181,11 @@ A selected confusion pair also controls clicked-node neighbors and the
 selected-node count and the NODES table's docs column, alongside graph counts,
 repeat badges and node diagnostics. Agent observations, p50, aborts and node
 outcome summaries retain explicit run scope.
-Clearing it restores the previous class and DEBUG filters.
+Pair counts and neighbors come from the retained document rows. If the builder
+omits rows at its 5,000-row limit, the graph displays PARTIAL PAIR VIEW and the
+rail and NODES table label their pair counts as retained docs. Omitted documents
+can contain additional traffic and neighbors; these figures are not full-pair
+totals. Clearing the pair restores the previous class and DEBUG filters.
 
 `?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the
 predicted class). Clicking a matrix cell isolates the documents in that pair

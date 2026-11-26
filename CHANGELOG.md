@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-- **Floor node clicks and shared digests keep the selected scope.** With a confusion pair selected, node neighbors, the selected-node count and the NODES table's docs column now use that pair, matching graph counts and diagnostics. Exported digests retain their active tab and document filters; importing validates those fields and clears filters absent from older exports so another viewer's selection cannot contaminate the snapshot.
+- **Floor node clicks and shared digests keep the selected scope.** With a confusion pair selected, node neighbors, the selected-node count and the NODES table's docs column now use that pair, matching graph counts and diagnostics. Capped document lists visibly label pair views as partial. Exported digests retain their active tab and document filters; importing validates those fields and clears filters absent from older exports so another viewer's selection cannot contaminate the snapshot. Returning to LIVE preserves current document filters, and imported node focus must exist in the graph.
 
 - **A floor confusion-cell selection wins over DEBUG filters.** Graph paths, endpoint/node/edge counts, repeat badges and node arrival/repeat/archive explanations now use the selected pair even when an earlier class or failure-mode isolate is active. Clearing the pair restores the previous DEBUG isolate. The regression test executes the viewer's JavaScript rather than only checking template strings.
 
