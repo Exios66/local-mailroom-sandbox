@@ -1102,6 +1102,44 @@ def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp
     assert runner._api_budget(store).spent_usd == pytest.approx(3 * 0.10)
 
 
+def test_a_resumed_pipeline_run_bills_only_unfinished_documents(tmp_path, monkeypatch):
+    """S1: a whole-run resume replays the documents an earlier attempt persisted; only the rest run."""
+    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    calls: list[str] = []
+    lost = {"d2"}  # d2 fails once, on the first attempt
+
+    def doc(row, **_):
+        calls.append(row["id"])
+        if row["id"] in lost:
+            lost.discard(row["id"])
+            raise RuntimeError("worker lost on d2")
+        return {"id": row["id"], "doc_type": "contract", "stage": "archived", "extracted_data": {}, "error": None}
+
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", doc)
+    first = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert first["state"] == "failed" and calls == ["d0", "d1", "d2"]
+    calls.clear()
+    second = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert calls == ["d2", "d3"]  # d0 and d1 are replayed from items.jsonl, not run (or billed) again
+    assert second["state"] == "done" and second["cursor"] == 4
+    assert len(store.load_items()) == 4
+
+
+def test_a_replayed_row_writes_no_rerun_usage_event(tmp_path):
+    from mailroom_sandbox.job.api_budget import RERUN_USAGE_EVENT
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    row = {"id": "d0", "pred": {}, "score": {}, "prompt_tokens": 100}
+    seen, rebilled = {"d0"}, {"d0"}
+    runner._persist_isolated_items(store, [{**row, "replayed": True}], seen=seen, rebilled=rebilled)
+    assert not [e for e in store.events() if e.get("event") == RERUN_USAGE_EVENT]
+    runner._persist_isolated_items(store, [row], seen=seen, rebilled=rebilled)  # a real re-run still counts
+    assert [e for e in store.events() if e.get("event") == RERUN_USAGE_EVENT]
+
+
 def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
     """CodeRabbit: extract/chained/local_vs_api/sorter_vs_modernbert take no api_budget."""
     from mailroom_sandbox.job.checkpoint import RunStore

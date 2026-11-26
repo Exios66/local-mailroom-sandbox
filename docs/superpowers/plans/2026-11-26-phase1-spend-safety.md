@@ -169,7 +169,7 @@ Any agent can pick this up where the last one stopped. The owner approved the de
 
 - Consumes: `replay=` on both delegates (Tasks 1 and 2).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_a_resumed_pipeline_run_bills_only_unfinished_documents`. Use `_prepped_store(rows=4, job={"mock": True,
     "concurrency": 1})` with the lock task set to `pipeline` (as at :205). On the first attempt the fake
     `_run_pipeline_doc` raises on `d2`. On the second, it counts calls. Assert the second attempt called it for
@@ -178,15 +178,15 @@ Any agent can pick this up where the last one stopped. The owner approved the de
     `replayed: True` and an id in `rebilled`; assert no `RERUN_USAGE_EVENT`.
   - Keep `test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again` passing unchanged: a fake
     delegate that ignores `replay` still gets the safety net.
-- [ ] **Step 2: Run and see them fail**
+- [x] **Step 2: Run and see them fail**
   `.venv/bin/python -m pytest -q tests/test_job_runner.py -k "resume or rerun or rebill" -n 0 --no-cov`.
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - `replay = {i["item_id"]: i for i in prior_items if i.get("item_id") is not None and replayable(i)}`.
   - In `_persist_isolated_items`, a row with `replayed` skips the `rebilled` branch.
   - `_row_sink` does not echo replayed rows; progress still moves.
   - Update the comment at :327-329.
-- [ ] **Step 4: Run the tests again; they pass.** Also run `tests/test_console_log.py`.
-- [ ] **Step 5: Commit** `fix(resume): stop re-billing finished documents on a whole-run resume (S1) (phase1 task 3)`.
+- [x] **Step 4: Run the tests again; they pass.** Also run `tests/test_console_log.py`.
+- [x] **Step 5: Commit** `fix(resume): stop re-billing finished documents on a whole-run resume (S1) (phase1 task 3)`.
 
 ### Task 4: `ApiBudget` reservations and unreported charges
 

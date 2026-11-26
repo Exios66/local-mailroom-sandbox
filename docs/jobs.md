@@ -343,6 +343,15 @@ latency includes its duration. Whole-run delegates retain their existing
 whole-run granularity; this row-level protocol does not add resumability to
 those evaluators. Remote `FunctionCall.cancel` behavior is unchanged.
 
+A resumed `pipeline`, `specialist`, `isolated` or agent-name task replays the
+documents an earlier attempt persisted in `items.jsonl`. Each is scored again
+from its stored answer, with no model call and no new spend, so run scores still
+cover every locked document and only the rest run and are billed (S1,
+`docs/superpowers/specs/2026-11-26-correcting-judge-design.md`). A document whose
+stored item has no answer (`pred` not an object) runs again, as before.
+`extract`, `chained`, `local_vs_api` and `sorter_vs_modernbert` persist nothing
+mid-run, so they still run whole.
+
 A recovered valid JSONL final record may lack LF; the next append supplies its
 separator. Completed per-item summaries and score error counts cover all stored
 indices, including earlier invocations. Quality metrics continue to score only
