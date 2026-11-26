@@ -4,7 +4,7 @@
 
 **id:** `sand42-noise-floor` · **family:** `sand42` · **serving:** `grid-awq-1l4`
 
-One extra correspondence cell on the identical 50 documents and identical settings as sand42-1l4-c8, under a different run id. The spread of the per-document score differences between the two runs is the run-to-run noise floor for every SAND-042 delta, re-measured on the SAND-042 draw (the SAND-037/39 floor in docs/BENCHMARK-PROGRAM.md §3 was measured on a different draw). One class, ~6 min, well under $0.20.
+One extra correspondence cell on the identical 50 documents and identical settings as sand42-1l4-c8, under a different run id. The spread of the per-document score differences between the two runs is the run-to-run noise floor for every SAND-042 delta, re-measured on the SAND-042 draw (the SAND-037/39 floor in docs/design/sand043/benchmark-program.md §3 was measured on a different draw). One class, ~6 min, well under $0.20.
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-noise-floor`.
 

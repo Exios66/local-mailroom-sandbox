@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python 3.11+, LangGraph, Pydantic, pytest, Pydantic AI (`pydantic-ai-slim[typesafe]`), httpx.
 
-**Spec:** `docs/superpowers/specs/2026-10-30-decision-model-reviewer-design.md`
+**Spec:** `docs/design/specs/2026-10-30-decision-model-reviewer-design.md`
 
 ## Handoff checkpoint — 2026-10-30
 

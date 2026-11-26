@@ -1,7 +1,7 @@
 # Current experiment campaign contract
 
 This is the runtime and scoring contract for new rb1 experiment generations. The
-[research plan](superpowers/plans/2026-11-18-evaluation-runbook-plan.md) defines H1–H5,
+[research plan](design/rb1/2026-11-18-evaluation-runbook-plan.md) defines H1–H5,
 sequential looks, calibration and the sealed confirmation. Historical SAND-032/037/040/042
 grids retain their original pins and measurements. A patch passing offline tests is not
 evidence of improved live quality.

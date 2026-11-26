@@ -1,7 +1,7 @@
 # DMR-068 — scale matrix cell D1: 4xL4, concurrency 16, AWQ.
 # The A/B delta vs C1 is the QUANTIZATION ONLY (model + quantization flag).
 # Experimental: accuracy gate >= 98% before AWQ becomes the default engine.
-# Fixed-doc-size fixture — see docs/scale-matrix.md.
+# Fixed-doc-size fixture — see docs/design/dmr068/scale-matrix.md.
 # Deploy the fleet PINNED for measurement:
 #   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \

@@ -130,6 +130,6 @@ or launching the 12-document live pilot, confirm all of:
 5. A running review API sharing the pilot's bins, catalog and SQLite checkpoints.
 6. Teardown plan and measured per-document routing/cause/cost evidence.
 
-See `docs/superpowers/plans/2026-10-30-decision-reviewer-poc.md`, Task 9.
+See `docs/design/plans/2026-10-30-decision-reviewer-poc.md`, Task 9.
 Serving proof, shadow pilots and qualification remain
 the separate later plans in the design, not deliverables of this offline proof.

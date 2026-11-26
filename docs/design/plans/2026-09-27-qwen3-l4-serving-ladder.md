@@ -15,7 +15,7 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 
 **Tech Stack:** Python 3.11+, pydantic v2, pytest, Modal SDK 1.5.5 (stubbed in tests), vLLM v0.29.0 image, Qwen/Qwen3-8B-AWQ.
 
-**Spec:** `docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md`
+**Spec:** `docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md`
 
 ## Global Constraints
 
@@ -1534,7 +1534,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "cost_cap_usd": _cap, "max_wall_seconds": _wall,
         "tokens_assumed": {"prompt": _pt, "completion": _ct},
         "sec_per_doc": {"low": 5.0, "likely": 15.0, "high": 60.0},
-        "rationale": "SAND-032 ladder/scale-out/sweep (docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md)",
+        "rationale": "SAND-032 ladder/scale-out/sweep (docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md)",
     }
     SPECIALIST_LIMIT_BY_RUN[_rid] = _n
 ```
@@ -1586,7 +1586,7 @@ CLI: add `common.add_argument("--modal-profile", default=None, help="benchmark-c
 - [ ] **Step 6: Governance.** In `governance/TASKS.md`, add a row after SAND-031 in the same table format:
 
 ```markdown
-| SAND-032 | Qwen3-8B-AWQ L4 serving ladder → 2-replica scale-out → 5-specialist n=50 sweep + bf16 arm; funding evidence ($5 cap, Modal profile exios66, public HF data only) | claude | in progress | Spec docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md; plan docs/superpowers/plans/2026-09-27-qwen3-l4-serving-ladder.md. Related: SAND-028, SAND-030, SAND-031, issue #38. |
+| SAND-032 | Qwen3-8B-AWQ L4 serving ladder → 2-replica scale-out → 5-specialist n=50 sweep + bf16 arm; funding evidence ($5 cap, Modal profile exios66, public HF data only) | claude | in progress | Spec docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md; plan docs/design/plans/2026-09-27-qwen3-l4-serving-ladder.md. Related: SAND-028, SAND-030, SAND-031, issue #38. |
 ```
 
 Change ``**Next ID: `SAND-032`**`` to ``**Next ID: `SAND-033`**``. Run `pytest tests/test_governance_sand.py -v`.

@@ -223,7 +223,7 @@ then-default `_simplified` stem are intentional non-catalog pins.
 ## SAND-042 repaired stems (frozen as eval-environment v4)
 
 Repaired stems from the SAND-042 schema-adherence root-cause analysis
-(`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`), frozen in eval-environment as
+(`docs/design/sand42/schema-adherence-rca.md`), frozen in eval-environment as
 full-text mutations `insurance_claims_specialist_v4` and
 `merger_agreement_specialist_v4` (parents: the v3 GEPA keys). Their sha256
 and char counts are pinned under `frozen_successors` in

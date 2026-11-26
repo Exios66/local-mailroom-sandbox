@@ -2,7 +2,7 @@
 
 For the current rb1 data, truth, patch and readiness conditions, use the
 [experiment campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md) alongside the
-[research plan](superpowers/plans/2026-11-18-evaluation-runbook-plan.md).
+[research plan](design/rb1/2026-11-18-evaluation-runbook-plan.md).
 
 The `sandbox experiment` commands compose the existing locked run lifecycle and
 vendored mailroom pipeline. They select a design, prepare paired document draws,
@@ -319,7 +319,7 @@ class-native metric (CUAD category F1, MAUD accuracy or field F1), schema
 adherence, token totals and median latency; `## Paired comparisons` gives each
 cell's deltas against the first complete cell of its task, with the paired 95% CI and the
 better/worse/tie split. `## Sand42 metrics` gives the card contract of
-[SAND42-EXPERIMENT-DESIGN.md](SAND42-EXPERIMENT-DESIGN.md) section 5 for every run: ok rate and
+[SAND42-EXPERIMENT-DESIGN.md](design/sand42/experiment-design.md) section 5 for every run: ok rate and
 quality with 95% CIs over documents attempted, schema-valid rate, cost per 1k usable records,
 docs/min/GPU, goodput at the SLO, latency, tokens and review rate. Mock and API-only runs
 show `—` in the cost column, because they bill no GPU. An API-only run's token spend is

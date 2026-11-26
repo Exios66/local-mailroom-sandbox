@@ -270,7 +270,7 @@
 
 - **Extraction schemas graded against the truth runs score.** `sandbox schemas build|show` writes `config/extraction/subclass_schemas.json`: every (class, subclass) field with its Dojo status, its effective status under Hub + interim + near-gold truth, labeled counts by source and by runbook set, the dominant value, the corporate entity schema and the labeling-guide convention, plus a verdict (`iterate`, `thin`, `constant`, `fixed`, `no_truth`, `not_applicable`). It repairs 23 class-level fields the Dojo still marks `pending_annotation`, lists 6 labeled fields it marks `not_applicable` and the output fields with no truth, and fails (`--check`) on a stale file, truth the model cannot emit, a label outside its closed vocabulary or a `record_type` contradicting the subclass (0 today). `job.schema_guide: true` sets the guide's conventions as the specialist output-schema descriptions of the repaired fields (off by default, hashed only when set). Candidate prompts `corporate_records_specialist_condensed_v2` and `correspondence_specialist_condensed_v4` align with the guide. `sandbox splits show` prints the split's revision and the overlay flags.
 - **Phase 0 review fixes.** The split ranks a leak component by its most-exposed member, so held-out holds no tuning-list document or anything linked to one (305 never-tuned + 695 untuned train docs; split rebuilt before any run used it), links identical `content_sha256`, places linked components before singletons in calibration/pool, refuses a missing exposure list and a `--name` outside `config/splits`, and its audit compares `assignments.jsonl` and every look complement with the rebuild. Provider-pin ledger rows carry `status: verified / unverified / mismatch`, a missing provider or model is `unverified`, and an explicit fallback chain is checked against its own models. `refresh_provider_pins.py --write-order` pins endpoint `tag` slugs, keeps the header and exits 1 without writing on a failed lookup. Exact McNemar no longer overflows past 1,024 discordant pairs, `paired_permutation` rejects NaN scores, and `paired_macro_f1` tests H1's macro-F1 directly. Offline, an uncached `ground_truth` shard is refused rather than read as blind rows.
-- **Evaluation runbook Phase 0 pathways (R00-R02).** `sandbox splits build|audit|show` freezes a dev 900 / calibration 1,000 / held-out 1,000 / pool 402 split offline from the HF cache: per-unit quotas (subclasses, families from `config/splits/families.yaml`), length-band and source stratification, leak components (matter, group, normalized email subject, identical text; message ids and related ids when present), nested dev looks (300/600), and held-out seated least-exposed first (see the review fixes above). `sandbox splits audit` re-derives the split from its seed and checks the families and tuning-list hashes. Runs select a set with `exclude_ids_file` + `draw: ranked`. `mailroom_sandbox.experiment_stats` adds exact McNemar, a sign-flip permutation test, Holm, the sequential-look keep rule, cost-weighted error and Brier/ECE null floors. `mailroom_sandbox.provider_pins` pins OpenRouter providers per model (`config/provider_pins.yaml`) and records each call's served model and provider (`SANDBOX_SERVED_LOG`), flagging a provider outside the pin or a model other than the requested id or its dated slug; `scripts/refresh_provider_pins.py` lists endpoints. `corpus.load_hf_rows` reads cached shards when the Hub tree cannot be listed for a pinned sha. Plan and runbook audit: `docs/superpowers/plans/2026-11-18-evaluation-runbook-plan.md`.
+- **Evaluation runbook Phase 0 pathways (R00-R02).** `sandbox splits build|audit|show` freezes a dev 900 / calibration 1,000 / held-out 1,000 / pool 402 split offline from the HF cache: per-unit quotas (subclasses, families from `config/splits/families.yaml`), length-band and source stratification, leak components (matter, group, normalized email subject, identical text; message ids and related ids when present), nested dev looks (300/600), and held-out seated least-exposed first (see the review fixes above). `sandbox splits audit` re-derives the split from its seed and checks the families and tuning-list hashes. Runs select a set with `exclude_ids_file` + `draw: ranked`. `mailroom_sandbox.experiment_stats` adds exact McNemar, a sign-flip permutation test, Holm, the sequential-look keep rule, cost-weighted error and Brier/ECE null floors. `mailroom_sandbox.provider_pins` pins OpenRouter providers per model (`config/provider_pins.yaml`) and records each call's served model and provider (`SANDBOX_SERVED_LOG`), flagging a provider outside the pin or a model other than the requested id or its dated slug; `scripts/refresh_provider_pins.py` lists endpoints. `corpus.load_hf_rows` reads cached shards when the Hub tree cannot be listed for a pinned sha. Plan and runbook audit: `docs/design/rb1/2026-11-18-evaluation-runbook-plan.md`.
 - **Critical-regressions checklist.** `docs/critical-regressions.md` lists the failure classes every PR checks against; the PR template, AGENTS.md and CLAUDE.md link it.
 - **The interim overlay applies to Hub parquet rows directly.** `apply_overlay` matched rows only on the prepared shape (`id`, `doc_text`, `expected_fields`), so a raw `ground_truth` shard row (`document_id`, `gt_fields`, no text) silently took no labels. It now also reads `document_id` and `gt_fields`, matches a row without text on its `content_sha256` (the overlay's `doc_sha256` is the first 16 hex of the same hash), and writes the labels back into `gt_fields` as a JSON string. `interim_labels.apply_overlay_parquet` and `scripts/interim_labels.py apply --parquet SHARD --out FILE` write a shard with the same columns plus `interim_labels`. `check --rows` accepts a parquet shard, and `check --prune` keeps a reviewed gap fill the Hub supersedes and reports it instead. A reviewed correction that differs from the Hub value is kept without a report, because a correction replaces the Hub value it names. On the ccd040f6 shards the overlay applies 3,690 labels to 1,552 of 2,979 train rows and 150 labels to 65 of 323 test rows, including every one of the 1,847 reviewed labels.
 - **Interim labels take reviewed corrections and the original email headers.** `scripts/interim_labels.py review [--apply FILE]` writes reviewed labels from `data/labels/review/interim_reviews.jsonl` into the interim overlay, without a gate run. The 52 correspondence `intent` values the review found wrong in the Hub become `correction` labels (basis `review_read_message`). They replace 52 of the 72 `disputed` labels and now replace the Hub value in production. 1,795 correspondence `sender`, `recipient`, `additional_recipients` and `communication_date` fields take the original message's header from the CMU Enron maildir as `gap_fill` labels (basis `original_header`). Each label quotes its header lines and file, and the builder checks every name token and the `Date` against them. They replace 329 gate gap fills (315 with a different value) and win over the text-only near-gold labels. Every reviewed label keeps `review`, `evidence` and the label it `replaced`. The manifest lists each review file with its sha256: `check` fails when the file changes or one of its labels is missing, and `build` applies the files again after a rebuild. The header values are not in the corpus text, so extraction scores on those fields drop until mailroom-dataset restores the headers.
@@ -1306,7 +1306,7 @@
   corporate-records `484e64dd…`→`fe13501f…` (5801→5865 chars). **Scores on these two stems are not
   comparable to earlier cards without re-scoring.**
 
-### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)
+### Fixed — SAND-042 schema-adherence RCA (`docs/design/sand42/schema-adherence-rca.md`)
 
 - Vendored `InsuranceClaimExtraction` (`insurer`, `insured_party`, `claim_type`, `damages_description`,
   `coverage_determination`), `CorporateRecordExtraction` (`entity_name`, `record_type`) and
@@ -1384,7 +1384,7 @@
   `*_simplified` prompts, and `max_tokens` 8192. Only n, replicas and concurrency vary. Previously the 1×L4 cells
   ran plain `awq` eager at `max_num_seqs` 8, the 2×L4 cells plain `awq`, and the n = 20 insurance / corporate /
   merger draws were stratified on `split: test` / `train`.
-- `docs/SPECIALIST-GRID-PLAN.md`: the aligned spec, the length-error analysis, all 20 cell run ids, and the
+- `docs/design/sand037/specialist-grid-plan.md`: the aligned spec, the length-error analysis, all 20 cell run ids, and the
   existing records each cell supersedes.
 - Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants that differ only in replica
   count): one warm deploy per fleet shape, ten cells each.
@@ -1483,7 +1483,7 @@
 
 ### Changed — governance: DMR-068 hub tracker + SAND board reconciliation
 
-- `docs/scale-matrix.md` status line cites the DMR-068 hub tracker
+- `docs/design/dmr068/scale-matrix.md` status line cites the DMR-068 hub tracker
   (LLM-Mailroom-Services/mailroom-issues#205) for owner and spend decision.
 - `governance/TASKS.md` gains rows for SAND-021..025, which existed only as
   GitHub issues (#27-#31), and states that the board is the SAND numbering
@@ -1538,7 +1538,7 @@
 - `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
   cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
   `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
-- Docs: `deploy/README.md`, `docs/modal/benchmark-l4.md`, `docs/scale-matrix.md`
+- Docs: `deploy/README.md`, `docs/modal/benchmark-l4.md`, `docs/design/dmr068/scale-matrix.md`
   (container topology), `docs/modal/modal-serving-ops.md`, skill knobs.
 
 ### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
@@ -1812,7 +1812,7 @@
   300-run preflight step.
 
 - **DMR-068 — L4 scale-matrix protocol + exemplar specs (READY, runs
-  pending spend approval)**: `docs/scale-matrix.md` — run-50 analysis
+  pending spend approval)**: `docs/design/dmr068/scale-matrix.md` — run-50 analysis
   (8.7–13.9 tok/s/engine vs the ~18 tok/s fp16 HBM ceiling on L4; scheduler
   caps non-binding below ~2048 decodes; chunked prefill on by default at
   v0.29.0), the AWQ lever (v0.29.0 docs mark AWQ ✅ Ada; official Qwen3-8B

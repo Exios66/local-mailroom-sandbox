@@ -1,5 +1,5 @@
 # SAND-032 Stage 3 — insurance_claims n=50 on the warm 2-replica fleet.
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 # Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
 # rewrites this block if a rung is reverted — fp8 KV stays regardless).
