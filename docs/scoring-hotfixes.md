@@ -135,10 +135,11 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     sent to Langfuse. A rescore's `scores.json` already reports `n` beside each per-item mean
     (`means.overall_extraction_score.n`, and `scored` for the items); a stale-only item has no
     headline score there and is not counted, while its own `raw_dojo` score stays on the item.
-    So the raw counts differ for the same items: a rescore's run-level `raw_dojo` `n` counts the
-    items its headline counts, while a live run's `raw_dojo.extraction_overall_n_scored` also
-    counts a stale-only document (its raw score is a number). Compare raw counts only within one
-    kind of run.
+    So the raw counts differ for the same items. A rescore's run-level `raw_dojo` `n` leaves out
+    a stale-only item, as its headline does, and also a failed item that SHF-005 zero-fills in the
+    headline only (one ok and one failed item: headline `n` 2, `raw_dojo` `n` 1). A live run's
+    `raw_dojo.extraction_overall_n_scored` counts a stale-only document (its raw score is a
+    number). Compare raw counts only within one kind of run.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the
