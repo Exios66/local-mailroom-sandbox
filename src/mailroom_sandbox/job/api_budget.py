@@ -71,6 +71,7 @@ def api_models(lock: Mapping[str, Any]) -> list[str]:
 def spec_api_models(spec: Any) -> list[str]:
     """``api_models`` for an unlocked RunSpec, resolved as preflight would lock it."""
     shaped: dict[str, Any] = {
+        "task": spec.task,  # the lock carries it, and task_agents drops agents a single-agent task never calls
         "engine": spec.engine.model_dump(),
         "agent_models": dict(spec.agent_models),
         "agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()},

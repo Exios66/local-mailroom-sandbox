@@ -256,3 +256,21 @@ def test_isolated_runs_price_the_sorter_whatever_job_task_says():
             "agent_assignments": {"sorter": {"provider": "openrouter", "model": "qwen/qwen3.5-9b"}}}
     assert api_budget.api_models(lock) == ["qwen/qwen3.5-9b"]
     assert any("api_cost_cap_usd" in e for e in api_budget.budget_errors(lock))
+
+
+@pytest.mark.parametrize("task", ["isolated", "correspondence_specialist"])
+def test_spec_api_models_drops_profile_agents_a_single_agent_task_never_calls(task):
+    """The advice and autoresearch price a spec as its lock would: the profile's judge is not a sorter run's model.
+
+    With agent_knobs set, the spec carries every profile assignment (the openrouter judge on
+    deepseek among them). The lock records the task, so ``api_models(lock)`` drops the judge;
+    the spec-level resolution must too, or the advice prices a Qwen run at deepseek's dearer
+    short-prompt rate.
+    """
+    agent = "sorter" if task == "isolated" else task
+    spec = _spec(task=task, agent_knobs={agent: {"max_tokens": 2000}},
+                 engine={"kind": "openrouter", "model": "qwen/qwen3.7-flash", "modal": None})
+    from mailroom_sandbox.agent_routes import describe
+
+    assert "deepseek/deepseek-v4-flash" in {a.get("model") for a in describe(spec).values()}
+    assert api_budget.spec_api_models(spec) == ["qwen/qwen3.7-flash"]
