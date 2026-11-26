@@ -154,7 +154,7 @@ The builder adds a `debug` object on each document row:
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
-| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason), `union` per agent, and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Numbers only. When the records carry a `text_hash`, `text_pairing` says whether the stored working text still hashes to it (`match`, `different`, `missing`); the hash itself is not emitted. See the document panel below. |
+| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason), `union` per agent (the viewer's lanes use `calls`, which carry the node), and `doc_chars` (the working text's length from the last working-basis call, null when none recorded one; a raw-basis call's length is never used). Numbers only. When the records carry a `text_hash`, `text_pairing` says whether the stored working text still hashes to it (`match`, `different`, `missing`); the hash itself is not emitted. See the document panel below. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
 | `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
 
@@ -169,9 +169,14 @@ ever see the text that holds it?
   badge with the verbatim share appears when the working text differs from the
   dataset row's text. Read ranges index the working text, so the original view
   draws no bands.
-- **Ranges.** One lane per agent in a minimap across the whole document, and one
-  toggle per agent that paints its ranges on the text (specialists start on). An
-  agent that ran more than once also gets a toggle per call. Only the last
+- **Ranges.** One lane per agent and node in a minimap across the whole document,
+  and one toggle per lane that paints its ranges on the text (specialists start on,
+  and so does a specialist lane that first appears while the run is live). A lane is
+  labelled with the agent, or `agent · node` when the call was made at a node other
+  than the agent's own name, for example `arbiter` (the extraction arbiter) and
+  `arbiter · classification_arbiter`. A call with no recorded node, as in an older
+  digest, falls in the agent's own lane. A lane with more than one call also gets a
+  toggle per call. Only the last
   attempt's calls are kept: a resumed or retried document starts again at call 1
   and supersedes the earlier attempt, so those earlier calls do not appear.
   Overlapping agents show as stacked stripes. Calls made
@@ -182,9 +187,11 @@ ever see the text that holds it?
   decision-model blue, the sorter and its reviewer (`sorter_reviewer`) use
   LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
   the third-system aqua, and `intake` and `jev` are neutral. The classification
-  arbiter node runs on the `arbiter` agent, so its calls are the `arbiter` lane.
-  An agent with no assigned colour gets the specialist, decision or neutral grey
-  swatch.
+  arbiter node runs on the `arbiter` agent, so it is a second `arbiter` lane
+  (`arbiter · classification_arbiter`). The first lane of an agent keeps the
+  agent's colour; its further lanes are the same colour made lighter, then
+  darker, so they can be told apart. An agent with no assigned colour gets the
+  specialist, decision or neutral grey swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to
   scroll to its occurrence; click again for the next.
