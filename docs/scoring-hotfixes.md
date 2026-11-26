@@ -101,6 +101,14 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     corporate_record documents (450 to 442 scorable) cross below the bar. No document crosses
     above it, and no other class moves. At the per-class minimum of 20 scorable archives this
     changes no class's standing.
+  - A row whose every scored label is stale has no score (`overall_extraction_score` is `None`; its
+    raw Dojo-pin value is 0.0 and still counts under `raw_dojo`). `run_extract_eval`'s headline
+    averages only the rows that have one, so it reports `n_scored` beside `n`: `n` counts the
+    rows, `n_scored` the rows the mean averaged, and `raw_dojo.n_scored` the same on the raw side
+    (a stale label still scores there). `n_scored` below `n` means rows left the denominator, as
+    the scored n beside every metric of [critical regression 1](critical-regressions.md); it
+    appears in `scoring_hotfixes_changed` when the two sides differ. `n_scored` is additive: `n`
+    keeps its meaning.
   - Not applied in `job/gate_causes._field_scores`: a heuristic `intent` must stay visible there
     for `label_suspect`.
   - Recorded as: the item record's `scoring_hotfixes` lists `SHF-015` and `raw_dojo` keeps the

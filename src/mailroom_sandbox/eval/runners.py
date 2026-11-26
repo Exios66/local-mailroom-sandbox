@@ -721,17 +721,18 @@ def _extract_run_headline(scored_rows: Sequence[Mapping[str, Any]], n: int) -> d
 
     ``overall_extraction_score`` is the mean row score over rows that produced one (0.0 when none),
     on the hotfixed rows and, under ``raw_dojo``, on each row's raw Dojo-pin value; the fixes that
-    were on for any row are named, with the headline basis.
+    were on for any row are named, with the headline basis. ``n`` counts the rows and ``n_scored``
+    the rows the mean averaged (a row whose every scored label SHF-015 dropped has no score), on
+    both sides: the scored n belongs beside every metric (critical regression 1).
     """
-    def mean(rows: Sequence[Mapping[str, Any] | None]) -> float:
+    def scored(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, Any]:
         vals = [float(r["overall_extraction_score"]) for r in rows
                 if r and isinstance(r.get("overall_extraction_score"), (int, float))]
-        return sum(vals) / len(vals) if vals else 0.0
+        return {"overall_extraction_score": sum(vals) / len(vals) if vals else 0.0, "n_scored": len(vals)}
 
     used = sorted({i for r in scored_rows for i in r.get("scoring_hotfixes") or []})
-    dual = scoring_hotfixes.merge_dual({"overall_extraction_score": mean(scoring_hotfixes.raw_rows(scored_rows))},
-                                       {"overall_extraction_score": mean(scored_rows)}, used,
-                                       keys=("overall_extraction_score",))
+    dual = scoring_hotfixes.merge_dual(scored(scoring_hotfixes.raw_rows(scored_rows)), scored(scored_rows), used,
+                                       keys=("overall_extraction_score", "n_scored"))
     return {**dual, "n": n, "headline_basis": scoring_hotfixes.headline_basis()}
 
 
