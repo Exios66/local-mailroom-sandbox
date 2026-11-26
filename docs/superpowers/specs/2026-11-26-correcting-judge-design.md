@@ -30,9 +30,9 @@ Status: draft for owner review · approach chosen by the owner: build in the san
   test shows it works.
 - **Where.** Built as a sandbox patch (the repo's approved way to change the pipeline without
   editing `vendor/`). Issues for the permanent `llm-mailroom` fix are written at the end.
-- **Wider hardening.** Nine more known weak points are fixed the same way, sandbox first, in five
-  phases. Spend safety comes first, then loops, then the judge, then long documents (see "The
-  hardening programme").
+- **Wider hardening.** Nine more known weak points are fixed the same way, sandbox first, in six
+  phases. Spend safety comes first, then loops, then subclass extraction schemas, then the judge,
+  then long documents (see "The hardening programme").
 
 ## The problem
 
@@ -267,6 +267,30 @@ issue where the pipeline owns it.
 | D1 | Mergers and long documents cost the most for the least: MAUD 0.10 at about 410k tokens per document; on Modal and local routes, chunking, 16k judge and arbiter excerpts, low output caps and full-extraction retry priming remain (`docs/audits/2026-11-15-contract-recall-routing-ladder.md:259-260`) | Bring the API route's whole-document fixes to Modal and local routes where the context allows; raise output caps; prime retries only with the fields under retry | vendor |
 | D2 | Chunk merging takes the most confident window, unions list fields with no precision check (+20 false clauses), and the last attempt always wins (`governance/TASKS.md:53-54`) | Keep a list item only when its quote is found; take scalars from the best-supported window; keep the best-judged attempt, not the last | vendor |
 
+### Subclass extraction schemas (X1)
+
+Today every document of a class gets one fixed output schema; the subclass only adds prompt text. The label
+registry (`config/extraction/subclass_schemas.json`, built from Hub, interim and near-gold labels) knows which
+fields each subclass is labeled for, but only reports read it. For example, 31 corporate subclass fields are never
+asked for, and merger has 12 fields with no labels that are asked for every time.
+
+The fix, as a vendor hotfix, chosen by the owner ("narrow and extend"):
+
+- Each (class, subclass) gets its own schema: the fields that subclass has labels or a documented absence for,
+  plus the labeled fields the class schema leaves out (the corporate extension fields). Fields with no labels or
+  not applicable to the subclass are dropped from the request.
+- The **predicted** subclass picks the schema, because production has no labels. An unknown or low-confidence
+  subclass gets the full class schema.
+- Field descriptions follow the labeling guide per subclass (an extension of `job.schema_guide`).
+- The field lists are a committed file hashed into the run lock, never rebuilt during a run. They are drawn from
+  dev, calibration and pool labels only: held-out labels never shape a schema.
+- The scorer's allow-list gains the added fields, re-pinned as a scoring hotfix change.
+- The switch is `job.subclass_schemas`: off for existing runs, on for new test versions.
+
+Tests: a schema per subclass matches the committed list; a low-confidence subclass falls back to the class
+schema; held-out labels do not change the list; an added corporate field is requested and scored; the lock
+changes when the list changes.
+
 Already fixed in the sandbox, upstream issue only: label-assisted routing (`llm-mailroom` #207).
 `job.blind_routing` is on by default for pipeline runs (`job/spec.py:1265-1267`).
 
@@ -282,12 +306,13 @@ phase starts.
 |---|---|---|
 | 1. Spend safety | S1, S2 | they protect every paid run, including the judge tests |
 | 2. Loop governor and loop fixes | the governor, L1-L5 | they stop runaway calls in today's pipeline, with or without the new judge |
-| 3. Correcting judge | the judge design above | it builds on the governor and its counters |
-| 4. Long documents and merging | D1, D2 | larger; each gets a short design of its own first |
-| 5. Production adoption | the switches in production configs, the Modal worker redeploy | after the staged test passes |
+| 3. Subclass extraction schemas | X1 | it changes the extraction the judge reviews, so it lands first |
+| 4. Correcting judge | the judge design above | it builds on the governor and its counters |
+| 5. Long documents and merging | D1, D2 | larger; each gets a short design of its own first |
+| 6. Production adoption | the switches in production configs, the Modal worker redeploy | after the staged test passes |
 
-The staged test (stages 0-2) runs once phases 1-3 are in. Every version has phases 1 and 2 on, so
-the test measures the judge on top of the hardened pipeline.
+The staged test (stages 0-2) runs once phases 1-4 are in. Every version has phases 1-3 on, so
+the test measures the judge on top of the hardened pipeline and the subclass schemas.
 
 ## Safety rules
 
@@ -301,8 +326,8 @@ the test measures the judge on top of the hardened pipeline.
 
 ## Plan
 
-Phases 1 and 2 come first (see "The phases"); each gets its own step-by-step plan. The steps below
-are phase 3, the judge. Each step is its own commit with tests. The full test suite runs in
+Phases 1-3 come first (see "The phases"); each gets its own step-by-step plan. The steps below
+are phase 4, the judge. Each step is its own commit with tests. The full test suite runs in
 CircleCI.
 
 1. **Switch.** Add the `judge:` config section, the lock entry and the preflight refusals. Existing
@@ -335,6 +360,8 @@ CircleCI.
    loops.
 6. Every known weak point is fixed as a sandbox hotfix first, so production experiment
    deployments get it before upstream does.
+7. Subclass extraction schemas, "narrow and extend", using the expanded interim and near-gold
+   labels; built before the judge.
 
 ## Calls I made
 
