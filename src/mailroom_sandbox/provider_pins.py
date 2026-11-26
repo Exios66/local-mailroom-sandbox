@@ -59,6 +59,7 @@ import os
 import sys
 import threading
 import time
+import types
 from pathlib import Path
 from typing import Any, Callable
 
@@ -118,6 +119,59 @@ def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
         raise
     read_ranges.admit_pending()
     return held
+
+
+def _deadline_capped(request: dict[str, Any]) -> dict[str, Any]:
+    """Cap an attempt's timeout at the run deadline (1 s floor); past the deadline, raise before sending."""
+    from pipeline.limits import check_run_deadline, get_run_deadline
+
+    deadline = get_run_deadline()
+    if deadline is None:
+        return request
+    check_run_deadline(deadline)
+    left = max(1.0, float(deadline) - time.time())
+    timeout = request.get("timeout")
+    if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and 0 < timeout <= left:
+        return request
+    return {**request, "timeout": left}
+
+
+class _AttemptGuardedCompletions:
+    def __init__(self, client: Any, guarded: bool):
+        self._client, self._guarded = client, guarded
+
+    def create(self, **request: Any) -> Any:
+        from mailroom_sandbox.job import call_guard
+
+        request = _deadline_capped(request)
+        # rb1 R01 / S2: no attempt past the run's cap or the document's ceiling; each reserves its
+        # worst-case cost until it ends.
+        held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)))
+                if self._guarded else 0.0)
+        with_options = getattr(self._client, "with_options", None)
+        sender = with_options(max_retries=0) if callable(with_options) else self._client
+        try:
+            response = sender.chat.completions.create(**request)
+        except BaseException as exc:
+            if held:
+                call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            call_guard.note_failed_attempt()
+            raise
+        if held:
+            call_guard.settle(held, billed=False)
+        return response
+
+
+class _AttemptGuardedClient:
+    """The client the vendored retry loop sees (L1): one guarded, deadline-capped HTTP attempt per
+    ``chat.completions.create``, with the SDK's own retries off. Every other attribute passes through."""
+
+    def __init__(self, client: Any, guarded: bool):
+        self._client = client
+        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded))
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
 
 
 def _output_cap(request: dict[str, Any]) -> Any:
@@ -357,22 +411,10 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         openrouter = _is_openrouter(client)
         fallback = [str(m) for m in ((kwargs.get("extra_body") or {}).get("models") or [])]
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
-        held = 0.0
         if openrouter:
-            from mailroom_sandbox.job import call_guard
-
-            # rb1 R01 / S2: no API call past the run's cap or the document's ceiling; the request
-            # reserves its worst-case cost until it ends.
-            held = _guard_call(*call_guard.request_tokens(kwargs.get("messages"), _output_cap(kwargs)))
             kwargs = pinned_kwargs(model, kwargs, pins)
-        try:
-            response = original(client, **kwargs)
-        except BaseException as exc:
-            if held:
-                call_guard.settle(held, billed=call_guard.billed_failure(exc))
-            raise
-        if held:
-            call_guard.settle(held, billed=False)
+        # L1 (phase 2): the vendored loop is the one retry layer; each HTTP attempt it sends is guarded.
+        response = original(_AttemptGuardedClient(client, guarded=openrouter), **kwargs)
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)

@@ -246,7 +246,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
 
   Every other attribute is passed through.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_each_http_attempt_reserves_and_settles_once`: a fake client fails twice with a 5xx, then returns.
     That gives 3 reservations; 2 are charged and 1 is released, and `calls` rises by 2 for the failures.
   - `test_sdk_retries_are_off_under_the_wrapper`: the fake records the `max_retries=0` passed to
@@ -255,12 +255,12 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     request timeout, the sent timeout is ≤ 5.
   - `test_no_attempt_is_sent_past_the_run_deadline`;
   - `test_a_client_without_with_options_still_works`.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_provider_pins.py`.
-- [ ] **Step 3: Implement** `_AttemptGuardedClient`, and pass it to the vendored `retry_chat_completion` in place
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_provider_pins.py`.
+- [x] **Step 3: Implement** `_AttemptGuardedClient`, and pass it to the vendored `retry_chat_completion` in place
   of the single `_guard_call` around the whole loop.
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_call_guard.py
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_call_guard.py
   tests/test_decision_transport.py tests/test_stress_harness.py`.
-- [ ] **Step 5: Commit** `fix(provider-pins): one retry layer, every HTTP attempt guarded, deadline-capped timeout (phase2 task 3)`.
+- [x] **Step 5: Commit** `fix(provider-pins): one retry layer, every HTTP attempt guarded, deadline-capped timeout (phase2 task 3)`.
 
 ### Task 4: The governor (HF-018), with L2
 
