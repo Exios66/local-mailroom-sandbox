@@ -117,7 +117,10 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 .rd small{font-size:8.5px}
 .mm-lane{display:flex;align-items:center;gap:8px;height:13px;margin:2px 0}
 .mm-lane.off{opacity:.38}
-.mm-name{flex:0 0 clamp(150px,28%,250px);font-size:9px;color:#7e8ca0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mm-name{flex:0 0 clamp(160px,28%,280px);display:flex;align-items:center;min-width:0;font-size:9px;color:#7e8ca0;white-space:nowrap}
+.mm-name .sw{flex:none}
+.mm-ag{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.mm-nd{flex:none;max-width:78%;margin-left:.1em;overflow:hidden;text-overflow:ellipsis}
 .mm-track{position:relative;flex:1;height:9px;background:#0d141d;border:1px solid #1c2530;border-radius:2px;overflow:hidden}
 .mm-r{position:absolute;top:0;bottom:0;min-width:1px;box-sizing:border-box}
 .rd-main{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:10px;margin-top:8px;align-items:start}
@@ -775,26 +778,31 @@ function rdColor(agent,group){return (Object.prototype.hasOwnProperty.call(RD_CO
 function rdShade(hex,k){
  const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex);if(!m)return hex;
  return "#"+[m[1],m[2],m[3]].map(x=>{const v=parseInt(x,16),t=k<0?0:255,r=Math.round(v+(t-v)*Math.abs(k));return (r<16?"0":"")+r.toString(16)}).join("")}
-/** The 1st, 2nd, 3rd... extra lane of one agent: 35% lighter, 35% darker, 60% lighter, 60% darker, then 80% (a colour repeats only past six lanes of one agent). Lighter first: a darker swatch sinks into the dark page. */
-const rdVariant=i=>i<1?0:(i%2?1:-1)*Math.min(0.8,0.1+0.25*Math.ceil(i/2));
+/** Shade of a lane = a function of its node alone, never of which other lanes the document has: 0 keeps the agent's colour, the rest are lighter or darker (a darker swatch sinks into the dark page, so none goes near black).
+ *  Known nodes have a fixed slot (the common first attempts keep the agent's colour); any other node name hashes into slots 1-5, so two unrelated nodes of one agent can share a shade (the label still tells them apart). */
+const RD_SHADES=[0,0.35,-0.3,0.6,-0.45,0.8];
+const RD_NODE_SLOT={extract:0,classify:0,judge_verify:0,retry_extract:1,retry_classify:1,classification_arbiter:1,retry_extract_2:2};
+function rdHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+const rdLaneShade=node=>!node?0:RD_SHADES[Object.prototype.hasOwnProperty.call(RD_NODE_SLOT,node)?RD_NODE_SLOT[node]:1+rdHash(node)%5];
 /** The node that sets a call apart from the agent's own lane: "" when there is none or it is the agent's own name. */
 const rdLaneNode=(agent,node)=>typeof node==="string"&&node&&node!==String(agent)?node:"";
-/** One lane per (agent, node). encodeURIComponent escapes "/", so the key is unambiguous for any names. */
-const rdLaneKey=(agent,node)=>encodeURIComponent(String(agent))+(rdLaneNode(agent,node)?"/"+encodeURIComponent(node):"");
+/** One lane per (agent, node). JSON.stringify of the pair is unambiguous for any text ("/", "%", quotes, unicode) and never throws: a lone surrogate is written as an escape. */
+const rdLaneKey=(agent,node)=>JSON.stringify([String(agent),rdLaneNode(agent,node)]);
 /** Lanes with their calls, in toggle order: one per (agent, node). A call with no node, or whose node is its own agent's name, is the agent's own lane.
- *  `key` is unambiguous and safe as a Set member or attribute value; `label` is the agent, or "agent · node". `specialists` = agent names the digest saw under a "specialists" graph node. */
+ *  `key` is unambiguous and safe as a Set member or (escaped) attribute value. `full` is "agent · node" (the tooltip); `label` is the agent alone, plus " · node" (`shownNode`) only when the agent has more than one lane in this document, so a lone lane reads as it always did.
+ *  `specialists` = agent names the digest saw under a "specialists" graph node. */
 function rdModel(reads,specialists){
  const spec=new Set(specialists||[]),by=new Map();
  ((reads&&Array.isArray(reads.calls)&&reads.calls)||[]).forEach((c,i)=>{
   const a=String(c.agent),nd=rdLaneNode(a,c.node),key=rdLaneKey(a,nd);
-  if(!by.has(key))by.set(key,{key,agent:a,node:nd,label:nd?a+" · "+nd:a,group:rdGroup(a,spec),color:"",calls:[]});
+  if(!by.has(key))by.set(key,{key,agent:a,node:nd,full:nd?a+" · "+nd:a,label:a,shownNode:"",group:rdGroup(a,spec),color:"",calls:[]});
   const g=by.get(key);
   g.calls.push({i,n:g.calls.length+1,node:c.node||"",basis:c.basis||"",ranges:Array.isArray(c.ranges)?c.ranges:[],
    matched:+c.matched||0,request:+c.request||0,skipped:c.skipped||"",unplaced:+c.unplaced||0,approx:c.approx===true})});
  const cmp=(x,y)=>x<y?-1:x>y?1:0;
  const lanes=[...by.values()].sort((x,y)=>RD_ORDER.indexOf(x.group)-RD_ORDER.indexOf(y.group)||cmp(x.agent,y.agent)||cmp(x.node,y.node));
- const seen=new Map();
- lanes.forEach(g=>{const n=seen.get(g.agent)||0;seen.set(g.agent,n+1);g.color=rdShade(rdColor(g.agent,g.group),rdVariant(n))});
+ const per=new Map();lanes.forEach(g=>per.set(g.agent,(per.get(g.agent)||0)+1));
+ lanes.forEach(g=>{g.color=rdShade(rdColor(g.agent,g.group),rdLaneShade(g.node));if(per.get(g.agent)>1&&g.node){g.shownNode=g.node;g.label=g.full}});
  return {lanes}}
 /** Notes lanes not seen before in `seen`; a specialist's new lane joins `on`, so a retry lane that appears while the run is live starts painted like its siblings. */
 function rdAdopt(model,seen,on){model.lanes.forEach(g=>{if(!seen.has(g.key)){seen.add(g.key);if(g.group==="specialist")on.add(g.key)}})}
@@ -927,17 +935,17 @@ function rdMinimapHtml(model,callOff,on,total,allowPos){
     if(allowPos&&total>0&&r[1]>r[0]){const l=Math.max(0,r[0])/total,w=(Math.min(total,r[1])-Math.max(0,r[0]))/total;
      bars+=`<i class="mm-r" style="left:${rdPct(l)}%;width:${rdPct(Math.max(0,w))}%;${raw?`background:transparent;border:1px dashed ${g.color}`:`background:${g.color}`}"></i>`}})});
   const m=rdMerge(cov),chars=m.reduce((t,r)=>t+r[1]-r[0],0);
-  const label=`${g.label}: ${g.calls.length} call${g.calls.length===1?"":"s"}, `+(total>0?`${Math.round(100*chars/total)}% of ${total.toLocaleString("en-US")} characters in exact ranges`:"document length unknown");
-  h+=`<div class="mm-lane${on.has(g.key)?"":" off"}" role="img" aria-label="${esc(label)}" title="${esc(label)}"><span class="mm-name"><i class="sw" style="background:${g.color}"></i>${esc(g.label)}</span><span class="mm-track">${bars}</span></div>`}
+  const label=`${g.full}: ${g.calls.length} call${g.calls.length===1?"":"s"}, `+(total>0?`${Math.round(100*chars/total)}% of ${total.toLocaleString("en-US")} characters in exact ranges`:"document length unknown");
+  h+=`<div class="mm-lane${on.has(g.key)?"":" off"}" role="img" aria-label="${esc(label)}" title="${esc(label)}"><span class="mm-name"><i class="sw" style="background:${g.color}"></i><span class="mm-ag">${esc(g.agent)}</span>${g.shownNode?`<span class="mm-nd"> · ${esc(g.shownNode)}</span>`:""}</span><span class="mm-track">${bars}</span></div>`}
  return h}
 function rdCallTag(c){return c.skipped?`skipped: ${c.skipped}`:c.basis==="raw"?"raw":c.basis!=="working"?"basis ?":""}
 function rdTogglesHtml(model,on,callOff){
  let h="";
  for(const g of model.lanes){
   const sole=g.calls.length===1?g.calls[0]:null,tag=sole?rdCallTag(sole):"";
-  h+=`<span class="rd-agent"><button type="button" data-rd="agent" data-lane="${esc(g.key)}" data-agent="${esc(g.agent)}" aria-pressed="${on.has(g.key)}" title="Paint ${esc(g.label)}'s reads on the text (${g.calls.length} call${g.calls.length===1?"":"s"})"><i class="sw" style="background:${g.color}"></i>${esc(g.label)}${g.calls.length>1?` ×${g.calls.length}`:""}${tag?` <small class="mut">${esc(tag)}</small>`:""}</button>`;
+  h+=`<span class="rd-agent"><button type="button" data-rd="agent" data-lane="${esc(g.key)}" data-agent="${esc(g.agent)}" aria-pressed="${on.has(g.key)}" title="Paint ${esc(g.full)}'s reads on the text (${g.calls.length} call${g.calls.length===1?"":"s"})"><i class="sw" style="background:${g.color}"></i>${esc(g.label)}${g.calls.length>1?` ×${g.calls.length}`:""}${tag?` <small class="mut">${esc(tag)}</small>`:""}</button>`;
   if(g.calls.length>1)h+=`<span class="rd-calls">`+g.calls.map(c=>{const t=rdCallTag(c);
-   return `<button type="button" data-rd="call" data-lane="${esc(g.key)}" data-agent="${esc(g.agent)}" data-i="${c.i}" aria-pressed="${!callOff.has(c.i)}" title="${esc(g.label)} call ${c.n}${t?" ("+esc(t)+")":""}">#${c.n}${t?` <small class="mut">${esc(t)}</small>`:""}</button>`}).join("")+`</span>`;
+   return `<button type="button" data-rd="call" data-lane="${esc(g.key)}" data-agent="${esc(g.agent)}" data-i="${c.i}" aria-pressed="${!callOff.has(c.i)}" title="${esc(g.full)} call ${c.n}${t?" ("+esc(t)+")":""}">#${c.n}${t?` <small class="mut">${esc(t)}</small>`:""}</button>`}).join("")+`</span>`;
   h+=`</span>`}
  return h}
 const RD_FLAG_TITLE={"not read":"The value occurs in the working text, but in no range a specialist read (every specialist call counts, retries included; withheld while a specialist call is only partly measured).",

@@ -172,10 +172,12 @@ ever see the text that holds it?
 - **Ranges.** One lane per agent and node in a minimap across the whole document,
   and one toggle per lane that paints its ranges on the text (specialists start on,
   and so does a specialist lane that first appears while the run is live). A lane is
-  labelled with the agent, or `agent · node` when the call was made at a node other
-  than the agent's own name, for example `arbiter` (the extraction arbiter) and
-  `arbiter · classification_arbiter`. A call with no recorded node, as in an older
-  digest, falls in the agent's own lane. A lane with more than one call also gets a
+  labelled with the agent alone while that agent has one lane in the document, and
+  `agent · node` once it has more, for example `arbiter` (the extraction arbiter)
+  and `arbiter · classification_arbiter`; the minimap shortens the agent name
+  before it clips the node, and the tooltip always carries the full `agent · node`.
+  A call with no recorded node, as in an older digest, or at a node named like the
+  agent falls in the agent's own lane. A lane with more than one call also gets a
   toggle per call. Only the last
   attempt's calls are kept: a resumed or retried document starts again at call 1
   and supersedes the earlier attempt, so those earlier calls do not appear.
@@ -188,9 +190,14 @@ ever see the text that holds it?
   LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
   the third-system aqua, and `intake` and `jev` are neutral. The classification
   arbiter node runs on the `arbiter` agent, so it is a second `arbiter` lane
-  (`arbiter · classification_arbiter`). The first lane of an agent keeps the
-  agent's colour; its further lanes are the same colour made lighter, then
-  darker, so they can be told apart. An agent with no assigned colour gets the
+  (`arbiter · classification_arbiter`). A lane's shade depends only on
+  its own node, never on the other lanes of the document, so the same agent and
+  node look the same in every document: the agent's own lane and the usual first
+  nodes (`extract`, `classify`, `judge_verify`) keep the agent's colour,
+  `retry_extract`, `retry_classify` and `classification_arbiter` are 35% lighter,
+  `retry_extract_2` is 30% darker, and any other node name is hashed into one of
+  five fixed shades (two unrelated nodes of one agent can then share a shade; the
+  label tells them apart). An agent with no assigned colour gets the
   specialist, decision or neutral grey swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to
