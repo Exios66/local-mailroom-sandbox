@@ -248,7 +248,8 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
         pred = {}
     if isinstance(pred.get("judge_reasks"), Mapping):
         # HF-002 / HF-013: a judge answer was asked twice. Read before the crash returns below: a document
-        # the run returned as failed still made (and billed) its re-asks.
+        # the run returned as failed still made (and billed) its re-asks. A document that raises (the API
+        # call guard stopped it, say) writes no item, so its re-asks are not counted: a lower bound.
         out["judge_reasks"] = _judge_reask_counts(pred["judge_reasks"])
     if item.get("error") or item.get("ok") is False or pred.get("error"):
         return out
