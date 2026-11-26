@@ -53,6 +53,10 @@ class Script:
     # classify / extract nodes run and meet this error from the reader they call.
     classify_raises: Exception | None = None
     extract_raises: Exception | None = None
+    # Every extraction reports a matter conflict, which the Boss adjudicates:
+    # "approve" (fingerprinted approval), "reject", or "blip" (a transient error each time).
+    conflict: bool = False
+    boss: str = "approve"
     # HF-014 confidence floor, as a run's confidence block would set it (None: the class ``low``).
     floor: float | None = None
 
@@ -90,7 +94,7 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
     original_transient = retry.is_transient_error
     monkeypatch.setattr(retry, "is_transient_error",
                         lambda exc: isinstance(exc, Blip) or original_transient(exc))
-    calls: dict[str, Any] = {"judge_c": 0, "judge_a": 0, "arbiter": 0, "carb": 0, "decisions_posts": 0,
+    calls: dict[str, Any] = {"judge_c": 0, "judge_a": 0, "arbiter": 0, "carb": 0, "decisions_posts": 0, "boss": 0,
                              "arbiter_prompts": [], "arbiter_schemas": []}
     passes = {"n": 0}
 
@@ -151,16 +155,31 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
         return {"doc_type": "corporate_record", "doc_subclass": "minutes", "classification_confidence": conf,
                 "classification_attempts": attempt, "stage": "classified", "transient_error": False}
 
+    conflict = {"field": "entity_name", "values": ["Cedar Sample Ltd", "Cedar Sample Limited"]}
+
     def extract(state):
         conf = next(confs, last_conf["v"])
         return {"extracted_data": dict(DATA), "extraction_confidence": conf,
                 "extraction_attempts": int(state.get("extraction_attempts") or 0) + 1,
-                "stage": "extracted", "transient_error": False, **script.extract_extra}
+                "stage": "extracted", "transient_error": False,
+                **({"conflict_detected": True, "conflict_details": conflict} if script.conflict else {}),
+                **script.extract_extra}
 
+    def boss(state):
+        from graph.routing import conflict_fingerprint
+
+        calls["boss"] += 1
+        if script.boss == "approve":
+            return {"review_decision": "approved", "transient_error": False,
+                    "boss_conflict_fingerprint": conflict_fingerprint(state.get("conflict_details"))}
+        if script.boss == "blip":
+            n = int(state.get("transient_retries_boss_escalation") or 0) + 1
+            return {"transient_error": True, "transient_retries_boss_escalation": n, "error_message": "boss blip"}
+        return {"review_decision": "rejected", "transient_error": False}
 
     scripted = {"classify": classify, "retry_classify": lambda s: classify(s, attempt=2),
                 "extract": extract, "retry_extract": extract,
-                "boss_escalation": lambda s: pytest.fail("boss unexpected")}
+                "boss_escalation": boss if script.conflict else (lambda s: pytest.fail("boss unexpected"))}
     if script.classify_raises is not None:
         from agents.sorter import SorterAgent
 
