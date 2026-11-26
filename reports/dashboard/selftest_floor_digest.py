@@ -1603,6 +1603,12 @@ def main() -> int:
                 failures.append((fn.__name__, traceback.format_exc(limit=3)))
     for name, tb in failures:
         print(f"FAIL {name}\n{tb}", file=sys.stderr)
+    # Without Node the viewer and syntax checks silently did nothing. Locally that is a notice; in CI (the CI variable is set,
+    # as CircleCI does) it is a failure, so a runner image that lost Node cannot turn the viewer checks green by skipping them.
+    ci = os.environ.get("CI", "").strip().lower() not in ("", "0", "false")
+    if SKIPPED and ci:
+        print(f"FAIL node checks did not run ({', '.join(sorted(SKIPPED))}): Node is required when CI is set", file=sys.stderr)
+        failures.append(("node_required_in_ci", ""))
     verdict = "PASS" if not failures else "FAIL"
     note = f" (node checks SKIPPED, not run: {', '.join(sorted(SKIPPED))})" if SKIPPED else ""
     parsed = f" [inline script syntax: {max(SYNTAX_CHECKED)} parsed as classic scripts]" if SYNTAX_CHECKED else ""
