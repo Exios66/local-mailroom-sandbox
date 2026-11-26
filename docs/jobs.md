@@ -348,7 +348,10 @@ documents an earlier attempt persisted in `items.jsonl`. Each is scored again
 from its stored answer, with no model call and no new spend, so run scores still
 cover every locked document and only the rest run and are billed (S1,
 `docs/superpowers/specs/2026-11-26-correcting-judge-design.md`). A document whose
-stored item has no answer (`pred` not an object) runs again, as before.
+stored item has no answer (`pred` not an object) or failed (`error` set: a
+timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it;
+its first row stays the evidence in `items.jsonl`. An answer that failed to parse
+is a billed answer and is replayed.
 `extract`, `chained`, `local_vs_api` and `sorter_vs_modernbert` persist nothing
 mid-run, so they still run whole.
 

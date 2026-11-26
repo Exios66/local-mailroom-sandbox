@@ -153,6 +153,7 @@ class ApiBudget:
         self.unreported_usd = 0.0  # failed requests that may have been billed, charged at their reservation
         self._live_base: float | None = None  # spent_usd when live tracking started
         self._lock = threading.Lock()
+        self._reserve_lock = threading.Lock()  # serialises check-and-reserve (try_reserve)
 
     def _cost(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> float:
         """Price the tokens at each model's tier for the average call size, the dearest model winning."""
@@ -194,6 +195,17 @@ class ApiBudget:
         """Hold ``usd`` against the cap while a request is in flight."""
         with self._lock:
             self.reserved_usd += max(0.0, float(usd))
+
+    def try_reserve(self, usd: float) -> str | None:
+        """Check the cap with ``usd`` more and reserve it, as one step: why it is refused, or None.
+
+        Concurrent requests cannot all pass the check before any of them reserves.
+        """
+        with self._reserve_lock:
+            reason = self.exceeded(extra_usd=usd)
+            if reason is None:
+                self.reserve(usd)
+            return reason
 
     def release(self, usd: float) -> None:
         """Drop a settled request's reservation (never below zero)."""

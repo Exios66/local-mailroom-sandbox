@@ -144,8 +144,10 @@ REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_us
 
 
 def replayable(item: Mapping[str, Any] | None) -> bool:
-    """True when a persisted item holds an answer a resumed run can replay (its ``pred`` is a dict)."""
-    return isinstance(item, Mapping) and isinstance(item.get("pred"), Mapping)
+    """True when a persisted item holds an answer a resumed run can replay: its ``pred`` is a dict and it
+    did not fail. A failed row (a timeout, a 5xx, a guard refusal) runs again, so a resume can recover it;
+    an answer that failed to parse is a real billed answer and is replayed."""
+    return isinstance(item, Mapping) and isinstance(item.get("pred"), Mapping) and not item.get("error")
 
 
 def _replay_usage(item: Mapping[str, Any]) -> dict[str, Any]:

@@ -1385,3 +1385,21 @@ def test_direct_resume_refuses_a_checkpoint_with_unknown_hotfix_basis(tmp_path, 
     with pytest.raises(RuntimeError, match="cannot resume a checkpoint without locked"):
         runner.run_job(store, mock=None)
     assert not store.load_items()
+
+
+def test_an_isolated_error_row_runs_again_on_resume(monkeypatch):
+    """Final review: isolated rows start with pred {}, so a failed row is persisted with a dict pred."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    calls = []
+    real = eval_runners._predict_spec
+
+    def _spy(spec, row, **kwargs):
+        calls.append(row["id"])
+        return real(spec, row, **kwargs)
+
+    monkeypatch.setattr(eval_runners, "_predict_spec", _spy)
+    rows = [{"id": f"d{i}", "doc_text": "x", "expected": "contract"} for i in range(2)]
+    failed = {"item_id": "d0", "pred": {}, "score": {}, "error": "ReadTimeout: no response"}
+    eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, replay={"d0": failed})
+    assert calls == ["d0", "d1"]

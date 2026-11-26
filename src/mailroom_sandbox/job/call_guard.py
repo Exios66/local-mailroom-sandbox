@@ -168,13 +168,17 @@ def budget_error(reason: str) -> Exception:
     return _EXC[0](reason)
 
 
-def _refusal(estimate_usd: float = 0.0) -> str | None:
+def _refusal() -> str | None:
     budget, ceiling = _STATE["budget"], _STATE["ceiling"]
     if budget is None:
         return None
-    reason = budget.exceeded(extra_usd=estimate_usd)
+    reason = budget.exceeded()
     if reason:
         return f"call refused: {reason}"
+    return _ceiling_refusal(ceiling)
+
+
+def _ceiling_refusal(ceiling: int | None) -> str | None:
     doc = _DOC.get()
     if doc is not None and ceiling is not None and doc["calls"] >= ceiling:
         return f"call refused: this document made {doc['calls']} calls (per-document ceiling {ceiling})"
@@ -187,17 +191,21 @@ def before_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
     A sized request (``request_tokens``) reserves its estimated cost, which this returns; the caller
     passes it to ``settle`` when the request ends. Unarmed, or with no size, nothing is reserved (0.0).
     """
-    budget = _STATE["budget"]
+    budget, ceiling = _STATE["budget"], _STATE["ceiling"]
     estimate = (budget.estimate_call_usd(prompt_tokens, completion_tokens)
                 if budget is not None and (prompt_tokens or completion_tokens) else 0.0)
-    reason = _refusal(estimate)
+    if not estimate:
+        reason = _refusal()
+    else:  # check and reserve as one step, so concurrent requests cannot overshoot together
+        reason = _ceiling_refusal(ceiling)
+        if reason is None:
+            cap = budget.try_reserve(estimate)
+            reason = f"call refused: {cap}" if cap else None
     if reason:
         doc = _DOC.get()
         if doc is not None and not doc["refused"]:
             doc["refused"] = reason
         raise budget_error(reason)
-    if budget is not None and estimate:
-        budget.reserve(estimate)
     return estimate if budget is not None else 0.0
 
 

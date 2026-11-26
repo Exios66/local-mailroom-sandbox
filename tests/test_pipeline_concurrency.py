@@ -180,3 +180,13 @@ def test_an_item_without_a_dict_pred_is_run_again(monkeypatch):
     runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
                               replay={"0": {"item_id": "0", "pred": None}})
     assert sorted(state["started"]) == ["0", "1"]
+
+
+def test_a_persisted_error_row_runs_again_instead_of_replaying_its_failure(monkeypatch):
+    """Final review: a resume after an outage must recover the documents that failed, not replay the failure."""
+    state = _install(monkeypatch, delay=0.0)
+    failed = {**_stored(0), "error": "ReadTimeout: no response"}
+    parse_failed = {**_stored(1), "score": {"parse_error": True}}  # a real billed answer: replayed
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
+                              replay={"0": failed, "1": parse_failed})
+    assert state["started"] == ["0"]

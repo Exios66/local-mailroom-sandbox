@@ -298,3 +298,33 @@ def test_the_runner_persists_unreported_charges_when_it_disarms(tmp_path):
     call_guard.disarm()
     runner._persist_unreported_charges(store)  # unarmed: nothing more is written
     assert len([e for e in store.events() if e.get("event") == api_budget.UNREPORTED_CHARGE_EVENT]) == 1
+
+
+def test_concurrent_requests_cannot_all_pass_the_check_before_any_reserves(monkeypatch):
+    """Final review: check-then-reserve must be atomic, or concurrent requests overshoot the cap together."""
+    import threading
+    import time
+
+    budget = _armed(cap=0.05)
+    real_reserve = budget.reserve
+
+    def slow_reserve(usd):  # widen the window between the check and the reservation
+        time.sleep(0.01)
+        real_reserve(usd)
+
+    monkeypatch.setattr(budget, "reserve", slow_reserve)
+    admitted, start = [], threading.Barrier(8)
+
+    def request():
+        start.wait()
+        try:
+            admitted.append(call_guard.before_call(prompt_tokens=300_000, completion_tokens=0))  # ~$0.03 each
+        except Exception:  # noqa: BLE001 — refused
+            pass
+
+    threads = [threading.Thread(target=request) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(admitted) == 1
