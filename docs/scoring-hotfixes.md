@@ -132,7 +132,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     `overall_extraction_score`, and for the second only those routed to their true class). A count
     is 0 when its mean is `None`. `raw_dojo` carries both counts over the raw rows, and a count
     that differs between the two sides appears in `scoring_hotfixes_changed`. Neither count is
-    sent to Langfuse. A rescore's `scores.json` already reports `n` beside each per-item mean
+    sent to Langfuse. A record written before the counts existed has neither key: read a missing
+    count as unknown, not 0. A rescore's `scores.json` already reports `n` beside each per-item mean
     (`means.overall_extraction_score.n`, and `scored` for the items); a stale-only item has no
     headline score there and is not counted, while its own `raw_dojo` score stays on the item.
     So the raw counts differ for the same items. A rescore's run-level `raw_dojo` `n` leaves out
