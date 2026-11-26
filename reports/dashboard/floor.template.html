@@ -770,7 +770,7 @@ function rdGroup(agent,specSet){
  if(a==="jev")return "jev";
  if(specSet.has(a)||/_specialist$/.test(a))return "specialist";
  return "other"}
-function rdColor(agent,group){return RD_COLORS[agent]||(group==="specialist"?RD_SPECIALIST:group==="decisions"?RD_DECISION:RD_OTHER)}
+function rdColor(agent,group){return (Object.prototype.hasOwnProperty.call(RD_COLORS,agent)&&RD_COLORS[agent])||(group==="specialist"?RD_SPECIALIST:group==="decisions"?RD_DECISION:RD_OTHER)}
 /** Agents with their calls, in toggle order. `specialists` = agent names the digest saw under a "specialists" graph node. */
 function rdModel(reads,specialists){
  const spec=new Set(specialists||[]),by=new Map();

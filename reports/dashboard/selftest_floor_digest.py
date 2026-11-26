@@ -980,6 +980,22 @@ console.log("ok");
 
 
 @test
+def viewer_colours_come_from_own_properties_only():
+    """An agent named like an Object.prototype member gets the default swatch, never a function's source."""
+    out = viewer_js(r"""
+const A=require('node:assert/strict');
+for(const name of ["toString","constructor","hasOwnProperty","__proto__","valueOf"]){
+  const color=rdColor(name,rdGroup(name,new Set()));
+  A.match(color,/^#[0-9a-f]{6}$/i,name);
+}
+A.equal(rdColor("sorter","sorter"),"#eb6834");                    // a named role keeps its colour
+A.equal(rdColor("brand_new_specialist","specialist"),RD_SPECIALIST);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
 def viewer_every_specialist_call_counts_retries_included():
     """A retry that read the missing part clears the flag; non-specialists never do."""
     out = viewer_js(_RD_SETUP + r"""
