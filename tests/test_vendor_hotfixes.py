@@ -1380,3 +1380,14 @@ def test_a_document_the_pipeline_returned_as_failed_still_carries_its_re_ask_cou
     result = runners._run_pipeline_doc({"id": "d0"}, mock=False)
     assert result["stage"] == "failed"
     assert result["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}
+
+
+def test_hf018_is_registered_with_a_pinned_source():
+    import graph.route_spec as rs
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-018")
+    assert [f.id for f in vh.HOTFIXES][-1] == "HF-018"
+    assert (fix.module, fix.attr) == ("graph.route_spec", "decide_route")
+    assert fix.source_sha256 == vh._source_sha(rs.decide_route)
+    assert vh.apply_hotfixes()["HF-018"] == "applied"
+    assert getattr(rs.decide_route, "_sandbox_hotfix", None) == "HF-018"

@@ -297,7 +297,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   - **HF-018** wraps `decide_route(spec, state)`: `dest = original(spec, state)`, then `return
     governor.govern(spec.node, state, dest, tuple(spec.destinations))`.
 
-- [ ] **Step 1: Write the failing tests**, using `tests/_arbiter_harness.py` (`Script`, `run`) with
+- [x] **Step 1: Write the failing tests**, using `tests/_arbiter_harness.py` (`Script`, `run`) with
   `governor.activate(...)` and a `call_guard.document()` scope around each run:
   - **Governor off:** `test_governor_off_routes_every_harness_case_exactly_as_before`. For each
     `test_arbiter_termination.CASES` case, the path with HF-018 installed and the governor off equals the path
@@ -322,13 +322,13 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
       `classify → review_classify`, no `retry_classify`, `governor_skips == {"classify_retry": 1}`.
     - `test_l2_off_keeps_the_classify_retry`.
   - **Registry:** `test_hf018_is_registered_with_a_pinned_source` in `tests/test_vendor_hotfixes.py`.
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py
   tests/test_vendor_hotfixes.py`.
-- [ ] **Step 3: Implement** `govern`, `stop_destination` and HF-018, with the `source_sha256` of the vendored
+- [x] **Step 3: Implement** `govern`, `stop_destination` and HF-018, with the `source_sha256` of the vendored
   `decide_route`, computed as `_source_sha` does.
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_arbiter_termination.py
   tests/test_pipeline_routing_matrix.py tests/test_arbiter_floor_route_differential.py`.
-- [ ] **Step 5: Commit** `feat(governor): HF-018 per-document round budgets and stop outcomes, L2 classify skip (phase2 task 4)`.
+- [x] **Step 5: Commit** `feat(governor): HF-018 per-document round budgets and stop outcomes, L2 classify skip (phase2 task 4)`.
 
 ### Task 5: L3 — the judge re-ask carries a repair note (HF-002, HF-013)
 

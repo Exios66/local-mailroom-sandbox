@@ -1134,6 +1134,23 @@ def _install_final_ruling(_module: Any, original: Callable[..., Any]) -> Callabl
     return arbitrate
 
 
+def _install_governor(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """The loop governor sees every conditional route's final answer (HF-018, phase 2).
+
+    ``decide_route`` is where the base router and every registered rule (HF-011, HF-014) have
+    already spoken; the governor may swap a round for a stop outcome. Off (no ``job.governor``) or
+    outside a document scope, ``governor.govern`` returns the answer unchanged.
+    """
+    from mailroom_sandbox import governor
+
+    @functools.wraps(original)
+    def decide_route(spec: Any, state: Any) -> str:
+        dest = original(spec, state)
+        return governor.govern(spec.node, state, dest, tuple(spec.destinations))
+
+    return decide_route
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -1328,6 +1345,17 @@ HOTFIXES: tuple[Hotfix, ...] = (
         refresh=_refresh_empty_intake_prior,
         also=(("format_intake_prior", "362de8106d119675265fa4e2193cad50255361d414fd3a05d7cd0ba36b5da94a"),
               ("_merge_triage", "cc787080421317f2858cfa8065febdc823352f58b3106c86c2284c09dd5ddf4f")),
+    ),    Hotfix(
+        id="HF-018",
+        module="graph.route_spec",
+        attr="decide_route",
+        source_sha256="8237ef5be5e6b88376931695301b42eceaf6beac507b0830611d837d5fa7b821",
+        upstream="sandbox-only (phase 2 loop governor; upstream issue to be filed with the pilot's results)",
+        summary="with job.governor set, a route that would add a round (a retry, an arbiter call, a "
+                "boss entry) past the document's retry, call or spend budget goes to human review, or "
+                "to the archive when the current extraction passed the judge; L2 sends a sorter retry "
+                "at the measured sorter ceiling to the second opinion instead",
+        install=_install_governor,
     ),
 )
 
