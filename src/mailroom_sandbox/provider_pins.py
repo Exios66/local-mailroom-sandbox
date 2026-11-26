@@ -82,6 +82,8 @@ _LC_PENDING: contextvars.ContextVar[tuple[str, dict[str, dict[str, Any]], list[s
 # None outside a ``_generate`` scope, where a request is guarded without a reservation.
 _LC_RESERVED: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar("provider_pins_lc_reserved",
                                                                                   default=None)
+#: Set inside ``_generate``: gains an entry once the request is built and past the guard (L1 counting).
+_LC_SENT: contextvars.ContextVar[list[bool] | None] = contextvars.ContextVar("provider_pins_lc_sent", default=None)
 CALL_PATHS = ("retry_chat_completion", "langchain", "decisions")
 
 
@@ -486,6 +488,24 @@ def _stamp_provider_cost(result: Any, cost: Any) -> None:
             meta["cost"] = float(cost)
 
 
+def _note_lc_sent() -> None:
+    sent = _LC_SENT.get()
+    if sent is not None:
+        sent.append(True)
+
+
+def _note_lc_failure(sent: list[bool]) -> None:
+    """L1: a LangChain call that failed after its request went out counts toward the document.
+
+    With the client's own retries off, one ``_generate`` is one HTTP attempt; the vendored
+    ``_invoke_with_retry`` loop makes the next. A request the guard refused never went out.
+    """
+    if sent:
+        from mailroom_sandbox.job import call_guard
+
+        call_guard.note_failed_attempt()
+
+
 def _settle_all(holder: list[float], exc: BaseException | None) -> None:
     """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
     may have been billed."""
@@ -511,6 +531,7 @@ def pinned_chat_openai(parent: type) -> type:
             payload = super()._get_request_payload(input_, stop=stop, **kwargs)
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
+                _note_lc_sent()
                 return payload
             holder = _LC_RESERVED.get()
             if holder is None:
@@ -523,31 +544,38 @@ def pinned_chat_openai(parent: type) -> type:
             pins = _ACTIVE  # one snapshot per request, as on the retry_chat_completion path
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]
             _LC_PENDING.set((model, pins, fallback))
+            _note_lc_sent()  # past the guard: this request goes out
             return pinned_kwargs(model, payload, pins)
 
         def _generate(self, *args: Any, **kwargs: Any) -> Any:
             holder: list[float] = []
-            token = _LC_RESERVED.set(holder)
+            sent: list[bool] = []
+            token, sent_token = _LC_RESERVED.set(holder), _LC_SENT.set(sent)
             try:
                 result = super()._generate(*args, **kwargs)
             except BaseException as exc:
                 _settle_all(holder, exc)
+                _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
+                _LC_SENT.reset(sent_token)
             _settle_all(holder, None)
             return result
 
         async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
             holder: list[float] = []
-            token = _LC_RESERVED.set(holder)
+            sent: list[bool] = []
+            token, sent_token = _LC_RESERVED.set(holder), _LC_SENT.set(sent)
             try:
                 result = await super()._agenerate(*args, **kwargs)
             except BaseException as exc:
                 _settle_all(holder, exc)
+                _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
+                _LC_SENT.reset(sent_token)
             _settle_all(holder, None)
             return result
 

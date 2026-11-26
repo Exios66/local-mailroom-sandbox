@@ -198,7 +198,8 @@ def test_spend_budget_off_by_default_and_on_when_set():
 def test_a_passed_extraction_stops_as_archive_with_caveats():
     passed = {"judge_verdict": "complete", "judge_findings": ["the extraction matches the source"],
               "extraction_attempt_history": [{"judge_verdict": "complete"}]}
-    dest, scope = _decide("extract", "boss_escalation", _EXTRACT, passed, retries=2)
+    passed = {**passed, "extraction_confidence": 0.95}
+    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, passed, retries=2)
     assert dest == "compile_report"
     assert (scope["governor_stop"]["reason"], scope["governor_stop"]["outcome"]) == ("retry_budget",
                                                                                       "archive_with_caveats")
@@ -206,6 +207,30 @@ def test_a_passed_extraction_stops_as_archive_with_caveats():
     stale = {**passed, "extraction_attempt_history": [{"judge_verdict": "complete"}, {}]}
     assert _decide("retry_extract", "boss_escalation", _EXTRACT, stale, retries=2)[0] == "human_review"
     assert _decide("extract", "boss_escalation", _EXTRACT, {"judge_verdict": "partial"}, retries=2)[0] == "human_review"
+
+
+_PASSED = {"judge_verdict": "complete", "extraction_confidence": 0.95, "conflict_detected": False,
+           "extraction_attempt_history": [{"judge_verdict": "complete"}]}
+
+
+def test_a_passed_extraction_archives_when_a_round_would_pass_the_budget():
+    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, _PASSED, retries=2)
+    assert dest == "compile_report" and scope["governor_stop"]["outcome"] == "archive_with_caveats"
+
+
+@pytest.mark.parametrize("change", [
+    {"extraction_attempt_history": []},                                # never judged
+    {"extraction_confidence": 0.3},                                    # still unsure, source not verified
+    {"conflict_detected": True, "conflict_details": ["governing_law"]},  # an unadjudicated conflict
+])
+def test_a_governor_archive_keeps_the_vendored_archive_guards(change):
+    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, {**_PASSED, **change}, retries=2)
+    assert dest == "human_review" and scope["governor_stop"]["outcome"] == "human_review"
+
+
+def test_a_stopped_boss_entry_is_never_archived():
+    dest, _ = _decide("extract", "boss_escalation", _EXTRACT, _PASSED, retries=2)
+    assert dest == "human_review"
 
 
 @pytest.mark.usefixtures("arbiter_harness_state")
@@ -222,7 +247,12 @@ def test_a_passed_extraction_stopped_in_the_graph_is_archived(monkeypatch, tmp_p
 
     from mailroom_sandbox import vendor_hotfixes as vh
 
-    governed = vh._install_governor(route_spec, judge_wants_arbiter)
+    inner = vh._install_governor(route_spec, judge_wants_arbiter)
+
+    def governed(spec, state):  # the harness's scripted extract skips the history the real node records
+        history = state.get("extraction_attempt_history") or [{"judge_verdict": state.get("judge_verdict")}]
+        return inner(spec, {**state, "extraction_attempt_history": history})
+
     governed._sandbox_hotfix = "HF-018"  # activation keeps it, as it keeps an applied fix
     monkeypatch.setattr(route_spec, "decide_route", governed)
     out, scope = _harness(monkeypatch, tmp_path, Script(judge=[("complete", "accurate")], confs=[0.95] * 6),
@@ -241,8 +271,16 @@ def test_every_stop_destination_is_wired_for_its_node():
 
 
 def test_a_transient_self_loop_is_not_counted_as_a_round():
-    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, retries=2)
+    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"transient_error": "timeout"}, retries=2)
     assert dest == "retry_extract" and scope["governor"]["retries"] == 2 and "governor_stop" not in scope
+
+
+def test_a_second_re_extraction_is_a_round():
+    """after_retry_extraction falls through to after_extraction: with retry_max 2 it proposes retry_extract again."""
+    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"extraction_confidence": 0.3}, retries=1)
+    assert dest == "retry_extract" and scope["governor"]["retries"] == 2
+    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"extraction_confidence": 0.3}, retries=2)
+    assert dest == "human_review" and scope["governor_stop"]["reason"] == "retry_budget"
 
 
 def test_the_hard_ceiling_still_backs_up_the_governor():
@@ -321,12 +359,31 @@ def test_an_exact_re_ingestion_is_linked_not_escalated(monkeypatch):
 
 def test_a_near_duplicate_is_linked(monkeypatch):
     governor.activate(GovernorSpec())
-    edited = " ".join(["changed" if i == 150 else w for i, w in enumerate(_WORDS)])
-    governor.note_seen("M1", "d0", _TEXT)
+    edited = " ".join(["changed" if i == 150 else w for i, w in enumerate(_WORDS)]) + " under New York law"
+    governor.note_seen("M1", "d0", _TEXT + " under New York law")  # a re-scan: the archived value is in both
     monkeypatch.setattr(governor, "activate", lambda spec: None)  # keep the index the archived document left
     (found, _), scope = _conflict(monkeypatch, [_row("d0", "sha-old")], state={"doc_text": edited})
     assert found is False
     assert scope["duplicate_of"]["kind"] == "near" and scope["duplicate_of"]["similarity"] >= 0.9
+
+
+def test_a_near_duplicate_whose_archived_value_is_not_in_the_text_still_escalates(monkeypatch):
+    """Template siblings: a few words apart, but the conflicting value is one of the words that changed."""
+    governor.activate(GovernorSpec())
+    governor.note_seen("M1", "d0", _TEXT + " governed by New York law")
+    monkeypatch.setattr(governor, "activate", lambda spec: None)
+    (found, details), scope = _conflict(monkeypatch, [_row("d0", "sha-old")],
+                                        state={"doc_text": _TEXT + " governed by Delaware law"})
+    assert found is True and details and "duplicate_of" not in scope
+
+
+def test_a_near_duplicate_whose_archived_value_is_in_the_text_is_linked(monkeypatch):
+    governor.activate(GovernorSpec())
+    text = _TEXT + " governed by New York law"
+    governor.note_seen("M1", "d0", text)
+    monkeypatch.setattr(governor, "activate", lambda spec: None)
+    (found, _), scope = _conflict(monkeypatch, [_row("d0", "sha-old")], state={"doc_text": text})
+    assert found is False and scope["duplicate_of"]["kind"] == "near"
 
 
 def test_a_conflict_with_a_non_duplicate_row_still_escalates(monkeypatch):
@@ -437,6 +494,27 @@ def test_a_row_with_no_inline_text_is_not_judged_near_empty_here(pipeline_spy, m
     governor.activate(GovernorSpec())
     item = runners._run_pipeline_doc_once({"id": "p0", "filename": "scan.pdf", "subdir": "x"}, mock=False)
     assert len(pipeline_spy) == 1 and item["stage"] == "archived"
+
+
+@pytest.mark.parametrize("row", [
+    {"id": "e0", "filename": "e0.txt", "doc_text": "", "text": "y" * 500},   # the materializer reads `text`
+    {"id": "e1", "filename": "e1.txt", "text": "", "doc_text": None},
+])
+def test_an_empty_inline_field_is_not_read_as_the_text(pipeline_spy, row):
+    from mailroom_sandbox.eval import runners
+
+    governor.activate(GovernorSpec())
+    assert runners._near_empty_item(row, None) is None  # e1 has no text and no fixture: the materializer raises
+
+
+def test_an_empty_inline_field_falls_back_to_the_fixture(pipeline_spy, monkeypatch, tmp_path):
+    from mailroom_sandbox.eval import runners
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 tiny")
+    monkeypatch.setattr(runners, "fixture_file", lambda row: pdf)
+    governor.activate(GovernorSpec())
+    assert runners._near_empty_item({"id": "p1", "text": "", "subdir": "x", "filename": "scan.pdf"}, None) is None
 
 
 def test_near_empty_rows_are_scored_as_review(pipeline_spy):

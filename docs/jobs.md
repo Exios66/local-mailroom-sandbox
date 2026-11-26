@@ -519,11 +519,22 @@ job:
 
 Before each step that would add a round, the governor checks, in order: a second boss entry
 (`boss_repeat`), the retry budget (`retry_budget`), the call budget (`call_budget`) and the spend budget
-(`spend_budget`). A stopped document goes to human review, or is archived with caveats when its latest
-extraction attempt has a `complete` judge verdict (`archive_with_caveats`). Transient provider errors keep their own
-limit (`transient_retry_max`) and still count toward the call and spend budgets; with L1 every HTTP attempt
-counts, a failed one included. The mechanics are vendor hotfixes HF-018 and HF-019
-([vendor hotfixes](vendor-hotfixes.md)).
+(`spend_budget`). A second re-extraction counts as a round; a node re-run for a transient error does not.
+A stopped document goes to human review. It is archived with caveats (`archive_with_caveats`) only when its
+latest recorded extraction attempt has a `complete` judge verdict and the judge tail's own archive guards hold
+(no lost chunks, confidence at the low band or a source-verified verdict, no unadjudicated matter conflict);
+a stopped boss entry is never archived. Transient provider errors keep their own limit
+(`transient_retry_max`) and still count toward the call and spend budgets. With L1, every HTTP attempt on
+the chat, LangChain and Decisions paths counts, a failed one included (a request the guard refused never
+went out and does not count). The call budget is checked before each round, so a round that starts below it
+can still end above it; the hard ceiling stays the backstop. The mechanics are vendor hotfixes HF-018 and
+HF-019 ([vendor hotfixes](vendor-hotfixes.md)).
+
+L4 links a near copy only when every archived value that differs from the new extraction appears in the new
+document's text: a re-scan read differently. When one does not, the documents differ where the fields do
+(template siblings with other parties or dates) and the conflict goes to the Boss as before. L5 reads the
+text the materializer would: non-empty inline `doc_text` or `text`, else a text fixture; a binary or missing
+source is left to the pipeline.
 
 Each item that the governor touched records it, and a run without the governor gets none of these keys:
 

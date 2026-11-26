@@ -1217,7 +1217,8 @@ def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callab
             if found and matter:
                 from storage.catalog import get_matter_documents
 
-                dup = governor.duplicate_of(state, module._run_coro(lambda: get_matter_documents(matter)))
+                dup = governor.duplicate_of(state, module._run_coro(lambda: get_matter_documents(matter)),
+                                            extracted_data)
                 if dup is not None:
                     scope = call_guard.scope()
                     if scope is not None:

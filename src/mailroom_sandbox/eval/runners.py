@@ -1864,10 +1864,14 @@ def _pipeline_item(row: dict[str, Any], result: Mapping[str, Any], outcome: Mapp
 
 
 def _near_empty_text(row: dict[str, Any]) -> str | None:
-    """The row's text when it is known before intake (inline, or a text fixture); ``None`` for a binary source."""
-    for key in ("doc_text", "text"):
-        if isinstance(row.get(key), str):
-            return row[key]
+    """The row's text when it is known before intake (inline, or a text fixture); ``None`` for a binary source.
+
+    Same precedence as ``_materialize_row``: non-empty inline text, else the fixture file. An empty
+    inline field is not the text, and a row with neither is left to the materializer, which raises.
+    """
+    inline = row.get("doc_text") or row.get("text")
+    if inline:
+        return str(inline)
     try:
         source = fixture_file(row)
     except Exception:  # noqa: BLE001 — no fixture: _materialize_row raises for it, as before

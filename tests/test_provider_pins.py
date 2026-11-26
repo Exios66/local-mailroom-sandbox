@@ -618,6 +618,38 @@ def test_langchain_reservation_is_settled_on_success_and_on_failure(lc_pins, arm
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0
 
 
+def test_a_failed_langchain_attempt_counts_toward_the_document(lc_pins):
+    import httpx
+    from langchain_openai import ChatOpenAI
+
+    from mailroom_sandbox.job import call_guard
+
+    def handler(request):
+        raise httpx.ReadTimeout("no response")
+
+    cls = pp.pinned_chat_openai(ChatOpenAI)
+    for base_url in ("https://openrouter.ai/api/v1", "http://vllm.invalid/v1"):  # L1 counts every attempt
+        llm = cls(model="qwen/qwen3.7-flash", api_key="test-key", base_url=base_url, max_retries=0,
+                  http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+        with call_guard.document() as scope:
+            for _ in range(3):
+                with pytest.raises(Exception):
+                    llm.invoke("x")
+        assert scope["llm_calls"] == 3, base_url
+
+
+def test_a_refused_langchain_request_is_not_counted(lc_pins, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba")], [],
+                       max_tokens=50)
+    armed_budget.reserve(0.999999)
+    with call_guard.document() as scope:
+        with pytest.raises(Exception, match="call refused"):
+            llm.invoke("x" * 400)
+    assert scope["llm_calls"] == 0
+
+
 def test_a_langchain_request_too_dear_for_the_cap_never_goes_out(lc_pins, armed_budget):
     sent = []
     llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba")], sent,
