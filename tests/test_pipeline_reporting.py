@@ -252,6 +252,26 @@ def test_intake_summary_when_the_gate_did_not_fire():
     assert runners.intake_summary({"intake_prep": None}) == _NO_INTAKE
 
 
+def test_mock_pipeline_import_fallback_keeps_the_intake_result_contract(monkeypatch):
+    import builtins
+
+    from mailroom_sandbox.eval import runners
+
+    original = builtins.__import__
+
+    def without_graph(name, *args, **kwargs):
+        if name == "graph.build_graph":
+            raise ImportError("pipeline unavailable")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_graph)
+    result = runners._run_pipeline_doc({"id": "fallback", "doc_text": "A short letter.",
+                                        "expected_doc_class": "correspondence", "expected_stage": "archived"},
+                                       mock=True)
+    assert result["offline_fallback"] is True
+    assert result["intake"] == _NO_INTAKE
+
+
 def test_intake_summary_reports_a_real_read_without_any_text():
     from mailroom_sandbox.eval import runners
 

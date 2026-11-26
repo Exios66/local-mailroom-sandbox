@@ -1701,6 +1701,7 @@ def _run_pipeline_doc_once(
         "stage": row.get("expected_stage"),
         "extracted_data": parse_expected_fields(row) if mock else None,
         "offline_fallback": True,
+        "intake": intake_summary({}),
     }
     try:
         from graph.build_graph import run_pipeline  # type: ignore
