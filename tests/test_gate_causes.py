@@ -143,6 +143,10 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     assert "cause" not in next(d for d in report["docs"] if d["id"] == "f")  # a correct archive has no cause
 
 
+ACCEPT_SORTER = {"classification_arbiter_decision": "accept_sorter"}
+ACCEPT_REVIEWER = {"classification_arbiter_decision": "accept_reviewer"}
+
+
 # --- precedence and mapping --------------------------------------------------------------------
 
 
@@ -150,7 +154,11 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     (["judge_error"], {}, "mechanism:judge_error"),
     (["transient_exhausted"], {}, "mechanism:transient"),
     (["classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
-    (["arbiter_escalated"], {}, "classification:arbiter_escalated"),
+    # the extraction arbiter's escalation is a judge-lane outcome, not a classification one
+    (["arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["judge_partial", "retries_exhausted", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["judge_incomplete", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["arbiter_escalated", "classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
     (["reviewer_disagreement"], {}, "classification:reviewer_disagreement"),
     (["reviewer_ineligible_label"], {}, "classification:reviewer_unknown"),
     (["reviewer_low_confidence"], {}, "classification:reviewer_unknown"),
@@ -162,9 +170,58 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     (["classification_arbiter_escalated", "reviewer_ineligible_label", "reviewer_disagreement",
       "reviewer_low_confidence"], {}, "classification:reviewer_disagreement"),
     (["judge_partial", "classification_arbiter_escalated"], {}, "classification:arbiter_escalated"),
+    # Reviewer doubt the classification arbiter resolved (it accepted a class, so extraction ran) is
+    # stale once the extraction arbiter has parked the document: the park is a judge-lane outcome.
+    (["judge_partial", "arbiter_escalated", "reviewer_low_confidence"], {}, "judge:arbiter_escalated"),
+    (["reviewer_low_confidence", "judge_partial", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["reviewer_ineligible_label", "arbiter_escalated"], {}, "judge:arbiter_escalated"),
+    (["reviewer_ineligible_label", "reviewer_low_confidence", "arbiter_escalated"], {},
+     "judge:arbiter_escalated"),
+    # ... while an unresolved doubt or any classification-lane cause still outranks it
+    (["reviewer_low_confidence", "arbiter_escalated", "classification_arbiter_escalated"], {},
+     "classification:arbiter_escalated"),
+    (["reviewer_low_confidence", "arbiter_escalated", "reviewer_disagreement"], {},
+     "classification:reviewer_disagreement"),
+    (["reviewer_unavailable", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
+    (["unknown_class", "reviewer_low_confidence", "arbiter_escalated"], {}, "classification:reviewer_unknown"),
+    (["reviewer_low_confidence", "judge_partial"], {}, "classification:reviewer_unknown"),
+    # The item records that the classification arbiter accepted a class: every reviewer cause is settled,
+    # so the judge lane decides first, whichever reviewer cause was left on the item ...
+    (["reviewer_disagreement", "judge_partial", "arbiter_escalated"], ACCEPT_SORTER, "judge:arbiter_escalated"),
+    (["reviewer_unavailable", "arbiter_escalated"], ACCEPT_SORTER, "judge:arbiter_escalated"),
+    (["unknown_class", "reviewer_low_confidence", "arbiter_escalated"], ACCEPT_REVIEWER, "judge:arbiter_escalated"),
+    (["arbiter_escalated"], {**ACCEPT_SORTER, "reviewer_doc_type": "unknown"}, "judge:arbiter_escalated"),
+    (["reviewer_disagreement", "judge_partial", "retries_exhausted"], ACCEPT_SORTER, "judge:partial_exhausted"),
+    (["reviewer_unavailable", "judge_incomplete"], ACCEPT_REVIEWER, "judge:judge_rejected"),
+    (["reviewer_low_confidence", "judge_incomplete"], ACCEPT_SORTER, "judge:judge_rejected"),
+    # ... a reviewer cause names the park only when nothing in the judge lane does ...
+    (["reviewer_disagreement"], ACCEPT_SORTER, "classification:reviewer_disagreement"),
+    (["reviewer_unavailable"], ACCEPT_SORTER, "classification:reviewer_unknown"),
+    (["reviewer_low_confidence"], ACCEPT_SORTER, "classification:reviewer_unknown"),
+    # ... a wrong class is not settled by it ...
+    (["class_miss", "reviewer_disagreement", "arbiter_escalated"], ACCEPT_SORTER, "classification:wrong_class"),
+    # ... and an answer that is not an acceptance (or no answer) leaves the reviewer causes in force.
+    (["reviewer_disagreement", "arbiter_escalated"], {"classification_arbiter_decision": "human_review"},
+     "classification:reviewer_disagreement"),
+    (["reviewer_unavailable", "judge_partial", "retries_exhausted"], {"classification_arbiter_decision": None},
+     "classification:reviewer_unknown"),
 ])
 def test_review_cause_mapping(causes, extra, expected):
     assert cause_of(review(causes, **extra)) == expected
+
+
+@pytest.mark.parametrize("reviewer_tokens, extra", [
+    (["reviewer_disagreement"], {}), (["reviewer_unavailable"], {}), (["reviewer_low_confidence"], {}),
+    ([], {"reviewer_doc_type": "unknown"}),
+])
+@pytest.mark.parametrize("decision", [ACCEPT_SORTER, ACCEPT_REVIEWER])
+def test_a_settled_reviewer_cause_ranks_below_an_extraction_miss(reviewer_tokens, extra, decision):
+    """Once the classification arbiter accepted a class, an extraction miss names the park, not the reviewer."""
+    alone = cause_of(review(["extraction_miss"], **decision))
+    assert alone.startswith(("extraction:", "label_suspect")), alone
+    assert cause_of(review([*reviewer_tokens, "extraction_miss"], **decision, **extra)) == alone
+    # without the recorded acceptance the reviewer cause keeps its precedence over the extraction lane
+    assert cause_of(review([*reviewer_tokens, "extraction_miss"], **extra)).startswith("classification:")
 
 
 def test_reviewer_doc_type_unknown_without_a_cause_token():

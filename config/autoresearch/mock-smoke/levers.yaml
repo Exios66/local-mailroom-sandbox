@@ -12,6 +12,14 @@ levers:
     classes: [insurance_claim]
     description: Judge every in-band insurance extraction.
     patch: {confidence.by_class.insurance_claim.judge_band_high: 1.01}
+  # The mock reviewer answers "unknown", but the classification arbiter now settles those parked reviews (it
+  # accepts the sorter's correct class), so the reviewer rows carry no lost utility on the mock base. This lever
+  # covers the weakness left after that: a correspondence document archived with a missing field.
+  - id: mock-judge-all-correspondence
+    node: correspondence_specialist
+    classes: [correspondence]
+    description: Judge every in-band correspondence extraction.
+    patch: {confidence.by_class.correspondence.judge_band_high: 1.01}
   - id: mock-judge-passes-2
     node: judge
     classes: all

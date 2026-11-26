@@ -176,9 +176,12 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             # from `sandbox run routing`.
   arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
   judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes,
+                            #   transient_retry_max, arbiter_full_source_min_confidence
+                            #   (HF-014 floor, [0, 1]; unset: each class's `low`),
                             #   and the true/false flags judge_rejudge_retry,
                             #   judge_complete_archives, arbiter_accept_archives,
-                            #   judge_clears_low_confidence
+                            #   judge_clears_low_confidence, judge_exhausted_to_arbiter,
+                            #   arbiter_full_source
   judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
                             # whose earlier attempt was judged, while judge passes remain
   judge_complete_archives: false  # llm-mailroom #309 archive checks (need the vendor refresh: the
@@ -284,7 +287,12 @@ the judge. It also suggests a `judge_band_high` from the recorded
 evidence, not settings. Apply them through the run's locked `confidence` block,
 then confirm with the next run's audit. Preflight's `context_plan` prices the
 longest document of each class three ways: a clean pass, one judged pass, and
-the worst-case loop the thresholds allow.
+the worst-case loop the thresholds allow. Each figure includes the intake read of
+the class's costliest document whose intake gate fires; the plan's `intake` block
+counts every gated document (`docs_gated`, `calls`, `input_usd`). It prices windows HF-010 would refuse on an API
+route, so it errs high there, and a gated document on an unpriced intake model makes the envelope null.
+Item records carry `pred.intake` (`gate_fired`, `read_failed`, `prior_sent`, ...); `gate_fired` is true when a prep
+is present or the gate would have fired although the call raised.
 
 A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,
@@ -393,7 +401,23 @@ locked prompts/models/knobs rather than later ambient generation settings.
    (`WholeDocumentTooLong`, HF-009). On an API route, sorter and intake refuse
    input that needs more than one window (HF-010). Judge and arbiter
    source excerpts are outside those hotfixes and can still truncate long
-   input to their fitted windows; intake failures keep the clerk output. Modal,
+   input to their fitted windows; intake failures keep the clerk output. On
+   an engine of `qwen/qwen3.5-9b` the fitted windows are 2,487,552 characters (judge, which the
+   profile serves on `deepseek/deepseek-v4-flash`, a 1,048,576-token context) and
+   600,115 (extraction and classification arbiters, on qwen), above the specialist's
+   570,624, so any document that passes extraction reaches all three whole;
+   `tests/test_openrouter_full_source.py` checks a 250k-character document
+   end to end and that Modal/vLLM stays at 16,000. A document longer than the
+   arbiter window but inside the specialist budget (another model) is still
+   excerpted for the arbiter. An acceptance from an excerpted reading parks only while the
+   extraction is still unsure — confidence missing or under the class `low` band with no
+   source-verified judge verdict — and archives at or above the band. An acceptance from a
+   whole-source reading archives (HF-014) even below that band when the extraction confidence
+   reaches `confidence.arbiter_full_source_min_confidence`; unset, that floor is the class's
+   own `low` band, where the vendored route already archives, so HF-014 changes no route until
+   a run lowers it (for
+   example to 0.5). The floor can only lower the bar: one above `low` changes
+   nothing, because the vendored route already archives at `low`. Modal,
    vLLM, Ollama and LM Studio routes keep the 16k posture and the vendored
    chunking.
    The plan reports what was fitted under `context_fit`, and run `agent_knobs`

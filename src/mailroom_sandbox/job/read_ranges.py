@@ -263,7 +263,7 @@ def match_ranges(index: ShingleIndex, request: str) -> MatchResult:
         # First _MAX_CANDIDATES of the rotated list, without copying the whole list per match.
         sel = cands[k : k + _MAX_CANDIDATES]
         if len(sel) < _MAX_CANDIDATES:
-            sel = sel + cands[: _MAX_CANDIDATES - len(sel)]
+            sel = sel + cands[: min(k, _MAX_CANDIDATES - len(sel))]  # wrap, never re-take sel
         for j in sel:
             right = _common_prefix(request, i + SHINGLE, doc, j + SHINGLE)
             left = _common_suffix(request, i, doc, j, i - floor)

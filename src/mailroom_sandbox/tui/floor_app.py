@@ -222,6 +222,11 @@ def _verbatim_overlap(original: str, working: str) -> float | None:
             # A partial piece keeps its word-level verbatim hits instead of falling to zero.
             counted += sum(len(word) for word in piece.split() if word in original)
         matched = max(matched, counted)
+        # Whitespace around or between pieces is not content: a working text whose words occur
+        # verbatim, in order, in the original (" Rent ", "Rent\nDue" over "Rent Due") is 1.0.
+        words = " ".join(working.split())
+        if words and words in " ".join(original.split()):
+            matched = len(working)
     return round(min(1.0, matched / len(working)), 4)
 
 
