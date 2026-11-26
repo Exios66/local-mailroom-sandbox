@@ -16,6 +16,7 @@ turn a park into an archive. The counts in ``EXPECTED`` are the figures the CHAN
 """
 from __future__ import annotations
 
+import functools
 import itertools
 from collections import Counter
 from types import MappingProxyType
@@ -54,12 +55,19 @@ EXPECTED = {
 }
 
 
+@functools.lru_cache(maxsize=None)
+def _doc_text(length: int) -> str:
+    """One shared string per length: routing only reads it, and 15,360 states would otherwise
+    allocate it again for every state and route pass."""
+    return "x" * length
+
+
 def _state(g):
     from graph.routing import conflict_fingerprint
 
     conf, verified, length, lost, conflict, decision, verdict, passes, retries, approved = g
     state = {"doc_type": "corporate_record", "extraction_confidence": conf, "judge_source_verified": verified,
-             "doc_text": "x" * length, "arbiter_decision": decision, "judge_verdict": verdict,
+             "doc_text": _doc_text(length), "arbiter_decision": decision, "judge_verdict": verdict,
              "judge_pass_count": passes, "arbiter_retry_count": retries, "boss_conflict_fingerprint": None,
              "extracted_data": {"_failed_chunks": [1]} if lost else {}}  # what ``routing._chunks_lost`` reads
     if conflict:
