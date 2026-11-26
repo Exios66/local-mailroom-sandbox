@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,387 labeled,
-5,221 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,429 labeled,
+5,179 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,387 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,429 (89.2%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 ## Files
@@ -47,7 +47,7 @@ df = df.merge(text, on="document_id", how="left")
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
 | `contract` | 600 | 17 | 0.0% | 66.7% |
-| `corporate_record` | 450 | 9 | 54.6% | 91.1% |
+| `corporate_record` | 450 | 9 | 54.6% | 92.0% |
 | `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
 
 The target fields of each class are the fields of the class's extraction schema in the vendored
@@ -122,6 +122,18 @@ and a CUAD-derived notice mapping are replaced by the reviewed bundle-specific r
 34,848 previously protected cells retain their values and presence. These are machine labels,
 not human gold, and keep `use_as_truth: false`. The Hub revision and production overlay pin are
 unchanged; this checkpoint is not a newly staged or published overlay.
+
+**Missing-field checkpoint (2026-11-26).** Corporate records and correspondence are now the
+priority. Source-only independent passes add 38 corporate fields and four correspondence
+fields on 19 existing documents: 15 filing-number absences, 12 unsigned-record signatory
+absences, 11 record-level jurisdiction absences, and the four correspondence gaps. Two
+correspondence disagreements were adjudicated from source; clear agreements did not require
+a third model pass. Every assigned key was previously unlabeled and absent from the catalog.
+All 12,411 preexisting catalog/supplementary rows and all 9,652 existing exported field payloads
+remain unchanged; only those 42 previously unlabeled provenance cells change. The remaining
+priority backlog is 322 corporate fields and two correspondence fields held for parser or
+independence-evidence handling. These machine near-gold labels retain `use_as_truth: false`;
+no release cut or production selector is advanced.
 
 ## Presence codes (provenance file)
 

@@ -9278,6 +9278,7 @@
       "value": null
      },
      "effective_status": "scored",
+     "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
      "in_output_schema": true,
      "labeled": 44,
      "labeled_by_set": {
@@ -9811,6 +9812,7 @@
         "value": null
        },
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 20,
        "labeled_by_set": {
@@ -10119,6 +10121,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 32,
        "labeled_by_set": {
@@ -10393,6 +10396,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
@@ -10626,6 +10630,7 @@
       "filing_number": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -10888,6 +10893,7 @@
         "value": null
        },
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 22,
        "labeled_by_set": {
@@ -11137,6 +11143,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 57,
        "labeled_by_set": {
@@ -11529,6 +11536,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 61,
        "labeled_by_set": {
@@ -11768,6 +11776,7 @@
       "filing_number": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
@@ -12015,6 +12024,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
@@ -12293,6 +12303,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
@@ -12606,6 +12617,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
@@ -12826,16 +12838,16 @@
      "effective_status": "scored",
      "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 999,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 355,
+      "calibration": 356,
       "dev": 201,
       "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "near_gold": 999
+      "near_gold": 1000
      },
      "verdict": "iterate"
     },
@@ -12843,23 +12855,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.572,
+      "share": 0.573,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 998,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 355,
+      "calibration": 356,
       "dev": 201,
-      "heldout": 248,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
       "interim": 350,
-      "near_gold": 648
+      "near_gold": 650
      },
      "verdict": "iterate"
     },
@@ -13028,15 +13040,15 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.023,
+      "share": 0.024,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
      "in_output_schema": true,
-     "labeled": 998,
+     "labeled": 999,
      "labeled_by_set": {
-      "calibration": 354,
+      "calibration": 355,
       "dev": 201,
       "heldout": 249,
       "pool": 194
@@ -13044,7 +13056,7 @@
      "subclasses_with_truth": 8,
      "truth": {
       "interim": 437,
-      "near_gold": 561
+      "near_gold": 562
      },
      "verdict": "iterate"
     },
@@ -13710,22 +13722,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.596,
+        "share": 0.598,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 555,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 248,
+        "calibration": 249,
         "dev": 72,
-        "heldout": 103,
+        "heldout": 104,
         "pool": 132
        },
        "truth": {
         "interim": 188,
-        "near_gold": 367
+        "near_gold": 369
        },
        "type": "entity_list",
        "verdict": "iterate"
@@ -13895,22 +13907,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.023,
+        "share": 0.025,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 555,
+       "labeled": 556,
        "labeled_by_set": {
-        "calibration": 247,
+        "calibration": 248,
         "dev": 72,
         "heldout": 104,
         "pool": 132
        },
        "truth": {
         "interim": 237,
-        "near_gold": 318
+        "near_gold": 319
        },
        "type": "name",
        "verdict": "iterate"
@@ -15460,21 +15472,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.792,
+        "share": 0.795,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 77,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
+        "calibration": 20,
         "dev": 20,
         "heldout": 28,
         "pool": 10
        },
        "truth": {
-        "near_gold": 77
+        "near_gold": 78
        },
        "type": "entity_list",
        "verdict": "iterate"
@@ -20750,9 +20762,9 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "a68d5b7fa59071c7dc9797cd9c867e036f2c76ee16e3a9ff7fd735b6cd91bc94",
+  "labeling_guide_sha256": "15ef88764647d7532ee653f6f09118488d7ab9e4220eef89ef7c73581add4a2a",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "973ebf2421107651322acbc9d0a7e825982099af25e4057c626e289c56ae673e",
+  "near_gold_overlay_sha256": "32835ccf9aa795f62a1584b81808328879171beb9e2252e6f06621048c28af4e",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],

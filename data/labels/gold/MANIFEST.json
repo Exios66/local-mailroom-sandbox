@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T06:29:48Z",
+  "added_at": "2026-11-26T07:16:53Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -107,6 +107,99 @@
           "tail-001-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-26T07:14:24Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-19d102a0612cdf87",
+        "DOC-6f036492d91cc9c4",
+        "DOC-8c6bc94bd90baa29",
+        "DOC-998bd08aa3861cb3"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "focus-correspondence-001-ready4-check.jsonl"
+        ],
+        "label": [
+          "focus-correspondence-001-ready4-label.jsonl"
+        ],
+        "review": [
+          "focus-correspondence-ready4-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T07:14:43Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-12a6d4cd092cf66d",
+        "DOC-82dd8227e24e692e",
+        "DOC-a14783cfd27c88c1"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "focus-corporate-tail001-check.jsonl"
+        ],
+        "label": [
+          "focus-corporate-tail001-label.jsonl"
+        ],
+        "review": []
+      }
+    },
+    {
+      "added_at": "2026-11-26T07:16:53Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-2eebbd30518e8a25",
+        "DOC-417996c5cc3d91f5",
+        "DOC-4a2d6dad6cf09052",
+        "DOC-9e22e8cf0d496d7c",
+        "DOC-a1bf2ddf032e38ea",
+        "DOC-a2be49cc07e80dd8",
+        "DOC-abd090f0f36ec76d",
+        "DOC-cdf8ee802f599662",
+        "DOC-e331ae8f76ff3efc",
+        "DOC-e3af62d905e5bc55",
+        "DOC-e42fbaa25765ec5f",
+        "DOC-f2a8c5dab035b0ed"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "focus-corporate-efficient001-check.jsonl"
+        ],
+        "label": [
+          "focus-corporate-efficient001-label.jsonl"
+        ],
+        "review": []
+      }
     }
   ],
   "binding": {
@@ -174,19 +267,22 @@
       "entity_name": {
         "near_gold": 38
       },
+      "filing_number": {
+        "near_gold": 15
+      },
       "jurisdiction": {
-        "near_gold": 372
+        "near_gold": 383
       },
       "signatories": {
-        "near_gold": 372
+        "near_gold": 384
       }
     },
     "correspondence": {
       "action_items": {
-        "near_gold": 999
+        "near_gold": 1000
       },
       "additional_recipients": {
-        "near_gold": 998
+        "near_gold": 1000
       },
       "communication_date": {
         "near_gold": 999
@@ -198,7 +294,7 @@
         "near_gold": 1000
       },
       "sender": {
-        "near_gold": 998
+        "near_gold": 999
       },
       "urgency": {
         "near_gold": 1000
@@ -207,8 +303,8 @@
   },
   "files": {
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
-    "corporate_record.jsonl": "cce111a1cae4bda15b15fdc12c426ee05de035029ac67a5cb11bb472c8a8c462",
-    "correspondence.jsonl": "63cb3e9abd61e36412043c7aa877cf1b9d7ac117e2c95653dc2f3ab03b03f209"
+    "corporate_record.jsonl": "d0b6838b2f7893a1ae17b67b1a3af46a6e62231b4b9eaeecf4645aefaf20971a",
+    "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d"
   },
   "reviewed_at": "2026-11-26T04:16:57Z",
   "schema": "mailroom-gold-labels/v1",
@@ -264,9 +360,15 @@
       "check-correspondence-038.jsonl",
       "check-correspondence-039.jsonl",
       "check-correspondence-040.jsonl",
+      "focus-corporate-efficient001-check.jsonl",
+      "focus-corporate-tail001-check.jsonl",
+      "focus-correspondence-001-ready4-check.jsonl",
       "tail-001-check.jsonl"
     ],
     "label": [
+      "focus-corporate-efficient001-label.jsonl",
+      "focus-corporate-tail001-label.jsonl",
+      "focus-correspondence-001-ready4-label.jsonl",
       "label-contract-000.jsonl",
       "label-contract-001.jsonl",
       "label-contract-002.jsonl",
@@ -485,6 +587,7 @@
       "contract_value_review.jsonl",
       "decisions.jsonl",
       "decisions_supersede.jsonl",
+      "focus-correspondence-ready4-parent-review.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
       "review-contract-e40.jsonl",
@@ -522,7 +625,9 @@
         "jurisdiction",
         "entity_name"
       ],
-      "tier2": []
+      "tier2": [
+        "filing_number"
+      ]
     },
     "correspondence": {
       "tier1": [
