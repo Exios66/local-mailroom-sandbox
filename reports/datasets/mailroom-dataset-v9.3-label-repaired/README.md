@@ -3,13 +3,21 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,429 labeled,
-5,179 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,391 labeled,
+5,217 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,429 (89.2%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,391 (89.1%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
+
+These flat per-class counters are not scored-field coverage. They omit corporate subclass
+extension entities and include documented absences. The 2026-11-26 scope correction withdraws
+38 recent corporate annotations outside their subclass's applicable fields; four correspondence
+absences remain for hallucination checks and are not new populated extraction targets. Raw
+submissions and the preservation audit remain in
+[`repair-artifacts`](../../../data/labels/repair-artifacts/v93-20261126-scope-correction/README.md).
+New corporate collection must follow the registered subclass schema and source evidence.
 
 ## Files
 
@@ -47,7 +55,7 @@ df = df.merge(text, on="document_id", how="left")
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
 | `contract` | 600 | 17 | 0.0% | 66.7% |
-| `corporate_record` | 450 | 9 | 54.6% | 92.0% |
+| `corporate_record` | 450 | 9 | 54.6% | 91.1% |
 | `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
 
 The target fields of each class are the fields of the class's extraction schema in the vendored
