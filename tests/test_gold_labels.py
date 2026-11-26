@@ -173,7 +173,7 @@ def test_work_queue_skips_fields_the_hub_labels():
     }, {"document_id": "DOC-8", "filename": "g", "expected": "merger_agreement", "gt_fields": "{}"}]
     queue = gl.work_queue(rows)
     assert [q["doc_id"] for q in queue] == ["DOC-9"]
-    assert queue[0]["fields"] == ["effective_date", "jurisdiction"]
+    assert queue[0]["fields"] == ["effective_date", "jurisdiction", "filing_number"]
 
 
 def test_cuad_dates_need_exactly_one_calendar_date():

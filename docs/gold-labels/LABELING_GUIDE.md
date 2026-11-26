@@ -146,6 +146,29 @@ original build.
 `add` only appends. A later full `build` must be given every earlier file and the added ones,
 or it rebuilds a catalog without the added documents.
 
+### Adding fields a later guide supports
+
+A later pass often fills fields the original target list did not carry (for example corporate
+`filing_number`). `add --missing-fields` accepts documents the catalog already holds, but only
+for `(doc_id, field)` keys it does not hold:
+
+```bash
+python scripts/gold_labels.py add --corpus DIR --revision SHA --missing-fields \
+    --label gap-label.jsonl --check gap-check.jsonl
+```
+
+Every supplied label, check and review line is checked against the catalog before anything is
+written. A key that already has a record refuses the whole add: even when the supplied value
+equals the stored one, even when only the check pass carries it, and even when a review rejects
+it. Settle an existing record with `review`; never re-add it. The document's class,
+`content_sha256`, `doc_sha` and source filename must still match the records already in the
+catalog, so fields are never mixed across revisions, texts or classes under one `doc_id`. The
+add still needs both independent passes for each document.
+
+Existing records and their schema bindings are not rewritten. New rows carry the `--revision`
+given to this add, and the manifest's `additions` entry records the opt-in mode and refreshes
+`target_fields` to the guide's current list.
+
 ## Correspondence fields
 
 Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspondence_specialist.txt`).
@@ -204,6 +227,7 @@ Source: the pipeline's corporate records specialist prompt and the Dojo corporat
 |---|---|---|
 | `entity_name` | name | The corporation or entity the record is about, full legal name as written. |
 | `effective_date` | date | The date the record takes effect, or its adoption or filing date when no effective date is stated. |
+| `filing_number` | id | The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label ("Form 10-K"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing. |
 | `signatories` | list of names | People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block. |
 | `jurisdiction` | name | The state or country under whose law the entity is organised (for example "Delaware"). |
 

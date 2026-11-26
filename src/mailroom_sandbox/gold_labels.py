@@ -97,7 +97,7 @@ TARGET_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "corporate_record": {
         "tier1": ("effective_date", "signatories", "jurisdiction", "entity_name"),
-        "tier2": (),
+        "tier2": ("filing_number",),
     },
     "contract": {
         "tier1": ("agreement_date", "expiration_date", "signatories", "party_roles",
@@ -361,6 +361,28 @@ def money_text_parses(value: Any) -> bool:
     return _is_empty(value) or parse_money(value) is not None
 
 
+#: One identifier written in a quote: alphanumeric runs joined by ".", "/", "_" or "-". A trailing
+#: sentence period is not part of it ("File No. 0-1234." yields "0-1234").
+_IDENTIFIER = re.compile(r"[A-Za-z0-9]+(?:[./_-][A-Za-z0-9]+)*")
+
+
+def _identifier_supported(value: Any, evidence: str) -> bool:
+    """Whether ``value`` is one whole identifier written in ``evidence``, exactly.
+
+    A filing or document number is a transcription, not prose: its leading zeros and
+    punctuation are part of it. The quote is read as identifier tokens and the label must
+    equal one token, so neither a substring ("1234" inside "12-1234") nor a token-overlap
+    near miss ("0-1234" against "10-1234") supports a different number. Matching is
+    exact, including letter case; the stored value keeps the identifier's written form.
+    """
+    ident = _WS.sub(" ", str(value)).strip()
+    if not ident:
+        return False
+    target = ident
+    return any(token == target
+               for token in _IDENTIFIER.findall(_WS.sub(" ", evidence)))
+
+
 def _token_coverage(value: str, evidence: str) -> float:
     toks = _tokens(value)
     if not toks:
@@ -424,6 +446,8 @@ def _is_empty(value: Any) -> bool:
 
 
 def _normalize(value: Any, ftype: str) -> Any:
+    if ftype == "id" and isinstance(value, int) and not isinstance(value, bool):
+        value = str(value)  # a numeric identifier ("0") is a label, not a number
     if isinstance(value, str):
         value = _WS.sub(" ", value).strip()
     if isinstance(value, list):
@@ -562,9 +586,11 @@ def _list_value_supported(res: FieldResult, value: Any, ftype: str, ev_text: str
     return all(_token_coverage(v, ev_text) >= need for v in value)
 
 
-def _value_supported(res: FieldResult, value: Any, raw_value: Any, ftype: str, spans: list,
+def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ftype: str, spans: list,
                      ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
     """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
+    if name == "filing_number":
+        return any(_identifier_supported(value, sp["text"]) for sp in spans)
     if ftype == "date":
         # One quote must hold the whole date: "May 14" and "2020" from two quotes never make one.
         return _date_value_supported(res, value, spans)
@@ -614,7 +640,7 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     res.evidence = spans
     ev_text = " ".join(s["text"] for s in spans)
 
-    supported = _value_supported(res, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text)
+    supported = _value_supported(res, name, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text)
     if supported is None:
         return res
     res.checks["value_supported"] = supported
@@ -657,7 +683,7 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str]) -
         return False, "no evidence quote"
     res = FieldResult(field=name, ok=False)
     ev_text = " ".join(s["text"] for s in spans)
-    supported = _value_supported(res, norm, value, ftype, spans, ev_text,
+    supported = _value_supported(res, name, norm, value, ftype, spans, ev_text,
                                  empty_value(name), _text_field(model, name))
     if supported is None:
         return False, res.reason or "type rule failed"
