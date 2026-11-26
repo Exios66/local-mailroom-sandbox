@@ -191,6 +191,8 @@ def test_a_judge_parse_failure_followed_by_a_parsed_answer_continues_as_if_it_pa
         once = run(bg, monkeypatch, Script(judge=[f"parse_{failing}_once"]))
     finally:
         source_windows.apply_source_windows({})
+    _assert_terminates(control)
+    _assert_terminates(once)
     assert control["stage"] == "archived" and control["judge_c_reasks"] == control["judge_a_reasks"] == 0
     assert once["stage"] == "archived" and once["path"] == control_path
     assert once["state"]["judge_verdict"] == control["state"]["judge_verdict"] == "complete"
@@ -208,6 +210,7 @@ def test_two_judge_parse_failures_park_as_judge_error_with_two_calls_for_that_ju
         out = run(bg, monkeypatch, Script(judge=[f"parse_{failing}"], arbiter=["accept_with_caveats"]))
     finally:
         source_windows.apply_source_windows({})
+    _assert_terminates(out)
     assert out["stage"] == "review" and out["state"]["judge_verdict"] == "judge_error", out["path"]
     assert out["path"][-2:] == ["judge_verify", "human_review"] and out["arbiter"] == 0, out["path"]
     assert out[f"judge_{failing}"] + out[f"judge_{failing}_reasks"] == 2  # never a third call
