@@ -56,7 +56,6 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-021 | `langchain_agents.specialist_agents.CorporateRecordsSpecialist.extract` | Use the same subclass contract on the LangChain single-window path, preserving entity output and usage metadata without shared per-document schema mutation. | [Exios66/llm-mailroom#322](https://github.com/Exios66/llm-mailroom/issues/322) |
 | HF-022 | `langchain_agents.specialist_agents.CorporateRecordsSpecialist.extract_chunked` | Use the subclass contract in every chunk and preserve the existing merge and confidence behavior. | [Exios66/llm-mailroom#322](https://github.com/Exios66/llm-mailroom/issues/322) |
 
-
 ### Corporate subclass composition
 
 The corporate fixes were numbered HF-013–HF-015 at revision `0ade6fc5`;
