@@ -1,13 +1,13 @@
 # SAND-042 — experimental design: paired concurrency × fleet grid
 
 This historical grid retains its frozen dataset and serving pins. New rb1 generations
-follow the [current campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md), including v9.3
+follow the [current campaign contract](../../EXPERIMENT-CAMPAIGN-CONTRACT.md), including v9.3
 truth, interim/near-gold precedence, hotfix identities and revised readiness checks.
 
 **Card:** SAND-042 · **Status:** preflight-ready, **not authorised to spend** ·
 **Supersedes the design layer of:** SAND-037 (Experiments 1–4)
 **Inputs:** `reports/SAND-37/` (SAND-37/39/40 cards + `SAND-37-MASTER-SCORE-COST-CARD.md`),
-`docs/SPECIALIST-GRID-PLAN.md`, `docs/BENCHMARK-PROGRAM.md` (SAND-043),
+`docs/design/sand037/specialist-grid-plan.md`, `docs/design/sand043/benchmark-program.md` (SAND-043),
 the AmFam A100 cost cards, `config/runbooks/catalog.yaml`, `config/runs/sand42-*.yaml`.
 
 This document is the *design and significance* layer. It states what each number means, what
@@ -37,7 +37,7 @@ The defects that SAND-042 must correct:
 
 1. **GPU count and client concurrency moved together.** Exp. 2 → 3 changed replicas (1 → 2)
    *and* concurrency (8 → 32) at once, so +99% documents/min cannot be attributed to either.
-   `docs/SPECIALIST-GRID-PLAN.md` says so outright: "Client concurrency still differs by design."
+   `docs/design/sand037/specialist-grid-plan.md` says so outright: "Client concurrency still differs by design."
 2. **C32 was the only 2×L4 concurrency ever run**, and C16 was never run on any fleet. The
    concurrency response curve has two points, both on different hardware.
 3. **No GPU hardware telemetry on any L4 card.** `reports/SAND-37/SAND37_L4_cost_cards.md` line 7:
@@ -138,7 +138,7 @@ same revision), and the sampler is a per-stratum seeded prefix
 
 Pairing is the single largest variance saving: for corporate records an unpaired comparison needs
 ~390 documents per arm to see Δ = 0.05, a paired one needs 19
-(`docs/BENCHMARK-PROGRAM.md` §3). Every SAND-042 delta is computed as the mean of per-document
+(`docs/design/sand043/benchmark-program.md` §3). Every SAND-042 delta is computed as the mean of per-document
 score differences with a percentile bootstrap CI (`sand42_cards.paired_delta`).
 
 ### 3.4 Stratification
@@ -264,7 +264,7 @@ legitimate run. Same probe raised MAUD coverage from 0–1 of 13–17 questions 
 
 SAND-39 (1×L4 C8) and SAND-37 2×L4 C32 scored the **identical 250 documents** with identical
 settings, so the spread of the per-document differences is pure run-to-run noise
-(`docs/BENCHMARK-PROGRAM.md` §3):
+(`docs/design/sand043/benchmark-program.md` §3):
 
 | Class | n paired | Between-doc SD | **SD of the difference** | Paired n for Δ = 0.05 | Paired n for Δ = 0.03 |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -306,7 +306,7 @@ card carries the field set below; the machine-readable card is the contract. Two
 it. The runbook cells write `reports/SAND42/<shape>/<specialist>/<run_id>.card.json` through
 `sandbox run card --config`. `sandbox experiment report` writes `cards/<run-id>.card.json` beside
 its `report.json` for each run with completed documents, and adds the summary under
-`runs[].sand42` (see [experiments.md](experiments.md#observe-and-analyze)). The experiment report
+`runs[].sand42` (see [experiments.md](../../experiments.md#observe-and-analyze)). The experiment report
 prints a subset of these fields as its `## Sand42 metrics` table.
 
 ### 5.1 What the AmFam A100 cards carried (the requested baseline)
@@ -370,7 +370,7 @@ never fails the scored run.
   labelled as not-TTFT, exactly as the A100 cards did.
 - **No composite score.** The decision rule is: a change ships if quality is non-inferior (the
   lower bound of the Δ interval is above −0.02) and it improves cost or goodput, or if it improves
-  quality at a stated cost (`docs/BENCHMARK-PROGRAM.md` §5.2).
+  quality at a stated cost (`docs/design/sand043/benchmark-program.md` §5.2).
 - **No pooled column without a per-class table.** Merger is excluded from any fleet-level
   throughput claim: on the frozen settings it is ~112k prompt tokens per agreement and dominates
   busy time.
@@ -550,8 +550,8 @@ Specialist folders, in grid order: `correspondence`, `insurance_claims`, `corpor
 
 - `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md`, `SAND-37-MASTER-APPENDIX.md`,
   `SAND37_L4_cost_cards.md`, `SAND37_L4_cost_record.md`
-- `docs/SPECIALIST-GRID-PLAN.md` — the SAND-037 aligned spec and cell status
-- `docs/BENCHMARK-PROGRAM.md` (SAND-043) — metric rules, corpus table, measured noise floor,
+- `docs/design/sand037/specialist-grid-plan.md` — the SAND-037 aligned spec and cell status
+- `docs/design/sand043/benchmark-program.md` (SAND-043) — metric rules, corpus table, measured noise floor,
   scorecard schema, external references
 - `config/runbooks/catalog.yaml` — `sand42-1l4-c8`, `sand42-1l4-c16`, `sand42-2l4-c8`,
   `sand42-2l4-c16`, `sand42-2l4-c32`, `sand42-noise-floor`

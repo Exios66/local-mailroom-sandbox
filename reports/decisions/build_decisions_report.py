@@ -129,7 +129,7 @@ def fisher_two_sided(a, b, c, d):
     r1, c1 = a + b, a + c
     prob = lambda x: math.comb(r1, x) * math.comb(n - r1, c1 - x) / math.comb(n, c1)
     p0 = prob(a)
-    return sum(prob(x) for x in range(max(0, c1 - (n - r1)), min(r1, c1) + 1) if prob(x) <= p0 + 1e-12)
+    return math.fsum(prob(x) for x in range(max(0, c1 - (n - r1)), min(r1, c1) + 1) if prob(x) <= p0 + 1e-12)
 
 
 def wilson(k, n, z=1.96):
@@ -234,8 +234,8 @@ def compute():
     # ---- Qwen agent (sorter) per-document tokens, tiered and flat cost ---------------------------
     for split in ("test", "train"):
         rows = [r for r in rows_jsonl(HANDOFF / f"{split}.jsonl") if r["ok"]]
-        tiered = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"]) for r in rows)
-        flat = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"], tiered=False) for r in rows)
+        tiered = math.fsum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"]) for r in rows)
+        flat = math.fsum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"], tiered=False) for r in rows)
         lat = sorted(r["latency_ms"] / 1000 for r in rows)
         by_class = {}
         for r in rows:
@@ -261,8 +261,8 @@ def compute():
     # ---- the measured 1x LLM reviewer: Qwen 3.7 Flash on the sorter_reviewer route, same 323 test documents ----
     qr = jload(REPORTS / "reviewer-calibration/reviewer-validation-qwen-flash-test.json")
     qrows = rows_jsonl(REPORTS / "reviewer-calibration/reviewer-validation-qwen-flash-test.items.jsonl")
-    qr["tiered_usd"] = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"]) for r in qrows)
-    qr["flat_usd"] = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"], tiered=False) for r in qrows)
+    qr["tiered_usd"] = math.fsum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"]) for r in qrows)
+    qr["flat_usd"] = math.fsum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"], tiered=False) for r in qrows)
     assert abs(qr["tiered_usd"] - qr["list_cost_usd_tiered"]) < 5e-4 and abs(qr["flat_usd"] - qr["list_cost_usd_flat"]) < 5e-4
     N["qwen_reviewer"] = qr
     N["qwen_reviewer_rows"] = qrows
@@ -400,7 +400,7 @@ def esc(s):
 
 def tw(s, size=12):
     """Rough rendered width of s in px."""
-    return sum(0.62 if ch.isupper() or ch in "mw" else 0.30 if ch in "il.,:;'|! " else 0.54 for ch in str(s)) * size
+    return math.fsum(0.62 if ch.isupper() or ch in "mw" else 0.30 if ch in "il.,:;'|! " else 0.54 for ch in str(s)) * size
 
 
 class Fig:

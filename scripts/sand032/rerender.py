@@ -24,7 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import viz  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-FIG_DIRS = sorted(p for p in (ROOT / "reports").glob("*/figures") if p.is_dir())
+# Only the figures scripts/sand032/report.py writes: per-class SAND-32 figures and the
+# serving figures. Other reports/*/figures folders belong to other generators.
+FIG_DIRS = sorted(
+    [p for p in (ROOT / "reports" / "SAND-32").glob("*/figures") if p.is_dir()]
+    + [p for p in [ROOT / "reports" / "serving" / "figures"] if p.is_dir()]
+)
 
 _TEXT = lambda cls: re.compile(rf'<text class="{cls}"[^>]*>(?:<title>[^<]*</title>)?([^<]*)</text>')  # noqa: E731
 _TIP = re.compile(r"^(?P<label>.*): (?P<num>-?[\d,]*\.?\d+)(?P<unit>[^\s—]*)(?: — (?P<note>.*))?$", re.S)

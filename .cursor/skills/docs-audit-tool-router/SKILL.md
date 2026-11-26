@@ -18,7 +18,8 @@ a release/service fact you did not check.
 
 | Claim or job | Check / tool | Owning source or specialist |
 | --- | --- | --- |
-| Relative links, moved paths, generated runbook links | `pytest -q tests/test_doc_paths.py -n 0 --no-cov`; check hidden/excluded files and anchor fragments separately (the test skips both) | The target file on disk; `archivist-file-organizer` for a layout move |
+| Docs index, hotfix rows, README commands, layout table, cited docs paths | `pytest -q tests/test_docs_drift.py -n 0 --no-cov` | `docs/README.md`, the hotfix docs, README CLI block, `LAYOUT.md` |
+| Relative links, moved paths, generated runbook links | `pytest -q tests/test_doc_paths.py -n 0 --no-cov`; check hidden/excluded files and anchor fragments separately (the test skips both) | The target file on disk; a layout move also updates `_STALE_DOC_PATHS` in the test |
 | CLI command, flag, default or subcommand | `python scripts/check_cli_surface.py --check`; spot-check `sandbox <cmd> --help` | `src/mailroom_sandbox/cli.py` and the parser/handler, never the reference alone |
 | `docs/cli-reference.md` is stale | `python scripts/check_cli_surface.py` (regenerates) | Generated file — never hand-edit |
 | Requirements drift | `python scripts/sync_requirements.py --check` | `pyproject.toml`, then regenerate `requirements/*.txt` |
@@ -34,7 +35,7 @@ a release/service fact you did not check.
 | Experiment status or metric | Run ID, `report.json`/`report.md`, experiment log, current-head CI | `eval-judge`; distinguish planned, running, simulated, completed, superseded |
 | Quality-gate or CI claim | `.circleci/config.yml` and current-head hosted results | `.circleci/README.md`; do not assume a campaign/benchmark job exists |
 | Markdown style/lint | `npx --yes markdownlint-cli2@0.18.1` | `.markdownlint-cli2.yaml` |
-| Board card or issue status | `gh issue list`, `governance/TASKS.md`, merged PR/commit evidence | `atom`; close only with a linked evidence trail |
+| Board card or issue status | `gh issue list`, `governance/TASKS.md`, merged PR/commit evidence | The maintainer; close only with a linked evidence trail |
 
 ## Full sweep
 
@@ -52,7 +53,7 @@ a release/service fact you did not check.
    and objective:
 
    ```bash
-   pytest -q tests/test_doc_paths.py -n 0 --no-cov
+   pytest -q tests/test_doc_paths.py tests/test_docs_drift.py -n 0 --no-cov
    python scripts/check_cli_surface.py --check
    python scripts/sync_requirements.py --check
    python reports/dashboard/build_hub.py --check
@@ -85,8 +86,10 @@ a release/service fact you did not check.
      runbook source is `config/runbooks/catalog.yaml`.
    - Agent prompts live in `.opencode/agents/`; sync project adapters with
      `sandbox subagents sync --harness project`.
-   - Layout moves belong to `archivist-file-organizer`; board/README structure
-     belongs to `atom`; harness/frontmatter drift belongs to `harness-doctor`.
+   - A layout move adds each old path to `_STALE_DOC_PATHS` in
+     `tests/test_doc_paths.py` and updates `docs/README.md`; board and README
+     structure belong to the maintainer; harness/frontmatter drift belongs to
+     `harness-doctor`.
    - Keep historical results dated and labelled; do not replace them with a
      newer unrelated value.
 6. **Regenerate and re-run.** Re-run step 2 after edits. For a vendor refresh,

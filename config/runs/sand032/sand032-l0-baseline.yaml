@@ -1,5 +1,5 @@
 # SAND-032 Stage 1 L0 — current AWQ baseline on the SAND-032 slice (paired reference).
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 #
 #   modal profile activate exios66

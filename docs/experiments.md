@@ -2,7 +2,7 @@
 
 For the current rb1 data, truth, patch and readiness conditions, use the
 [experiment campaign contract](EXPERIMENT-CAMPAIGN-CONTRACT.md) alongside the
-[research plan](superpowers/plans/2026-11-18-evaluation-runbook-plan.md).
+[research plan](design/rb1/2026-11-18-evaluation-runbook-plan.md).
 
 The `sandbox experiment` commands compose the existing locked run lifecycle and
 vendored mailroom pipeline. They select a design, prepare paired document draws,
@@ -201,17 +201,23 @@ run `sandbox modal publish-image` once per Modal account first. `--no-named-imag
 
 ### Calibrate the cutoffs
 
-`config/runs/reviewer-calibration-luna.yaml` runs `openai/gpt-6-luna` as the reviewer
-over 200 labelled training documents (40 per class) with a `$0.25` API cap. Its header
-estimates about $0.07. Start it through the signed run lifecycle (a paid run asks for
-initials unless `--initials` is given), then calibrate:
+`config/runs/reviewer-calibration-luna-decisions-v2.yaml` runs the Decisions-API model
+`openai/gpt-6-luna-decisions` as the reviewer over the 735-document train draw, with the
+`reviewer_decisions_v2` question set and a `$2.00` API cap (its header estimates about
+$0.85). `reviewer-validation-luna-decisions-v2-test.yaml` is its held-out check. Start it
+through the signed run lifecycle (a paid run asks for initials unless `--initials` is
+given), then calibrate:
 
 ```bash
-sandbox run preflight --config config/runs/reviewer-calibration-luna.yaml
-sandbox run start --config config/runs/reviewer-calibration-luna.yaml
-python scripts/calibrate_reviewer.py --run reviewer-calibration-luna --probe
-python scripts/calibrate_reviewer.py --run reviewer-calibration-luna
+sandbox run preflight --config config/runs/reviewer-calibration-luna-decisions-v2.yaml
+sandbox run start --config config/runs/reviewer-calibration-luna-decisions-v2.yaml
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v2 --probe
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-decisions-v2
 ```
+
+Never calibrate on a chat model. The earlier `reviewer-calibration-luna*.yaml` and
+`reviewer-validation-luna-*-test.yaml` runs used the chat model `openai/gpt-6-luna` by
+mistake; their configs are kept under `config/runs/legacy/` for provenance.
 
 Each class also reports `top_confidence`, `top_confidence_documents` and
 `top_confidence_wrong`. Wrong answers at the top confidence are confidence saturation:
@@ -319,7 +325,7 @@ class-native metric (CUAD category F1, MAUD accuracy or field F1), schema
 adherence, token totals and median latency; `## Paired comparisons` gives each
 cell's deltas against the first complete cell of its task, with the paired 95% CI and the
 better/worse/tie split. `## Sand42 metrics` gives the card contract of
-[SAND42-EXPERIMENT-DESIGN.md](SAND42-EXPERIMENT-DESIGN.md) section 5 for every run: ok rate and
+[SAND42-EXPERIMENT-DESIGN.md](design/sand42/experiment-design.md) section 5 for every run: ok rate and
 quality with 95% CIs over documents attempted, schema-valid rate, cost per 1k usable records,
 docs/min/GPU, goodput at the SLO, latency, tokens and review rate. Mock and API-only runs
 show `—` in the cost column, because they bill no GPU. An API-only run's token spend is

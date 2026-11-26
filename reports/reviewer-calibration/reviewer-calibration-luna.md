@@ -9,7 +9,7 @@
 > into its question sets.
 
 Run `reviewer-calibration-luna`, 2026-11-01, signed JB. Spec
-`config/runs/reviewer-calibration-luna.yaml` (spec hash `9fe4f4da…`, dataset
+`config/runs/legacy/reviewer-calibration-luna.yaml` (spec hash `9fe4f4da…`, dataset
 sha256 `1975326bfa88`, pinned revision `ed7576b6`). Cutoffs:
 `reviewer-calibration-luna.json` (target accuracy 0.95, seed 42, five-fold
 cross-fit, Wilson 95% intervals).

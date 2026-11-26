@@ -11,7 +11,7 @@ import io
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 # Load the house style by file so package import does not select vendor sources.
 _spec = importlib.util.spec_from_file_location(
     "figure_style",

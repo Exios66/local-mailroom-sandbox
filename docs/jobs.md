@@ -347,7 +347,7 @@ A resumed `pipeline`, `specialist`, `isolated` or agent-name task replays the
 documents an earlier attempt persisted in `items.jsonl`. Each is scored again
 from its stored answer, with no model call and no new spend, so run scores still
 cover every locked document and only the rest run and are billed (S1,
-`docs/superpowers/specs/2026-11-26-correcting-judge-design.md`). A document whose
+`docs/design/specs/2026-11-26-correcting-judge-design.md`). A document whose
 stored item has no answer (`pred` not an object) or failed (`error` set: a
 timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it;
 its first row stays the evidence in `items.jsonl`. An answer that failed to parse
@@ -499,7 +499,7 @@ for mock runs and Modal jobs.
 
 ## Loop governor (`job.governor`)
 
-Phase 2 of the [correcting-judge design](superpowers/specs/2026-11-26-correcting-judge-design.md) gives a
+Phase 2 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) gives a
 `task: pipeline` run one budget per document across every node, so a document stops at a recorded outcome
 instead of looping until the hard call ceiling (40) refuses it. It is off unless the job sets it, and it is
 refused for any other task. `governor: true` takes every default; a mapping sets fields:

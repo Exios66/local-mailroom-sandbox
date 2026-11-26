@@ -1,6 +1,6 @@
 # SAND-032 Stage 9 (balanced B): max_inputs 32 = max_num_seqs so Modal's router splits c64 32/32 (s7 sent 97/100 to one replica).
 # SAND-032 Stage 3 — contracts n=50 on the warm fleet (serving metrics only: no extraction ground truth).
-# Spec: docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
+# Spec: docs/design/specs/2026-09-27-qwen3-l4-serving-ladder-design.md
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 # Frozen serving block = Stage-1 winner (assumed L5 until Stage 1 runs; Task 11 Step 5
 # rewrites this block if a rung is reverted — fp8 KV stays regardless).

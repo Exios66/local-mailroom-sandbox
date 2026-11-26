@@ -1123,7 +1123,7 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
                          f"{_fmt_score(means.get('schema_adherence'))} | {tokens} | {p50} |")
     measured = [row for row in rows if (row.get('sand42') or {}).get('reported')]
     if measured:
-        lines += ['', '## Sand42 metrics', '', 'The card contract of docs/SAND42-EXPERIMENT-DESIGN.md section 5; each run\'s card is under cards/.', '',
+        lines += ['', '## Sand42 metrics', '', 'The card contract of docs/design/sand42/experiment-design.md section 5; each run\'s card is under cards/.', '',
                   '| Run | Ok rate (95% CI) | Quality (95% CI) | Schema valid | $/1k ok | Docs/min/GPU | Goodput at SLO | p50 / p95 s | Tokens in / out | Review rate |',
                   '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
         lines += [_sand42_row(row['run_id'], row['sand42']) for row in measured]

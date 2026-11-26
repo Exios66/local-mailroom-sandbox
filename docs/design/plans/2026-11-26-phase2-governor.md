@@ -30,7 +30,7 @@ the runner.
 
 **Tech stack:** Python 3.11, pytest, the offline arbiter harness (`tests/_arbiter_harness.py`). No vendor edits.
 
-**Spec:** `docs/superpowers/specs/2026-11-26-correcting-judge-design.md`, the sections "The loop governor (whole
+**Spec:** `docs/design/specs/2026-11-26-correcting-judge-design.md`, the sections "The loop governor (whole
 pipeline)" and "The hardening programme", rows L1-L5. The governor's role in the judge is in "Plan" step 5.
 
 ## Resuming this work

@@ -732,7 +732,7 @@ runbooks:
       - extra_env
       - activate_profile
     notes:
-      - See docs/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
+      - See docs/design/dmr068/scale-matrix.md for the decision rule (D1 vs C1 AWQ gate).
       - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
       - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
       - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.
@@ -787,7 +787,7 @@ runbooks:
       - "Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens)."
       - "preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock."
       - "grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell."
-      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
+      - "Full cell status and the aligned spec: docs/design/sand037/specialist-grid-plan.md."
 
   grid-2l4:
     family: grid
@@ -837,7 +837,7 @@ runbooks:
       - "MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32."
       - "Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding."
       - "grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell."
-      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
+      - "Full cell status and the aligned spec: docs/design/sand037/specialist-grid-plan.md."
 
   sand39-1l4-n50:
     family: grid
@@ -982,7 +982,7 @@ runbooks:
   # warm fleet (one cold boot), five specialists chained at n=50, all five on the
   # SAME subclass-stratified 50-document draw, so every cell scores the identical
   # 250 documents and every cell-to-cell delta is paired.
-  # Design, metric contract and acceptance: docs/SAND42-EXPERIMENT-DESIGN.md.
+  # Design, metric contract and acceptance: docs/design/sand42/experiment-design.md.
   sand42-1l4-c8:
     family: sand42
     title: SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
@@ -1280,7 +1280,7 @@ runbooks:
       settings as sand42-1l4-c8, under a different run id. The spread of the
       per-document score differences between the two runs is the run-to-run noise
       floor for every SAND-042 delta, re-measured on the SAND-042 draw (the
-      SAND-037/39 floor in docs/BENCHMARK-PROGRAM.md §3 was measured on a
+      SAND-037/39 floor in docs/design/sand043/benchmark-program.md §3 was measured on a
       different draw). One class, ~6 min, well under $0.20.
     serving: grid-awq-1l4
     configs:

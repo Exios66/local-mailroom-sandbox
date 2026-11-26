@@ -16,7 +16,7 @@ resume.
 
 **Tech stack:** Python 3.11, pytest. No vendor edits: every change is in `src/mailroom_sandbox/`.
 
-**Spec:** `docs/superpowers/specs/2026-11-26-correcting-judge-design.md`, "The hardening programme", rows S1 and S2.
+**Spec:** `docs/design/specs/2026-11-26-correcting-judge-design.md`, "The hardening programme", rows S1 and S2.
 
 ## Resuming this work
 

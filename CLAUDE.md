@@ -6,7 +6,7 @@ evals and calibration against a **vendored** copy of `llm-mailroom` and
 default trace sink. It does **not** reimplement the pipeline. Python 3.11+.
 
 Open [`AGENTS.md`](AGENTS.md) at task start; it is the full command reference and
-is **not** auto-loaded. Follow its
+is **not** auto-loaded. Every docs page is indexed in [`docs/README.md`](docs/README.md). Follow its
 [routine instruction validation](AGENTS.md#instruction-validation-routine):
 validate relevant facts in this file, `AGENTS.md`, scoped rules and skills against
 current evidence, including after long experiments, feature/configuration updates
@@ -30,14 +30,12 @@ draws, models or costs) and fill the template's **Critical regressions** section
 
 ## Dependency source selection
 
-`sandbox deps fetch` caches stable releases without rewriting vendor snapshots or
-pins. Read [the snapshot guide](docs/dependency-snapshots.md) before selecting a
-cache via `SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`. Fetching a release
-is separate from selecting it: restart the process after selection, preserve
-`dependency_sources` in run locks, and restore the original source on drift.
-Never substitute latest stable for an experiment's frozen commit. For remote
-Modal jobs, bundle the same selected snapshots when deploying the job worker;
-require matching provenance before accepting its results.
+Fetching a release (`sandbox deps fetch`) never rewrites vendor snapshots or pins, and
+selecting one (`SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`) is a separate step.
+Never substitute latest stable for an experiment's frozen commit, and preserve
+`dependency_sources` in run locks. Read [the snapshot guide](docs/dependency-snapshots.md)
+before selecting; the full rules (restart after selection, source order, remote Modal
+bundling and provenance) are in [`AGENTS.md`](AGENTS.md#dependency-source-selection).
 
 ## Setup and checks (all network-free)
 
@@ -58,7 +56,8 @@ sandbox doctor                                              # offline status of 
   CI. Use focused single-worker checks without coverage locally; require passing
   current-head hosted gates before merging. CircleCI currently runs lint (pinned tools plus
   markdownlint), a `checks` job for committed generated files (reports hub,
-  requirements, CLI reference, runbooks, campaign reports), pytest and coverage; it has no dedicated campaign
+  requirements, CLI reference, runbooks, campaign reports, decisions report, SAND-032 figures), pytest, offline notebook
+  execution (`notebook-regressions`), `no-session-links` and coverage; it has no dedicated campaign
   or runtime-benchmark jobs. If those are needed, arrange scoped hosted verification
   and keep the result unverified until it runs. See [CI guidance](.circleci/README.md).
 - Live-LLM tests need `SANDBOX_LOCAL_LLM=1`; real Modal/HF contract checks need
@@ -94,8 +93,11 @@ sandbox doctor                                              # offline status of 
   (byte-identity). Change the owning repo first (`llm-mailroom` for pipeline,
   `llm-dojo-scoring` for scoring), then refresh with `python scripts/sync_vendor.py`
   or `sandbox fetch-deps`. Pins live in `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`.
-  A pipeline fix experiments need before upstream ships it goes in
-  `src/mailroom_sandbox/vendor_hotfixes.py` ([guide](docs/vendor-hotfixes.md)), never in `vendor/`.
+  A fix experiments need before upstream ships it is a hotfix, never a `vendor/` edit:
+  pipeline fixes (`HF-*`) go in `src/mailroom_sandbox/vendor_hotfixes.py`
+  ([guide](docs/vendor-hotfixes.md)), scoring fixes (`SHF-*`) in
+  `src/mailroom_sandbox/scoring_hotfixes.py` ([guide](docs/scoring-hotfixes.md)). Add or
+  retire the doc row in the same change.
 - `requirements/*.txt` — generated: edit `pyproject.toml`, then
   `python scripts/sync_requirements.py`. The one exception is
   `requirements/dojo-release.txt` (DMR-057, kept out of `pyproject.toml`): it is moved
@@ -108,12 +110,13 @@ sandbox doctor                                              # offline status of 
 - This repo owns the offline/Modal harness. **Commit sandbox fixes here first**,
   then they are imported into Digital-Mailroom. Never export hub edits back into the
   standalone repos, and never patch scoring or pipeline logic in `vendor/`.
-- `sandbox` flags such as `--profile`, `--model`, `--prompt` work before or after the
+- `sandbox` flags `--profile`, `--model`, `--prompt` and `--agent-model` work before or after the
   subcommand; a flag after the subcommand wins. `sandbox autoresearch` refuses them
   (its frozen study spec sets provider, models and prompts).
 - The reporter agent is retired here: `compile_report` is the deterministic
   procedural reporter (no LLM). Reviewers (`sorter_reviewer`) stay enabled.
-- Experiment log is `reports/experiment_log.jsonl` (sandbox-local). Reports under
+- Experiment log is `reports/experiment_log.jsonl` (sandbox-local, runtime-generated and
+  gitignored, so a fresh checkout has none). Reports under
   `reports/` are large; search narrowly instead of grepping the whole tree.
 
 ## Environment and dispatch

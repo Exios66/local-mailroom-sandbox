@@ -2,7 +2,7 @@
 
 Switched on by ``job.governor`` (saved in the run lock, activated by ``runtime.activate``). Off,
 nothing here changes a routing decision or a result field. Design:
-``docs/superpowers/specs/2026-11-26-correcting-judge-design.md``, "The loop governor".
+``docs/design/specs/2026-11-26-correcting-judge-design.md``, "The loop governor".
 """
 
 from __future__ import annotations

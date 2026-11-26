@@ -1,6 +1,6 @@
 # SAND-37 — specialist grid score & cost cards
 
-Every run of the aligned Qwen3-8B-AWQ specialist grid (`docs/SPECIALIST-GRID-PLAN.md`) writes its
+Every run of the aligned Qwen3-8B-AWQ specialist grid (`docs/design/sand037/specialist-grid-plan.md`) writes its
 score & cost card here, organized by fleet shape and then by specialist:
 
 **Start here:** [`SAND-37-MASTER-SCORE-COST-CARD.md`](SAND-37-MASTER-SCORE-COST-CARD.md) is the

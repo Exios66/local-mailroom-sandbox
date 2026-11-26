@@ -41,7 +41,7 @@ entries carry the document's real ``archive`` path, run-level ``trace_id`` and o
 ``gate_report`` finds the traces and archive from the run dir's checkout (``<root>/data/...``);
 a run dir outside that layout fails with "audit trail not located" unless ``traces_dir`` and
 ``archive_dir`` are passed, or ``audit=False`` (no audit block, unlinked buckets).
-Design: ``docs/superpowers/specs/2026-11-16-production-slice-gate-design.md``.
+Design: ``docs/design/specs/2026-11-16-production-slice-gate-design.md``.
 """
 from __future__ import annotations
 
