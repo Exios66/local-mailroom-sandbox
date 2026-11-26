@@ -154,3 +154,6 @@ reports/autoresearch/*/.lock
 
 # Claude Code / agent local worktrees (never commit checkout clones)
 /.claude/worktrees
+
+# Stray wheels from `pip download` in the checkout root
+/*.whl
