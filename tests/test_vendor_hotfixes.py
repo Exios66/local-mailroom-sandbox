@@ -830,6 +830,63 @@ def test_a_re_ask_the_guard_refuses_is_asked_not_recovered_and_makes_no_second_r
     assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0, "parked": 0}}  # errored, not parked
 
 
+def test_re_ask_counts_stay_with_their_own_document_when_documents_run_in_parallel():
+    """``job.concurrency`` runs documents on worker threads: each document's counts and call total are its own.
+
+    Eighteen documents hold their own document scope open at the same time (a barrier inside the scope), each with
+    its own scripted client: the completeness judge parses first time, recovers on the re-ask, or fails twice
+    (parked); the accuracy judge does the same unless the document already parked. Nothing is shared but the
+    armed budget, so a scope that leaked between threads would show as a wrong count or call total here.
+    """
+    import json
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from mailroom_sandbox import provider_pins
+    from mailroom_sandbox.job import api_budget, call_guard
+
+    assert vh.apply_hotfixes()["HF-004"] == "applied"
+    provider_pins.apply_provider_pins({})
+
+    def script(failures, good):  # failures 0: parses; 1: one parse failure then the verdict; 2: two (parked)
+        return [json.dumps(good)] if failures == 0 else ["not json"] * failures + ([json.dumps(good)] if failures == 1 else [])
+
+    def block(failures):
+        return {"asked": 1, "recovered": int(failures == 1), "parked": int(failures >= 2)}
+
+    plans = [(i % 3, (i // 3) % 3) for i in range(18)]  # (completeness failures, accuracy failures), all 9 pairs twice
+    barrier = threading.Barrier(len(plans), timeout=30)
+
+    def one_document(plan):
+        c_fail, a_fail = plan
+        c_client = _FakeOpenRouter(*script(c_fail, COMPLETE))
+        a_client = _FakeOpenRouter(*script(a_fail, ACCURATE))
+        with call_guard.document() as scope:
+            barrier.wait()  # every document's scope is open before any of them asks
+            try:
+                _ask(_live_path_judge(c_client), "completeness")
+                _ask(_live_path_judge(a_client), "correctness")
+            except vh.JudgeParseError:
+                pass
+        expected = {}
+        if c_fail:
+            expected["completeness"] = block(c_fail)
+        if c_fail < 2 and a_fail:
+            expected["correctness"] = block(a_fail)
+        return plan, scope.get("judge_reasks", {}), expected, scope["calls"], len(c_client.requests) + len(a_client.requests)
+
+    call_guard.arm(api_budget.ApiBudget(1000.0, 1.0, 1.0, ["test/model"]), 40)
+    try:
+        with ThreadPoolExecutor(max_workers=len(plans)) as pool:
+            results = list(pool.map(one_document, plans))
+    finally:
+        call_guard.disarm()
+    assert [(plan, got) for plan, got, expected, _, _ in results] == [(plan, expected) for plan, _, expected, _, _ in results]
+    assert all(calls == requests for *_, calls, requests in results)  # the guard counted each document's own calls
+    assert sum(1 for _, got, *_ in results if got) == 16  # the two (0, 0) documents never re-asked
+    assert sum(v["asked"] for _, got, *_ in results for v in got.values()) == 20
+
+
 def _judge_node(monkeypatch, completeness, correctness):
     vh.apply_hotfixes()
     import graph.build_graph as bg
