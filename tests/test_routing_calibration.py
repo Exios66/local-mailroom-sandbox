@@ -338,9 +338,12 @@ def test_cost_envelope_follows_the_retry_thresholds():
                           "by_class": {"merger_agreement": {"arbiter_retry_max": 1, "judge_max_passes": 2}}}}
     rows = [{"id": "m", "expected_doc_class": "merger_agreement", "doc_text": "x" * 400_000}]
     cost = plan(tax, rows, windows={"judge": 2_000_000, "arbiter": 2_000_000})["classes"]["merger_agreement"]["input_cost_usd"]
-    assert cost["worst_calls"] == {"extract_passes": 4, "judge": 4, "arbiter": 2}
+    # 2 judge passes x 4 calls (each judge re-asked once after a parse failure, HF-002 / HF-013)
+    assert cost["worst_calls"] == {"extract_passes": 4, "judge": 8, "arbiter": 2}
     assert 0 < cost["clean"] < cost["judged"] < cost["worst"]
-    assert cost["worst"] == pytest.approx(4 * cost["clean"] + 3 * (cost["judged"] - cost["clean"]), rel=1e-3)
+    # judged - clean is one pass of two judge calls, so a worst-case pass of four is twice that:
+    # 4 extractions + 2 passes x 2 x (judged - clean) + 2 arbiter calls (one judge-pair each = 1/2 pair)
+    assert cost["worst"] == pytest.approx(4 * cost["clean"] + 5 * (cost["judged"] - cost["clean"]), rel=1e-3)
 
 
 def test_rejudge_cost_uses_the_effective_class_flag_and_pass_cap():

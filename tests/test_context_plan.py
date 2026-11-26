@@ -399,3 +399,21 @@ def test_require_counts_only_the_readers_a_task_calls(monkeypatch):
         report = {"checks": []}
         spec = SimpleNamespace(task=task, reviewer=None, agent_knobs={})
         assert preflight._record_expanded_inputs(report, spec, {}, require=True) is ok, task
+
+
+def test_worst_case_prices_each_judge_pass_at_four_calls_and_leaves_clean_and_judged_alone():
+    """HF-002 / HF-013: completeness and correctness are each asked once more after a parse failure."""
+    agent = {"provider": "openrouter", "model": "qwen/qwen3.7-flash", "max_input_chars": 100000}
+    tax = {"doc_classes": [{"key": "contract", "specialist": "contracts_specialist"}],
+           "agents": {"contracts_specialist": agent, "judge": agent, "arbiter": agent},
+           "confidence": {"arbiter_retry_max": 1, "retry_max": 1, "judge_max_passes": 3}}
+    rows = [{"id": "c", "expected_doc_class": "contract", "doc_text": "x" * 90_000}]
+    cost = context_plan.plan(tax, rows)["classes"]["contract"]["input_cost_usd"]
+    assert cost["worst_calls"] == {"extract_passes": 3, "judge": 12, "arbiter": 2}
+    assert context_plan.JUDGE_WORST_CALLS_PER_PASS == 4
+    clean, judged = cost["clean"], cost["judged"]
+    pair = judged - clean  # one judge pass without a re-ask: two calls
+    # 3 extractions + 3 passes x two pairs + 2 arbiter calls (one call each, half a pair)
+    assert cost["worst"] == pytest.approx(3 * clean + 6 * pair + 1 * pair, rel=1e-3)
+    # the clean path and the one-judge-pass scenario still count two judge calls
+    assert judged > clean > 0
