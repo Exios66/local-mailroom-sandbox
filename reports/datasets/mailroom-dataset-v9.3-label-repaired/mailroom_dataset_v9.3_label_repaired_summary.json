@@ -12,10 +12,10 @@
   },
   "label_cells_targeted": 48686,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 43148,
-  "label_cells_unlabeled": 5460,
+  "label_cells_labeled_repaired": 43380,
+  "label_cells_unlabeled": 5228,
   "label_cells_disputed_unresolved": 78,
-  "conflicts_resolved": 2088,
+  "conflicts_resolved": 2102,
   "needs_human": 78,
   "subclass_changed": 2,
   "nan_placeholders_dropped": 2100,
@@ -23,15 +23,15 @@
   "stale_overlay_records_skipped": {},
   "chosen_source_counts": {
     "hub_v9.3": 24713,
-    "generated_derived": 5929,
-    "near_gold_two_pass": 3731,
-    "near_gold_reviewed": 3567,
+    "generated_derived": 5828,
+    "near_gold_two_pass": 4026,
+    "near_gold_reviewed": 3814,
     "interim_reviewed": 1894,
-    "generated_rule": 972,
-    "gold_candidate": 880,
+    "generated_rule": 939,
     "interim_derived": 836,
+    "gold_candidate": 703,
     "interim_gate": 346,
-    "cuad_span": 223,
+    "cuad_span": 224,
     "gold_disputed": 82,
     "interim_correction": 45,
     "owner_review": 8,
@@ -101,10 +101,10 @@
   },
   "inputs_sha256": {
     "data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f",
-    "data/labels/gold-overlay/contract.jsonl": "46930027eae7579db19dd12ec08c8f5ab9b36dcab3b202d1e979e51b631f861b",
-    "data/labels/gold-overlay/corporate_record.jsonl": "432a99f5b931e759e48b1c47c2e3e13b9c0a098b6b88ef892751c6c56fabf79a",
-    "data/labels/gold-overlay/correspondence.jsonl": "b9a8a001095a1eb08af3a94b95927daffea7325c6c3f32b0f5f62a62b2b42f1b",
-    "data/labels/gold/contract.jsonl": "edf2401362b5885d1cae98927ee72c75334214722602f29d086de127d8b357d3",
+    "data/labels/gold-overlay/contract.jsonl": "d14a57e6ddac17a6bfa18c3de94a154459a18c1c9b6ba41d5787d333cb1be713",
+    "data/labels/gold-overlay/corporate_record.jsonl": "835f98cf9ee3f09bd8bc0c834c44b0c424ddc493fb79d1f1eaf0106d7365e2aa",
+    "data/labels/gold-overlay/correspondence.jsonl": "ead3019a07101a43f0ee3982ae7e5f8249dd983e7762345dcc444585a7dfc0c8",
+    "data/labels/gold/contract.jsonl": "aeb9f5e414e156ac0dda34fe17343b62a06bacdd98c20c6e6828dd69f6e8733c",
     "data/labels/gold/corporate_record.jsonl": "cce111a1cae4bda15b15fdc12c426ee05de035029ac67a5cb11bb472c8a8c462",
     "data/labels/gold/correspondence.jsonl": "63cb3e9abd61e36412043c7aa877cf1b9d7ac117e2c95653dc2f3ab03b03f209",
     "data/labels/interim/contract.jsonl": "17802d8b410cf32efffe6bd758365ef13ce2e6353c40079bcde088538c0aff44",
@@ -118,8 +118,8 @@
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/train/train-00000-of-00001.parquet": "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
   },
   "outputs_sha256": {
-    "mailroom_dataset_v9.3_label_repaired.csv": "f7f8d907588f0158d24f47679c548c7ccb74cab0cb29c2de83c7c5c8b8c80be4",
-    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "ebd035b6013326a1c75a7f54093c0e0e32a3a87af02f0a08f7069196882979ad",
-    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "25756ef1c74d5fe3e604e9c791a97c372bc7ddd79b3a2e6d2398b75ac956a9de"
+    "mailroom_dataset_v9.3_label_repaired.csv": "03217afdeffd5457a59645e0a3eb91ec5033b08bbd113d9b149c4d0bc970d8cf",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "19fa4e890210bde0977a0e39fe02d2ef8b24194c391061047c983f7c932f44dd",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "e269501964ac64c8ece09cb24bdbd6a203fede32779fb9f41bdc209f2e291d8e"
   }
 }
