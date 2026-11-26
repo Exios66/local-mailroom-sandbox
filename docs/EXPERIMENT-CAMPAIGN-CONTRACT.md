@@ -59,8 +59,8 @@ The complete implementations and upstream retirement conditions live in
 | HF-015 | On a context-fitted route, an arbiter with no re-extraction budget left is never offered a retry | `test_arbiter_full_source.py`, `test_arbiter_termination.py` |
 | HF-016 | Intake returns triage and the section map, never the document: the working text is the clerk's | `test_vendor_hotfixes.py` |
 | HF-017 | A failed intake read sends the sorter no prior; an invented subclass is not printed | `test_vendor_hotfixes.py` |
-| HF-018 | With `job.governor`, a round past the document's retry, call or spend budget (or a second boss entry) stops at human review, or archives with caveats when the latest attempt passed the judge; L2 skips a classify retry at the sorter ceiling | `test_governor.py` |
-| HF-019 | With `job.governor`, a conflict with only exact or near copies of archived documents is linked as `duplicate_of`, not escalated | `test_governor.py` |
+| HF-018 | With `job.governor`, a round past the document's retry, call or spend budget (or a second boss entry) stops at human review, or archives with caveats when the latest attempt passed the judge and the judge tail's archive guards hold; L2 skips a classify retry at the sorter ceiling | `test_governor.py` |
+| HF-019 | With `job.governor`, a conflict with only exact or near copies of archived documents (a near copy's differing archived values all in its text) is linked as `duplicate_of`, not escalated | `test_governor.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |

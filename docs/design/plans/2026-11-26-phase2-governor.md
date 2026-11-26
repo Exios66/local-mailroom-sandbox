@@ -51,6 +51,10 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   Line numbers are from `5978123`; search by name if they have moved.
 - **When every task is ticked:** do the hand-over in Task 8. The PR stays draft until CircleCI is green on its
   head; then ask the owner.
+- **Where the next phases' plans go:** the docs were reorganized (#428). Write phase 3–6 plans in
+  `docs/design/plans/` with a date prefix (the spec is in `docs/design/specs/`), not in a tool's default
+  folder, and link each from `docs/README.md` in the same PR; `tests/test_docs_drift.py` and
+  `tests/test_doc_paths.py` fail otherwise.
 
 ## Global constraints
 
