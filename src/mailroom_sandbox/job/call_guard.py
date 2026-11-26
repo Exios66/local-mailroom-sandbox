@@ -74,22 +74,31 @@ def _judge_reask_block(judge: str) -> dict[str, int] | None:
     doc = _DOC.get()
     if doc is None:
         return None
-    return doc.setdefault("judge_reasks", {}).setdefault(judge, {"asked": 0, "recovered": 0})
+    return doc.setdefault("judge_reasks", {}).setdefault(judge, {"asked": 0, "recovered": 0, "parked": 0})
 
 
 def note_judge_reask(judge: str) -> None:
     """Record, in the current document's scope, that the HF-002/HF-013 wrapper is re-asking a judge.
 
     ``judge`` is ``completeness`` or ``correctness``; the scope gains
-    ``judge_reasks = {judge: {"asked": n, "recovered": m}}`` (counts only, never document text),
-    which the runner copies onto the document's pipeline result. Called before the second call is
-    made, so a re-ask that raises (transport error, guard refusal) still counts as asked. A re-ask
-    outside a document scope is not counted (a no-op). It does not depend on the run being armed:
-    the re-ask is visible on every run.
+    ``judge_reasks = {judge: {"asked": n, "recovered": m, "parked": p}}`` (counts only, never
+    document text), which the runner copies onto the document's pipeline result. Called before the
+    second call is made, so a re-ask that raises (transport error, guard refusal) still counts as
+    asked. Each ask ends as exactly one of recovered (the answer parsed), parked (the answer did not
+    parse either) or neither (the call raised: the gate reports ``asked - recovered - parked`` as
+    ``errored``). A re-ask outside a document scope is not counted (a no-op). It does not depend on
+    the run being armed: the re-ask is visible on every run.
     """
     block = _judge_reask_block(judge)
     if block is not None:
         block["asked"] += 1
+
+
+def note_judge_parked(judge: str) -> None:
+    """Record that the re-ask of ``judge`` returned an answer that did not parse either (no-op outside a document scope)."""
+    block = _judge_reask_block(judge)
+    if block is not None:
+        block["parked"] += 1
 
 
 def note_judge_recovered(judge: str) -> None:

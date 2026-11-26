@@ -199,18 +199,30 @@ def is_wrong_class(expected_class: str, pred: Mapping[str, Any]) -> bool:
     return bool(got) and got != str(expected_class).strip().lower()
 
 
+def _judge_reask_counts(raw: Any) -> dict[str, dict[str, int]]:
+    """A pipeline result's ``judge_reasks`` as plain ints: ``{judge: {"asked", "recovered", "parked"}}``."""
+    return {str(judge): {key: int((counts or {}).get(key) or 0) for key in ("asked", "recovered", "parked")}
+            for judge, counts in raw.items() if isinstance(counts, Mapping)}
+
+
 def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
-    """Totals of the documents whose judge was re-asked: per judge and overall ``asked`` / ``recovered``."""
+    """Totals of the documents whose judge was re-asked: per judge and overall.
+
+    Every re-ask ends as ``recovered`` (the second answer parsed), ``parked`` (it did not parse either, so
+    the judge raised and the document went to review as a ``judge_error``) or ``errored`` (the second call
+    itself raised, a transport error or the call guard's refusal: no parse outcome, and HF-012 may have
+    re-run the node), so ``asked = recovered + parked + errored``.
+    """
     by_judge: dict[str, dict[str, int]] = {}
     for status in reasked:
         for judge, counts in status["judge_reasks"].items():
-            total = by_judge.setdefault(judge, {"asked": 0, "recovered": 0})
-            total["asked"] += counts["asked"]
-            total["recovered"] += counts["recovered"]
-    asked = sum(c["asked"] for c in by_judge.values())
-    recovered = sum(c["recovered"] for c in by_judge.values())
-    return {"documents": len(reasked), "asked": asked, "recovered": recovered, "parked": asked - recovered,
-            "by_judge": dict(sorted(by_judge.items())), "docs": [s["id"] for s in reasked]}
+            total = by_judge.setdefault(judge, {"asked": 0, "recovered": 0, "parked": 0, "errored": 0})
+            for key in ("asked", "recovered", "parked"):
+                total[key] += counts[key]
+            total["errored"] += counts["asked"] - counts["recovered"] - counts["parked"]
+    totals = {key: sum(c[key] for c in by_judge.values()) for key in ("asked", "recovered", "parked", "errored")}
+    return {"documents": len(reasked), **totals, "by_judge": dict(sorted(by_judge.items())),
+            "docs": [s["id"] for s in reasked]}
 
 
 def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
@@ -227,9 +239,7 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
     if isinstance(pred.get("judge_reasks"), Mapping):  # HF-002 / HF-013: a judge answer was asked twice
-        out["judge_reasks"] = {str(k): {"asked": int((v or {}).get("asked") or 0),
-                                        "recovered": int((v or {}).get("recovered") or 0)}
-                               for k, v in pred["judge_reasks"].items() if isinstance(v, Mapping)}
+        out["judge_reasks"] = _judge_reask_counts(pred["judge_reasks"])
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
         out["archived_class"] = str(pred.get("doc_type") or "").strip().lower() or None
@@ -429,9 +439,11 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     reasked = [s for s in statuses if s.get("judge_reasks")]
     return {
         # Present only when a judge answer that did not parse was asked once more (HF-002 / HF-013):
-        # how often, and how often the second answer parsed. ``parked`` re-asks failed again and
-        # are counted under ``judge_errors`` above. Counts only; the block carries no judge-call
-        # denominator, so the live parse-failure rate needs the run's judge calls from its usage.
+        # how often, and how each re-ask ended: ``recovered`` (second answer parsed), ``parked``
+        # (it did not parse either: a judge error, counted under ``judge_errors`` above) or
+        # ``errored`` (the second call raised; HF-012 may have re-run the node). Counts only; the
+        # block carries no judge-call denominator, so the live parse-failure rate needs the run's
+        # judge calls from its usage.
         **({"judge_reasks": _judge_reask_block(reasked)} if reasked else {}),
         # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
         **({"decision_slots": slots} if slots is not None else {}),

@@ -118,7 +118,8 @@ def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[M
     like any call. It is made at most once per call, so a pass holds at most two calls per judge
     method. The re-ask is recorded as ``asked`` before it is made, so one that raises (transport
     error, guard refusal) still counts, and the error propagates unchanged; ``recovered`` is
-    recorded only when the second answer parses (counts only, never document text).
+    recorded when the second answer parses and ``parked`` when it does not either, so a re-ask that
+    raised is neither (counts only, never document text).
     """
     out = original(self, *args, **kwargs)
     if not failed(out):
@@ -128,6 +129,7 @@ def _ask_once_more(judge: str, original: Callable[..., Any], failed: Callable[[M
     call_guard.note_judge_reask(judge)
     out = original(self, *args, **kwargs)
     if failed(out):
+        call_guard.note_judge_parked(judge)
         raise JudgeParseError(JUDGE_PARSE_FAILURE)
     call_guard.note_judge_recovered(judge)
     return out

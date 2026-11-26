@@ -696,7 +696,19 @@ def test_a_re_ask_calls_the_vendored_method_again_and_is_recorded_on_the_scope(w
     with call_guard.document() as scope:
         _ask(judge, which)
     assert len(judge._call_structured.calls) == 2
-    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1}}
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1, "parked": 0}}
+
+
+@pytest.mark.parametrize("which", sorted(JUDGES))
+def test_a_re_ask_whose_answer_does_not_parse_is_parked_not_errored(which):
+    """``parked`` is a second parse failure; a re-ask that raised is neither recovered nor parked (it errored)."""
+    from mailroom_sandbox.job import call_guard
+
+    vh.apply_hotfixes()
+    with call_guard.document() as scope:
+        with pytest.raises(vh.JudgeParseError):
+            _ask(_scripted_judge(PARSE, PARSE), which)
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0, "parked": 1}}
 
 
 def test_a_re_ask_is_recorded_on_the_document_scope_with_counts_only():
@@ -708,8 +720,8 @@ def test_a_re_ask_is_recorded_on_the_document_scope_with_counts_only():
         with pytest.raises(vh.JudgeParseError):
             _ask(_scripted_judge(PARSE, PARSE), "correctness")
         _ask(_scripted_judge(COMPLETE), "completeness")  # parsed first time: not recorded
-    assert scope["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1},
-                                     "correctness": {"asked": 1, "recovered": 0}}
+    assert scope["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0},
+                                     "correctness": {"asked": 1, "recovered": 0, "parked": 1}}
     with call_guard.document() as quiet:
         _ask(_scripted_judge(ACCURATE), "correctness")
     assert "judge_reasks" not in quiet
@@ -730,7 +742,7 @@ def test_a_re_ask_that_raises_still_counts_as_asked_and_the_error_propagates_unc
             _ask(judge, which)
     assert caught.value is failure  # not wrapped, not replaced by JudgeParseError
     assert len(judge._call_structured.calls) == 2
-    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0}}
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0, "parked": 0}}  # errored, not parked
 
 
 class _FakeOpenRouter:
@@ -802,7 +814,7 @@ def test_a_re_ask_through_the_real_call_path_passes_the_guard_and_is_priced_once
     assert usage["calls"] == 2 and usage["by_agent"]["judge"]["calls"] == 2
     assert (usage["prompt_tokens"], usage["completion_tokens"]) == (2000, 200)
     assert budget.live_usd == pytest.approx(2 * single_budget.live_usd) and budget.live_usd > 0
-    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1}}
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 1, "parked": 0}}
 
 
 @pytest.mark.parametrize("which", sorted(JUDGES))
@@ -815,7 +827,7 @@ def test_a_re_ask_the_guard_refuses_is_asked_not_recovered_and_makes_no_second_r
     assert isinstance(outcome, limits.RunBudgetExceeded) and "per-document ceiling 1" in str(outcome)
     assert len(client.requests) == 1 and usage["calls"] == 1  # the refused call never reached the client
     assert scope["refused"] and scope["calls"] == 1
-    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0}}
+    assert scope["judge_reasks"] == {which: {"asked": 1, "recovered": 0, "parked": 0}}  # errored, not parked
 
 
 def _judge_node(monkeypatch, completeness, correctness):
@@ -860,6 +872,7 @@ def test_the_re_ask_reaches_the_run_item_through_the_document_scope(monkeypatch)
 
     monkeypatch.setattr(runners, "_run_pipeline_doc_once", once)
     item = runners._run_pipeline_doc({"id": "d0"}, mock=False)
-    assert item["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1}}
+    assert item["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}
     monkeypatch.setattr(runners, "_run_pipeline_doc_once", lambda row, **kw: {"id": row["id"], "stage": "archived"})
     assert "judge_reasks" not in runners._run_pipeline_doc({"id": "d1"}, mock=False)  # present only when it happened
+

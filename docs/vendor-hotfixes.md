@@ -110,13 +110,18 @@ Every hotfix added or changed after a run was locked changes that lock's `vendor
   pins, usage capture and the spend caps. A pass therefore holds at most two calls per judge method, four
   in all, and preflight's `worst` envelope prices four judge calls per pass (`clean` and `judged` keep two).
   The vendored targets are unchanged, so their source fingerprints are unchanged, but the module sha256
-  in a lock changes with this edit. Each re-ask is counted per judge (`asked`, `recovered`) in the
-  document's call-guard scope, copied onto the run item as `judge_reasks` (only when one happened, no
-  document text) and totalled in the gate report's `judge_reasks` block, so a first live run measures the
-  parse-failure rate and how often the second answer parses. `asked` is recorded before the second call
-  is made, so a re-ask that raises (a transport error, or the guard's refusal) still counts as asked and
-  not recovered, and the error propagates unchanged. A re-ask outside a document scope (the standalone
-  per-agent `judge` eval in `eval/agents.py`) is made but not counted; no shipped config runs that path.
+  in a lock changes with this edit. Each re-ask is counted per judge (`asked`, `recovered`, `parked`) in
+  the document's call-guard scope, copied onto the run item's pipeline result as `judge_reasks` (only when
+  one happened, no document text) and totalled in the gate report's `judge_reasks` block
+  (`gate.json` and `--json`; `gate.md` does not render it), so a first live run measures the parse-failure
+  rate and how often the second answer parses. Every re-ask ends in exactly one of three ways: `recovered`
+  (the second answer parsed), `parked` (it did not parse either, so the judge raised `JudgeParseError`) or
+  `errored` (the second call itself raised, a transport error or the guard's refusal, and the error
+  propagates unchanged). The scope records `asked` before the second call is made and the other two after,
+  and the gate derives `errored = asked - recovered - parked`, so `asked = recovered + parked + errored`
+  and `parked` counts only re-asks that parked on a second parse failure. A re-ask outside a document scope
+  (the standalone per-agent `judge` eval in `eval/agents.py`) is made but not counted; no shipped config
+  runs that path.
 - **HF-014** (`graph.routing.after_arbiter`, with three helper predicates bound by `also`) and **HF-015**
   (`agents.arbiter.ArbiterAgent.arbitrate`) change routes and requests only where
   `confidence.arbiter_full_source` is `true` and context fit widened the arbiter's source window, that
@@ -142,7 +147,7 @@ same vendor refresh.
   next vendor refresh.
 - **A judge that fails to parse twice still parks the document.** HF-002 and HF-013 ask once more, so a
   single unparseable answer no longer parks a correct document, but two in a row still raise
-  `JudgeParseError` (human review, counted by the gate). The re-ask repeats the same request at
+  `JudgeParseError` (human review, counted by the gate as `parked`). The re-ask repeats the same request at
   temperature 0, so a judge that fails the same way every time recovers nothing. How often a live judge
   fails to parse and recovers on the repeat is unmeasured offline (the harness answers its own scripted
   verdicts); the first spend-gated run reads it from `judge_reasks` on the items and in the gate report.

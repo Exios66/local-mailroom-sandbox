@@ -106,24 +106,31 @@ def test_a_run_without_caveat_archives_keeps_its_report_shape(tmp_path):
     assert "arbiter_caveats" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
 
 
-def test_judge_re_asks_are_counted_with_their_recovery(tmp_path):
-    """HF-002 / HF-013: a re-asked judge shows how often it happened and whether the second answer parsed."""
+def test_judge_re_asks_are_counted_with_their_outcome(tmp_path):
+    """HF-002 / HF-013: every re-ask ends recovered, parked (the second answer did not parse) or errored."""
     run = _run(tmp_path, [
-        {"id": "ok", "cls": "contract", "score": 0.95, "reasks": {"completeness": {"asked": 1, "recovered": 1}}},
+        {"id": "ok", "cls": "contract", "score": 0.95,
+         "reasks": {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}},
+        # a re-ask that raised (transport error, guard refusal): not recovered, not parked; HF-012 re-ran
+        # the node and the document archived
         {"id": "both", "cls": "contract", "score": 0.95,
          "reasks": {"completeness": {"asked": 1, "recovered": 1}, "correctness": {"asked": 1, "recovered": 0}}},
         {"id": "parked", "cls": "contract", "stage": "review", "causes": ["judge_error"],
-         "reasks": {"correctness": {"asked": 1, "recovered": 0}}},
+         "reasks": {"correctness": {"asked": 1, "recovered": 0, "parked": 1}}},
         {"id": "clean", "cls": "contract", "score": 0.95}])
     report = gate.gate_report(run, Bars())
     assert report["judge_reasks"] == {
-        "documents": 3, "asked": 4, "recovered": 2, "parked": 2,
-        "by_judge": {"completeness": {"asked": 2, "recovered": 2}, "correctness": {"asked": 2, "recovered": 0}},
+        "documents": 3, "asked": 4, "recovered": 2, "parked": 1, "errored": 1,
+        "by_judge": {"completeness": {"asked": 2, "recovered": 2, "parked": 0, "errored": 0},
+                     "correctness": {"asked": 2, "recovered": 0, "parked": 1, "errored": 1}},
         "docs": ["ok", "both", "parked"]}
+    block = report["judge_reasks"]
+    assert block["asked"] == block["recovered"] + block["parked"] + block["errored"]
     out = {d["id"]: d for d in report["docs"]}
-    assert out["ok"]["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1}}
+    assert out["ok"]["judge_reasks"] == {"completeness": {"asked": 1, "recovered": 1, "parked": 0}}
+    assert out["both"]["judge_reasks"]["correctness"] == {"asked": 1, "recovered": 0, "parked": 0}
     assert "judge_reasks" not in out["clean"]
-    assert report["pooled"]["judge_errors"] == 1  # the unrecovered re-ask that parked a document
+    assert report["pooled"]["judge_errors"] == 1  # the re-ask whose second answer failed too parked a document
 
 
 def test_a_run_without_judge_re_asks_keeps_its_report_shape(tmp_path):
