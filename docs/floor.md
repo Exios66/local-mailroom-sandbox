@@ -171,16 +171,20 @@ ever see the text that holds it?
   draws no bands.
 - **Ranges.** One lane per agent in a minimap across the whole document, and one
   toggle per agent that paints its ranges on the text (specialists start on). An
-  agent that ran more than once also gets a toggle per call, retries and resumed
-  documents included. Overlapping agents show as stacked stripes. Calls made
+  agent that ran more than once also gets a toggle per call. Only the last
+  attempt's calls are kept: a resumed or retried document starts again at call 1
+  and supersedes the earlier attempt, so those earlier calls do not appear.
+  Overlapping agents show as stacked stripes. Calls made
   before intake finished were matched against the row's raw text; they appear
   as dashed bars and are never painted on the working text.
 - **Colours** follow the figure roles of the `experiment-figures` skill: colour
   is the system, shade is the stage. The decision lanes (`decisions:*`) use
-  decision-model blue, the sorter and its verifiers (`sorter_reviewer`,
-  `classification_arbiter`) use LLM-sorter orange, specialists and their
-  verifiers (`judge`, `arbiter`) use the third-system aqua, and `intake` and
-  `jev` are neutral.
+  decision-model blue, the sorter and its reviewer (`sorter_reviewer`) use
+  LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
+  the third-system aqua, and `intake` and `jev` are neutral. The classification
+  arbiter node runs on the `arbiter` agent, so its calls are the `arbiter` lane.
+  An agent with no assigned colour gets the specialist, decision or neutral grey
+  swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to
   scroll to its occurrence; click again for the next.

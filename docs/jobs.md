@@ -17,7 +17,7 @@ data/runtime/runs/<run_id>/
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
 ├── reads.jsonl          # pipeline runs: one offsets-only record per LLM call (job.trace_reads)
-├── doc_texts/           # pipeline runs: each document's working text + index.jsonl (local only)
+├── doc_texts/           # pipeline runs: each document's working text + index.jsonl (run store; see Read ranges)
 └── run.lock             # advisory local-filesystem writer flock
 ```
 
@@ -467,7 +467,16 @@ text (the text after intake) every LLM or decision call contained, so the
 [floor viewer's DOCUMENT panel](floor.md#document-panel-what-each-agent-read) can
 show whether the agent that had to extract a value ever saw it. It is on by
 default; set `job.trace_reads: false` to turn it off. The key must be a boolean and
-is never hashed, because recording does not change items, routes, scores or costs.
+is never hashed, because recording does not change routes, scores or costs. With it
+on, each pipeline item in `items.jsonl` gains a small `reads` block of counts
+(`read_calls`, `read_errors`, `read_ms`) and nothing else about the item moves.
+
+The recorder reads the value from the run's lock, not from the YAML. Because the key
+is not hashed, editing it on an already prepared run does not change the lock: a
+re-preflight still says `prepared` and adds a `trace_reads` check naming the value
+the lock keeps. To apply the new value, re-lock with `preflight --force`, which
+archives the whole generation (finished items, `reads.jsonl` and `doc_texts/`
+included). A lock written before the key existed counts as `true`.
 
 - `reads.jsonl` gets one line per call:
   `{doc, call, agent, node, ts, basis, ranges, request_chars, matched_chars, doc_chars}`
@@ -481,17 +490,27 @@ is never hashed, because recording does not change items, routes, scores or cost
   replaces the line, and a line lost in a crash is added again on the next write. The
   floor digest recomputes the hash from the stored file and withholds the bands when it
   differs from the records' (an attempt that rewrote the text and died before reading).
-  This text stays in the local run store. It never reaches the floor digest, its export,
-  Langfuse or git.
+  Where the text goes: into the run store (`data/runtime/runs/<run_id>/doc_texts/`), and
+  from there to the floor server's loopback endpoint for the document you select. A
+  remote Modal job also copies `doc_texts/` to the Modal volume with the rest of the run
+  directory and pulls it back (the same volume already holds `dataset.jsonl`, which has the
+  same text). No code path puts it into Langfuse or other trace spans, `items.jsonl`,
+  `nodes.jsonl`, logs, the floor digest or its export, or git.
 - A call made before intake finished is matched against the dataset row's raw text
   and marked `basis: "raw"`. A document above the matcher's size limit is not
   matched (`skipped: "size"`).
+- A request is recorded once the call guard lets it go out (`job.api_cost_cap_usd` and the
+  per-document call ceiling): a call the guard refuses never shows as read, and a retry
+  inside one logical call counts once. Calls on a route with no guard are recorded when
+  the call returns or fails.
 - Chat agents record only the document-bearing part of the request: the user message
   plus a system prompt passed as a plain string. `request_chars` and `matched_chars`
   are measured over that portion, not the full request on the wire. Decision requests
   mask card numbers, which show up as small gaps in the ranges.
 - A pipeline run's `nodes.jsonl` now also carries records for documents that reach
-  `classification_arbiter`, which was not tracked before.
+  `classification_arbiter`, which was not tracked before, whether or not
+  `job.trace_reads` is on. That node runs on the `arbiter` agent, so its records
+  name `arbiter` and that agent's model, and its chat reads are recorded as `arbiter`.
 - Remote (Modal) runs upload and pull `reads.jsonl` and `doc_texts/`, but the job
   worker records them only after it is next deployed. Until then a remote run shows
   "not recorded". Unverified: that redeploy is a paid, live step.
