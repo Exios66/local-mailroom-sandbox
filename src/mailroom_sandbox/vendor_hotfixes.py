@@ -49,8 +49,9 @@ class Hotfix:
     upstream: str
     summary: str
     install: Callable[[Any, Callable[..., Any]], Callable[..., Any]]
-    # Other functions of the same module whose behavior the fix relies on: (attr, sha256).
-    # Any mismatch makes the whole fix stale, like a change to the target itself.
+    # Other functions whose behavior the fix relies on: (attr, sha256), the attr in the same
+    # module, or "other.module:attr" in another one. Any mismatch makes the whole fix stale,
+    # like a change to the target itself.
     also: tuple[tuple[str, str], ...] = ()
     # Re-run on an already-applied fix, for side effects a test or a reload can undo (route rules).
     refresh: Callable[[Any], None] | None = None
@@ -1063,6 +1064,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         summary="with confidence.arbiter_full_source on a context-fitted route, an arbiter with no "
                 "re-extraction budget left is not offered retry_extraction: its ruling is final",
         install=_install_final_ruling,
+        # The wrapper reads the graph state from this caller's frame (_arbiter_node_state).
+        also=(("graph.build_graph:arbiter_node", "16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f"),),
     ),
 )
 
@@ -1101,7 +1104,7 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
                 fix.refresh(module)
             _STATUS[fix.id] = "applied"
             continue
-        drifted = [attr for attr, sha in fix.also if _source_sha(getattr(module, attr)) != sha]
+        drifted = [attr for attr, sha in fix.also if _also_sha(module, attr) != sha]
         if _source_sha(current) != fix.source_sha256 or drifted:
             _log.warning("%s not applied: vendored %s.%s changed since the hotfix was written "
                          "(re-validate it or retire it)", fix.id, fix.module, fix.attr)
@@ -1113,6 +1116,21 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
         _STATUS[fix.id] = "applied"
         _log.info("%s applied: %s", fix.id, fix.summary)
     return {fix.id: _STATUS[fix.id] for fix in hotfixes}
+
+
+def _also_sha(module: Any, attr: str) -> str | None:
+    """The source sha of the function an ``also`` entry names (``attr`` of ``module``, or
+    ``other.module:attr``); ``None`` when it is gone, which counts as drift."""
+    try:
+        if ":" in attr:
+            other, _, attr = attr.partition(":")
+            module = importlib.import_module(other)
+        owner: Any = module
+        for part in attr.split("."):
+            owner = getattr(owner, part)
+        return _source_sha(owner)
+    except Exception:  # noqa: BLE001 — a missing helper is drift, never a crash
+        return None
 
 
 def describe() -> dict[str, Any]:

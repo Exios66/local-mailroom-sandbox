@@ -489,6 +489,22 @@ def test_hf011_is_stale_when_after_arbiter_changes():
     assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-ALSO": "stale"}
 
 
+def test_hf015_is_stale_when_the_arbiter_node_changes():
+    """HF-015 reads the graph state from ``arbiter_node``'s frame, so a change to it is drift."""
+    import graph.build_graph as build_graph
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-015")
+    assert dict(fix.also) == {"graph.build_graph:arbiter_node": vh._source_sha(build_graph.arbiter_node)}
+    bogus = vh.Hotfix(id="HF-TEST-NODE", module=fix.module, attr=fix.attr, source_sha256=fix.source_sha256,
+                      upstream="-", summary="-", install=fix.install,
+                      also=(("graph.build_graph:arbiter_node", "0" * 64),))
+    assert vh.apply_hotfixes((bogus,)) == {"HF-TEST-NODE": "stale"}
+    gone = vh.Hotfix(id="HF-TEST-GONE", module=fix.module, attr=fix.attr, source_sha256=fix.source_sha256,
+                     upstream="-", summary="-", install=fix.install,
+                     also=(("graph.build_graph:no_such_node", "0" * 64),))
+    assert vh.apply_hotfixes((gone,)) == {"HF-TEST-GONE": "stale"}
+
+
 def test_hf012_transient_budget_follows_the_threshold(monkeypatch):
     from graph import routing
 
