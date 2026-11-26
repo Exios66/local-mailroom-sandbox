@@ -20,6 +20,10 @@ import time
 import traceback
 from pathlib import Path
 
+# Checks that need Node and silently did nothing without it, and how many inline scripts the syntax check parsed.
+SKIPPED: set[str] = set()
+SYNTAX_CHECKED: list[int] = []
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
 BUILDER = HERE / "build_floor_digest.py"
@@ -939,6 +943,7 @@ def viewer_js(body: str) -> str:
     node = shutil.which("node")
     if node is None:
         print("SKIP viewer JS: node is not installed (CircleCI's node image has it)", file=sys.stderr)
+        SKIPPED.add("viewer JS")
         return ""
     html = TEMPLATE.read_text(encoding="utf-8")
     block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
@@ -1307,27 +1312,36 @@ console.log("ok");
     assert out == "" or out.strip() == "ok"
 
 
+# Parses stdin as a classic <script> (what the browser does with an inline script), which `node --check` does not:
+# that treats the file as a CommonJS/ESM module and accepts a top-level return, await, import and export.
+_CLASSIC_PARSE_JS = (
+    "const src=require('fs').readFileSync(0,'utf8');"
+    "try{new (require('vm').Script)(src,{filename:'inline.js'})}"
+    "catch(e){console.error(e&&e.name===undefined?String(e):e.name+': '+e.message);process.exit(1)}"
+)
+
+
 def inline_script_errors(html: str) -> list[str]:
-    """``node --check`` every inline <script> of ``html``; the syntax errors found, one entry per script, [] when all parse.
+    """Parse every inline <script> of ``html`` as a classic script; the syntax errors found, one entry per script, [] when all parse.
 
     The READS tests above run only the pure block, so a stray brace in the glue after it (the DOM code) parsed nowhere
-    and took the whole page down; this parses every script the browser would run.
+    and took the whole page down; this parses every script the browser would run, with the browser's grammar
+    (a top-level return, await, import or export is an error here, as it is in the page).
     """
     node = shutil.which("node")
     if node is None:
         print("SKIP inline script syntax: node is not installed (CircleCI's node image has it)", file=sys.stderr)
+        SKIPPED.add("inline script syntax")
         return []
     scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S | re.I)
     assert scripts, "no inline script found: the pattern or the template changed"
     errors = []
-    with tempfile.TemporaryDirectory() as t:
-        for n, body in enumerate(scripts):
-            f = Path(t) / f"inline{n}.js"
-            f.write_text(body, encoding="utf-8")
-            r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True, timeout=60, check=False)
-            if r.returncode != 0:
-                lines = r.stderr.strip().splitlines()
-                errors.append(f"script {n}: " + next((x for x in lines if "Error" in x), lines[-1] if lines else "?"))
+    for n, body in enumerate(scripts):
+        r = subprocess.run([node, "-e", _CLASSIC_PARSE_JS], input=body, capture_output=True, text=True, timeout=60, check=False)
+        if r.returncode != 0:
+            lines = r.stderr.strip().splitlines()
+            errors.append(f"script {n}: " + next((x for x in lines if "Error" in x), lines[-1] if lines else "?"))
+    SYNTAX_CHECKED.append(len(scripts))
     return errors
 
 
@@ -1336,12 +1350,20 @@ def floor_template_inline_scripts_parse():
     """The whole page script is valid JavaScript, not just the READS block the viewer tests run."""
     html = TEMPLATE.read_text(encoding="utf-8")
     assert inline_script_errors(html) == []
+    if shutil.which("node") is None:
+        return
     # the check really fails on a broken script: the stray closing brace that once shipped after `scrollReset=false`
     broken = html.replace("DOCV.scrollReset=false}\nfunction rdAct", "DOCV.scrollReset=false}}\nfunction rdAct")
     assert broken != html, "the anchor moved: update this test"
-    if shutil.which("node") is not None:
-        found = inline_script_errors(broken)
-        assert found and "SyntaxError" in found[0], found
+    found = inline_script_errors(broken)
+    assert found and "SyntaxError" in found[0], found
+    # and with the browser's grammar, not a module's: each of these is a SyntaxError in a classic <script>
+    anchor = "function rdAct(b){"
+    assert anchor in html, "the anchor moved: update this test"
+    for what, stmt in (("top-level return", "return 1;"), ("top-level await", "const awaited = await Promise.resolve(1);"),
+                       ("import", "import x from 'y';"), ("export", "export const q = 1;")):
+        found = inline_script_errors(html.replace(anchor, stmt + anchor, 1))
+        assert found and "SyntaxError" in found[0], (what, found)
 
 
 @test
@@ -1446,7 +1468,9 @@ def main() -> int:
     for name, tb in failures:
         print(f"FAIL {name}\n{tb}", file=sys.stderr)
     verdict = "PASS" if not failures else "FAIL"
-    print(f"SELFTEST {passed}/{len(TESTS)} {verdict}")
+    note = f" (node checks SKIPPED, not run: {', '.join(sorted(SKIPPED))})" if SKIPPED else ""
+    parsed = f" [inline script syntax: {max(SYNTAX_CHECKED)} parsed as classic scripts]" if SYNTAX_CHECKED else ""
+    print(f"SELFTEST {passed}/{len(TESTS)} {verdict}{note}{parsed}")
     return 0 if not failures else 1
 
 
