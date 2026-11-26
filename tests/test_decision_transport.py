@@ -197,7 +197,7 @@ def test_request_refused_by_the_call_guard_is_not_recorded(monkeypatch, transpor
     _, calls, _ = transport
     doc = _read_doc()
 
-    def refuse():
+    def refuse(*_size):
         raise RuntimeError("call ceiling reached")
 
     monkeypatch.setattr(call_guard, "before_call", refuse)
@@ -233,7 +233,7 @@ def test_request_sent_once_then_refused_on_retry_is_recorded_once(monkeypatch, t
     real = call_guard.before_call
     seen = []
 
-    def guard():
+    def guard(*_size):
         seen.append(1)
         if len(seen) > 1:
             raise RuntimeError("call ceiling reached")
@@ -263,3 +263,46 @@ def test_masked_digits_leave_a_gap_not_an_error(monkeypatch, transport):
         stats = read_ranges.stats()
     assert len(out) == 1 and len(out[0]["ranges"]) == 2
     assert stats["read_errors"] == 0
+
+
+# S2 (phase 1): each Decisions attempt reserves its cost and settles it.
+
+
+@pytest.fixture
+def armed_budget():
+    from mailroom_sandbox.job import api_budget, call_guard
+
+    budget = api_budget.ApiBudget(1.0, 0.10, 0.25, ["qwen/qwen3.5-9b"])
+    call_guard.arm(budget, None)
+    yield budget
+    call_guard.disarm()
+
+
+def test_a_decisions_attempt_reserves_and_settles(monkeypatch, transport, armed_budget):
+    _, calls, _ = transport
+    held = []
+    responses = [httpx.Response(200, json={"usage": {"prompt_tokens": 10, "completion_tokens": 1}}),
+                 httpx.Response(400, text="bad request")]
+
+    def post(*args, **kwargs):
+        calls.append(kwargs)
+        held.append(armed_budget.reserved_usd)
+        return responses.pop(0)
+
+    monkeypatch.setattr(httpx, "post", post)
+    body = {"model": "m", "messages": [{"role": "user", "content": "x" * 4000}]}
+    db._post_decision(body, timeout=120, attempts=1)
+    assert held[0] > 0 and armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
+    with pytest.raises(RuntimeError, match="Decisions API 400"):
+        db._post_decision(body, timeout=120, attempts=1)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0  # rejected, not billed
+
+
+def test_a_decisions_timeout_is_charged_at_its_reservation(monkeypatch, transport, armed_budget):
+    def post(*args, **kwargs):
+        raise httpx.ReadTimeout("no response")
+
+    monkeypatch.setattr(httpx, "post", post)
+    with pytest.raises(httpx.ReadTimeout):
+        db._post_decision({"model": "m", "messages": [{"content": "x" * 4000}]}, timeout=120, attempts=1)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0

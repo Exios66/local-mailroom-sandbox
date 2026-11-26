@@ -812,13 +812,16 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
     last: Exception | None = None
     count = attempts
     recorded = False
+    from mailroom_sandbox.job import call_guard
+
+    # S2: every attempt reserves the request's worst-case cost (its whole body as text, its output cap).
+    size = call_guard.request_tokens([{"content": json.dumps(dict(body), default=str)}],
+                                     body.get("max_completion_tokens") or body.get("max_tokens"))
     for attempt in range(count):
         # Decisions calls bypass the chat provider wrappers; enforce the same run guard
         # before each HTTP attempt, including retries.
-        from mailroom_sandbox.job import call_guard
-
         attempt_timeout = remaining()
-        call_guard.before_call()
+        held = call_guard.before_call(*size)
         if not recorded:  # once per logical request, and only once the guard and deadline let it go out
             _record_decision_read(body)
             recorded = True
@@ -827,8 +830,14 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=attempt_timeout,
                               headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
         except httpx.TransportError as exc:
+            call_guard.settle(held, billed=call_guard.billed_failure(exc))
             last = exc
+        except BaseException as exc:
+            call_guard.settle(held, billed=call_guard.billed_failure(exc))
+            raise
         else:
+            # Settled before the body is read: a 200 is priced by after_call below, a 5xx may have been billed.
+            call_guard.settle(held, billed=resp.status_code >= 500)
             if resp.status_code == 200:
                 data = resp.json()
                 # The single live charge for this HTTP response. HF-004 also

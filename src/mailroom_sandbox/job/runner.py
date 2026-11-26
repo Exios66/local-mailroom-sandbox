@@ -324,8 +324,11 @@ def _run_whole_run(
     spans = _WholeRunSpans(tracer, current_context(tracer), task=task)
     # Item ids already in items.jsonl, read once; row callbacks run on the main thread.
     persisted: set[Any] = {i.get("item_id") for i in prior_items}
-    # A whole-run delegate re-runs every locked row on resume, so a document the earlier attempt already
-    # persisted is billed again. Its second bill has no item row; it is kept as an event (once per attempt).
+    # S1: a resume replays every document an earlier attempt persisted (its stored answer is scored again,
+    # with no model call), so the delegates run and bill only the rest. A delegate that ignores ``replay``
+    # still re-runs a persisted row: that second bill has no item row and is kept as an event (once per attempt).
+    replay = {i["item_id"]: i for i in prior_items
+              if i.get("item_id") is not None and eval_runners.replayable(i)}
     rebilled: set[Any] = set(persisted)
 
     echo = console_log.DocEcho(store.run_id, api_budget)
@@ -335,6 +338,8 @@ def _run_whole_run(
         error = entry.get("error") or (entry.get("score") or {}).get("parse_error")
         if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled):
             spans.item(entry)
+        if entry.get("replayed"):
+            return  # replayed from items.jsonl: no new answer to echo (progress still moves)
         echo(entry.get("id"), ok=not error, done=len(persisted), total=startup_total, row=entry,
              error=error, rerun=already)
 
@@ -364,6 +369,7 @@ def _run_whole_run(
             progress_cb=progress or _progress,
             row_cb=_row_sink,
             score_metadata=score_metadata,
+            replay=replay,
             **{**kwargs, **extra},
         )
 
@@ -408,7 +414,7 @@ def _run_whole_run(
                 }
         elif task == "pipeline":
             result = eval_runners.run_pipeline_eval(
-                connected=True, rows=locked_rows,
+                connected=True, rows=locked_rows, replay=replay,
                 row_cb=_row_sink,
                 progress_cb=_progress, node_cb=_node_sink, read_cb=_read_sink, text_cb=_text_sink,
                 max_wall_seconds=max_wall,
@@ -442,6 +448,7 @@ def _run_whole_run(
                 progress_cb=_progress,
                 row_cb=_row_sink,
                 score_metadata=score_metadata,
+                replay=replay,
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -462,6 +469,7 @@ def _run_whole_run(
                 progress_cb=_progress,
                 row_cb=_row_sink,
                 score_metadata=score_metadata,
+                replay=replay,
                 **kwargs,
             )
         else:
@@ -611,6 +619,18 @@ def _api_budget(store: RunStore):
     # rb1 R01: the same budget bounds every API call while documents run (run_job disarms).
     call_guard.arm(budget, call_guard.ceiling_for(lock))
     return budget
+
+
+def _persist_unreported_charges(store: RunStore) -> None:
+    """S2: keep the armed budget's charges for failed, possibly billed requests, so a resume counts them."""
+    from mailroom_sandbox.job import call_guard
+    from mailroom_sandbox.job.api_budget import UNREPORTED_CHARGE_EVENT
+
+    budget = call_guard.current_budget()
+    usd = float(getattr(budget, "unreported_usd", 0.0) or 0.0) if budget is not None else 0.0
+    if usd > 0:
+        store.append_event(UNREPORTED_CHARGE_EVENT, "warning", kind="unreported_charge", unreported_usd=round(usd, 6))
+        budget.unreported_usd = 0.0  # written once, even if the guard is disarmed later than expected
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:
@@ -875,8 +895,9 @@ def _persist_isolated_items(
     place), so a per-document callback does not reload the growing file each
     time. Without it the file is read once for this call.
 
-    ``rebilled`` holds the ids persisted by an earlier attempt that this attempt may bill again (a resume
-    re-runs every locked row). A repeat of one with token usage is not written as an item (the first row stays
+    ``rebilled`` holds the ids persisted by an earlier attempt that this attempt may bill again (a delegate
+    that ignores ``replay`` re-runs every locked row). A ``replayed`` row was not billed again, so it never
+    counts. A repeat of one with token usage is not written as an item (the first row stays
     the evidence) but is kept as a ``RERUN_USAGE_EVENT``, so a later resume's API budget still counts it. Each id
     is recorded once per attempt.
     """
@@ -888,7 +909,7 @@ def _persist_isolated_items(
     for row in rows:
         item_id = row.get("id")
         if item_id in seen:
-            if rebilled is not None and item_id in rebilled:
+            if rebilled is not None and item_id in rebilled and not row.get("replayed"):
                 rebilled.discard(item_id)
                 usage = {k: row[k] for k in ("prompt_tokens", "completion_tokens", "llm_calls") if row.get(k)}
                 if usage:
@@ -1132,6 +1153,7 @@ def run_job(
                 set_run_context(None)
                 from mailroom_sandbox.job import call_guard
 
+                _persist_unreported_charges(store)
                 call_guard.disarm()
     except BaseException:
         finish({"state": "failed"})

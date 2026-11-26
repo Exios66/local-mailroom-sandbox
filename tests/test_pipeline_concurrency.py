@@ -122,3 +122,71 @@ def test_read_recording_works_without_node_tracking(monkeypatch):
                               read_cb=reads.append, text_cb=lambda d, t: None, concurrency=2)
     assert sorted(r["doc"] for r in reads) == sorted(str(i) for i in range(4))
     assert all(item["reads"]["read_calls"] == 1 for item in items)
+
+
+def _stored(i: int) -> dict:
+    """A persisted item, as items.jsonl holds it: the earlier attempt's answer and its billed tokens."""
+    pred = {"id": str(i), "doc_type": _cls(i), "stage": "archived", "extracted_data": {}}
+    return {"item_id": str(i), "pred": pred, "latency_ms": 12.0, "prompt_tokens": 100, "completion_tokens": 5}
+
+
+def test_a_replayed_document_is_scored_without_a_model_call(monkeypatch):
+    state = _install(monkeypatch, delay=0.01)
+    items: list[dict] = []
+    replay = {"0": _stored(0), "2": _stored(2)}
+    result = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                                       row_cb=items.append, concurrency=2, replay=replay)
+    assert sorted(state["started"]) == ["1", "3"]
+    assert result["scores"]["class_correct"] == 1.0 and len(result["docs"]) == 4
+    replayed = {item["id"]: item for item in items if item.get("replayed")}
+    assert sorted(replayed) == ["0", "2"]
+    assert all(item["prompt_tokens"] == 100 for item in replayed.values())
+
+
+def test_replayed_documents_are_not_added_to_the_api_budget(monkeypatch):
+    _install(monkeypatch, delay=0.0)
+
+    class Budget:
+        def __init__(self):
+            self.added: list[dict] = []
+            self.checks = 0
+
+        def add_usage(self, usage):
+            self.added.append(dict(usage or {}))
+
+        def check(self, prefix="", in_flight=0):
+            self.checks += 1
+
+    budget = Budget()
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                              api_budget=budget, replay={"0": _stored(0), "2": _stored(2)})
+    assert len(budget.added) == 2  # documents 1 and 3 only: replayed spend is already in the seeded budget
+    assert budget.checks == 2  # no cap check before a document that makes no call
+
+
+def test_a_run_that_is_all_replay_makes_no_model_call(monkeypatch):
+    state = _install(monkeypatch, delay=0.0)
+    full = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False)
+    state["started"].clear()
+    replayed = runners.run_pipeline_eval(profile="ollama", rows=_rows(4), mock=False, connected=False,
+                                         concurrency=3, replay={str(i): _stored(i) for i in range(4)})
+    assert state["started"] == []
+    assert replayed["scores"]["class_correct"] == full["scores"]["class_correct"] == 1.0
+    assert replayed["scores"]["stage_correct"] == full["scores"]["stage_correct"]
+
+
+def test_an_item_without_a_dict_pred_is_run_again(monkeypatch):
+    state = _install(monkeypatch, delay=0.0)
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
+                              replay={"0": {"item_id": "0", "pred": None}})
+    assert sorted(state["started"]) == ["0", "1"]
+
+
+def test_a_persisted_error_row_runs_again_instead_of_replaying_its_failure(monkeypatch):
+    """Final review: a resume after an outage must recover the documents that failed, not replay the failure."""
+    state = _install(monkeypatch, delay=0.0)
+    failed = {**_stored(0), "error": "ReadTimeout: no response"}
+    parse_failed = {**_stored(1), "score": {"parse_error": True}}  # a real billed answer: replayed
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
+                              replay={"0": failed, "1": parse_failed})
+    assert state["started"] == ["0"]

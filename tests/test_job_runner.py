@@ -363,6 +363,44 @@ def test_bounded_scheduler_starts_rows_in_the_given_order(workers):
                           run_one=lambda i, row: row, on_result=lambda i, out: None)
 
 
+@pytest.mark.parametrize("workers", [1, 3])
+def test_run_rows_bounded_skips_indices(workers):
+    from mailroom_sandbox.eval.runners import _run_rows_bounded
+
+    started, guards = [], []
+    _run_rows_bounded(["a", "b", "c"], workers=workers, guard=guards.append, skip={1},
+                      run_one=lambda i, row: started.append(i) or row, on_result=lambda i, out: None)
+    assert sorted(started) == [0, 2]
+    assert len(guards) <= 2 + (workers > 1)  # a skipped row never starts, so it is never guarded alone
+    with pytest.raises(ValueError):
+        _run_rows_bounded(["a", "b"], workers=1, guard=lambda n: None, order=[0, 1], skip={1},
+                          run_one=lambda i, row: row, on_result=lambda i, out: None)
+
+
+def test_an_isolated_replay_keeps_the_stored_answer_and_score(monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    calls = []
+    real = eval_runners._predict_spec
+
+    def _spy(spec, row, **kwargs):
+        calls.append(row["id"])
+        return real(spec, row, **kwargs)
+
+    monkeypatch.setattr(eval_runners, "_predict_spec", _spy)
+    rows = [{"id": f"d{i}", "doc_text": "x", "expected": "contract"} for i in range(3)]
+    stored = {"item_id": "d0", "pred": {"doc_class": "contract", "stored": True}, "score": {"match": 1.0},
+              "error": None, "latency_ms": 7.0, "prompt_tokens": 50}
+    seen = []
+    result = eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, row_cb=seen.append,
+                                            replay={"d0": stored})
+    assert calls == ["d1", "d2"]
+    assert result["scores"]["n"] == 3
+    replayed = next(entry for entry in seen if entry["id"] == "d0")
+    assert replayed["replayed"] is True and replayed["score"] == {"match": 1.0}
+    assert replayed["pred"]["stored"] is True and replayed["prompt_tokens"] == 50
+
+
 def test_isolated_eval_dispatches_the_longest_document_first(monkeypatch):
     from mailroom_sandbox.eval import runners as eval_runners
 
@@ -1064,6 +1102,44 @@ def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp
     assert runner._api_budget(store).spent_usd == pytest.approx(3 * 0.10)
 
 
+def test_a_resumed_pipeline_run_bills_only_unfinished_documents(tmp_path, monkeypatch):
+    """S1: a whole-run resume replays the documents an earlier attempt persisted; only the rest run."""
+    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    calls: list[str] = []
+    lost = {"d2"}  # d2 fails once, on the first attempt
+
+    def doc(row, **_):
+        calls.append(row["id"])
+        if row["id"] in lost:
+            lost.discard(row["id"])
+            raise RuntimeError("worker lost on d2")
+        return {"id": row["id"], "doc_type": "contract", "stage": "archived", "extracted_data": {}, "error": None}
+
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", doc)
+    first = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert first["state"] == "failed" and calls == ["d0", "d1", "d2"]
+    calls.clear()
+    second = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert calls == ["d2", "d3"]  # d0 and d1 are replayed from items.jsonl, not run (or billed) again
+    assert second["state"] == "done" and second["cursor"] == 4
+    assert len(store.load_items()) == 4
+
+
+def test_a_replayed_row_writes_no_rerun_usage_event(tmp_path):
+    from mailroom_sandbox.job.api_budget import RERUN_USAGE_EVENT
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    row = {"id": "d0", "pred": {}, "score": {}, "prompt_tokens": 100}
+    seen, rebilled = {"d0"}, {"d0"}
+    runner._persist_isolated_items(store, [{**row, "replayed": True}], seen=seen, rebilled=rebilled)
+    assert not [e for e in store.events() if e.get("event") == RERUN_USAGE_EVENT]
+    runner._persist_isolated_items(store, [row], seen=seen, rebilled=rebilled)  # a real re-run still counts
+    assert [e for e in store.events() if e.get("event") == RERUN_USAGE_EVENT]
+
+
 def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
     """CodeRabbit: extract/chained/local_vs_api/sorter_vs_modernbert take no api_budget."""
     from mailroom_sandbox.job.checkpoint import RunStore
@@ -1309,3 +1385,21 @@ def test_direct_resume_refuses_a_checkpoint_with_unknown_hotfix_basis(tmp_path, 
     with pytest.raises(RuntimeError, match="cannot resume a checkpoint without locked"):
         runner.run_job(store, mock=None)
     assert not store.load_items()
+
+
+def test_an_isolated_error_row_runs_again_on_resume(monkeypatch):
+    """Final review: isolated rows start with pred {}, so a failed row is persisted with a dict pred."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    calls = []
+    real = eval_runners._predict_spec
+
+    def _spy(spec, row, **kwargs):
+        calls.append(row["id"])
+        return real(spec, row, **kwargs)
+
+    monkeypatch.setattr(eval_runners, "_predict_spec", _spy)
+    rows = [{"id": f"d{i}", "doc_text": "x", "expected": "contract"} for i in range(2)]
+    failed = {"item_id": "d0", "pred": {}, "score": {}, "error": "ReadTimeout: no response"}
+    eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, replay={"d0": failed})
+    assert calls == ["d0", "d1"]

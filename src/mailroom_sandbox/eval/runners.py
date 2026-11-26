@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -138,6 +138,27 @@ def isolated_call_scope(task: str, *, mock: bool):
     return call_guard.document()
 
 
+#: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
+REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_usage", "usage_by_agent",
+                     "cached_tokens", "cache_write_tokens", "reported_cost_usd")
+
+
+def replayable(item: Mapping[str, Any] | None) -> bool:
+    """True when a persisted item holds an answer a resumed run can replay: its ``pred`` is a dict and it
+    did not fail. A failed row (a timeout, a 5xx, a guard refusal) runs again, so a resume can recover it;
+    an answer that failed to parse is a real billed answer and is replayed."""
+    return isinstance(item, Mapping) and isinstance(item.get("pred"), Mapping) and not item.get("error")
+
+
+def _replay_usage(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: item[k] for k in REPLAY_USAGE_KEYS if item.get(k) is not None}
+
+
+def _replay_window(item: Mapping[str, Any]) -> tuple[int, int] | None:
+    start, end = item.get("started_at_ns"), item.get("finished_at_ns")
+    return (start, end) if isinstance(start, int) and isinstance(end, int) else None
+
+
 def _run_rows_bounded(
     rows: list[Any],
     *,
@@ -146,6 +167,7 @@ def _run_rows_bounded(
     on_result,
     guard,
     order: list[int] | None = None,
+    skip: Collection[int] = (),
 ) -> None:
     """Execute ``run_one(i, row)`` with at most ``workers`` in flight.
 
@@ -161,10 +183,12 @@ def _run_rows_bounded(
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-    n = len(rows)
-    queue = list(range(n)) if order is None else list(order)
-    if sorted(queue) != list(range(n)):
-        raise ValueError("order must be a permutation of the row indices")
+    skipped = set(skip)
+    wanted = [i for i in range(len(rows)) if i not in skipped]
+    queue = wanted if order is None else list(order)
+    if sorted(queue) != wanted:
+        raise ValueError("order must be a permutation of the row indices that are not skipped")
+    n = len(queue)
     if workers <= 1:
         for index in queue:
             guard(0)
@@ -310,8 +334,12 @@ def run_isolated_eval(
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
     longest_first: bool = False,
+    replay: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
+
+    ``replay`` maps a row id to the item an earlier attempt of this run persisted: a replayable row
+    keeps its stored answer and score (scorer and truth are locked) with no model call and no new spend.
 
     ``longest_first`` (``job.longest_first``) starts the longest ``doc_text`` first, so a
     many-window document does not decode alone at the end; rows keep their drawn index.
@@ -479,7 +507,7 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
-        if api_budget is not None:
+        if api_budget is not None and not entry.get("replayed"):  # a replayed row's spend seeds the budget
             api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
@@ -497,9 +525,23 @@ def run_isolated_eval(
             except Exception as exc:  # noqa: BLE001 — progress must never break a run
                 _log.warning("progress_cb raised — live progress may stall: %s", exc)
 
-    order = (sorted(range(len(rows)), key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
+    replayed: set[int] = set()
+    for index, row in enumerate(rows):
+        stored = (replay or {}).get((row or {}).get("id"))
+        if replayable(stored):
+            entry = {"id": row.get("id"), "pred": dict(stored["pred"]), "score": dict(stored.get("score") or {}),
+                     "error": stored.get("error"), "offline_fallback": False, "replayed": True,
+                     "latency_ms": stored.get("latency_ms"), **_replay_usage(stored)}
+            window = _replay_window(stored)
+            if window:
+                entry["started_at_ns"], entry["finished_at_ns"] = window
+            _record(index, entry)
+            replayed.add(index)
+    order = (sorted((i for i in range(len(rows)) if i not in replayed),
+                    key=lambda i: -len(str((rows[i] or {}).get("doc_text") or "")))
              if longest_first else None)
-    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order)
+    _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard, order=order,
+                      skip=replayed)
 
     if rows and errors == len(rows):
         last_error = next((e for e in reversed(per_row) if e and e.get("error")), None)
@@ -1298,7 +1340,10 @@ def run_pipeline_eval(
     replicas: int = 1,
     gpu_fleet: list[tuple[str, int]] | None = None,
     concurrency: int = 1,
+    replay: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    # ``replay`` maps a row id to the item an earlier attempt of this run persisted. A replayable
+    # document is scored from that stored answer with no model call and no new spend (a resume).
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
     # ``concurrency`` (the job's ``job.concurrency``) runs that many documents at once.
@@ -1446,10 +1491,14 @@ def run_pipeline_eval(
     scored_by_index: dict[int, dict[str, Any] | None] = {}
 
     def _record(index: int, result: dict[str, Any], doc_usage: dict[str, Any], latency_ms: float,
-                window: tuple[int, int] | None = None) -> None:
-        """Account, score and report one finished document (main thread only)."""
+                window: tuple[int, int] | None = None, replayed: bool = False) -> None:
+        """Account, score and report one finished document (main thread only).
+
+        A ``replayed`` document was billed by an earlier attempt, whose spend already seeds the
+        budget: it is not added again (that would also lower the mean finished-document cost).
+        """
         row = rows[index]
-        if api_budget is not None:
+        if api_budget is not None and not replayed:
             api_budget.add_usage(doc_usage)
         if result.get("stage") == "failed" and not result.get("error"):
             # A run the pipeline aborted is a failed document, not a finished one.
@@ -1461,13 +1510,20 @@ def run_pipeline_eval(
             score = pipeline_item_score(row, result, scored)
             timing = {"started_at_ns": window[0], "finished_at_ns": window[1]} if window else {}
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": latency_ms, **timing, **doc_usage})
+                    "latency_ms": latency_ms, **timing, **doc_usage, **({"replayed": True} if replayed else {})})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in by_index.values())
             progress_cb(len(by_index), len(rows), len(by_index) - errors, errors)
 
+    for index, row in enumerate(rows):
+        stored = (replay or {}).get(row.get("id"))
+        if replayable(stored):
+            _record(index, dict(stored["pred"]), _replay_usage(stored), float(stored.get("latency_ms") or 0.0),
+                    _replay_window(stored), replayed=True)
+    pending = [index for index in range(len(rows)) if index not in by_index]
     if workers == 1:
-        for index, row in enumerate(rows):
+        for index in pending:
+            row = rows[index]
             _check_caps()
             try:
                 outcome = _process(row)
@@ -1481,7 +1537,7 @@ def run_pipeline_eval(
         # are recorded (they were billed), then the first error is raised.
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-        queue = iter(range(len(rows)))
+        queue = iter(pending)
         first_error: BaseException | None = None
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pipeline-doc") as pool:
             futures: dict[Any, int] = {}
