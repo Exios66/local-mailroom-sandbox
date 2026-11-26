@@ -588,7 +588,7 @@ class RunStore:
         """
         import hashlib
 
-        name = hashlib.sha1(str(doc).encode("utf-8")).hexdigest()[:16] + ".txt"
+        name = hashlib.sha1(str(doc).encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt"
         path = self.doc_texts_dir / name
         if path.exists():
             return

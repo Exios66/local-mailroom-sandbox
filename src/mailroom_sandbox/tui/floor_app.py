@@ -180,7 +180,7 @@ def _working_text(run_dir: Path, doc: str) -> str | None:
     The file name is recomputed (``sha1(doc)[:16].txt``), never taken from the request or
     from an index line, so no user-supplied string reaches a path. A symlink is not followed.
     """
-    path = run_dir / "doc_texts" / (hashlib.sha1(doc.encode("utf-8")).hexdigest()[:16] + ".txt")
+    path = run_dir / "doc_texts" / (hashlib.sha1(doc.encode("utf-8"), usedforsecurity=False).hexdigest()[:16] + ".txt")
     if path.is_symlink() or not path.is_file():
         return None
     try:  # bytes, not read_text: universal newlines would turn CRLF and lone CR into LF and shift every offset
