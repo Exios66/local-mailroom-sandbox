@@ -449,8 +449,8 @@ def record(agent: str, request: str, *, node: str | None = None) -> None:
 # Recorded text is the document-bearing portion only (see ``_request_text``); the
 # measured request sizes are over that portion, not the full request sent.
 #
-# The observer sits on each target class's ``_call_structured`` and records the
-# request text before delegating with the exact same arguments. It is always the
+# The observer sits on each target class's ``_call_structured`` and delegates with the exact same
+# arguments, recording the request text once the call guard admits it. It is always the
 # OUTERMOST layer: the sampling layer may replace the call path (the native
 # endpoint), so only an outer observer sees every request.
 #
@@ -499,6 +499,51 @@ def _request_text(self: Any, bound_args: dict[str, Any]) -> tuple[str, str]:
     return name, "\n".join(parts)
 
 
+class _PendingRead:
+    """One chat request waiting to be recorded: the agent name and the request text.
+
+    ``status`` is ``None`` until a call guard has decided: ``"recorded"`` once the guard admitted
+    the request (``admit_pending``), ``"refused"`` when it refused it (``refuse_pending``). Calls
+    that never meet a guard (non-OpenRouter routes, the native sampling endpoint) stay ``None`` and
+    are recorded when the observed call returns or raises.
+    """
+
+    __slots__ = ("agent", "text", "status", "lock")
+
+    def __init__(self, agent: str, text: str) -> None:
+        self.agent = agent
+        self.text = text
+        self.status: str | None = None
+        self.lock = threading.Lock()
+
+
+_PENDING: ContextVar[_PendingRead | None] = ContextVar("sandbox_read_pending", default=None)
+
+
+def _settle(pending: _PendingRead, outcome: str) -> None:
+    """Move ``pending`` to ``outcome`` once; the first move to ``recorded`` writes the record."""
+    with pending.lock:
+        if pending.status == "recorded" or (pending.status == "refused" and outcome != "recorded"):
+            return
+        pending.status = outcome
+    if outcome == "recorded":
+        record(pending.agent, pending.text)
+
+
+def admit_pending() -> None:
+    """A call guard let the current request go out: record it now (once per logical request)."""
+    pending = _PENDING.get()
+    if pending is not None:
+        _settle(pending, "recorded")
+
+
+def refuse_pending() -> None:
+    """A call guard refused the current request: it was never sent, so it is never recorded."""
+    pending = _PENDING.get()
+    if pending is not None:
+        _settle(pending, "refused")
+
+
 def _observe(inner: Any) -> Any:
     try:
         signature: inspect.Signature | None = inspect.signature(inner)
@@ -507,16 +552,28 @@ def _observe(inner: Any) -> Any:
 
     @functools.wraps(inner)
     def _call_structured(self, *args, **kwargs):
+        pending: _PendingRead | None = None
         if _STATE.get() is not None and signature is not None:
             try:
                 bound = signature.bind(self, *args, **kwargs)
                 name, text = _request_text(self, bound.arguments)
-                record(name, text)
+                pending = _PendingRead(name, text)
             except Exception:  # noqa: BLE001 - observing must never change a call
                 state = _STATE.get()
                 if state is not None:
                     state.count_error()
-        return inner(self, *args, **kwargs)
+        if pending is None:
+            return inner(self, *args, **kwargs)
+        # The request is recorded when the provider guard admits it (``admit_pending``), so a call the
+        # run cap or the document ceiling refused never shows as read; a call that meets no guard is
+        # recorded once it returns or raises.
+        token = _PENDING.set(pending)
+        try:
+            return inner(self, *args, **kwargs)
+        finally:
+            _PENDING.reset(token)
+            if pending.status is None:
+                _settle(pending, "recorded")
 
     # wraps() copied the inner layer's __dict__: drop markers that are not ours.
     _call_structured.__dict__.pop("__sandbox_sampling__", None)

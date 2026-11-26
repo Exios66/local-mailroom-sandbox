@@ -713,3 +713,130 @@ def test_native_endpoint_calls_are_seen(monkeypatch):
         out = Agent()._call_structured(_DOC[:300], {})
     assert out == {"native": True} and seen == [_DOC[:300]] and calls == []
     assert len(records) == 1 and records[0]["agent"] == "contracts_specialist"
+
+
+# --- chat reads and the call guard ------------------------------------------------
+# A request the run cap or the document ceiling refuses never goes out, so it is never "read"
+# (the Decisions path has the same rule). Guarded calls record once the guard admits them; calls
+# with no guard in their path (non-OpenRouter, the native endpoint) record when the call returns.
+import pytest  # noqa: E402
+
+from mailroom_sandbox import provider_pins  # noqa: E402
+from mailroom_sandbox.job import api_budget, call_guard  # noqa: E402
+
+
+class _GuardClient:
+    def __init__(self, base_url):
+        self.base_url = base_url
+
+
+@pytest.fixture
+def guarded_agent(monkeypatch):
+    """A fake vendored agent whose ``_call_structured`` goes through the real provider-pin wrapper."""
+    sent: list[dict] = []
+
+    def original(client, **kwargs):
+        sent.append(kwargs)
+        return types.SimpleNamespace(model=kwargs.get("model"), model_extra={"provider": "P"})
+
+    retry = types.ModuleType("llm.retry")
+    retry.retry_chat_completion = original
+    llm = types.ModuleType("llm")
+    llm.retry = retry
+    base = types.ModuleType("agents.base")
+    base.retry_chat_completion = original
+    agents = types.ModuleType("agents")
+    agents.base = base
+    lc_base = types.ModuleType("langchain_agents.base_agent")
+    lc_base.ChatOpenAI = type("ChatOpenAI", (), {})
+    lc = types.ModuleType("langchain_agents")
+    lc.base_agent = lc_base
+    for name, mod in (("llm", llm), ("llm.retry", retry), ("agents", agents), ("agents.base", base),
+                      ("langchain_agents", lc), ("langchain_agents.base_agent", lc_base)):
+        monkeypatch.setitem(sys.modules, name, mod)
+    monkeypatch.setattr(provider_pins, "_ORIGINAL", None)
+    monkeypatch.setattr(provider_pins, "_LC_ORIGINAL", None)
+    provider_pins.apply_provider_pins({})
+
+    Agent, _calls, _result = _fake_target(monkeypatch)
+
+    def _call_structured(self, user_message, json_schema, temperature=0.1, system_prompt=None,
+                         max_tokens=None, reasoning_effort=None, pages=None):
+        # What the vendored agent does: one logical call, possibly several completions inside it.
+        for _ in range(self.completions):
+            base.retry_chat_completion(self.client, model="vendor/model", messages=[])
+        return {"ok": True}
+
+    Agent.completions = 1
+    Agent.client = _GuardClient("https://openrouter.ai/api/v1")
+    Agent._call_structured = _call_structured
+    read_ranges.install_call_observer()
+    call_guard.disarm()
+    yield Agent, sent
+    call_guard.disarm()
+    provider_pins.restore()
+
+
+def _guard(cap: float, ceiling: int = 40) -> None:
+    call_guard.arm(api_budget.ApiBudget(cap, 0.10, 0.25, ["qwen/qwen3.5-9b"]), ceiling=ceiling)
+
+
+def test_a_chat_call_the_guard_refuses_records_no_read(guarded_agent):
+    Agent, sent = guarded_agent
+    _guard(cap=0.05)
+    call_guard._STATE["budget"].add_usage({"prompt_tokens": 600_000, "completion_tokens": 1})  # past the cap
+    records: list[dict] = []
+    with call_guard.document(), read_ranges.document("d1", _DOC, records.append):
+        with pytest.raises(Exception, match="call refused"):
+            Agent()._call_structured(_DOC[:300], {})
+        assert read_ranges.stats()["read_calls"] == 0
+    assert records == [] and sent == []  # nothing recorded, nothing sent
+
+
+def test_a_chat_call_the_guard_admits_records_one_read_per_logical_call(guarded_agent):
+    Agent, sent = guarded_agent
+    Agent.completions = 3  # retries inside one logical call
+    _guard(cap=1_000.0)
+    records: list[dict] = []
+    with call_guard.document(), read_ranges.document("d1", _DOC, records.append):
+        Agent()._call_structured(_DOC[:300], {})
+    assert len(sent) == 3 and len(records) == 1
+    assert records[0]["agent"] == "sorter" and records[0]["call"] == 1 and records[0]["ranges"][0][0] == 0
+
+
+def test_the_per_document_ceiling_refusal_is_not_a_read_either(guarded_agent):
+    Agent, sent = guarded_agent
+    _guard(cap=1_000.0, ceiling=1)
+    records: list[dict] = []
+    with call_guard.document(), read_ranges.document("d1", _DOC, records.append):
+        Agent()._call_structured(_DOC[:300], {})
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 1})  # the first call finished
+        with pytest.raises(Exception, match="per-document ceiling"):
+            Agent()._call_structured(_DOC[400:700], {})
+    assert len(sent) == 1 and len(records) == 1
+
+
+def test_an_unguarded_chat_call_still_records_one_read(guarded_agent):
+    Agent, sent = guarded_agent
+    Agent.client = _GuardClient("https://example.modal.run/v1")  # not OpenRouter: no guard in the path
+    _guard(cap=0.05)
+    call_guard._STATE["budget"].add_usage({"prompt_tokens": 600_000, "completion_tokens": 1})
+    records: list[dict] = []
+    with call_guard.document(), read_ranges.document("d1", _DOC, records.append):
+        Agent()._call_structured(_DOC[:300], {})
+    assert len(sent) == 1 and len(records) == 1
+
+
+def test_an_unguarded_chat_call_that_raises_is_still_recorded(guarded_agent):
+    Agent, _sent = guarded_agent
+
+    def failing(self, user_message, json_schema, **kw):
+        raise RuntimeError("endpoint down")
+
+    Agent._call_structured = failing
+    read_ranges.install_call_observer()
+    records: list[dict] = []
+    with read_ranges.document("d1", _DOC, records.append):
+        with pytest.raises(RuntimeError, match="endpoint down"):
+            Agent()._call_structured(_DOC[:300], {})
+    assert len(records) == 1  # the request went out; only a guard refusal means it did not
