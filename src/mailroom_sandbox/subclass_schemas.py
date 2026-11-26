@@ -11,8 +11,8 @@ Hub ground truth, then ``data/labels/interim`` truth labels, then
 ``data/labels/gold-overlay`` near-gold labels (``corpus.prepare_subset`` precedence) —
 and records per field:
 
-* ``type`` and ``dojo_status`` (vendored), ``in_output_schema`` (the pipeline's pydantic
-  model asks for it), ``applicable`` (the corporate subclass schema's core fields);
+* ``type`` and ``dojo_status`` (vendored), ``in_output_schema`` (the runtime request
+  schema asks for it), ``applicable`` (the corporate subclass schema's core fields);
 * ``truth``: labeled documents by source, and by runbook set when a split is given;
 * ``effective_status``: ``scored`` (truth present), ``derived`` (truth from the subtype,
   CUAD or MAUD labels), ``documented_absent``, ``label_task``, ``not_applicable`` or
@@ -255,7 +255,7 @@ class _Subclass:
             truth_n, dev_n = n, (self.by_set[name].get("dev", 0) if sets else None)
         dominant = _dominant(self.values[name]) if eff == "scored" else None
         verdict = _verdict(eff, dominant, dev_n, has_truth=bool(truth_n))
-        if n and not in_output and name not in entities and eff == "scored":
+        if n and not in_output and eff == "scored":
             self._problem("truth_not_in_output_schema", name, None, [n], "any")
         entry: dict[str, Any] = {
             "type": fs.field_type if fs else None,
@@ -290,7 +290,8 @@ class _Subclass:
         if self.dojo.salient:
             sub_entry["salient"] = list(self.dojo.salient)
         if self.corp:
-            sub_entry.update(record_type=self.corp.record_type, intent=self.corp.intent, notes=self.corp.notes)
+            sub_entry.update(record_type=self.corp.record_type, intent=self.corp.intent, notes=self.corp.notes,
+                             output_schema_fields=self.output_fields)
         return sub_entry
 
 
@@ -323,13 +324,20 @@ def build_registry(rows: list[Mapping[str, Any]], *, revision: str, split_dir: P
         subs: dict[str, Any] = {}
         class_values: dict[str, list[Any]] = defaultdict(list)
         for sub in subtypes:
+            subclass_output = output_fields
+            if cls == "corporate_record":
+                from mailroom_sandbox.corporate_extraction import request_schema
+
+                subclass_output = [f for f in request_schema(sub, {})["properties"] if f not in _SKIP_OUTPUT]
             cell = _Subclass(cls, sub, by_sub.get((cls, sub), []), extraction_schema(cls, sub),
                              crs.subclass_schema(sub) if cls == "corporate_record" else None,
-                             output_fields, sets, vocab, problems)
+                             subclass_output, sets, vocab, problems)
             cell.tally(gl, il)
             subs[sub] = cell.entry(guide.get(cls, {}), crs)
             for name in cell.names:
                 class_values[name].extend(cell.values[name])
+        if cls == "corporate_record":
+            output_fields = list(dict.fromkeys(f for entry in subs.values() for f in entry["output_schema_fields"]))
         classes[cls] = {"output_schema_fields": output_fields, "subclasses": subs,
                         "fields": _class_rollup(cls, subs, sets, by_sub, class_values)}
     problems.sort(key=lambda p: (p["kind"], p["class"], p["subclass"], p["field"], str(p["doc_id"])))

@@ -278,6 +278,13 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 
 ## Specialist extraction guidance
 
+- Corporate runtime requests compose each registered subclass's core and entity fields from
+  the selected Dojo registry through `mailroom_sandbox.corporate_extraction` (HF-013–HF-015).
+  Connected runs use the observed sorter handoff, never expected ground truth. Unknown explicit
+  subclasses are refused; missing routing retains the explicit core-only fallback. Keep label
+  collection aligned with applicable subclass targets and verify the actual request fields with
+  `sandbox schemas build --check`; a flat core-field coverage count omits these entity targets.
+
 - `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
   `subsidiary_list` maps to `record_type: other`; extract the parent into
   `entity_name`, describe the subsidiary listing in `subject_matter`, and use

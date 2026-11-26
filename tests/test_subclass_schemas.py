@@ -87,6 +87,35 @@ def test_class_rollup_pools_subclasses():
     assert roll["labeled"] == 30 and roll["subclasses_with_truth"] == 2 and roll["verdict"] == "iterate"
 
 
+def test_corporate_output_fields_follow_each_runtime_subclass():
+    from mailroom_sandbox.corporate_extraction import registry, request_schema
+
+    corp = _build([])["classes"]["corporate_record"]
+    for sub in registry.SUBCLASS_SCHEMAS:
+        fields = corp["subclasses"][sub]["output_schema_fields"]
+        assert set(fields) == set(request_schema(sub, {})["properties"])
+        for entity in registry.SUBCLASS_SCHEMAS[sub].entities:
+            assert corp["subclasses"][sub]["fields"][entity.key]["in_output_schema"]
+    assert "subsidiaries" in corp["subclasses"]["subsidiary_list"]["output_schema_fields"]
+    assert "subsidiaries" not in corp["subclasses"]["indenture"]["output_schema_fields"]
+
+
+def test_labeled_corporate_entity_missing_from_runtime_is_a_problem(monkeypatch):
+    from mailroom_sandbox import corporate_extraction
+
+    original = corporate_extraction.request_schema
+
+    def missing_entity(sub, transport):
+        schema = original(sub, transport)
+        schema["properties"].pop("subsidiaries", None)
+        return schema
+
+    monkeypatch.setattr(corporate_extraction, "request_schema", missing_entity)
+    reg = _build([_row(1, "corporate_record", "subsidiary_list", subsidiaries=["Acme LLC"])])
+    assert any(p["kind"] == "truth_not_in_output_schema" and p["field"] == "subsidiaries"
+               for p in reg["problems"])
+
+
 def test_parse_guide_reads_the_field_tables(tmp_path):
     guide = tmp_path / "g.md"
     guide.write_text("## Correspondence fields\n\n| Field | Type | Convention |\n| --- | --- | --- |\n"

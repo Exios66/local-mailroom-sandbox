@@ -45,6 +45,24 @@ pipeline/scoring check, and run execution still verifies the locked identities.
 | HF-010 | `agents.intake.sliding_windows` | When an API-routed sorter or intake would need more than one window for a document, the read fails with `WholeDocumentTooLong` instead. The sorter failure takes the graph's review path; intake fails soft and the deterministic clerk output stays. Calls from Modal, vLLM or other self-hosted routes, and calls from no agent, keep the vendored windows. | [Exios66/llm-mailroom#319](https://github.com/Exios66/llm-mailroom/issues/319) |
 | HF-011 | `graph.routing.after_judge` (also bound to `after_arbiter`) | With `confidence.judge_exhausted_to_arbiter: true` (the overlay default), two `graph.route_spec` rules: a `partial` verdict on the last judge pass goes to the arbiter for a final ruling instead of straight to a person, unless `after_arbiter` would park it anyway (extraction still unsure, or an unadjudicated conflict), so no call is spent on a foregone park; and the arbiter cannot order a re-extraction once the judge passes are spent, because that retry could not be judged. `accept_with_caveats` archives through the vendored checks; anything else parks with the `judge_partial` cause. `incomplete`, judge errors and transient errors keep the vendored routes. The router itself is unchanged: `route_spec` binds routers at import, so its rule registry is the hook. Without the key both rules are inert. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
 | HF-012 | `graph.routing._transient_decision` | `confidence.transient_retry_max`, when set, is the number of times a node re-runs after a transient provider error (overlay: 1). `retry_chat_completion` already retries inside each call (5 attempts plus the SDK's own), so the vendored two node-level re-runs repeated whole extractions and judge passes. Unset keeps the vendored budget; counters and the `transient_exhausted` cause are unchanged. | [Exios66/llm-mailroom#320](https://github.com/Exios66/llm-mailroom/issues/320) |
+| HF-013 | `agents.corporate_records_specialist.CorporateRecordsSpecialist.extract` | Compose a dedicated corporate request from the observed sorter subclass and pinned Dojo schema, retaining transport confidence and validating the response. No observed subclass uses the explicit core-only schema; unknown explicit subclasses are refused. | [Exios66/llm-mailroom#322](https://github.com/Exios66/llm-mailroom/issues/322) |
+| HF-014 | `langchain_agents.specialist_agents.CorporateRecordsSpecialist.extract` | Use the same subclass contract on the LangChain single-window path, preserving entity output and usage metadata without shared per-document schema mutation. | [Exios66/llm-mailroom#322](https://github.com/Exios66/llm-mailroom/issues/322) |
+| HF-015 | `langchain_agents.specialist_agents.CorporateRecordsSpecialist.extract_chunked` | Use the subclass contract in every chunk and preserve the existing merge and confidence behavior. | [Exios66/llm-mailroom#322](https://github.com/Exios66/llm-mailroom/issues/322) |
+
+### Corporate subclass composition
+
+`corporate_extraction.request_schema` composes the eleven registered corporate shapes from
+the selected Dojo source. Subclass entity fields, required keys, empty-only inapplicable core
+fields and closed record types come from that registry. Confidence remains transport metadata.
+The source schema and helper identities join the hotfix run-lock identity; source drift is
+refused before a run. Existing experiment locks are not rewritten.
+
+The connected graph selects from its observed sorter handoff, including reviewed routing
+corrections. It never selects from evaluation ground truth. Isolated evaluation retains its
+existing explicit subclass-source modes; its default does not inject the expected subclass.
+When routing supplies no subclass, the core-only fallback remains visible rather than guessing
+from filenames or document metadata. The subclass schema report uses these actual request
+fields and reports labeled entities absent from runtime as mismatches.
 
 ### Confidence decisions
 

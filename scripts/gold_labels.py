@@ -162,9 +162,14 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
             if row.get("content_sha256") and row["content_sha256"] != measured:
                 raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
                                  "refusing to label a document whose text is not the published one")
+            if row["expected"] == "corporate_record":
+                try:
+                    gl._corporate_subclass(row.get("expected_subclass"))
+                except KeyError as exc:
+                    raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
                    "subclass": row.get("expected_subclass"), "content_sha256": measured}
-            out.append((doc, sub, gl.validate_submission(sub, text, row["expected"]), text))
+            out.append((doc, sub, gl.validate_submission(sub, text, row["expected"], doc["subclass"]), text))
     return out
 
 
@@ -201,6 +206,7 @@ def _schema_binding(revision: str) -> dict[str, Any]:
     from schemas import documents
 
     import llm_dojo_scoring
+    from llm_dojo_scoring.schemas.corporate_record_schema import SUBCLASS_SCHEMAS, corporate_record_json_schema
 
     def _vendor_commit(name: str) -> str | None:
         text = (gl.repo_root() / "vendor" / name / "VENDOR.md").read_text(encoding="utf-8")
@@ -210,6 +216,7 @@ def _schema_binding(revision: str) -> dict[str, Any]:
         return None
 
     schema_json = {k: v.model_json_schema() for k, v in documents.EXTRACTION_SCHEMAS.items()}
+    corporate_json = {s: corporate_record_json_schema(s) for s in SUBCLASS_SCHEMAS}
     return {
         "dataset": "Lucius-Morningstar/mailroom-dataset",
         "dataset_revision": revision,
@@ -218,6 +225,8 @@ def _schema_binding(revision: str) -> dict[str, Any]:
         "dojo_version": getattr(llm_dojo_scoring, "__version__", None),
         "extraction_schemas_sha256": hashlib.sha256(
             json.dumps(schema_json, sort_keys=True).encode("utf-8")).hexdigest(),
+        "corporate_subclass_schemas_sha256": hashlib.sha256(
+            json.dumps(corporate_json, sort_keys=True).encode("utf-8")).hexdigest(),
     }
 
 
@@ -364,7 +373,7 @@ def _resolve_decision(rec: dict, decision: dict, chk: Any, doc: dict, text: str,
     if decision["verdict"] in ("correct", "accept_check"):
         fixed = gl.validate_submission(
             {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
-            doc["doc_class"])
+            doc["doc_class"], doc.get("subclass"))
         fr = fixed.fields[rec["field"]]
         if not fr.ok:
             raise _BuildError(f"review correction for {rec['doc_id']}.{rec['field']} fails the gate: "
@@ -816,13 +825,28 @@ def cmd_review(args: argparse.Namespace) -> int:
     manifest = json.loads((gold / "MANIFEST.json").read_text(encoding="utf-8"))
     data = {Path(name).stem: gl.read_jsonl(gold / name) for name in sorted(manifest["files"])}
     index = {(r["doc_id"], r["field"]): (cls, i) for cls, recs in data.items() for i, r in enumerate(recs)}
-    _, texts = _load_corpus(Path(args.corpus))
+    rows, texts = _load_corpus(Path(args.corpus))
+    by_doc = _rows_by_doc(rows)
     for key, decision in sorted(reviews.items()):
         if key not in index:
             problems.append(f"{key[0]}.{key[1]}: no catalog record")
             continue
         cls, i = index[key]
         rec = data[cls][i]
+        row = by_doc.get(rec["doc_id"])
+        if not row or row.get("expected") != cls or row.get("filename") != rec.get("filename"):
+            problems.append(f"{key[0]}.{key[1]}: corpus identity differs from the label's")
+            continue
+        subclass = row.get("expected_subclass")
+        if cls == "corporate_record":
+            try:
+                gl._corporate_subclass(subclass)
+            except KeyError as exc:
+                problems.append(f"{key[0]}.{key[1]}: {exc}")
+                continue
+            if rec.get("subclass") != subclass:
+                problems.append(f"{key[0]}.{key[1]}: corpus subclass differs from the label's")
+                continue
         earlier = rec.get("review")
         why = _supersedes_problem(rec, decision)
         if why:
@@ -835,7 +859,8 @@ def cmd_review(args: argparse.Namespace) -> int:
         try:
             # relabel=True: the catalog does not mark a field an --override pass relabelled, so an
             # in-place accept always names the value it reviewed (the build replays it either way).
-            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text,
+            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls,
+                                                               "subclass": subclass}, text,
                                          relabel=True)
         except _BuildError as exc:
             problems.append(str(exc))

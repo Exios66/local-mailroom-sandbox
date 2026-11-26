@@ -6,9 +6,10 @@ label.
 
 ## Ground rules
 
-1. **The pipeline's schema comes first.** Each field means exactly what the pipeline's extraction
-   schema and specialist prompt say it means (the definitions below are copied from them).
-   A label that would not validate against `schemas.documents.EXTRACTION_SCHEMAS` is useless.
+1. **The document's extraction schema comes first.** Each field means exactly what the
+   applicable extraction schema and specialist prompt say it means. Corporate records use
+   their registered subclass core and entity fields, not the flat core model alone. A label
+   must validate against that schema and have a defined scoring role.
 2. **Only label from the text.** Never use the filename, general knowledge or a guess. If the
    document does not state it, the label is the empty value plus an `absent` reason.
 3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
@@ -41,7 +42,9 @@ Write one JSON object per document, one per line (JSONL):
   exception is a field you could not decide after reading the whole document: leave it out and
   say why in `supplementary.notes`.
 - `value`: the label. Dates are `YYYY-MM-DD`. Money is a number unless the field is a currency
-  phrase (contract `contract_value`). Lists are JSON arrays of strings.
+  phrase (contract `contract_value`, corporate `principal_amount` and `exercise_price`).
+  Currency phrases use the plain dollar representation described below when supported by
+  the source; never convert another currency. Lists are JSON arrays of strings.
 - `evidence`: a list of verbatim quotes, each at most 400 characters (1,500 for list fields). Required for every
   non-empty value, except a closed label at its default (correspondence `urgency: routine`),
   which needs a `basis` sentence instead. A closed label that is **not** its default (`urgency`
@@ -222,6 +225,40 @@ message's sender or date in `supplementary.alternatives`.
 ## Corporate record fields
 
 Source: the pipeline's corporate records specialist prompt and the Dojo corporate schema.
+
+The authoritative subclass definitions are `SUBCLASS_SCHEMAS` and
+`corporate_record_json_schema` in the pinned Dojo's `schemas/corporate_record_schema.py`.
+The batch includes each assigned entity field's exact description, type and where to look.
+Use only its assigned, still-missing fields. Existing near-gold values are protected.
+Never replace a subclass fact with a generic summary, a guessed entity or an empty filler.
+If evidence is ambiguous or the representation cannot express it, omit the field and retain
+the passage and issue in `supplementary`.
+
+| Subclass | Dedicated entity fields | Evidence scope |
+| --- | --- | --- |
+| `bylaws` | `certifying_officer`, `last_amended_date` | The certifying officer and latest stated amendment/restatement date. |
+| `articles_of_incorporation` | `incorporators`, `registered_agent`, `authorized_capital` | Formation signers, service agent and capital article, exactly as written. |
+| `certificate_of_formation` | `organizers`, `registered_agent` | Formation signers and service agent; omit `authorized_capital` entirely. |
+| `charter_amendment` | `amended_provisions`, `approval_date`, `prior_entity_name` | Each amended provision and actual approval/name-change recitals. |
+| `powers_of_attorney` | `principal`, `attorneys_in_fact`, `authority_scope`, `expiration_date` | Grantor, appointed persons, grant clause and stated expiration. |
+| `subsidiary_list` | `subsidiaries`, `subsidiary_jurisdictions` | Every listed legal name and distinct jurisdictions as printed; do not substitute one subsidiary's jurisdiction for the parent. |
+| `rights_instrument` | `instrument_kind`, `holder`, `rights_agent`, `securities_covered`, `exercise_price` | Instrument title, actual named parties, operative grant and stated price. |
+| `indenture` | `trustee`, `guarantors`, `securities_series`, `principal_amount`, `maturity_date` | Actual trustee/guarantors and operative securities terms; distinguish specimen forms. |
+| `board_resolution` | `acting_body`, `action_approved`, `resolutions` | Acting body and each actual resolution, preserving conditions and negation. |
+| `officer_certificate` | `certifying_officer`, `officer_title`, `certified_matter`, `addressee` | Signing officer, title, certified facts and actual relying party. |
+| `other` | Applicable core only | No invented extension fields. |
+
+The shared core fields below apply only where the registered subclass permits them.
+In particular, `subsidiary_list` excludes core `signatories`, `jurisdiction` and
+`filing_number`; `indenture` excludes `filing_number`. Do not spend label/check work
+documenting absence on these inapplicable fields. For an indenture, a permitted core
+`jurisdiction` follows the registry's governing-law guidance.
+
+Every populated scalar and every list member needs a short verbatim source quote. Lists
+must cover the relevant document content, rather than an arbitrary first row. Keep source
+spelling and qualifications; do not compute dates, amounts or inferred relationships.
+An absent applicable field requires a documented source read, and is reported separately
+from populated field-level scoring coverage.
 
 | Field | Type | Definition |
 |---|---|---|

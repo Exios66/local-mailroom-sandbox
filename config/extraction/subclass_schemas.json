@@ -9044,7 +9044,7 @@
     "acting_body": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9059,7 +9059,7 @@
     "action_approved": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9074,7 +9074,7 @@
     "addressee": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9089,7 +9089,7 @@
     "amended_provisions": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9104,7 +9104,7 @@
     "approval_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9119,7 +9119,7 @@
     "attorneys_in_fact": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9134,7 +9134,7 @@
     "authority_scope": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9149,7 +9149,7 @@
     "authorized_capital": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9164,7 +9164,7 @@
     "certified_matter": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9179,7 +9179,7 @@
     "certifying_officer": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9243,7 +9243,7 @@
     "exercise_price": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9258,7 +9258,7 @@
     "expiration_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9297,7 +9297,7 @@
     "guarantors": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9312,7 +9312,7 @@
     "holder": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9327,7 +9327,7 @@
     "incorporators": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9342,7 +9342,7 @@
     "instrument_kind": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9429,7 +9429,7 @@
     "last_amended_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9444,7 +9444,7 @@
     "maturity_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9459,7 +9459,7 @@
     "officer_title": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9474,7 +9474,7 @@
     "organizers": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9489,7 +9489,7 @@
     "principal": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9504,7 +9504,7 @@
     "principal_amount": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9519,7 +9519,7 @@
     "prior_entity_name": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9556,7 +9556,7 @@
     "registered_agent": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9571,7 +9571,7 @@
     "resolutions": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9586,7 +9586,7 @@
     "rights_agent": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9601,7 +9601,7 @@
     "securities_covered": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9616,7 +9616,7 @@
     "securities_series": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9678,7 +9678,7 @@
     "subsidiaries": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9693,7 +9693,7 @@
     "subsidiary_jurisdictions": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9708,7 +9708,7 @@
     "trustee": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -9730,7 +9730,38 @@
     "filing_number",
     "intent",
     "subject_matter",
-    "keywords"
+    "keywords",
+    "certifying_officer",
+    "last_amended_date",
+    "incorporators",
+    "registered_agent",
+    "authorized_capital",
+    "organizers",
+    "amended_provisions",
+    "approval_date",
+    "prior_entity_name",
+    "principal",
+    "attorneys_in_fact",
+    "authority_scope",
+    "expiration_date",
+    "subsidiaries",
+    "subsidiary_jurisdictions",
+    "instrument_kind",
+    "holder",
+    "rights_agent",
+    "securities_covered",
+    "exercise_price",
+    "trustee",
+    "guarantors",
+    "securities_series",
+    "principal_amount",
+    "maturity_date",
+    "acting_body",
+    "action_approved",
+    "resolutions",
+    "officer_title",
+    "certified_matter",
+    "addressee"
    ],
    "subclasses": {
     "articles_of_incorporation": {
@@ -9743,7 +9774,7 @@
         "required": false,
         "where": "Capital stock article"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -9835,7 +9866,7 @@
         "required": false,
         "where": "Signature block / 'Incorporator' line"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -9948,7 +9979,7 @@
         "required": true,
         "where": "'Registered Agent' / 'Resident Agent' article"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10009,6 +10040,20 @@
      },
      "intent": "entity_formation",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "incorporators",
+      "registered_agent",
+      "authorized_capital"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 54,
      "rows_by_set": {
@@ -10038,7 +10083,7 @@
         "required": true,
         "where": "Heading / first recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10058,7 +10103,7 @@
         "required": true,
         "where": "'RESOLVED' clauses"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10238,7 +10283,7 @@
         "required": false,
         "where": "'RESOLVED' clauses"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10302,6 +10347,20 @@
      },
      "intent": "corporate_action_approval",
      "notes": "signatories are the directors/stockholders who signed or the secretary who certifies.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "acting_body",
+      "action_approved",
+      "resolutions"
+     ],
      "record_type": "other",
      "rows": 32,
      "rows_by_set": {
@@ -10332,7 +10391,7 @@
         "required": false,
         "where": "Secretary's certificate or closing attestation"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10491,7 +10550,7 @@
         "required": false,
         "where": "Title block, 'Amended and Restated as of', or adoption legend"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10574,6 +10633,19 @@
      },
      "intent": "governance_rules",
      "notes": "No filing_number: bylaws are not filed with a state office.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "certifying_officer",
+      "last_amended_date"
+     ],
      "record_type": "bylaws",
      "rows": 36,
      "rows_by_set": {
@@ -10697,7 +10769,7 @@
         "required": false,
         "where": "Signature block / 'Organizer' line"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10732,7 +10804,7 @@
         "required": true,
         "where": "'Registered Agent' article"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10778,6 +10850,19 @@
      },
      "intent": "entity_formation",
      "notes": "Hub inventory has no rows for this subclass; kept as an alias of articles_of_incorporation. An LLC certificate has no capital-article share schedule, so the prompt forbids emitting authorized_capital even as null.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "organizers",
+      "registered_agent"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 0,
      "rows_by_set": {
@@ -10805,7 +10890,7 @@
         "required": true,
         "where": "'Article X is hereby amended to read'"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10825,7 +10910,7 @@
         "required": false,
         "where": "Adoption recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -10987,7 +11072,7 @@
         "required": false,
         "where": "Name-change article"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11070,6 +11155,20 @@
      },
      "intent": "entity_formation",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "amended_provisions",
+      "approval_date",
+      "prior_entity_name"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 80,
      "rows_by_set": {
@@ -11167,7 +11266,7 @@
         "required": false,
         "where": "Guarantor signature pages"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11258,7 +11357,7 @@
         "required": false,
         "where": "Terms of the securities"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11278,7 +11377,7 @@
         "required": false,
         "where": "Terms of the securities"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11320,7 +11419,7 @@
         "required": true,
         "where": "Title and Section 2.01"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11386,7 +11485,7 @@
         "required": true,
         "where": "Preamble, 'as Trustee'"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11401,6 +11500,22 @@
      },
      "intent": "investor_rights",
      "notes": "entity_name is the issuer. jurisdiction is the governing-law state.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "trustee",
+      "guarantors",
+      "securities_series",
+      "principal_amount",
+      "maturity_date"
+     ],
      "record_type": "other",
      "rows": 57,
      "rows_by_set": {
@@ -11433,7 +11548,7 @@
         "required": false,
         "where": "'delivered pursuant to' recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11453,7 +11568,7 @@
         "required": true,
         "where": "Certification recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11473,7 +11588,7 @@
         "required": true,
         "where": "Signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11631,7 +11746,7 @@
         "required": true,
         "where": "Signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11714,6 +11829,21 @@
      },
      "intent": "governance_rules",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "certifying_officer",
+      "officer_title",
+      "certified_matter",
+      "addressee"
+     ],
      "record_type": "other",
      "rows": 61,
      "rows_by_set": {
@@ -11899,6 +12029,17 @@
      },
      "intent": "other",
      "notes": "Extract only the core fields actually present.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords"
+     ],
      "record_type": "other",
      "rows": 2,
      "rows_by_set": {
@@ -11921,7 +12062,7 @@
         "required": true,
         "where": "'hereby constitutes and appoints'"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -11941,7 +12082,7 @@
         "required": false,
         "where": "Grant clause"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12009,7 +12150,7 @@
         "required": false,
         "where": "Term clause"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12119,7 +12260,7 @@
         "required": true,
         "where": "'The undersigned' / signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12208,6 +12349,21 @@
      },
      "intent": "authority_delegation",
      "notes": "entity_name is the registrant the POA relates to; the principal may be an individual director/officer.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "principal",
+      "attorneys_in_fact",
+      "authority_scope",
+      "expiration_date"
+     ],
      "record_type": "powers_of_attorney",
      "rows": 26,
      "rows_by_set": {
@@ -12288,7 +12444,7 @@
         "required": false,
         "where": "Exercise clause"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12327,7 +12483,7 @@
         "required": false,
         "where": "Face of warrant / schedule"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12347,7 +12503,7 @@
         "required": true,
         "where": "Title and first recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12460,7 +12616,7 @@
         "required": false,
         "where": "Agent signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12480,7 +12636,7 @@
         "required": false,
         "where": "Operative grant"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12541,6 +12697,22 @@
      },
      "intent": "investor_rights",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "instrument_kind",
+      "holder",
+      "rights_agent",
+      "securities_covered",
+      "exercise_price"
+     ],
      "record_type": "rights_instrument",
      "rows": 49,
      "rows_by_set": {
@@ -12770,7 +12942,7 @@
         "required": true,
         "where": "Subsidiary table, first column"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12790,7 +12962,7 @@
         "required": false,
         "where": "Subsidiary table, jurisdiction column"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -12805,6 +12977,19 @@
      },
      "intent": "other",
      "notes": "entity_name is the parent/registrant. No signatories, filing_number or governing jurisdiction: a schedule is not executed or filed on its own.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "subsidiaries",
+      "subsidiary_jurisdictions"
+     ],
      "record_type": "other",
      "rows": 53,
      "rows_by_set": {
@@ -20762,7 +20947,7 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "15ef88764647d7532ee653f6f09118488d7ab9e4220eef89ef7c73581add4a2a",
+  "labeling_guide_sha256": "5c7778986b202c9743e1fcccedd0027e15493e9180655bbf96178b6ea6f524cc",
   "min_dev": 20,
   "near_gold_overlay_sha256": "2be87d9b386e5fcf665388e8f94efed46ba0628891894389d142a27ff26306cb",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
@@ -20946,7 +21131,39 @@
    "merger_consideration",
    "maud_clauses"
   ],
-  "corporate_record": [],
+  "corporate_record": [
+   "certifying_officer",
+   "last_amended_date",
+   "incorporators",
+   "registered_agent",
+   "authorized_capital",
+   "organizers",
+   "amended_provisions",
+   "approval_date",
+   "prior_entity_name",
+   "principal",
+   "attorneys_in_fact",
+   "authority_scope",
+   "expiration_date",
+   "subsidiaries",
+   "subsidiary_jurisdictions",
+   "instrument_kind",
+   "holder",
+   "rights_agent",
+   "securities_covered",
+   "exercise_price",
+   "trustee",
+   "guarantors",
+   "securities_series",
+   "principal_amount",
+   "maturity_date",
+   "acting_body",
+   "action_approved",
+   "resolutions",
+   "officer_title",
+   "certified_matter",
+   "addressee"
+  ],
   "correspondence": [],
   "insurance_claim": [
    "claim_checklist"

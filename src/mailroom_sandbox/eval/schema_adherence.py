@@ -303,7 +303,18 @@ def _pydantic_valid(
     if model is None:
         return None
     try:
-        model.model_validate(dict(payload))
+        model_payload = dict(payload)
+        # Dojo permits null for inapplicable corporate list fields; the legacy
+        # core Pydantic model requires lists. Both representations mean empty.
+        if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
+            from llm_dojo_scoring.schemas.corporate_record_schema import corporate_record_json_schema
+
+            properties = corporate_record_json_schema(doc_subclass)["properties"]
+            for key in ("signatories", "keywords"):
+                allowed = properties[key].get("type", [])
+                if key in model_payload and model_payload[key] is None and "null" in allowed:
+                    model_payload[key] = []
+        model.model_validate(model_payload)
         return True
     except Exception:
         return False
@@ -341,7 +352,7 @@ def assess_extraction_payload(
             # known schema (or unknown doc type → any dict that parsed).
             schema_valid = bool(payload) and (not keys or not extra or set(public) & keys)
         else:
-            schema_valid = bool(typed)
+            schema_valid = bool(typed) and (str(doc_type or "").strip() != "corporate_record" or not extra)
     elif payload is not None and parse_error:
         # Flagged parse_error: never schema_valid, even if a dict remains.
         schema_valid = False
