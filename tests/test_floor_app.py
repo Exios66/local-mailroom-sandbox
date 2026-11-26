@@ -1269,10 +1269,10 @@ class _DocServer:
         self.httpd.server_close()
         self.thread.join(timeout=3)
 
-    def get(self, target, method="GET"):
+    def get(self, target, method="GET", headers=None):
         conn = HTTPConnection(*self.httpd.server_address, timeout=5)
         try:
-            conn.request(method, target)
+            conn.request(method, target, headers=headers or {})
             response = conn.getresponse()
             return response.status, response.getheader("Content-Type"), response.read()
         finally:
@@ -1357,6 +1357,36 @@ def test_doc_endpoint_404s_without_a_runs_root(tmp_path):
     """No runs_root (no resident store) means the endpoint is not there."""
     with _DocServer(tmp_path, None) as srv:
         assert srv.get("/api/floor/doc?run=run-1&doc=d1")[0] == 404
+
+
+def test_doc_endpoint_refuses_a_foreign_host_header(tmp_path):
+    """DNS rebinding: a page on another hostname that resolves to 127.0.0.1 gets 403 and no text."""
+    base, _ = _doc_store(tmp_path)
+    with _DocServer(tmp_path, base) as srv:
+        port = srv.httpd.server_address[1]
+        target = "/api/floor/doc?run=run-1&doc=d1"
+        for host in ("attacker.example", f"attacker.example:{port}", f"127.0.0.1.attacker.example:{port}",
+                     f"localhost:{port + 1}", f"127.0.0.1:{port + 1}", "", f"[::1]:{port + 1}"):
+            status, ctype, body = srv.get(target, headers={"Host": host})
+            assert status == 403, host
+            assert ctype.startswith("application/json")
+            assert json.loads(body) == {"error": "forbidden host"}
+            assert _DOC_ORIGINAL[:30].encode() not in body
+        # the static viewer and a HEAD request sit behind the same check
+        assert srv.get("/floor_digest.json", headers={"Host": "attacker.example"})[0] == 403
+        assert srv.get(target, method="HEAD", headers={"Host": "attacker.example"})[0] == 403
+
+
+def test_doc_endpoint_accepts_loopback_host_names(tmp_path):
+    """127.0.0.1, localhost and [::1] work, with this server's port or without one."""
+    base, _ = _doc_store(tmp_path)
+    with _DocServer(tmp_path, base) as srv:
+        port = srv.httpd.server_address[1]
+        for host in (f"127.0.0.1:{port}", f"localhost:{port}", f"LocalHost:{port}", f"[::1]:{port}",
+                     "127.0.0.1", "localhost", "[::1]"):
+            status, _, body = srv.get("/api/floor/doc?run=run-1&doc=d1", headers={"Host": host})
+            assert status == 200, host
+            assert json.loads(body)["working"] == _DOC_ORIGINAL
 
 
 def test_server_still_binds_loopback(tmp_path):

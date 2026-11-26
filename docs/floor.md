@@ -214,7 +214,10 @@ worker is next deployed (unverified, a paid live step). See
 
 **Privacy.** The digest, its JS twin and the export never contain document
 text. The text stays in the run store and is shown only by the local server,
-for the document you selected. Do not share a screenshot of a real document;
+for the document you selected. The server answers only requests whose Host header is
+`127.0.0.1`, `localhost` or `[::1]` on its own port (otherwise 403), so a web page on
+another hostname cannot read it through DNS rebinding; reaching it through an SSH tunnel on a
+different local port needs the same port on both ends. Do not share a screenshot of a real document;
 the committed fixtures and tests use synthetic text only. Every control is a
 native button, so Tab, Enter and Space work, and all document text is inserted
 as escaped HTML.

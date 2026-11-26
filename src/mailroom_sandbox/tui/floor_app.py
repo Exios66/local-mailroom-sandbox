@@ -33,6 +33,7 @@ from mailroom_sandbox.tui.floor_replay import prepare_recorded_replay
 from mailroom_sandbox.ports import DEFAULT_VIEWER_PORT as DEFAULT_PORT
 
 DEFAULT_HOST = "127.0.0.1"  # loopback only, like web/board
+_ALLOWED_HOST_NAMES = frozenset({"127.0.0.1", "localhost", "[::1]"})  # Host header names (DNS-rebinding guard)
 DEFAULT_INTERVAL_S = 5.0
 MIN_INTERVAL_S = 0.1
 # A run whose checkpoint says running is rebuilt at least this often even when no artifact
@@ -261,8 +262,48 @@ class _FloorHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _host_allowed(self) -> bool:
+        """True when the Host header names this loopback server (anti DNS rebinding).
+
+        Only ``127.0.0.1``, ``localhost`` and ``[::1]``, bare or with this server's own port,
+        pass. A page served from another hostname that resolves to 127.0.0.1 sends that
+        hostname, so it cannot read the digest or a document's text.
+        """
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host.startswith("["):  # [::1] or [::1]:port
+            name, _, rest = host[1:].partition("]")
+            name, port = f"[{name}]", rest[1:] if rest.startswith(":") else rest
+        else:
+            name, _, port = host.partition(":")
+        if name not in _ALLOWED_HOST_NAMES:
+            return False
+        return port in ("", str(self.server.server_address[1]))
+
+    def _refuse_foreign_host(self, *, body: bool) -> bool:
+        """Answer 403 and return True when the Host header is not this server's loopback name."""
+        if self._host_allowed():
+            return False
+        if body:
+            self._send_json(403, {"error": "forbidden host"})
+        else:
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        return True
+
+    def do_HEAD(self) -> None:  # noqa: N802 — http.server dispatch name
+        """Static HEAD, behind the same Host check as GET."""
+        if self._refuse_foreign_host(body=False):
+            return
+        super().do_HEAD()
+
     def do_GET(self) -> None:  # noqa: N802 — http.server dispatch name
-        """Answer ``GET /api/floor/doc`` itself; every other path is a static file."""
+        """Answer ``GET /api/floor/doc`` itself; every other path is a static file.
+
+        Every request, static files and the digest included, needs a loopback Host header.
+        """
+        if self._refuse_foreign_host(body=True):
+            return
         parts = urlsplit(self.path)
         if parts.path != DOC_ENDPOINT:
             super().do_GET()
