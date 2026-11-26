@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -923,6 +924,199 @@ def reads_are_numbers_only_and_resumed_sequences_keep_the_last():
         (run / "reads.jsonl").unlink()
         row, _ = bfd.build_run("run-r", run, set())
         assert "reads" not in row["docs"][0]["debug"]
+
+
+# ── viewer: DOCUMENT panel (the template's READS block, run under Node) ─────────
+
+_RD_DOC = ("Lease between ACME   Properties and Beta Tenants.\nMonthly rent is 2,400 dollars, due on the first day.\n"
+           + "Filler sentence about nothing in particular. " * 6
+           + "\nParking fee: 75 dollars.\nGoverning   law: Ohio.\n")
+
+
+def viewer_js(body: str) -> str:
+    """Run ``body`` in Node after the template's pure READS block; "" (and a notice) without Node."""
+    node = shutil.which("node")
+    if node is None:
+        print("SKIP viewer JS: node is not installed (CircleCI's node image has it)", file=sys.stderr)
+        return ""
+    html = TEMPLATE.read_text(encoding="utf-8")
+    block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
+    esc_line = next(line for line in html.splitlines() if line.startswith("const esc="))
+    prelude = f"const DOC={json.dumps(_RD_DOC)};\n"
+    r = subprocess.run([node, "-e", prelude + esc_line + "\n" + block + "\n" + body],
+                       capture_output=True, text=True, timeout=60, check=False)
+    assert r.returncode == 0, r.stdout + r.stderr
+    return r.stdout
+
+
+_RD_SETUP = r"""
+const SP=["contracts_specialist","merger_agreement_specialist","tier2_extractor"];   // what the digest saw under a "specialists" node
+const at=s=>DOC.indexOf(s);
+const rangeOf=(a,b)=>[at(a),at(b)+b.length];
+const call=(agent,node,ranges,extra)=>Object.assign({agent,node,basis:"working",ranges,matched:0,request:0},extra||{});
+const reads=calls=>({calls,union:{},doc_chars:[...DOC].length});
+const fields={rent:"2,400",parking:"75",law:"Ohio",county:"Franklin",party:"acme properties"};
+const run=(calls,cls,over)=>rdAnalyse(Object.assign({text:DOC,expected:fields,extracted:{rent:"2400"},reads:reads(calls),
+  cls:cls||{gt:"contract",pred:"contract"},specialists:SP},over||{}));
+const flags=a=>Object.fromEntries(a.rows.map(r=>[r.field,r.flag]));
+"""
+
+
+@test
+def viewer_flags_not_read_read_and_not_in_text():
+    """A value outside every specialist range is not read, inside none, absent not in text."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const head=rangeOf("Lease between","dollars, due on the first day.");   // rent, party, not the parking line
+const f=flags(run([call("contracts_specialist","extract",[head])]));
+A.equal(f.rent,"");                       // inside a specialist range: no flag
+A.equal(f.party,"");                      // whitespace and case-insensitive occurrence, inside
+A.equal(f.parking,"not read");            // occurs, outside every range
+A.equal(f.law,"not read");
+A.equal(f.county,"not in text");          // absent from the working text
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_every_specialist_call_counts_retries_included():
+    """A retry that read the missing part clears the flag; non-specialists never do."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const first=call("contracts_specialist","extract",[rangeOf("Lease between","first day.")]);
+const retry=call("contracts_specialist","retry_extract",[rangeOf("Parking fee","Ohio.")]);
+A.equal(flags(run([first])).parking,"not read");
+A.equal(flags(run([first,retry])).parking,"");
+const judge=call("judge","judge_verify",[rangeOf("Parking fee","Ohio.")]);
+A.equal(flags(run([first,judge])).parking,"not read");          // a judge's read is not a specialist's
+const other=call("merger_agreement_specialist","extract",[rangeOf("Parking fee","Ohio.")]);
+A.equal(flags(run([first,other],{gt:"contract",pred:"contract"})).parking,"");   // pred==gt: the dispatched specialist counts
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_misrouted_replaces_not_read():
+    """No specialist for the true class ran: every field that occurs is misrouted, an absent one stays not in text."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const wrong=call("merger_agreement_specialist","extract",[rangeOf("Lease between","Ohio.")]);
+const f=flags(run([wrong],{gt:"contract",pred:"merger_agreement"}));
+A.deepEqual([f.rent,f.parking,f.law,f.party],["misrouted","misrouted","misrouted","misrouted"]);
+A.equal(f.county,"not in text");
+const none=run([call("sorter","classify",[[0,10]])],{gt:"contract",pred:"contract"});
+A.equal(flags(none).rent,"misrouted");                          // no specialist ran at all
+A.equal(flags(run([call("contracts_specialist","extract",[[0,DOC.length]])],{gt:"contract",pred:"letter"})).rent,"");  // the gt class's specialist ran: not misrouted
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_does_not_claim_not_read_without_exact_ranges():
+    """A raw-basis or size-skipped specialist call has no exact ranges: not read is withheld and said so."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const raw=call("contracts_specialist","extract",[[0,5]],{basis:"raw"});
+const a=run([raw]);
+A.equal(flags(a).parking,"");A.equal(a.unknown,1);
+const skipped=call("contracts_specialist","extract",[],{skipped:"too_large"});
+A.equal(flags(run([skipped])).parking,"");
+A.equal(flags(run([raw])).county,"not in text");                 // that flag needs no reads
+const absent=rdAnalyse({text:DOC,expected:fields,extracted:{},reads:null,cls:{gt:"contract",pred:"contract"},specialists:SP});
+A.equal(flags(absent).parking,"");A.equal(flags(absent).county,"not in text");A.equal(absent.noReads,true);
+const bad=rdAnalyse({text:DOC+"x",expected:fields,extracted:{},reads:reads([call("contracts_specialist","extract",[[0,5]])]),cls:{gt:"contract",pred:"contract"},specialists:SP});
+A.equal(flags(bad).parking,"");A.equal(bad.lengthMismatch,true);   // ranges cannot be trusted against another length
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_occurrence_search_maps_back_to_original_offsets():
+    """Whitespace runs and case collapse; astral characters keep code-point offsets aligned to UTF-16 text."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const nt=rdNormalize(DOC);
+const hit=rdFind(nt,rdNormalize("acme properties").norm,50);
+A.equal(hit.length,1);A.equal(DOC.slice(hit[0][0],hit[0][1]),"ACME   Properties");
+const law=rdFind(nt,rdNormalize("GOVERNING LAW: ohio").norm,50);
+A.equal(DOC.slice(law[0][0],law[0][1]),"Governing   law: Ohio");
+// a text with an emoji before the value: the recorded range is in code points
+const t="\u{1F600}\u{1F600} fee 75 dollars";
+const cp=[...t].indexOf("7");
+const a=rdAnalyse({text:t,expected:{fee:"75"},extracted:{},reads:{calls:[call("contracts_specialist","extract",[[cp,cp+2]])],union:{},doc_chars:[...t].length},cls:{gt:"contract",pred:"contract"},specialists:SP});
+A.equal(a.rows[0].flag,"");A.equal(a.lengthMismatch,false);
+const b=rdAnalyse({text:t,expected:{fee:"75"},extracted:{},reads:{calls:[call("contracts_specialist","extract",[[0,3]])],union:{},doc_chars:[...t].length},cls:{gt:"contract",pred:"contract"},specialists:SP});
+A.equal(b.rows[0].flag,"not read");
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_panel_without_text_says_unavailable_and_still_draws_the_band_map():
+    """File://, an imported digest or no server: say the text is unavailable, keep lanes, toggles and calls."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const r=reads([call("sorter","classify",[[0,40]]),call("contracts_specialist","extract",[[10,90]]),
+  call("contracts_specialist","retry_extract",[[100,160]]),call("sorter","classify",[[0,5]],{basis:"raw"})]);
+const html=rdPanelHtml({id:"d1",reads:r,cls:{gt:"contract",pred:"contract"},specialists:SP,status:"unavailable",
+  reason:"no floor server",data:null,on:["contracts_specialist"],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.match(html,/text unavailable/i);A.match(html,/no floor server/);
+A.equal((html.match(/class="mm-lane/g)||[]).length,2);          // one lane per agent
+A.match(html,/data-rd="agent"[^>]*data-agent="sorter"/);
+A.match(html,/data-rd="call"[^>]*data-agent="contracts_specialist"/);   // an agent with two calls gets call toggles
+A.match(html,/raw/);                                              // the raw-basis call is marked
+A.doesNotMatch(html,/class="rd-text"/);                           // no text pane without text
+const none=rdPanelHtml({id:"d1",reads:null,cls:{},specialists:SP,status:"unavailable",reason:"x",data:null,on:[],callOff:[],original:false,field:null,hit:0,cache:{}});
+A.match(none,/not recorded for this run/);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_panel_text_is_escaped_and_controls_are_native_buttons():
+    """Untrusted document text and field names never become markup; every control is a <button>."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const evil='<img src=x onerror=alert(1)> & "q"';
+const text=evil+" fee 75 dollars";
+const data={working:text,original:text,expected:{["<b>f</b>"]:"75"},extracted:{["<b>f</b>"]:evil},class:{gt:"contract",pred:"contract"},rewritten:false,overlap:1};
+const r={calls:[call("contracts_specialist","extract",[[0,10]])],union:{},doc_chars:[...text].length};
+const html=rdPanelHtml({id:"<d>",reads:r,cls:data.class,specialists:SP,status:"ok",reason:"",data,on:["contracts_specialist"],callOff:[],original:false,field:"<b>f</b>",hit:0,cache:{}});
+A.doesNotMatch(html,/<img|<b>f|<d>/);A.match(html,/&lt;img src=x/);
+const ctl=[...html.matchAll(/<(\w+)[^>]*data-rd="/g)].map(m=>m[1]);
+A.ok(ctl.length>=4);A.ok(ctl.every(t=>t==="button"),ctl.join());
+A.match(html,/id="rdText"[^>]*tabindex="0"/);                    // the scroll pane is reachable
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_large_text_is_banded_in_one_pass():
+    """200k characters and thousands of ranges paint as a bounded number of segments, quickly."""
+    out = viewer_js(r"""
+const A=require('node:assert/strict');
+const n=200000,text="word ".repeat(n/5);
+const layers=[[],[]];
+for(let i=0;i<4000;i++){layers[i%2].push([i*50,i*50+30])}
+const t0=Date.now();
+const segs=rdSegments(n,layers);
+const html=rdTextHtml(text,segs,["#eb6834","#1baf7a"]);
+const ms=Date.now()-t0;
+A.ok(segs.length<=8001,segs.length);
+A.equal(segs[0].s,0);A.equal(segs[segs.length-1].e,n);
+A.ok(segs.every((s,i)=>i===0||s.s===segs[i-1].e));
+A.ok(ms<1500,"took "+ms+" ms");
+A.ok(html.length<n*3);
+console.log("ok");
+""")
+    assert out == "" or out.strip() == "ok"
 
 
 def main() -> int:

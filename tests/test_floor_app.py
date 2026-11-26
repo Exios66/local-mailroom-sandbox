@@ -1274,13 +1274,18 @@ def test_doc_endpoint_refuses_hostile_ids(tmp_path, monkeypatch):
     with open(run / "doc_texts" / "index.jsonl", "a", encoding="utf-8") as fh:
         fh.write(json.dumps({"doc": "evil", "file": "../../../secret.txt"}) + "\n")
     read: list[Path] = []
-    real = Path.read_text
+    real, real_bytes = Path.read_text, Path.read_bytes
 
     def spy(self, *a, **k):
         read.append(Path(self))
         return real(self, *a, **k)
 
+    def spy_bytes(self, *a, **k):
+        read.append(Path(self))
+        return real_bytes(self, *a, **k)
+
     monkeypatch.setattr(Path, "read_text", spy)
+    monkeypatch.setattr(Path, "read_bytes", spy_bytes)
     with _DocServer(tmp_path, base) as srv:
         assert srv.get("/api/floor/doc?run=run-1&doc=d1")[0] == 200  # the one legitimate read, inside the run dir
         for target in ("/api/floor/doc?run=run-1&doc=../../etc/passwd",
@@ -1343,3 +1348,82 @@ def test_scan_signature_notices_a_growing_reads_file(store):
     before = floor_app.scan_signature(base)
     (run / "reads.jsonl").write_text('{"doc": "d1", "call": 1}\n', encoding="utf-8")
     assert floor_app.scan_signature(base) != before
+
+
+# ── keyboard: Enter/Space on confusion cells and on the DOCUMENT panel's controls ─────
+
+
+def _keydown_script(events: str) -> str:
+    """Node script running the template's real keydown handler against fake elements."""
+    html = _template()
+    start = html.index('document.addEventListener("keydown",e=>{')
+    end = html.index("vp.addEventListener(\"click\"", start)
+    handler = html[start:end]
+    return r"""
+const A = require("node:assert/strict");
+let handler = null;
+const document = {addEventListener(type, fn) { if (type === "keydown") handler = fn; },
+                  querySelector() { return null; }};
+const CSS = {escape: s => s};
+""" + handler + r"""
+A.ok(handler, "the template registers a keydown handler");
+""" + events
+
+
+def test_enter_and_space_activate_a_confusion_cell_but_leave_native_buttons_alone():
+    """The #411 fix (shipped by #415) is behaviour, not just a string: cells activate, buttons keep their own handling."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    import subprocess
+
+    script = _keydown_script(r"""
+for (const key of ["Enter", " "]) {
+  const cell = {click() { cell.n = (cell.n || 0) + 1; }};
+  let prevented = 0;
+  handler({key, target: {closest: sel => sel.includes("td[data-cell]") && !sel.includes("button,") ? cell : null}, preventDefault() { prevented++; }});
+  A.equal(cell.n, 1, "cell clicked for " + JSON.stringify(key));
+  A.equal(prevented, 1);
+}
+// a <button> (every control of the DOCUMENT panel) is never hijacked: the browser activates it
+let touched = 0;
+const btn = {};
+handler({key: "Enter", target: {closest: sel => sel.includes("button,input") ? btn : null}, preventDefault() { touched++; }});
+A.equal(touched, 0);
+handler({key: "a", target: {closest: () => { throw new Error("must return before looking"); }}, preventDefault() { touched++; }});
+console.log("keyboard ok");
+""")
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
+    """The panel's controls are buttons, text enters the page through esc(), and the fetch is gated."""
+    html = _template()
+    block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
+    for control in ("agent", "call", "field", "view"):
+        assert f'data-rd="{control}"' in block
+    # every element carrying data-rd is a <button> (Enter and Space then work natively)
+    import re
+
+    assert {m.group(1) for m in re.finditer(r'<(\w+)[^>]*data-rd="', block)} == {"button"}
+    assert 'tr class="click' not in block and "data-doc" not in block
+    # document text reaches HTML only through esc(); nothing sets innerHTML from the endpoint's strings directly
+    assert "esc(text.slice(" in block and "textContent" not in block
+    glue = html[html.index("function rdFetch("):html.index("function rdEnsure(")]
+    assert "/api/floor/doc" in glue and "encodeURIComponent(run().name)" in glue and "encodeURIComponent(d.id)" in glue
+    assert "!LIVE" in glue and "holdLive" in glue and "replay" in glue
+    # the endpoint's answer is reduced to known shapes before the panel sees it
+    assert "function rdCleanDoc(" in html
+
+
+def test_doc_endpoint_keeps_carriage_returns_so_read_ranges_line_up(tmp_path):
+    """Offsets count the stored characters; a CRLF text must not shrink on the way to the viewer."""
+    working = "Lease line one.\r\nRent is 2,400 dollars.\r\nLone CR here\rend."
+    base, run = _doc_store(tmp_path, working=working)
+    # write bytes: write_text would also be fine on Linux, but the file must hold the CRs verbatim
+    name = hashlib.sha1(b"d1").hexdigest()[:16] + ".txt"
+    (run / "doc_texts" / name).write_bytes(working.encode("utf-8"))
+    with _DocServer(tmp_path, base) as srv:
+        data = json.loads(srv.get("/api/floor/doc?run=run-1&doc=d1")[2])
+    assert data["working"] == working and len(data["working"]) == len(working)

@@ -183,8 +183,8 @@ def _working_text(run_dir: Path, doc: str) -> str | None:
     path = run_dir / "doc_texts" / (hashlib.sha1(doc.encode("utf-8")).hexdigest()[:16] + ".txt")
     if path.is_symlink() or not path.is_file():
         return None
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
+    try:  # bytes, not read_text: universal newlines would turn CRLF and lone CR into LF and shift every offset
+        return path.read_bytes().decode("utf-8", errors="replace")
     except OSError:
         return None
 

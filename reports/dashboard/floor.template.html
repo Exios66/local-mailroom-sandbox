@@ -101,6 +101,39 @@ table.t tr.sel td{background:#123024}
 .secnote{font-size:9.5px;color:#5d6c80;margin:0 0 8px;line-height:1.5}
 h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:normal}
 .run small.stalled{color:#e8b93f}
+.rd{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #1c2530}
+.rd-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:10.5px;margin-bottom:6px;color:#e6f0e9}
+.rd-head b{font-size:9px;letter-spacing:2px;color:#4d5c6e;font-weight:normal}
+.rd-view{display:inline-flex;gap:3px}
+.rd button{font:inherit;font-size:10px;color:#9fb0c2;background:#0d141d;border:1px solid #2e4256;border-radius:4px;padding:2px 7px;cursor:pointer}
+.rd button[aria-pressed="true"]{color:#e6f0e9;border-color:#7fd0a2;background:#0f1d15}
+.rd button:disabled{opacity:.4;cursor:not-allowed}
+.rd button:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
+.rd .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.rd-tog{display:flex;flex-wrap:wrap;gap:5px 10px;margin:4px 0 6px}
+.rd-agent{display:inline-flex;align-items:center;gap:3px}
+.rd-calls{display:inline-flex;gap:3px}
+.rd-calls button{padding:0 5px;font-size:9px}
+.rd small{font-size:8.5px}
+.mm-lane{display:flex;align-items:center;gap:8px;height:13px;margin:2px 0}
+.mm-lane.off{opacity:.38}
+.mm-name{flex:0 0 190px;font-size:9px;color:#7e8ca0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mm-track{position:relative;flex:1;height:9px;background:#0d141d;border:1px solid #1c2530;border-radius:2px;overflow:hidden}
+.mm-r{position:absolute;top:0;bottom:0;min-width:1px;box-sizing:border-box}
+.rd-main{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:10px;margin-top:8px;align-items:start}
+@media (max-width:1100px){.rd-main{grid-template-columns:minmax(0,1fr)}}
+.rd-text{position:relative;height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.8;color:#c5d0dc;background:#070b10;border:1px solid #1c2530;border-radius:4px;padding:6px 8px}
+.rd-text:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
+.rd-seg{box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.rd-hit{outline:1px solid #cdeaff}
+.rd-cur{outline:2px solid #ffffff;background-color:#ffffff30}
+.rd-fields{max-height:220px;overflow:auto}
+.rd-ft td.rd-v{white-space:normal;max-width:170px;overflow-wrap:anywhere}
+.rd-go{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd-flag{display:inline-block;font-size:9px;padding:0 6px;border-radius:8px;border:1px solid;white-space:nowrap}
+.rd-not-read{color:#fab219;border-color:#fab219}
+.rd-misrouted{color:#ee7b7b;border-color:#d03b3b}
+.rd-not-in-text{color:#b4b2a9;border-color:#898781}
 .drawer button:focus-visible,table.t tr.click:focus-visible{outline:2px solid #7fd0a2;outline-offset:-2px}
 /* narrow window (e.g. an IDE side pane): stack graph above the rails instead of squeezing it to 0px — last in the sheet so it wins over .ribbon and the rails */
 @media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px auto auto auto;height:auto}.ribbon{grid-column:1}.center{order:1}#viewport{height:70vh}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
@@ -673,7 +706,7 @@ function debugPane(){
  if(!hasDebug())return '<p class="secnote">This digest has no per-document trace. Rebuild it with the current builder (sandbox floor does this on refresh).</p>';
  const docs=DEBUG?debugDocs():runDocs().filter(isProblem);
  const label=DEBUG?(ISSUE_LABEL[ISSUE]||ISSUE):"problems";
- let h=`<p class="secnote">Failure modes group documents that failed the same way. A mode names the stage to inspect before the next run. It does not edit this run. Each hop still quotes only a stored decision, review cause, status, or an unconditional edge.${run().replay?" <span class='warn'>Replay: scripted numbers, not results.</span>":""}${DEBUG?"":" Turn DEBUG on to isolate a mode on the graph."}</p>`;
+ let h=(selDoc&&!selNode?'<div id="docPanel"></div>':"")+`<p class="secnote">Failure modes group documents that failed the same way. A mode names the stage to inspect before the next run. It does not edit this run. Each hop still quotes only a stored decision, review cause, status, or an unconditional edge.${run().replay?" <span class='warn'>Replay: scripted numbers, not results.</span>":""}${DEBUG?"":" Turn DEBUG on to isolate a mode on the graph."}</p>`;
  const groups=modeGroups(DEBUG?issueDocs():runDocs().filter(isProblem));
  h+=`<h4>FAILURE MODES · ${esc(label)} — click a row to isolate that mode</h4>`;
  if(!groups.length)h+=`<p class="secnote">No failure mode in this filter.</p>`;
@@ -707,12 +740,287 @@ function debugPane(){
    return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}"><td>${esc(d.id)}</td><td>${(g.issues||[]).map(esc).join(" ")}</td><td class="why">${esc(line)}</td></tr>`}).join("")+"</table>";
  if(listed.length>200)h+=`<p class="secnote">${listed.length-200} more: narrow the issue filter.</p>`;
  return h}
+// READS:BEGIN — pure helpers for the DOCUMENT panel: no DOM and no globals but esc(). The floor selftest runs this block under Node.
+// Offsets in digest.debug.reads are Python code points into the WORKING text; a JS string indexes UTF-16, so they are converted once.
+const RD_ORDER=["intake","sorter","reviewer","classification_arbiter","specialist","judge","arbiter","decisions","jev","other"];
+// Band colours follow the experiment-figures roles (figure_style.py): colour = system, shade = stage.
+const RD_COLORS={intake:"#b4b2a9",                                 // neutral reference
+ sorter:"#eb6834",sorter_reviewer:"#f7a98b",classification_arbiter:"#b8431c",   // LLM sorter orange (slot 2), tints and shade for its verifiers
+ judge:"#7fdcb9",completeness_judge:"#7fdcb9",arbiter:"#0f8f62",               // third-system aqua (slot 3) for the extraction verifiers
+ "decisions:closed_field_resolver":"#2a78d6","decisions:extraction_gate":"#6aa5ec","decisions:classification":"#1b4f94",   // decision model blue (slot 1)
+ jev:"#898781"};                                                    // muted neutral
+const RD_SPECIALIST="#1baf7a",RD_DECISION="#2a78d6",RD_OTHER="#898781",RD_ALPHA="55",RD_MAX_CHARS=600000,RD_OCC_CAP=500;
+function rdGroup(agent,specSet){
+ const a=String(agent);
+ if(a==="intake")return "intake";
+ if(a==="sorter")return "sorter";
+ if(a==="sorter_reviewer")return "reviewer";
+ if(a==="classification_arbiter")return "classification_arbiter";
+ if(a==="judge"||a==="completeness_judge")return "judge";
+ if(a==="arbiter")return "arbiter";
+ if(a.startsWith("decisions:"))return "decisions";
+ if(a==="jev")return "jev";
+ if(specSet.has(a)||/_specialist$/.test(a))return "specialist";
+ return "other"}
+function rdColor(agent,group){return RD_COLORS[agent]||(group==="specialist"?RD_SPECIALIST:group==="decisions"?RD_DECISION:RD_OTHER)}
+/** Agents with their calls, in toggle order. `specialists` = agent names the digest saw under a "specialists" graph node. */
+function rdModel(reads,specialists){
+ const spec=new Set(specialists||[]),by=new Map();
+ ((reads&&Array.isArray(reads.calls)&&reads.calls)||[]).forEach((c,i)=>{
+  const a=String(c.agent);
+  if(!by.has(a))by.set(a,{agent:a,group:rdGroup(a,spec),color:"",calls:[]});
+  by.get(a).calls.push({i,n:by.get(a).calls.length+1,node:c.node||"",basis:c.basis||"",ranges:Array.isArray(c.ranges)?c.ranges:[],
+   matched:+c.matched||0,request:+c.request||0,skipped:c.skipped||""})});
+ const agents=[...by.values()].sort((x,y)=>RD_ORDER.indexOf(x.group)-RD_ORDER.indexOf(y.group)||(x.agent<y.agent?-1:x.agent>y.agent?1:0));
+ agents.forEach(g=>{g.color=rdColor(g.agent,g.group)});
+ return {agents}}
+/** Code point -> UTF-16 index table; map is null when the text has no surrogate pair (offsets already index it). */
+function rdCpMap(text){
+ if(!/[\ud800-\udfff]/.test(text))return {len:text.length,map:null};
+ const idx=[];
+ for(let i=0;i<text.length;i++){idx.push(i);const c=text.charCodeAt(i);
+  if(c>=0xd800&&c<0xdc00&&i+1<text.length){const d=text.charCodeAt(i+1);if(d>=0xdc00&&d<0xe000)i++}}
+ idx.push(text.length);return {len:idx.length-1,map:idx}}
+function rdToU16(cp,r){if(!cp.map)return [r[0],r[1]];const f=x=>cp.map[Math.max(0,Math.min(cp.len,x))];return [f(r[0]),f(r[1])]}
+function rdMerge(rs){
+ const a=rs.filter(r=>r&&r[1]>r[0]).map(r=>[r[0],r[1]]).sort((x,y)=>x[0]-y[0]||x[1]-y[1]),out=[];
+ for(const r of a){const l=out[out.length-1];if(l&&r[0]<=l[1]){if(r[1]>l[1])l[1]=r[1]}else out.push(r)}
+ return out}
+/** True when [s,e) lies inside one range of the merged, sorted list. */
+function rdCovers(m,s,e){
+ let lo=0,hi=m.length-1;
+ while(lo<=hi){const mid=(lo+hi)>>1;if(m[mid][1]<=s)lo=mid+1;else if(m[mid][0]>s)hi=mid-1;else return e<=m[mid][1]}
+ return false}
+/** Lower-case, whitespace-collapsed copy of text with, for each kept unit, the index it came from. */
+function rdNormalize(text){
+ const out=[],map=[];let sp=true;
+ for(let i=0;i<text.length;i++){
+  const c=text[i];
+  if(/\s/.test(c)){if(!sp){out.push(" ");map.push(i);sp=true}}
+  else{const l=c.toLowerCase();for(let j=0;j<l.length;j++){out.push(l[j]);map.push(i)}sp=false}}
+ if(out.length&&out[out.length-1]===" "){out.pop();map.pop()}
+ return {norm:out.join(""),map}}
+/** Non-overlapping occurrences of an already normalised needle, as [start,end) in the original text. */
+function rdFind(nt,needle,cap){
+ const out=[];if(!needle)return out;let from=0;
+ while(out.length<cap){const k=nt.norm.indexOf(needle,from);if(k<0)break;
+  out.push([nt.map[k],nt.map[k+needle.length-1]+1]);from=k+needle.length}
+ return out}
+function rdLeaves(v,out,depth){
+ out=out||[];depth=depth||0;
+ if(out.length>=24||depth>4||v==null||typeof v==="boolean")return out;
+ if(typeof v==="string"||typeof v==="number"){const s=String(v);if(s.trim())out.push(s)}
+ else if(Array.isArray(v))v.forEach(x=>rdLeaves(x,out,depth+1));
+ else if(typeof v==="object")Object.keys(v).forEach(k=>rdLeaves(v[k],out,depth+1));
+ return out}
+function rdShow(v){return v==null?"":typeof v==="string"?v:typeof v==="object"?JSON.stringify(v):String(v)}
+function rdOccurrences(nt,leaves){
+ const occ=[];leaves.forEach(l=>rdFind(nt,rdNormalize(l).norm,RD_OCC_CAP).forEach(r=>occ.push(r)));
+ return occ.sort((a,b)=>a[0]-b[0]).slice(0,RD_OCC_CAP)}
+const rdSing=t=>t.length>3&&t.endsWith("s")&&!t.endsWith("ss")?t.slice(0,-1):t;
+/** contracts_specialist and contract both stem to "contract"; used only to ask "did the specialist for this class run". */
+const rdStem=n=>String(n).replace(/_specialist$/,"").split("_").map(rdSing).join("_");
+/** Per-field flags for one document. Everything the flags use is in `a`; `a.cache` keeps the normalised text between repaints. */
+function rdAnalyse(a){
+ const text=a.text||"",cache=a.cache||{};
+ if(cache.text!==text){cache.text=text;cache.nt=rdNormalize(text);cache.cp=rdCpMap(text)}
+ const nt=cache.nt,cp=cache.cp,reads=a.reads,model=rdModel(reads,a.specialists);
+ const noReads=!reads||!Array.isArray(reads.calls);
+ const lengthMismatch=!noReads&&reads.doc_chars>0&&cp.len!==reads.doc_chars;
+ const spec=model.agents.filter(g=>g.group==="specialist"),exact=[];let unknown=0;
+ spec.forEach(g=>g.calls.forEach(c=>{if(c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>exact.push(rdToU16(cp,r)));else unknown++}));
+ const merged=rdMerge(exact),ran=spec.map(g=>g.agent),cls=a.cls||{},gt=cls.gt,pred=cls.pred;
+ const forGt=!gt||ran.some(n=>rdStem(n)===rdStem(gt))||(pred===gt&&ran.length>0);
+ const misrouted=!noReads&&!forGt,canJudgeRange=!noReads&&!lengthMismatch&&unknown===0;
+ const expected=a.expected||{},extracted=a.extracted||{},names=[];
+ Object.keys(expected).concat(Object.keys(extracted)).forEach(k=>{if(!names.includes(k))names.push(k)});
+ const rows=names.map(field=>{
+  const ev=expected[field],xv=extracted[field],leaves=rdLeaves(ev);
+  const hasExpected=ev!=null&&ev!=="",hasExtracted=xv!=null&&xv!=="";
+  const occ=leaves.length?rdOccurrences(nt,leaves):[];let flag="";
+  if(leaves.length){
+   if(!occ.length)flag="not in text";
+   else if(misrouted)flag="misrouted";
+   else if(canJudgeRange&&!occ.some(r=>rdCovers(merged,r[0],r[1])))flag="not read"}
+  const result=hasExpected&&hasExtracted?(rdNormalize(rdShow(ev)).norm===rdNormalize(rdShow(xv)).norm?"matches":"differs"):hasExpected?"no value":"";
+  return {field,expected:rdShow(ev),extracted:rdShow(xv),hasExpected,hasExtracted,leaves,occ,flag,result}});
+ return {rows,misrouted,ran,unknown,noReads,lengthMismatch,merged}}
+/** Cut [0,len) at every range boundary in one sweep; each segment lists the layers covering it. Layers are arrays of [start,end). */
+function rdSegments(len,layers){
+ const ev=[];
+ layers.forEach((rs,k)=>rs.forEach(r=>{const s=Math.max(0,Math.min(len,r[0])),e=Math.max(0,Math.min(len,r[1]));if(e>s){ev.push([s,1,k]);ev.push([e,-1,k])}}));
+ ev.sort((a,b)=>a[0]-b[0]);
+ const cnt=new Array(layers.length).fill(0),out=[],active=()=>{const r=[];for(let k=0;k<cnt.length;k++)if(cnt[k]>0)r.push(k);return r};
+ const push=(s,e,act)=>{const l=out[out.length-1];if(l&&l.e===s&&l.act.length===act.length&&l.act.every((x,i)=>x===act[i]))l.e=e;else out.push({s,e,act})};
+ let pos=0,i=0;
+ while(i<ev.length){const p=ev[i][0];if(p>pos){push(pos,p,active());pos=p}while(i<ev.length&&ev[i][0]===p){cnt[ev[i][2]]+=ev[i][1];i++}}
+ if(pos<len)push(pos,len,active());
+ return out}
+/** Escaped HTML for the segments. Layers below colors.length are bands; the next two are "every hit" and "current hit". */
+function rdTextHtml(text,segs,colors){
+ const nb=colors.length;let h="";
+ for(const g of segs){
+  const raw=esc(text.slice(g.s,g.e));
+  if(!g.act.length){h+=raw;continue}
+  const bands=g.act.filter(k=>k<nb),n=bands.length;
+  const st=n?` style="background:linear-gradient(to bottom,${bands.map((k,j)=>`${colors[k]}${RD_ALPHA} ${(100*j/n).toFixed(2)}% ${(100*(j+1)/n).toFixed(2)}%`).join(",")})"`:"";
+  h+=`<span class="rd-seg${g.act.includes(nb)?" rd-hit":""}${g.act.includes(nb+1)?" rd-cur":""}"${st}>${raw}</span>`}
+ return h}
+const rdPct=x=>(x*100).toFixed(3);
+function rdMinimapHtml(model,callOff,on,total){
+ let h="";
+ for(const g of model.agents){
+  const shown=g.calls.filter(c=>!callOff.has(c.i)),cov=[];let bars="";
+  shown.forEach(c=>{
+   const raw=c.basis!=="working";
+   c.ranges.forEach(r=>{
+    if(!raw&&!c.skipped)cov.push(r);
+    if(total>0&&r[1]>r[0]){const l=Math.max(0,r[0])/total,w=(Math.min(total,r[1])-Math.max(0,r[0]))/total;
+     bars+=`<i class="mm-r" style="left:${rdPct(l)}%;width:${rdPct(Math.max(0,w))}%;${raw?`background:transparent;border:1px dashed ${g.color}`:`background:${g.color}`}"></i>`}})});
+  const m=rdMerge(cov),chars=m.reduce((t,r)=>t+r[1]-r[0],0);
+  const label=`${g.agent}: ${g.calls.length} call${g.calls.length===1?"":"s"}, `+(total>0?`${Math.round(100*chars/total)}% of ${total.toLocaleString("en-US")} characters in exact ranges`:"document length unknown");
+  h+=`<div class="mm-lane${on.has(g.agent)?"":" off"}" role="img" aria-label="${esc(label)}" title="${esc(label)}"><span class="mm-name"><i class="sw" style="background:${g.color}"></i>${esc(g.agent)}</span><span class="mm-track">${bars}</span></div>`}
+ return h}
+function rdCallTag(c){return c.skipped?`skipped: ${c.skipped}`:c.basis==="raw"?"raw":c.basis!=="working"?"basis ?":""}
+function rdTogglesHtml(model,on,callOff){
+ let h="";
+ for(const g of model.agents){
+  const sole=g.calls.length===1?g.calls[0]:null,tag=sole?rdCallTag(sole):"";
+  h+=`<span class="rd-agent"><button type="button" data-rd="agent" data-agent="${esc(g.agent)}" aria-pressed="${on.has(g.agent)}" title="Paint ${esc(g.agent)}'s reads on the text (${g.calls.length} call${g.calls.length===1?"":"s"})"><i class="sw" style="background:${g.color}"></i>${esc(g.agent)}${g.calls.length>1?` ×${g.calls.length}`:""}${tag?` <small class="mut">${esc(tag)}</small>`:""}</button>`;
+  if(g.calls.length>1)h+=`<span class="rd-calls">`+g.calls.map(c=>{const t=rdCallTag(c);
+   return `<button type="button" data-rd="call" data-agent="${esc(g.agent)}" data-i="${c.i}" aria-pressed="${!callOff.has(c.i)}" title="${esc(g.agent)} call ${c.n}${c.node?" at "+esc(c.node):""}${t?" ("+esc(t)+")":""}">#${c.n}${t?` <small class="mut">${esc(t)}</small>`:""}</button>`}).join("")+`</span>`;
+  h+=`</span>`}
+ return h}
+const RD_FLAG_TITLE={"not read":"The value occurs in the working text, but in no range a specialist read (every specialist call counts, retries included).",
+ "misrouted":"No specialist for this document's true class ran, so no field was extracted for it.",
+ "not in text":"The value does not occur in the working text at all (a label or OCR difference, or a rewritten text)."};
+const rdTrunc=(s,n)=>s.length>n?s.slice(0,n-1)+"…":s;
+/** The whole panel as escaped HTML. `v` is plain data (see rdView in the glue); nothing in it is trusted. */
+function rdPanelHtml(v){
+ const data=v.status==="ok"&&v.data?v.data:null,reads=v.reads,model=rdModel(reads,v.specialists);
+ const on=new Set(v.on||[]),callOff=new Set((v.callOff||[]).map(Number)),cls=v.cls||{},cache=v.cache||{};
+ const working=data&&typeof data.working==="string"?data.working:null,original=data&&typeof data.original==="string"?data.original:null;
+ const useOrig=original!==null&&(!!v.original||working===null),text=useOrig?original:working;
+ const an=working!==null?rdAnalyse({text:working,expected:data.expected,extracted:data.extracted,reads,cls,specialists:v.specialists,cache}):null;
+ const total=reads&&reads.doc_chars>0?reads.doc_chars:(an?cache.cp.len:0);
+ let h=`<div class="rd"><div class="rd-head"><b>DOCUMENT</b><span>${esc(v.id)}</span>`;
+ if(cls.gt||cls.pred)h+=`<span class="mut">class ${esc(cls.gt||"?")} → ${esc(cls.pred||"—")}</span>`;
+ if(total>0)h+=`<span class="mut">${total.toLocaleString("en-US")} characters</span>`;
+ if(data&&data.rewritten)h+=`<span class="badge near_gold" title="The working text differs from the dataset row's text beyond whitespace at the ends. Read ranges index the working text.">rewritten${typeof data.overlap==="number"?" · "+Math.round(data.overlap*100)+"% verbatim":""}</span>`;
+ if(data)h+=`<span class="rd-view"><button type="button" data-rd="view" data-view="working" aria-pressed="${!useOrig}"${working===null?" disabled":""}>Working</button><button type="button" data-rd="view" data-view="original" aria-pressed="${useOrig}"${original===null?" disabled":""}>Original</button></span>`;
+ h+=`</div>`;
+ if(v.status==="loading")h+=`<p class="secnote">Loading the document text…</p>`;
+ else if(!data)h+=`<p class="secnote"><span class="warn">Text unavailable</span> — ${esc(v.reason||"no reason recorded")}. The read ranges below come from the digest and still show where each agent looked.${v.status==="unavailable"&&v.retry?` <button type="button" data-rd="retry">retry</button>`:""}</p>`;
+ else if(text===null)h+=`<p class="secnote"><span class="warn">Text unavailable</span> — the run store holds no text for this document.</p>`;
+ if(!reads||!Array.isArray(reads.calls))h+=`<p class="secnote">Read ranges: not recorded for this run.</p>`;
+ else if(!model.agents.length)h+=`<p class="secnote">Read ranges: this document has no recorded agent call.</p>`;
+ if(an&&an.lengthMismatch)h+=`<p class="secnote"><span class="warn">Bands withheld.</span> The served text has ${cache.cp.len.toLocaleString("en-US")} characters but the run recorded ${reads.doc_chars.toLocaleString("en-US")}; its ranges would not line up.</p>`;
+ if(model.agents.length){
+  h+=`<div class="rd-tog" role="group" aria-label="Agents whose reads are painted on the text">${rdTogglesHtml(model,on,callOff)}</div>`;
+  h+=`<div class="rd-mm">${rdMinimapHtml(model,callOff,on,total)}</div>`;
+  if(model.agents.some(g=>g.calls.some(c=>c.basis!=="working")))h+=`<p class="secnote">Dashed bars (raw): calls made before intake finished, matched against the row's raw text. They are not painted on the working text.</p>`}
+ if(text!==null){
+  const rowFor=an&&v.field!=null?an.rows.find(r=>r.field===v.field):null;
+  let occ=[];
+  if(rowFor&&!useOrig)occ=rowFor.occ;
+  else if(rowFor&&useOrig){if(cache.origText!==original){cache.origText=original;cache.origNt=rdNormalize(original)}occ=rdOccurrences(cache.origNt,rowFor.leaves)}
+  const cur=occ.length?occ[((v.hit||0)%occ.length+occ.length)%occ.length]:null;
+  const shown=text.slice(0,RD_MAX_CHARS),layers=[],colors=[];
+  if(!useOrig&&an&&!an.lengthMismatch)for(const g of model.agents){
+   if(!on.has(g.agent))continue;
+   const rs=[];g.calls.forEach(c=>{if(!callOff.has(c.i)&&c.basis==="working"&&!c.skipped)c.ranges.forEach(r=>rs.push(rdToU16(cache.cp,r)))});
+   layers.push(rdMerge(rs));colors.push(g.color)}
+  layers.push(occ);layers.push(cur?[cur]:[]);
+  const segs=rdSegments(shown.length,layers);
+  h+=`<div class="rd-main"><div><div id="rdText" class="rd-text" tabindex="0" role="region" aria-label="${useOrig?"Original":"Working"} text of ${esc(v.id)}">${rdTextHtml(shown,segs,colors)}</div>`;
+  if(text.length>RD_MAX_CHARS)h+=`<p class="secnote">Showing the first ${RD_MAX_CHARS.toLocaleString("en-US")} of ${text.length.toLocaleString("en-US")} characters.</p>`;
+  if(useOrig)h+=`<p class="secnote">Original row text. Read ranges index the working text, so no bands are drawn here.</p>`;
+  h+=`</div><div class="rd-fields">`;
+  if(an&&an.rows.length){
+   h+=`<table class="t rd-ft"><tr><th>field</th><th>expected</th><th>extracted</th><th>flag</th></tr>`+an.rows.slice(0,300).map(r=>{
+    const sel=v.field===r.field,k=sel&&occ.length?` <small class="mut">${(((v.hit||0)%occ.length)+occ.length)%occ.length+1} of ${occ.length}</small>`:r.occ.length?` <small class="mut">×${r.occ.length}</small>`:"";
+    const fl=r.flag?`<span class="rd-flag rd-${r.flag.replace(/ /g,"-")}" title="${esc(RD_FLAG_TITLE[r.flag])}">${esc(r.flag)}</span>`:"";
+    return `<tr data-f="${esc(r.field)}"${sel?' class="sel"':""}><td><button type="button" class="rd-go" data-rd="field" data-f="${esc(r.field)}" title="Scroll to this value in the text">${esc(r.field)}</button></td><td class="rd-v" title="${esc(r.expected)}">${esc(rdTrunc(r.expected,60))}${k}</td><td class="rd-v" title="${esc(r.extracted)}">${esc(rdTrunc(r.extracted,60))}${r.result?` <small class="${r.result==="matches"?"ok":"warn"}">${r.result}</small>`:""}</td><td>${fl}</td></tr>`}).join("")+`</table>`;
+   h+=`<p class="secnote">Flags are computed here from the stored text and ranges: <b>not read</b>, <b>misrouted</b>, <b>not in text</b>. "matches" and "differs" compare the strings only (whitespace and case ignored); they are not the Dojo score.`+(an.unknown?` ${an.unknown} specialist call${an.unknown===1?"":"s"} ha${an.unknown===1?"s":"ve"} no exact range (raw basis or size skip), so <b>not read</b> is not claimed.`:"")+(an.noReads?" No reads were recorded, so only <b>not in text</b> can be judged.":"")+`</p>`}
+  else if(an)h+=`<p class="secnote">The dataset row has no expected fields and the item stored no extraction.</p>`;
+  h+=`</div></div>`}
+ return h+`</div>`}
+// READS:END
+// ── DOCUMENT panel glue: the only part that touches the DOM, fetch and the selected run ──
+const DOCV={key:"",status:"idle",reason:"",retry:false,data:null,on:new Set(),callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false,epoch:0};
+/** Agents that are specialists by the digest's own data: those observed under a graph node labelled "specialists …". Names ending _specialist are caught in rdGroup. */
+function rdSpecialistNames(){
+ const out=new Set(),na=D.graph_reference.node_agents||{},seen=run().node_agents||{};
+ for(const [node,label] of Object.entries(na))if(/^specialists/.test(String(label)))for(const a of Object.keys(seen[node]||{}))out.add(a);
+ return [...out]}
+const rdObj=x=>x&&typeof x==="object"&&!Array.isArray(x)?x:{};
+const rdStr=x=>typeof x==="string"?x:null;
+/** Treat the endpoint's answer as untrusted: keep only the shapes the panel reads. */
+function rdCleanDoc(x){
+ if(!x||typeof x!=="object"||Array.isArray(x))return null;
+ const c=rdObj(x.class);
+ return {working:rdStr(x.working),original:rdStr(x.original),expected:rdObj(x.expected),extracted:rdObj(x.extracted),
+  class:{gt:rdStr(c.gt),pred:rdStr(c.pred)},rewritten:x.rewritten===true,overlap:typeof x.overlap==="number"&&isFinite(x.overlap)?x.overlap:null}}
+function rdFetch(d){
+ const why=!LIVE?"no floor server: this page is a file or a static copy, so the document text cannot be fetched"
+  :holdLive?"this is an imported digest, and text is only served for the live run store"
+  :run().replay?"a replay run has no recorded document text":"";
+ if(why){DOCV.status="unavailable";DOCV.reason=why;DOCV.retry=false;return}
+ DOCV.status="loading";DOCV.retry=false;
+ const key=DOCV.key,epoch=DOCV.epoch,fail=(msg)=>{if(DOCV.key!==key||DOCV.epoch!==epoch)return;DOCV.status="unavailable";DOCV.retry=true;DOCV.reason=msg;paintDocPanel()};
+ fetch("/api/floor/doc?run="+encodeURIComponent(run().name)+"&doc="+encodeURIComponent(d.id),{cache:"no-store"})
+  .then(res=>{if(!res.ok)throw new Error(res.status===404?"the floor server has no recorded text for this run or document (HTTP 404)":"the floor server answered HTTP "+res.status);return res.json()})
+  .then(raw=>{if(DOCV.key!==key||DOCV.epoch!==epoch)return;const data=rdCleanDoc(raw);if(!data){fail("the floor server sent an unreadable answer");return}
+   DOCV.data=data;DOCV.status="ok";paintDocPanel()})
+  .catch(err=>fail(err instanceof TypeError?"the floor server did not answer":String(err&&err.message||err)))}
+function rdEnsure(d){
+ const key=run().name+"\u0000"+d.id+"\u0000"+(holdLive?"snapshot":"live");
+ if(DOCV.key!==key){
+  Object.assign(DOCV,{key,status:"idle",reason:"",retry:false,data:null,callOff:new Set(),original:false,field:null,hit:0,cache:{},scroll:0,jump:false});
+  DOCV.epoch++;
+  DOCV.on=new Set(rdModel(d.debug&&d.debug.reads,rdSpecialistNames()).agents.filter(g=>g.group==="specialist").map(g=>g.agent));
+  document.getElementById("pane").scrollTop=0}
+ if(DOCV.status==="idle")rdFetch(d)}
+function rdView(d){
+ const data=DOCV.data,c=(data&&data.class)||{};
+ return {id:d.id,reads:(d.debug&&d.debug.reads)||null,cls:{gt:c.gt||d.gt||null,pred:c.pred||d.pred||null},specialists:rdSpecialistNames(),
+  status:DOCV.status,reason:DOCV.reason,retry:DOCV.retry,data,on:[...DOCV.on],callOff:[...DOCV.callOff],original:DOCV.original,field:DOCV.field,hit:DOCV.hit,cache:DOCV.cache}}
+/** Fill #docPanel (DEBUG tab, one document selected). Keeps the text pane's scroll unless a field was just clicked. */
+function paintDocPanel(){
+ const el=document.getElementById("docPanel");if(!el)return;
+ const d=selDoc&&(run().docs||[]).find(x=>x.id===selDoc);
+ if(!d){el.innerHTML="";return}
+ rdEnsure(d);
+ const old=document.getElementById("rdText");if(old)DOCV.scroll=old.scrollTop;
+ el.innerHTML=rdPanelHtml(rdView(d));
+ const tx=document.getElementById("rdText");
+ if(tx){const cur=DOCV.jump?tx.querySelector(".rd-cur"):null;
+  if(cur){const a=cur.getBoundingClientRect().top-tx.getBoundingClientRect().top;tx.scrollTop=Math.max(0,tx.scrollTop+a-tx.clientHeight/3)}
+  else tx.scrollTop=DOCV.scroll;
+  DOCV.jump=false}}
+function rdAct(b){
+ const k=b.dataset.rd,a=b.dataset.agent,i=b.dataset.i,view=b.dataset.view,f=b.dataset.f;
+ if(k==="agent"){if(DOCV.on.has(a))DOCV.on.delete(a);else DOCV.on.add(a)}
+ else if(k==="call"){const n=Number(i);if(DOCV.callOff.has(n))DOCV.callOff.delete(n);else DOCV.callOff.add(n)}
+ else if(k==="view"){DOCV.original=view==="original";DOCV.scroll=0;DOCV.hit=0}
+ else if(k==="field"){if(DOCV.field===f)DOCV.hit++;else{DOCV.field=f;DOCV.hit=0}DOCV.jump=true}
+ else if(k==="retry"){DOCV.status="idle";DOCV.cache={}}
+ paintDocPanel();
+ const n=[...document.querySelectorAll("#docPanel [data-rd]")].find(x=>x.dataset.rd===k&&x.dataset.agent===a&&x.dataset.i===i&&x.dataset.view===view&&x.dataset.f===f);
+ if(n)n.focus()}
+// every panel control is a native <button>, so Enter and Space reach it through the browser (the keyboard handler below skips buttons)
+document.getElementById("pane").addEventListener("click",e=>{
+ if(!selDoc||!e.target.closest||!e.target.closest("#docPanel"))return;
+ let b=e.target.closest("[data-rd]");
+ if(!b){const row=e.target.closest("tr[data-f]");b=row&&row.querySelector('[data-rd="field"]')}
+ if(b)rdAct(b)});
 /** Repaint the drawer's active tab and wire its rows; keeps the pane's scroll position. */
 function renderPane(){
  const pane=document.getElementById("pane");if(!document.getElementById("drawer").classList.contains("open"))return;
  const top=pane.scrollTop,f=document.activeElement&&document.activeElement.id;
  pane.innerHTML=TAB==="docs"?docsPane():TAB==="nodes"?nodesPane():TAB==="debug"?debugPane():scoresPane();
  pane.scrollTop=top;
+ paintDocPanel();
  document.getElementById("tabHint").textContent=run().name+(CLASS?" · "+CLASS:"");
  pane.querySelectorAll("tr[data-mode]").forEach(el=>el.onclick=()=>{MODE=MODE===el.dataset.mode?null:el.dataset.mode;if(MODE)DEBUG=true;selDoc=null;selNode=null;menus();render()});
  pane.querySelectorAll("tr[data-doc]").forEach(el=>el.onclick=()=>pickDoc(el.dataset.doc));

@@ -148,8 +148,67 @@ The builder adds a `debug` object on each document row:
 | `hops` | Each change of node, with a `why` sentence. A trace longer than 16 hops keeps the first eight and the last eight, with a `gap` row between them. That row is not a hop. |
 | `archive` | Whether `archive` was visited, the node the trace stopped on, and why. |
 | `mode` | One failure mode for the document, or null when nothing went wrong. `id` groups documents that failed the same way. `label` is the short name. `node` is the stage to inspect. `lever` names what to read before the next run. |
+| `reads` | Present when the run recorded read ranges. `calls` (agent, node, `basis` working or raw, `ranges` as `[start, end)` offsets into the working text, matched and request counts, a `skipped` reason), `union` per agent, and `doc_chars`. Numbers only. See the document panel below. |
 | `answers` | Stored decision phrases from the visits, for search. A phrase is omitted when the visit stored no decision. |
 | `fields` | On the document row, not inside `debug`. Either stored Dojo `field_scores` below 1, or stored `extracted_data` set beside the dataset row. The comparison uses the full scalar; the quote is clipped at 40 characters. Empty when neither was stored. This list is not a new score. |
+
+### Document panel: what each agent read
+
+Select a document in DEBUG and the panel opens at the top of the DEBUG tab.
+It answers one root-cause question: did the agent that had to extract a value
+ever see the text that holds it?
+
+- **Text.** The working text (what the pipeline actually read after intake) in
+  a scrollable pane, with a **Working** / **Original** switch. A **rewritten**
+  badge with the verbatim share appears when the working text differs from the
+  dataset row's text. Read ranges index the working text, so the original view
+  draws no bands.
+- **Ranges.** One lane per agent in a minimap across the whole document, and one
+  toggle per agent that paints its ranges on the text (specialists start on). An
+  agent that ran more than once also gets a toggle per call, retries and resumed
+  documents included. Overlapping agents show as stacked stripes. Calls made
+  before intake finished were matched against the row's raw text; they appear
+  as dashed bars and are never painted on the working text.
+- **Colours** follow the figure roles of the `experiment-figures` skill: colour
+  is the system, shade is the stage. The decision lanes (`decisions:*`) use
+  decision-model blue, the sorter and its verifiers (`sorter_reviewer`,
+  `classification_arbiter`) use LLM-sorter orange, specialists and their
+  verifiers (`judge`, `arbiter`) use the third-system aqua, and `intake` and
+  `jev` are neutral.
+- **Fields.** Every expected and extracted field, with a flag computed in the
+  browser. The search is whitespace- and case-insensitive. Click a field to
+  scroll to its occurrence; click again for the next.
+
+| Flag | Meaning |
+| --- | --- |
+| `not read` | The expected value occurs in the working text, but in no range read by a specialist that ran for this document. Every call of those specialists counts, retries included. |
+| `misrouted` | No specialist for the document's true class ran, so no field was extracted for that class. It replaces `not read`. A value absent from the text stays `not in text`. |
+| `not in text` | The expected value does not occur in the working text at all (a label or OCR difference, or a rewrite). |
+
+"Specialist" comes from the digest: the agents seen under a graph node labelled
+`specialists …` in the run's `node_agents`, plus any name ending `_specialist`.
+A class is matched to its specialist by name (`contract` and
+`contracts_specialist`); a document whose predicted class equals the true class
+counts as routed to whichever specialist ran. When a specialist call has no exact
+range (raw basis or a size skip), or the served text length differs from the
+recorded `doc_chars`, `not read` is not claimed and the panel says why.
+"matches" and "differs" beside an extracted value compare strings only. They
+are not the Dojo score.
+
+**Where the text comes from.** `debug.reads` in the digest holds offsets and
+counts only. The text is served by the floor server at
+`GET /api/floor/doc?run=<run>&doc=<doc>` on the loopback address, from the run
+store the server was started on. Opened as a file, from a static host, as an
+imported digest or for a replay run, the fetch is not made and the panel says
+**text unavailable**; the lanes, toggles and call list still render from the
+digest. A run recorded without `reads.jsonl` shows "not recorded for this run".
+
+**Privacy.** The digest, its JS twin and the export never contain document
+text. The text stays in the run store and is shown only by the local server,
+for the document you selected. Do not share a screenshot of a real document;
+the committed fixtures and tests use synthetic text only. Every control is a
+native button, so Tab, Enter and Space work, and all document text is inserted
+as escaped HTML.
 
 A `why` sentence quotes only a stored decision, review cause, status, error,
 or an unconditional edge (`plain_edges`, such as `catalog_write` to
