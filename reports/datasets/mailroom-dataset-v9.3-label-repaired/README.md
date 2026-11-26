@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **88.6%** of per-class target fields (43,148 labeled,
-5,460 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,380 labeled,
+5,228 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,148 (88.6%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,380 (89.1%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 ## Files
@@ -46,7 +46,7 @@ df = df.merge(text, on="document_id", how="left")
 | --- | ---: | ---: | ---: | ---: |
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
-| `contract` | 600 | 17 | 0.0% | 64.3% |
+| `contract` | 600 | 17 | 0.0% | 66.6% |
 | `corporate_record` | 450 | 9 | 54.6% | 91.1% |
 | `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
 
@@ -100,6 +100,23 @@ agreement on 169 of 171 `expiration_date` cells, 43 of 46 `termination_notice_pe
 does not annotate party roles, so `party_roles` is not mapped from it. Treat these counts as
 unverified until a dated rebuild records them in `summary.json` / provenance.
 
+**Changes in this regeneration.** Two independent changes moved 644 provenance cells against
+the previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
+Hub source changed value or presence:
+
+- **Near-gold contract labels** (542 cells, all in 61 of the 91 empty-CUAD contracts: those that
+  had no near-gold record. `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91, including
+  the 30 already covered, so it is not the changed subset): 324 previously unlabeled cells, 182 unreviewed
+  gold candidates promoted to `near_gold_reviewed`, and 36 `generated_rule` cells replaced by
+  near-gold.
+- **Event-defined dates are no longer absences** (102 cells in 84 other contracts): the builder
+  fix that skips a ballot for a CUAD date span with no calendar date ("the date of the last
+  signature") was committed without regenerating these files. 93 `effective_date` /
+  `agreement_date` cells move from a generated documented absence to unlabeled, 8 more
+  `agreement_date` cells take the next source's value (5 `gold_candidate`, 3 `generated_rule`),
+  and one `expiration_date` cell (`DOC-e4272758b561f8cd`) gains its CUAD-span value.
+  With the 324 cells above, that is 325 cells gaining a label and 93 losing one: the net +232.
+
 ## Presence codes (provenance file)
 
 | `presence` | Meaning |
@@ -134,10 +151,16 @@ blank in a row is absence versus unlabeled.
 - **Generated labels are not human-reviewed.** `generated_rule` labels are pattern matches, each
   with a verbatim quote, and spot checks found them right in most cases, but they are not
   gold. Filter on `chosen_source` in the provenance file if your analysis needs reviewed labels only.
-- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so their CUAD-derived fields stay
-  unlabeled. `expiration_date` is labeled on 273 contracts, `termination_notice_period` on 340
-  and `dispute_forum` on 241. `contract_value`, `payment_terms`, `territory` and `party_roles`
-  have no CUAD category, so they are labeled only on the roughly 225 contracts in the gold catalog.
+- **Contracts:** 91 SEC EDGAR contracts have no CUAD annotation, so no CUAD ballot labels them.
+  `effective_date`, `term_length` and `renewal_terms` stay unlabeled on all 91; `governing_law`
+  is labeled on 28 of them by a `generated_rule` pattern match and unlabeled on the other 63 (it
+  is labeled on 537 of all 600 contracts). A missing CUAD ballot is not a missing label: check
+  `presence` before discarding a field. Their
+  nine scored contract fields come from the near-gold overlay instead (agent label and check
+  passes plus a reviewing model, not human gold). `expiration_date` is labeled on 314 contracts,
+  `termination_notice_period` on 380 and `dispute_forum` on 281. `contract_value`,
+  `payment_terms`, `territory` and `party_roles` have no CUAD category, so they are labeled only on
+  the roughly 265 contracts in the gold catalog.
 - **Merger agreements:** several fields are found only where the agreement states them in a
   standard form (exchange ratio, termination fees, advisors, signatories). Signature pages are
   usually missing from the text. `merger_consideration` is never labeled for the `other` subclass.

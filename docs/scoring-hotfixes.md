@@ -284,11 +284,14 @@ before/after means stay paired. The per-class `n` values sum to 3,211, not 3,302
 missing contract rows are in no column, because their CUAD label map labels no category, so the
 contract headline returned no score for them when this table was measured, with SHF-015 off or
 on (the same rows carry the heuristic `material_agreement` intent the policy would drop). Every
-other class's `n` equals its corpus size. SHF-016 now scores the 30 of these rows whose
-reviewed near-gold field labels stand in on the suite basis, so a rerun of this table with
-SHF-016 current has `n` 539 for contract; the other 61 keep no score until a reviewed label
-fills a scored field for them (the gold catalog's entries for them are `use_as_truth: false`
-candidates, not truth).
+other class's `n` equals its corpus size. SHF-016 scores these rows on the suite basis from
+the reviewed field labels that stand in for the missing CUAD universe. Only 30 of the 91 carried
+such a label when SHF-016 landed; the near-gold contract labels added for the other 61 (agent
+passes plus an Opus review, `use_as_truth: false`, not human gold) now cover all 91. This table
+predates both: its `n` of 509 is from the measurement above. A rerun with SHF-016 current and
+the labels in place has `n` 600 for contract (509 + 91), and the per-class `n` values then sum
+to 3,302, the corpus size. Seven fields on the 21 documents reviewed in place (six
+`party_roles`, one `payment_terms`) have no label record, so those documents score on their other fields only.
 
 A prediction that equals the truth never moves. No merger_agreement row in the pinned corpus
 carries a stale label, and a contract's heuristic `intent` (91 drops) is not a scored contract

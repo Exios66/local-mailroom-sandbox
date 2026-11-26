@@ -33,6 +33,17 @@ agent sessions that read the batch files and write submission JSONL.
     # the manifest's sources.review so the next full build is given it too
     # a line for an already reviewed record must name that review: "supersedes": {"verdict", "value"}
     python scripts/gold_labels.py review --corpus … --review R.jsonl…
+    # append passes for documents the catalog does not hold yet, without the earlier source files.
+    # Same gates as build (the same functions: roles, independence, the corpus-text gate,
+    # reconcile, review resolution); in addition every document needs both a label and a check
+    # pass, and it is refused when a document already has a catalog record, when a file name is
+    # already in the manifest's sources, or when a review names another document. Existing
+    # records are not rewritten; the staged catalog and supplementary store are verified and
+    # swapped in together. The added records carry their own --revision in their schema binding;
+    # the manifest's binding stays the original build's and each add gets an "additions" entry.
+    # add only appends: a later full build must be given every source, the added files too.
+    python scripts/gold_labels.py add --corpus … --revision … --label L.jsonl… --check C.jsonl… \
+        [--review R.jsonl…]
     # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
     # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
     python scripts/gold_labels.py check
@@ -44,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import functools
 import hashlib
 import json
 import os
@@ -401,6 +413,32 @@ def _class_counts(data: dict[str, list[dict]]) -> dict[str, Any]:
     return counts
 
 
+def _one_writer(cmd):
+    """Run a store-writing command (``build``, ``add``, ``review``) as the only writer.
+
+    Each one reads the stores, stages their new contents and swaps them in. Two writers that read
+    the same catalog would each stage only their own batch, and the later swap would erase the
+    earlier batch while both reported success. A second writer is refused (exit 1, nothing
+    written) rather than queued, so it re-reads the stores when it is run again.
+    """
+    @functools.wraps(cmd)
+    def locked(args: argparse.Namespace) -> int:
+        import fcntl
+
+        lock = gl.gold_dir().parent / ".gold-labels.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        with lock.open("a") as guard:
+            try:
+                fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(f"{cmd.__name__.removeprefix('cmd_')} refused: another gold_labels build, add or review "
+                      f"holds {lock}; nothing was written. Run it again once that one has finished.",
+                      file=sys.stderr)
+                return 1
+            return cmd(args)  # closing the descriptor drops the lock
+    return locked
+
+
 @contextmanager
 def _staging(directory: Path):
     """A temporary directory beside ``directory`` (same filesystem, so files move atomically)."""
@@ -439,16 +477,33 @@ def _swap_in(stage: Path, directory: Path) -> None:
         raise
 
 
+def _swap_in_both(gold_stage: Path, gold: Path, supp_stage: Path, supp: Path) -> None:
+    """Replace the catalog and the supplementary store with their staged copies, together or not at all."""
+    before = _snapshot(gold)
+    _swap_in(gold_stage, gold)
+    try:
+        _swap_in(supp_stage, supp)
+    except BaseException:  # the stores change together or not at all
+        _restore(gold, before)
+        raise
+
+
+def _write_class_files(directory: Path, data: dict[str, list[dict]]) -> dict[str, str]:
+    """Write one sorted ``<class>.jsonl`` per class into ``directory``; return {file name: sha256}."""
+    files = {}
+    for cls, recs in sorted(data.items()):
+        recs.sort(key=lambda r: (r.get("doc_id", ""), r.get("field", ""), r.get("kind", "")))
+        files[f"{cls}.jsonl"] = gl.write_jsonl(directory / f"{cls}.jsonl", recs)
+    return files
+
+
 def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str, now: str,
                        binding: dict[str, Any], args: argparse.Namespace) -> None:
     """Replace one catalog directory's jsonl files and MANIFEST."""
     directory.mkdir(parents=True, exist_ok=True)
     for stale in directory.glob("*.jsonl"):
         stale.unlink()
-    files = {}
-    for cls, recs in sorted(data.items()):
-        recs.sort(key=lambda r: (r.get("doc_id", ""), r.get("field", ""), r.get("kind", "")))
-        files[f"{cls}.jsonl"] = gl.write_jsonl(directory / f"{cls}.jsonl", recs)
+    files = _write_class_files(directory, data)
     manifest = {
         "schema": schema,
         "built_at": now,
@@ -469,6 +524,7 @@ def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str
                                              encoding="utf-8")
 
 
+@_one_writer
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
     missing = [p for p in [*args.label, *(args.check or []), *(args.review or []), *(args.override or [])]
@@ -502,14 +558,150 @@ def cmd_build(args: argparse.Namespace) -> int:
                   + "\n  ".join(left), file=sys.stderr)
             return 1
         _write_catalog_dir(supp_stage, supplementary, gl.SUPPLEMENTARY_SCHEMA, now, binding, args)
-        before = _snapshot(gold)
-        _swap_in(gold_stage, gold)
-        try:
-            _swap_in(supp_stage, supp)
-        except BaseException:  # the stores change together or not at all
-            _restore(gold, before)
-            raise
+        _swap_in_both(gold_stage, gold, supp_stage, supp)
     print(f"catalog: {sum(len(v) for v in catalog.values())} labels; "
+          f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
+    print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
+    return 0
+
+
+def _pass_doc_ids(paths: list[str]) -> set[str]:
+    return {str(sub.get("doc_id")) for path in paths for sub in gl.read_jsonl(Path(path))}
+
+
+def _add_input_problems(args: argparse.Namespace, reviews: dict[tuple[str, str], dict]) -> list[str]:
+    """What is wrong with the given passes before the committed catalog is looked at."""
+    problems = _pass_problems(args)
+    names = collections.Counter(Path(p).name for p in [*args.label, *args.check, *(args.review or [])])
+    problems += [f"{name}: given twice (a file's name is its source id in the manifest)"
+                 for name, n in sorted(names.items()) if n > 1]
+    labelled, checked = _pass_doc_ids(args.label), _pass_doc_ids(args.check)
+    # A document left without its check pass would stay a lone candidate for good: add refuses a
+    # document that already has a catalog record, so the check could never be added later.
+    problems += [f"{d}: has no check pass (a document is added with both passes)" for d in sorted(labelled - checked)]
+    problems += [f"{d}: has a check pass but no label pass" for d in sorted(checked - labelled)]
+    return problems
+
+
+def _load_store(directory: Path, schema: str, what: str) -> tuple[dict[str, Any], dict[str, list[dict]]]:
+    """A committed store's manifest and its rows by class (raises _BuildError if it is not one)."""
+    manifest_path = directory / "MANIFEST.json"
+    if not manifest_path.is_file():
+        raise _BuildError(f"add refused: no {what} to add to ({manifest_path} is missing); run build first")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema") != schema:
+        raise _BuildError(f"add refused: {manifest_path} has schema {manifest.get('schema')!r}, not {schema!r}")
+    return manifest, {Path(name).stem: gl.read_jsonl(directory / name) for name in sorted(manifest.get("files", {}))}
+
+
+def _rewrite_drift(stage: Path, manifest: dict[str, Any], data: dict[str, list[dict]]) -> list[str]:
+    """Files whose rows would not be written back byte for byte (an add must not rewrite a record)."""
+    files = _write_class_files(stage, {cls: list(recs) for cls, recs in data.items()})
+    for path in stage.glob("*.jsonl"):
+        path.unlink()
+    return [f"{name}: re-serialising its rows changes the file; add would rewrite existing records"
+            for name, sha in sorted(files.items()) if manifest["files"].get(name) != sha]
+
+
+def _added_manifest(old: dict[str, Any], data: dict[str, list[dict]], files: dict[str, str],
+                    args: argparse.Namespace, binding: dict[str, Any], now: str, doc_ids: list[str]) -> dict[str, Any]:
+    """``old`` with the new files, counts and sources, and one ``additions`` entry.
+
+    ``binding`` and ``built_at`` stay the original build's: they describe the records already
+    there. The added records carry their own schema binding (and ``additions[].binding`` repeats it).
+    """
+    given = {"label": sorted(Path(p).name for p in args.label),
+             "check": sorted(Path(p).name for p in args.check),
+             "review": sorted(Path(p).name for p in args.review or [])}
+    sources = {role: list(names) for role, names in old.get("sources", {}).items()}
+    for role, names in given.items():
+        sources[role] = sorted({*sources.get(role, []), *names})
+    return {**old, "files": files, "counts": _class_counts(data), "sources": sources, "added_at": now,
+            "additions": [*old.get("additions", []),
+                          {"added_at": now, "builder": "scripts/gold_labels.py add", "binding": binding,
+                           "documents": doc_ids, "sources": given}]}
+
+
+def _add_problems(args: argparse.Namespace, reviews: dict[tuple[str, str], dict], gdata: dict[str, list[dict]],
+                  manifests: list[dict[str, Any]]) -> list[str]:
+    """Documents and file names the committed catalog already holds."""
+    held = {r["doc_id"] for recs in gdata.values() for r in recs}
+    given = {*_pass_doc_ids(args.label), *_pass_doc_ids(args.check), *(d for d, _ in reviews)}
+    problems = [f"{d}: already has a catalog record (settle it with `review`, or rebuild with every source)"
+                for d in sorted(given & held)]
+    taken = {n for m in manifests for names in m.get("sources", {}).values() for n in names}
+    problems += [f"{Path(p).name}: already a source of the catalog (rename the new file)"
+                 for p in [*args.label, *args.check, *(args.review or [])] if Path(p).name in taken]
+    return problems
+
+
+@_one_writer
+def cmd_add(args: argparse.Namespace) -> int:
+    """Append label, check and review passes for documents the catalog does not hold yet.
+
+    Everything ``build`` checks is checked here with the same functions (pass roles, independence,
+    the gate on the corpus text, reconcile, review resolution); ``build`` itself needs every
+    source file and replaces both stores, which does not suit passes landing one batch at a time.
+    Existing records are not rewritten. The manifest gains the new file names under ``sources`` and
+    one ``additions`` entry; a later full ``build`` must be given the added files too.
+    """
+    corpus = Path(args.corpus)
+    missing = [p for p in [*args.label, *args.check, *(args.review or [])] if not Path(p).is_file()]
+    if missing:
+        print("add refused: input files not found:\n  " + "\n  ".join(missing), file=sys.stderr)
+        return 1
+    problems: list[str] = []
+    reviews = _load_reviews(args.review or [], problems)
+    problems += _add_input_problems(args, reviews)
+    if problems:
+        print("add refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    gold, supp = gl.gold_dir(), gl.supplementary_dir()
+    try:
+        broken = [p for d in (gold, supp) if (d / "MANIFEST.json").is_file() for p in gl.verify_catalog(d)]
+        if broken:
+            raise _BuildError("add refused: the committed stores already fail their check:\n  " + "\n  ".join(broken))
+        gmanifest, gdata = _load_store(gold, gl.SCHEMA, "catalog")
+        smanifest, sdata = _load_store(supp, gl.SUPPLEMENTARY_SCHEMA, "supplementary store")
+        problems = _add_problems(args, reviews, gdata, [gmanifest, smanifest])
+        if problems:
+            raise _BuildError("add refused:\n  " + "\n  ".join(problems))
+        labelled = _validate_all(corpus, args.label)
+        checked = _validate_all(corpus, args.check)
+        known = {d["doc_id"] for d, *_ in labelled} | {d["doc_id"] for d, *_ in checked}
+        unknown = sorted((_pass_doc_ids(args.label) | _pass_doc_ids(args.check)) - known)
+        if unknown:
+            raise _BuildError("add refused:\n  " + "\n  ".join(f"{d}: not in the corpus" for d in unknown))
+        checks = {d["doc_id"]: (sub, res) for d, sub, res, _ in checked}
+        binding = _schema_binding(args.revision)
+        catalog, supplementary = _build_rows(labelled, checks, reviews, binding)
+    except _BuildError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
+    doc_ids = sorted(d["doc_id"] for d, *_ in labelled)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    merged = []
+    for old, new in ((gdata, catalog), (sdata, supplementary)):
+        merged.append({cls: [*old.get(cls, []), *new.get(cls, [])] for cls in sorted({*old, *new})})
+    with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
+        drift = _rewrite_drift(gold_stage, gmanifest, gdata) + _rewrite_drift(supp_stage, smanifest, sdata)
+        if drift:
+            print("add refused: " + "\n  ".join(drift), file=sys.stderr)
+            return 1
+        left = []
+        for stage, old, data in ((gold_stage, gmanifest, merged[0]), (supp_stage, smanifest, merged[1])):
+            files = _write_class_files(stage, data)
+            manifest = _added_manifest(old, data, files, args, binding, now, doc_ids)
+            (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                                                 encoding="utf-8")
+            left += gl.verify_catalog(stage)
+        if left:
+            print("add refused: the extended stores fail their check; nothing was written:\n  "
+                  + "\n  ".join(left), file=sys.stderr)
+            return 1
+        _swap_in_both(gold_stage, gold, supp_stage, supp)
+    print(f"added {len(doc_ids)} documents: {sum(len(v) for v in catalog.values())} labels; "
           f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
     return 0
@@ -535,6 +727,7 @@ def _supersedes_problem(rec: dict, decision: dict) -> str | None:
     return None
 
 
+@_one_writer
 def cmd_review(args: argparse.Namespace) -> int:
     """Apply review files to the committed catalog in place, without the label and check passes.
 
@@ -747,6 +940,14 @@ def main(argv: list[str] | None = None) -> int:
     bd.add_argument("--review", nargs="*")
     bd.add_argument("--override", nargs="*", help="relabel passes whose fields replace earlier label passes")
     bd.set_defaults(fn=cmd_build)
+
+    ad = sub.add_parser("add", help="append passes for documents the catalog does not hold yet")
+    ad.add_argument("--corpus", required=True)
+    ad.add_argument("--revision", required=True, help="dataset revision the added records are bound to")
+    ad.add_argument("--label", nargs="+", required=True)
+    ad.add_argument("--check", nargs="+", required=True)
+    ad.add_argument("--review", nargs="*")
+    ad.set_defaults(fn=cmd_add, override=None)
 
     rv = sub.add_parser("review", help="apply accept/correct review files to the committed catalog in place")
     rv.add_argument("--corpus", required=True)

@@ -120,6 +120,38 @@ A corrected or adopted record keeps the label it replaced under `review.original
 catalog check (`gold_labels.py check`) requires every `near_gold` record to rest on an agreeing
 check pass that passed the gate, or on such a review.
 
+## Adding documents to a built catalog
+
+`gold_labels.py build` rebuilds the whole catalog and needs every label, check, review and
+override file the manifest lists in `sources`. `gold_labels.py add` lands the passes for new
+documents without them:
+
+```bash
+python scripts/gold_labels.py add --corpus DIR --revision SHA \
+    --label add-label.jsonl --check add-check.jsonl [--review add-review.jsonl]
+```
+
+It runs the same gates as `build` on the new files (roles, independence, the gate on the
+corpus text, reconcile, review resolution). A fatal failure (an input or independence refusal,
+a document outside the corpus, an unresolved review, or extended stores that fail
+`verify_catalog`) writes nothing. A single field that fails the gate is not fatal: the
+document's valid fields are committed and the failed one is kept in the supplementary store as
+a `gate_reject` row. That document then has a catalog record, so a second `add` for it is
+refused and `review` cannot fill the field (it settles existing records only); land a corrected
+pass with a full `build` given every source. Only one `build`, `add` or `review` writes the
+stores at a time: a second one is refused untouched and can simply be run again. It also
+refuses a document that already has a catalog record (settle those with `review`), a file name
+already listed in `sources`, a review line for a document the add does not carry, and a
+document with a label pass but no check pass, because a second add could never complete it.
+Existing records are not rewritten. The new records are appended to the catalog and the
+supplementary store, which are swapped in together, and the manifest gains the file names under
+`sources`, the new hashes and counts, `added_at` and an `additions` entry. The added records
+carry `--revision` in their own `schema` binding; the manifest `binding` still describes the
+original build.
+
+`add` only appends. A later full `build` must be given every earlier file and the added ones,
+or it rebuilds a catalog without the added documents.
+
 ## Correspondence fields
 
 Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspondence_specialist.txt`).

@@ -1,4 +1,88 @@
 {
+  "added_at": "2026-11-26T04:15:12Z",
+  "additions": [
+    {
+      "added_at": "2026-11-26T04:15:12Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-10d9ed3ec90278aa",
+        "DOC-1afbdbce947fcbb2",
+        "DOC-43508f83601983ee",
+        "DOC-5892b6dc609c8d0f",
+        "DOC-600bb187ec39c59a",
+        "DOC-6a7a8377e5b12fc1",
+        "DOC-6df2dc5d88b9759b",
+        "DOC-6f2a424dc2303482",
+        "DOC-7523d051bc56169f",
+        "DOC-78a0da18d0ba811a",
+        "DOC-7b354c409a55e428",
+        "DOC-9011b4430f2f8b7c",
+        "DOC-962cc639f3ebee80",
+        "DOC-9b569749ea3d6f42",
+        "DOC-a05bef17a3ab844f",
+        "DOC-a479cefde05b0e7b",
+        "DOC-a9850db362f57916",
+        "DOC-ab9afe870c6269b2",
+        "DOC-b5538b4fcabb279b",
+        "DOC-b75acf5924dbc7b3",
+        "DOC-b87880882e5fe354",
+        "DOC-be88b19e71877c8b",
+        "DOC-c2ac5762c7f227fa",
+        "DOC-c7f557969d953fae",
+        "DOC-cae84b6c817d1e65",
+        "DOC-cb2d97457441efdc",
+        "DOC-cf055bc08b3a94f1",
+        "DOC-cfbea02f5ed5cc09",
+        "DOC-d6ca961326a2bc47",
+        "DOC-d78686a34882edd8",
+        "DOC-f0036b6845ddcb79",
+        "DOC-f26370a654a692c9",
+        "DOC-f36a4d64a41a6a06",
+        "DOC-f386860a9bb6c213",
+        "DOC-f392f7f81ebb7ccd",
+        "DOC-f3e139973869802b",
+        "DOC-fc4de1d07c82d189",
+        "DOC-fc9671ccde642e8d",
+        "DOC-fd584319f049435a",
+        "DOC-feebd563a12641b4"
+      ],
+      "sources": {
+        "check": [
+          "check-contract-e40-000.jsonl",
+          "check-contract-e40-001.jsonl",
+          "check-contract-e40-002.jsonl",
+          "check-contract-e40-003.jsonl",
+          "check-contract-e40-004.jsonl",
+          "check-contract-e40-005.jsonl",
+          "check-contract-e40-006.jsonl",
+          "check-contract-e40-007.jsonl",
+          "check-contract-e40-008.jsonl"
+        ],
+        "label": [
+          "label-contract-e40-000.jsonl",
+          "label-contract-e40-001.jsonl",
+          "label-contract-e40-002.jsonl",
+          "label-contract-e40-003.jsonl",
+          "label-contract-e40-004.jsonl",
+          "label-contract-e40-005.jsonl",
+          "label-contract-e40-006.jsonl",
+          "label-contract-e40-007.jsonl",
+          "label-contract-e40-008.jsonl"
+        ],
+        "review": [
+          "review-contract-e40.jsonl"
+        ]
+      }
+    }
+  ],
   "binding": {
     "dataset": "Lucius-Morningstar/mailroom-dataset",
     "dataset_revision": "ccd040f6a1b6b414bdefd161cdc622b68f6dacf8",
@@ -12,49 +96,49 @@
   "counts": {
     "contract": {
       "agreement_date": {
-        "candidate": 114,
+        "candidate": 93,
         "disputed": 2,
-        "near_gold": 103
+        "near_gold": 164
       },
       "contract_value": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 2,
-        "near_gold": 108
+        "near_gold": 169
       },
       "dispute_forum": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 4,
-        "near_gold": 106
+        "near_gold": 167
       },
       "expiration_date": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 2,
-        "near_gold": 107
+        "near_gold": 168
       },
       "party_roles": {
-        "candidate": 72,
+        "candidate": 57,
         "disputed": 21,
-        "near_gold": 89
+        "near_gold": 144
       },
       "payment_terms": {
-        "candidate": 115,
+        "candidate": 95,
         "disputed": 34,
-        "near_gold": 76
+        "near_gold": 136
       },
       "signatories": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 2,
-        "near_gold": 108
+        "near_gold": 169
       },
       "termination_notice_period": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 14,
-        "near_gold": 96
+        "near_gold": 157
       },
       "territory": {
-        "candidate": 117,
+        "candidate": 96,
         "disputed": 3,
-        "near_gold": 107
+        "near_gold": 168
       }
     },
     "corporate_record": {
@@ -96,11 +180,11 @@
     }
   },
   "files": {
-    "contract.jsonl": "edf2401362b5885d1cae98927ee72c75334214722602f29d086de127d8b357d3",
+    "contract.jsonl": "aeb9f5e414e156ac0dda34fe17343b62a06bacdd98c20c6e6828dd69f6e8733c",
     "corporate_record.jsonl": "cce111a1cae4bda15b15fdc12c426ee05de035029ac67a5cb11bb472c8a8c462",
     "correspondence.jsonl": "63cb3e9abd61e36412043c7aa877cf1b9d7ac117e2c95653dc2f3ab03b03f209"
   },
-  "reviewed_at": "2026-11-19T04:21:49Z",
+  "reviewed_at": "2026-11-26T04:16:57Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -114,6 +198,15 @@
       "check-contract-100.jsonl",
       "check-contract-101.jsonl",
       "check-contract-102.jsonl",
+      "check-contract-e40-000.jsonl",
+      "check-contract-e40-001.jsonl",
+      "check-contract-e40-002.jsonl",
+      "check-contract-e40-003.jsonl",
+      "check-contract-e40-004.jsonl",
+      "check-contract-e40-005.jsonl",
+      "check-contract-e40-006.jsonl",
+      "check-contract-e40-007.jsonl",
+      "check-contract-e40-008.jsonl",
       "check-corporate_record-000.jsonl",
       "check-corporate_record-015.jsonl",
       "check-corporate_record-016.jsonl",
@@ -188,6 +281,15 @@
       "label-contract-101.jsonl",
       "label-contract-102.jsonl",
       "label-contract-103.jsonl",
+      "label-contract-e40-000.jsonl",
+      "label-contract-e40-001.jsonl",
+      "label-contract-e40-002.jsonl",
+      "label-contract-e40-003.jsonl",
+      "label-contract-e40-004.jsonl",
+      "label-contract-e40-005.jsonl",
+      "label-contract-e40-006.jsonl",
+      "label-contract-e40-007.jsonl",
+      "label-contract-e40-008.jsonl",
       "label-corporate_record-000.jsonl",
       "label-corporate_record-001.jsonl",
       "label-corporate_record-002.jsonl",
@@ -356,6 +458,8 @@
       "decisions.jsonl",
       "decisions_supersede.jsonl",
       "review-audit-1.jsonl",
+      "review-contract-e21.jsonl",
+      "review-contract-e40.jsonl",
       "review-corp-1.jsonl",
       "review-corr-000-001.jsonl",
       "review-corr-002-003.jsonl",
