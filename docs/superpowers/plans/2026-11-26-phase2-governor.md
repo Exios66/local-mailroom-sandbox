@@ -449,13 +449,13 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   `docs/critical-regressions.md` (cite the row 17 and row 22 guards), `CHANGELOG.md`
 - Test: `tests/test_gate.py` (or the existing gate test file that covers `judge_reasks`)
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_the_gate_counts_governor_stops_by_reason`;
   - `test_a_governor_stop_is_its_own_cause`;
   - `test_duplicates_are_counted_in_the_gate`.
-- [ ] **Step 2: Run them; they fail.** Run the gate test file with `-n 0 --no-cov`.
-- [ ] **Step 3: Implement** the aggregation and the cause, then write the docs.
-- [ ] **Step 4: Run every file this phase touched:**
+- [x] **Step 2: Run them; they fail.** Run the gate test file with `-n 0 --no-cov`.
+- [x] **Step 3: Implement** the aggregation and the cause, then write the docs.
+- [x] **Step 4: Run every file this phase touched:**
 
   ```bash
   .venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py tests/test_call_guard.py \
@@ -465,7 +465,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   ```
 
   Also run ruff, markdownlint, `scripts/check_cli_surface.py --check` and `sandbox runbook check`.
-- [ ] **Step 5: Commit** `docs(governor): gate counts, causes, hotfix rows and job.governor guide (phase2 task 8)`.
+- [x] **Step 5: Commit** `docs(governor): gate counts, causes, hotfix rows and job.governor guide (phase2 task 8)`.
 - [ ] **Step 6: Hand over.**
   1. Have one fresh reviewer on the most capable model review the whole branch, and fix its Critical and
      Important findings with tests.

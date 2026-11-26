@@ -497,6 +497,49 @@ reviewer gets its own checks: `local` must be in-house and a different model fro
 the sorter, `api` needs an OpenRouter `sorter_reviewer` route, and `jev` is refused
 for mock runs and Modal jobs.
 
+## Loop governor (`job.governor`)
+
+Phase 2 of the [correcting-judge design](superpowers/specs/2026-11-26-correcting-judge-design.md) gives a
+`task: pipeline` run one budget per document across every node, so a document stops at a recorded outcome
+instead of looping until the hard call ceiling (40) refuses it. It is off unless the job sets it, and it is
+refused for any other task. `governor: true` takes every default; a mapping sets fields:
+
+```yaml
+job:
+  governor:
+    retries: 2                 # rounds per document: classify and extraction retries, arbiter calls, boss entries
+    calls: 30                  # model calls per document (1-39, below the hard ceiling of 40)
+    calls_by_class: {merger_agreement: 36}
+    spend_usd: null            # off until the pilot measures cost per type
+    sorter_ceiling: null       # L2: a classify retry at or above it goes to the second opinion
+    near_empty_chars: 64       # L5: shorter known text goes to review before any model call (0: off)
+    link_duplicates: true      # L4: exact or near copies of archived documents are linked, not escalated
+    near_duplicate_jaccard: 0.9
+```
+
+Before each step that would add a round, the governor checks, in order: a second boss entry
+(`boss_repeat`), the retry budget (`retry_budget`), the call budget (`call_budget`) and the spend budget
+(`spend_budget`). A stopped document goes to human review, or is archived with caveats when its latest
+extraction attempt has a `complete` judge verdict (`archive_with_caveats`). Transient provider errors keep their own
+limit (`transient_retry_max`) and still count toward the call and spend budgets; with L1 every HTTP attempt
+counts, a failed one included. The mechanics are vendor hotfixes HF-018 and HF-019
+([vendor hotfixes](vendor-hotfixes.md)).
+
+Each item that the governor touched records it, and a run without the governor gets none of these keys:
+
+- `governor_stop`: `{reason, outcome, node, proposed, calls, retries, spend_usd}` for the first stop
+  (`near_empty` stops at `node: intake` with no model call);
+- `duplicate_of`: `{doc_id, kind, similarity}` when HF-019 linked a duplicate (`kind` exact or near);
+- `governor_skips`: `{classify_retry: n}` when L2 skipped a sorter retry.
+
+The gate report adds a `governor` block (stops by reason and outcome, duplicates by kind, skipped sorter retries
+and the documents), and a review the governor sent is typed `governor:<reason>` (`input:near_empty` for L5).
+
+The block is part of the hashed spec when set (not when absent), and HF-018 and HF-019 are in every lock's
+`vendor_hotfixes`, so a run locked before this change refuses resume until `--force` (a generation reset; see
+[Checkpoint / resume](#checkpoint--resume)). The near-duplicate index is in-process: near copies are found among
+the documents this process has seen in the run.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working

@@ -253,6 +253,35 @@ def _judge_reask_block(reasked: list[Mapping[str, Any]]) -> dict[str, Any]:
             "docs": [s["id"] for s in reasked]}
 
 
+def _governor_fields(out: dict[str, Any], pred: Mapping[str, Any]) -> None:
+    """The loop governor's marks on a result (phase 2): its stop, a linked duplicate, skipped sorter retries."""
+    stop = pred.get("governor_stop")
+    if isinstance(stop, Mapping) and stop.get("reason"):
+        out["governor_stop"] = {"reason": str(stop["reason"]), "outcome": str(stop.get("outcome") or "")}
+    duplicate = pred.get("duplicate_of")
+    if isinstance(duplicate, Mapping) and duplicate.get("kind"):
+        out["duplicate_of"] = str(duplicate["kind"])
+    skips = pred.get("governor_skips")
+    if isinstance(skips, Mapping) and _reask_count(skips.get("classify_retry")):
+        out["governor_skips"] = _reask_count(skips.get("classify_retry"))
+
+
+def _governor_block(statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    stops: dict[str, dict[str, int]] = {}
+    duplicates: dict[str, int] = {}
+    for s in statuses:
+        if "governor_stop" in s:
+            by_outcome = stops.setdefault(s["governor_stop"]["reason"], {})
+            by_outcome[s["governor_stop"]["outcome"]] = by_outcome.get(s["governor_stop"]["outcome"], 0) + 1
+        if "duplicate_of" in s:
+            duplicates[s["duplicate_of"]] = duplicates.get(s["duplicate_of"], 0) + 1
+    return {"stops": {r: dict(sorted(o.items())) for r, o in sorted(stops.items())},
+            "duplicates": dict(sorted(duplicates.items())),
+            "skipped_classify_retries": sum(int(s.get("governor_skips") or 0) for s in statuses),
+            "docs": [s["id"] for s in statuses
+                     if "governor_stop" in s or "duplicate_of" in s or "governor_skips" in s]}
+
+
 def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     row, item = doc["row"], doc.get("item")
     doc_class = str(row.get("expected_doc_class"))
@@ -279,6 +308,7 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     if item.get("error") or item.get("ok") is False or pred.get("error"):
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
+    _governor_fields(out, pred)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
@@ -486,7 +516,11 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
 
     caveated = [s for s in statuses if s.get("arbiter_caveats")]
     reasked = [s for s in statuses if s.get("judge_reasks")]
+    governor = _governor_block(statuses)
     return {
+        # Present only when the loop governor acted (phase 2, job.governor): stops by reason and
+        # outcome, duplicates linked instead of escalated (HF-019) and sorter retries skipped (L2).
+        **({"governor": governor} if governor["docs"] else {}),
         # Present only when a judge answer that did not parse was asked once more (HF-002 / HF-013):
         # how often, and how each re-ask ended: ``recovered`` (second answer parsed), ``parked``
         # (it did not parse either: a judge error, counted under ``judge_errors`` above) or
