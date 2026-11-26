@@ -336,5 +336,6 @@ Where the work differs from the plan above:
   (2026-11-18) had already been published on GitHub without CHANGELOG sections or a version
   bump; the clone was shallow and had no tags. The CHANGELOG now has a `[0.4.0] - 2026-11-18`
   heading at the tag's boundary, this work stays under `[Unreleased]`, and the package
-  version reads 0.4.0 to match the published release. The v0.3.5 boundary could not be
-  placed reliably, so it has no heading.
+  version reads 0.4.0 to match the published release. A follow-up added
+  `[0.3.5] - 2026-10-30`: all 62 entries of that tag's `[Unreleased]` section sit under it in
+  their original order, and the 16 entries filed among them after the tag moved up into 0.4.0.

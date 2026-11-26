@@ -923,6 +923,57 @@ Published on GitHub as `v0.4.0` (tag `93f298c`). Entries below this heading were
 - `sandbox tui`, a local interactive command terminal, and a browser live inspector with
   parser-derived nested CLI manuals. Full execution stays local and keeps the spend gates.
 
+### Changed
+
+- **Compose stack hardening.** Every published Compose port binds `127.0.0.1` (previously all interfaces). MinIO moves from `minio/minio:RELEASE.2025-09-07…` to the Chainguard image pinned by digest; a `minio_data` volume from the old image needs a one-time owner change ([docker-offline.md](docs/setting-up/docker-offline.md)). Langfuse web and worker pin `3.225.15` (were `3`). ClickHouse gets the `SYS_NICE` capability. The default `LANGFUSE_INIT_USER_EMAIL` is `sandbox@example.com` (was `sandbox@localhost`), in `config/.env.example` and the compose file.
+- `sandbox doctor`: the `provider` row warns instead of failing on a Modal cold-start timeout, with the explanation; the `langfuse` row warns when the Langfuse SDK is not installed, because runs then record no traces.
+- Spend caps price every Modal app a run keeps warm. `job.cost_cap_usd` on a routed run now sums the base engine and each distinct `modal-vllm` agent-route app (the SAND-078 judge's L40S, a SAND-079 `mid` specialist `L4:2` app), counting the GPUs in an `L4:2` suffix. It previously priced the base engine alone.
+- An explicit `quantization: ""` (bf16) on a model whose serve default is fp8 now reaches the deploy as `MODAL_VLLM_QUANTIZATION=bf16`. It previously rendered as unset, so the deploy served fp8 while the run lock said bf16.
+- The local `vllm` compose service and the `vllm-local` profile's `pull-models` hint now serve and name `Qwen/Qwen3.5-9B`, the profile's own default (bf16; compose has no quantization knob). Before this, a `vllm-local` run asked a Qwen3-8B server for Qwen3.5-9B. README, Quickstart, providers, deploy and remote-serving docs cover the SAND-074–079 model tiers, primary eval tasks and live pipeline view.
+- Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
+  the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD
+  `718e326c` (0.24.2 plus the DMR-113 zero-token fix), the newest Dojo source.
+- Observer numeric arguments, incompatible options and malformed beacon handling are
+  hardened; campaign run-ID markers are followed and switch the associated log streams.
+- The watch UI shows locked model/provider settings and campaign checkpoints instead of
+  inherited demo labels, with log filters, follow controls and accessibility fixes.
+
+### Removed
+
+- LegalBench: the `sandbox legalbench` command, the `legalbench` eval/run task, its
+  loaders, scorer and fixtures.
+
+### Fixed
+
+- **Runtime taxonomy no longer becomes the next merge base.** After
+  `patch_mailroom_config` pointed mailroom at `data/runtime/taxonomy.yaml`,
+  a second `build_merged_taxonomy` in the same process merged onto that
+  output and kept the previous run's served-model pins. The shipped path is
+  now remembered before the patch (SAND-077).
+- `sandbox matrix` plans the model you ask for. An id with no `config/models.yaml` row (e.g. `Qwen/Qwen3.5-9B`, `qwen/qwen3.5-9b`) used to be swapped silently for the serving family's default (`Qwen/Qwen3-8B`, `qwen/qwen3.7-flash`). Champion rows still map per family. The pipeline example configs now say where prompt versions live and how to pin one per role.
+- **PR #192 review fixes (CodeRabbit).** Switching runs in `watch` / `watch --web` now closes the old log buffer, so the new buffer takes the writer lock and `--no-logs` still loads the saved dispatch log. `eval specialist <target> --prompt-version` accepts versions for that target's specialists. The tray configuration shows a prompt's identity and hash, never its text. `probe_openrouter_key` fails when the key response has no key record. The pipeline example configs no longer suggest `--dry-run` preflight, which skips the checks. The browser-test docs install Chromium first.
+- Serving records follow the vendored Dojo's repaired usage rules. A cost the sandbox
+  writes is authoritative in the Dojo, so `record_from_run` now applies the same gates.
+  An ok item with no recorded usage makes the run cost unknown (Dojo 0.24.2): the
+  record carries `usage_unobserved_items` and no `estimated_cost_usd`. Explicit zero
+  usage on a priced model is a known `0.0` (DMR-113). OpenAI usage parsing keeps an
+  explicit `prompt_tokens: 0` instead of falling through to `input_tokens`.
+- The GPU telemetry sampler takes an optional stop event. Its test now stops the
+  thread, which had outlived its monkeypatches and printed into a later test's
+  captured `doctor --json` output (the CircleCI `test` failure).
+- `sandbox board` rejects beacon counters and timestamps too large for a float
+  instead of raising `OverflowError` for every job.
+- Watch UI: the current phase's lane is never marked skipped; the no-campaign hint
+  shows its `<experiment.yaml>` placeholder; a campaign keeps the run manifest and
+  drops the SAND-032 program title; the single-stream dispatch title names the
+  tailed app.
+
+## [0.3.5] - 2026-10-30
+
+Published on GitHub as the pre-release `v0.3.5` (tag `6b1fab5`). Entries below this heading were in that tag's `[Unreleased]` section.
+
+### Added
+
 - `docs/cli-reference.md`: generated, complete reference for every parser node,
   argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
   [--check]` and parser-surface tests that exercise help, required arguments and
@@ -977,20 +1028,6 @@ Published on GitHub as `v0.4.0` (tag `93f298c`). Entries below this heading were
 
 ### Changed
 
-- **Compose stack hardening.** Every published Compose port binds `127.0.0.1` (previously all interfaces). MinIO moves from `minio/minio:RELEASE.2025-09-07…` to the Chainguard image pinned by digest; a `minio_data` volume from the old image needs a one-time owner change ([docker-offline.md](docs/setting-up/docker-offline.md)). Langfuse web and worker pin `3.225.15` (were `3`). ClickHouse gets the `SYS_NICE` capability. The default `LANGFUSE_INIT_USER_EMAIL` is `sandbox@example.com` (was `sandbox@localhost`), in `config/.env.example` and the compose file.
-- `sandbox doctor`: the `provider` row warns instead of failing on a Modal cold-start timeout, with the explanation; the `langfuse` row warns when the Langfuse SDK is not installed, because runs then record no traces.
-- Spend caps price every Modal app a run keeps warm. `job.cost_cap_usd` on a routed run now sums the base engine and each distinct `modal-vllm` agent-route app (the SAND-078 judge's L40S, a SAND-079 `mid` specialist `L4:2` app), counting the GPUs in an `L4:2` suffix. It previously priced the base engine alone.
-- An explicit `quantization: ""` (bf16) on a model whose serve default is fp8 now reaches the deploy as `MODAL_VLLM_QUANTIZATION=bf16`. It previously rendered as unset, so the deploy served fp8 while the run lock said bf16.
-- The local `vllm` compose service and the `vllm-local` profile's `pull-models` hint now serve and name `Qwen/Qwen3.5-9B`, the profile's own default (bf16; compose has no quantization knob). Before this, a `vllm-local` run asked a Qwen3-8B server for Qwen3.5-9B. README, Quickstart, providers, deploy and remote-serving docs cover the SAND-074–079 model tiers, primary eval tasks and live pipeline view.
-- Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
-  the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD
-  `718e326c` (0.24.2 plus the DMR-113 zero-token fix), the newest Dojo source.
-
-- Observer numeric arguments, incompatible options and malformed beacon handling are
-  hardened; campaign run-ID markers are followed and switch the associated log streams.
-- The watch UI shows locked model/provider settings and campaign checkpoints instead of
-  inherited demo labels, with log filters, follow controls and accessibility fixes.
-
 - CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
   building the parser, so profiles and secrets resolve from `config/.env.example`;
   exported variables still win, then root `.env`, then `config/.env`. The template is
@@ -1008,34 +1045,7 @@ Published on GitHub as `v0.4.0` (tag `93f298c`). Entries below this heading were
 
 ### Removed
 
-- LegalBench: the `sandbox legalbench` command, the `legalbench` eval/run task, its
-  loaders, scorer and fixtures.
-
 ### Fixed
-
-- **Runtime taxonomy no longer becomes the next merge base.** After
-  `patch_mailroom_config` pointed mailroom at `data/runtime/taxonomy.yaml`,
-  a second `build_merged_taxonomy` in the same process merged onto that
-  output and kept the previous run's served-model pins. The shipped path is
-  now remembered before the patch (SAND-077).
-
-- `sandbox matrix` plans the model you ask for. An id with no `config/models.yaml` row (e.g. `Qwen/Qwen3.5-9B`, `qwen/qwen3.5-9b`) used to be swapped silently for the serving family's default (`Qwen/Qwen3-8B`, `qwen/qwen3.7-flash`). Champion rows still map per family. The pipeline example configs now say where prompt versions live and how to pin one per role.
-- **PR #192 review fixes (CodeRabbit).** Switching runs in `watch` / `watch --web` now closes the old log buffer, so the new buffer takes the writer lock and `--no-logs` still loads the saved dispatch log. `eval specialist <target> --prompt-version` accepts versions for that target's specialists. The tray configuration shows a prompt's identity and hash, never its text. `probe_openrouter_key` fails when the key response has no key record. The pipeline example configs no longer suggest `--dry-run` preflight, which skips the checks. The browser-test docs install Chromium first.
-- Serving records follow the vendored Dojo's repaired usage rules. A cost the sandbox
-  writes is authoritative in the Dojo, so `record_from_run` now applies the same gates.
-  An ok item with no recorded usage makes the run cost unknown (Dojo 0.24.2): the
-  record carries `usage_unobserved_items` and no `estimated_cost_usd`. Explicit zero
-  usage on a priced model is a known `0.0` (DMR-113). OpenAI usage parsing keeps an
-  explicit `prompt_tokens: 0` instead of falling through to `input_tokens`.
-- The GPU telemetry sampler takes an optional stop event. Its test now stops the
-  thread, which had outlived its monkeypatches and printed into a later test's
-  captured `doctor --json` output (the CircleCI `test` failure).
-- `sandbox board` rejects beacon counters and timestamps too large for a float
-  instead of raising `OverflowError` for every job.
-- Watch UI: the current phase's lane is never marked skipped; the no-campaign hint
-  shows its `<experiment.yaml>` placeholder; a campaign keeps the run manifest and
-  drops the SAND-032 program title; the single-stream dispatch title names the
-  tailed app.
 
 - Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
   and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;
