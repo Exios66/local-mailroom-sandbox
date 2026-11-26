@@ -190,17 +190,19 @@ ever see the text that holds it?
   LLM-sorter orange, specialists and their verifiers (`judge`, `arbiter`) use
   the third-system aqua, and `intake` and `jev` are neutral. The classification
   arbiter node runs on the `arbiter` agent, so it is a second `arbiter` lane
-  (`arbiter · classification_arbiter`). A lane's shade depends only on
-  its own node, never on the other lanes of the document, so the same agent and
-  node look the same in every document: the agent's own lane and the usual first
-  nodes (`extract`, `classify`, `judge_verify`) keep the agent's colour,
-  `retry_extract`, `retry_classify` and `classification_arbiter` are 35% lighter,
-  `retry_extract_2` is 50% lighter, and any other node name is hashed into one of
-  five fixed lighter shades (20% to 80%; two unrelated nodes of one agent can
-  then share a shade, and the label tells them apart). No shade is darker than
-  the agent's colour, so every derived shade keeps at least 3:1 contrast on the
-  dark page. An agent with no assigned colour gets the
-  specialist, decision or neutral grey swatch.
+  (`arbiter · classification_arbiter`). An agent with one lane keeps its
+  colour exactly, whatever its node. An agent with several lanes keeps its colour
+  on the lane whose call came first, and each later lane (in the order the calls
+  were recorded) is a lighter step of it: 35%, 50%, 65%, 20% and 80% lighter, so
+  lanes of one agent never share a swatch while it has six or fewer. From the
+  seventh lane on the steps repeat, and the label tells those lanes apart. A lane
+  that appears while the run is live takes the next step and does not recolour
+  the lanes already drawn. The agent's own colour comes from the figure style and
+  is not changed here; some of those colours (the decision classification blue,
+  `#1b4f94`, is 2.28:1) are dimmer than 3:1 on the minimap track. Every lighter
+  step is at least 3:1 against the track and keeps the band text readable (4.5:1
+  or better). An agent with no assigned colour gets the specialist, decision or
+  neutral grey swatch.
 - **Fields.** Every expected and extracted field, with a flag computed in the
   browser. The search is whitespace- and case-insensitive. Click a field to
   scroll to its occurrence; click again for the next.

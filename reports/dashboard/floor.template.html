@@ -778,12 +778,10 @@ function rdColor(agent,group){return (Object.prototype.hasOwnProperty.call(RD_CO
 function rdShade(hex,k){
  const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex);if(!m)return hex;
  return "#"+[m[1],m[2],m[3]].map(x=>{const v=parseInt(x,16),t=k<0?0:255,r=Math.round(v+(t-v)*Math.abs(k));return (r<16?"0":"")+r.toString(16)}).join("")}
-/** Shade of a lane = a function of its node alone, never of which other lanes the document has: 0 keeps the agent's colour, the rest are lighter steps of it (a darker swatch sinks into the dark page: every shade here is at least 3:1 against the track, #0d141d, for every role colour, and the band text stays at 4.5:1 or better).
- *  Known nodes have a fixed slot (the common first attempts keep the agent's colour); any other node name hashes into slots 1-5, so two unrelated nodes of one agent can share a shade (the label still tells them apart). */
+/** Shade of a lane = its ordinal among the lanes of its own agent, in the order the agent's calls first appeared (the recorded run order). An agent with one lane keeps its figure-role colour exactly (shade 0), whatever its node; with several, the first lane keeps it and the next ones are lighter steps, so two lanes of one agent never share a swatch while there are at most RD_SHADES.length of them. Past that the steps repeat (the label still tells the lanes apart). A lane that appears later in a live run takes the next step and never recolours the lanes already drawn.
+ *  Shade 0 is the role colour from the figure style and can be dimmer than 3:1 on the track (decisions:classification, #1b4f94, is 2.28:1); it is not changed here. Every lightened step is at least 3:1 against the track (#0d141d) for every role colour, and the band text stays at 4.5:1 or better. */
 const RD_SHADES=[0,0.35,0.5,0.65,0.2,0.8];
-const RD_NODE_SLOT={extract:0,classify:0,judge_verify:0,retry_extract:1,retry_classify:1,classification_arbiter:1,retry_extract_2:2};
-function rdHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
-const rdLaneShade=node=>!node?0:RD_SHADES[Object.prototype.hasOwnProperty.call(RD_NODE_SLOT,node)?RD_NODE_SLOT[node]:1+rdHash(node)%5];
+const rdLaneShade=ord=>ord>0?RD_SHADES[1+(ord-1)%(RD_SHADES.length-1)]:0;
 /** The node that sets a call apart from the agent's own lane: "" when there is none or it is the agent's own name. */
 const rdLaneNode=(agent,node)=>typeof node==="string"&&node&&node!==String(agent)?node:"";
 /** One lane per (agent, node). JSON.stringify of the pair is unambiguous for any text ("/", "%", quotes, unicode) and never throws: a lone surrogate is written as an escape. */
@@ -792,17 +790,17 @@ const rdLaneKey=(agent,node)=>JSON.stringify([String(agent),rdLaneNode(agent,nod
  *  `key` is unambiguous and safe as a Set member or (escaped) attribute value. `full` is "agent · node" (the tooltip); `label` is the agent alone, plus " · node" (`shownNode`) only when the agent has more than one lane in this document, so a lone lane reads as it always did.
  *  `specialists` = agent names the digest saw under a "specialists" graph node. */
 function rdModel(reads,specialists){
- const spec=new Set(specialists||[]),by=new Map();
+ const spec=new Set(specialists||[]),by=new Map(),nOf=new Map();
  ((reads&&Array.isArray(reads.calls)&&reads.calls)||[]).forEach((c,i)=>{
   const a=String(c.agent),nd=rdLaneNode(a,c.node),key=rdLaneKey(a,nd);
-  if(!by.has(key))by.set(key,{key,agent:a,node:nd,full:nd?a+" · "+nd:a,label:a,shownNode:"",group:rdGroup(a,spec),color:"",calls:[]});
+  if(!by.has(key)){const ord=nOf.get(a)||0;nOf.set(a,ord+1);by.set(key,{key,agent:a,node:nd,full:nd?a+" · "+nd:a,label:a,shownNode:"",ord,group:rdGroup(a,spec),color:"",calls:[]})}
   const g=by.get(key);
   g.calls.push({i,n:g.calls.length+1,node:c.node||"",basis:c.basis||"",ranges:Array.isArray(c.ranges)?c.ranges:[],
    matched:+c.matched||0,request:+c.request||0,skipped:c.skipped||"",unplaced:+c.unplaced||0,approx:c.approx===true})});
  const cmp=(x,y)=>x<y?-1:x>y?1:0;
  const lanes=[...by.values()].sort((x,y)=>RD_ORDER.indexOf(x.group)-RD_ORDER.indexOf(y.group)||cmp(x.agent,y.agent)||cmp(x.node,y.node));
  const per=new Map();lanes.forEach(g=>per.set(g.agent,(per.get(g.agent)||0)+1));
- lanes.forEach(g=>{g.color=rdShade(rdColor(g.agent,g.group),rdLaneShade(g.node));if(per.get(g.agent)>1&&g.node){g.shownNode=g.node;g.label=g.full}});
+ lanes.forEach(g=>{g.color=rdShade(rdColor(g.agent,g.group),per.get(g.agent)>1?rdLaneShade(g.ord):0);if(per.get(g.agent)>1&&g.node){g.shownNode=g.node;g.label=g.full}});
  return {lanes}}
 /** Notes lanes not seen before in `seen`; a specialist's new lane joins `on`, so a retry lane that appears while the run is live starts painted like its siblings. */
 function rdAdopt(model,seen,on){model.lanes.forEach(g=>{if(!seen.has(g.key)){seen.add(g.key);if(g.group==="specialist")on.add(g.key)}})}

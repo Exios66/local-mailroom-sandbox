@@ -1115,13 +1115,9 @@ console.log("ok");
 
 
 @test
-def viewer_lanes_of_one_agent_get_distinct_colours_and_new_specialist_lanes_start_on():
+def viewer_new_specialist_lanes_start_on():
     out = viewer_js(_RD_SETUP + r"""
 const A=require('node:assert/strict');
-const nodes=["extract","retry_extract","retry_extract_2"];
-const m=rdModel(reads(nodes.map(n=>call("contracts_specialist",n,[[0,3]]))),SP);
-A.equal(new Set(m.lanes.map(g=>g.color)).size,nodes.length);                        // the nodes a run really has never share a shade
-A.equal(m.lanes.find(g=>g.node==="extract").color,RD_SPECIALIST);A.ok(m.lanes.every(g=>/^#[0-9a-f]{6}$/.test(g.color)));
 // a retry lane that shows up while the run is live joins the lanes already painted; a non-specialist lane never does
 const on=new Set(),seen=new Set();
 rdAdopt(rdModel(reads([call("contracts_specialist","extract",[[0,3]]),call("arbiter","arbiter",[[0,3]])]),SP),seen,on);
@@ -1271,31 +1267,89 @@ console.log("ok");
     assert out == "" or out.strip() == "ok"
 
 
+# Node names of the vendored graph (plus the retry and arbiter lanes it records), and agents of every colour family.
+_RD_GRAPH_NODES = ["classify", "extract", "judge_verify", "review_classify", "retry_classify", "retry_extract",
+                   "classification_arbiter", "boss_escalation", "arbiter"]
+
+
 @test
-def viewer_lane_colour_depends_only_on_its_own_agent_and_node():
-    """The same (agent, node) gets the same swatch whatever else the document holds, and no swatch sinks into the page."""
+def viewer_single_lane_agent_keeps_its_figure_role_colour_whatever_its_node():
+    """An agent with one lane is drawn exactly as before lanes existed: rdColor(agent), not a lighter shade of it."""
     out = viewer_js(_RD_SETUP + r"""
 const A=require('node:assert/strict');
-const colour=(calls,agent,node)=>rdModel(reads(calls),SP).lanes.find(g=>g.agent===agent&&g.node===(node===agent?"":node)).color;
-const only=[call("arbiter","classification_arbiter",[[0,3]])];
-const withOthers=only.concat([call("arbiter","arbiter",[[0,3]]),call("arbiter","zz_retry",[[0,3]]),call("arbiter","aa",[[0,3]]),call("contracts_specialist","extract",[[0,3]])]);
-A.equal(colour(only,"arbiter","classification_arbiter"),colour(withOthers,"arbiter","classification_arbiter"));
-for(const n of ["extract","retry_extract","retry_extract_2","aa","zz_retry","x/y","<b>","\ud800"]){      // known and unknown nodes alike
-  const alone=[call("contracts_specialist",n,[[0,3]])],crowd=nodesCrowd(n);
-  A.equal(colour(alone,"contracts_specialist",n),colour(crowd,"contracts_specialist",n),n)}
-function nodesCrowd(n){return ["extract","retry_extract","a","b","c","d","e","f",n].map(x=>call("contracts_specialist",x,[[0,3]]))}
+const NODES=%s;
+const agents=["sorter","sorter_reviewer","judge","completeness_judge","arbiter","boss","intake","jev","contracts_specialist","tier2_extractor",
+  "decisions:classification","decisions:extraction_gate","decisions:closed_field_resolver","decisions:something_new"];
+const before=a=>rdColor(a,rdGroup(a,new Set(SP)));                          // what the viewer drew before lanes: one swatch per agent
+for(const a of agents)for(const n of NODES){
+  const one=rdModel(reads([call(a,n,[[0,3]])]),SP);
+  A.equal(one.lanes.length,1);
+  A.equal(one.lanes[0].color,before(a),a+" at "+n);
+  const twice=rdModel(reads([call(a,n,[[0,3]]),call(a,n,[[4,6]])]),SP);       // several calls at one node are still one lane
+  A.equal(twice.lanes.length,1);A.equal(twice.lanes[0].color,before(a),a+" x2 at "+n)}
+// the cases that used to change: literal colours, so a change to rdColor shows here too
+const lit=[["sorter_reviewer","review_classify","#f7a98b"],["boss","boss_escalation","#898781"],["arbiter","classification_arbiter","#0f8f62"],
+  ["sorter","retry_classify","#eb6834"],["contracts_specialist","retry_extract","#1baf7a"]];
+for(const [a,n,c] of lit)A.equal(rdModel(reads([call(a,n,[[0,3]])]),SP).lanes[0].color,c,a+" at "+n);
 A.equal(rdModel(reads([call("contracts_specialist",null,[[0,3]])]),SP).lanes[0].color,RD_SPECIALIST);   // a node-less call keeps the agent's colour
-// every shade of every role colour stays visible on the dark page (WCAG 2 contrast against the minimap track, #0d141d)
-// and readable under the document text (#c5d0dc over a band at alpha 0x55 on #070b10), and the six shades stay apart
+console.log("ok");
+""" % json.dumps(_RD_GRAPH_NODES))
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lanes_of_one_agent_never_share_a_swatch():
+    """Shades follow a lane's ordinal within its agent (run order), so real graph nodes cannot collide; past the shades the label tells lanes apart."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+const NODES=%s;
+const agents=["contracts_specialist","sorter","sorter_reviewer","arbiter","boss","intake","decisions:classification","decisions:something_new"];
+const M=RD_SHADES.length;
+const mk=(a,ns)=>ns.map((n,i)=>call(a,n,[[i,i+1]]));
+const lanesOf=(a,ns,extra)=>rdModel(reads(mk(a,ns).concat(extra||[])),SP).lanes.filter(g=>g.agent===a);
+for(const a of agents){
+  const base=rdColor(a,rdGroup(a,new Set(SP)));
+  for(const ns of [NODES,[...NODES].reverse(),["review_classify","classify","judge_verify","extract","boss_escalation","retry_extract"]]){
+    for(let n=2;n<=Math.min(M,ns.length);n++){
+      const ls=lanesOf(a,ns.slice(0,n));
+      A.equal(ls.length,n);
+      A.equal(new Set(ls.map(g=>g.color)).size,n,a+" "+ns.slice(0,n).join()+" share a swatch: "+ls.map(g=>g.color));
+      A.equal(ls.find(g=>g.key===rdLaneKey(a,ns[0])).color,base,a+": the first lane keeps the agent's colour");     // run order, not name order
+    }
+    // past the shades: swatches repeat, labels never do
+    const all=lanesOf(a,ns);
+    if(ns.length>M){A.ok(new Set(all.map(g=>g.color)).size<all.length);A.equal(new Set(all.map(g=>g.label)).size,all.length)}
+  }
+  // a lane that turns up later never recolours the ones already drawn, and other agents' lanes do not move anyone
+  const calls=mk(a,NODES),others=[call("zz_other_specialist","extract",[[0,1]]),call("aa","retry",[[0,1]])];
+  for(let k=1;k<NODES.length;k++){
+    const before=rdModel(reads(calls.slice(0,k)),SP).lanes.filter(g=>g.agent===a);
+    const after=rdModel(reads(calls.slice(0,k+1).concat(others)),SP).lanes.filter(g=>g.agent===a);
+    for(const g of before)A.equal(after.find(x=>x.key===g.key).color,g.color,a+" lane "+g.node+" recoloured by a later lane")}
+}
+// the realistic collisions of the previous scheme: one decision agent recorded at several graph nodes
+const dc=lanesOf("decisions:classification",["classify","extract","judge_verify","retry_classify","retry_extract","classification_arbiter"]);
+A.equal(new Set(dc.map(g=>g.color)).size,6);
+console.log("ok");
+""" % json.dumps(_RD_GRAPH_NODES))
+    assert out == "" or out.strip() == "ok"
+
+
+@test
+def viewer_lane_shades_stay_visible_on_the_dark_page():
+    """Every lightened lane shade is at least 3:1 against the minimap track and keeps the band text readable; shade 0 is the role colour, which this check does not hold to 3:1."""
+    out = viewer_js(_RD_SETUP + r"""
+const A=require('node:assert/strict');
+// WCAG 2 contrast against the minimap track (#0d141d) for the swatch, and of the document text (#c5d0dc) under a band at alpha 0x55 on #070b10
 const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const relLum=c=>{const [r,g,b]=c.map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)});return .2126*r+.7152*g+.0722*b};
 const contrast=(a,b)=>{const x=relLum(a),y=relLum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
 const TRACK=rgb("#0d141d"),TEXT_BG=rgb("#070b10"),TEXT=rgb("#c5d0dc");
 const underBand=c=>c.map((v,i)=>v*0x55/255+TEXT_BG[i]*(1-0x55/255));
+A.equal(RD_SHADES[0],0);                                                    // slot 0 is the agent's own colour
 A.equal(new Set(RD_SHADES).size,RD_SHADES.length);
 for(const base of new Set([RD_SPECIALIST,RD_DECISION,RD_OTHER,...Object.values(RD_COLORS)])){
   const cols=RD_SHADES.map(k=>rgb(rdShade(base,k)));
-  // k=0 is the agent's own colour, fixed by the figure roles; only the derived shades are held to the 3:1 floor
   RD_SHADES.forEach((k,i)=>{
     if(k!==0)A.ok(contrast(cols[i],TRACK)>=3,base+" "+k+" is "+contrast(cols[i],TRACK).toFixed(2)+":1 on the track");
     A.ok(contrast(TEXT,underBand(cols[i]))>=4.5,base+" "+k+" under text "+contrast(TEXT,underBand(cols[i])).toFixed(2));
