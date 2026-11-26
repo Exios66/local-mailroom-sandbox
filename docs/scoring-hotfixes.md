@@ -7,11 +7,15 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
 ## Rules
 
 - **Bound to the code it corrects.** Each fix lists its targets (`module:qualname`) with the
-  sha256 of the target's source as written in its module file, or a reviewed data file it reads
-  (`file:<repo path>` with the file's sha256). When a vendor refresh or an edit changes a target, the fix is `stale`: it is not applied, and `sandbox run preflight`
+  sha256 of the target's source as written in its module file, a reviewed data file it reads
+  (`file:<repo path>` with the file's sha256), or a module constant that has no source text of its
+  own, such as a regex or a token set (`value:<module>:<name>` with the sha256 of its value: sets
+  and mappings sorted, a regex as pattern and flags, a function named, never printed). When a vendor
+  refresh or an edit changes a target, the fix is `stale`: it is not applied, and `sandbox run preflight`
   fails on the `scoring_hotfixes` check until the fix is re-validated (update the sha after
-  checking the fix still holds) or retired. Patching a target at run time (for example
-  `monkeypatch.setattr` in a test) does not change its fingerprint.
+  checking the fix still holds) or retired. Patching a function target at run time (for example
+  `monkeypatch.setattr` in a test) does not change its fingerprint, which is read from the file; a
+  `value:` target reads the live value, so patching a constant does.
 - **Dual reported.** A scoring entrypoint scores each row with every fix off (the raw Dojo-pin
   value, under `raw_dojo`) and with the current fixes on (the headline).
   `scoring_hotfixes` names the fixes that were on; `scoring_hotfixes_changed` names the
@@ -63,6 +67,22 @@ answer from the same question-set response, not a second request.
 Each entry gives what the fix changes, the code paths that apply it, and how a run records it.
 
 - **SHF-015** (new). Changes the extraction headline as described in the table.
+  - What its fingerprint covers: the sandbox seam (`applicable_expected_fields`,
+    `score_extraction_row`, `job/gate.labelled_count`), the Dojo's `stale_hub_labels` and
+    `drop_stale_hub_labels`, and everything `stale_hub_labels` calls: the helpers by source
+    (`_fields`, `_class`, `_corporate_stale`, `_correspondence_stale`, `_keywords`,
+    `is_templated_subject_matter`, `metadata_keyword_kind`, `_keyword_list`, `_norm_token`,
+    `is_empty_value`, `parse_gt_fields`, `parse_json_container`) and the constants they read by value
+    (`_CLASS_STALE`, `_TEMPLATE_MARK`, `_ID_KEYWORD`, `_CIK_KEYWORD`, `_TOPIC_KEYS`, `_TEMPLATE_FRAME`,
+    `_SNAKE_TOKEN`, `_TIMESTAMP`, `_DATE_OR_TIME`, `_EMAIL`, `_MAILBOX_ID`, `_FOLDER_NAMES`,
+    `_CONTENT_LIKE_FOLDERS`, `_COMMUNICATION_TYPES`, `_NULL_TOKENS`). A vendor refresh or a
+    `SANDBOX_DOJO_SNAPSHOT` that changes any of them makes SHF-015 `stale` (not applied, preflight
+    fails, an older run lock needs a re-lock), so the stale-label verdicts cannot move while the flag
+    reads `current`. `tests/test_scoring_hotfix_fingerprint.py` walks the call graph of
+    `stale_hub_labels` and fails when a function or constant it reaches is not a target, so a new
+    helper added by a refresh is caught when the fix is re-validated. Not covered: a runtime
+    monkeypatch of a function (the fingerprint of a function is its file source, as for every fix),
+    and the Python standard library.
   - Paths: `eval/scoring.score_extraction_row`, used through `eval/runners._score_pipeline_extraction`
     by pipeline runs, `sandbox rescore`, `job/pair_report` and the gate's document score. Also
     `run_extract_eval` and the isolated `extract` scorer (`eval/agents._score_extract`), which

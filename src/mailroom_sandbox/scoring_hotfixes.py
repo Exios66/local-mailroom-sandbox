@@ -5,8 +5,10 @@ code that calls it. A scoring defect the experiments cannot wait for is correcte
 id (``SHF-001`` ...), and never silently:
 
 - **Bound to the code it corrects.** Each fix lists its targets (``module:qualname``) with the
-  sha256 of the target's source (``inspect.getsource``) it was validated against, or
-  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads. When a vendor
+  sha256 of the target's source (``inspect.getsource``) it was validated against,
+  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads, or
+  ``value:<module>:<name>`` with the sha256 of a module constant's value (a regex, a set of
+  tokens, a dispatch table: it has no source text to hash). When a vendor
   refresh or an edit changes a target, the fix is ``stale``: it is not applied, and
   ``sandbox run preflight`` fails on the ``scoring_hotfixes`` check until the fix is re-validated
   or retired.
@@ -235,10 +237,39 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
             ("mailroom_sandbox.eval.scoring:score_extraction_row", "71d73e914c9fd31ec17a82313c6819b4b4290df7d0d27dcd64ff00961c2f517f"),
-            # the Dojo's label policy decides which Hub labels are stale; a refresh re-validates
-            ("llm_dojo_scoring.schemas.label_policy:stale_hub_labels", "3e8141ca126dcf8df58defa78e18f0f1a35ee833cfe53c0d9828333b7301fdbd"),
+            # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
+            # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
+            # changes one of them makes the fix stale). A live monkeypatch of a function is not source
+            # drift and is not seen. tests/test_scoring_hotfix_fingerprint.py walks the call graph and
+            # fails when a callee is missing here.
+            ("llm_dojo_scoring.schemas.corporate_record_schema:_keywords", "a651ec0dc05054218d9ad7e47bcb1dfd9ed9f8606062095ce29cec40b764d440"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:_keyword_list", "86679982c9b3fca87449aa953b8a7f3ab1a5b3e6aaa0628febd4c25f01b012ce"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:_norm_token", "3250fe41754b808b2ebeafb264b42d6a84822a1451494da87daf451a9281438d"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:is_templated_subject_matter", "13c32d90add368aa1428a526c0647c8000f153085eb30c0837a2bdb32bea1a98"),
+            ("llm_dojo_scoring.schemas.correspondence_gt_audit:metadata_keyword_kind", "e50d0a4959fe4891083fbf64a9c134921b2274f4f71db8c54a77f2a6acbebd66"),
+            ("llm_dojo_scoring.schemas.gt_metadata:is_empty_value", "2ce53a21d97504cd3d23be843be571f270e7dfaa0c4e806c15f6feeedfcbe0cf"),
+            ("llm_dojo_scoring.schemas.gt_metadata:parse_gt_fields", "2110f6425b2a6a2fe9dcedf40215c629e481d9e7e9839cd4b7fe090eebe007bd"),
+            ("llm_dojo_scoring.schemas.gt_metadata:parse_json_container", "7659a64ece4fa57f9b88caa33744e0aa2b90a845d2e24ab9f759df0a2b0d7885"),
+            ("llm_dojo_scoring.schemas.label_policy:_class", "45d438fc79c5f28cda61df07b3aedd2c7aa25277523ceda6e2b743d7867ba9d6"),
             ("llm_dojo_scoring.schemas.label_policy:_corporate_stale", "65de264759beb5b282dc79cbe69d2dc1a5c3fdba7a5ae52ca83a1526d7d0fe6c"),
             ("llm_dojo_scoring.schemas.label_policy:_correspondence_stale", "af434deecfe68e0153549d06011e14220217ea9605f7c7010bac0f7040f92990"),
+            ("llm_dojo_scoring.schemas.label_policy:_fields", "1330ec0d50c6e371283a5c9d18675abe5136742ffb3ba4ffbc0d6680265d41f1"),
+            ("llm_dojo_scoring.schemas.label_policy:stale_hub_labels", "3e8141ca126dcf8df58defa78e18f0f1a35ee833cfe53c0d9828333b7301fdbd"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_CIK_KEYWORD", "b1f91ef1f1f428b9abaee509679408bc66032a725c57399978514e89acf1114f"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_ID_KEYWORD", "72cb0568e72cbff1ac05e07a287146a167e2a205896716de6111af98b6e07fb2"),
+            ("value:llm_dojo_scoring.schemas.corporate_record_schema:_TEMPLATE_MARK", "928549eb271fe98a6f8c6cae549c63684e262f38eb182ff191fe0532529dfe71"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_COMMUNICATION_TYPES", "59c43d6a5942ff13a11cc71b1538dcbe603c29db8da3854985bfdce78e02e72c"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_CONTENT_LIKE_FOLDERS", "cf7c116d050f34ff98ca388870da85ccd59b34bab20d0d9211d02514f007fffc"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_DATE_OR_TIME", "c8415f3aef32a226981c44bb4c985aa62e9b2a0f0ec6aa63df8aa88c03e5ef58"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_EMAIL", "750d61faddfa542c367f4cc505c9dced6846b9ae488eaef30346899c00df9575"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_FOLDER_NAMES", "4b48410321f98f66b09562e0bd8898368f16a92a8c95338d960ea617814d4f2f"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_MAILBOX_ID", "5e92ca8075beb1a6eb7be6d695dab38913c868c1e8907a5b8aad40b858b73d23"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_SNAKE_TOKEN", "a7cf2b12dd54a86bb54dab12dbeeb0a834225dd1f9ef80921a27e3d0261620fd"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TEMPLATE_FRAME", "1ee500b686d47bad993ce9f84e37ce0a2a15bb97eadc6c6026475d7dedf9ba0e"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TIMESTAMP", "f1649d013d3d3c075f889fbeb709f03383f67a740e5bbbbe4bc4ee564319adf7"),
+            ("value:llm_dojo_scoring.schemas.correspondence_gt_audit:_TOPIC_KEYS", "0968d3d06ffcbeb417935bc920c2c03c8a8064e203d47aba3ef1b9eb74babed0"),
+            ("value:llm_dojo_scoring.schemas.gt_metadata:_NULL_TOKENS", "bf830f6ef10243a290dd314059c18cf88f3e63dbbfffb0596141e0305a9575c1"),
+            ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
             ("mailroom_sandbox.job.gate:labelled_count", "b3bc1a48335464a5f08cbae2e07573cba79e0d97259a79a2661a881a8b0742a8"),
@@ -333,7 +364,34 @@ def data_path(rel: str) -> Path | None:
     return next((path for path in candidates if path.is_file()), None)
 
 
+VALUE_TARGET = "value:"
+
+
+def _canonical(value: Any) -> str:
+    """A stable text form of a constant: sets and mappings sorted, a regex as pattern plus flags."""
+    if isinstance(value, re.Pattern):
+        return f"re({value.pattern!r}, {int(value.flags)})"
+    if isinstance(value, (set, frozenset)):
+        return "set(" + ",".join(sorted(_canonical(v) for v in value)) + ")"
+    if isinstance(value, Mapping):
+        return "map(" + ",".join(sorted(f"{_canonical(k)}:{_canonical(v)}" for k, v in value.items())) + ")"
+    if isinstance(value, (list, tuple)):
+        return type(value).__name__ + "(" + ",".join(_canonical(v) for v in value) + ")"
+    if callable(value):  # a dispatch table lists functions: name them, never print an address
+        return f"callable({getattr(value, '__module__', '')}:{getattr(value, '__qualname__', repr(value))})"
+    return repr(value)
+
+
+def value_sha(value: Any) -> str:
+    """sha256 of :func:`_canonical` ``(value)``: what a ``value:`` target records."""
+    return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
+
+
 def target_sha(target: str) -> str:
+    if target.startswith(VALUE_TARGET):
+        # The live value, not file text: a constant has no source of its own and may be derived from
+        # another module's data (``frozenset(CORRESPONDENCE_TOPICS)``), so its value is what decides.
+        return value_sha(_resolve(target[len(VALUE_TARGET):]))
     if target.startswith(FILE_TARGET):
         path = data_path(target[len(FILE_TARGET):])
         if path is None:
