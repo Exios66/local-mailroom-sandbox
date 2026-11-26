@@ -79,7 +79,11 @@ run logs, and document text is not in it. The page reads the file with
 
 The file has `mailroom_floor_export` set to `1`, `exported_utc`, `focus`
 (the run, class, debug filter, mode, document, and node on screen), and
-`digest` (the same object as `floor_digest.json`). A different export number, or a file that is not a digest, is refused
+`digest` (the same object as `floor_digest.json`). Focus also retains the active
+drawer tab and document filters (confusion pair, outcome, class-miss toggle,
+ID search and decision search). Import restores validated fields and clears
+filters missing from older exports, preventing another viewer's selection from
+carrying into the snapshot. A different export number, or a file that is not a digest, is refused
 and the current view stays. The ribbon keeps SNAPSHOT beside the refusal. After import the ribbon says
 SNAPSHOT and live polling pauses. A fetch that was already open does not
 replace that snapshot when it returns. LIVE returns to the digest this page
@@ -171,10 +175,13 @@ by the node and whether the repeat was consecutive or a reentry. A technical
 failure is grouped by the node and the error token. A class miss that still
 reached archive is its own mode. Click a mode to light only those documents.
 `?mode=` deep-links one id. `?doc=` and `?node=` reopen a document or a node.
+A selected confusion pair also controls clicked-node neighbors and the
+selected-node count, alongside graph counts, repeat badges and node diagnostics.
+Clearing it restores the previous class and DEBUG filters.
+
 `?cell=` reopens a confusion-matrix pair (`ground truth`, then a tab, then the
 predicted class). Clicking a matrix cell isolates the documents in that pair
-on the whole run, including while a class is isolated, and only while debug
-isolate is off. Lit edges follow each document's path, including hops the why list omits after 16. START and END use that same pair count. A selected mode lists its count in
+on the whole run, taking precedence over earlier class and DEBUG isolates. Lit edges follow each document's path, including hops the why list omits after 16. START and END use that same pair count. A selected mode lists its count in
 every run of the digest, with the prompt stem stored for `mode.node` when the
 lock has one. Copy note writes that mode, the count, the sample ids, the stem,
 and the lever. It does not rewrite the run. A repeated visit shows stored

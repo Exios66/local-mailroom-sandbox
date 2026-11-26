@@ -1105,6 +1105,7 @@ def test_confusion_pair_controls_graph_counts_even_with_debug_class_and_mode_fil
     html = _template()
     cells = html[html.index("function recordedPred("):html.index("function decisionMatch(")]
     focus = html[html.index("function focusSets("):html.index("/** Group recorded hops into one node")]
+    render_prefix = html[html.index("function render(){"):html.index(" for(const [id,xy] of Object.entries(POS))")]
     arrivals = html[html.index("function arrivalGroups("):html.index("function markTab(")]
     node_diag = html[html.index("function paintNodeDiag("):html.index("function pickDoc(")]
     script = r'''
@@ -1119,6 +1120,12 @@ const unrelated={id:"old-class",gt:"contract",pred:"contract",path:["intake","hu
     hops:[{from:"intake",to:"classify",why:"unrelated arrival"}],
     archive:{reached:false,why:"unrelated archive miss"}}};
 const run=()=>({docs:[selected,unrelated]});
+const D={graph_reference:{edges:[["START","intake"],["intake","classify"],
+  ["classify","archive"],["classify","human_review"],["archive","END"]]}};
+const nodeVal=()=>2;
+const edgeVal=(a,b)=>b==="human_review"?2:0;
+const world={querySelectorAll:()=>[]};
+const svg={childNodes:[{}]};
 const debugDocs=()=>[unrelated]; // existing class/mode filters select another document
 const selDocPath=()=>null;
 const endSources=()=>["archive"];
@@ -1127,7 +1134,11 @@ const document={getElementById:()=>panel};
 const hasDebug=()=>true;
 const esc=s=>String(s);
 let selNode="classify";
-'''+cells+focus+arrivals+node_diag+r'''
+'''+cells+focus+arrivals+node_diag+render_prefix+' return {ev,neighbors};}'+r'''
+const highlighted=render().neighbors;
+assert.ok(highlighted.has("archive"));
+assert.ok(!highlighted.has("human_review"));
+assert.equal(graphNodeVal("classify"),1);
 assert.equal(focusSets(),null);
 assert.deepEqual([...pairFocus().nodes],["intake","classify","archive"]);
 assert.equal(cellEndpoint("START"),1);
@@ -1150,6 +1161,9 @@ selNode="classify";
 DF.cell=null; // clearing the cell restores the previous debug isolate
 assert.deepEqual([...focusSets().nodes],["intake","human_review"]);
 assert.equal(cellNodeCount("classify"),null);
+assert.equal(graphNodeVal("classify"),2);
+assert.ok(render().neighbors.has("human_review"));
+assert.ok(!render().neighbors.has("archive"));
 assert.equal(loopMark("intake").why,"wrong repeat");
 paintNodeDiag();
 assert.match(panel.innerHTML,/unrelated arrival/);
@@ -1177,3 +1191,37 @@ def test_refresher_rechecks_a_running_run_even_when_nothing_changed(tmp_path, mo
     assert ref.refresh() is True, "a running checkpoint is rebuilt without an artifact change"
     (run / "checkpoint.json").write_text('{"state": "complete"}', encoding="utf-8")
     assert ref.refresh() is True and ref.refresh() is False, "a finished store goes quiet again"
+
+
+def test_shared_floor_digest_restores_its_filters_and_clears_foreign_filters():
+    """Execute export/import focus with a different cell already selected in the receiving viewer."""
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is needed to execute viewer JavaScript (present in CircleCI's node image)")
+    html = _template()
+    share = html[html.index("function shareFocus("):html.index("function usableDigest(")]
+    apply = html[html.index("function applyShareFocus("):html.index("function takeDigest(")]
+    script = r'''
+const assert=require("node:assert/strict");
+let runIdx=0,CLASS=null,selNode=null,selDoc=null,DEBUG=false,ISSUE="problems",MODE=null,TAB="docs";
+const ISSUE_IDS=["problems","all"];
+const DF={cell:{gt:"letter",pred:"contract"},dec:"retry",outcome:"held",miss:true,q:"doc"};
+const D={generated_utc:"2026-11-25T00:00:00Z",classes:[],runs:[{name:"source",docs:[]}]};
+const run=()=>D.runs[runIdx];
+const hasClasses=()=>false;
+const classView=()=>({why:""});
+'''+share+apply+r'''
+const saved=JSON.parse(JSON.stringify(floorExportObject())).focus;
+DF.cell={gt:"foreign",pred:"unknown"};DF.dec="foreign";DF.outcome="failed";DF.miss=false;DF.q="foreign";
+applyShareFocus(saved);
+assert.deepEqual(DF,{cell:{gt:"letter",pred:"contract"},dec:"retry",outcome:"held",miss:true,q:"doc"});
+assert.equal(TAB,"docs");
+applyShareFocus({run:"source"}); // older exports have no document filters
+assert.deepEqual(DF,{cell:null,dec:"",outcome:"",miss:false,q:""});
+applyShareFocus({run:"source",filters:{cell:{gt:[],pred:1},dec:2,outcome:"bogus",miss:"false",q:{}}});
+assert.deepEqual(DF,{cell:null,dec:"",outcome:"",miss:false,q:""});
+'''
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr

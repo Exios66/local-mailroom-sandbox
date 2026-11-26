@@ -272,6 +272,9 @@ function cellEdgeCount(a,b){
  let n=0;
  for(const d of cellDocs()||[])for(const e of pathEdges(d))if(e[0]===a&&e[1]===b)n++;
  return n}
+/** Counts shared by graph badges, selected-node details and neighbor highlighting. */
+function graphNodeVal(id){const n=cellNodeCount(id);return n==null?nodeVal(id):n}
+function graphEdgeVal(a,b){const n=cellEdgeCount(a,b);return n==null?edgeVal(a,b):n}
 function pairFocus(){
  const docs=cellDocs();
  if(!docs||selDocPath())return null;
@@ -404,7 +407,7 @@ function render(){
  const r=run(),GR=D.graph_reference,docPath=selDocPath(),docPairs=new Set((docPath||[]).slice(1).map((n,i)=>docPath[i]+">"+n));
  const focus=focusSets()||pairFocus();
  // pre-compute edge traffic in current view context
- const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?nodeVal(b):b==="END"?nodeVal(a):edgeVal(a,b)}));
+ const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?graphNodeVal(b):b==="END"?graphNodeVal(a):graphEdgeVal(a,b)}));
  const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
  // neighbors of selected node over NON-ZERO edges
  const neighbors=new Set();
@@ -420,7 +423,7 @@ function render(){
    el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
    el.dataset.k=id;continue;
   }
-  const counted=cellNodeCount(id),v=counted==null?nodeVal(id):counted;
+  const v=graphNodeVal(id);
   const isllm=isLLM(id);
   let ncls="node";
   if(id==="human_review")ncls+=" hold";
@@ -452,7 +455,7 @@ function render(){
   const p1=anc(POS[a],POS[b]),p2=anc(POS[b],POS[a]);const dx=p2.x-p1.x,dy=p2.y-p1.y,dist=Math.hypot(dx,dy)||1;
   const m=midFor(a,b,p1,p2,BOX);
   const cxm=m.x,cym=m.y;
-  const counted=cellEdgeCount(a,b),v=counted==null?edgeVal(a,b):counted, active=v>0;
+  const v=graphEdgeVal(a,b), active=v>0;
   const selHit=!!selNode&&(a===selNode||b===selNode);
   let cls="edge", marker="url(#arr)";
   if(docPath){ if(docPairs.has(a+">"+b)){cls="edge sel";marker="url(#arrSel)"}else{cls="edge dim";marker="url(#arrDim)"} }   // picked document: only its own hops
@@ -505,8 +508,8 @@ function render(){
  // human review routed here ≠ failed: every parked document stays accounted for per trigger stage
  const rv=r.review_routed||{total:0,by_stage:{}},rn=Object.entries(rv.by_stage||{});
  document.getElementById("outRev").textContent="Routed to human review: "+rv.total+(rn.length?" ("+rn.map(([s,c])=>s+" "+c).join(" · ")+")":" — none in this run");
- const sel=selNode||"",agN=sel?(r.node_agents[sel]||{}):{};
- document.getElementById("selName").textContent=sel?sel+(CLASS?" · "+CLASS:""):"(click a node)";
+ const sel=selNode||"",agN=sel?(r.node_agents[sel]||{}):{},countScope=DF.cell?" (pair)":CLASS?" (class)":" (run)";
+ document.getElementById("selName").textContent=sel?sel+(DF.cell?" · "+DF.cell.gt+" → "+DF.cell.pred:CLASS?" · "+CLASS:""):"(click a node)";
  document.getElementById("kA").textContent=sel?(D.graph_reference.node_agents[sel]||"—"):"—";
  document.getElementById("kAgt").textContent=Object.keys(agN).length?JSON.stringify(agN):"—";
  document.getElementById("kM").textContent=sel&&isLLM(sel)?r.engine.model+" · "+r.profile:(sel?"— (deterministic code)":"—");
@@ -517,11 +520,11 @@ function render(){
    (pSel.length?pSel.join(" · "):(r.prompt_default||"—"))+" · spec "+(r.spec_hash||"").slice(0,8):"—";
  document.getElementById("kP").title=pSel.length?"prompt.lock.json: "+pSel.join(" · "):"";
  document.getElementById("kMs").textContent=sel?((r.node_ms_p50[sel]||0)/1000).toFixed(1)+" s":"—";
- document.getElementById("kF").textContent=sel?nodeVal(sel)+(CLASS?" (class)":" (run)"):"—";
+ document.getElementById("kF").textContent=sel?graphNodeVal(sel)+countScope:"—";
  document.getElementById("kAb").textContent=sel?(r.aborts_by_last_node[sel]||0):"—";
  document.getElementById("kTok").textContent=(r.tokens.prompt+r.tokens.completion).toLocaleString()+" tokens";
  document.getElementById("selExtra").textContent=!sel?"":
-  (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
+  (D.graph_reference.node_agents[sel]||"")+" · "+graphNodeVal(sel)+" docs fired this node"+countScope+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
   +nodeOutcomeText(sel);
  paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();
 }
@@ -570,7 +573,7 @@ function tierBadge(l){if(!l||!l.tier)return '<span class="mut">no GT row</span>'
 function pathHtml(p){return p&&p.length?p.map(n=>"<b>"+esc(n)+"</b>").join(" → "):'<span class="mut">no node trace</span>'}
 /** Right-rail line: where the documents that visited a node ended up. */
 function nodeOutcomeText(id){
- const o=((run().node_outcomes)||{})[id];if(!id||!o||CLASS)return "";
+ const o=((run().node_outcomes)||{})[id];if(!id||!o||CLASS||DF.cell)return "";
  return ` · of ${o.n} doc(s) through here: ${o.ship} archived, ${o.held} review, ${o.failed} failed, ${o.open} open`+(o.class_n?` · classified right ${o.class_ok}/${o.class_n}`:"")}
 /** Right-rail Document block for the picked document. */
 function paintDoc(){
@@ -809,7 +812,7 @@ const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;const b=contentB
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
 // ── Shareable digest (the viewer contract, not the raw run logs) ──
-function shareFocus(){return {run:run().name,class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode}}
+function shareFocus(){return {run:run().name,class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode,tab:TAB,filters:{...DF,cell:DF.cell?{...DF.cell}:null}}}
 function floorExportObject(){
  return {mailroom_floor_export:1,exported_utc:new Date().toISOString().replace(/\.\d{3}Z$/,"Z"),focus:shareFocus(),digest:D}}
 function usableDigest(d){
@@ -835,13 +838,23 @@ function applyShareFocus(focus){
  const named=name?D.runs.findIndex(r=>r.name===name):-1;
  runIdx=named>=0?named:(i>=0?i:D.runs.length-1);
  CLASS=null;selNode=null;selDoc=null;DEBUG=false;ISSUE="problems";MODE=null;TAB="scores";
+ Object.assign(DF,{outcome:"",miss:false,q:"",cell:null,dec:""});
+ const filters=focus&&focus.filters;
+ if(filters&&typeof filters==="object"&&!Array.isArray(filters)){
+  if(["ship","held","failed","open"].includes(filters.outcome))DF.outcome=filters.outcome;
+  DF.miss=filters.miss===true;
+  if(typeof filters.q==="string")DF.q=filters.q;
+  if(typeof filters.dec==="string")DF.dec=filters.dec;
+  const c=filters.cell;
+  if(c&&typeof c.gt==="string"&&typeof c.pred==="string")DF.cell={gt:c.gt,pred:c.pred}}
  const dr=D.runs[runIdx],c=focus&&focus.class;
  if(typeof c==="string"&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why)CLASS=c;
  if(focus&&(focus.debug===1||focus.debug===true)){DEBUG=true;TAB="debug"}
  if(focus&&ISSUE_IDS.includes(focus.issue))ISSUE=focus.issue;
  if(focus&&typeof focus.mode==="string"&&focus.mode)MODE=focus.mode;
  if(focus&&typeof focus.doc==="string"&&(dr.docs||[]).some(d=>d.id===focus.doc))selDoc=focus.doc;
- if(!selDoc&&focus&&typeof focus.node==="string")selNode=focus.node||null}
+ if(!selDoc&&focus&&typeof focus.node==="string")selNode=focus.node||null;
+ if(focus&&["scores","docs","nodes","debug"].includes(focus.tab))TAB=focus.tab}
 function takeDigest(nd,focus,snapshot){
  if(snapshot)shareEpoch++;
  D=nd;window.DIGEST=nd;holdLive=!!snapshot;applyShareFocus(snapshot?focus:null);
