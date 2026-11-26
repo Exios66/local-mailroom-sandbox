@@ -28,6 +28,8 @@ data/labels/.gold-labels.lock
 data/watcher_heartbeat
 data/mailroom.db
 data/checkpoints.db
+data/checkpoints.db-shm
+data/checkpoints.db-wal
 data/samples/
 data/*.log
 vendor/*

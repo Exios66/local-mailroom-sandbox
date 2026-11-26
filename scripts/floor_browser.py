@@ -206,18 +206,23 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _prefer_venv() -> None:
-    """Re-exec with the checkout virtualenv when this file was started another way."""
-    venv_py = ROOT / ".venv" / "bin" / "python"
+    """Re-exec through the checkout venv when this process is not already in it.
+
+    ``.venv/bin/python`` is a symlink to the base interpreter. Resolving that
+    link and executing the result drops ``pyvenv.cfg``, so packages installed
+    only in the venv are missing. Compare ``sys.prefix`` with the venv
+    directory and re-exec the unresolved venv path.
+    """
+    venv_dir = ROOT / ".venv"
+    venv_py = venv_dir / "bin" / "python"
     if not venv_py.is_file():
         return
     try:
-        current = Path(sys.executable).resolve()
-        target = venv_py.resolve()
+        if Path(sys.prefix).resolve() == venv_dir.resolve():
+            return
     except OSError:
         return
-    if current == target:
-        return
-    os.execv(target, [str(target), str(Path(__file__).resolve()), *sys.argv[1:]])
+    os.execv(venv_py, [str(venv_py), str(Path(__file__).resolve()), *sys.argv[1:]])
 
 
 if __name__ == "__main__":

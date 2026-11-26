@@ -98,6 +98,46 @@ def test_serve_passes_debug_and_the_requested_base(floor_browser, monkeypatch, t
     assert base.is_dir()
 
 
+def test_prefer_venv_reexecs_the_unresolved_venv_path(floor_browser, tmp_path, monkeypatch):
+    """A symlink to the base interpreter must be executed as the venv path."""
+    venv = tmp_path / ".venv"
+    link = venv / "bin" / "python"
+    link.parent.mkdir(parents=True)
+    real = tmp_path / "base-python"
+    real.write_text("", encoding="utf-8")
+    link.symlink_to(real)
+    monkeypatch.setattr(floor_browser, "ROOT", tmp_path)
+    monkeypatch.setattr(floor_browser.sys, "prefix", str(tmp_path / "other"))
+    monkeypatch.setattr(floor_browser.sys, "argv", ["scripts/floor_browser.py", "--dry-run"])
+    seen = {}
+
+    def fake_execv(path, argv):
+        seen["path"] = path
+        seen["argv"] = argv
+        raise SystemExit(0)
+
+    monkeypatch.setattr(floor_browser.os, "execv", fake_execv)
+    with pytest.raises(SystemExit):
+        floor_browser._prefer_venv()
+    assert seen["path"] == link
+    assert seen["argv"][0] == str(link)
+    assert seen["argv"][1].endswith("floor_browser.py")
+
+
+def test_prefer_venv_stays_when_the_prefix_is_the_venv(floor_browser, tmp_path, monkeypatch):
+    """An already-active checkout venv is not replaced."""
+    venv = tmp_path / ".venv"
+    link = venv / "bin" / "python"
+    link.parent.mkdir(parents=True)
+    real = tmp_path / "base-python"
+    real.write_text("", encoding="utf-8")
+    link.symlink_to(real)
+    monkeypatch.setattr(floor_browser, "ROOT", tmp_path)
+    monkeypatch.setattr(floor_browser.sys, "prefix", str(venv))
+    monkeypatch.setattr(floor_browser.os, "execv", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("re-exec")))
+    floor_browser._prefer_venv()
+
+
 def test_launch_config_points_at_the_script():
     """The project launch config starts this script on the floor port."""
     config = json.loads((REPO / ".claude" / "launch.json").read_text(encoding="utf-8"))

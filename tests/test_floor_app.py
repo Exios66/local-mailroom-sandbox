@@ -760,7 +760,7 @@ def test_template_class_deep_link_uses_the_rails_per_run_guard():
 
 
 def test_ribbon_keeps_the_digest_clock_visible():
-    """The class name, progress text and digest clock stay whole; the slogan and mode ellipsize."""
+    """The digest clock stays whole. At a narrow ribbon the title and progress yield so it fits."""
     css = _template()
     css = css[:css.index("</style>")]
     clock = css[css.index(".ribbon .z{"):]
@@ -779,7 +779,8 @@ def test_ribbon_keeps_the_digest_clock_visible():
     prog = prog[:prog.index("}")]
     assert "flex:none" in prog
     assert "@container (max-width:1400px){.pbar{width:60px}}" in css
-    assert "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:48px}}" in css
+    narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px}}"
+    assert narrow in css
 
 
 def test_template_keeps_the_graph_visible_in_a_narrow_window():
