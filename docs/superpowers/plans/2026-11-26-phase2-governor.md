@@ -163,7 +163,7 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
     - `active() -> GovernorSpec | None`;
     - `call_budget(doc_type: str | None) -> int`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_governor.py`:
+- [x] **Step 1: Write the failing tests** in `tests/test_governor.py`:
   `test_governor_true_means_the_spec_defaults` (`GovernorSpec()` values as above, `calls_by_class ==
   {"merger_agreement": 36}`), `test_governor_is_hashed_only_when_set` (a spec without it keeps its
   `spec_core` hash), `test_governor_refuses_a_call_budget_at_the_hard_ceiling` (`calls=40` raises),
@@ -172,15 +172,15 @@ Any agent can pick this up where the last one stopped. Phase 1 (#427) is merged.
   {"retries": 1}}}, {})` → `governor.active().retries == 1`; an old lock without the key →
   `governor.active() is None`), `test_merger_call_budget_is_36` (`call_budget("merger_agreement") == 36`,
   `call_budget("contract") == 30`, `call_budget(None) == 30`).
-- [ ] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py`.
+- [x] **Step 2: Run them; they fail.** `.venv/bin/python -m pytest -q -n 0 --no-cov tests/test_governor.py`.
   Expected: errors on the missing `GovernorSpec` / `governor` module.
-- [ ] **Step 3: Implement** the spec model, the validator, the `spec_core` exclusion (`governor` excluded when
+- [x] **Step 3: Implement** the spec model, the validator, the `spec_core` exclusion (`governor` excluded when
   `None`), the preflight refusal, `governor.activate/active/call_budget` (a module-level global under a lock, as
   `_ACTIVE_PIPELINE_HANDOFF`) and the activation in `runtime.py` (`governor.activate(locked_job.get("governor"))`;
   `None` when absent).
-- [ ] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_schema_guide.py
+- [x] **Step 4: Run the tests again; they pass.** Same command, plus `tests/test_schema_guide.py
   tests/test_job_spec.py`.
-- [ ] **Step 5: Commit** `feat(governor): job.governor switch, spec defaults and lock activation (phase2 task 1)`.
+- [x] **Step 5: Commit** `feat(governor): job.governor switch, spec defaults and lock activation (phase2 task 1)`.
 
 ### Task 2: Per-document counters in the call guard
 
