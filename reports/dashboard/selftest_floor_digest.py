@@ -938,8 +938,8 @@ _RD_DOC = ("Lease between ACME   Properties and Beta Tenants.\nMonthly rent is 2
            + "\nParking fee: 75 dollars.\nGoverning   law: Ohio.\n")
 
 
-def viewer_js(body: str) -> str:
-    """Run ``body`` in Node after the template's pure READS block; "" (and a notice) without Node."""
+def viewer_js(body: str, glue: bool = False) -> str:
+    """Run ``body`` in Node after the template's pure READS block (and, with ``glue``, the DOCUMENT panel's DOM glue after it); "" (and a notice) without Node."""
     node = shutil.which("node")
     if node is None:
         print("SKIP viewer JS: node is not installed (CircleCI's node image has it)", file=sys.stderr)
@@ -949,6 +949,10 @@ def viewer_js(body: str) -> str:
     block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
     esc_line = next(line for line in html.splitlines() if line.startswith("const esc="))
     prelude = f"const DOC={json.dumps(_RD_DOC)};\n"
+    if glue:
+        # everything from the glue banner to the click listener: DOCV, rdEnsure, paintDocPanel and rdAct; the caller's body stubs the DOM
+        start = html.index("// ── DOCUMENT panel glue")
+        block += "\n" + html[start:html.index("// every panel control is a native <button>", start)]
     r = subprocess.run([node, "-e", prelude + esc_line + "\n" + block + "\n" + body],
                        capture_output=True, text=True, timeout=60, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -1359,6 +1363,69 @@ for(const base of new Set([RD_SPECIALIST,RD_DECISION,RD_OTHER,...Object.values(R
 A.ok(Math.abs(contrast([255,255,255],[0,0,0])-21)<1e-9);A.equal(contrast([9,9,9],[9,9,9]),1);
 console.log("ok");
 """)
+    assert out == "" or out.strip() == "ok"
+
+
+_RD_DOM_STUB = r"""
+// the glue calls run(), so this stub replaces _RD_SETUP's helper of that name with the three it needs
+const call=(agent,node,ranges)=>({agent,node,basis:"working",ranges,matched:0,request:0});
+const reads=calls=>({calls,union:{},doc_chars:[...DOC].length});
+// a minimal DOM: the panel's innerHTML is parsed back into the buttons it holds, so rdAct finds and focuses them as a browser would
+const unesc=t=>t.replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");
+const focused=[],panel={innerHTML:""},pane={scrollTop:0};
+function buttons(){
+  return [...panel.innerHTML.matchAll(/<button\b([^>]*)>/g)].map(m=>{
+    const ds={};for(const a of m[1].matchAll(/\sdata-([a-z-]+)="([^"]*)"/g))ds[a[1].replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=unesc(a[2]);
+    return {dataset:ds,pressed:(/aria-pressed="(true|false)"/.exec(m[1])||[])[1]==="true",focus(){focused.push(this)}}}).filter(b=>b.dataset.rd!==undefined)}
+const document={getElementById:id=>id==="docPanel"?panel:id==="pane"?pane:null,
+  querySelectorAll:sel=>sel==="#docPanel [data-rd]"?buttons():[]};
+const D={graph_reference:{node_agents:{}}},LIVE=false,holdLive=false;
+let selDoc="d1",CALLS=[];
+const mkDoc=id=>({id,gt:"contract",pred:"contract",debug:{reads:reads(CALLS)}});
+const run=()=>({name:"r1",docs:[mkDoc("d1"),mkDoc("d2")],replay:false,node_agents:{}});
+const lane=(a,n)=>buttons().find(b=>b.dataset.rd==="agent"&&b.dataset.lane===rdLaneKey(a,n));
+const click=b=>{if(!b)throw new Error("no such button");rdAct(b)};
+"""
+
+
+@test
+def viewer_lane_toggles_work_through_the_dom_glue():
+    """rdAct (data-lane) and rdEnsure (rdAdopt) run against a stub DOM: toggling one lane moves only that lane, and a lane that appears later starts on."""
+    out = viewer_js(_RD_DOM_STUB + r"""
+const A=require('node:assert/strict');
+CALLS=[call("contracts_specialist","extract",[[0,5]]),call("contracts_specialist","extract",[[6,9]]),call("contracts_specialist","retry_extract",[[5,9]]),
+  call("arbiter","arbiter",[[0,5]]),call("arbiter","classification_arbiter",[[9,12]])];
+paintDocPanel();
+const state=()=>Object.fromEntries(buttons().filter(b=>b.dataset.rd==="agent").map(b=>[b.dataset.lane,b.pressed]));
+const K=(a,n)=>rdLaneKey(a,n);
+// 1. a first paint adopts the specialist lanes (rdEnsure -> rdAdopt) and no other
+A.deepEqual(state(),{[K("contracts_specialist","extract")]:true,[K("contracts_specialist","retry_extract")]:true,[K("arbiter")]:false,[K("arbiter","classification_arbiter")]:false});
+// 2. a lane button toggles that lane alone (the two arbiter lanes share data-agent, so only data-lane tells them apart) and keeps focus on it
+click(lane("arbiter","classification_arbiter"));
+A.equal(state()[K("arbiter","classification_arbiter")],true);A.equal(state()[K("arbiter")],false);
+A.equal(focused.at(-1).dataset.lane,K("arbiter","classification_arbiter"));
+click(lane("contracts_specialist","retry_extract"));
+A.equal(state()[K("contracts_specialist","retry_extract")],false);A.equal(state()[K("contracts_specialist","extract")],true);
+click(lane("contracts_specialist","retry_extract"));A.equal(state()[K("contracts_specialist","retry_extract")],true);
+// 3. a per-call toggle belongs to its lane and keeps focus on that call
+const callBtn=i=>buttons().find(b=>b.dataset.rd==="call"&&b.dataset.i===String(i));
+A.equal(callBtn(0).dataset.lane,K("contracts_specialist","extract"));A.equal(callBtn(0).pressed,true);
+click(callBtn(0));A.equal(callBtn(0).pressed,false);A.equal(callBtn(1).pressed,true);A.equal(focused.at(-1).dataset.i,"0");
+click(callBtn(0));A.equal(callBtn(0).pressed,true);
+// 4. a lane that first appears on a later poll: a specialist starts on, other lanes start off, and the viewer's choices stay
+click(lane("contracts_specialist","extract"));                                   // viewer turns extract off
+CALLS=CALLS.concat([call("contracts_specialist","retry_extract_2",[[1,2]]),call("arbiter","zzz",[[1,2]])]);
+paintDocPanel();
+const s=state();
+A.equal(s[K("contracts_specialist","retry_extract_2")],true);                       // new specialist lane: on
+A.equal(s[K("arbiter","zzz")],false);                                                // new non-specialist lane: off
+A.equal(s[K("contracts_specialist","extract")],false);                              // an earlier choice survives the poll
+A.equal(s[K("arbiter","classification_arbiter")],true);
+// 5. another document starts again from its own specialists
+selDoc="d2";paintDocPanel();
+A.equal(state()[K("contracts_specialist","extract")],true);A.equal(state()[K("arbiter","classification_arbiter")],false);
+console.log("ok");
+""", glue=True)
     assert out == "" or out.strip() == "ok"
 
 
