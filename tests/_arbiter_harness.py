@@ -206,7 +206,7 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
 
     def classify(state, attempt=1):
         conf = script.sorter if script.sorter is not None else medium
-        return {"doc_type": "corporate_record", "doc_subclass": "minutes", "classification_confidence": conf,
+        return {"doc_type": "corporate_record", "doc_subclass": "board_resolution" if script.real_retry else "minutes", "classification_confidence": conf,
                 "classification_attempts": attempt, "stage": "classified", "transient_error": False}
 
     conflict = {"field": "entity_name", "values": ["Cedar Sample Ltd", "Cedar Sample Limited"]}
@@ -249,8 +249,6 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
         monkeypatch.setattr(bg, "_run_chunked_extraction", refuse_extract)
         del scripted["extract"], scripted["retry_extract"]
     if script.real_retry:
-        from langchain_agents.specialist_agents import SPECIALIST_SCHEMAS
-
         from mailroom_sandbox.job import call_guard
 
         def chunked(agent_fn, doc_text, pages, handoff_context):
@@ -259,10 +257,12 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
             def capture(self, user_message, json_schema=None, *a, **k):
                 calls["retry_schemas"].append(json_schema)
                 call_guard.after_call({})
-                return dict(script.retry_payload)
+                return {name: value for name, value in script.retry_payload.items()
+                        if name in json_schema["properties"] or str(name).startswith("_")}
 
             monkeypatch.setattr(type(agent), "_call_structured", capture, raising=False)
-            return agent._call_structured("Extract this document's fields", SPECIALIST_SCHEMAS["corporate_record"])
+            # Run the dedicated composer and response validator, rather than bypassing extract.
+            return agent.extract(doc_text, pages=pages, handoff_context=handoff_context)
 
         monkeypatch.setattr(bg, "_run_chunked_extraction", chunked)
         del scripted["retry_extract"]
