@@ -161,12 +161,20 @@ class ApiBudget:
         self._lock = threading.Lock()
         self._reserve_lock = threading.Lock()  # serialises check-and-reserve (try_reserve)
 
-    def _cost(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> float:
-        """Price the tokens at each model's tier for the average call size, the dearest model winning."""
+    def _cost(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1, model: str | None = None) -> float:
+        """Price the tokens at the named model's tier for the average call size.
+
+        Unnamed or unpriced, every run model is priced and the dearest wins, so a call is never
+        under-counted (a judge model on the run must not re-price every pipeline call, though).
+        """
         from mailroom_sandbox.job.metrics import call_cost
 
         prompt = float(prompt_tokens or 0)
         completion = float(completion_tokens or 0)
+        if model:
+            own = call_cost(str(model), prompt, completion, calls=int(calls or 1))
+            if own is not None:
+                return own
         costs = [call_cost(m, prompt, completion, calls=int(calls or 1)) for m in self.models]
         known = [c for c in costs if c is not None]
         return max(known) if known else (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
@@ -182,9 +190,9 @@ class ApiBudget:
             self._live_base = self.spent_usd
             self.live_usd = 0.0
 
-    def add_live(self, prompt_tokens: Any, completion_tokens: Any) -> float:
+    def add_live(self, prompt_tokens: Any, completion_tokens: Any, model: str | None = None) -> float:
         """Add one API call's usage as it returns (documents still in flight included); returns its cost."""
-        cost = self._cost(prompt_tokens, completion_tokens, 1)
+        cost = self._cost(prompt_tokens, completion_tokens, 1, model)
         with self._lock:
             self.live_usd += cost
         return cost
@@ -194,9 +202,28 @@ class ApiBudget:
         with self._lock:
             return 0.0 if self._live_base is None else self._live_base + self.live_usd
 
-    def estimate_call_usd(self, prompt_tokens: float, completion_tokens: float) -> float:
-        """The cost of one call of this size, at the dearest model's tier (``call_guard`` sizes requests)."""
-        return self._cost(prompt_tokens, completion_tokens, 1)
+    def estimate_call_usd(self, prompt_tokens: float, completion_tokens: float, model: str | None = None) -> float:
+        """The cost of one call of this size at ``model``'s tier, else the dearest model's (``call_guard``)."""
+        return self._cost(prompt_tokens, completion_tokens, 1, model)
+
+    def _usage_cost(self, usage: Mapping[str, Any]) -> float:
+        """A finished document's cost: each ``usage_by_agent`` slot at its own model, the rest at the dearest."""
+        prompt, completion = float(usage.get("prompt_tokens") or 0), float(usage.get("completion_tokens") or 0)
+        calls = int(usage.get("llm_calls") or 1)
+        slots = usage.get("usage_by_agent")
+        if not isinstance(slots, Mapping) or not slots:
+            return self._cost(prompt, completion, calls)
+        total, p_left, c_left, n_left = 0.0, prompt, completion, calls
+        for slot in slots.values():
+            if not isinstance(slot, Mapping) or not slot.get("calls"):
+                continue
+            models = slot.get("models") or []
+            sp, sc, sn = float(slot.get("prompt_tokens") or 0), float(slot.get("completion_tokens") or 0), int(slot["calls"])
+            total += self._cost(sp, sc, sn, models[0] if len(models) == 1 else None)
+            p_left, c_left, n_left = p_left - sp, c_left - sc, n_left - sn
+        if p_left > 0 or c_left > 0:  # tokens no slot attributes: never left unpriced
+            total += self._cost(max(p_left, 0.0), max(c_left, 0.0), max(n_left, 1))
+        return total
 
     def reserve(self, usd: float) -> None:
         """Hold ``usd`` against the cap while a request is in flight."""
@@ -233,8 +260,9 @@ class ApiBudget:
             with self._lock:
                 self.spent_usd += max(0.0, float(usage.get("unreported_usd") or 0.0))
             return
-        self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("llm_calls") or 1)
+        cost = self._usage_cost(usage)
         with self._lock:
+            self.spent_usd += cost
             self.documents += 1
 
     def projected_usd(self, in_flight: int = 0) -> float:

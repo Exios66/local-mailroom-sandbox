@@ -592,7 +592,7 @@ def test_pinned_chat_completion_releases_on_success_and_charges_on_timeout(vendo
     with pytest.raises(httpx.ReadTimeout):
         call(client, **_REQUEST)
     assert armed_budget.reserved_usd == 0.0
-    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))
+    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100, model=_REQUEST["model"]))
 
 
 def test_langchain_reservation_is_settled_on_success_and_on_failure(lc_pins, armed_budget):
@@ -666,7 +666,7 @@ def test_each_http_attempt_reserves_and_settles_once(vendored, monkeypatch, arme
 
     reservations = []
     real_guard = pp._guard_call
-    monkeypatch.setattr(pp, "_guard_call", lambda *a: reservations.append(a) or real_guard(*a))
+    monkeypatch.setattr(pp, "_guard_call", lambda *a, **k: reservations.append(a) or real_guard(*a, **k))
     call = _install(monkeypatch, _loop())
     client = _SdkClient("https://openrouter.ai/api/v1",
                         [_ServerError("bad gateway"), _ServerError("bad gateway"), _Resp("qwen/qwen3.7-flash", "Alibaba")])
@@ -674,7 +674,7 @@ def test_each_http_attempt_reserves_and_settles_once(vendored, monkeypatch, arme
         call(client, **_REQUEST)
     assert len(reservations) == 3 and len(client.sent) == 3
     assert armed_budget.reserved_usd == 0.0  # every reservation ended
-    assert armed_budget.unreported_usd == pytest.approx(2 * armed_budget.estimate_call_usd(1000, 100))
+    assert armed_budget.unreported_usd == pytest.approx(2 * armed_budget.estimate_call_usd(1000, 100, model=_REQUEST["model"]))
     assert (scope["calls"], scope["llm_calls"]) == (2, 2)  # the returned call is priced by after_call (HF-004)
 
 
@@ -691,7 +691,7 @@ def test_a_reply_with_no_usable_choice_counts_as_a_failed_attempt(vendored, monk
     with call_guard.document() as scope:
         call(client, **_REQUEST)
     assert len(client.sent) == 2 and armed_budget.reserved_usd == 0.0
-    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))  # may be billed
+    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100, model=_REQUEST["model"]))  # may be billed
     assert (scope["calls"], scope["llm_calls"]) == (1, 1)  # the empty reply; the returned call is priced later
 
 

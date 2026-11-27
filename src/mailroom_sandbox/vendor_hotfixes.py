@@ -538,7 +538,7 @@ def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[
             # The vendored accumulator keeps token counts only. The provider's own
             # ``usage.cost`` and cache split are what an accurate bill is priced from.
             note_provider_call(usage)
-            call_guard.after_call(usage)
+            call_guard.after_call(usage, model=model)  # priced at the requested model (Phase 4 review)
 
     return record_usage
 
