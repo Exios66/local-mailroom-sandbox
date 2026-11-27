@@ -1319,7 +1319,9 @@ class RunSpec(BaseModel):
             raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
                              "extraction schema is used whenever one is listed")
         if self.job.subclass_schemas is None and self.task == "pipeline":
-            self.job.subclass_schemas = True  # other tasks stay unset, so a dump re-validates for any task
+            # A copy, so a JobSpec shared with another RunSpec is never changed; other tasks stay
+            # unset, so a dump re-validates for any task.
+            self.job = self.job.model_copy(update={"subclass_schemas": True})
         return self
 
     @model_validator(mode="after")

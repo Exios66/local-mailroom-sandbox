@@ -81,6 +81,12 @@ def test_a_subclass_output_schema_overrides_the_class_one(registry):
     assert "signatories" not in entry["add"]
 
 
+def test_an_empty_subclass_output_schema_is_kept_as_given(registry):
+    changed = copy.deepcopy(registry)
+    changed["classes"]["corporate_record"]["subclasses"]["subsidiary_list"]["output_schema_fields"] = []
+    assert _entry(sf.build_field_lists(changed), "corporate_record", "subsidiary_list")["drop"] == []
+
+
 def test_every_class_and_subclass_has_an_entry(registry):
     lists = sf.build_field_lists(registry)
     assert set(lists["classes"]) == {"contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}

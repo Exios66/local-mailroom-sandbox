@@ -81,7 +81,8 @@ def build_field_lists(registry: Mapping[str, Any]) -> dict[str, Any]:
         subclasses = entry.get("subclasses") or {}
         classes[cls] = {
             sub: _subclass_lists(subclasses[sub].get("fields") or {},
-                                 set(subclasses[sub].get("output_schema_fields") or output_fields))
+                                 set(output_fields if subclasses[sub].get("output_schema_fields") is None
+                                     else subclasses[sub]["output_schema_fields"]))
             for sub in sorted(subclasses)
         }
     return {"schema": SCHEMA_ID, "registry_sha256": _canonical_sha256(registry), "classes": classes}
@@ -100,3 +101,9 @@ def load_field_lists(path: Path | None = None) -> dict[str, Any]:
 def field_lists_sha256(path: Path | None = None) -> str:
     """sha256 of the committed file's bytes: the value a run lock records."""
     return hashlib.sha256((path or FIELDS_PATH).read_bytes()).hexdigest()
+
+
+def read_field_lists(path: Path | None = None) -> tuple[dict[str, Any], str]:
+    """The committed lists and the sha256 of the very bytes they were parsed from (one read)."""
+    data = (path or FIELDS_PATH).read_bytes()
+    return json.loads(data.decode("utf-8")), hashlib.sha256(data).hexdigest()

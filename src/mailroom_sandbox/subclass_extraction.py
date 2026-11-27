@@ -37,7 +37,8 @@ _LIST_TYPES = frozenset({"list"})
 
 
 def _is_list_type(kind: str) -> bool:
-    return kind in _LIST_TYPES or kind.endswith("_list")
+    base = kind.partition(":")[0]  # the registry spells list types "entity_list:name" and so on
+    return base in _LIST_TYPES or base.endswith("_list")
 
 
 def _added_property(spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -114,12 +115,19 @@ def low_band(doc_class: str) -> float | None:
     return None if value is None else float(value)
 
 
-def activate(lists: Mapping[str, Any], *, sha256: str, guide: bool) -> None:
-    """Turn the switch on for this process; refuses a field list that differs from the lock's."""
-    from mailroom_sandbox.subclass_fields import field_lists_sha256
+def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool) -> None:
+    """Turn the switch on for this process; refuses a field list that differs from the lock's.
+
+    Without ``lists`` the committed file is read once, and the lists come from the same bytes the
+    sha is taken of, so a file replaced between a parse and a hash cannot pass the lock check.
+    """
+    from mailroom_sandbox import subclass_fields
 
     global _ACTIVE
-    actual = field_lists_sha256()
+    if lists is None:
+        lists, actual = subclass_fields.read_field_lists()
+    else:
+        actual = subclass_fields.field_lists_sha256()
     if sha256 != actual:
         raise RuntimeError(
             f"job.subclass_schemas: the subclass field list changed after the run was locked "
