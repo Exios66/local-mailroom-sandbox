@@ -720,6 +720,17 @@ def test_fix_accuracy_scores_verified_fixes_against_the_truth(tmp_path, scored):
     assert (fixes["right"], fixes["wrong"]) == (1, 1)
 
 
+def test_only_fixes_an_accept_applied_are_counted_as_applied_and_scored(tmp_path, scored):
+    """Review finding: a verified fix on a retry or review ruling was never written to the extraction."""
+    run = _gate_run(tmp_path, "applied", [
+        {"id": "a", "rulings": [_ruling(1, "retry_fields", [_fixcheck("record_type", "minutes")]),
+                                _ruling(2, "accept", [_fixcheck("entity_name", "Acme Corp")])]},
+        {"id": "b", "rulings": [_ruling(1, "human_review", [_fixcheck("entity_name", "Wrong Co")])], "stage": "review"}])
+    fixes = gate.gate_report(run, Bars(), audit=False)["judge"]["fixes"]
+    assert fixes["verified"] == 3 and fixes["applied"] == 1
+    assert (fixes["right"], fixes["wrong"]) == (1, 0)  # only the applied fix is scored against the truth
+
+
 def test_the_routing_audit_reports_the_judge_section(tmp_path):
     from mailroom_sandbox.job import routing_audit
 

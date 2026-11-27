@@ -352,13 +352,16 @@ def _judge_fields(out: dict[str, Any], doc: Mapping[str, Any], pred: Mapping[str
     row, item = doc["row"], doc.get("item") or {}
     fixes = [f for r in rulings for f in r.get("fixes") or () if isinstance(f, Mapping)]
     verified = [f for f in fixes if f.get("verified")]
+    # Only an accept writes its verified fixes (HF-025); a verified fix on a retry or review ruling is not applied.
+    applied = [f for r in rulings if r.get("ruling") == "accept" for f in r.get("fixes") or ()
+               if isinstance(f, Mapping) and f.get("verified")]
     scorable = out["labelled"] >= bars.min_labelled
     scored_row = without_fields(row, TEMPLATED_FIELDS.get(out["class"], ()))
     before = pred.get("before_judge")
-    right, wrong = _fix_accuracy(row, verified) if scorable else (0, 0)
+    right, wrong = _fix_accuracy(row, applied) if scorable else (0, 0)
     out["judge"] = {
         "rulings": [[int(r.get("pass") or 0), str(r.get("ruling") or "")] for r in rulings],
-        "proposed": len(fixes), "verified": len(verified),
+        "proposed": len(fixes), "verified": len(verified), "applied": len(applied),
         "rejected": dict(sorted(defaultdict_count(str(f.get("why")) for f in fixes if not f.get("verified")).items())),
         "right": right, "wrong": wrong,
         "corrected": bool(pred.get("judge_corrected")),
@@ -411,6 +414,7 @@ def _judge_block(statuses: list[dict[str, Any]]) -> dict[str, Any] | None:
         "rulings": {k: dict(sorted(v.items())) for k, v in sorted(rulings.items())},
         "fixes": {"proposed": sum(s["judge"]["proposed"] for s in judged),
                   "verified": sum(s["judge"]["verified"] for s in judged),
+                  "applied": sum(s["judge"]["applied"] for s in judged),
                   "rejected": dict(sorted(rejected.items())),
                   "right": sum(s["judge"]["right"] for s in judged), "wrong": sum(s["judge"]["wrong"] for s in judged)},
         "judge_corrected": sum(s["judge"]["corrected"] for s in judged),
@@ -460,7 +464,7 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     elif pred.get("judge_rulings"):
         out["judge"] = {"rulings": [[int(r.get("pass") or 0), str(r.get("ruling") or "")]
                                     for r in pred["judge_rulings"] if isinstance(r, Mapping)],
-                        "proposed": 0, "verified": 0, "rejected": {}, "right": 0, "wrong": 0, "corrected": False,
+                        "proposed": 0, "verified": 0, "applied": 0, "rejected": {}, "right": 0, "wrong": 0, "corrected": False,
                         "retries": 0, "score_before": None, "score_after": None, "calls": 0, "judge_calls": 0,
                         "cost": None, "cached_tokens": None, "conflict": False}  # a crashed judged document
     if item.get("error") or item.get("ok") is False or pred.get("error"):

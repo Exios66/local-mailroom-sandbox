@@ -202,7 +202,7 @@ def _judge_run(root, name, docs):
                                "models": [QWEN]},
                      "arbiter": {"calls": d.get("arbiter_calls", 0), "prompt_tokens": 0, "completion_tokens": 0,
                                  "models": []}}
-            it.write(json.dumps({"item_id": d["id"], "ok": not d.get("crash"), "error": "x" if d.get("crash") else None,
+            it.write(json.dumps({"item_id": d["id"], "ok": not d.get("crash"), "error": d.get("error", "x") if d.get("crash") else None,
                                  "prompt_tokens": 1, "completion_tokens": 1, "llm_calls": 3, "usage_by_agent": usage,
                                  "reported_cost_usd": d.get("cost", 0.01), "pred": pred}) + "\n")
     return run
@@ -235,6 +235,29 @@ def test_judge_compare_applies_every_success_rule(tmp_path):
     stage1 = gate_compare.judge_compare(base, bad, Bars(), stage=1)
     assert _rule(stage1, "score_margin")["gating"] is False  # reported, not gating, in the pilot
     assert stage1["verdict"]["reasons"] and not any("score_margin" in r for r in stage1["verdict"]["reasons"])
+
+
+def test_judge_compare_counts_only_the_call_ceiling_as_a_ceiling_crash(tmp_path):
+    base = _judge_run(tmp_path, "base", _docs(3, mode="verify"))
+    capped = _judge_run(tmp_path, "capped", _docs(2) + [
+        {"id": "d2", "crash": True, "error": "call refused: api_cost_cap_usd=44.4 reached ($44.40 spent)"}])
+    assert _rule(gate_compare.judge_compare(base, capped, Bars()), "ceiling_crashes")["ceiling"] == 0
+    ceiling = _judge_run(tmp_path, "ceiling", _docs(2) + [
+        {"id": "d2", "crash": True, "error": "call refused: this document made 40 calls (per-document ceiling 40)"}])
+    assert _rule(gate_compare.judge_compare(base, ceiling, Bars()), "ceiling_crashes")["ceiling"] == 1
+
+
+def test_judge_compare_prices_both_arms_on_the_same_documents(tmp_path, monkeypatch):
+    from mailroom_sandbox.job import gate
+
+    base = _judge_run(tmp_path, "base", _docs(2, mode="verify", cost=0.02))
+    new = _judge_run(tmp_path, "new", _docs(2, cost=0.01))
+    real = gate.doc_cost
+    # d0's cost is unknown in the baseline: only d1 (0.02 vs 0.01) may be compared, not d0's 0.01 too.
+    monkeypatch.setattr(gate, "doc_cost", lambda item: None if item.get("item_id") == "d0"
+                        and item.get("reported_cost_usd") == 0.02 else real(item))
+    classes = _rule(gate_compare.judge_compare(base, new, Bars()), "judge_cost_by_class")["classes"]
+    assert all(v["paired_documents"] == 1 for v in classes.values()), classes
 
 
 def test_judge_compare_refuses_runs_with_different_documents(tmp_path):

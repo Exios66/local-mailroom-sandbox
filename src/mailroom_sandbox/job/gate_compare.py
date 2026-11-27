@@ -183,7 +183,7 @@ def _judge_docs(run_dir: Path, bars: Bars) -> dict[str, dict[str, Any]]:
                                            for r in pred.get("judge_rulings") or ()),
                        "calls": gate.judge_related_calls(item, pred, doc.get("nodes") or ()),
                        "cost": gate.doc_cost(item), "score": scored,
-                       "ceiling": "call guard" in str(item.get("error") or "")}
+                       "ceiling": "per-document ceiling" in str(item.get("error") or "")}  # not a run-cap stop
     for doc_id in set(statuses) - set(out):  # a document the run never wrote an item for
         out[doc_id] = {"status": statuses[doc_id], "class": statuses[doc_id]["class"], "judged": False,
                        "correct_mode": False, "calls": 0, "cost": None, "score": None, "ceiling": False}
@@ -219,10 +219,11 @@ def judge_compare(baseline_dir: Path, judge_dir: Path, bars: Bars, *, stage: int
                    and n_calls <= (1 - JUDGE_CALL_CUT) * b_calls, "gating": True})
     by_class: dict[str, dict[str, float | None]] = {}
     for cls in sorted({new[i]["class"] for i in judged}):
-        ids = [i for i in judged if new[i]["class"] == cls]
-        b = _avg([base[i]["cost"] for i in ids if base[i]["cost"] is not None])
-        n = _avg([new[i]["cost"] for i in ids if new[i]["cost"] is not None])
-        by_class[cls] = {"baseline": b, "judge": n}
+        # Both arms are averaged over the same documents: those whose cost is known in both.
+        ids = [i for i in judged if new[i]["class"] == cls and base[i]["cost"] is not None
+               and new[i]["cost"] is not None]
+        by_class[cls] = {"baseline": _avg([base[i]["cost"] for i in ids]), "judge": _avg([new[i]["cost"] for i in ids]),
+                         "paired_documents": len(ids)}
     checks.append({"rule": "judge_cost_by_class", "classes": by_class, "gating": True,
                    "pass": bool(by_class) and all(v["baseline"] is not None and v["judge"] is not None
                                                   and v["judge"] <= v["baseline"] for v in by_class.values())})
