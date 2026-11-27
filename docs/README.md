@@ -112,6 +112,7 @@ what was decided at the time; the guides above say how things work now.
 | Phase 2 loop governor | [Plan](design/plans/2026-11-26-phase2-governor.md) |
 | Phase 3 subclass extraction schemas | [Plan](design/plans/2026-11-26-phase3-subclass-schemas.md) |
 | Phase 4 correcting judge | [Plan](design/plans/2026-11-26-phase4-correcting-judge.md) |
+| Subclass field note for promoted specialist prompts | [Plan](design/plans/2026-11-27-subclass-field-note.md) |
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
 | Correcting judge upstream issues | [Drafts](design/specs/2026-11-26-correcting-judge-upstream-issues.md) for `llm-mailroom`, for the owner to file |
 | Numbering reservations | [Hotfix IDs and critical-regression rows](numbering-reservations.md) claimed by open PRs |

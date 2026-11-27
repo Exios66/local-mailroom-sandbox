@@ -664,7 +664,8 @@ def activate(
 
     if locked_job.get("subclass_schemas"):
         locked_sha = ((locked.get("spec_core") or {}).get("job") or {}).get("subclass_fields_sha256")
-        subclass_extraction.activate(sha256=str(locked_sha or ""), guide=bool(locked_job.get("schema_guide")))
+        subclass_extraction.activate(sha256=str(locked_sha or ""), guide=bool(locked_job.get("schema_guide")),
+                                     note=bool(locked_job.get("subclass_field_note")))
     elif not locked:  # an ad-hoc eval holds no lock: subclass schemas are always used when available
         from mailroom_sandbox.subclass_fields import read_field_lists
 
