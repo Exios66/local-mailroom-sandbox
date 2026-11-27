@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T22:56:05Z",
+  "added_at": "2026-11-26T23:33:15Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -301,6 +301,61 @@
           "subclass-subsidiary002-parent-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-26T23:33:14Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0c7cda9021fbd910",
+        "DOC-474a0002b4c03be1",
+        "DOC-ceb3f2b773c75bcd"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse003-existing9-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse003-existing9-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse003-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T23:33:15Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-ec57149494f0c9a0"
+      ],
+      "sources": {
+        "check": [
+          "subclass-diverse003-new3-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse003-new3-label.jsonl"
+        ],
+        "review": []
+      }
     }
   ],
   "binding": {
@@ -333,7 +388,7 @@
     },
     "corporate_record": {
       "-": {
-        "notes": 454
+        "notes": 458
       }
     },
     "correspondence": {
@@ -359,11 +414,12 @@
   },
   "files": {
     "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
-    "corporate_record.jsonl": "bc1de982470bf8ca11d76ffaf34fb74f7870fe4aebd8b54ae0ec46ecce1611a7",
+    "corporate_record.jsonl": "232845aa2a22b4fcd894d29e3d601e6fc9e86e87e9742bacb4682224b0f5aa25",
     "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
   "schema": "mailroom-gold-supplementary/v1",
+  "source_path_metadata": "Repository-relative export; original private bytes retained; no label payload or evidence change.",
   "sources": {
     "check": [
       "check-contract-000.jsonl",
@@ -420,6 +476,8 @@
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
+      "subclass-diverse003-existing9-check.jsonl",
+      "subclass-diverse003-new3-check.jsonl",
       "subclass-subsidiary001-ready8-check.jsonl",
       "subclass-subsidiary002-ready33-check.jsonl",
       "tail-001-check.jsonl"
@@ -636,6 +694,8 @@
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
+      "subclass-diverse003-existing9-label.jsonl",
+      "subclass-diverse003-new3-label.jsonl",
       "subclass-subsidiary001-ready8-label.jsonl",
       "subclass-subsidiary002-ready33-label.jsonl",
       "tail-001-label.jsonl"
@@ -659,6 +719,7 @@
       "review-promo-urgency.jsonl",
       "subclass-diverse001-parent-review.jsonl",
       "subclass-diverse002-parent-review.jsonl",
+      "subclass-diverse003-parent-review.jsonl",
       "subclass-subsidiary002-parent-review.jsonl",
       "tail-001-review.jsonl"
     ]

@@ -9094,33 +9094,35 @@
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 2,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 1,
+      "calibration": 2,
       "dev": 1,
       "heldout": 0,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 2
+      "near_gold": 3
      },
      "verdict": "thin"
     },
     "approval_date": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "attorneys_in_fact": {
      "dojo_status": "pending_annotation",
@@ -9160,16 +9162,16 @@
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 3,
+     "labeled": 6,
      "labeled_by_set": {
       "calibration": 1,
-      "dev": 1,
-      "heldout": 1,
+      "dev": 2,
+      "heldout": 3,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 3
+      "near_gold": 6
      },
      "verdict": "thin"
     },
@@ -9342,18 +9344,20 @@
     },
     "incorporators": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "instrument_kind": {
      "dojo_status": "pending_annotation",
@@ -9540,16 +9544,16 @@
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 2,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 1,
+      "calibration": 2,
       "dev": 1,
       "heldout": 0,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 2
+      "near_gold": 3
      },
      "verdict": "thin"
     },
@@ -9579,16 +9583,16 @@
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 3,
+     "labeled": 6,
      "labeled_by_set": {
       "calibration": 1,
-      "dev": 1,
-      "heldout": 1,
+      "dev": 2,
+      "heldout": 3,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 3
+      "near_gold": 6
      },
      "verdict": "thin"
     },
@@ -9823,15 +9827,15 @@
         "where": "Capital stock article"
        },
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 6,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 1,
-        "heldout": 1,
+        "dev": 2,
+        "heldout": 3,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 6
        },
        "type": "free_text",
        "verdict": "thin"
@@ -9910,23 +9914,25 @@
       },
       "incorporators": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Persons who signed to form the corporation.",
         "required": false,
         "where": "Signature block / 'Incorporator' line"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 3,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "intent": {
        "dojo_status": "scored",
@@ -10030,15 +10036,15 @@
         "where": "'Registered Agent' / 'Resident Agent' article"
        },
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 6,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 1,
-        "heldout": 1,
+        "dev": 2,
+        "heldout": 3,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 6
        },
        "type": "name",
        "verdict": "thin"
@@ -10122,8 +10128,7 @@
      "verdicts": {
       "constant": 3,
       "iterate": 6,
-      "no_truth": 1,
-      "thin": 2
+      "thin": 3
      }
     },
     "board_resolution": {
@@ -10949,38 +10954,40 @@
         "where": "'Article X is hereby amended to read'"
        },
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 1,
+        "calibration": 2,
         "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "entity_list:free_text",
        "verdict": "thin"
       },
       "approval_date": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Date the board/stockholders adopted the amendment.",
         "required": false,
         "where": "Adoption recital"
        },
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "date",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -11133,15 +11140,15 @@
         "where": "Name-change article"
        },
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 1,
+        "calibration": 2,
         "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "name",
        "verdict": "thin"
@@ -11247,8 +11254,7 @@
      "verdicts": {
       "constant": 3,
       "iterate": 3,
-      "no_truth": 1,
-      "thin": 5
+      "thin": 6
      }
     },
     "indenture": {
@@ -21044,9 +21050,9 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "c18332043c9e424514bd5d86e030598a07bacfefdb13bca1fab2221a6a879c96",
+  "labeling_guide_sha256": "daaab7fac231d922d07a94219dc039d5bdb13ecbdf97b308e79a45366992dfe7",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "0c62fc0a82f4a0c6f08b432a6f063f95bc7415a8d4dc2fa016e70b820d525fb3",
+  "near_gold_overlay_sha256": "0d95a89adebbf6cbef7593e94ae51d323af00d54a8fab39cb67261c25cc38abd",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -21160,6 +21166,12 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "approval_date"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "attorneys_in_fact"
   },
   {
@@ -21191,6 +21203,12 @@
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
    "field": "holder"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "incorporators"
   },
   {
    "class": "corporate_record",
@@ -21339,9 +21357,7 @@
   "corporate_record": [
    "certifying_officer",
    "last_amended_date",
-   "incorporators",
    "organizers",
-   "approval_date",
    "expiration_date",
    "rights_agent",
    "guarantors",

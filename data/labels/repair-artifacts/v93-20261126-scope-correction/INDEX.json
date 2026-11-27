@@ -194,6 +194,11 @@
     "withdrawn_corporate_annotations": 38
   },
   "export_note": "Submissions preserve field values and evidence; local checkout prefixes are replaced with <checkout>. Exact originals and private progress remain in the durable local repair workspace; source_sha256 binds those originals.",
+  "public_source_path_normalization": {
+    "effect": "Public exports normalize source paths only; unchanged field payloads, evidence and role attribution.",
+    "original_private_bytes_retained": true,
+    "proof": "../../../../reports/datasets/mailroom-dataset-v9.3-label-repaired/source_path_metadata_export_audit.json"
+  },
   "schema": "mailroom.label-repair-artifacts/v1",
   "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "superseded_checkpoint": "4d1b863ca2a6f7a6d1fadeb3d337a9db8d2e03cc",

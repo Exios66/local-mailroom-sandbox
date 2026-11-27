@@ -173,8 +173,8 @@ equals the stored one, even when only the check pass carries it, and even when a
 it. Settle an existing record with `review`; never re-add it. The document's class,
 `content_sha256`, `doc_sha` and source filename must still match the records already in the
 catalog, so fields are never mixed across source texts or classes under one `doc_id`. Schema
-revision bindings may differ when that source identity is unchanged. The
-add still needs both independent passes for each document.
+revision bindings may differ when that source identity is unchanged. The known corporate subclass must also agree with the current corpus; legacy records without
+a subclass binding retain their existing metadata. The add still needs both independent passes for each document.
 
 Existing records and their schema bindings are not rewritten. New rows carry the `--revision`
 given to this add, and the manifest's `additions` entry records the opt-in mode and refreshes

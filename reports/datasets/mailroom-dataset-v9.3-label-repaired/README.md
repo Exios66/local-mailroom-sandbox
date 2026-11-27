@@ -168,11 +168,18 @@ maps or ambiguous source interpretation; neither evidence nor independence guard
 Byte-identical raw passes, exact field projections and the preservation/scoring audit are in
 `data/labels/repair-artifacts/v93-20261126-subclass-subsidiary002/`.
 
-The four admissions total **71 registered entity fields on 34 documents: 69 populated scoring
-targets and two documented absences**. The overlay now has **9,727 labels**. Sixteen corporate
-fields remain held across these admissions.
+A fifth admission adds **12 fields on four charter/incorporation documents: seven populated
+scoring targets and five documented absences**. Nine independent agreements and three explicit
+full-source reviews support the additions. Fifteen fields on five other instruments remain
+held because both source passes question their assigned subtype. Raw passes, exact projections,
+review decisions and the preservation/scoring audit are in
+`data/labels/repair-artifacts/v93-20261126-subclass-diverse003/`.
 
-The missing-only corporate inventory is 1,483 registered entity fields on 426 documents (see
+The five admissions total **83 registered entity fields on 38 documents: 76 populated scoring
+targets and seven documented absences**. The overlay now has **9,739 labels**. Thirty-one
+corporate fields remain held across these admissions.
+
+The missing-only corporate inventory is 1,471 registered entity fields on 422 documents (see
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels
@@ -190,6 +197,21 @@ instrument type and compound-document boundaries. An officer's filing attestatio
 itself turn a designation into a standalone officer certificate. See the source excerpts,
 inspection ranges and acceptance limits in
 [`corporate_source_fit_officer_certificate.json`](corporate_source_fit_officer_certificate.json).
+
+Five additional full-read source-type holds cover three bylaw instruments currently typed as
+board resolutions, a correction instrument and a trust amendment. Their fifteen fields are
+included in the held count above; no subtype is changed and no absence label is admitted.
+
+Public source-path metadata is normalized to repository-relative paths in six files. The
+original bytes remain in private checkpoints. Values, evidence, role attribution and all gold
+overlay field payloads are unchanged; six supplementary records have path metadata changes.
+See [`source_path_metadata_export_audit.json`](source_path_metadata_export_audit.json).
+
+Twelve pre-existing populated core annotations conflict with their current subclass
+applicability. They remain unchanged and are outside the missing-only admissions. The proposed
+legacy notebook check was reverted after its existing overlay regression failed; no test was
+excluded or relaxed. See
+[`legacy_corporate_core_applicability_hold.json`](legacy_corporate_core_applicability_hold.json).
 
 [`05_label_coverage_eda.ipynb`](../../../notebooks/05_label_coverage_eda.ipynb) inspects current
 interim and near-gold snapshots at execution, with optional pinned cached-corpus comparisons,
