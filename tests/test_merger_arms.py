@@ -74,6 +74,9 @@ def test_the_sorter_arms_draw_only_documents_over_the_threshold_from_dev():
         ds = yaml.safe_load((RUNS / f"p5-s2-head-sorter-{side}.yaml").read_text())["dataset"]
         assert ds["exclude_ids_file"] == str(SPLIT / "dev-long.exclude.ids")
         assert ds["limit"] == len(long_ids) and ds["revision"] == manifest["revision"]
+        # Neither arm refuses a document (HF-010) the other reads: both finish the same documents.
+        knobs = yaml.safe_load((RUNS / f"p5-s2-head-sorter-{side}.yaml").read_text())["agent_knobs"]
+        assert knobs["sorter"]["max_input_chars"] > max(manifest["chars"].values())
 
 
 def _rows() -> list[dict]:

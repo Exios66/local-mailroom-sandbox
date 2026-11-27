@@ -6,9 +6,11 @@
 # intake and no graph extraction) on the 79 runbook-v2 dev documents over 150,000 characters (59 mergers,
 # 12 contracts, 8 corporate records; config/splits/runbook-v2/dev-long.*, from scripts/build_long_dev_ids.py).
 # The two arms differ only in job.long_document_head (HF-032: the sorter reads the first 120,000 and the last
-# 8,000 characters). With the switch off the two documents over the sorter's 600,000-character budget are
-# refused (HF-010), as in production; compare on the documents both arms finished.
-# Cost: off reads whole documents (mean ~333k characters), about $0.70; on reads ~128k each, about $0.30.
+# 8,000 characters). Both arms set the sorter budget to 800,000 characters, over the longest document
+# (739,511), so the off arm reads every document whole and neither arm refuses one (HF-010): the two
+# arms finish the same documents. Each head read is recorded on its item (head_read); the on arm should
+# carry one on every document.
+# Cost: off reads whole documents (mean ~333k characters), about $0.75; on reads ~128k each, about $0.30.
 #
 # Bar: no class's classification accuracy and no merger subclass accuracy drops by more than one document
 # (on versus off). Otherwise job.long_document_head is not adopted and the merger switches are judged alone.
@@ -44,7 +46,7 @@ engine:
   modal: null
 
 agent_knobs:
-  sorter: {max_input_chars: 600000}
+  sorter: {max_input_chars: 800000}   # over the longest dev-long document (739,511): neither arm refuses one
 
 job:
   mode: endpoint
