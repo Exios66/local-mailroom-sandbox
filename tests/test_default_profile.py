@@ -257,6 +257,9 @@ def test_health_exit_code_ignores_langfuse_and_phoenix(monkeypatch, capsys):
     from mailroom_sandbox.health import ProbeResult
 
     monkeypatch.setattr("mailroom_sandbox.runtime.load_env_file", lambda: None)
+    # A sibling test can leave SANDBOX_PROFILE=openrouter in the worker process.
+    # This case is the modal provider, so pin it instead of inheriting that.
+    monkeypatch.setenv("SANDBOX_PROFILE", "modal-vllm")
     monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
     monkeypatch.delenv("VLLM_BASE_URL", raising=False)
 

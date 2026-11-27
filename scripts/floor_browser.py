@@ -222,7 +222,7 @@ def _prefer_venv() -> None:
             return
     except OSError:
         return
-    os.execv(venv_py, [str(venv_py), str(Path(__file__).resolve()), *sys.argv[1:]])
+    os.execv(venv_py, [str(venv_py), str(Path(__file__).resolve()), *sys.argv[1:]])  # nosec B606 - re-exec this script through the checkout venv, no shell
 
 
 if __name__ == "__main__":

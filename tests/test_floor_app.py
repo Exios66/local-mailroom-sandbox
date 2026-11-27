@@ -379,6 +379,30 @@ def test_replay_path_is_one_pass_to_archive(tmp_path):
     assert per_doc and all(path == straight for path in per_doc.values())
 
 
+def test_replay_closes_removed_detours_and_matches_item_totals():
+    """Dropped review and retry events do not leave a stall, and item totals match the nodes that remain."""
+    fixture = Path(floor_app.replay_base()) / "runtime" / "runs" / floor_app.REPLAY_RUN_ID / "replay.jsonl"
+    events = [json.loads(line) for line in fixture.read_text(encoding="utf-8").splitlines() if line.strip()]
+    by_doc: dict[str, list[dict]] = {}
+    for event in events:
+        node = event.get("node")
+        item = event.get("item")
+        doc = (node or {}).get("doc") or (item or {}).get("item_id")
+        if doc:
+            by_doc.setdefault(doc, []).append(event)
+    for doc, seq in by_doc.items():
+        for earlier, later in zip(seq, seq[1:]):
+            left = earlier.get("node") or {}
+            right = later.get("node") or {}
+            if left.get("node") and right.get("node") and left["node"] != right["node"]:
+                assert later["at"] - earlier["at"] <= 0.25, f"{doc} stalls between {left['node']} and {right['node']}"
+        done = [event["node"] for event in seq if event.get("node", {}).get("status") == "done"]
+        item = next(event["item"] for event in seq if "item" in event)
+        assert item["prompt_tokens"] == sum(node.get("prompt_tokens") or 0 for node in done)
+        assert item["completion_tokens"] == sum(node.get("completion_tokens") or 0 for node in done)
+        assert abs(item["latency_ms"] - sum(node.get("ms") or 0 for node in done)) <= 20
+
+
 def test_replay_store_is_loud_when_the_fixture_is_missing(tmp_path, monkeypatch):
     """A missing fixture raises instead of serving an empty run store."""
     monkeypatch.setattr(floor_app, "replay_base", lambda: tmp_path / "missing")
@@ -781,8 +805,9 @@ def test_ribbon_keeps_the_digest_clock_visible():
     assert "@container (max-width:1400px){.pbar{width:60px}}" in css
     narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0;overflow:hidden}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px;min-width:0}#dbg,#exp,#imp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}}"
     assert narrow in css
-    phone = "@container (max-width:520px){#dbg,#exp,#imp,#bigTitle,.ribbon em{display:none}.pbar{width:24px}}"
+    phone = "@container (max-width:520px){.ribbon{overflow-x:auto}#bigTitle,.ribbon em{display:none}.pbar{width:24px}#dbg,#exp,#imp{flex:none}}"
     assert phone in css
+    assert "#dbg,#exp,#imp{display:none}" not in css
 
 
 def test_template_keeps_the_graph_visible_in_a_narrow_window():
