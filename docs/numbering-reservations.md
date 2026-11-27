@@ -29,7 +29,7 @@ collides takes the one assigned here.
 | `HF-029` | Phase 5 part 1 evidence check (`job.evidence_check`) | landed with the Phase 5 part 1 PR |
 
 The next free vendor hotfix ID is `HF-030`. Scoring hotfixes have no open collision; the next free
-ID is `SHF-017`. A PR that registers or reserves an ID advances these in the same change
+ID is `SHF-019`. A PR that registers or reserves an ID advances these in the same change
 (`test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id` checks them).
 
 ## Critical-regressions rows

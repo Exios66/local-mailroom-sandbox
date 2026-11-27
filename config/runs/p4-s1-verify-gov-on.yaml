@@ -93,7 +93,7 @@ job:
   api_cost_cap_usd: 9.0
   require_expanded_inputs: true
   blind_routing: true
-  governor: true            # phase 2 loop governor at the design's starting budgets
+  governor: true            # 3 counted rounds; an arbiter ruling is not one
 
 trace:
   sink: none

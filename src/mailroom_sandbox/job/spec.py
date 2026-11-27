@@ -750,14 +750,16 @@ class JudgeSpec(BaseModel):
 class GovernorSpec(BaseModel):
     """Per-document loop budgets (phase 2, ``mailroom_sandbox.governor``). Off unless set.
 
-    Defaults are the design's starting values; the pilot sets the final ones. Call budgets stay
+    The 50-document pilot set ``retries`` to 3: one classify retry, one confidence re-extraction
+    and one arbiter-ordered re-extraction. An arbiter ruling is not one of those rounds. Two
+    counted rounds parked documents at 6–10 model calls, before that ruling. Call budgets stay
     below the hard call ceiling (``job.call_guard.CALL_CEILING["pipeline"]``, 40), which remains
     the backstop.
     """
 
     model_config = {"extra": "forbid"}
 
-    retries: int = Field(2, ge=0)
+    retries: int = Field(3, ge=0)
     calls: int = Field(30, ge=1, lt=40)
     calls_by_class: dict[str, int] = Field(default_factory=lambda: {"merger_agreement": 36})
     spend_usd: float | None = Field(None, gt=0)

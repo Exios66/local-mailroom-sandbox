@@ -108,7 +108,7 @@ document, `job/call_guard.py`). When it trips, the document crashes and drops ou
 
 | Budget | Counts | Default (my call; the pilot sets the final values) |
 |---|---|---|
-| Retries | classify retries, extraction retries, judge-requested retries, arbiter retries, boss entries | 2 per document |
+| Retries | classify retries, extraction retries, judge-requested retries, the re-extraction an arbiter orders, boss entries. The arbiter's own ruling is not a counted round when the judge has not passed the extraction | 3 per document (the 50-document pilot; 2 parked 20 documents at 6–10 calls) |
 | Model calls | every LLM call for the document | 30 (below the hard ceiling of 40); mergers 36 |
 | Spend | priced calls for the document, using the live call guard | off until the pilot measures cost per type |
 
@@ -375,8 +375,10 @@ CircleCI.
   disagree, near-gold wins.
 - Judge models: `qwen/qwen3.7-plus` by default, `deepseek/deepseek-v4.1-flash-1017` for mergers.
 - The test runs in three stages; the "model only" version is dropped.
-- Governor starting budgets: 2 retries, 30 calls (mergers 36), spend off until measured. The pilot
-  sets the final values. The governor is off for existing runs and on for every new test version.
+- Governor budgets: 3 counted rounds, 30 calls (mergers 36), spend off until measured. The
+  50-document pilot raised the starting value of 2, which parked 20 documents at 6–10 calls. An
+  arbiter ruling on an extraction the judge has not passed is not a counted round. The governor
+  is off for existing runs and on for every new test version.
 - A document whose current extraction already passed the checks is archived with caveats when the
   governor stops it; every other stop goes to human review.
 - The order of the hardening phases: spend safety first, long documents last.

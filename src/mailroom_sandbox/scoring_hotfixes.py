@@ -292,7 +292,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-016",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "58a46935f75805f9b6da6475982e169e1efd01e5fa8ced2e32acf0aa6c660165"),
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "83b5ccdb72ec220b0cda8197576fe468f7bd2941d11bd51f0b2b49b93f36b249"),
             # the Dojo reader decides the row's labeled universe; a refresh that changes it
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
@@ -305,11 +305,44 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "that left the row unscoreable; the row is marked cuad_unlabeled and the "
                 "raw side keeps the Dojo pin's None",
     ),
+    ScoringHotfix(
+        id="SHF-017",
+        layer="dojo",
+        targets=(("llm_dojo_scoring.scoring.field_scoring:score_name_field",
+                  "2858ef5f4d580f3e7f0f2f4ab220d12b423b299072b595bd306bece00c07787e"),),
+        upstream="sandbox",
+        summary="an email address and a personal name are the same contact when the address's "
+                "local part, or the name written before an Exchange path, has the same name "
+                "tokens as the other side (John.Arnold@enron.com = John Arnold; "
+                "Randy Rice/OTS/Enron@ENRON = Randy Rice); a different person stays a miss, "
+                "and a name that only shares a token stays the partial match",
+    ),
+    ScoringHotfix(
+        id="SHF-018",
+        layer="sandbox",
+        targets=(
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once",
+             "83b5ccdb72ec220b0cda8197576fe468f7bd2941d11bd51f0b2b49b93f36b249"),
+            ("mailroom_sandbox.job.gate_causes:_field_scores",
+             "fec0f8cba07e0cc0371347c40fadab7a942a25e77af7c98dedbbe96c322485a9"),
+            ("file:config/extraction/subclass_extraction_fields.json",
+             "37cae40feaf60563567d5abf04de1e64551c340e35f2d60b0b548cc865c1574c"),
+        ),
+        upstream="sandbox",
+        summary="scoring uses the subclass's extraction schema: a field the schema drops is "
+                "not a miss or a false positive when the two sides disagree, and a field both "
+                "sides agree on keeps its credit; an insurance supporting_documents or keywords "
+                "item that the claim does not contain and the prediction does not state is not "
+                "present on that claim; the raw side keeps the class-schema score and the "
+                "omitted fields are named",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
 #: The fixes a row extraction score can depend on.
-EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016"})
+EXTRACTION_FIXES = frozenset({
+    "SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016", "SHF-017", "SHF-018",
+})
 _ACTIVE: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "sandbox_scoring_hotfixes_active", default=frozenset())
 _STATUS: dict[str, str] = {}
@@ -574,6 +607,73 @@ def fixed_name_score(original: Callable[..., float], pred: Any, exp: Any, embedd
     return score
 
 
+# One address. The local part is taken as written; the domain is not a name token.
+# A dotted domain or a single internal token (Enron@ENRON). The value is a name field, so a
+# word@word there is an address rather than prose.
+_EMAIL_ADDRESS = re.compile(
+    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9](?:[A-Za-z0-9._%+-]*[A-Za-z0-9])?)@([A-Za-z0-9.-]{2,})(?![A-Za-z0-9.-])"
+)
+
+
+def _contact_tokens(text: Any) -> set[str] | None:
+    """Name tokens of a value that is one email address, or None when it is not.
+
+    A display name beside the address is the same contact only when it adds no token the local
+    part does not already have (``John Arnold <John.Arnold@enron.com>``). Extra tokens (a second
+    person) leave the value as an ordinary name, so the scorer does not call two people one.
+    """
+    raw = str(text or "").strip()
+    found = list(_EMAIL_ADDRESS.finditer(raw))
+    if len(found) != 1:
+        return None
+    parts = re.split(r"[._+\-]+", found[0].group(1).lower())
+    tokens = {part for part in parts if len(part) > 1 and part not in _NAME_IGNORABLE}
+    if not tokens:
+        return None
+    leftover = _name_tokens(_EMAIL_ADDRESS.sub(" ", raw))
+    if leftover - tokens:
+        return None
+    return tokens
+
+
+def _address_name_tokens(text: Any) -> set[str] | None:
+    """Name tokens an address stands for, or None when the value is not one address.
+
+    A bare mailbox uses its local part (``John.Arnold@enron.com``). An Exchange path or a display
+    name uses the name before the first slash or the address (``Randy Rice/OTS/Enron@ENRON``),
+    and that written name wins over the local part, so a different person in the local part is
+    not substituted.
+    """
+    raw = str(text or "").strip()
+    found = list(_EMAIL_ADDRESS.finditer(raw))
+    if len(found) != 1:
+        return None
+    written = _name_tokens(raw[:found[0].start()].split("/")[0])
+    if written:
+        return written
+    return _contact_tokens(raw)
+
+
+def fixed_contact_score(original: Callable[..., float], pred: Any, exp: Any, embedding: Any = None) -> float:
+    """SHF-017: an address and a name with the same tokens are the same contact.
+
+    Applied only when the name scorer has not already called them equal, and only when the tokens
+    are the same set. ``John`` against ``John Arnold`` stays the partial match, and a different
+    person stays a miss.
+    """
+    score = original(pred, exp, embedding=embedding)
+    if score >= 1.0:
+        return score
+    left, right = _address_name_tokens(pred), _address_name_tokens(exp)
+    if left and right and left == right:
+        return 1.0
+    if left and left == _name_tokens(exp):
+        return 1.0
+    if right and right == _name_tokens(pred):
+        return 1.0
+    return score
+
+
 _ISO = r"USD|EUR|GBP|JPY|CAD|AUD|NZD|CHF|CNY|INR|HKD|SGD|MXN|BRL"
 
 
@@ -654,6 +754,7 @@ def fixed_id_score(original: Callable[..., float], pred: Any, exp: Any, embeddin
 
 
 _FIELD_FIXES = (("score_name_field", "SHF-002", fixed_name_score),
+                ("score_name_field", "SHF-017", fixed_contact_score),
                 ("score_money_field", "SHF-003", fixed_money_score),
                 ("score_id_field", "SHF-004", fixed_id_score))
 
@@ -672,10 +773,22 @@ def install() -> None:
 _INSTALL_LOCK = threading.Lock()
 
 
+def _chain_has(fn: Any, fix_id: str) -> bool:
+    """True when ``fix_id`` already wraps ``fn`` (install is called on every score)."""
+    seen: set[int] = set()
+    current = fn
+    while current is not None and id(current) not in seen:
+        if getattr(current, _MARK, None) == fix_id:
+            return True
+        seen.add(id(current))
+        current = getattr(current, "__wrapped__", None)
+    return False
+
+
 def _install_field_fixes(fs: Any) -> None:
     for name, fix_id, fixed in _FIELD_FIXES:
         original = getattr(fs, name)
-        if getattr(original, _MARK, None) == fix_id:
+        if _chain_has(original, fix_id):
             continue
 
         def make(orig: Callable[..., float], fid: str, fn: Callable[..., float]) -> Callable[..., float]:
@@ -693,6 +806,124 @@ def _install_field_fixes(fs: Any) -> None:
         for key, value in list(fs.FIELD_SCORERS.items()):
             if value is original:
                 fs.FIELD_SCORERS[key] = wrapper
+
+
+# --- SHF-018: subclass schema and claim-absent insurance fields -------------------------------
+
+#: Insurance list fields a labeling template can fill without the item appearing in the claim.
+_CLAIM_LIST_FIELDS = frozenset({"supporting_documents", "keywords"})
+_SCHEMA_FALLBACK = frozenset({"", "unknown", "other"})
+
+
+def subclass_dropped_fields(doc_type: str, subclass: str | None) -> frozenset[str]:
+    """Fields the committed subclass extraction schema does not request.
+
+    A missing subclass, ``unknown``, ``other``, or a subclass with no list (the insurance FNOL
+    lines that keep the class schema) drops nothing.
+    """
+    sub = str(subclass or "").strip()
+    if sub in _SCHEMA_FALLBACK:
+        return frozenset()
+    from mailroom_sandbox.subclass_fields import load_field_lists
+
+    entry = ((load_field_lists().get("classes") or {}).get(str(doc_type or "")) or {}).get(sub)
+    if not isinstance(entry, Mapping):
+        return frozenset()
+    return frozenset(str(name) for name in (entry.get("drop") or ()))
+
+
+def _list_items(value: Any) -> list[Any] | None:
+    """A non-empty list value, or None when the field is not a populated list."""
+    from llm_dojo_scoring.schemas.gt_metadata import is_empty_value, parse_json_container
+
+    parsed = parse_json_container(value)
+    if not isinstance(parsed, (list, tuple)):
+        return None
+    items = [item for item in parsed if not is_empty_value(item)]
+    return items or None
+
+
+def _norm_item(item: Any) -> str:
+    return " ".join(str(item).casefold().split())
+
+
+def _blank(value: Any) -> bool:
+    from llm_dojo_scoring.schemas.gt_metadata import is_empty_value, parse_json_container
+
+    parsed = parse_json_container(value)
+    if isinstance(parsed, (list, tuple)):
+        return not [item for item in parsed if not is_empty_value(item)]
+    return bool(is_empty_value(parsed))
+
+
+def _same_value(expected: Any, predicted: Any) -> bool:
+    """True when the prediction states the same value the truth does."""
+    left, right = _list_items(expected), _list_items(predicted)
+    if left is not None or right is not None:
+        return {_norm_item(item) for item in (left or ())} == {_norm_item(item) for item in (right or ())}
+    return not _blank(expected) and _norm_item(expected) == _norm_item(predicted)
+
+
+def _in_claim(item: Any, text: str) -> bool:
+    needle = _norm_item(item)
+    return bool(needle) and needle in text
+
+
+def _prediction_states(item: Any, predicted: Any) -> bool:
+    """The prediction lists this item. A longer phrase that merely contains the words does not."""
+    return any(_norm_item(other) == _norm_item(item) for other in (_list_items(predicted) or ()))
+
+
+def apply_subclass_score_scope(
+    doc_type: str,
+    subclass: str | None,
+    expected: Mapping[str, Any] | None,
+    predicted: Mapping[str, Any] | None,
+    doc_text: str | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
+    """SHF-018: ``(expected, predicted, notes)`` scored on the subclass schema.
+
+    A field the subclass schema drops is a miss or a false positive only when the two sides
+    disagree: both sides empty, or the same stated value, stays (a correct answer keeps its
+    credit). On an insurance claim, a ``supporting_documents`` or ``keywords`` item that is
+    neither in the document nor stated by the prediction is not present on that claim, so it
+    leaves the gold list. A field with nothing left is omitted. An item the prediction states
+    stays, so a correct list is not stripped for wording the document does not repeat
+    verbatim. Notes name every field this changed. Without document text the gold list is kept.
+    """
+    scoped_expected = dict(expected or {})
+    scoped_predicted = dict(predicted or {})
+    notes: dict[str, str] = {}
+    for field in sorted(subclass_dropped_fields(doc_type, subclass)):
+        if field not in scoped_expected and field not in scoped_predicted:
+            continue
+        exp_value = scoped_expected.get(field)
+        pred_value = scoped_predicted.get(field)
+        if (_blank(exp_value) and _blank(pred_value)) or _same_value(exp_value, pred_value):
+            continue
+        notes[field] = "not_in_subclass_schema"
+        scoped_expected.pop(field, None)
+        scoped_predicted.pop(field, None)
+    if str(doc_type or "") == "insurance_claim" and doc_text:
+        text = " ".join(str(doc_text).casefold().split())
+        for field in sorted(_CLAIM_LIST_FIELDS):
+            if field not in scoped_expected:
+                continue
+            items = _list_items(scoped_expected[field])
+            if items is None:
+                continue
+            present = [item for item in items
+                       if _in_claim(item, text) or _prediction_states(item, scoped_predicted.get(field))]
+            if len(present) == len(items):
+                continue
+            if not present:
+                notes[field] = "not_present_on_claim"
+                scoped_expected.pop(field, None)
+                scoped_predicted.pop(field, None)
+            else:
+                scoped_expected[field] = present
+                notes[field] = "items_not_in_claim"
+    return scoped_expected, scoped_predicted, notes
 
 
 # --- SHF-001: documented absences and hallucination -------------------------------------------

@@ -84,11 +84,25 @@ def stop_destination(state: Mapping[str, Any], destinations: Collection[str], pr
     return "compile_report" if archive else "human_review"
 
 
+def _retry_exempt(proposed: str, state: Mapping[str, Any]) -> bool:
+    """An arbiter ruling on an extraction the judge has not passed does not spend a retry.
+
+    HF-011 sends a partial last judge pass to the arbiter so the document is not parked before
+    that ruling, and HF-015 makes a ruling with no re-extraction left a choice between accepting
+    and a person. Counting that ruling as a retry parked it instead: on the 50-document pilot,
+    18 of the 20 ``retry_budget`` reviews stopped at ``judge_verify`` proposing ``arbiter``, with
+    7–10 calls of a 30-call budget. A ruling on an extraction the judge already passed still
+    counts, so the stop archives it instead of paying for another call. The re-extraction the
+    arbiter orders is ``retry_extract`` and always counts. Call and spend budgets still apply.
+    """
+    return proposed == "arbiter" and not _passed_judge(state)
+
+
 def _stop_reason(spec: GovernorSpec, scope: Mapping[str, Any], state: Mapping[str, Any], proposed: str) -> str | None:
     counters = scope["governor"]
     if proposed == "boss_escalation" and counters["boss"] >= 1:
         return "boss_repeat"
-    if counters["retries"] >= spec.retries:
+    if not _retry_exempt(proposed, state) and counters["retries"] >= spec.retries:
         return "retry_budget"
     if int(scope.get("llm_calls") or 0) >= call_budget(state.get("doc_type")):
         return "call_budget"
@@ -124,7 +138,8 @@ def govern(node: str, state: Mapping[str, Any], proposed: str, destinations: Col
         return proposed
     reason = _stop_reason(spec, scope, state, proposed)
     if reason is None:
-        counters["retries"] += 1
+        if not _retry_exempt(proposed, state):
+            counters["retries"] += 1
         if proposed == "boss_escalation":
             counters["boss"] += 1
         return proposed
