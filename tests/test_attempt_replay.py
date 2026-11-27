@@ -129,13 +129,13 @@ def test_selection_restores_the_better_judged_attempt(tmp_path, activated):
 
 
 def test_an_archived_unsure_earlier_attempt_is_not_selected(tmp_path, activated):
-    docs = {d["id"]: d for d in ar.replay(_store(tmp_path, _items()))["documents"]}
+    docs = {d["id"]: d for d in ar._replay(_store(tmp_path, _items()), runs_root=None, activate=True)["documents"]}
     assert docs["d5"]["selection_reason"] == "earlier_attempt_requires_review"
     assert not docs["d5"]["selection_changed"]
 
 
-def test_the_filter_counts_dropped_items_and_cuad_errors(tmp_path, activated):
-    out = ar.replay(_store(tmp_path, _items()))
+def test_the_filter_counts_dropped_items_and_cuad_errors(tmp_path):
+    out = ar.replay(_store(tmp_path, _items()), activate=False)
     contract = out["evidence"]["by_class"]["contract"]
     # d1, d2, d4 and d5 each carry the FAKE clause; d4 is human-entered, which live HF-029 never sees.
     assert contract["dropped"] == {"cuad_clauses": 3}
@@ -144,8 +144,8 @@ def test_the_filter_counts_dropped_items_and_cuad_errors(tmp_path, activated):
     assert contract["after"] >= contract["before"]
 
 
-def test_skips_are_counted_and_scored_n_reported(tmp_path, activated):
-    out = ar.replay(_store(tmp_path, _items()))
+def test_skips_are_counted_and_scored_n_reported(tmp_path):
+    out = ar.replay(_store(tmp_path, _items()), activate=False)
     assert out["counts"]["items"] == 6 and out["counts"]["skipped"] == {"failed": 1, "no_pred": 1}
     assert out["counts"]["human_source"] == 1  # scored on its latest extraction; never re-selected
     assert out["counts"]["scored_n"] == 4
@@ -180,8 +180,8 @@ def test_the_bars_follow_the_design():
     assert ar.evidence_meets_confirming_arm(good) is True
 
 
-def test_the_replay_is_labelled_an_estimate_and_writes_its_file(tmp_path, activated):
-    out = ar.replay(_store(tmp_path, _items()))
+def test_the_replay_is_labelled_an_estimate_and_writes_its_file(tmp_path):
+    out = ar.replay(_store(tmp_path, _items()), activate=False)
     assert out["label"] == "offline replay (estimate)" and out["run_id"] == "r-replay"
     path = ar.write_replay(out, tmp_path / "out" / "replay.json")
     assert json.loads(path.read_text())["label"] == "offline replay (estimate)"
@@ -215,9 +215,9 @@ def test_the_default_output_sits_outside_the_run(tmp_path):
     assert path == tmp_path / "replays" / "r-replay.attempt_replay.json"
 
 
-def test_a_human_entered_extraction_is_not_filtered(tmp_path, activated):
+def test_a_human_entered_extraction_is_not_filtered(tmp_path):
     # HF-029 runs on the specialist's read; a reviewer's edit never passes through it.
-    docs = {d["id"]: d for d in ar.replay(_store(tmp_path, _items()))["documents"]}
+    docs = {d["id"]: d for d in ar.replay(_store(tmp_path, _items()), activate=False)["documents"]}
     assert docs["d4"]["human_source"] is True and docs["d4"]["dropped"] == {}
     assert docs["d4"]["filtered_quality"] == docs["d4"]["latest_quality"]
     assert docs["d2"]["human_source"] is False and docs["d2"]["dropped"] == {"cuad_clauses": 1}
@@ -259,7 +259,7 @@ def test_the_output_is_never_inside_the_source_run(tmp_path):
     assert ar.write_replay(result, tmp_path / "out.json", source=run).is_file()
 
 
-def test_the_script_refuses_an_output_inside_the_run(tmp_path, capsys):
+def test_the_script_refuses_an_output_inside_the_run(tmp_path, capsys, activated):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("replay_script", "scripts/replay_attempt_hygiene.py")
@@ -267,11 +267,63 @@ def test_the_script_refuses_an_output_inside_the_run(tmp_path, capsys):
     spec.loader.exec_module(script)
     run = _store(tmp_path, _items())
     lock_before = (run / "spec.lock.json").read_bytes()
-    monkey = pytest.MonkeyPatch()
-    monkey.setattr(ar, "_activate", lambda lock: None)
-    try:
-        assert script.main(["--run", str(run), "--out", str(run / "spec.lock.json")]) == 2
-    finally:
-        monkey.undo()
+    assert script.main(["--run", str(run), "--out", str(run / "spec.lock.json")]) == 2
     assert (run / "spec.lock.json").read_bytes() == lock_before
     assert "inside the source run" in capsys.readouterr().err
+
+
+def test_the_drop_record_never_changes_a_score():
+    from mailroom_sandbox.job.pair_report import _score
+
+    pred = _pred([_attempt(1, GOOD, "complete", 0.9)])
+    marked = {**pred, "extracted_data": {**GOOD, "_evidence_dropped": {"cuad_clauses": [FAKE]},
+                                         "_evidence_skipped": "would_empty"}}
+    assert _score(_row("d1"), marked) == _score(_row("d1"), pred) is not None
+
+
+def test_a_replay_leaves_the_callers_runtime_alone(tmp_path, activated):
+    from mailroom_sandbox import evidence_check, runtime
+
+    runtime.activate("modal-vllm", load_env_file=False)
+    before = runtime.active()
+    run = _store(tmp_path, _items())
+    lock = json.loads((run / "spec.lock.json").read_text())
+    (run / "spec.lock.json").write_text(json.dumps({**lock, "job": {"evidence_check": True}}))
+    out = ar.replay(run)
+    assert out["counts"]["scored_n"] == 4
+    assert runtime.active() is before and not evidence_check.active()
+
+
+def test_the_in_process_replay_activates_the_runs_thresholds(tmp_path, activated):
+    # What the child process runs; here so its activation path is exercised (and covered) in-process.
+    docs = {d["id"]: d for d in ar._replay(_store(tmp_path, _items()), runs_root=None, activate=True)["documents"]}
+    assert docs["d1"]["selection_changed"] and docs["d5"]["selection_reason"] == "earlier_attempt_requires_review"
+
+
+def test_a_run_without_attempt_history_is_no_evidence_for_selection(tmp_path):
+    # Items stored before the pipeline item kept the history: bar A has nothing to measure.
+    items = _items()
+    for item in items:
+        if isinstance(item.get("pred"), dict):
+            item["pred"].pop("extraction_attempt_history")
+    out = ar.replay(_store(tmp_path, items), activate=False)
+    assert out["counts"]["history_n"] == 0
+    assert out["bars"]["selection_meets"] is None
+    assert "no attempt history" in ar.digest(out)
+    (tmp_path / "with-history").mkdir()
+    full = ar.replay(_store(tmp_path / "with-history", _items()), activate=False)
+    assert full["counts"]["history_n"] == 4 and full["bars"]["selection_meets"] in (True, False)
+
+
+def test_a_run_without_its_dataset_is_refused_not_a_traceback(tmp_path, capsys):
+    run = _store(tmp_path, _items())
+    (run / "dataset.jsonl").unlink()
+    with pytest.raises(ar.ReplayError, match="dataset.jsonl"):
+        ar.replay(run, activate=False)
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("replay_script", "scripts/replay_attempt_hygiene.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    assert script.main(["--run", str(run)]) == 2
+    assert "replay failed" in capsys.readouterr().err

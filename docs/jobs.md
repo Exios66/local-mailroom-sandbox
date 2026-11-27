@@ -757,9 +757,22 @@ a whole-item quote test drops true ones.
 - a chunked read keeps its `chunking.merge` policy;
 - a drop that would leave the extraction empty is skipped (`_evidence_skipped: "would_empty"`), so the
   check never fails a read or adds a retry;
-- an error inside the check is logged and the read passes through unfiltered.
+- an error inside the check is logged and the read passes through unfiltered;
+- on a judge-ordered field-only retry (HF-027), the fields carried over from the previous extraction
+  keep their part of its `_evidence_dropped` record, and the re-read fields get a fresh one;
+- a read that was also given page images (a scanned document) is left alone and marked
+  `_evidence_skipped: "pages"`, since a clause read from an image has no quote in the text layer.
 
-Pipeline runs only; hashed only when set.
+The check itself makes no model call, but a filtered extraction can draw a different judge ruling,
+and so a bounded retry or arbiter call; the run's budgets and caps still bound it. HF-029 marks itself
+stale (not applied) if the vendored evidence fields or the 12-character span minimum change. Preflight
+also refuses `keep_best_attempt` arriving from the taxonomy overlay or `config/components.yaml` with
+`judge: mode: correct`.
+
+Pipeline runs only; hashed only when set. The gate report counts the check per document
+(`evidence_dropped` per field, `evidence_skipped` with its reason for a read left unfiltered) and in an
+`evidence_check` block: items dropped per field and per class, skipped reads by reason and the
+documents involved. A run without drops has no such block. The record never changes a score.
 
 ### Measuring both offline
 
@@ -767,11 +780,16 @@ Pipeline runs only; hashed only when set.
 python scripts/replay_attempt_hygiene.py --run p4-s1-verify-gov-off
 ```
 
-The replay reads a finished pipeline run and never writes it. It activates the run's lock with
-`keep_best_attempt` forced on and scores the latest, the selected and the filtered extraction of every
+The replay reads a finished pipeline run and never writes it. In a fresh child process (so a Python
+caller's own runtime is left alone), it activates the run's lock with `keep_best_attempt` forced on and scores the latest, the selected and the filtered extraction of every
 document with the gate's own scorer. Contracts also get CUAD false and missed clauses before and after
 the filter. It prints a digest with the design's adoption bars and writes the full result to
-`data/runtime/replays/<run_id>.attempt_replay.json`.
+`data/runtime/replays/<run_id>.attempt_replay.json`. Activation rewrites the shared
+`data/runtime/taxonomy.yaml` (as preflight does), so do not replay while a run is being prepared in
+the same checkout. The digest counts documents with an attempt history; with none (items stored
+before pipeline items kept it), bar A reads "no evidence" rather than not met, so run stage 1 from a
+checkout that includes this change. The replay cannot see page images, so it filters a scanned
+document that live HF-029 would leave alone.
 
 A correct-mode run is refused (its attempt history does not hold the judge's fixes), and so are a run
 whose checkpoint still says `running`, a `dataset.jsonl` that no longer matches the lock's digest, and an

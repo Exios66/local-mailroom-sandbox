@@ -110,6 +110,7 @@ def _document(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, Any]
         "would_empty": filtered.get("_evidence_skipped") == "would_empty",
         "text_from_row": not pred.get("doc_text"),
         "human_source": human,
+        "has_history": bool(pred.get("extraction_attempt_history")),
     }
     if cls == "contract":
         before, after = _cuad(row, latest), _cuad(row, filtered)
@@ -176,11 +177,31 @@ def evidence_meets_confirming_arm(evidence: Mapping[str, Any]) -> bool:
 
 
 def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = True) -> dict[str, Any]:
-    """The replay of one finished run (JSON-serializable); the run directory is only read."""
+    """The replay of one finished run (JSON-serializable); the run directory is only read.
+
+    With ``activate`` (the default) the run's lock is activated in a fresh child process, so the
+    caller's runtime (profile, thresholds, the evidence-check switch, applied hotfixes) is never
+    replaced; a :class:`ReplayError` raised there is raised here. ``activate=False`` replays in this
+    process on whatever runtime is already active.
+    """
+    if not activate:
+        return _replay(run, runs_root=runs_root, activate=False)
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        return pool.submit(_replay, Path(run) if isinstance(run, Path) else run,
+                           runs_root=runs_root, activate=True).result()
+
+
+def _replay(run: str | Path, *, runs_root: Path | None, activate: bool) -> dict[str, Any]:
     from mailroom_sandbox import rescore
     from mailroom_sandbox.job.pair_report import _failed, load_arm
 
-    files = rescore.locate(run, runs_root=runs_root)
+    try:
+        files = rescore.locate(run, runs_root=runs_root)
+    except FileNotFoundError as exc:  # a run missing its lock, items or dataset: a refusal, not a traceback
+        raise ReplayError(str(exc)) from exc
     try:
         lock = rescore._finished_lock(files, force=False)  # a running checkpoint is refused
     except rescore.RescoreError as exc:
@@ -195,7 +216,10 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
                           "replayed (the attempt history does not hold the judge's fixes)")
     if activate:
         _activate(lock)
-    arm = load_arm(files.path)
+    try:
+        arm = load_arm(files.path)
+    except FileNotFoundError as exc:
+        raise ReplayError(str(exc)) from exc
     skipped: Counter[str] = Counter()
     docs: list[dict[str, Any]] = []
     for entry in arm.values():
@@ -226,10 +250,13 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
         "run_id": lock.get("run_id") or files.path.name,
         "counts": {"items": len(arm), "scored_n": len(docs), "skipped": dict(sorted(skipped.items())),
                    "human_source": sum(1 for d in docs if d["human_source"]),
-                   "dataset_verified": dataset_verified, "text_from_row": sum(1 for d in docs if d["text_from_row"])},
+                   "dataset_verified": dataset_verified,
+                   "history_n": sum(1 for d in docs if d["has_history"]), "text_from_row": sum(1 for d in docs if d["text_from_row"])},
         "selection": selection,
         "evidence": evidence,
-        "bars": {"selection_meets": selection_meets(selection),
+        # None, not False, when no document carries its attempt history (items stored before the
+        # pipeline item kept it): no evidence either way, never a "not met".
+        "bars": {"selection_meets": selection_meets(selection) if any(d["has_history"] for d in docs) else None,
                  "evidence_meets_confirming_arm": evidence_meets_confirming_arm(evidence)},
         "documents": docs,
     }
@@ -276,7 +303,8 @@ def digest(result: Mapping[str, Any], path: Path | str | None = None) -> str:
     c = result["counts"]
     lines = [f"{result['label']}: run {result['run_id']}",
              f"items {c['items']}, scored_n {c['scored_n']}, skipped {c['skipped'] or 'none'}, "
-             f"human-sourced {c['human_source']}"]
+             f"human-sourced {c['human_source']}, with attempt history {c['history_n']}, "
+             f"dataset digest {'checked' if c['dataset_verified'] else 'not in the lock'}"]
 
     def row(name: str, sel: Mapping[str, Any], ev: Mapping[str, Any]) -> str:
         text = (f"  {name}: n {sel['scored_n']} | A latest {sel['latest']} -> selected {sel['selected']} "
@@ -290,8 +318,13 @@ def digest(result: Mapping[str, Any], path: Path | str | None = None) -> str:
     for cls, sel in result["selection"]["by_class"].items():
         lines.append(row(cls, sel, result["evidence"]["by_class"][cls]))
     bars = result["bars"]
-    lines.append(f"bars: A selection meets {bars['selection_meets']}; B confirming arm warranted "
+    a_bar = ("no evidence (no attempt history: run stage 1 from a checkout whose pipeline items keep it)"
+             if bars["selection_meets"] is None else bars["selection_meets"])
+    lines.append(f"bars: A selection meets {a_bar}; B confirming arm warranted "
                  f"{bars['evidence_meets_confirming_arm']}")
+    reasons = result["selection"]["overall"].get("reasons") or {}
+    if reasons:
+        lines.append("A reasons: " + ", ".join(f"{k} {v}" for k, v in reasons.items()))
     if path is not None:
         lines.append(f"full result: {path}")
     return "\n".join(lines)

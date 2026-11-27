@@ -247,3 +247,84 @@ def test_the_confirming_arm_differs_from_its_baseline_only_in_the_check():
     assert on["job"].pop("evidence_check") is True
     assert "evidence_check" not in off["job"]
     assert on == off
+
+
+def test_a_field_retry_keeps_the_earlier_drop_record_for_carried_fields(check_on):
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+    previous = {"cuad_clauses": [REAL2], "claim_checklist": [f"Termination: {REAL2.split(': ', 1)[1]}"],
+                "parties": ["Acme"], "_evidence_dropped": {"claim_checklist": [FAKE], "cuad_clauses": ["old"]}}
+    token = vh._FIELD_RETRY.set((previous, frozenset({"cuad_clauses"})))
+    try:
+        # The carried checklist keeps its record; the re-read cuad_clauses get the fresh one.
+        out = bg._enrich_contract_result({"cuad_clauses": [REAL, FAKE]}, _state())
+        assert out["_evidence_dropped"] == {"claim_checklist": [FAKE], "cuad_clauses": [FAKE]}
+        out = bg._enrich_contract_result({"cuad_clauses": [REAL]}, _state())
+        assert out["_evidence_dropped"] == {"claim_checklist": [FAKE]}
+    finally:
+        vh._FIELD_RETRY.reset(token)
+
+
+def _layers(fn):
+    marks = []
+    while fn is not None:
+        mark = getattr(fn, "__dict__", {}).get("_sandbox_hotfix")
+        if mark:
+            marks.append(mark)
+        fn = getattr(fn, "__wrapped__", None)
+    return marks
+
+
+def test_a_reapply_after_the_retry_node_is_put_back_wraps_each_layer_once():
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+    before = _layers(bg._enrich_contract_result)
+    assert before.count("HF-027") == 1 and before.count("HF-029") == 1
+    node = bg.retry_extract_node
+    bg.retry_extract_node = node.__wrapped__  # a reload or a test put the node under HF-027 back
+    try:
+        vh.apply_hotfixes()
+        assert _layers(bg._enrich_contract_result) == before
+        assert _layers(bg.retry_extract_node).count("HF-027") == 1
+    finally:
+        bg.retry_extract_node = node
+
+
+def test_a_read_with_page_images_is_left_alone(check_on):
+    # The specialist also saw the page images; a clause read from them has no quote in doc_text.
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+    out = bg._enrich_contract_result({"cuad_clauses": [REAL, FAKE], "parties": ["Acme"]},
+                                     {**_state(), "doc_pages": ["iVBORw0KGgo="]})
+    assert out["cuad_clauses"] == [REAL, FAKE] and out["_evidence_skipped"] == "pages"
+    assert "_evidence_dropped" not in out
+    out = bg._enrich_contract_result({"cuad_clauses": [REAL, FAKE], "parties": ["Acme"]}, {**_state(), "doc_pages": []})
+    assert out["cuad_clauses"] == [REAL]
+
+
+def test_hf029_is_stale_when_the_vendored_evidence_test_moves(monkeypatch):
+    import graph.build_graph as bg
+    import langchain_agents.specialist_agents as sa
+
+    monkeypatch.setattr(sa, "_DEFAULT_EVIDENCE_FIELDS", ("action_items",))
+    with pytest.raises(vh.HotfixDrift, match="evidence fields"):
+        vh._install_evidence_check(bg, bg._enrich_contract_result)
+    monkeypatch.setattr(sa, "_DEFAULT_EVIDENCE_FIELDS", ("cuad_clauses", "claim_checklist"))
+    monkeypatch.setattr(sa, "_MIN_SPAN_CHARS", 4)
+    with pytest.raises(vh.HotfixDrift, match="_MIN_SPAN_CHARS"):
+        vh._install_evidence_check(bg, bg._enrich_contract_result)
+
+
+def test_preflight_refuses_keep_best_from_an_overlay_with_correct_mode(monkeypatch):
+    from mailroom_sandbox.job import preflight, routing_audit
+
+    spec = RunSpec(run_id="r-kb", task="pipeline", dataset=DatasetSpec(local_path="file:///x.jsonl"),
+                   engine={"kind": "vllm-local", "modal": None}, job={"mock": True}, judge={"mode": "correct"})
+    monkeypatch.setattr(routing_audit, "effective_thresholds",
+                        lambda c=None: {"by_class": {"contract": {"keep_best_attempt": True}}})
+    assert any("keep_best_attempt" in e for e in preflight._keep_best_errors(spec))
+    monkeypatch.setattr(routing_audit, "effective_thresholds", lambda c=None: {"keep_best_attempt": False})
+    assert preflight._keep_best_errors(spec) == []
