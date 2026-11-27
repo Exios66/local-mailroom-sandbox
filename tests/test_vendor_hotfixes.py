@@ -1473,13 +1473,31 @@ def test_hf023_is_registered_with_a_pinned_source():
     assert (fix.module, fix.attr) == ("graph.build_graph", "_instantiate_specialist")
     assert fix.source_sha256 == vh._source_sha(bg._instantiate_specialist)
     also = dict(fix.also)
-    for name in ("_build_handoff_context", "extract_node", "_run_chunked_extraction"):
+    for name in ("_build_handoff_context", "extract_node", "_run_chunked_extraction", "retry_extract_node"):
         assert also[name] == vh._source_sha(getattr(bg, name)), name
     assert vh.apply_hotfixes()["HF-023"] == "applied"
     depth = _wrap_depth(bg._build_handoff_context)
     assert vh.apply_hotfixes()["HF-023"] == "applied"  # idempotent: the handoff wrapper is not doubled
     assert _wrap_depth(bg._build_handoff_context) == depth
     assert getattr(bg._build_handoff_context, "_sandbox_hotfix", None) == "HF-023"
+
+
+def test_hf024_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+    from agents.judge import CompletenessJudge
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-024")
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_clean_fields_for_judge")
+    assert fix.source_sha256 == vh._source_sha(bg._clean_fields_for_judge)
+    also = dict(fix.also)
+    for name in ("judge_verify_node", "arbiter_node", "_retry_handoff_summary"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert also["agents.judge:CompletenessJudge._field_list"] == vh._source_sha(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"
+    depth = _wrap_depth(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"  # the field-list wrapper is not doubled
+    assert _wrap_depth(CompletenessJudge._field_list) == depth == 1
+    assert isinstance(CompletenessJudge.__dict__["_field_list"], staticmethod)
 
 
 def _wrap_depth(fn) -> int:

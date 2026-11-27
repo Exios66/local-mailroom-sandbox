@@ -598,7 +598,10 @@ separate subclass confidence.
 For pipeline runs the switch and the file's sha256 are hashed into `spec_hash`. At activation the runtime
 refuses a field list whose sha differs from the locked one, so re-run preflight after rebuilding it. HF-023
 applies the choice: one specialist instance serves one document's extraction and every chunk window, and it
-alone is given the narrowed schema. The judge, the arbiter and the next document still see the class schema.
+alone is given the narrowed schema. HF-024 keeps the review consistent with it: the judge's expected-field list and the
+extraction the judge, the arbiter and the retry summary read leave out the dropped fields (and list the added
+ones). The next document, and a fallback extraction, see the class schema. A confidence that is missing, NaN or not
+a number falls back.
 A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer) keeps that
 hotfix's schema; the other classes are unaffected. A lock from before phase 3 has no
 `subclass_schemas` key, so it still resumes with the class schemas. HF-023 changes the locked hotfix set, so a

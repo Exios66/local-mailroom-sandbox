@@ -18,6 +18,8 @@ import contextvars
 import copy
 import functools
 import logging
+import math
+import re
 import threading
 from typing import Any, Mapping
 
@@ -73,6 +75,17 @@ def _narrow(base: Mapping[str, Any], entry: Mapping[str, Any], *, guide: bool, c
     return schema
 
 
+def _confident(confidence: Any, low: float | None) -> bool:
+    """A finite numeric confidence at or above ``low``; anything else (missing, NaN, text) falls back."""
+    if isinstance(confidence, bool):
+        return False
+    try:
+        value = float(confidence)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(value) and (low is None or value >= float(low))
+
+
 def choose_schema(
     doc_class: str,
     subclass: str | None,
@@ -88,7 +101,7 @@ def choose_schema(
     entry = ((lists.get("classes") or {}).get(doc_class) or {}).get(sub)
     if sub in FALLBACK_SUBCLASSES or entry is None:
         return base, "fallback:unknown"
-    if confidence is None or (low is not None and float(confidence) < float(low)):
+    if not _confident(confidence, low):
         return base, "fallback:low_confidence"
     return _narrow(base, entry, guide=guide, curated=_curated(doc_class) if guide else frozenset()), "subclass"
 
@@ -172,6 +185,7 @@ def bind_choice(agent: Any) -> None:
     """
     choice = _PENDING.get()
     _PENDING.set(None)
+    _record_review(None)
     if choice is None:
         return
     base, schema = choice
@@ -180,6 +194,7 @@ def bind_choice(agent: Any) -> None:
         _log.info("subclass schema for %s left to %s on %s.extract", getattr(agent, "doc_id", None) or "extraction",
                   getattr(cls.extract, _hotfix_mark(), None), cls.__name__)
         return
+    _record_review(base, schema)
     if getattr(agent, "schema", None) is base:
         # LangChain specialists also normalize and score evidence confidence on self.schema:
         # with the class schema there, every dropped field would count as "not found".
@@ -194,3 +209,54 @@ def bind_choice(agent: Any) -> None:
         return cls._call_structured(agent, *args, **kwargs)  # resolved per call: observer, sampling
 
     agent._call_structured = _call_structured
+
+
+# --- HF-024: the judge and the arbiter see the fields the extraction was asked for ----------
+
+_REVIEW_KEY = "subclass_schema"
+_FIELD_LINE = re.compile(r"^  - ([A-Za-z0-9_]+):")
+
+
+def _record_review(base: Mapping[str, Any] | None, schema: Mapping[str, Any] | None = None) -> None:
+    """Keep the document's dropped and added fields in its call-guard scope (cleared on fallback)."""
+    from mailroom_sandbox.job import call_guard
+
+    scope = call_guard.scope()
+    if scope is None:
+        return
+    if base is None or schema is None:
+        scope.pop(_REVIEW_KEY, None)
+        return
+    before, after = dict(base.get("properties") or {}), dict(schema.get("properties") or {})
+    scope[_REVIEW_KEY] = {"drop": sorted(set(before) - set(after)),
+                          "add": {name: after[name] for name in sorted(set(after) - set(before))}}
+
+
+def _review() -> Mapping[str, Any] | None:
+    from mailroom_sandbox.job import call_guard
+
+    scope = call_guard.scope()
+    return None if scope is None else scope.get(_REVIEW_KEY)
+
+
+def review_fields(fields: dict) -> dict:
+    """HF-024: an extraction as the judge, arbiter and retry summary see it, without dropped fields."""
+    review = _review()
+    if not review:
+        return fields
+    dropped = set(review.get("drop") or ())
+    return {k: v for k, v in fields.items() if k not in dropped}
+
+
+def review_field_list(text: str) -> str:
+    """HF-024: the judge's expected-field list without dropped fields, with added ones."""
+    review = _review()
+    if not review or not isinstance(text, str):
+        return text
+    dropped = set(review.get("drop") or ())
+    lines = [line for line in text.split("\n")
+             if not ((m := _FIELD_LINE.match(line)) and m.group(1) in dropped)]
+    for name, spec in (review.get("add") or {}).items():
+        kind = spec.get("type") if isinstance(spec, Mapping) else None
+        lines.append(f"  - {name}: {'list' if kind == ['array', 'null'] else 'str'} | None")
+    return "\n".join(lines)

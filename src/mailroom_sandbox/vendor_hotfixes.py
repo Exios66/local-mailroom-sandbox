@@ -120,6 +120,34 @@ def _install_subclass_schemas(module: Any, original: Callable[..., Any]) -> Call
     return _instantiate_specialist
 
 
+def _install_review_fields(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-024 (job.subclass_schemas): the judge and the arbiter see the fields extraction was asked for.
+
+    ``_clean_fields_for_judge`` builds the extraction the judge, the arbiter and the retry summary
+    read; ``CompletenessJudge._field_list`` is the judge's expected-field list. Both drop the fields
+    HF-023's narrowed schema left out for this document (``subclass_extraction.review_fields`` and
+    ``review_field_list`` read the document's call-guard scope). Off or on a fallback, both pass through.
+    """
+    from agents.judge import CompletenessJudge
+
+    from mailroom_sandbox import subclass_extraction as sx
+
+    field_list = CompletenessJudge.__dict__["_field_list"].__func__
+    if getattr(field_list, _MARK, None) != "HF-024":
+        @functools.wraps(field_list)
+        def _field_list(doc_type: str) -> str:
+            return sx.review_field_list(field_list(doc_type))
+
+        setattr(_field_list, _MARK, "HF-024")
+        CompletenessJudge._field_list = staticmethod(_field_list)
+
+    @functools.wraps(original)
+    def _clean_fields_for_judge(extracted):
+        return sx.review_fields(original(extracted))
+
+    return _clean_fields_for_judge
+
+
 #: The reasoning the vendored CompletenessJudge returns when its structured output failed to parse.
 JUDGE_PARSE_FAILURE = "judge output failed to parse"
 
@@ -1495,7 +1523,26 @@ HOTFIXES: tuple[Hotfix, ...] = (
         install=_install_subclass_schemas,
         also=(("_build_handoff_context", "92d686345bb9ed5344fa77518f873e646e286a5e043ce119b5b8e6a222485fde"),
               ("extract_node", "612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5"),
-              ("_run_chunked_extraction", "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f")),
+              ("_run_chunked_extraction", "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f"),
+              ("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52")),
+    ),
+    Hotfix(
+        id="HF-024",
+        module="graph.build_graph",
+        attr="_clean_fields_for_judge",
+        source_sha256="fe41e32bc90964836846b87ee1e0c16f20534eeef251d4af30be8e5b41e55a76",
+        upstream="upstream issue to be filed (llm-mailroom: the judge expects every class field, including "
+                 "fields the extraction was not asked for)",
+        summary="with job.subclass_schemas, the judge's expected-field list, and the fields the judge, the "
+                "arbiter and the retry summary see, are the ones the document's extraction was asked for "
+                "(fields the subclass schema dropped are left out, added ones listed); a fallback extraction "
+                "shows the class fields",
+        install=_install_review_fields,
+        also=(("judge_verify_node", "47ffddc38ccd9db993718beaff30ee99572c7fdbd686267100ffc4b694a3d57e"),
+              ("arbiter_node", "16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f"),
+              ("_retry_handoff_summary", "b55d8b530a3ef4610af94e21c4d1c2caf9260173121747aad6b116eeae32cce7"),
+              ("agents.judge:CompletenessJudge._field_list",
+               "fcb6f8f6c946c86f61ffc878988e0f352530fb9d7f15d29ecaa074596a54ba98")),
     ),
 )
 

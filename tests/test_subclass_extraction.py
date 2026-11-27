@@ -323,6 +323,88 @@ def test_a_corporate_extract_another_hotfix_composes_is_left_to_it(captured, sch
     assert captured and all("intent" not in sent["properties"] for _, sent in captured)
 
 
+@pytest.mark.parametrize("confidence", [float("nan"), float("inf"), "high", "", object()])
+def test_a_nan_or_non_numeric_confidence_falls_back(schemas, lists, confidence):
+    schema, reason = _choose(schemas, lists, "merger_agreement", "all_cash", confidence)
+    assert schema is schemas["merger_agreement"] and reason == "fallback:low_confidence"
+
+
+def test_record_choice_fails_open_on_a_non_numeric_confidence(schemas, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    sx.record_choice(_state("merger_agreement", "all_cash", confidence="high"))  # no raise
+    assert sx._PENDING.get() is None
+
+
+# --- the judge and the arbiter see the fields the extraction was asked for -------------------
+
+@pytest.fixture
+def review_calls(monkeypatch):
+    """Apply HF-023/HF-024; record every structured call's agent and user message."""
+    from agents import base as agents_base
+    from langchain_agents import base_agent as lc_base
+
+    import graph.build_graph as bg
+
+    status = vh.apply_hotfixes()
+    assert status["HF-023"] == status["HF-024"] == "applied"
+    calls: list[tuple[str, str]] = []
+
+    def stub(self, user_message, *args, **kwargs):
+        calls.append((type(self).__name__, str(user_message)))
+        return {"confidence": 0.9, "completeness": 0.6, "completeness_label": "partial", "reasoning": "gaps",
+                "extraction_correctness": 1.0, "extraction_correctness_label": "accurate",
+                "decision": "human_review", "fields_to_fix": [], "handoff_summary": ""}
+
+    monkeypatch.setattr(agents_base.BaseAgent, "_call_structured", stub)
+    monkeypatch.setattr(lc_base.BaseAgent, "_call_structured", stub)
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    return calls
+
+
+def _review(cls, sub, confidence=0.99):
+    import graph.build_graph as bg
+    from mailroom_sandbox.job import call_guard
+
+    state = {**_state(cls, sub, confidence), "doc_text": "A short document body.",
+             "extracted_data": {"document_name": "Plan of Merger", "intent": None, "keywords": None},
+             "judge_verdict": "partial", "judge_findings": ["gaps"], "judge_score": 0.6}
+    with call_guard.document() as scope:
+        _extract(cls, sub, confidence=confidence)
+        bg.judge_verify_node(state)
+        bg.arbiter_node(state)
+        cleaned = bg._clean_fields_for_judge(state["extracted_data"])
+    return scope, cleaned
+
+
+def _judge_and_arbiter(calls):
+    return [m for agent, m in calls if agent in ("CompletenessJudge", "ArbiterAgent")]
+
+
+def test_the_judge_and_arbiter_see_only_the_requested_fields(review_calls, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    scope, cleaned = _review("merger_agreement", "all_cash")
+    messages = _judge_and_arbiter(review_calls)
+    assert len(messages) >= 2
+    assert all("intent" not in m and "keywords" not in m for m in messages)
+    assert "document_name" in messages[0]
+    assert cleaned == {"document_name": "Plan of Merger"}
+    assert set(scope["subclass_schema"]["drop"]) == {"intent", "keywords", "subject_matter"}
+
+
+def test_off_the_judge_lists_every_class_field(review_calls, switch_off):
+    _, cleaned = _review("merger_agreement", "all_cash")
+    judge = [m for agent, m in review_calls if agent == "CompletenessJudge"]
+    assert any("  - intent:" in m for m in judge)
+    assert "intent" in cleaned
+
+
+def test_a_fallback_extraction_shows_the_judge_the_class_fields(review_calls, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    scope, cleaned = _review("merger_agreement", "all_cash", confidence=0.01)
+    assert not scope.get("subclass_schema")
+    assert "intent" in cleaned
+
+
 # --- Task 4: scoring guards -------------------------------------------------------------------
 
 _KEPT = {"merger_agreement": "document_name", "corporate_record": "entity_name", "contract": "document_name",

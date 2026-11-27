@@ -191,7 +191,7 @@ class _Subclass:
     problems: list[dict[str, Any]]
     labeled: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     by_set: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
-    # Labels that carry a value (not a blank or a not-applicable mark), by set: what a schema may keep.
+    # Labels whose value is non-empty (not None, "", [] or {}), by set: the values a schema may not drop.
     valued_by_set: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     values: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
 

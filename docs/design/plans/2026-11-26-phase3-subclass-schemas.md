@@ -272,6 +272,12 @@ Consequences for the spec's other bullets:
   - #437's `_build_handoff_context` wrapper stacks with HF-023's in either order (`test_hf023_stacks_with_another_handoff_wrapper`).
   - #436 only removes truth labels, which leave both sides of the score, so the drops stay score-neutral.
 
+- **Review follow-ups (owner, 2026-11-27).**
+  - A NaN or non-numeric confidence falls back to the class schema.
+  - HF-023 pins `retry_extract_node`.
+  - HF-024 shows the judge, the arbiter and the retry summary only the fields the extraction was asked for.
+  - The `valued_by_set` comment in `subclass_schemas.py` is reworded.
+
 ## Risks and follow-ups
 
 - **The extension is empty today.** It adds a field only once that field has labels. Labeling the corporate entity fields is the follow-up that makes it do anything.
