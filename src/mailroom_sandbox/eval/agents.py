@@ -567,6 +567,8 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: b
         # Per-subclass scoring (sandbox #145): the row's GT subclass drives the
         # vendored corporate-record alignment (see scoring.py).
         expected_subclass=row.get("expected_subclass"),
+        # SHF-013: a reviewed subclass correction replaces the Hub subclass on the headline.
+        doc_id=row.get("id"),
         field_scores=field_scores,
         truth_overrides=row.get("truth_overrides"),
         overlay_fields=scoring_hotfixes.overlay_fields(row) if stale_labels else None,

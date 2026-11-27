@@ -69,7 +69,10 @@ for dependency snapshots (`docs/dependency-snapshots.md`).
 - caches the outputs (data) under `builder/` in the cut, so the cut restages without the
   builder's branch. The script's sha256 and commit are recorded in the manifest; the script
   itself stays in this repository, because mailroom-issues holds no code;
-- joins the assist CSV;
+- joins the assist CSV. A cell where the assist differs from the builder goes to
+  `queues/needs_human.csv`, except a reviewed duplicate keeper and a reviewed subclass correction
+  (`subclass`, `subclass_changed` and the `cuad_family` derived from it), which the assist
+  predates;
 - rewrites cut-off magnitudes ("eighty (180) days" from a builder grammar that keeps one number
   word) with the document's own spelling, and queues any it cannot ground;
 - validates the merged staged (non-Hub) labels against the document text (rc.4 on;
