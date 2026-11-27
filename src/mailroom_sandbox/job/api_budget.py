@@ -65,6 +65,10 @@ def api_models(lock: Mapping[str, Any]) -> list[str]:
     resolver = (lock.get("decision_slots") or {}).get("resolver") or {}
     if resolver.get("model"):
         models.add(str(resolver["model"]))
+    # And the phase 4 correcting judge, in correct mode (verify mode runs the pipeline's judge model).
+    from mailroom_sandbox.correcting_judge import judge_models
+
+    models.update(judge_models(lock.get("judge")))
     return sorted(model for model in models if model)
 
 
@@ -81,6 +85,8 @@ def spec_api_models(spec: Any) -> list[str]:
     slots = getattr(spec, "decision_slots", None)
     if slots is not None and slots.resolver is not None:
         shaped["decision_slots"] = {"resolver": {"model": slots.resolver.model}}
+    if getattr(spec, "judge", None) is not None:
+        shaped["judge"] = spec.judge.model_dump()
     if spec.agent_routes or spec.agent_knobs or spec.agent_models:
         from mailroom_sandbox.agent_routes import describe
 

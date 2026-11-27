@@ -672,6 +672,10 @@ def activate(
         subclass_extraction.activate(lists, sha256=current_sha, guide=False)
     else:  # a lock without the key (before phase 3, or a task other than pipeline)
         subclass_extraction.deactivate()
+    from mailroom_sandbox import correcting_judge
+
+    locked_judge = locked.get("judge")  # a lock without the key (before phase 4): today's judge, no record
+    correcting_judge.activate(locked_judge, pool_sha256=(locked_judge or {}).get("reference_pool_sha256"))
     try:  # every activation sets or restores the descriptions, so one run's choice never leaks
         from mailroom_sandbox.schema_guide import apply_schema_guide
 
