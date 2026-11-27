@@ -805,7 +805,7 @@ def test_ribbon_keeps_the_digest_clock_visible():
     assert "@container (max-width:1400px){.pbar{width:60px}}" in css
     narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0;overflow:hidden}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px;min-width:0}#dbg,#exp,#imp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}}"
     assert narrow in css
-    phone = "@container (max-width:520px){.ribbon{overflow-x:auto}#bigTitle,.ribbon em{display:none}.pbar{width:24px}#dbg,#exp,#imp{flex:none}}"
+    phone = "@container (max-width:520px){.ribbon{overflow-x:auto}#bigTitle,#bigTitle.on,.ribbon em{display:none}.pbar{width:24px}#dbg,#exp,#imp{flex:none}}"
     assert phone in css
     assert "#dbg,#exp,#imp{display:none}" not in css
 

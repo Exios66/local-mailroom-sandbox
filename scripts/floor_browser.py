@@ -169,6 +169,9 @@ def format_plan(plan: Plan) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     """Print a plan, or serve the floor until interrupted. Never starts a billed run."""
+    # The plan checks this script's checkout. The server resolves fixtures through
+    # SANDBOX_ROOT, so an inherited override must not point it at a different tree.
+    os.environ["SANDBOX_ROOT"] = str(ROOT)
     plan = build_plan(argv)
     if plan.refused:
         print(plan.refused, file=sys.stderr)
@@ -186,7 +189,11 @@ def main(argv: list[str] | None = None) -> int:
     if plan.dry_run:
         print(format_plan(plan), end="")
         return 0
-    plan.base.mkdir(parents=True, exist_ok=True)
+    try:
+        plan.base.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"floor-browser: cannot create base {plan.base}: {exc}", file=sys.stderr)
+        return 1
     note = (
         "floor-browser: simulated sample is not model evidence"
         if plan.replay

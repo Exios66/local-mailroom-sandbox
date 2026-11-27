@@ -138,6 +138,27 @@ def test_prefer_venv_stays_when_the_prefix_is_the_venv(floor_browser, tmp_path, 
     floor_browser._prefer_venv()
 
 
+def test_serve_pins_the_script_checkout(floor_browser, monkeypatch, tmp_path):
+    """The server uses the same checkout the plan just checked."""
+    seen = {}
+
+    def serve(**kwargs):
+        seen["root"] = floor_browser.os.environ.get("SANDBOX_ROOT")
+        return 0
+
+    monkeypatch.setattr(floor_browser._floor_app(), "serve_floor", serve)
+    assert floor_browser.main(["--base", str(tmp_path / "scratch"), "--port", "0"]) == 0
+    assert Path(seen["root"]) == floor_browser.ROOT
+
+
+def test_unwritable_base_is_a_normal_error(floor_browser, tmp_path, capsys):
+    """A base that cannot be created exits 1 with a message, not a traceback."""
+    parent = tmp_path / "not-a-directory"
+    parent.write_text("x", encoding="utf-8")
+    assert floor_browser.main(["--base", str(parent / "child"), "--port", "0"]) == 1
+    assert "cannot create base" in capsys.readouterr().err
+
+
 def test_launch_config_points_at_the_script():
     """The project launch config starts this script on the floor port."""
     config = json.loads((REPO / ".claude" / "launch.json").read_text(encoding="utf-8"))
