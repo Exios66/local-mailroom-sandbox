@@ -116,7 +116,7 @@ what was decided at the time; the guides above say how things work now.
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
 | Correcting judge upstream issues | [Drafts](design/specs/2026-11-26-correcting-judge-upstream-issues.md) for `llm-mailroom`, for the owner to file |
 | Phase 5 attempt hygiene (OpenRouter route) | [Design](design/specs/2026-11-27-phase5-attempt-hygiene-design.md) and [plan](design/plans/2026-11-27-phase5-attempt-hygiene.md) |
-| Phase 5 merger extraction with fewer whole-document reads | [Design](design/specs/2026-11-27-phase5-merger-maud-design.md) (for approval) |
+| Phase 5 merger extraction with fewer whole-document reads | [Design](design/specs/2026-11-27-phase5-merger-maud-design.md) and [plan](design/plans/2026-11-27-phase5-merger-maud.md) |
 | Numbering reservations | [Hotfix IDs and critical-regression rows](numbering-reservations.md) claimed by open PRs |
 
 New design records go in `design/<ticket>/`, or in `design/plans/` and

@@ -1,6 +1,6 @@
 # Phase 5 part 2: better merger extraction with fewer whole-document reads
 
-Status: design, for owner approval. Builds on
+Status: approved by the owner (2026-11-27). Plan: [`docs/design/plans/2026-11-27-phase5-merger-maud.md`](../plans/2026-11-27-phase5-merger-maud.md). Builds on
 [the correcting-judge design](2026-11-26-correcting-judge-design.md) (Phase 5, D1/D2) and
 [Phase 5 part 1](2026-11-27-phase5-attempt-hygiene-design.md), re-scoped to the OpenRouter production
 route (`qwen/qwen3.7-flash`, 1M context, one-call whole-document reads).
