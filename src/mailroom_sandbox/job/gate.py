@@ -167,8 +167,9 @@ def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = T
     field: the count is its number of categories (the scored universe) when at least one carries
     gold, else 0. Other classes count non-empty expected values after class scoping. SHF-015: a
     stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
-    score does not score it (``docs/scoring-hotfixes.md``). ``hotfixed=False`` counts as the Dojo pin
-    does, with no SHF-015 drop: ``_status`` records that as ``labelled_raw`` beside it.
+    score does not score it (``docs/scoring-hotfixes.md``). SHF-019: neither is a correspondence
+    header label the text does not show. ``hotfixed=False`` counts as the Dojo pin does, with no
+    SHF-015 or SHF-019 drop: ``_status`` records that as ``labelled_raw`` beside it.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -180,8 +181,11 @@ def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = T
     stale: dict[str, str] = {}
     if hotfixed and sh.enabled("SHF-015"):
         _, stale = sh.drop_stale_hub_truth(doc_class, raw, sh.overlay_fields(row))
+    unseen: list[str] = []
+    if hotfixed and sh.enabled("SHF-019"):
+        _, unseen = sh.drop_unseen_header_truth(doc_class, row.get("id"), raw, row.get("doc_text"))
     _, expected = scope_extraction_pair(doc_class, {}, raw)
-    drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale}
+    drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale, *unseen}
     scored = scored_fields(doc_class)
     return sum(1 for key, value in expected.items()
                if key not in drop and key not in _NOT_LABELS and not _blank(value)
@@ -361,7 +365,8 @@ def _fix_accuracy(row: Mapping[str, Any], fixes: list[Mapping[str, Any]]) -> tup
     """Verified fixes on labelled fields scored against the truth: ``(right, wrong)`` (ruling 16).
 
     The truth is the headline's: a Hub label SHF-015 drops as stale (a heuristic ``intent``, a
-    templated title) is no label here either, so a fix to that field is not scored.
+    templated title) is no label here either, so a fix to that field is not scored; nor is a fix to a
+    correspondence header label SHF-019 leaves out because the text does not show it.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.job.gate_causes import ScorerError, _field_scores
@@ -369,9 +374,13 @@ def _fix_accuracy(row: Mapping[str, Any], fixes: list[Mapping[str, Any]]) -> tup
     stale: dict[str, str] = {}
     if sh.enabled("SHF-015"):
         _, stale = sh.drop_stale_hub_truth(str(row.get("expected_doc_class")), _fields(row), sh.overlay_fields(row))
+    unseen: list[str] = []
+    if sh.enabled("SHF-019"):
+        _, unseen = sh.drop_unseen_header_truth(str(row.get("expected_doc_class")), row.get("id"), _fields(row),
+                                                row.get("doc_text"))
     right = wrong = 0
     for fix in fixes:
-        if fix["field"] in stale:
+        if fix["field"] in stale or fix["field"] in unseen:
             continue
         try:
             scores = _field_scores(row, {"extracted_data": {fix["field"]: fix.get("value")}})

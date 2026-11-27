@@ -138,6 +138,10 @@ def score_extraction_row(
     (the subclass-specific field alignment and schema), names it under ``subclass_corrected`` and
     lists SHF-013; the raw side keeps the Hub ``expected_subclass``. A caller-supplied
     ``doc_subclass`` takes precedence over both, as before.
+
+    ``doc_id`` with ``doc_text`` also turns on SHF-019 for correspondence: a header field whose
+    truth is the reviewed ``original_header`` label and that the text does not show is left out of
+    both sides on the headline and named under ``header_unseen``; the raw side keeps it.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -152,6 +156,8 @@ def score_extraction_row(
             on = on - {"SHF-010"}
         if overlay_fields is None:
             on = on - {"SHF-015"}
+        if doc_id is None or doc_text is None:
+            on = on - {"SHF-019"}
         # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
         # the headline scores the restored truth too, so nothing moves without being named.
         fixed_expected = expected if "SHF-010" in on else raw_expected
@@ -160,12 +166,18 @@ def score_extraction_row(
         if "SHF-015" in on:
             fixed_expected, stale = sh.drop_stale_hub_truth(doc_type, fixed_expected, overlay_fields or ())
             fixed_predicted = {k: v for k, v in (predicted or {}).items() if k not in stale}
+        unseen: list[str] = []
+        if "SHF-019" in on:
+            fixed_expected, unseen = sh.drop_unseen_header_truth(doc_type, doc_id, fixed_expected, doc_text)
+            fixed_predicted = {k: v for k, v in (fixed_predicted or {}).items() if k not in unseen}
         if corrected:
             on = on | {"SHF-013"}
         fixed = _score_extraction_row_once(doc_type, fixed_predicted, fixed_expected, doc_text, doc_subclass,
                                            corrected or expected_subclass, field_scores=field_scores)
         if stale:
             fixed["stale_hub_labels"] = stale
+        if unseen:
+            fixed[sh.HEADER_UNSEEN] = unseen
         if corrected:
             fixed["subclass_corrected"] = corrected
     out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))

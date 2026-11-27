@@ -31,7 +31,8 @@ threads never see each other's mode. The other fixes act outside a scoring call 
 they are current: the run aggregation fixes (SHF-005/006/007/008/011), SHF-010 during truth
 preparation (``gold_labels.apply_near_gold``), SHF-009 in the Decisions routing contract
 (``decision_backends``), SHF-012 in subclass scoring, SHF-013 in isolated and pipeline subclass
-scoring and sorter-arm comparisons, and SHF-015's gate label count. See ``docs/scoring-hotfixes.md``.
+scoring and sorter-arm comparisons, and SHF-015's and SHF-019's gate label count. See
+``docs/scoring-hotfixes.md``.
 """
 
 from __future__ import annotations
@@ -224,9 +225,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # extraction scoring takes the corrected subclass for its subclass-specific fields
                  ("mailroom_sandbox.eval.scoring:score_extraction_row",
-                  "2116e192cf4c3b1b0626299becff5e6c3a22b6e80d826b2c08b3d2547c03f591"),
+                  "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
                  ("mailroom_sandbox.job.gate_causes:_field_scores",
-                  "f572ea93d4f8f14b7705229b9570da1fd549223a2aa3d9af722d0933d9a8e892"),
+                  "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
                   "c42b2f4939597e3408c949cc08bdd62d1ffc6b7371766fb2196c2adac0378e5b")),
@@ -247,7 +248,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "2116e192cf4c3b1b0626299becff5e6c3a22b6e80d826b2c08b3d2547c03f591"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
             # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
             # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
             # changes one of them makes the fix stale). A live monkeypatch of a function is not source
@@ -283,7 +284,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "b3bc1a48335464a5f08cbae2e07573cba79e0d97259a79a2661a881a8b0742a8"),
+            ("mailroom_sandbox.job.gate:labelled_count", "9b111fe41c633467d52841be0e36c641020c0efdbce506d98a4baf28e02339fa"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
@@ -312,11 +313,33 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "that left the row unscoreable; the row is marked cuad_unlabeled and the "
                 "raw side keeps the Dojo pin's None",
     ),
+    ScoringHotfix(
+        id="SHF-019",
+        layer="sandbox",
+        targets=(
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
+            # the gate counts toward min_labelled, and scores fixes against, only the labels the headline scores
+            ("mailroom_sandbox.job.gate:labelled_count", "9b111fe41c633467d52841be0e36c641020c0efdbce506d98a4baf28e02339fa"),
+            ("mailroom_sandbox.job.gate:_fix_accuracy", "fbc36bf451f3019473f247a14dee57ebce751ca79ba6ead0fe2f032b30fe4756"),
+            # the lowest-field diagnosis skips what the headline leaves out
+            ("mailroom_sandbox.job.gate_causes:_field_scores", "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
+            # the reviewed original_header labels are what the fix checks against the text
+            ("file:data/labels/review/interim_reviews.jsonl", "dba4e107a0d43120a34d996c8734f6126826365adaaa324b45112e3ad4389c83"),
+        ),
+        upstream="sandbox (the cleaned corpus text drops the Enron email header that the interim overlay "
+                 "restores as truth; retires when the pinned corpus revision writes the headers back)",
+        summary="a correspondence sender, recipient, additional_recipients or communication_date whose truth "
+                "is still the reviewed original_header label, and whose header line, header value and label "
+                "value all appear nowhere in doc_text, is left out of truth and prediction on the headline "
+                "(presence pending_annotation) and named under header_unseen; the raw side keeps it; the gate "
+                "does not count it toward min_labelled, score a fix to it, or name it the lowest field",
+    ),
 )
 
 _BY_ID = {fix.id: fix for fix in HOTFIXES}
 #: The fixes a row extraction score can depend on.
-EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016"})
+EXTRACTION_FIXES = frozenset({"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-010", "SHF-015", "SHF-016",
+                              "SHF-019"})
 _ACTIVE: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "sandbox_scoring_hotfixes_active", default=frozenset())
 _STATUS: dict[str, str] = {}
@@ -866,14 +889,140 @@ def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
                if f not in kept or why not in _OVERLAY_KEEP_REASONS}
     if not dropped:
         return out, {}
-    for name in dropped:
+    _mark_pending(out, dropped)
+    return out, dict(sorted(dropped.items()))
+
+
+# --- SHF-019: correspondence header truth the text does not show ------------------------------
+
+#: The reviewed interim labels whose ``original_header`` lines SHF-019 reads (its ``file:`` target).
+HEADER_REVIEWS = "data/labels/review/interim_reviews.jsonl"
+#: The correspondence entity fields the interim overlay restores from the original email header
+#: (``interim_labels`` basis ``original_header``).
+HEADER_FIELDS: tuple[str, ...] = ("sender", "recipient", "additional_recipients", "communication_date")
+HEADER_UNSEEN = "header_unseen"
+_HEADER_CACHE: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
+
+
+def _pinned_file_sha(fix_id: str, rel: str) -> str | None:
+    """The sha256 the fix ``fix_id`` pins for the data file ``rel``, or None."""
+    fix = _BY_ID.get(fix_id)
+    return next((sha for name, sha in (fix.targets if fix else ()) if name == f"{FILE_TARGET}{rel}"), None)
+
+
+def header_reviews() -> dict[tuple[str, str], dict[str, Any]]:
+    """``{(doc_id, field): {"value", "headers"}}`` of the reviewed ``original_header`` correspondence labels.
+
+    Empty when the file is missing (SHF-019 is then ``unavailable`` and not applied). Read like
+    SHF-013's corrections: once, its sha256 must equal SHF-019's pinned fingerprint, and the parsed
+    table is cached by that hash, so an edited file raises instead of scoring new truth under the
+    old fingerprint, and so does a file that disappears after SHF-019 was validated as current.
+    """
+    path = data_path(HEADER_REVIEWS)
+    if path is None or not path.is_file():
+        if _STATUS.get("SHF-019") == "current":
+            raise RuntimeError(f"{HEADER_REVIEWS} disappeared after SHF-019 was validated; restore it")
+        return {}
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    pinned = _pinned_file_sha("SHF-019", HEADER_REVIEWS)
+    if pinned is not None and digest != pinned:
+        raise RuntimeError(f"{HEADER_REVIEWS} changed since SHF-019 was validated "
+                           f"(sha256 {digest[:12]}, pinned {pinned[:12]}); re-review it and update the fingerprint")
+    if digest not in _HEADER_CACHE:
+        entries: dict[tuple[str, str], dict[str, Any]] = {}
+        for line in raw.decode("utf-8").splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if (entry.get("basis") != "original_header" or entry.get("doc_class") != "correspondence"
+                    or entry.get("field") not in HEADER_FIELDS):
+                continue
+            key = (str(entry["doc_id"]), str(entry["field"]))
+            if key in entries:
+                raise ValueError(f"{HEADER_REVIEWS}: {key[0]} {key[1]} has two original_header labels")
+            headers = tuple(str(e.get("header") or "") for e in entry.get("evidence") or () if isinstance(e, Mapping))
+            entries[key] = {"value": entry.get("value"), "headers": headers}
+        _HEADER_CACHE.clear()
+        _HEADER_CACHE[digest] = entries
+    return _HEADER_CACHE[digest]
+
+
+def _flat(text: Any) -> str:
+    """Case-folded text with every whitespace run collapsed to one space."""
+    return re.sub(r"\s+", " ", str(text)).strip().casefold()
+
+
+def _header_items(value: Any) -> tuple[str, ...]:
+    """A header value as its non-empty flattened items (a recipient list, or one string)."""
+    if isinstance(value, str) and value.strip().startswith("["):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            pass
+    items = value if isinstance(value, (list, tuple)) else ([] if value is None else [value])
+    return tuple(flat for flat in (_flat(item) for item in items if item is not None) if flat)
+
+
+def header_visible(entry: Mapping[str, Any], doc_text: str) -> bool:
+    """True when the text shows the header truth: a quoted header line, its value, or the label value.
+
+    Deliberately generous, so only a field the model cannot read is left out: a header line
+    (``X-From: Ann M Schmidt``), the part after its colon, or any item of the label value appearing
+    anywhere in the text (a quoted reply, a signature) keeps the field scored. A corpus revision
+    that writes the header lines back makes every field visible, so the fix is then a no-op.
+    """
+    text = _flat(doc_text)
+    for header in entry.get("headers") or ():
+        line = _flat(header)
+        _, sep, rest = line.partition(":")
+        if (line and line in text) or (sep and len(rest.strip()) > 3 and rest.strip() in text):
+            return True
+    return any(item in text for item in _header_items(entry.get("value")))
+
+
+def drop_unseen_header_truth(doc_type: str, doc_id: Any, expected: Mapping[str, Any] | None,
+                             doc_text: str | None) -> tuple[dict[str, Any], list[str]]:
+    """SHF-019: ``(expected, dropped)`` without the header truth the document text does not show.
+
+    ``dropped`` is the sorted field names (the row's ``header_unseen``).
+
+    Applies to correspondence only, to the four header fields, and only where the row's truth is
+    still the reviewed ``original_header`` value (a near-gold or staged label that replaced it is
+    kept). A field whose header line, header value or label value appears in ``doc_text`` stays
+    scored (:func:`header_visible`). An empty label is never dropped. A dropped field's
+    ``gt_presence`` code becomes ``pending_annotation``, as SHF-015 does. No ``doc_id`` or no text
+    means nothing is checked and nothing is dropped.
+    """
+    out = dict(expected or {})
+    if str(doc_type or "").strip() != "correspondence" or not doc_id or doc_text is None:
+        return out, []
+    reviews = header_reviews()
+    dropped: list[str] = []
+    for field in HEADER_FIELDS:
+        entry = reviews.get((str(doc_id), field))
+        if entry is None or field not in out:
+            continue
+        truth = _header_items(entry.get("value"))
+        if not truth or _header_items(out[field]) != truth:
+            continue
+        if not header_visible(entry, doc_text):
+            dropped.append(field)
+    if dropped:
+        _mark_pending(out, dropped)
+    return out, sorted(dropped)
+
+
+def _mark_pending(out: dict[str, Any], dropped: Iterable[str]) -> None:
+    """Drop ``dropped`` from ``out`` and mark them ``pending_annotation`` in its ``gt_presence``."""
+    names = list(dropped)
+    for name in names:
         out.pop(name, None)
     if "gt_presence" in out:
         original = out["gt_presence"]
         pres = presence_map(out)
-        pres.update(dict.fromkeys(dropped, _PENDING))
+        pres.update(dict.fromkeys(names, _PENDING))
         out["gt_presence"] = json.dumps(pres, sort_keys=True) if isinstance(original, str) else pres
-    return out, dict(sorted(dropped.items()))
 
 
 # --- SHF-013: reviewed subclass corrections ----------------------------------------------------

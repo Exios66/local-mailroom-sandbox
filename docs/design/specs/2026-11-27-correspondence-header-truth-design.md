@@ -1,8 +1,9 @@
 # Correspondence header truth the model cannot see
 
-**Status.** Proposal, 2026-11-27. Needs an owner decision: it changes how a recorded decision is
-applied on the headline ("those labels stay as truth", [staged label overlay](../../staged-label-overlay.md)).
-Nothing here is implemented.
+**Status.** Approved by the owner on 2026-11-27 (option A) and implemented as scoring hotfix
+SHF-019 ([scoring hotfixes](../../scoring-hotfixes.md)). It changes how a recorded decision is applied
+on the headline ("those labels stay as truth", [staged label overlay](../../staged-label-overlay.md)):
+the labels stay as truth, and the raw score keeps scoring them.
 
 **Goal.** Stop scoring correspondence extractions on header values the document text does not
 contain, until the dataset restores those headers. Keep the full truth visible next to the headline.
@@ -48,33 +49,52 @@ salutation as the recipient, and no date.
 
 ## Option A in detail
 
-- **Scope.** Correspondence only; the four header fields only; only where the field's truth comes
-  from an `original_header` label. The check is per document: a field whose quoted header line does
-  appear in `doc_text` stays scored, so a restored corpus turns the fix off document by document.
+- **Scope.** Correspondence only; the four header fields only; only where the field's truth is
+  still the `original_header` label's value (a near-gold or staged label that replaced it is scored).
+  The check is per document and deliberately generous: a field stays scored when the text contains
+  any of its quoted header lines, the value after a header line's colon (a quoted reply's
+  `From: jeff.dasovich@enron.com`), or any item of the label value (a signature, a name in the body),
+  case- and whitespace-folded. A restored corpus turns the fix off document by document.
 - **Mechanics.** Like SHF-015: the field is dropped from both sides on the hotfixed pass, its presence
   becomes `pending_annotation`, and the row lists it under `header_unseen`. The gate does not count a
   dropped field toward `min_labelled`, and the lowest-field diagnosis (`gate_causes._field_scores`)
   skips it.
-- **Identity.** It takes the next free `SHF-*` ID when it lands (`SHF-019` if #450 lands first with
-  SHF-017 and SHF-018). It fingerprints the scoring seam and `interim_reviews.jsonl`. Its lock entry
-  changes the run identity, so preflight refuses to resume a run locked before it.
+- **Identity.** `SHF-019` (`SHF-017` and `SHF-018` are reserved for #450). It fingerprints the
+  scoring seam (`score_extraction_row`), the gate (`labelled_count`, `_fix_accuracy`), the diagnosis
+  (`_field_scores`) and `interim_reviews.jsonl`. Its lock entry changes the run identity, so
+  preflight refuses to resume a run locked before it.
 - **Retirement.** Retire it when the pinned corpus revision restores the headers. The per-document
   text check makes it a no-op on such a revision, and a test asserts that.
 - **Reporting.** Every report keeps the raw score. A campaign comparing runs across the change
   compares raw to raw.
 
-## How we will measure it before landing
+## Measurement
 
-No committed report has per-field correspondence scores. Before landing A:
+Measured offline on the cached Hub v9.3 corpus (revision `ff4ca546`), with no model call:
+
+| Truth preparation | Cells dropped | `sender` | `recipient` | `additional_recipients` | `communication_date` | Documents | Below `min_labelled` 2 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Staged overlay `9.3.1-rc.9` (production slices) | 1,477 | 247 | 351 | 227 | 652 | 709 of 1,000 | 0 |
+| Interim and near-gold overlays | 1,484 | 247 | 351 | 234 | 652 | 709 of 1,000 | 6 (2 dev, 1 calibration, 3 held-out) |
+
+Of the 1,795 header cells, the rest stay scored because the text shows them (mostly a name in a
+quoted reply or a signature) or another label replaced the header value. A perfect answer scores
+1.0 on every affected document, and writing each document's quoted header lines back into its text
+drops nothing (the retirement check, also a test).
+
+### Still to do: the stored-answer rescore
+
+No committed report has per-field correspondence scores, and no stored run answers are in this
+checkout, so the answer-side check is still open:
 
 1. Rescore stored correspondence answers offline, with no new model call, with and without A. The
    owner names the runs (for example the slice-0100 production run).
 2. Report per field: the share of misses that are header-only, and the headline before and after.
-3. Land A only if the dropped cells account for the misses this design predicts. A field that the
-   model gets right from a quoted reply despite the stripped header stays scored, because its header
-   line appears in the text.
+3. Merge SHF-019 only if the dropped cells account for the misses this design predicts. A field that
+   the model gets right from a quoted reply despite the stripped header stays scored, because the
+   text shows it.
 
-## Decision needed
+## Decisions
 
-- Approve A as an interim scoring hotfix, or keep D until B ships.
-- If approved, confirm which runs to rescore for the before/after evidence.
+- 2026-11-27: the owner approved A as an interim scoring hotfix until B ships.
+- Open: which stored runs to rescore for the answer-side evidence.
