@@ -335,6 +335,45 @@ def test_record_choice_fails_open_on_a_non_numeric_confidence(schemas, lists, sw
     assert sx._PENDING.get() is None
 
 
+@pytest.mark.parametrize("kind", ["list", "entity_list", "entity_list:name", "entity_list:free_text",
+                                  "entity_list:cms_doc_ref"])
+def test_an_added_registry_list_field_is_an_array(kind):
+    assert sx._added_property({"type": kind})["type"] == ["array", "null"]
+
+
+def test_a_reused_job_spec_is_not_changed_by_a_pipeline_run_spec():
+    from mailroom_sandbox.job.spec import JobSpec
+
+    job = JobSpec(mock=True)
+    assert _spec_with(job, "pipeline").job.subclass_schemas is True
+    assert job.subclass_schemas is None
+    assert _spec_with(job, "correspondence_specialist").job.subclass_schemas is None
+
+
+def _spec_with(job, task):
+    return RunSpec(run_id="r-sub", task=task, dataset=DatasetSpec(local_path="file:///x.jsonl"),
+                   engine={"kind": "vllm-local", "modal": None}, job=job)
+
+
+def test_an_unlocked_activation_uses_the_committed_field_lists(switch_off):
+    runtime.activate("modal-vllm", load_env_file=False)  # an ad-hoc pipeline eval holds no lock
+    assert sx.active()
+
+
+def test_activation_hashes_the_bytes_it_parses(tmp_path, monkeypatch, lists, switch_off):
+    import hashlib
+    import json
+
+    data = (json.dumps(lists, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path = tmp_path / "fields.json"
+    path.write_bytes(data)
+    monkeypatch.setattr(sf, "FIELDS_PATH", path)
+    monkeypatch.setattr(sf, "load_field_lists", lambda *a, **k: pytest.fail("parsed separately"))
+    monkeypatch.setattr(sf, "field_lists_sha256", lambda *a, **k: pytest.fail("hashed separately"))
+    sx.activate(sha256=hashlib.sha256(data).hexdigest(), guide=False)
+    assert sx._ACTIVE["lists"] == lists
+
+
 # --- the judge and the arbiter see the fields the extraction was asked for -------------------
 
 @pytest.fixture

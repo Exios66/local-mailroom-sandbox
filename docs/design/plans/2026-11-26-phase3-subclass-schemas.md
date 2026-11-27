@@ -61,7 +61,7 @@ Consequences for the spec's other bullets:
 
 - No edits to `vendor/`. Pipeline behaviour changes through `src/mailroom_sandbox/vendor_hotfixes.py` (HF-023), with its row in `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` in the same change.
 - The field lists are a committed file hashed into the run lock and never rebuilt during a run. Held-out labels never shape a schema: the builder reads `labeled_by_set` keys `dev`, `calibration` and `pool` only (the split's spelling is `heldout`).
-- The switch is `job.subclass_schemas`, valid only with `task: pipeline`. *As built (owner, 2026-11-27): always on for pipeline runs. Unset resolves on, an explicit `false` is refused, other tasks resolve off and unhashed, and a lock from before phase 3 resumes off.*
+- The switch is `job.subclass_schemas`, valid only with `task: pipeline`. *As built (owner, 2026-11-27): always on for pipeline runs. Unset resolves on and an explicit `false` is refused. Other tasks leave it unset (an explicit `false` there is accepted and stays `false`), unhashed. A run locked with a recorded hotfix set before HF-023 is refused on resume until `--force` re-locks it; a lock from before the hotfix layer resumes with class schemas only through preflight with no checkpoint, or a direct run with no started work.*
 - No paid or live runs by an agent. Every test is offline.
 - Local checks: named test files with `-n 0 --no-cov`; full suite and coverage (`fail_under = 84`, never lowered) in hosted CircleCI.
 - Never edit `_run_pipeline_doc_once` or `_pipeline_item` in `eval/runners.py` (pinned by SHF-012), or `eval/extraction_scope.applicable_expected_fields` (pinned by SHF-001 and SHF-015).
@@ -69,7 +69,7 @@ Consequences for the spec's other bullets:
 
 ## Review Focus
 
-1. **A dropped field that is still scored.** If the Dojo scored a `not_applicable` field, dropping it would turn a hit into a miss: a silent score drop (critical regression 1). Pinned by `test_a_dropped_field_never_changes_a_score` (Task 4).
+1. **A dropped field that is still scored.** If the Dojo scored a `not_applicable` field, dropping it would turn a hit into a miss: a silent score drop (critical regression 1). Pinned by `test_a_dropped_field_never_changes_a_score` (Task 4). The drop rule reads only dev, calibration and pool labels, so a held-out value on a dropped field still scores as a miss (bylaws `filing_number`, above): a dropped field is score-neutral on the tuning sets, not on every split.
 2. **A narrowed schema leaking past its extraction.** The judge, the arbiter or the next document must see the class schema. Pinned by `test_the_narrowed_schema_ends_with_its_extraction` (Task 3).
 3. **A chunked document.** Every chunk window of a long document must get the same narrowed schema, and the chunk merge must still run. Pinned by `test_every_chunk_gets_the_narrowed_schema` (Task 3).
 4. **The field list changing under a locked run.** Editing the committed file after preflight must stop the run, not run a different schema under the old hash. Pinned by `test_a_field_list_changed_after_the_lock_refuses_to_activate` (Task 3).
@@ -181,11 +181,11 @@ Consequences for the spec's other bullets:
 
 - Consumes: `choose_schema`, `low_band` (Task 2); `load_field_lists`, `field_lists_sha256` (Task 1).
 - Produces:
-  - `JobSpec.subclass_schemas: bool = False`. When true, `spec_core` adds `"subclass_schemas": True` and `"subclass_fields_sha256": field_lists_sha256()`. Nothing is added when false.
-  - `subclass_extraction.activate(lists: Mapping[str, Any], *, sha256: str, guide: bool) -> None`. It raises `RuntimeError` when `field_lists_sha256() != sha256`.
+  - `JobSpec.subclass_schemas: bool | None = None` (as built). `task: pipeline` resolves it to `True` on a copy of the job section and refuses an explicit `False`; other tasks leave it unset, and an explicit `False` there is accepted and kept. When true, `spec_core` adds `"subclass_schemas": True` and `"subclass_fields_sha256"`, so every pipeline `spec_hash` changes. Nothing is added when unset.
+  - `subclass_extraction.activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool) -> None` (as built). Without `lists` it reads the file once and hashes and parses the same bytes (`subclass_fields.read_field_lists`). It raises `RuntimeError` when the digest differs from `sha256`. An ad-hoc eval with no lock activates with the committed file.
   - `subclass_extraction.deactivate() -> None`.
   - `subclass_extraction.active() -> bool`.
-  - HF-023, which wraps four things:
+  - HF-023. **As built** (superseding the four-wrapper list below, kept as the original design): the `_build_handoff_context` wrapper records the choice from the state (`record_choice`), and the `graph.build_graph._instantiate_specialist` wrapper binds it (`bind_choice`), giving that one specialist instance an instance-level `_call_structured` and `schema` carrying the narrowed schema. One instance serves one document's extraction and every chunk window, so nothing reaches the judge, the arbiter or the next document. The original design:
     1. `graph.build_graph._build_handoff_context(state)`: when active, it records the choice in a `ContextVar` (`_PENDING`) from `state["doc_type"]` (resolved with the vendored `resolve_extract_class`), the subclass and `state["classification_confidence"]`. The subclass is `state["contract_subtype"]` for `contract` and `state["doc_subclass"]` otherwise. The return value is unchanged.
     2. `graph.build_graph._run_chunked_extraction`, stacked over HF-009: it moves `_PENDING` into `_ACTIVE` for the duration of the call, resets `_ACTIVE` in `finally`, and clears `_PENDING`.
     3. `agents.base.BaseAgent._call_structured` (corporate, correspondence, insurance).
@@ -195,8 +195,8 @@ Consequences for the spec's other bullets:
   - Off (`active()` false), every wrapper passes straight through.
 
 - [x] **Step 1: Write the failing tests:**
-  - `test_subclass_schemas_is_off_by_default_and_unhashed` (test_job_spec): a pipeline spec without the key has the same `spec_hash` as before, and `spec_core` has no `subclass_` keys.
-  - `test_subclass_schemas_requires_a_pipeline_task` (test_job_spec): the key on a non-pipeline task fails validation.
+  - `test_subclass_schemas_is_off_by_default_and_unhashed` (test_job_spec): a pipeline spec without the key has the same `spec_hash` as before, and `spec_core` has no `subclass_` keys. *Superseded:* the switch is always on for pipeline runs, so a pipeline spec without the key now resolves on and its `spec_hash` changes; the test was replaced by the always-on and non-pipeline-unset tests.
+  - `test_subclass_schemas_requires_a_pipeline_task` (test_job_spec): `subclass_schemas: true` on a non-pipeline task fails validation (`false` is accepted and kept).
   - `test_the_lock_changes_when_the_field_list_changes`: monkeypatch `FIELDS_PATH` to a temporary copy, then change one `drop` list. `spec_hash` differs.
   - `test_a_field_list_changed_after_the_lock_refuses_to_activate`: `activate(..., sha256="0"*64)` raises `RuntimeError`.
   - `test_an_extraction_requests_the_narrowed_schema`: parametrized over `corporate_record`/`subsidiary_list` (agents base) and `merger_agreement`/`all_cash` (langchain base).
