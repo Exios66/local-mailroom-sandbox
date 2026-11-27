@@ -656,6 +656,13 @@ def known_tasks() -> tuple[str, ...]:
     return base + agents
 
 
+def _merger_reads_shas() -> dict[str, str]:
+    """sha256 of the committed tables job.merger reads (a change after the lock refuses a resume)."""
+    from mailroom_sandbox import merger_tables
+
+    return {"merger_tables_sha256": merger_tables.sha256()}
+
+
 def _subclass_fields_sha256() -> str:
     """sha256 of the committed subclass field lists (job.subclass_schemas)."""
     from mailroom_sandbox.subclass_fields import field_lists_sha256
@@ -1652,7 +1659,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
                    and not (key == "governor" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
                    if spec.job.specialist_subclass_file else {}),
-                **({"subclass_fields_sha256": _subclass_fields_sha256()} if spec.job.subclass_schemas else {})},
+                **({"subclass_fields_sha256": _subclass_fields_sha256()} if spec.job.subclass_schemas else {}),
+                **(_merger_reads_shas() if spec.job.merger is not None else {})},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,
