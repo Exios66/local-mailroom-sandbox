@@ -1242,6 +1242,9 @@ _HANDOFF_CORRECTION = (
     "or clause family disagrees with the document, extract the document's own values and do not copy "
     "the sorter's label."
 )
+#: The contract inventory still says the CUAD family matches the sorter. The check replaces that clause.
+_FAMILY_FOLLOW = "matching the sorter subtype."
+_FAMILY_CHECK = "read from the document; do not copy the sorter subtype when it disagrees."
 #: On ``extraction_guardrail`` when a specialist answers 0. Routing reads it and does not call again.
 HANDOFF_REFUSAL = "specialist_handoff_refusal"
 _HANDOFF_RULE = "hf021_specialist_handoff_refusal"
@@ -1254,8 +1257,15 @@ def _explicit_zero(value: Any) -> bool:
 
 
 def _mark_handoff_refusal(out: Any) -> Any:
-    """Name a confidence-0 extraction as a handoff refusal, without touching any other result."""
+    """Name a confidence-0 extraction as a handoff refusal, without touching any other result.
+
+    A parse exception and a missing specialist also store confidence 0. Those are not a
+    specialist refusing the class, so they keep the route they already had.
+    """
     if not isinstance(out, dict) or out.get("transient_error") or not _explicit_zero(out.get("extraction_confidence")):
+        return out
+    data = out.get("extracted_data")
+    if isinstance(data, dict) and (data.get("_parse_error") or data.get("_exception") or data.get("_unsupported")):
         return out
     issues = [str(item) for item in (out.get("extraction_guardrail") or [])]
     if HANDOFF_REFUSAL not in issues:
@@ -1301,10 +1311,14 @@ def _wrap_handoff(module: Any) -> None:
     @functools.wraps(current)
     def _build_handoff_context(state: Any) -> Any:
         context = current(state)
-        if isinstance(context, str) and _HANDOFF_FOLLOW in context:
-            return context.replace(_HANDOFF_FOLLOW, _HANDOFF_CORRECTION, 1)
-        if isinstance(context, str):
-            return f"{context} {_HANDOFF_CORRECTION}"
+        if not isinstance(context, str):
+            return context
+        if _HANDOFF_FOLLOW in context:
+            context = context.replace(_HANDOFF_FOLLOW, _HANDOFF_CORRECTION, 1)
+        elif _HANDOFF_CORRECTION not in context:
+            context = f"{context} {_HANDOFF_CORRECTION}"
+        if _FAMILY_FOLLOW in context:
+            context = context.replace(_FAMILY_FOLLOW, _FAMILY_CHECK, 1)
         return context
 
     _build_handoff_context._hf021_handoff = True  # type: ignore[attr-defined]
@@ -1315,8 +1329,9 @@ def _wrap_refusal_enrich() -> None:
     """A refused extraction does not gain the sorter's type tokens.
 
     HF-001 still fills a null corporate ``record_type`` when the specialist did not refuse.
-    On a numeric confidence of 0, a field the specialist left empty stays empty, and a value
-    the specialist did set is put back if enrichment replaced it.
+    On a numeric confidence of 0, a type field or ``cuad_family`` the specialist left empty
+    stays empty. A value the specialist set keeps enrichment's canonical form (a ``pde``
+    claim line stays ``health``) instead of being written back over it.
     """
     from langchain_agents import doc_inventories
 
@@ -1331,10 +1346,8 @@ def _wrap_refusal_enrich() -> None:
         out = current(extracted, doc_type=doc_type, extract_class=extract_class, subtype=subtype)
         if not _explicit_zero(incoming.get("confidence")):
             return out
-        for key in _TYPE_FIELDS:
-            if incoming.get(key):
-                out[key] = incoming[key]
-            else:
+        for key in (*_TYPE_FIELDS, "cuad_family"):
+            if not incoming.get(key):
                 out.pop(key, None)
         return out
 

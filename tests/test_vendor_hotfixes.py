@@ -1477,6 +1477,29 @@ def test_hf021_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it
     assert "doc_subclass=officer_certificate" in context
 
 
+def test_the_rewritten_handoff_still_selects_the_mock_oracle_not_the_raw_labels():
+    """HF-021 drops the sentence the mock used to recognize a specialist. The rewritten
+    handoff must still get the schema-filtered oracle, not a copy of the raw labels."""
+    import graph.build_graph as bg
+
+    from mailroom_sandbox.mock_llm import fake_structured_payload
+
+    vh.apply_hotfixes()
+    context = bg._build_handoff_context({"doc_type": "correspondence", "doc_subclass": "email"})
+    payload = fake_structured_payload(context, {
+        "doc_type": "correspondence",
+        "expected_subclass": "email",
+        "expected_fields": {"sender": "Jane", "intent_status": "gt", "claimed_amount": "$218,440"},
+    })
+    assert "mock_extraction" not in payload
+    assert "intent_status" not in payload
+    assert "claimed_amount" not in payload
+    assert payload.get("sender") == "Jane"
+    contract = bg._build_handoff_context({"doc_type": "contract", "contract_subtype": "license"})
+    assert vh._FAMILY_FOLLOW not in contract
+    assert vh._FAMILY_CHECK in contract
+
+
 def test_a_confidence_zero_extraction_is_a_refusal_and_is_not_sent_back_to_the_specialist():
     from graph import route_spec
 
@@ -1491,6 +1514,10 @@ def test_a_confidence_zero_extraction_is_a_refusal_and_is_not_sent_back_to_the_s
     assert vh._mark_handoff_refusal({"extraction_confidence": 0.0, "transient_error": True}) == {
         "extraction_confidence": 0.0, "transient_error": True}
     assert vh._mark_handoff_refusal({"extraction_confidence": None}) == {"extraction_confidence": None}
+    parse_fail = {"extraction_confidence": 0.0, "extracted_data": {"_parse_error": True, "_exception": "boom"}}
+    assert vh._mark_handoff_refusal(parse_fail) == parse_fail
+    unsupported = {"extraction_confidence": 0.0, "extracted_data": {"_unsupported": True}}
+    assert vh._mark_handoff_refusal(unsupported) == unsupported
 
     rule = next(r for r in route_spec.route_rules("extract") if r.name == vh._HANDOFF_RULE)
     assert route_spec.route_rules("extract")[0] is rule
@@ -1518,3 +1545,12 @@ def test_a_refused_extraction_does_not_adopt_the_sorter_subclass():
     corrected = enrich_extraction({"communication_type": "email", "confidence": 0.8},
                                   doc_type="correspondence", subtype="letter")
     assert corrected["communication_type"] == "email"
+    claim = enrich_extraction({"claim_type": "pde", "confidence": 0.0}, doc_type="insurance_claim",
+                              subtype="pde")
+    assert claim["claim_type"] == "health"
+    assert "cms_source_table" not in claim
+    blank_family = enrich_extraction({"confidence": 0.0}, doc_type="contract", subtype="license")
+    assert not blank_family.get("cuad_family")
+    own_family = enrich_extraction({"cuad_family": "affiliate", "confidence": 0.0},
+                                   doc_type="contract", subtype="license")
+    assert own_family["cuad_family"] == "affiliate"

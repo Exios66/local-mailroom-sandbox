@@ -152,7 +152,12 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
-    if "Extract this document's fields" in text:  # the in-graph specialist
+    # The vendored handoff ends "Extract this document's fields accordingly...". HF-021
+    # replaces that sentence with a check ("the sorter classification above is unverified").
+    # Both are the in-graph specialist. Missing the rewritten cue used to fall through to
+    # the raw-label payload below, which copies expected_fields, gold-only keys included.
+    if ("Extract this document's fields" in text
+            or "sorter classification above is unverified" in text):
         return {"confidence": conf, **oracle_extraction(fields, doc_type, expect.get("expected_subclass"))}
     payload = {"confidence": conf, "mock_extraction": True}
     payload.update(fields)
