@@ -16,7 +16,9 @@ gets it. Scoring corrections have their own fingerprinted, dual-reported layer i
   the new code or retired.
 - **Recorded in every run lock.** `vendor_hotfixes` in `run.lock.json` holds the module sha256
   and each fix's id and target fingerprint. A resume refuses a lock whose hotfix set differs;
-  locks from before the layer carry no key and resume as before. The process that executes the
+  locks from before the layer carry no key. Preflight resumes such a lock only while it has no
+  checkpoint (a checkpoint would mix scoring bases), and a direct run refuses one whose work has
+  started. The process that executes the
   run (locally, or the Modal job worker from its deployed image) re-checks at run start
   (`runner.verify_locked_hotfixes`): it refuses a hotfix set other than the lock's, or a hotfix
   that is not in effect there, so a worker deployed from older code never runs a locked job.
