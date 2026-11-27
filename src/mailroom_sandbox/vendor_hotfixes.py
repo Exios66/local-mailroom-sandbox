@@ -1290,6 +1290,52 @@ def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callab
     return _detect_conflict
 
 
+def _judge_model_name() -> str:
+    """The model the vendored judge agent is routed to (its ``get_llm`` answer), or ``""``."""
+    try:
+        return str(importlib.import_module("agents.base").get_llm("judge")[1] or "")
+    except Exception:  # noqa: BLE001 — the record never fails a document
+        return ""
+
+
+def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-025: with a ``judge:`` section, record each judge pass and the extraction it first saw.
+
+    Verify mode runs the vendored node unchanged and then records its verdict; a skipped pass
+    or a transient error (the node is re-run) records nothing. Without the section the node is
+    the vendored one.
+    """
+
+    @functools.wraps(original)
+    def judge_verify_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge, judge_record
+
+        cfg = correcting_judge.active()
+        if not cfg:
+            return original(state)
+        update = original(state)
+        verdict = str((update or {}).get("judge_verdict") or "")
+        if not verdict or verdict == "skipped" or update.get("transient_error"):
+            return update
+        judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+        score = update.get("judge_score")
+        judge_record.note_ruling({
+            "pass": int(update.get("judge_pass_count") or int(state.get("judge_pass_count") or 0) + 1),
+            "mode": "verify",
+            "ruling": verdict,
+            "score": None if score is None else float(score),
+            "reason": " ".join(str(f) for f in update.get("judge_findings") or ()) or str(
+                update.get("escalation_reason") or ""),
+            "fixes": [],
+            "retry_fields": [],
+            "wrong_fields": [],
+            "model": _judge_model_name(),
+        })
+        return update
+
+    return judge_verify_node
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -1543,6 +1589,19 @@ HOTFIXES: tuple[Hotfix, ...] = (
               ("_retry_handoff_summary", "b55d8b530a3ef4610af94e21c4d1c2caf9260173121747aad6b116eeae32cce7"),
               ("agents.judge:CompletenessJudge._field_list",
                "fcb6f8f6c946c86f61ffc878988e0f352530fb9d7f15d29ecaa074596a54ba98")),
+    ),
+    Hotfix(
+        id="HF-025",
+        module="graph.build_graph",
+        attr="judge_verify_node",
+        source_sha256="47ffddc38ccd9db993718beaff30ee99572c7fdbd686267100ffc4b694a3d57e",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with a judge: section, every judge pass is recorded (pass, ruling, score, reason, model) with "
+                "the extraction the judge first saw; mode verify leaves the vendored judge unchanged",
+        install=_install_judge_node,
+        also=(("graph.routing:after_judge", "f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66"),
+              ("agents.judge:CompletenessJudge.judge_completeness",
+               "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9")),
     ),
 )
 

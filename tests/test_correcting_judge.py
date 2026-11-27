@@ -164,3 +164,88 @@ def test_verify_mode_refuses_judge_models_and_references(pool):
 def test_verify_mode_is_not_price_or_route_checked():
     assert preflight._judge_errors(_spec(profile="modal-vllm", judge={"mode": "verify"})) == []
     assert api_budget.spec_api_models(_spec(profile="modal-vllm", judge={"mode": "verify"})) == []
+
+
+# --- Task 2: the record for both judges ----------------------------------------------------------
+
+from _arbiter_harness import Script, activate_profile, arbiter_harness_state, run  # noqa: E402, F401 (fixture)
+
+from mailroom_sandbox.job import call_guard  # noqa: E402
+
+
+def _judged(monkeypatch, tmp_path, script, judge=None):
+    """One harness document inside a document scope, with the judge section set to ``judge``."""
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    cj.activate(judge, pool_sha256=None)
+    with call_guard.document() as scope:
+        out = run(bg, monkeypatch, script)
+    return bg, out, scope
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_verify_mode_records_the_verdict_and_the_extraction_before_the_judge(monkeypatch, tmp_path):
+    from _arbiter_harness import DATA
+
+    script = Script(judge=[("partial", "accurate"), ("complete", "accurate")], arbiter=["retry_extraction"],
+                    confs=[0.88, 0.88])
+    bg, out, scope = _judged(monkeypatch, tmp_path, script, {"mode": "verify"})
+    rulings = scope["judge_rulings"]
+    assert [r["pass"] for r in rulings] == [1, 2], rulings
+    assert [r["ruling"] for r in rulings] == ["partial", "complete"]
+    assert all(r["mode"] == "verify" and r["fixes"] == [] and r["model"] == "harness-model" for r in rulings)
+    assert isinstance(rulings[0]["score"], float) and rulings[0]["reason"]
+    assert scope["before_judge"] == bg._clean_fields_for_judge(dict(DATA))
+    assert "judge_corrected" not in scope
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_no_judge_section_records_nothing(monkeypatch, tmp_path):
+    script = Script(judge=[("partial", "accurate"), ("complete", "accurate")], arbiter=["retry_extraction"],
+                    confs=[0.88, 0.88])
+    _, out, scope = _judged(monkeypatch, tmp_path, script, None)
+    assert out["judge_passes"] == 2
+    assert not {"judge_rulings", "before_judge", "judge_corrected"} & set(scope)
+
+
+def test_the_runner_copies_the_record_into_the_result(monkeypatch):
+    from mailroom_sandbox import judge_record
+    from mailroom_sandbox.eval import runners
+
+    entry = {"pass": 1, "mode": "verify", "ruling": "partial", "score": 0.5, "reason": "r", "fixes": [],
+             "retry_fields": [], "wrong_fields": [], "model": "m"}
+
+    def fake(row, **_):
+        judge_record.note_before({"a": 1})
+        judge_record.note_before({"a": 2})  # a later pass never overwrites the first
+        judge_record.note_ruling(entry)
+        judge_record.note_corrected()
+        return {"id": row["id"], "stage": "archived"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", fake)
+    result = runners._run_pipeline_doc({"id": "d1"})
+    assert result["judge_rulings"] == [entry]
+    assert result["before_judge"] == {"a": 1}
+    assert result["judge_corrected"] is True
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", lambda row, **_: {"id": row["id"], "stage": "archived"})
+    assert runners._run_pipeline_doc({"id": "d1"}) == {"id": "d1", "stage": "archived"}
+
+
+def test_hf025_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+    import graph.routing as routing
+    from agents.judge import CompletenessJudge
+
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-025")
+    assert [f.id for f in vh.HOTFIXES].count("HF-025") == 1
+    assert (fix.module, fix.attr) == ("graph.build_graph", "judge_verify_node")
+    assert fix.source_sha256 == vh._source_sha(bg.judge_verify_node)
+    also = dict(fix.also)
+    assert also["graph.routing:after_judge"] == vh._source_sha(routing.after_judge)
+    assert also["agents.judge:CompletenessJudge.judge_completeness"] == vh._source_sha(
+        CompletenessJudge.judge_completeness)
+    assert vh.apply_hotfixes()["HF-025"] == "applied"
+    node = bg.judge_verify_node
+    assert vh.apply_hotfixes()["HF-025"] == "applied"  # idempotent: the node is not wrapped twice
+    assert bg.judge_verify_node is node

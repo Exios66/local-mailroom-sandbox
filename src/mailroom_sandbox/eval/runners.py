@@ -1771,7 +1771,9 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     skipped = int(scope["governor"]["skipped_classify_retries"])
     if skipped:
         result = {**result, "governor_skips": {"classify_retry": skipped}}
-    return result
+    from mailroom_sandbox import judge_record  # phase 4: present only when a judge section ran
+
+    return judge_record.merge(result, scope)
 
 
 def _gate_fired_without_prep(result: Mapping[str, Any]) -> bool:
