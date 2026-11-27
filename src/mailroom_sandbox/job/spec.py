@@ -850,6 +850,10 @@ class JobSpec(BaseModel):
     # fields it adds (mailroom_sandbox.subclass_extraction.field_note). Pipeline runs only. Off by
     # default; hashed only when set. Plan: docs/design/plans/2026-11-27-subclass-field-note.md.
     subclass_field_note: StrictBool = False
+    # HF-029: a list item a one-call read cannot quote from its document is dropped and recorded
+    # (mailroom_sandbox.evidence_check). Pipeline runs only. Off by default; hashed only when set.
+    # Design: docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md.
+    evidence_check: StrictBool = False
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1391,6 +1395,9 @@ class RunSpec(BaseModel):
         if self.job.subclass_field_note and self.task != "pipeline":
             raise ValueError(f"job.subclass_field_note annotates pipeline subclass schemas; task {self.task!r} "
                              "runs no graph extraction")
+        if self.job.evidence_check and self.task != "pipeline":
+            raise ValueError(f"job.evidence_check filters pipeline extractions; task {self.task!r} runs no graph "
+                             "extraction")
         if self.job.subclass_schemas is False and self.task == "pipeline":
             raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
                              "extraction schema is used whenever one is listed")
@@ -1591,13 +1598,14 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
-        # require_expanded_inputs, subclass_field_note and governor are hashed only when set, so older YAMLs keep their
+        # require_expanded_inputs, subclass_field_note, evidence_check and governor are hashed only when set, so older YAMLs keep their
         # hash. subclass_schemas is always on for pipeline runs, so it is hashed when on (with the
         # field list's sha256) and absent for other tasks.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs", "subclass_field_note") and value is False)
+                                    "require_expanded_inputs", "subclass_field_note", "evidence_check")
+                                    and value is False)
                    and not (key == "subclass_schemas" and not value)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
