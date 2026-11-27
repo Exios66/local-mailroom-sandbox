@@ -137,9 +137,16 @@ Hint fields that are not in the schema (`cvr`, `cash_in_lieu_of_fractional_share
 `election_mechanics`, `proration`, `consideration_description`) are not added. They would be unscored,
 and the owner asked to capture only valid schema fields. (My call; easy to revisit.)
 
-**A wrong subclass must not lose a field.** The main read still extracts `merger_consideration`. When
-its token disagrees with the sorter's subclass (using the Dojo's `equivalent_to`), the field the
-sorter's subclass dropped becomes a gap-retry target (part 3), so the document is not left without it.
+**A wrong subclass must not lose a field.** This protection belongs to this switch, so it holds even
+when `gap_retry` is off (an ablation arm may run `subclass_fields` alone):
+
+- The existing low-confidence fallback stays: when the sorter's subclass confidence is too low,
+  `subclass_extraction.choose_schema` sends the full class schema, and nothing is dropped.
+- The main read still extracts `merger_consideration`. When its token disagrees with the sorter's
+  subclass (using the Dojo's `equivalent_to`), the field the sorter's subclass dropped is asked in one
+  small call that requests only that field.
+- With `gap_retry` on, that field is folded into the single gap-retry call (part 3) instead, so there
+  is no extra call.
 
 ### 2. Question-group reads (`job.merger.question_groups`)
 
@@ -161,9 +168,12 @@ Dojo's `group` field plus one committed split list.
 
 Each group read:
 
-- sends the same system prompt and the whole document, plus a generated instruction block from the
-  Dojo's `render_maud_question_block(subclass, shape="lines", questions=<group>, chunked=False)`: the
-  group's questions with every allowed answer verbatim;
+- sends the same system prompt, the same handoff text and the whole document as the main read, then,
+  **after** the document, a generated instruction block from the Dojo's
+  `render_maud_question_block(subclass, shape="lines", questions=<group>, chunked=False)`: the group's
+  questions with every allowed answer verbatim. Putting the block after the document gives the main
+  read and every group read the same opening (system prompt, handoff and document), which the provider
+  can bill at its cache price. The spend caps still assume no caching;
 - uses a response schema with only `maud_clauses`, whose items are constrained to the group's valid
   `"<Question>: <answer>"` lines (an enum built from `valid_classes`). If the provider rejects the enum,
   fall back to the unconstrained list and validate after;
@@ -184,28 +194,38 @@ document.
 
 ### 3. Gap retry (`job.merger.gap_retry`)
 
-After the main read and group reads, one retry call re-asks only the items that are missing or
-invalid, using the HF-027 mechanism (`subclass_extraction.fields_only` plus the merge that replaces only
-the named items). For MAUD, the targets are named per question, not the whole `maud_clauses` field.
+After the main read and group reads, one more call re-asks only the items that are missing or
+invalid. It runs **inside the extraction step**, as the step's last call, not as a graph retry:
+`extraction_attempts`, `retry_max`, the attempt history and routing are unchanged. It reuses the
+HF-027 mechanism for the request and the merge (`subclass_extraction.fields_only`, then a merge that
+replaces only the named items). The call guard, the spend cap and the governor's call and spend
+budgets count it. For MAUD, targets are named per question, not as the whole `maud_clauses` field.
 Targets:
 
 1. A MAUD answer that is not one of its question's valid answers (definite error).
-2. A near-universal MAUD question left unanswered. Near-universal means labelled on at least 90% of
-   merger agreements **in the train split, excluding every document a stage-1 or confirming run can
-   draw** (no leakage). On today's whole-dataset counts that is 9 questions: Accuracy of Target R&W,
-   MAE Definition, Tail Period, Ordinary course covenant, Fiduciary exception to COR, Negative interim
-   operating covenant, matching rights for COR, Superior Offer Definition and Knowledge Definition. The
-   list is generated and committed with its source counts.
+2. A near-universal MAUD question left unanswered.
+   - Near-universal means labelled on at least 90% of the **calibration-set** merger agreements in
+     `config/splits/runbook-v2/assignments.jsonl` (34 documents).
+   - Dev documents (which any look can draw) and sealed held-out documents are never read for this
+     list.
+   - On today's labels that gives 11 questions: Accuracy of Target R&W, Fiduciary exception to COR, MAE
+     Definition, Ordinary course covenant, Tail Period (all 100%), matching rights for COR and Negative
+     interim operating covenant (97%), Intervening Event Definition and No-Shop (94%), and Knowledge
+     Definition and Superior Offer Definition (91%).
+   - The list is generated and committed with its source counts and split digest, and a test fails if
+     it reads a non-calibration document.
 3. A required entity field, valid for the subclass, that came back empty. Required means a field every
    executed merger agreement states. My call, as a committed list: `document_name`, `parties`, `acquirer`,
    `target`, `governing_law` and `outside_date`, plus the subclass's consideration-amount field(s).
 4. The dropped consideration field after a subclass disagreement (part 1).
-5. When `judge.mode: correct` is on, the judge's `retry_fields`. MAUD questions it names are targeted
-   per question.
-
 At most one gap-retry call per document. It sends only the target items: the target fields'
-schema slice, and the target questions' answer lists. A target the retry still leaves missing stays
-missing. The retry counts against the governor's retry and call budgets like any other.
+schema slice and the target questions' answer lists, again after the shared document opening. A target
+the retry still leaves missing stays missing.
+
+Separately, when a run sets `judge.mode: correct`, the judge's own field-only retries stay the
+graph-level HF-027 retry they are today. With `question_groups` on, the MAUD questions the judge
+names are re-asked per question rather than as the whole `maud_clauses` list. The confirming arm
+does not use correct mode (part 4).
 
 ### 4. The judge on mergers
 
