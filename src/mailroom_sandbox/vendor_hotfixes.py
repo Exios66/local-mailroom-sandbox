@@ -1591,6 +1591,25 @@ def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[
     return retry_extract_node
 
 
+def _install_merger_reads(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-030 (job.merger): the merger specialist's one-call read is followed by section-only reads.
+
+    Wraps ``MergerAgreementSpecialist.extract`` (inherited from ``_SpecialistBase``; set on the merger
+    class only). ``merger_extract.extract`` runs the vendored read, then the MAUD question-group reads,
+    the gap retry or the dropped-field call that ``job.merger`` switches on, from located sections only.
+    The signature matches the vendored one, so the graph's ``handoff_context`` probe still raises its
+    ``TypeError`` before any call. Off, a multi-window read (never calls ``extract``), a field-only
+    retry and a parse error pass through.
+    """
+    from mailroom_sandbox import merger_extract
+
+    @functools.wraps(original)
+    def extract(self, doc_text: str, pages: list[str] | None = None) -> dict:
+        return merger_extract.extract(self, original, doc_text, pages)
+
+    return extract
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -1906,6 +1925,25 @@ HOTFIXES: tuple[Hotfix, ...] = (
                "bef5c22ffa332bcc66d6e00f1ed0a39c84259f75524e0331ff256eaf4adbb1cd"),
               ("pipeline.guards:_has_substantive_content",
                "f2c330e491e66e415b6f2fd8dc17b7532350b6c729202b1ad675c6e16298978f")),
+    ),
+    Hotfix(
+        id="HF-030",
+        module="agents.merger_agreement_specialist",
+        attr="MergerAgreementSpecialist.extract",
+        source_sha256="6485a75a43f73b60a04180a88438246563d646dd90d549a2df5ee5e02361bd3d",
+        upstream="sandbox-only (phase 5 part 2 merger reads; upstream issue to be filed with the merger arm's results)",
+        summary="with job.merger, the merger specialist's one whole-document read is followed by MAUD "
+                "question-group reads from located sections only (the owning read's valid answer wins, entity "
+                "fields stay the main read's), one gap retry for missing or invalid items, or the dropped "
+                "consideration field after a subclass disagreement; a section the locator misses is never "
+                "read from the whole document",
+        install=_install_merger_reads,
+        also=(("langchain_agents.specialist_agents:_SpecialistBase.extract_chunked",
+               "6e7ac75666a140570b6b6f8308b3a914494fcbddc3538597f53d58c08ae0a349"),
+              ("langchain_agents.base_agent:BaseAgent._call_structured",
+               "c995f455120c2ee587695e6acf71d33c4a832151dfb24a96b0a595d9c01c4820"),
+              ("graph.build_graph:_run_chunked_extraction",
+               "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f")),
     ),
 )
 

@@ -102,15 +102,26 @@ def choose_schema(
     *,
     low: float | None,
     guide: bool,
+    merger_drop: Iterable[str] = frozenset(),
 ) -> tuple[dict, str]:
-    """Return ``(schema, reason)``; on fallback ``schema is base``. ``base`` is never mutated."""
+    """Return ``(schema, reason)``; on fallback ``schema is base``. ``base`` is never mutated.
+
+    ``merger_drop`` (``job.merger.subclass_fields``, phase 5 part 2) also drops those fields on the
+    confident-subclass path only (reason ``subclass+merger``); the fallbacks keep every field.
+    """
     sub = str(subclass or "").strip()
     entry = ((lists.get("classes") or {}).get(doc_class) or {}).get(sub)
     if sub in FALLBACK_SUBCLASSES or entry is None:
         return base, "fallback:unknown"
     if not _confident(confidence, low):
         return base, "fallback:low_confidence"
-    return _narrow(base, entry, guide=guide, curated=_curated(doc_class) if guide else frozenset()), "subclass"
+    schema = _narrow(base, entry, guide=guide, curated=_curated(doc_class) if guide else frozenset())
+    extra = frozenset(merger_drop) & set(schema.get("properties") or {})
+    if not extra:
+        return schema, "subclass"
+    schema["properties"] = {k: v for k, v in schema["properties"].items() if k not in extra}
+    schema["required"] = [k for k in schema.get("required") or () if k not in extra]
+    return schema, "subclass+merger"
 
 
 def low_band(doc_class: str) -> float | None:
@@ -210,6 +221,9 @@ def _restrict(schema: Mapping[str, Any], names: frozenset[str]) -> dict[str, Any
 
 def record_choice(state: Mapping[str, Any]) -> None:
     """HF-023: pick the schema for the extraction ``extract_node`` is about to run."""
+    from mailroom_sandbox import merger_extract, merger_reads
+
+    merger_extract.note_choice(None)
     cfg, only = _ACTIVE, _ONLY.get()
     if cfg is None and only is None:
         _PENDING.set(None)
@@ -224,13 +238,22 @@ def record_choice(state: Mapping[str, Any]) -> None:
         _PENDING.set(None)
         return
     subclass = state.get("contract_subtype") if doc_class == "contract" else state.get("doc_subclass")
-    schema, note = base, None
+    merger = doc_class == "merger_agreement"
+    schema, note, reason = base, None, "off"
     if cfg is not None:
+        drop = frozenset()
+        if merger and merger_reads.on("subclass_fields"):
+            from mailroom_sandbox import merger_tables
+
+            drop = merger_tables.dropped_fields(subclass)
         schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
-                                       cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
+                                       cfg["lists"], low=low_band(doc_class), guide=cfg["guide"], merger_drop=drop)
         _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
         if cfg.get("note") and schema is not base:
             note = field_note(doc_class, str(subclass or "").strip(), base, schema)
+    if merger:
+        sub = str(subclass or "").strip() or None
+        merger_extract.note_choice(merger_extract.Choice(sub, sub if reason.startswith("subclass") else None))
     if only is not None:
         # The judge still reviews the whole (merged) extraction against the subclass schema.
         _PENDING.set((base, _restrict(schema, only), schema, note))
