@@ -256,5 +256,15 @@
     }
   ],
   "projection_proof": "Exact original field entries and all non-field metadata preserved; only unadmitted keys omitted.",
-  "measurement": "Static annotation and field-scoring eligibility. MAUD headline unchanged; no model performance claim; use_as_truth remains false."
+  "measurement": "Static annotation and field-scoring eligibility. MAUD headline unchanged; no model performance claim; use_as_truth remains false.",
+  "independent_final_review": {
+    "path": "final-review.json",
+    "sha256": "6e52e315e7474eed8b76e8bb01d769b20e0014c50badbcda7c6675af2c2d5d38",
+    "reviewer": {
+      "model": "gpt-6.1-terra",
+      "role": "review"
+    },
+    "byte_identical_to_private_artifact": true,
+    "scope": "Code and admission working tree reviewed before the data commit; current-head hosted acceptance remains separate."
+  }
 }
