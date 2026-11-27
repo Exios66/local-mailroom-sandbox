@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -71,14 +72,27 @@ def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
             cell["outputs"] = clean(cell["outputs"])
 
 
-def find_path_leaks(nb, markers: list[str]) -> list[str]:
+_ELIDED_PATH = re.compile(r"(/[^\s\"'<>|]+?)(?:\.\.\.|\u2026)")
+
+
+def find_path_leaks(nb, markers: list[str], truncatable: list[str] = ()) -> list[str]:
     """Return ``cell-id:marker`` for each sanitized output that still holds a machine path.
 
     A cell can truncate a path itself (for example ``pd.set_option("display.max_colwidth", 80)``),
-    so no sanitization rule matches it; this check refuses to publish such a demo.
+    so no sanitization rule matches it; this check refuses to publish such a demo. ``markers`` are
+    prefixes that must never appear; ``truncatable`` are full paths whose elided form (a prefix of
+    at least two components followed by ``...``) must not appear either.
     """
     needles = sorted({str(alias) for marker in markers for alias in _path_aliases(marker)}, key=len, reverse=True)
+    fulls = sorted({str(alias) for path in truncatable for alias in _path_aliases(path)})
     leaks = []
+
+    def elided(text):
+        for match in _ELIDED_PATH.finditer(text):
+            token = match.group(1)
+            if token.count("/") >= 2 and any(full.startswith(token) for full in fulls):
+                return token + "..."
+        return None
 
     def texts(value):
         if isinstance(value, str):
@@ -93,7 +107,7 @@ def find_path_leaks(nb, markers: list[str]) -> list[str]:
 
     for cell in nb["cells"]:
         for text in texts(cell.get("outputs") or []):
-            hit = next((needle for needle in needles if needle in text), None)
+            hit = next((needle for needle in needles if needle in text), None) or elided(text)
             if hit:
                 leaks.append(f"{cell.get('id')}:{hit}")
                 break
@@ -101,8 +115,21 @@ def find_path_leaks(nb, markers: list[str]) -> list[str]:
 
 
 def _short_temp_base() -> str | None:
-    """Prefer ``/tmp`` over macOS's long ``$TMPDIR`` so paths fit display widths."""
-    return SHORT_TEMP_BASE if os.name == "posix" and Path(SHORT_TEMP_BASE).is_dir() else None
+    """Prefer a writable ``/tmp`` over macOS's long ``$TMPDIR`` so paths fit display widths;
+    ``None`` (the platform default) when ``/tmp`` is missing or not writable."""
+    base = Path(SHORT_TEMP_BASE)
+    usable = os.name == "posix" and base.is_dir() and os.access(base, os.W_OK | os.X_OK)
+    return SHORT_TEMP_BASE if usable else None
+
+
+def leak_markers(tmp_path: Path) -> list[str]:
+    """Path prefixes that must not survive sanitization: home, the render temp folders and the
+    checkout's parent (a cell may shorten the checkout path before its full prefix can match)."""
+    markers = [str(Path.home()), str(tmp_path.parent / "notebook-demos-")]
+    parent = ROOT.resolve().parent
+    if parent != Path(parent.anchor):
+        markers.append(str(parent))
+    return markers
 
 
 def main() -> int:
@@ -142,7 +169,7 @@ def main() -> int:
             sanitize_demo_outputs(nb, {str(ROOT): "/demo/checkout", str(tmp_path): "/demo/runtime",
                                        str(Path.home()): "/demo/home", sys.executable: "/demo/python",
                                        kernel_executable: "/demo/python"})
-            leaks = find_path_leaks(nb, [str(Path.home()), str(tmp_path.parent / "notebook-demos-")])
+            leaks = find_path_leaks(nb, leak_markers(tmp_path), [str(ROOT), str(Path.home()), str(tmp_path)])
             if leaks:
                 print(f"  ERRORS: unsanitized machine paths in {path.name}: {leaks}", flush=True)
                 return 1

@@ -143,6 +143,52 @@ def test_demo_renderer_refuses_paths_a_cell_truncated(tmp_path, monkeypatch):
     assert not (tmp_path / "demos" / source.name).exists()
 
 
+def _render_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_demo_renderer_falls_back_when_short_temp_base_is_not_writable(monkeypatch):
+    import os
+
+    module = _render_module()
+    monkeypatch.setattr(os, "access", lambda *_a, **_k: False)
+    assert module._short_temp_base() is None
+
+
+def test_demo_renderer_flags_a_truncated_checkout_outside_home(tmp_path, monkeypatch):
+    """A checkout outside the home folder, shortened by a cell, is still caught via its parent."""
+    from pathlib import Path
+
+    module = _render_module()
+    checkout = tmp_path / "srv" / "builds" / "local-mailroom-sandbox"
+    monkeypatch.setattr(module, "ROOT", checkout)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path("/nonexistent-home")))
+    markers = module.leak_markers(tmp_path / "render" / "notebook-demos-abc")
+    shortened = str(checkout)[: len(str(checkout)) - 6] + "..."
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": shortened}]}]}
+    assert module.find_path_leaks(nb, markers) == [f"c1:{checkout.resolve().parent}"]
+    clean = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": "/demo/checkout/vendor"}]}]}
+    assert module.find_path_leaks(clean, markers) == []
+
+
+def test_demo_renderer_flags_a_checkout_shortened_inside_its_parent(tmp_path):
+    """A long checkout path cut before its parent ends matches no prefix marker; its elided form does."""
+    module = _render_module()
+    checkout = tmp_path / ("x" * 90) / "local-mailroom-sandbox"
+    shortened = "repo_root   " + str(checkout)[:60] + "...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": shortened}]}]}
+    assert module.find_path_leaks(nb, [], []) == []
+    assert module.find_path_leaks(nb, [], [str(checkout)]) == [f"c1:{str(checkout)[:60]}..."]
+    portable = "/demo/checkout/vendor/llm-mailro...\n/U...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": portable}]}]}
+    assert module.find_path_leaks(nb, [], [str(checkout), "/Users/someone"]) == []
+
+
 def test_notebooks_execute(tmp_path, monkeypatch):
     """Run all notebooks in order from notebooks/, as Jupyter would, with writes under tmp_path."""
     nbformat = pytest.importorskip("nbformat")
