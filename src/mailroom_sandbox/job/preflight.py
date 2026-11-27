@@ -584,7 +584,9 @@ def _judge_errors(spec: RunSpec) -> list[str]:
     if provider != "openrouter":
         errs.append(f"judge.mode correct calls its judge models on OpenRouter; profile {spec.profile!r} routes the "
                     f"judge to {provider or 'nothing'}")
-    if judge.reference_pool and not Path(judge.reference_pool).is_file():
+    from mailroom_sandbox.judge_references import pool_path
+
+    if judge.reference_pool and not pool_path(judge.reference_pool).is_file():
         errs.append(f"judge.reference_pool {judge.reference_pool} is not a file")
     return errs
 
@@ -1790,11 +1792,16 @@ def _prepare_dataset_rows(spec: RunSpec, store, report: dict[str, Any]):
         from mailroom_sandbox import judge_references
         from mailroom_sandbox.correcting_judge import reference_set_errors
 
+        from mailroom_sandbox.job.spec import judge_core
+
         ids = [str(row.get("id")) for row in store.dataset_rows()]
         components = judge_references.assigned_components()
+        scanned_sha, pool_rows = judge_references.read_pool(spec.judge.reference_pool)
         refused = [*reference_set_errors(spec, ids),
-                   *judge_references.pool_leaks(judge_references.load_pool(spec.judge.reference_pool),
-                                                {doc_id: components.get(doc_id, doc_id) for doc_id in ids})]
+                   *judge_references.pool_leaks(pool_rows, {doc_id: components.get(doc_id, doc_id) for doc_id in ids})]
+        if scanned_sha != judge_core(spec.judge)["reference_pool_sha256"]:
+            # The leak scan must cover the bytes the lock pins; a pool edited mid-preflight is refused.
+            refused.append(f"judge.reference_pool {spec.judge.reference_pool} changed during preflight; re-run it")
         if refused:
             report["status"] = "failed"
             report["checks"].append({"name": "judge_references", "ok": False, "detail": "; ".join(refused)})

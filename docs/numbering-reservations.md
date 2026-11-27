@@ -12,6 +12,8 @@ open work uses, so the PR that lands second knows its number before it rebases.
 - `test_critical_regression_rows_are_numbered_once_in_order`: rows run 1..N, each number once;
 - `test_the_reservations_page_lists_every_registered_hotfix_range_it_reserves`: a range below that
   is registered on the head is marked landed, and an open range is not registered.
+- `test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id`: the next free `HF-*` and
+  `SHF-*` IDs below are one past the highest registered or reserved ID.
 
 ## Hotfix IDs
 
@@ -26,7 +28,8 @@ collides takes the one assigned here.
 | `HF-028` | #437 specialist handoff check (registered there as `HF-021`; renumber on rebase) | open |
 
 The next free vendor hotfix ID is `HF-029`. Scoring hotfixes have no open collision; the next free
-ID is `SHF-017`.
+ID is `SHF-017`. A PR that registers or reserves an ID advances these in the same change
+(`test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id` checks them).
 
 ## Critical-regressions rows
 

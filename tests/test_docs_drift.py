@@ -118,6 +118,21 @@ def test_the_reservations_page_lists_every_registered_hotfix_range_it_reserves()
         assert landed == ("landed" in line.split("|")[3].lower()), line
 
 
+
+def test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id():
+    """The page's next free HF/SHF ids sit above every id registered here or reserved for open work,
+    so a PR that lands a range cannot leave its own id listed as free."""
+    import importlib
+
+    page = (ROOT / "docs" / "numbering-reservations.md").read_text(encoding="utf-8")
+    for prefix, module in (("HF", "mailroom_sandbox.vendor_hotfixes"), ("SHF", "mailroom_sandbox.scoring_hotfixes")):
+        [free] = re.findall(rf"next free\s+(?:vendor\s+hotfix\s+)?ID\s+is\s+`{prefix}-(\d{{3}})`", page)
+        used = {int(fix.id.split("-")[1]) for fix in importlib.import_module(module).HOTFIXES
+                if fix.id.startswith(f"{prefix}-")}
+        used |= {int(n) for line in page.splitlines() if line.startswith(f"| `{prefix}-")
+                 for n in re.findall(rf"{prefix}-(\d{{3}})", line.split("|")[1])}
+        assert int(free) == max(used) + 1, f"{prefix}: next free is {prefix}-{max(used) + 1:03d}, page says {free}"
+
 def test_readme_names_every_top_level_command():
     """The README CLI block names each `sandbox` command; flags live in docs/cli-reference.md."""
     from mailroom_sandbox.cli import build_parser

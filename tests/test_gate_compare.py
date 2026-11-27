@@ -265,3 +265,12 @@ def test_judge_compare_refuses_runs_with_different_documents(tmp_path):
     other = _judge_run(tmp_path, "other", [{"id": "z"}])
     with pytest.raises(ValueError, match="same documents"):
         gate_compare.judge_compare(base, other, Bars())
+
+
+def test_judge_compare_scores_documents_judged_in_either_arm(tmp_path):
+    """Plan ruling 18 / review finding: a document only the baseline judged must stay in the score check."""
+    base = _judge_run(tmp_path, "base", _docs(2, mode="verify"))
+    new = _judge_run(tmp_path, "new", [{"id": "d0"}, {"id": "d1", "rulings": 0, "score": 0.2}])
+    margin = _rule(gate_compare.judge_compare(base, new, Bars()), "score_margin")
+    assert margin["paired_documents"] == 2, margin
+    assert margin["pass"] is False  # d1's drop is counted

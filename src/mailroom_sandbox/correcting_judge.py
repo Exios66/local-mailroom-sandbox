@@ -10,8 +10,8 @@ the lock's ContextVar. A lock without the key leaves the judge off: today's judg
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -25,13 +25,6 @@ ASSIGNMENTS = Path(__file__).resolve().parents[2] / "config" / "splits" / "runbo
 _REFUSED_SETS = ("calibration", "pool")
 
 
-def _sha256(path: str | Path) -> str | None:
-    try:
-        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    except FileNotFoundError:
-        return None
-
-
 def activate(spec: Mapping[str, Any] | None, *, pool_sha256: str | None) -> None:
     """Turn the judge on for this process (``None`` turns it off).
 
@@ -41,9 +34,12 @@ def activate(spec: Mapping[str, Any] | None, *, pool_sha256: str | None) -> None
     if not spec:
         deactivate()
         return
-    pool = spec.get("reference_pool")
+    from mailroom_sandbox.judge_references import read_pool
+
+    pool, rows = spec.get("reference_pool"), None
     if pool and spec.get("references") == "train_pool":
-        actual = _sha256(pool)
+        # One read: the rows the run uses are the bytes checked against the lock.
+        actual, rows = read_pool(pool)
         if actual is None or actual != pool_sha256:
             raise RuntimeError(
                 f"judge: the reference pool {pool} changed after the run was locked "
@@ -52,7 +48,7 @@ def activate(spec: Mapping[str, Any] | None, *, pool_sha256: str | None) -> None
     global _POOL
     with _LOCK:
         _ACTIVE = copy.deepcopy(dict(spec))
-        _POOL = None
+        _POOL = rows
 
 
 def deactivate() -> None:
@@ -62,17 +58,11 @@ def deactivate() -> None:
         _POOL = None
 
 
-#: The active section's reference pool, read once per activation (its bytes are the locked ones).
+#: The active section's reference pool, parsed at activation from the bytes checked against the lock.
 _POOL: list[dict[str, Any]] | None = None
 
 
 def _reference_pool() -> list[dict[str, Any]]:
-    global _POOL
-    cfg = _ACTIVE or {}
-    if _POOL is None and cfg.get("reference_pool"):
-        from mailroom_sandbox.judge_references import load_pool
-
-        _POOL = load_pool(cfg["reference_pool"])
     return _POOL or []
 
 
@@ -175,8 +165,18 @@ _INSTRUCTIONS = """Instructions:
 - Only the requested fields may be named."""
 
 
+#: The prompt's own section tags. A body that spells one (a document, an extracted value) has its
+#: angle bracket replaced, so data can never close its section and pose as instructions.
+_SECTION_TAGS = ("SOURCE_DOCUMENT_TEXT", "FIELD_DEFINITIONS", "LABELED_EXAMPLES", "EARLIER_ATTEMPTS", "EXTRACTED_DATA")
+_TAG_SPELLING = re.compile(r"<(\s*/?\s*)(" + "|".join(_SECTION_TAGS) + r")\b", re.IGNORECASE)
+
+
+def _neutral(body: str) -> str:
+    return _TAG_SPELLING.sub(lambda m: "\u2039" + m.group(1) + m.group(2), body)
+
+
 def _section(tag: str, body: str) -> str:
-    return f"<{tag}>\n{body}\n</{tag}>"
+    return f"<{tag}>\n{_neutral(body)}\n</{tag}>"
 
 
 def _dumps(value: Any) -> str:
@@ -299,7 +299,18 @@ def _fits(prompt: str, model: str, max_tokens: int) -> bool:
 
 
 def _valid(answer: Any) -> bool:
-    return isinstance(answer, Mapping) and not answer.get("_parse_error") and answer.get("ruling") in RULINGS
+    """A reply that meets ``RULING_SCHEMA``: every required key, with its type (the structured call
+    only parses JSON, it does not validate it). Anything else is re-asked once, then a person."""
+    if not isinstance(answer, Mapping) or answer.get("_parse_error") or answer.get("ruling") not in RULINGS:
+        return False
+    if any(key not in answer for key in RULING_SCHEMA["required"]):
+        return False
+    score = answer.get("score")
+    if isinstance(score, bool) or not isinstance(score, (int, float)) or not isinstance(answer.get("reason"), str):
+        return False
+    if not all(isinstance(answer.get(key), list) for key in ("wrong_fields", "retry_fields", "fixes")):
+        return False
+    return all(isinstance(fix, Mapping) for fix in answer["fixes"])
 
 
 def _names(value: Any, allowed: set[str]) -> list[str]:
@@ -379,6 +390,12 @@ def rule(state: Mapping[str, Any], *, pass_no: int, guide: Mapping[str, str] | N
 
 
 # --- After a ruling (Task 5): the pass-through arbiter, the field-only retry, the re-ruling -----
+
+#: Rulings whose verified fixes HF-025 writes: an accept, and a retry (an accept with an unfixed
+#: wrong field becomes one, and the re-read covers only the fields that are still wrong). A review
+#: ruling's fixes are left for the person.
+APPLIES_FIXES = frozenset({"accept", "retry_fields"})
+
 
 def correcting() -> bool:
     """Whether ``judge: mode: correct`` is active in this process."""

@@ -2,9 +2,10 @@
 
 Companion to the [correcting-judge design](2026-11-26-correcting-judge-design.md) ("Rolling it out").
 These are five drafts for the owner to file against `llm-mailroom`. Each one names the sandbox hotfix that
-stands in for it today. The hotfix is retired, and its row removed from
-[`docs/vendor-hotfixes.md`](../../vendor-hotfixes.md), once upstream ships the change and the vendor snapshot
-is refreshed (`/vendor-sync`). Label-assisted routing (`llm-mailroom` #207) is already filed and is not
+stands in for it today. A hotfix is retired, and its row removed from
+[`docs/vendor-hotfixes.md`](../../vendor-hotfixes.md), only once upstream ships every behaviour it carries and
+the vendor snapshot is refreshed (`/vendor-sync`). HF-018 backs both draft 4 (call limits) and draft 5 (the
+Boss-repeat stop): when only one ships, revalidate it and keep the remaining behaviour until the other ships too. Label-assisted routing (`llm-mailroom` #207) is already filed and is not
 repeated here.
 
 The drafts follow the repository's PR and issue rule: an executive summary, with no transcript, names or
@@ -52,16 +53,18 @@ through the arbiter first. A field-only retry asks for less and cannot damage th
 
 - The retry node accepts a field list and sends the specialist a schema restricted to those fields, keeping
   `confidence` and `reasoning`.
-- Merge the reply into the previous extraction field by field.
-- Route the retry back to the judge. A second ruling can never retry, so every document ends within two rulings
-  and one retry.
+- Merge the reply into the previous extraction field by field: unnamed extraction fields are kept, and the
+  re-read's own metadata (confidence, reasoning, guardrail marks) is the fresh one.
+- Route a reviewable retry back to the judge. A second ruling can never retry, so every document ends within two
+  rulings and one retry. A re-read that failed (unparseable, guardrail-failed, unsupported or schema-invalid)
+  goes to a person without a second ruling; a transient-error loop and a Boss conflict keep today's route.
 - Skip the arbiter's model call when the judge's ruling is final.
 
 **Sandbox stand-in.** HF-027 (`retry_extract_node`, wrapping `_enrich_contract_result`, with a route rule on
 `after_retry_extraction_gated`) and HF-026 (`arbiter_node`).
 
-**Done when.** A retry request carries only the named fields, the other fields are unchanged after the merge,
-and no path makes more than two rulings.
+**Done when.** A retry request carries only the named fields, the other extraction fields are unchanged after the
+merge, a failed re-read reaches a person without a second ruling, and no path makes more than two rulings.
 
 ---
 

@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Collection, Iterable, Mapping
@@ -121,8 +122,32 @@ def render(pool: Iterable[Mapping[str, Any]]) -> str:
     return "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in pool)
 
 
+def pool_path(path: str | Path | None = None) -> Path:
+    """The pool file: an absolute path as given, a relative one from the checkout root (as the lock
+    hashes it, ``job.spec._file_sha256``), never from the working directory."""
+    if not path:
+        return POOL_PATH
+    from mailroom_sandbox.paths import repo_root
+
+    return Path(path) if Path(path).is_absolute() else repo_root() / path
+
+
+def parse_pool(data: bytes) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
+
+
 def load_pool(path: str | Path | None = None) -> list[dict[str, Any]]:
-    return _jsonl(Path(path) if path else POOL_PATH)
+    return _jsonl(pool_path(path))
+
+
+def read_pool(path: str | Path | None = None) -> tuple[str | None, list[dict[str, Any]]]:
+    """``(sha256, rows)`` from one read of the pool file, so the rows are the bytes hashed; a missing
+    file is ``(None, [])``."""
+    try:
+        data = pool_path(path).read_bytes()
+    except FileNotFoundError:
+        return None, []
+    return hashlib.sha256(data).hexdigest(), parse_pool(data)
 
 
 def _fit(example: dict[str, Any], max_chars: int) -> dict[str, Any] | None:

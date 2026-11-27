@@ -16,8 +16,9 @@
 # ~102k tokens per whole-document read; output as in the flash smoke): about $0.22 on the clean
 # path (intake, sorter, specialist), about $0.33 with the review and judge reads, worst case
 # about $0.80 (3 extraction, judge and arbiter passes each). Caps: api_cost_cap_usd 0.40 covers
-# the judged path, not the worst case (checked before each document; concurrency 2 keeps the
-# overshoot to the documents in flight); raising it is the owner's call. max_wall_seconds 1800.
+# the judged path, not the worst case (each call reserves its estimate before it is sent, so a call
+# that would pass the cap is refused and can stop the document it belongs to); raising it is the
+# owner's call. max_wall_seconds 1800.
 # Launch only with the owner's initials at the spend gate, from the repository root:
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-plus.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-qwen3.7-plus.yaml
 #   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-plus.jsonl sandbox run start --config config/runs/rb1-r01-smoke-qwen3.7-plus.yaml --initials <XX>

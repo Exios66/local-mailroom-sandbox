@@ -86,3 +86,24 @@ def test_verify_fix_passes_the_subclass_when_evidence_support_takes_it(monkeypat
     monkeypatch.setattr(judge_fixes.gold_labels, "evidence_support", without_subclass)
     assert verify_fix("contract", DOC, fix, requested=REQUESTED, subclass="Service")["verified"]
     assert seen == [("with", "Service"), ("without", None)]
+
+
+@pytest.mark.parametrize("blank", [[" "], ["", "  "], "   "])
+def test_a_fix_that_normalizes_to_empty_is_blank(blank):
+    """Review finding: a list of whitespace passes a raw-value blank check, then normalizes to []."""
+    check = verify_fix("contract", DOC, _fix("parties", blank, "between Acme Holdings Ltd and Birch Logistics LLC"),
+                       requested=REQUESTED)
+    assert (check["verified"], check["why"]) == (False, "blank")
+
+
+CORP = "RESOLUTIONS OF THE BOARD OF DIRECTORS OF Acme Corp, adopted on March 3, 2024."
+
+
+def test_a_fix_of_the_wrong_type_for_its_field_is_rejected():
+    """Review finding: a list for a string field would be written and make the extraction schema-invalid."""
+    wrong = verify_fix("corporate_record", CORP, _fix("entity_name", ["Acme Corp"], "OF Acme Corp"),
+                       requested=("entity_name",))
+    assert (wrong["verified"], wrong["why"]) == (False, "wrong_type")
+    right = verify_fix("corporate_record", CORP, _fix("entity_name", "Acme Corp", "OF Acme Corp"),
+                       requested=("entity_name",))
+    assert (right["verified"], right["why"]) == (True, "ok")

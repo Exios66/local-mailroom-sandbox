@@ -201,7 +201,8 @@ def judge_compare(baseline_dir: Path, judge_dir: Path, bars: Bars, *, stage: int
     cut by at least half; cost per judged document no higher, by class; the paired score delta on
     judged documents at most 2 points below with its bootstrap interval (ruling 18: gating in
     stage 2, reported in stage 1); no more wrong archives; no more crashes and none from the hard
-    call ceiling. Judged documents are those the judge run's correcting judge ruled on.
+    call ceiling. Judged documents are those the judge run's correcting judge ruled on; the score
+    check pairs the documents judged in either arm.
     """
     from mailroom_sandbox.job.sand42_cards import bootstrap_mean_ci
 
@@ -227,7 +228,10 @@ def judge_compare(baseline_dir: Path, judge_dir: Path, bars: Bars, *, stage: int
     checks.append({"rule": "judge_cost_by_class", "classes": by_class, "gating": True,
                    "pass": bool(by_class) and all(v["baseline"] is not None and v["judge"] is not None
                                                   and v["judge"] <= v["baseline"] for v in by_class.values())})
-    diffs = [100.0 * (new[i]["score"] - base[i]["score"]) for i in judged
+    # Ruling 18: the score check pairs the documents judged in either arm (same ids), so a
+    # document only the baseline judged is not dropped from the comparison.
+    either = sorted(set(judged) | {i for i, d in base.items() if d["judged"] and i in new})
+    diffs = [100.0 * (new[i]["score"] - base[i]["score"]) for i in either
              if new[i]["score"] is not None and base[i]["score"] is not None]
     ci = bootstrap_mean_ci(diffs) if diffs else None
     checks.append({"rule": "score_margin", "paired_documents": len(diffs), "delta": ci[0] if ci else None,

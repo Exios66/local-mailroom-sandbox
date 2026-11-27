@@ -647,8 +647,13 @@ The safety rules:
   field of the class, the value is not blank (a fix never erases a field), the quote is found in the document,
   and the located text supports the value under the gate's value rules. Nothing in the check calls a model.
 - An accept that leaves a wrong field unfixed becomes a retry on the first ruling and a person on the second.
-- A retry asks the specialist for the named fields only and keeps every other field (HF-027), then returns to
-  the judge for its second, final ruling. A second ruling never retries; a retry with no fields goes to a person.
+  Its verified fixes are still applied before the retry.
+- A retry asks the specialist for the named fields only and keeps every other extraction field (HF-027), then
+  returns to the judge for its second, final ruling. A second ruling never retries; a retry with no fields goes
+  to a person. A re-read that fails (unparseable, guardrail-failed, unsupported or schema-invalid) goes to a
+  person without a second ruling; a transient-error loop or a Boss conflict keeps the vendored route.
+- After fixes are applied the matter conflict check runs again; a conflict a fix created is parked for a person,
+  never archived.
 - The arbiter makes no call; the judge's ruling is final (HF-026), and the pass-through is not a governor
   round. Rulings and the retry count toward the governor's call and spend budgets.
 - A document longer than the judge model's context, or a reply that does not parse twice, goes to review
@@ -676,7 +681,8 @@ are in every lock's `vendor_hotfixes`, so a run locked before this refuses resum
 
 **Record and reports.** Each judged item records `judge_rulings` (pass, ruling, score, reason, checked fixes,
 retry and wrong fields, model), `before_judge`, `judge_corrected` and `judge_conflict`. The gate report adds a
-`judge` block (rulings, fixes and their accuracy against the truth, retries, scores before and `after judge`,
+`judge` block (rulings, applied fixes and their accuracy against the headline truth, skipping a label SHF-015
+drops as stale, retries, scores before and `after judge`,
 calls, judge-related calls and cost per judged document, cached prompt tokens, review and wrong-archive rates,
 crashes, matter conflicts and governor stops), and the routing audit a `judge` section.
 `gate_compare.judge_compare(baseline_dir, judge_dir, bars, stage=...)` applies the design's success rules to two

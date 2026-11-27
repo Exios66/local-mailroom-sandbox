@@ -327,11 +327,21 @@ def doc_cost(item: Mapping[str, Any]) -> float | None:
 
 
 def _fix_accuracy(row: Mapping[str, Any], fixes: list[Mapping[str, Any]]) -> tuple[int, int]:
-    """Verified fixes on labelled fields scored against the truth: ``(right, wrong)`` (ruling 16)."""
+    """Verified fixes on labelled fields scored against the truth: ``(right, wrong)`` (ruling 16).
+
+    The truth is the headline's: a Hub label SHF-015 drops as stale (a heuristic ``intent``, a
+    templated title) is no label here either, so a fix to that field is not scored.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.job.gate_causes import ScorerError, _field_scores
 
+    stale: dict[str, str] = {}
+    if sh.enabled("SHF-015"):
+        _, stale = sh.drop_stale_hub_truth(str(row.get("expected_doc_class")), _fields(row), sh.overlay_fields(row))
     right = wrong = 0
     for fix in fixes:
+        if fix["field"] in stale:
+            continue
         try:
             scores = _field_scores(row, {"extracted_data": {fix["field"]: fix.get("value")}})
         except ScorerError:
@@ -352,8 +362,11 @@ def _judge_fields(out: dict[str, Any], doc: Mapping[str, Any], pred: Mapping[str
     row, item = doc["row"], doc.get("item") or {}
     fixes = [f for r in rulings for f in r.get("fixes") or () if isinstance(f, Mapping)]
     verified = [f for f in fixes if f.get("verified")]
-    # Only an accept writes its verified fixes (HF-025); a verified fix on a retry or review ruling is not applied.
-    applied = [f for r in rulings if r.get("ruling") == "accept" for f in r.get("fixes") or ()
+    # An accept and a retry write their verified fixes (HF-025, correcting_judge.APPLIES_FIXES); a review
+    # ruling's are not applied.
+    from mailroom_sandbox.correcting_judge import APPLIES_FIXES
+
+    applied = [f for r in rulings if r.get("ruling") in APPLIES_FIXES for f in r.get("fixes") or ()
                if isinstance(f, Mapping) and f.get("verified")]
     scorable = out["labelled"] >= bars.min_labelled
     scored_row = without_fields(row, TEMPLATED_FIELDS.get(out["class"], ()))
@@ -465,8 +478,15 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
         out["judge"] = {"rulings": [[int(r.get("pass") or 0), str(r.get("ruling") or "")]
                                     for r in pred["judge_rulings"] if isinstance(r, Mapping)],
                         "proposed": 0, "verified": 0, "applied": 0, "rejected": {}, "right": 0, "wrong": 0, "corrected": False,
-                        "retries": 0, "score_before": None, "score_after": None, "calls": 0, "judge_calls": 0,
-                        "cost": None, "cached_tokens": None, "conflict": False}  # a crashed judged document
+                        "retries": sum(1 for r in pred["judge_rulings"] if isinstance(r, Mapping)
+                                       and r.get("ruling") == "retry_fields"),
+                        "score_before": None, "score_after": None,  # a crashed judged document has no score
+                        # ...but the calls it made before the failure were made, and billed
+                        "calls": _reask_count(item.get("llm_calls")),
+                        "judge_calls": judge_related_calls(item, pred, doc.get("nodes") or ()),
+                        "cost": doc_cost(item),
+                        "cached_tokens": _reask_count(item.get("cached_tokens"))
+                        if item.get("cached_tokens") is not None else None, "conflict": False}
     if item.get("error") or item.get("ok") is False or pred.get("error"):
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)

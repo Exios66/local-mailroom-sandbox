@@ -1349,9 +1349,9 @@ _RULING_VERDICT = {"accept": "complete", "retry_fields": "partial", "human_revie
 def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
     """HF-025, ``mode: correct``: one ruling replaces the vendored completeness and accuracy calls.
 
-    An accept writes the verified fixes into ``extracted_data`` (the judge read the whole document,
-    so the verdict is source-verified); a retry reads as ``partial`` and a person as
-    ``incomplete``. A transient provider error is re-run like the vendored node's; a reply that
+    An accept or a retry writes its verified fixes into ``extracted_data`` (the judge read the whole
+    document, so an accept's verdict is source-verified) and re-runs the matter conflict check on
+    the fixed extraction; a retry reads as ``partial`` and a person as ``incomplete``. A transient provider error is re-run like the vendored node's; a reply that
     does not parse after one re-ask, or any other failure, is ``judge_error`` and goes to review.
     """
     from llm.retry import is_transient_error
@@ -1380,11 +1380,20 @@ def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
     update: dict[str, Any] = {"judge_verdict": verdict, "judge_score": score, "judge_findings": findings,
                               "judge_source_verified": verdict == "complete", "judge_pass_count": pass_no,
                               "transient_error": False}
-    if entry["ruling"] == "accept":
+    if entry["ruling"] in correcting_judge.APPLIES_FIXES:
         fixes = [check for check in entry["fixes"] if check["verified"]]
         if fixes:
-            update["extracted_data"] = apply_fixes(state.get("extracted_data") or {}, fixes)
+            fixed = apply_fixes(state.get("extracted_data") or {}, fixes)
+            update["extracted_data"] = fixed
             judge_record.note_corrected()
+            # The vendored conflict check ran on the extraction before the fixes: run it again on
+            # the fixed one, so a fixed value that contradicts the matter's archive is never archived
+            # unadjudicated (after_judge parks it for a person).
+            if not state.get("conflict_detected"):
+                conflict, details = module._detect_conflict({**dict(state), "extracted_data": fixed}, fixed)
+                if conflict:
+                    update["conflict_detected"], update["conflict_details"] = True, list(details or [])
+                    judge_record.note_conflict()
     history = module.attempt_history.record_verdict(state, verdict=verdict, score=score, findings=findings,
                                                     source_verified=verdict == "complete")
     if history is not None:
@@ -1432,18 +1441,20 @@ _FIELD_RETRY: contextvars.ContextVar[tuple[dict, frozenset[str]] | None] = conte
 
 
 def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
-    """``retry_extract``: a judge-ordered re-read goes back to the judge for its second ruling.
+    """``retry_extract``: a judge-ordered re-read gets its second ruling, or a person.
 
-    A transient self-loop, a matter conflict for the Boss and a further retry keep the router's answer.
-    So does a re-read the judge may not clear (the vendored ``_judge_can_review`` limits: empty, a
-    guardrail failure, a lost chunk; plus a specialist failure, an unsupported or schema-invalid
-    extraction): it goes to a person, never to a second ruling that could archive it.
+    Only a transient self-loop and a matter conflict for the Boss keep the router's answer. Any
+    other proposal (archive, review, the band gate's ``judge_verify``, a further retry) becomes the
+    judge's second, final ruling when the re-read can be reviewed, and a person when it cannot (the
+    vendored ``_judge_can_review`` limits: empty, a guardrail failure, a lost chunk; plus a
+    specialist failure, an unsupported or schema-invalid extraction). So a failed re-read is never
+    archived, never ruled on again and never retried past the one field retry.
     """
     from graph import routing
 
     from mailroom_sandbox import correcting_judge
 
-    if proposed not in ("compile_report", "human_review") or state.get("transient_error"):
+    if proposed == "boss_escalation" or state.get("transient_error"):
         return None
     if not correcting_judge.retry_owed(state):
         return None
@@ -1451,7 +1462,7 @@ def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
     if (not isinstance(extracted, Mapping) or extracted.get("_parse_error") or not routing._judge_can_review(state)
             or routing._extraction_is_unsupported(state)
             or routing.validate_extraction(state.get("doc_type"), extracted).get("schema_valid") is False):
-        return None
+        return "human_review"
     return "judge_verify"
 
 

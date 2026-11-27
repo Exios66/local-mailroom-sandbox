@@ -72,10 +72,10 @@ A code map taken before this plan found these points. The spec is the authority,
 ## Global Constraints
 
 - No edits to `vendor/`. Every pipeline change is a hotfix in `src/mailroom_sandbox/vendor_hotfixes.py`, with a row in `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` in the same change.
-- Off by default: "Nothing changes for any existing run." Without `judge:`, `spec_hash`, the lock, every request and every result are unchanged.
+- Off by default: "Nothing changes for any existing run." Without `judge:`, `spec_hash`, every request and every result are unchanged. The one lock change: HF-025 to HF-027 join every lock's `vendor_hotfixes`, so a run locked before this branch refuses to resume until `--force`.
 - At most two judge rulings and one retry per document. A document that reaches the limit goes to human review, so it stays in the scored results.
 - A fix can never blank a field. A field the judge calls wrong with no verified fix blocks the archive: it is retried on the first ruling, or sent to a person on the second.
-- The judge never sees labels for the document it judges or for any test document. Examples come only from runbook-v2 `calibration` and `pool`, at most two, matched by type and subtype; near-gold wins over interim.
+- The judge never sees labels for the document it judges or for any test document. Examples come only from runbook-v2 `calibration` and `pool`, at most two, matched by type and subtype; labels merge in the scorer's own order (interim first, near-gold on fields interim does not give and over an interim gate-gap fill; an interim correction and an `original_header` fill stand).
 - Judge models: `qwen/qwen3.7-plus` by default, `deepseek/deepseek-v4.1-flash-1017` for `merger_agreement`. Both need a price and a provider pin, or preflight refuses.
 - No paid or live runs by an agent. Stage 1 and 2 configs are written and preflighted offline; a person launches them with their initials.
 - Local checks: named test files, `-n 0 --no-cov`. Full suite and coverage (`fail_under = 84`, never lowered) run in hosted CircleCI.
@@ -298,7 +298,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 **Interfaces:**
 
 - Produces:
-  - `build_pool(assignments, interim, near_gold) -> list[dict]`. Rows hold `{doc_id, doc_class, subclass, set, component, fields: {name: {value, source: "near_gold"|"interim", evidence: [str]}}}`. Only `set ∈ {"calibration", "pool"}`; near-gold wins per field; `disputed` is excluded.
+  - `build_pool(assignments, interim, near_gold) -> list[dict]`. Rows hold `{doc_id, doc_class, subclass, set, component, fields: {name: {value, source: "near_gold"|"interim", evidence: [str]}}}`. Only `set ∈ {"calibration", "pool"}`; fields merge in the scorer's order (`gold_labels.apply_near_gold`, SHF-010), so an interim correction and an `original_header` fill stand over near-gold; `disputed` is excluded.
   - `examples(pool, doc_class, subclass, *, k, max_chars) -> list[dict]`: deterministic (sorted by doc id), same class and subtype, at most `k`.
   - `pool_leaks(pool, drawn: Mapping[id, component]) -> list[str]`.
   - `guide_for(doc_class, subclass) -> dict[str, str]`: `schema_guide.GUIDE_DESCRIPTIONS`, then the subclass field-list guide.
@@ -306,7 +306,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 
 - [ ] **Step 1: Write the failing tests.**
   - `test_the_pool_holds_only_calibration_and_pool_documents`
-  - `test_near_gold_wins_over_interim_on_a_field`
+  - `test_the_pool_follows_the_scorers_truth_precedence` (shipped in place of `test_near_gold_wins_over_interim_on_a_field`)
   - `test_disputed_labels_are_left_out`
   - `test_examples_match_type_and_subtype_and_are_capped_at_two`
   - `test_a_drawn_document_sharing_a_component_with_the_pool_is_refused`: through preflight.

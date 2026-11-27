@@ -129,6 +129,14 @@ def test_a_drawn_document_sharing_a_component_with_the_pool_is_refused(tmp_path,
     monkeypatch.setattr(jr, "assigned_components", lambda path=None: {"D-9": "K9"})
     report = {"status": "ok", "checks": []}
     assert preflight._prepare_dataset_rows(spec, Store, report) == ({}, None)
+    # Review finding: the leak scan must cover the bytes the lock pins; a pool edited between the
+    # scan and the lock's hash is refused rather than locked unchecked.
+    from mailroom_sandbox.job import spec as spec_module
+
+    monkeypatch.setattr(spec_module, "judge_core", lambda judge: {"reference_pool_sha256": "f" * 64})
+    report = {"status": "ok", "checks": []}
+    prov, failed = preflight._prepare_dataset_rows(spec, Store, report)
+    assert prov is None and "changed during preflight" in report["checks"][-1]["detail"]
 
 
 def test_the_committed_pool_is_current():
