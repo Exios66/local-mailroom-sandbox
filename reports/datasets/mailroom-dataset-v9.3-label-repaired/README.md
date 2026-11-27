@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,380 labeled,
-5,228 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,381 labeled,
+5,227 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,380 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,381 (89.1%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 ## Files
@@ -16,7 +16,7 @@ every label source in this repository, and the vote that chose it is kept in the
 | File | Rows | Contents |
 | --- | ---: | --- |
 | `mailroom_dataset_v9.3_label_repaired.csv` | 3,302 | One row per document: identifiers, metadata, text statistics, a 280-character text preview, every label field, and per-row completeness counters. **The main analysis file.** |
-| `mailroom_dataset_v9.3_label_repaired_label_provenance.csv` | 48,688 | One row per document and target field (plus the 2 subclass changes): the chosen value, its presence code, the winning source, every source's vote, the agreement and the evidence quote. |
+| `mailroom_dataset_v9.3_label_repaired_label_provenance.csv` | 48,752 | One row per document and target field (plus the 66 subclass changes): the chosen value, its presence code, the winning source, every source's vote, the agreement and the evidence quote. |
 | `mailroom_dataset_v9.3_label_repaired_field_completeness.csv` | 74 | Per class and field: how many documents are labeled in v9.3 and here, populated or documented absent, still unlabeled, disputed, and conflicts resolved. |
 | `mailroom_dataset_v9.3_label_repaired_summary.json` | N/A | Totals, source weights, and the sha256 of every input file. |
 | `build_label_repaired.py` | N/A | The deterministic builder that wrote all of the above. |
@@ -139,8 +139,10 @@ blank in a row is absence versus unlabeled.
   reviewed subclass correction exists in a duplicate group, that reviewed document is kept.
   `exact_duplicate_count` and `normalized_duplicate_count` give the size of each group. Drop rows
   with a non-blank `duplicate_of` for de-duplicated analysis (upstream v9.4 removes 10).
-- **2 subclasses corrected** by reviewed evidence (`subclass_changed`). The v9.3 value is kept in
-  `subclass_hub_v9_3`.
+- **66 subclasses corrected** by reviewed evidence (`subclass_changed`): 2 earlier reviews plus
+  the 64 tier-A corrections of the 2026-11-27 strata audit. The v9.3 value is kept in
+  `subclass_hub_v9_3`. Contract corrections also move the derived `cuad_family`, and the merger
+  correction fills `merger_consideration` for DOC-4c27875ffea162d4.
 - **Dates normalized** to `YYYY-MM-DD` (`YYYY-MM` when only month and year are given). Blank
   template dates such as `[___], 2020` count as absent. One malformed CUAD span stays as text.
 - **Corporate `record_type`** keeps the Hub's coarser vocabulary (for example, charter amendments are

@@ -259,3 +259,68 @@ def test_pipeline_run_subclass_scores_take_the_corrections_and_keep_the_hub_raw(
     plain = score_subclass(classes, [h for *_, h, _ in PIPELINE_CORRECTED], classes,
                            [f for *_, f in PIPELINE_CORRECTED])
     assert plain["subclass_accuracy"] == 0.0 and "subclass_corrections_applied" not in plain
+
+
+# --- extraction scoring and the gate diagnosis score the reviewed subclass ----------------------
+
+def _spy_subclasses(monkeypatch):
+    seen: list[object] = []  # score_extraction_row scores the raw side first, then the headline
+    real = scoring._score_extraction_row_once
+
+    def spy(doc_type, predicted, expected, doc_text=None, doc_subclass=None, expected_subclass=None, **kw):
+        seen.append(expected_subclass)
+        return real(doc_type, predicted, expected, doc_text, doc_subclass, expected_subclass, **kw)
+
+    monkeypatch.setattr(scoring, "_score_extraction_row_once", spy)
+    return seen
+
+
+def test_extraction_headline_scores_the_corrected_subclass_and_raw_keeps_the_hub(monkeypatch, corrections):
+    corrections["DOC-C"] = {"doc_id": "DOC-C", "doc_class": "corporate_record", "hub_subclass": "board_resolution",
+                            "subclass": "bylaws", "verdict": "correct"}
+    seen = _spy_subclasses(monkeypatch)
+    expected = {"entity_name": "Acme Corp.", "effective_date": "2020-01-02"}
+    out = scoring.score_extraction_row("corporate_record", dict(expected), dict(expected),
+                                       expected_subclass="board_resolution", doc_id="DOC-C")
+    assert seen == ["board_resolution", "bylaws"]
+    assert out["subclass_corrected"] == "bylaws" and "SHF-013" in out["scoring_hotfixes"]
+    assert "subclass_corrected" not in out["raw_dojo"]
+
+
+@pytest.mark.parametrize("doc_id, hub", [(None, "board_resolution"), ("DOC-UNREVIEWED", "board_resolution"),
+                                         ("DOC-C", "bylaws")])  # no id, no correction, Hub moved on
+def test_extraction_without_a_binding_correction_keeps_the_hub_subclass(monkeypatch, corrections, doc_id, hub):
+    corrections["DOC-C"] = {"doc_id": "DOC-C", "doc_class": "corporate_record", "hub_subclass": "board_resolution",
+                            "subclass": "bylaws", "verdict": "correct"}
+    seen = _spy_subclasses(monkeypatch)
+    out = scoring.score_extraction_row("corporate_record", {"entity_name": "Acme"}, {"entity_name": "Acme"},
+                                       expected_subclass=hub, doc_id=doc_id)
+    assert seen == [hub, hub]
+    assert "subclass_corrected" not in out and "SHF-013" not in out["scoring_hotfixes"]
+
+
+def test_the_gate_diagnosis_scores_the_corrected_subclass(monkeypatch, corrections):
+    from mailroom_sandbox.job import gate_causes
+
+    corrections["DOC-C"] = {"doc_id": "DOC-C", "doc_class": "corporate_record", "hub_subclass": "board_resolution",
+                            "subclass": "bylaws", "verdict": "correct"}
+    calls: list[dict] = []
+
+    class Suite:
+        def score(self, expected, predicted, doc_text=None, detailed=False, **kw):
+            calls.append(kw)
+            return types.SimpleNamespace(field_scores={k: 1.0 for k in expected})
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", lambda _cls: Suite())
+    row = {"id": "DOC-C", "expected_doc_class": "corporate_record", "expected_subclass": "board_resolution",
+           "expected_fields": {"entity_name": "Acme Corp."}}
+    gate_causes._field_scores(row, {"extracted_data": {"entity_name": "Acme Corp."}})
+    gate_causes._field_scores({**row, "id": "DOC-OTHER"}, {"extracted_data": {"entity_name": "Acme Corp."}})
+    assert [c.get("doc_subclass") for c in calls] == ["bylaws", "board_resolution"]
+
+
+def test_the_committed_file_relabels_the_bylaw_amendments_425_extends():
+    # DOC-443542beadaf2839 and DOC-78f2456f571403a9 are amendments to the bylaws (guide: bylaws, never
+    # board_resolution); extraction scoring now reads them as bylaws on the headline.
+    for doc_id in ("DOC-443542beadaf2839", "DOC-78f2456f571403a9"):
+        assert sh.corrected_subclass(doc_id, "corporate_record", "board_resolution") == "bylaws"

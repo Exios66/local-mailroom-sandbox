@@ -842,6 +842,8 @@ def run_extract_eval(
             # Per-subclass scoring (sandbox #145): the row's GT subclass drives
             # the vendored corporate-record alignment (see scoring.py).
             expected_subclass=row.get("expected_subclass"),
+            # SHF-013: a reviewed subclass correction replaces the Hub subclass on the headline.
+            doc_id=row.get("id"),
             # SHF-010: the interim truth near-gold replaced is scored as raw, and the fix named.
             truth_overrides=row.get("truth_overrides"),
             overlay_fields=scoring_hotfixes.overlay_fields(row),
@@ -1228,6 +1230,8 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
         # Per-subclass scoring (sandbox #145): the row's GT subclass
         # drives the vendored corporate-record alignment.
         expected_subclass=row.get("expected_subclass"),
+        # SHF-013: a reviewed subclass correction replaces the Hub subclass on the headline.
+        doc_id=row.get("id"),
         truth_overrides=row.get("truth_overrides"),
         # SHF-015: the overlay markers say which labels are reviewed, never dropped as stale Hub labels.
         overlay_fields=scoring_hotfixes.overlay_fields(row),

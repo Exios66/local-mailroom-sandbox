@@ -115,6 +115,7 @@ def score_extraction_row(
     field_scores: bool = False,
     truth_overrides: Mapping[str, Any] | None = None,
     overlay_fields: Collection[str] | None = None,
+    doc_id: Any = None,
 ) -> dict[str, Any]:
     """Dual-reported row scoring: the hotfixed headline plus the raw Dojo-pin values.
 
@@ -131,10 +132,17 @@ def score_extraction_row(
     ``keywords``) from both sides, never a field an overlay supplied, and names them under
     ``stale_hub_labels``. ``None`` means the caller does not know the row's provenance, so SHF-015
     stays off rather than risk dropping a reviewed correction.
+
+    ``doc_id`` turns on SHF-013 for the extraction: when the document has a reviewed subclass
+    correction (``corrected_subclass_truth``), the headline scores against the corrected subclass
+    (the subclass-specific field alignment and schema), names it under ``subclass_corrected`` and
+    lists SHF-013; the raw side keeps the Hub ``expected_subclass``. A caller-supplied
+    ``doc_subclass`` takes precedence over both, as before.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
     raw_expected = sh.revert_truth_overrides(expected or {}, truth_overrides)
+    corrected = None if doc_subclass else corrected_subclass_truth(doc_id, doc_type, expected_subclass)
     with sh.raw():
         raw_payload = _score_extraction_row_once(doc_type, predicted, raw_expected, doc_text, doc_subclass,
                                                  expected_subclass, field_scores=field_scores)
@@ -152,10 +160,14 @@ def score_extraction_row(
         if "SHF-015" in on:
             fixed_expected, stale = sh.drop_stale_hub_truth(doc_type, fixed_expected, overlay_fields or ())
             fixed_predicted = {k: v for k, v in (predicted or {}).items() if k not in stale}
+        if corrected:
+            on = on | {"SHF-013"}
         fixed = _score_extraction_row_once(doc_type, fixed_predicted, fixed_expected, doc_text, doc_subclass,
-                                           expected_subclass, field_scores=field_scores)
+                                           corrected or expected_subclass, field_scores=field_scores)
         if stale:
             fixed["stale_hub_labels"] = stale
+        if corrected:
+            fixed["subclass_corrected"] = corrected
     out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")

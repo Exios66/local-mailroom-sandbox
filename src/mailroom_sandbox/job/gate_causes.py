@@ -134,6 +134,9 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
         return {}
     predicted, _ = scope_extraction_pair(doc_class, pred.get("extracted_data") or {}, {})
     sub = str(row.get("expected_subclass") or "").strip()
+    # SHF-013: the headline scores a reviewed subclass correction, so the diagnosis does too.
+    from mailroom_sandbox.eval.scoring import corrected_subclass_truth
+    sub = corrected_subclass_truth(row.get("id"), doc_class, sub) or sub if sub else sub
     kwargs: dict[str, Any] = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_class == "corporate_record")
     try:
