@@ -345,15 +345,138 @@ def _merger_reads(agent: Any, result: dict[str, Any], doc_text: str, cfg: Mappin
     return out
 
 
+# --- the correct-mode judge's MAUD retry, per question ---------------------------------------------
+
+def ruling_questions(ruling: Mapping[str, Any]) -> tuple[str, ...]:
+    """The MAUD questions a correct-mode ruling names: in a ``maud_clauses`` fix's value, or in its reason.
+
+    The ruling's ``retry_fields`` holds requested field names only (``maud_clauses``), never a question.
+    """
+    found: set[str] = set()
+    for fix in ruling.get("fixes") or ():
+        if isinstance(fix, Mapping) and fix.get("field") == "maud_clauses":
+            value = fix.get("value")
+            for line in value if isinstance(value, (list, tuple)) else [value]:
+                if (question := _question_of(line)) is not None:
+                    found.add(question)
+    reason = str(ruling.get("reason") or "")
+    found |= {name for name in _names() if name in reason}
+    return tuple(name for name in _names() if name in found)
+
+
+def _section_question_reads(agent: Any, doc_text: str, questions: Sequence[str], groups: int, subclass: str | None
+                            ) -> tuple[list[str], dict[str, Any]]:
+    """Re-ask ``questions`` from their sections, one call per owning read; ``(answer lines, marks)``."""
+    marks: dict[str, Any] = {"questions": [], "unlocated": [], "calls": 0, "chars": 0, "failed": []}
+    buckets: dict[str, list[str]] = {}
+    for question in questions:
+        buckets.setdefault(merger_tables.owner(question, groups), []).append(question)
+    lines: list[str] = []
+    for key, qs in buckets.items():
+        excerpts, missed = merger_sections.question_excerpts(doc_text, qs)
+        marks["unlocated"] += missed
+        asked = [q for q in qs if q not in missed]
+        if not asked:
+            continue
+        message = group_message(agent.handoff_context, excerpts, subclass, asked)
+        reply, calls, failure = _ask(agent, message, [group_schema(asked, enum=True), group_schema(asked, enum=False)])
+        marks["calls"] += calls
+        marks["chars"] += len(message) * calls
+        if reply is None:
+            marks["failed"].append(key)
+            _log.warning("merger per-question retry for %s failed (%s)", key, failure)
+            continue
+        marks["questions"] += asked
+        lines += [line for line in reply.get("maud_clauses") or () if _question_of(line) in asked]
+    return lines, marks
+
+
+def _judge_question_retry(agent: Any, original: Callable[..., dict], doc_text: str, pages: list[str] | None,
+                          only: frozenset[str], cfg: Mapping[str, Any]) -> dict:
+    """A correct-mode field retry naming ``maud_clauses``: its questions are re-asked from sections only.
+
+    Other named fields keep HF-027's field-only read; every MAUD line the ruling did not name keeps
+    the previous extraction's value (HF-027 then merges ``maud_clauses`` as one field).
+    """
+    from mailroom_sandbox import correcting_judge
+    from mailroom_sandbox.vendor_hotfixes import _FIELD_RETRY
+
+    pending = _FIELD_RETRY.get()
+    previous = dict(pending[0]) if pending else {}
+    questions = ruling_questions(correcting_judge.last_ruling() or {}) or _names()
+    others = set(only) - {"maud_clauses", *_META}
+    result = original(agent, doc_text, pages=pages) if others else {}
+    if not isinstance(result, dict) or result.get("_parse_error"):
+        return result
+    out = dict(result)
+    choice = _CHOICE.get() or Choice(None, None)
+    try:
+        lines, marks = _section_question_reads(agent, doc_text, questions, int(cfg["groups"]), choice.sorter_subclass)
+        out["maud_clauses"] = merge_answers(previous.get("maud_clauses"), lines, marks["questions"])
+        out["_merger_reads"] = {"question_retry": marks}
+    except Exception:  # noqa: BLE001 — the previous answers stand
+        _log.warning("HF-030 per-question MAUD retry failed; the previous answers stand", exc_info=True)
+        out["maud_clauses"] = list(previous.get("maud_clauses") or [])
+    return out
+
+
+# --- the merger judge off (spec part 4) ------------------------------------------------------------
+
+MERGER_JUDGE_RULE = "HF-030:merger_judge_off"
+
+
+def _merger_judge_off(state: Mapping[str, Any]) -> bool:
+    from graph import routing
+    from pipeline.config import resolve_extract_class
+
+    doc_type = str(state.get("doc_type") or "")
+    return (merger_reads.on("question_groups") and (resolve_extract_class(doc_type) or doc_type) == "merger_agreement"
+            and routing._judge_max_passes(routing._thresholds_for(state)) == 0)
+
+
+def merger_judge_route(node: str) -> Callable[[Mapping[str, Any], str], str | None]:
+    """The route rule for ``node``: a merger with ``judge_max_passes: 0`` takes the vendored no-judge route.
+
+    The vendored routers send an in-band or retries-spent extraction to ``judge_verify`` whatever
+    ``judge_max_passes`` says. Here the proposal becomes the base router's answer without the judge's
+    band gate (``compile_report`` for an in-band extraction), and ``human_review`` where the base
+    router itself asks for the judge (low confidence with the retries spent).
+    """
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "judge_verify" or not _merger_judge_off(state):
+            return None
+        from graph import routing
+
+        base = routing.after_retry_extraction(dict(state)) if node == "retry_extract" else \
+            routing.after_extraction(dict(state))
+        return "human_review" if base == "judge_verify" else base
+
+    return decide
+
+
+def register_merger_judge_rule() -> None:
+    """(Re)register the merger-judge-off rule first on ``extract`` and ``retry_extract``; idempotent."""
+    from graph import route_spec
+
+    for node in ("extract", "retry_extract"):
+        if not any(rule.name == MERGER_JUDGE_RULE for rule in route_spec.route_rules(node)):
+            route_spec.add_route_rule(node, route_spec.RouteRule(MERGER_JUDGE_RULE, merger_judge_route(node)),
+                                      position="first")
+
+
 def extract(agent: Any, original: Callable[..., dict], doc_text: str, pages: list[str] | None) -> dict:
     """HF-030: the vendored one-call read, then the merger reads ``job.merger`` switches on."""
-    result = original(agent, doc_text, pages=pages)
-    cfg = merger_reads.config()
-    if cfg is None or not cfg.get("subclass_fields"):
-        return result
     from mailroom_sandbox.subclass_extraction import _ONLY
 
-    if (_ONLY.get() is not None or getattr(agent, "_last_chunked", False) or not isinstance(result, dict)
+    cfg = merger_reads.config()
+    only = _ONLY.get()
+    if (cfg is not None and cfg.get("question_groups") and only is not None and "maud_clauses" in only
+            and isinstance(doc_text, str)):
+        return _judge_question_retry(agent, original, doc_text, pages, only, cfg)
+    result = original(agent, doc_text, pages=pages)
+    if cfg is None or not cfg.get("subclass_fields"):
+        return result
+    if (only is not None or getattr(agent, "_last_chunked", False) or not isinstance(result, dict)
             or result.get("_parse_error") or not isinstance(doc_text, str)):
         return result
     try:

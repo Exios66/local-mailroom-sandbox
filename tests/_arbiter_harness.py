@@ -92,6 +92,10 @@ class Script:
     real_retry: bool = False
     retry_payload: dict[str, Any] = field(default_factory=lambda: {
         "entity_name": "Cedar Sample Limited", "record_type": "resolution", "confidence": 0.95})
+    # The class the sorter returns, and the extraction every extract call reports (None: ``DATA``).
+    doc_type: str = "corporate_record"
+    doc_subclass: str = "minutes"
+    data: dict[str, Any] | None = None
 
 
 def activate_profile(monkeypatch, tmp_path, profile: str, *, reviewer: bool = False):
@@ -206,14 +210,14 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
 
     def classify(state, attempt=1):
         conf = script.sorter if script.sorter is not None else medium
-        return {"doc_type": "corporate_record", "doc_subclass": "minutes", "classification_confidence": conf,
+        return {"doc_type": script.doc_type, "doc_subclass": script.doc_subclass, "classification_confidence": conf,
                 "classification_attempts": attempt, "stage": "classified", "transient_error": False}
 
     conflict = {"field": "entity_name", "values": ["Cedar Sample Ltd", "Cedar Sample Limited"]}
 
     def extract(state):
         conf = next(confs, last_conf["v"])
-        return {"extracted_data": dict(DATA), "extraction_confidence": conf,
+        return {"extracted_data": dict(DATA if script.data is None else script.data), "extraction_confidence": conf,
                 "extraction_attempts": int(state.get("extraction_attempts") or 0) + 1,
                 "stage": "extracted", "transient_error": False,
                 **({"conflict_detected": True, "conflict_details": conflict} if script.conflict else {}),

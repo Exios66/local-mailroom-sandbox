@@ -1603,11 +1603,19 @@ def _install_merger_reads(_module: Any, original: Callable[..., Any]) -> Callabl
     """
     from mailroom_sandbox import merger_extract
 
+    merger_extract.register_merger_judge_rule()
+
     @functools.wraps(original)
     def extract(self, doc_text: str, pages: list[str] | None = None) -> dict:
         return merger_extract.extract(self, original, doc_text, pages)
 
     return extract
+
+
+def _register_merger_judge_rule(_module: Any) -> None:
+    from mailroom_sandbox import merger_extract
+
+    merger_extract.register_merger_judge_rule()
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
@@ -1938,6 +1946,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "consideration field after a subclass disagreement; a section the locator misses is never "
                 "read from the whole document",
         install=_install_merger_reads,
+        refresh=_register_merger_judge_rule,
         also=(("langchain_agents.specialist_agents:_SpecialistBase.extract_chunked",
                "6e7ac75666a140570b6b6f8308b3a914494fcbddc3538597f53d58c08ae0a349"),
               ("langchain_agents.base_agent:BaseAgent._call_structured",
