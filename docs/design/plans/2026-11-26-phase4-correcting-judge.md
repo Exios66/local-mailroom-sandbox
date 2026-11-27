@@ -39,7 +39,7 @@ A code map taken before this plan found these points. The spec is the authority,
    - `arbiter` is not a round, because it makes no model call;
    - `retry_extract` still is;
    - two rulings are guaranteed by the node itself: a second ruling can never ask for a retry.
-   
+
    `_passed_judge` already accepts a `complete` verdict recorded on the latest attempt, so an accept ruling archives with caveats when the governor stops the document.
 4. **Matter conflicts.** The spec says they "still go to the boss, as today". Today an unadjudicated conflict after the judge or the arbiter goes to `human_review`, and only a retry extraction reaches the Boss. That routing is kept unchanged; "as today" governs.
 5. **The whole document.**
@@ -95,6 +95,7 @@ A code map taken before this plan found these points. The spec is the authority,
 ### Task 1: The switch, the lock and the preflight refusals
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/spec.py`: `JudgeSpec`, a `RunSpec.judge` field, a validator, and `spec_core`.
 - Modify: `src/mailroom_sandbox/job/preflight.py`: `_judge_errors(spec)` in `_engine_errors`; the pool leak check in `_prepare_dataset_rows`.
 - Modify: `src/mailroom_sandbox/job/api_budget.py`: `api_models` and `spec_api_models` include the judge models.
@@ -103,6 +104,7 @@ A code map taken before this plan found these points. The spec is the authority,
 - Test: `tests/test_correcting_judge.py`.
 
 **Interfaces:**
+
 - Produces:
   - `JudgeSpec` (pydantic, `extra="forbid"`):
     - `mode: Literal["verify", "correct"] = "verify"`;
@@ -148,12 +150,14 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 2: The record for both judges
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/judge_record.py`.
 - Modify: `src/mailroom_sandbox/vendor_hotfixes.py`: HF-025 install `_install_judge_node`, verify-mode branch only.
 - Modify: `src/mailroom_sandbox/eval/runners.py` (`_run_pipeline_doc` only; find it by name, the line moves): copy `judge_rulings`, `before_judge` and `judge_corrected` from the scope.
 - Test: `tests/test_correcting_judge.py`, `tests/test_vendor_hotfixes.py`.
 
 **Interfaces:**
+
 - Produces:
   - `judge_record.note_before(extracted: Mapping) -> None`: the first pass's cleaned extraction only; later passes do not overwrite it.
   - `judge_record.note_ruling(entry: Mapping) -> None`, which appends to `scope["judge_rulings"]`.
@@ -173,10 +177,12 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 3: Fix checking
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/judge_fixes.py`.
 - Test: `tests/test_judge_fixes.py`.
 
 **Interfaces:**
+
 - Consumes:
   - `gold_labels.locate(quote, doc_text) -> {start, end, text} | None`;
   - `gold_labels.evidence_support(doc_class, name, value, quotes) -> (bool, str)`.
@@ -201,12 +207,14 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 4: The correcting judge and its ruling
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/correcting_judge.py`: `CorrectingJudge`, `build_prompt`, `rule`.
 - Modify: `src/mailroom_sandbox/vendor_hotfixes.py`: the HF-025 correct-mode branch.
 - Modify: `src/mailroom_sandbox/mock_llm.py`: a `fake_structured_payload` branch for the correcting judge prompt, so `sandbox pilot --mock` stays offline.
 - Test: `tests/test_correcting_judge.py`.
 
 **Interfaces:**
+
 - Consumes: Task 3 `verify_fix` and `apply_fixes`; Task 2 `note_ruling` and `note_before`; HF-024's `subclass_extraction.review_fields` (the requested fields).
 - Produces:
   - `CorrectingJudge(BaseAgent)` with `agent_name = "judge"`. Its `self.model` is set from `judge_model(doc_type)`, and the client is the judge's OpenRouter client.
@@ -237,6 +245,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 5: Arbiter pass-through, field-only retry, the two-ruling limit and the governor
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/vendor_hotfixes.py`:
   - HF-026 `_install_arbiter_passthrough` on `arbiter_node`;
   - HF-027 `_install_field_retry` on `retry_extract_node`, plus the route rule `"HF-027:judge_retry_rejudges"` on `retry_extract` (registered through `refresh`, like HF-011).
@@ -245,12 +254,13 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 - Test: `tests/test_correcting_judge.py`, `tests/test_governor.py`.
 
 **Interfaces:**
+
 - Consumes: Task 4's last ruling from `scope["judge_rulings"][-1]`.
 - Produces:
   - HF-026 (correct mode) makes no model call. It writes:
     - for a retry: `arbiter_decision: "retry_extraction"`, `arbiter_fields_to_fix`, `arbiter_retry_count` (+1);
     - for anything else: `"human_review"` with `arbiter_reasoning = ruling reason`.
-    
+
     Verify mode passes through to the original.
   - HF-027 re-extracts with `fields_only(retry_fields)`. It merges the result into the previous `extracted_data`, replacing only the named fields, and records `kind="retry_extract"` history as the vendored node does.
 
@@ -278,6 +288,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 6: Extra information: earlier attempts, guide definitions, the reference pool
 
 **Files:**
+
 - Create: `src/mailroom_sandbox/judge_references.py`.
 - Create: `scripts/build_judge_reference_pool.py` (`--check`).
 - Create: `config/judge/reference-pool-runbook-v2.jsonl` (generated, committed).
@@ -285,6 +296,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 - Test: `tests/test_judge_references.py`.
 
 **Interfaces:**
+
 - Produces:
   - `build_pool(assignments, interim, near_gold) -> list[dict]`. Rows hold `{doc_id, doc_class, subclass, set, component, fields: {name: {value, source: "near_gold"|"interim", evidence: [str]}}}`. Only `set ∈ {"calibration", "pool"}`; near-gold wins per field; `disputed` is excluded.
   - `examples(pool, doc_class, subclass, *, k, max_chars) -> list[dict]`: deterministic (sorted by doc id), same class and subtype, at most `k`.
@@ -309,12 +321,14 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 7: Reports
 
 **Files:**
+
 - Modify: `src/mailroom_sandbox/job/gate.py`: `_judge_fields(out, row, pred)` in `_status`, and a `_judge_block(statuses)` beside the governor block.
 - Modify: `src/mailroom_sandbox/job/routing_audit.py`: a `judge` block.
 - Modify: `src/mailroom_sandbox/job/gate_compare.py`: `judge_compare(baseline_dir, judge_dir, bars)`, the success rules for stages 1 and 2.
 - Test: `tests/test_correcting_judge.py`, `tests/test_gate_compare.py`.
 
 **Interfaces:**
+
 - Produces a gate `judge` block with:
   - `docs_judged`;
   - `rulings` by kind and pass;
@@ -349,6 +363,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 8: Models, pins and the stage configs
 
 **Files:**
+
 - Modify: `config/provider_pins.yaml`: `qwen/qwen3.7-plus: {order: [alibaba], allow_fallbacks: false}`.
 - Create: stage 1 configs in `config/runs/`. All use the production setup, `dev-look1` (300), the governor on, and `judge_max_passes: 2`, `arbiter_retry_max: 1`:
   - `p4-s1-verify-gov-off.yaml`
@@ -359,6 +374,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 - Test: `tests/test_correcting_judge.py`.
 
 **Spend caps:**
+
 - Each config's `job.api_cost_cap_usd` = 1.5 × (docs × the production pipeline cap per document + 2 rulings × the per-ruling cost, summed over the draw's documents by class).
 - The production pipeline cap per document is $0.02 (`config/runs/production/slice-0250.yaml`: $5 for 250 documents).
 - Per-ruling cost: $0.03 for qwen, $0.17 for mergers.
@@ -377,6 +393,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
 ### Task 9: Docs and hand-over
 
 **Files:**
+
 - Modify:
   - `docs/jobs.md`: a section "Correcting judge (`judge:`)";
   - `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md`: rows for HF-025 to HF-027;
