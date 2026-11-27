@@ -30,7 +30,7 @@ _LOCK = threading.Lock()
 _ACTIVE: dict[str, Any] | None = None
 #: The choice ``record_choice`` made for the extraction being set up: (class schema, schema sent,
 #: schema the judge reviews against). The last differs from the one sent only under fields_only.
-_PENDING: contextvars.ContextVar[tuple[dict, dict, dict] | None] = contextvars.ContextVar(
+_PENDING: contextvars.ContextVar[tuple[dict, dict, dict, str | None] | None] = contextvars.ContextVar(
     "sandbox_subclass_schema", default=None)
 #: Phase 4 field-only retry: the fields a judge-ordered re-extraction asks for (None: every field).
 _ONLY: contextvars.ContextVar[frozenset[str] | None] = contextvars.ContextVar("sandbox_fields_only", default=None)
@@ -121,8 +121,11 @@ def low_band(doc_class: str) -> float | None:
     return None if value is None else float(value)
 
 
-def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool) -> None:
+def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool, note: bool = False) -> None:
     """Turn the switch on for this process; refuses a field list that differs from the lock's.
+
+    ``note`` (``job.subclass_field_note``) also appends :func:`field_note` to the system prompt of
+    a specialist sent a narrowed subclass schema.
 
     Without ``lists`` the committed file is read once, and the lists come from the same bytes the
     sha is taken of, so a file replaced between a parse and a hash cannot pass the lock check.
@@ -139,7 +142,7 @@ def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool
             f"job.subclass_schemas: the subclass field list changed after the run was locked "
             f"(locked {sha256[:12] or 'nothing'}, now {actual[:12]}); re-run preflight")
     with _LOCK:
-        _ACTIVE = {"lists": copy.deepcopy(dict(lists)), "guide": bool(guide)}
+        _ACTIVE = {"lists": copy.deepcopy(dict(lists)), "guide": bool(guide), "note": bool(note)}
 
 
 def deactivate() -> None:
@@ -151,6 +154,39 @@ def deactivate() -> None:
 
 def active() -> bool:
     return _ACTIVE is not None
+
+
+def note_active() -> bool:
+    return bool(_ACTIVE and _ACTIVE.get("note"))
+
+
+def field_note(doc_class: str, subclass: str, base: Mapping[str, Any], schema: Mapping[str, Any]) -> str | None:
+    """``job.subclass_field_note``: the block appended after a specialist's (frozen) system prompt.
+
+    The promoted prompts are class-level text written before subclass schemas; some name fields
+    the subclass schema no longer requests (the MAUD merger prompt sends consideration language to
+    ``subject_matter`` or ``keywords``, which every merger subclass drops). The strict schema stops
+    a dropped field being written, not its content moving into a field that is still requested.
+    The note is built from the two schemas only, so it follows the committed field lists. None
+    when the field sets are equal (a fallback, or a subclass that drops and adds nothing).
+    """
+    base_fields = list((base.get("properties") or {}))
+    fields = list((schema.get("properties") or {}))
+    dropped = [name for name in base_fields if name not in fields]
+    added = [name for name in fields if name not in base_fields]
+    if not (dropped or added):
+        return None
+    lines = ["SUBCLASS FIELDS",
+             f"This document was sorted as {doc_class} / {subclass}; the response schema lists the fields "
+             "to fill for it."]
+    if dropped:
+        lines.append("Not requested for this subclass: " + ", ".join(f"`{n}`" for n in dropped)
+                     + ". Where the instructions above ask for any of these, leave that content out; "
+                     "never move it into another field.")
+    if added:
+        lines.append("Requested for this subclass in addition to the class fields: "
+                     + ", ".join(f"`{n}`" for n in added) + " (see each field's description in the schema).")
+    return "\n".join(lines)
 
 
 @contextlib.contextmanager
@@ -188,16 +224,18 @@ def record_choice(state: Mapping[str, Any]) -> None:
         _PENDING.set(None)
         return
     subclass = state.get("contract_subtype") if doc_class == "contract" else state.get("doc_subclass")
-    schema = base
+    schema, note = base, None
     if cfg is not None:
         schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
                                        cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
         _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
+        if cfg.get("note") and schema is not base:
+            note = field_note(doc_class, str(subclass or "").strip(), base, schema)
     if only is not None:
         # The judge still reviews the whole (merged) extraction against the subclass schema.
-        _PENDING.set((base, _restrict(schema, only), schema))
+        _PENDING.set((base, _restrict(schema, only), schema, note))
         return
-    _PENDING.set(None if schema is base else (base, schema, schema))
+    _PENDING.set(None if schema is base else (base, schema, schema, note))
 
 
 #: Specialists whose ``extract`` a corporate-schema hotfix may wrap (PR #425 composes its own
@@ -227,7 +265,7 @@ def bind_choice(agent: Any) -> None:
     _record_review(None)
     if choice is None:
         return
-    base, schema, review = choice
+    base, schema, review, note = choice
     cls = type(agent)
     if _composed_elsewhere(cls):
         _log.info("subclass schema for %s left to %s on %s.extract", getattr(agent, "doc_id", None) or "extraction",
@@ -245,9 +283,23 @@ def bind_choice(agent: Any) -> None:
             kwargs["json_schema"] = schema
         elif len(args) >= 2 and args[1] is base:  # (user_message, json_schema, ...)
             args = (args[0], schema, *args[2:])
+        if note:
+            kwargs["system_prompt"] = f"{_default_system(agent, kwargs.get('system_prompt'))}\n\n{note}"
         return cls._call_structured(agent, *args, **kwargs)  # resolved per call: observer, sampling
 
     agent._call_structured = _call_structured
+
+
+def _default_system(agent: Any, explicit: str | None) -> str:
+    """The system prompt a structured call uses when none is passed, with the promoted prompt as its head.
+
+    LangChain specialists use ``augmented_system_prompt()`` (prompt, skills, tools, memory); the legacy
+    ``agents`` family uses ``system_prompt()`` and appends its skill text later, in ``_call_llm``.
+    """
+    if explicit is not None:
+        return explicit
+    augmented = getattr(agent, "augmented_system_prompt", None)
+    return str(augmented() if callable(augmented) else agent.system_prompt())
 
 
 # --- HF-024: the judge and the arbiter see the fields the extraction was asked for ----------

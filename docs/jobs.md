@@ -610,6 +610,30 @@ resumes it runs with class schemas. Preflight resumes it only while it has no ch
 refuses it once work has started. An ad-hoc pipeline eval
 with no lock uses the committed field lists.
 
+### Subclass field note (`job.subclass_field_note`)
+
+The promoted specialist prompts are frozen, class-level text written before subclass schemas. Some of them
+name fields a subclass schema no longer requests. The MAUD merger prompt, for example, sends consideration
+and exchange-ratio language to `subject_matter` or `keywords`, which every merger subclass drops. The strict
+schema stops a dropped field from being written, but not its content from moving into a field that is still
+requested (for mergers, `maud_clauses`).
+
+`job.subclass_field_note: true` (pipeline runs only; off by default and hashed only when set) appends a short
+block after the system prompt of a specialist that was sent a narrowed subclass schema. The block names the
+class and subclass, lists the fields the subclass does not request ("leave that content out; never move it
+into another field"), and lists any fields it adds.
+
+- The promoted prompt stays the head of the system prompt, byte for byte. LangChain specialists append the
+  note after `augmented_system_prompt()`, and legacy `agents` specialists after `system_prompt()`.
+- The note is built from the two schemas only, so it follows the committed field lists.
+- A fallback to the class schema, and a subclass whose requested fields equal the class's, get no note.
+- No hotfix ID is taken: the note rides on HF-023's per-instance wrapper.
+
+Adoption is an A/B: `config/runs/sx-note-s1-on.yaml` is the Phase 4 stage 1 baseline
+`config/runs/p4-s1-verify-gov-off.yaml` with only the note on
+(`test_the_note_ab_arm_differs_from_its_baseline_only_in_the_note`). Plan:
+[`docs/design/plans/2026-11-27-subclass-field-note.md`](design/plans/2026-11-27-subclass-field-note.md).
+
 ## Correcting judge (`judge:`)
 
 Phase 4 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (plan:

@@ -489,3 +489,205 @@ def test_every_added_field_is_scoreable(lists):
     added.append(("corporate_record", "certifying_officer"))  # the synthetic extension of Task 1
     for cls, field in added:
         assert field in applicable_expected_fields(cls, {field: "x"}), (cls, field)
+
+
+# --- Promoted prompts and subclass schemas (docs/design/plans/2026-11-27-subclass-field-note.md) --
+
+#: Sorter tokens with no field list yet, so they fall back to the class schema (FNOL forms, unlabeled).
+_UNLISTED_FALLBACK = {"insurance_claim": {"health", "liability", "life", "workers_comp"}}
+
+
+def _listed_pairs():
+    return [(cls, sub) for cls, subs in sorted(sf.load_field_lists()["classes"].items())
+            for sub in sorted(subs) if sub not in sx.FALLBACK_SUBCLASSES]
+
+
+@pytest.mark.parametrize(("cls", "sub"), _listed_pairs())
+def test_every_listed_subclass_sends_its_own_schema(cls, sub, captured, schemas, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    _extract(cls, sub)
+    expected, reason = sx.choose_schema(cls, sub, 0.99, schemas[cls], lists, low=sx.low_band(cls), guide=False)
+    assert reason == "subclass" and captured
+    for _, sent in captured:
+        assert sent == expected
+        assert not set(lists["classes"][cls][sub]["drop"]) & set(sent["properties"])
+        assert set(lists["classes"][cls][sub]["add"]) <= set(sent["properties"])
+
+
+@pytest.mark.parametrize("cls", sorted(_EXTRACTORS))
+def test_every_sorter_subclass_token_has_a_field_list_or_a_documented_fallback(cls, schemas, lists):
+    from langchain_agents import doc_inventories as di
+
+    listed = set(lists["classes"][cls])
+    tokens = set(di.valid_sorter_subclasses(cls))
+    unlisted = tokens - listed - sx.FALLBACK_SUBCLASSES
+    assert unlisted == _UNLISTED_FALLBACK.get(cls, set())
+    assert listed - sx.FALLBACK_SUBCLASSES <= tokens  # no field list the sorter can never reach
+
+
+@pytest.fixture
+def prompts_sent(monkeypatch, schemas):
+    """Like ``captured``, but records the system prompt each specialist structured call would use."""
+    from agents import base as agents_base
+    from langchain_agents import base_agent as lc_base
+
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
+    calls: list[tuple[str, dict, str | None]] = []
+
+    def stub(self, user_message, json_schema, *args, **kwargs):
+        calls.append((type(self).__name__, json_schema, kwargs.get("system_prompt")))
+        return {"confidence": 0.9}
+
+    monkeypatch.setattr(agents_base.BaseAgent, "_call_structured", stub)
+    monkeypatch.setattr(lc_base.BaseAgent, "_call_structured", stub)
+    return calls
+
+
+def test_the_note_names_every_dropped_and_added_field(schemas, lists):
+    for cls, sub in _listed_pairs():
+        entry, base = lists["classes"][cls][sub], set(schemas[cls]["properties"])
+        dropped = set(entry["drop"]) & base  # a derived field outside the request (cms_source_table) changes nothing
+        added = set(entry["add"]) - base
+        schema, _ = _choose(schemas, lists, cls, sub)
+        note = sx.field_note(cls, sub, schemas[cls], schema)
+        if not (dropped or added):
+            assert note is None, (cls, sub)
+            continue
+        assert note and f"{cls} / {sub}" in note, (cls, sub)
+        for name in dropped:
+            assert f"`{name}`" in note.split("Not requested")[1].split("\n")[0], (cls, sub, name)
+        for name in added:
+            assert f"`{name}`" in note, (cls, sub, name)
+        if dropped:
+            assert "never move it into another field" in note
+
+
+def test_no_note_for_a_fallback_or_an_unchanged_subclass(schemas, lists):
+    base = schemas["merger_agreement"]
+    assert sx.field_note("merger_agreement", "other", base, base) is None
+    assert sx.field_note("merger_agreement", "all_cash", base, copy.deepcopy(base)) is None
+
+
+def _promoted_stems():
+    import yaml
+
+    from mailroom_sandbox.prompt_lineage import with_lineage_defaults
+
+    spec = yaml.safe_load(open("config/runs/production/slice-0250.yaml", encoding="utf-8"))
+    agents = with_lineage_defaults(spec.get("prompt") or {}, "pipeline")["agents"]
+    return {agent: row["file"] for agent, row in agents.items() if row.get("source") == "local"}
+
+
+_SPECIALIST_AGENT = {"contract": "contracts_specialist", "corporate_record": "corporate_records_specialist",
+                     "correspondence": "correspondence_specialist",
+                     "insurance_claim": "insurance_claims_specialist",
+                     "merger_agreement": "merger_agreement_specialist"}
+
+
+def test_every_promoted_prompt_field_a_subclass_drops_is_named_in_its_note(schemas, lists):
+    import re
+
+    stems = _promoted_stems()
+    assert set(_SPECIALIST_AGENT.values()) <= set(stems), stems
+    for cls, sub in _listed_pairs():
+        text = open(f"config/prompts/{stems[_SPECIALIST_AGENT[cls]]}.txt", encoding="utf-8").read()
+        named = {f for f in lists["classes"][cls][sub]["drop"]
+                 if re.search(rf"(?<![A-Za-z0-9_]){re.escape(f)}(?![A-Za-z0-9_])", text)}
+        if not named:
+            continue
+        schema, _ = _choose(schemas, lists, cls, sub)
+        note = sx.field_note(cls, sub, schemas[cls], schema) or ""
+        assert all(f"`{f}`" in note for f in named), (cls, sub, named)
+
+
+def test_the_promoted_prompt_stays_the_head_and_the_note_follows(prompts_sent, schemas, lists, switch_off,
+                                                                 monkeypatch):
+    import graph.build_graph as bg
+
+    promoted = open(f"config/prompts/{_promoted_stems()['merger_agreement_specialist']}.txt",
+                    encoding="utf-8").read()
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
+    handoff = bg._build_handoff_context(_state("merger_agreement", "all_cash"))
+
+    def head(self, *args, **kwargs):
+        return promoted
+
+    from langchain_agents import base_agent as lc_base
+
+    monkeypatch.setattr(lc_base.BaseAgent, "augmented_system_prompt", head)
+    bg._extract_merger_agreement("A short merger agreement body.", [], handoff)
+    assert prompts_sent
+    schema, _ = _choose(schemas, lists, "merger_agreement", "all_cash")
+    note = sx.field_note("merger_agreement", "all_cash", schemas["merger_agreement"], schema)
+    for _, sent, system in prompts_sent:
+        assert sent == schema
+        assert system == f"{promoted}\n\n{note}"
+        for name in ("subject_matter", "keywords", "intent"):
+            assert f"`{name}`" in note
+
+
+def test_off_sends_no_note(prompts_sent, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    _extract("merger_agreement", "all_cash")
+    assert prompts_sent and all(system is None for _, _, system in prompts_sent)
+
+
+def test_a_fallback_extraction_gets_no_note(prompts_sent, lists, switch_off):
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
+    _extract("insurance_claim", "health")
+    _extract("merger_agreement", "all_cash", confidence=0.01)
+    assert prompts_sent and all(system is None for _, _, system in prompts_sent)
+
+
+@pytest.mark.parametrize("cls", sorted(_EXTRACTORS))
+def test_every_specialist_family_gets_the_note_on_its_own_default_prompt(cls, prompts_sent, schemas, lists,
+                                                                         switch_off):
+    sub = _EXTRACTORS[cls][1]
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
+    _extract(cls, sub)
+    schema, _ = _choose(schemas, lists, cls, sub)
+    note = sx.field_note(cls, sub, schemas[cls], schema)
+    for _, _, system in prompts_sent:
+        if note is None:
+            assert system is None
+        else:
+            assert system and system.endswith(f"\n\n{note}") and len(system) > len(note) + 2
+
+
+def test_the_note_flag_is_hashed_only_when_set():
+    assert "subclass_field_note" not in spec_core(_spec())["job"]
+    assert spec_core(_spec(subclass_field_note=True))["job"]["subclass_field_note"] is True
+    assert spec_hash(_spec()) != spec_hash(_spec(subclass_field_note=True))
+
+
+def test_the_note_requires_a_pipeline_task():
+    with pytest.raises(ValidationError, match="subclass_field_note"):
+        _spec(task="sorter", subclass_field_note=True)
+
+
+def test_the_lock_activates_the_note(monkeypatch, switch_off):
+    sha = sf.field_lists_sha256()
+    lock = {"profile": "modal-vllm", "task": "pipeline", "job": {"subclass_schemas": True, "subclass_field_note": True},
+            "spec_core": {"job": {"subclass_fields_sha256": sha}}}
+    with runtime.locked_runtime(lock, {}):
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert sx.active() and sx.note_active()
+    lock["job"].pop("subclass_field_note")
+    with runtime.locked_runtime(lock, {}):
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert sx.active() and not sx.note_active()
+
+
+def test_the_note_ab_arm_differs_from_its_baseline_only_in_the_note():
+    import yaml
+
+    def core(name):
+        spec = RunSpec.model_validate(yaml.safe_load(open(f"config/runs/{name}.yaml", encoding="utf-8")))
+        out = spec_core(spec)
+        out.pop("trace", None)  # tags only
+        return out
+
+    on, off = core("sx-note-s1-on"), core("p4-s1-verify-gov-off")
+    assert on["job"].pop("subclass_field_note") is True
+    assert "subclass_field_note" not in off["job"]
+    assert on == off
