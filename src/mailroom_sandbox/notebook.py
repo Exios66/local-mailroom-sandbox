@@ -855,6 +855,30 @@ def _check_label(
             if value == want
             else (UNGROUNDED, f"{doc_class} subclass {sub!r} derives {want!r}")
         )
+    if doc_class == "merger_agreement":
+        if "doc_subclass" in record and sub is None:
+            return UNGROUNDED, "invalid merger agreement subclass None"
+        if row is not None:
+            if il.row_doc_sha(row) != record.get("doc_sha256"):
+                return NO_EVIDENCE, "document text changed since the label was read"
+            row_class, row_sub = row.get("expected_doc_class"), row.get("expected_subclass")
+            if row_class != doc_class or (sub is not None and sub != row_sub):
+                return UNGROUNDED, "record identity differs from bound corpus row"
+            sub = row_sub
+        try:
+            gl._merger_subclass(sub)
+        except KeyError as exc:
+            return UNGROUNDED, str(exc)
+        if name in gl.target_fields(doc_class, doc_subclass=sub):
+            quotes = _evidence_quotes(label)
+            types, _, _, _, model = gl._schema_bits(doc_class, sub)
+            problem = gl._merger_value_error(model, name, value, str(types[name]))
+            if problem:
+                return UNGROUNDED, problem
+            if not quotes:
+                return NO_EVIDENCE, "no evidence quote"
+            ok, reason = gl.evidence_support(doc_class, name, value, quotes, sub)
+            return (GROUNDED, "") if ok else (UNGROUNDED, reason)
     quotes = _evidence_quotes(label)
     if doc_class == "corporate_record":
         # Entity fields must always pass the admission gate, including reviewed labels.
@@ -877,9 +901,11 @@ def _check_label(
         elif name not in gl._schema_bits(doc_class)[0]:
             return UNGROUNDED, f"not a target field of {doc_class}/{sub}"
     if label.get("review"):
-        return _reviewed_label_status(doc_class, name, label, quotes)
+        return _reviewed_label_status(doc_class, name, label, quotes,
+                                      sub if doc_class == "merger_agreement" else None)
     if quotes:
-        ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes,
+                                         sub if doc_class == "merger_agreement" else None)
         return (GROUNDED, "") if ok else (UNGROUNDED, reason)
     allowed = gl._schema_bits(doc_class, sub)[1].get(name)
     if allowed is not None:

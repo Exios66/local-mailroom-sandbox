@@ -339,3 +339,26 @@ def test_missing_fields_source_identity_allows_legacy_missing_subclass(cli):
     held["corporate_record"].extend([{**held["corporate_record"][0], "subclass": "subsidiary_list"},
                                      {**held["corporate_record"][0], "subclass": "indenture"}])
     assert mod._missing_field_source_problems(submitted, [], held)
+
+
+@pytest.mark.parametrize('new_subclass', ['all_stock', None])
+def test_missing_merger_subclass_drift_refuses_atomically(cli, monkeypatch, capsys, new_subclass):
+    mod, write, build, tmp = cli
+    text = 'Agreement by Alpha Corp, parent, and Beta LLC, target.'
+    row = {'document_id': 'DOC-1', 'filename': 'merger.txt', 'expected': 'merger_agreement',
+           'expected_subclass': 'all_cash', 'content_sha256': hashlib.sha256(text.encode()).hexdigest()}
+    monkeypatch.setattr(mod, '_load_corpus', lambda _: ([row], {'merger.txt': text}))
+    label = write('merger-label.jsonl', [_s('DOC-1', 'label', {'acquirer': {'value': 'Alpha Corp', 'evidence': ['Alpha Corp']}})])
+    check = write('merger-check.jsonl', [_s('DOC-1', 'check', {'acquirer': {'value': 'Alpha Corp', 'evidence': ['Alpha Corp, parent']}})])
+    assert build('--label', label, '--check', check) == 0
+    before = _store_bytes(tmp)
+    row['expected_subclass'] = new_subclass
+    label_fields = {'target': {'value': 'Beta LLC', 'evidence': ['Beta LLC']}}
+    check_fields = {'target': {'value': 'Beta LLC', 'evidence': ['Beta LLC, target']}}
+    if new_subclass is None:
+        with pytest.raises(SystemExit):
+            _add(cli, [_s('DOC-1', 'label', label_fields)], [_s('DOC-1', 'check', check_fields)])
+    else:
+        assert _add(cli, [_s('DOC-1', 'label', label_fields)], [_s('DOC-1', 'check', check_fields)]) == 1
+        assert 'subclass differs' in capsys.readouterr().err
+    assert _store_bytes(tmp) == before

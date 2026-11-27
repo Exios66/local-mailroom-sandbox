@@ -163,9 +163,9 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
             if row.get("content_sha256") and row["content_sha256"] != measured:
                 raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
                                  "refusing to label a document whose text is not the published one")
-            if row["expected"] == "corporate_record":
+            if row["expected"] in ("corporate_record", "merger_agreement"):
                 try:
-                    gl._corporate_subclass(row.get("expected_subclass"))
+                    (gl._corporate_subclass if row["expected"] == "corporate_record" else gl._merger_subclass)(row.get("expected_subclass"))
                 except KeyError as exc:
                     raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
@@ -709,9 +709,10 @@ def _missing_field_source_problems(labelled: list, checked: list,
                             "rebuild the catalog before adding fields")
             continue
         cls, content_sha, doc_sha, filename = next(iter(identities))
-        if cls == "corporate_record":
+        if cls in ("corporate_record", "merger_agreement"):
             subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
-            if len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+            missing = cls == "merger_agreement" and any(r.get("subclass") is None for r in held[doc_id])
+            if missing or len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
                 problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
         if cls != doc["doc_class"]:
             problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
@@ -872,9 +873,9 @@ def cmd_review(args: argparse.Namespace) -> int:
             problems.append(f"{key[0]}.{key[1]}: corpus identity differs from the label's")
             continue
         subclass = row.get("expected_subclass")
-        if cls == "corporate_record":
+        if cls in ("corporate_record", "merger_agreement"):
             try:
-                gl._corporate_subclass(subclass)
+                (gl._corporate_subclass if cls == "corporate_record" else gl._merger_subclass)(subclass)
             except KeyError as exc:
                 problems.append(f"{key[0]}.{key[1]}: {exc}")
                 continue
