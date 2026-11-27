@@ -75,7 +75,13 @@ Write one JSON object per document, one per line (JSONL):
   Otherwise write the same amount in that form: write a scale word out ("$5 million" becomes
   "$5,000,000"), drop a currency code ("US$400,000.00" and "$55,000USD" become "$400,000.00" and
   "$55,000"), and drop a rate ("$40 per month" becomes "$40"). Never compute a total. The quote
-  stays the passage as written, and the gate checks that it shows the same amount as money.
+  stays the passage as written. For merger fields, the same figure must have a source dollar
+  marker (`$`, `US$` or `USD`); a payment word alone is insufficient. Hold a non-US or
+  ambiguously qualified dollar amount, an explicit non-dollar amount, or an amount with unknown
+  currency: omit the field and explain why in `supplementary.notes`, rather than mark it absent
+  or change its currency symbol. Preserve all source qualifiers in the quote and notes. The
+  automated check cannot identify every currency qualifier, especially one away from the figure;
+  review the surrounding source for currency and hold the field when it is ambiguous.
   `scripts/gold_labels.py check` rejects a `near_gold` phrase that Dojo cannot parse.
 - **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
   ("Supplier", "Licensee", plural or defined-term forms are fine); `other` is the only role
@@ -334,7 +340,7 @@ supporting quote. Use `[]` or null only after a documented search for an applica
 | `financial_advisors` | list of names | Financial advisors in brokers and fairness opinion provisions. |
 | `legal_counsel` | list of names | Law firms named on notice copy-recipient lines, not financial advisors. |
 
-For money use the plain dollar figure for the same stated source amount, as in the currency
+For money use the plain dollar figure only for a source-supported dollar amount, as in the currency
 rule above; never infer a figure, convert currency, calculate a total or choose among ambiguous
 conditional fees. Record conditions and caps in supplementary notes and hold a field if one
 scalar cannot faithfully represent it. Dates require a complete source calendar date in ISO

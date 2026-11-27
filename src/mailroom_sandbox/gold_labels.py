@@ -376,6 +376,30 @@ def _money_supported(value: float, evidence: str) -> bool:
 _PLAIN_DOLLARS = re.compile(r"\$(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 
 
+def _merger_dollars_supported(value: str, evidence: str) -> bool:
+    """A merger amount needs a dollar marker attached to the same figure."""
+    wanted = _figures(value)
+    for match in _FIGURE.finditer(evidence):
+        before, after = evidence[:match.start()], evidence[match.end():]
+        # A bare dollar sign may not be part of C$, A$, CAD $, etc. Likewise,
+        # reject an explicit foreign qualifier after the amount.
+        prefix = re.search(r"(?<![\w$])(?:US\s*\$|USD\s*\$?|\$)\s*$", before, re.I)
+        suffix = re.match(r"\s*USD\b", after, re.I)
+        foreign = re.match(
+            r"\s*(?:CAD|AUD|NZD|HKD|SGD|GBP|EUR|CHF|JPY|CNY|INR|MXN|Canadian|Australian|New Zealand|"
+            r"Hong Kong|Singapore|euros?|pounds?)\b|\s*[$€£]", after, re.I)
+        # Do not treat a suffix USD as permission to override a foreign prefix.
+        foreign_prefix = re.search(
+            r"(?:\b(?:CAD|AUD|NZD|HKD|SGD|GBP|EUR|CHF|JPY|CNY|INR|MXN|Canadian|Australian|New Zealand|"
+            r"Hong Kong|Singapore)\s*\$?|(?<![A-Za-z])[A-Za-z€£]\$|[€£])\s*$", before, re.I)
+        foreign_prefix = foreign_prefix or re.search(r"(?<![A-Za-z])(?:C|A|NZ|HK|SG)\s+\$\s*$", before)
+        if foreign or foreign_prefix or (not prefix and not suffix):
+            continue
+        if wanted & _figures(match.group()):
+            return True
+    return False
+
+
 def _money_text_supported(value: str, evidence: str) -> bool:
     """A currency phrase kept as text: it appears in the evidence as written (whitespace
     normalised, not inside a longer figure) and holds a finite figure the quote shows as money.
@@ -689,7 +713,8 @@ def _list_value_supported(res: FieldResult, value: Any, ftype: str, ev_text: str
 
 
 def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ftype: str, spans: list,
-                     ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
+                     ev_text: str, empty_value: Any, money_as_text: bool,
+                     merger_money: bool = False) -> bool | None:
     """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
     if name == "filing_number":
         return any(_identifier_supported(value, sp["text"]) for sp in spans)
@@ -697,6 +722,8 @@ def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ft
         # One quote must hold the whole date: "May 14" and "2020" from two quotes never make one.
         return _date_value_supported(res, value, spans)
     if ftype == "money" and money_as_text:
+        if merger_money:
+            return any(_merger_dollars_supported(str(raw_value), sp["text"]) for sp in spans)
         # The pipeline field is a currency phrase (contract_value: str), kept as written.
         return any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
     if ftype == "money":
@@ -711,7 +738,8 @@ def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ft
 
 
 def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
-                 vocab: tuple[str, ...] | None, empty_value: Any, *, money_as_text: bool = False) -> FieldResult:
+                 vocab: tuple[str, ...] | None, empty_value: Any, *, money_as_text: bool = False,
+                 merger_money: bool = False) -> FieldResult:
     res = FieldResult(field=name, ok=False, evidence=[], checks={})
     if not isinstance(entry, Mapping):
         res.reason = "entry is not an object"
@@ -742,7 +770,8 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     res.evidence = spans
     ev_text = " ".join(s["text"] for s in spans)
 
-    supported = _value_supported(res, name, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text)
+    supported = _value_supported(res, name, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text,
+                                 merger_money)
     if supported is None:
         return res
     res.checks["value_supported"] = supported
@@ -797,7 +826,7 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str],
     res = FieldResult(field=name, ok=False)
     ev_text = " ".join(s["text"] for s in spans)
     supported = _value_supported(res, name, norm, value, ftype, spans, ev_text,
-                                 empty_value(name), _text_field(model, name))
+                                 empty_value(name), _text_field(model, name), doc_class == "merger_agreement")
     if supported is None:
         return False, res.reason or "type rule failed"
     if not supported:
@@ -854,7 +883,8 @@ def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str,
                 result.fields[name] = FieldResult(field=name, ok=False, reason="evidence is not a list of quotes")
                 continue
         result.fields[name] = _check_field(name, entry, doc_text, str(types[name]), vocab.get(name),
-                                           empty_value(name), money_as_text=_text_field(model, name))
+                                           empty_value(name), money_as_text=_text_field(model, name),
+                                           merger_money=doc_class == "merger_agreement")
         fr = result.fields[name]
         if doc_class in ("corporate_record", "merger_agreement") and doc_subclass is not None and fr.ok and isinstance(fr.value, list):
             if not all(any(_token_coverage(item, span["text"]) >= 0.8 for span in fr.evidence)

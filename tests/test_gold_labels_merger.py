@@ -57,6 +57,30 @@ def test_per_member_evidence_absence_and_excluded_fields():
     assert not r.fields['merger_consideration'].ok
 
 
+@pytest.mark.parametrize('value,quotes,expected', [
+    ('$50', ['€50'], False), ('$50', ['£50'], False),
+    ('$50', ['GBP 50'], False), ('$50', ['pay 50'], False),
+    ('$50', ['C$50'], False), ('$50', ['C $50'], False), ('$50', ['CAD $50'], False),
+    ('$50', ['A$50'], False), ('$50', ['NZ $50'], False), ('$50', ['$50 CAD'], False),
+    ('$50', ['$50 CHF'], False),
+    ('$50', ['Canadian $50'], False), ('$50', ['€50 USD'], False),
+    ('$50', ['$40 and €50'], False), ('$50', ['$40', 'pay 50'], False),
+    ('$50', ['$50'], True), ('$50', ['a $50 payment'], True), ('$50', ['US$50'], True),
+    ('$50', ['$50 AND other consideration'], True), ('$50', ['$50 FOR each share'], True),
+    ('$50', ['THE $50 payment'], True),
+    ('$50', ['USD 50'], True), ('$50', ['pay 50 USD'], True),
+    ('$5,000,000', ['USD 5 million'], True),
+    ('$50', ['$50 and €40'], True),
+])
+def test_merger_money_needs_same_figure_dollar_evidence(value, quotes, expected):
+    name = 'per_share_cash_amount'
+    text = ' '.join(quotes)
+    result = gl.validate_submission({'fields': {name: {'value': value, 'evidence': quotes}}},
+                                    text, 'merger_agreement', 'all_cash')
+    assert result.fields[name].ok is expected, result.fields[name].reason
+    assert gl.evidence_support('merger_agreement', name, value, quotes, 'all_cash')[0] is expected
+
+
 def test_subclass_is_corpus_identity_not_submitted_value():
     for sub in (None, 'unknown', 'All Cash'):
         r = gl.validate_submission({'subclass': 'all_cash', 'fields': {'target': {'value': 'Alpha', 'evidence': ['Alpha']}}}, 'Alpha', 'merger_agreement', sub)
