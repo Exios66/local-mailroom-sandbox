@@ -196,7 +196,7 @@ Consequences for the spec's other bullets:
 
 - [x] **Step 1: Write the failing tests:**
   - `test_subclass_schemas_is_off_by_default_and_unhashed` (test_job_spec): a pipeline spec without the key has the same `spec_hash` as before, and `spec_core` has no `subclass_` keys. *Superseded:* the switch is always on for pipeline runs, so a pipeline spec without the key now resolves on and its `spec_hash` changes; the test was replaced by the always-on and non-pipeline-unset tests.
-  - `test_subclass_schemas_requires_a_pipeline_task` (test_job_spec): the key on a non-pipeline task fails validation.
+  - `test_subclass_schemas_requires_a_pipeline_task` (test_job_spec): `subclass_schemas: true` on a non-pipeline task fails validation (`false` is accepted and kept).
   - `test_the_lock_changes_when_the_field_list_changes`: monkeypatch `FIELDS_PATH` to a temporary copy, then change one `drop` list. `spec_hash` differs.
   - `test_a_field_list_changed_after_the_lock_refuses_to_activate`: `activate(..., sha256="0"*64)` raises `RuntimeError`.
   - `test_an_extraction_requests_the_narrowed_schema`: parametrized over `corporate_record`/`subsidiary_list` (agents base) and `merger_agreement`/`all_cash` (langchain base).
