@@ -31,9 +31,10 @@ def main(argv: list[str] | None = None) -> int:
         from mailroom_sandbox import rescore
 
         source = rescore.locate(args.run).path
+        sources = [source] + ([rescore.locate(args.baseline).path] if args.baseline else [])
         result = merger_entities.check(source, args.labels, baseline=args.baseline)
         out = merger_entities.write_check(result, args.out or merger_entities.default_output(result["run_id"]),
-                                          source=source)
+                                          source=sources)
     except (merger_entities.EntityCheckError, RuntimeError) as exc:
         print(f"entity check failed: {exc}", file=sys.stderr)
         return 2

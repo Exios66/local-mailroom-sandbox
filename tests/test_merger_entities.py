@@ -76,7 +76,7 @@ def test_a_field_with_no_labels_reads_unlabelled_not_zero(tmp_path):
     result = me.check(_store(tmp_path, "r1", [_item("d1"), _item("d2")]), _labels(tmp_path, LABELS))
     fields = result["fields"]
     assert fields["outside_date"] == {"accuracy": None, "n": 0, "source": None, "status": "unlabelled",
-                                      "verified": None}
+                                      "verified": None, "filled_on_null": 0}
     assert fields["governing_law"]["status"] == "scored" and fields["governing_law"]["n"] == 2
     assert fields["document_name"]["source"] == "interim" and fields["governing_law"]["source"] == "near_gold"
 
@@ -226,3 +226,52 @@ def test_the_script_runs_end_to_end(tmp_path, capsys):
     assert json.loads(out.read_text())["label"] == me.LABEL
     assert mod.main(["--run", str(run), "--labels", str(tmp_path / "labels" / "merger_agreement.jsonl"),
                      "--out", str(run / "x.json")]) == 2
+
+
+def test_a_value_read_where_the_label_says_absent_is_counted_not_dropped(tmp_path):
+    # Final review F7: a null label is not scored, but a filled read on it is a made-up value to report.
+    labels = _labels(tmp_path, {"d1": {"governing_law": _label(None), "acquirer": _label(None)},
+                                "d2": {"governing_law": _label("State of New York")}})
+    result = me.check(_store(tmp_path, "r1", [_item("d1", acquirer=""), _item("d2")]), labels)
+    assert result["counts"]["null_labels"] == 2 and result["counts"]["filled_on_null"] == 1
+    assert result["fields"]["governing_law"]["filled_on_null"] == 1      # d1 read Delaware where none is
+    assert result["fields"]["acquirer"]["filled_on_null"] == 0           # an empty read is no fill
+    assert "filled where the label is null 1" in me.digest(result)
+
+
+def test_two_label_files_with_one_name_keep_their_own_spot_checks(tmp_path):
+    # Final review F8: a checked file must not lend its spot check to an unchecked file of the same name.
+    for side in ("a", "b"):
+        (tmp_path / side).mkdir()
+    checked = _labels(tmp_path / "a", {"d1": LABELS["d1"]})
+    unchecked = _labels(tmp_path / "b", {"d2": LABELS["d2"]})
+    me.record_spot_check(_filled_sheet(tmp_path, checked, right=True), checked)
+    run = _store(tmp_path, "r1", [_item("d1"), _item("d2")])
+    for order in ([unchecked, checked], [checked, unchecked]):
+        result = me.check(run, order)
+        assert result["fields"]["governing_law"]["verified"] is False, order
+        assert len(result["label_files"]) == 2 and result["spot_check"]["cite_blocked"] is True
+
+
+def test_the_digest_names_maud_as_context_not_the_gate_headline(tmp_path):
+    # Final review F9: the gate's headline is the paired MAUD run, not this subset of finished mergers.
+    text = me.digest(me.check(_store(tmp_path, "r1", [_item("d1")]), _labels(tmp_path, LABELS)))
+    assert "MAUD on finished mergers (not the gate's headline):" in text
+    assert "headline, for context" not in text
+
+
+def test_it_never_writes_inside_the_baseline_run_either(tmp_path):
+    # Final review F10: the baseline is a source run too.
+    import importlib.util
+
+    labels = _labels(tmp_path, LABELS)
+    run, base = _store(tmp_path, "r1", [_item("d1")]), _store(tmp_path, "r0", [_item("d1")])
+    result = me.check(run, labels, baseline=base)
+    with pytest.raises(me.EntityCheckError, match="inside the source run"):
+        me.write_check(result, base / "check.json", source=[run, base])
+    spec = importlib.util.spec_from_file_location("merger_entity_check", "scripts/merger_entity_check.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.main(["--run", str(run), "--labels", str(labels), "--baseline", str(base),
+                     "--out", str(base / "x.json")]) == 2
+    assert not (base / "x.json").exists()

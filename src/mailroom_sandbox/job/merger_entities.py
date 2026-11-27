@@ -76,7 +76,8 @@ def load_labels(paths: Path | str | Sequence[Path | str]) -> tuple[dict[str, dic
 
     A label counts when it is near-gold (``basis`` ``near_gold:``), gold, or an interim label marked
     ``use_as_truth``; for one document and field a gold label beats near-gold, which beats interim.
-    ``files`` maps each file name to its digest and its current spot-check entry (or ``None``).
+    ``files`` maps each file's resolved path to its digest and its current spot-check entry (or ``None``):
+    two files of one name in different directories keep their own spot checks (final review F8).
     """
     paths = [paths] if isinstance(paths, (str, Path)) else list(paths)
     docs: dict[str, dict[str, Any]] = {}
@@ -85,9 +86,10 @@ def load_labels(paths: Path | str | Sequence[Path | str]) -> tuple[dict[str, dic
         path = Path(raw)
         records = _read_records(path)
         digest = _sha(path)
+        key = str(path.resolve())
         entry = (_manifest(path).get("spot_check") or {}).get(path.name)
-        files[path.name] = {"sha256": digest,
-                            "spot_check": entry if (entry or {}).get("labels_sha256") == digest else None}
+        files[key] = {"sha256": digest,
+                      "spot_check": entry if (entry or {}).get("labels_sha256") == digest else None}
         for rec in records:
             if rec.get("doc_class") != DOC_CLASS:
                 continue
@@ -99,7 +101,7 @@ def load_labels(paths: Path | str | Sequence[Path | str]) -> tuple[dict[str, dic
                 held = doc["fields"].get(name)
                 if source is None or (held and SOURCES.index(held["source"]) >= SOURCES.index(source)):
                     continue
-                doc["fields"][name] = {"value": label.get("value"), "source": source, "file": path.name,
+                doc["fields"][name] = {"value": label.get("value"), "source": source, "file": key,
                                        "evidence": label.get("evidence") or label.get("support")}
     return docs, files
 
@@ -164,9 +166,21 @@ def _scored(arm: Mapping[str, Any], labels: Mapping[str, Any], counts: Counter[s
             counts["stale_labels"] += 1
             doc_labels = None
         fields = doc_labels["fields"] if doc_labels else {}
-        counts["null_labels"] += sum(1 for lab in fields.values() if lab["value"] is None)
-        out[doc_id] = {"fields": _score_doc(row, pred, fields), "maud": _maud(row, pred)}
+        nulls = [f for f, lab in fields.items() if lab["value"] is None]
+        filled = sorted(f for f in nulls if _filled(pred["extracted_data"].get(f)))
+        counts["null_labels"] += len(nulls)
+        counts["filled_on_null"] += len(filled)
+        out[doc_id] = {"fields": _score_doc(row, pred, fields), "maud": _maud(row, pred), "filled_on_null": filled}
     return out
+
+
+def _filled(value: Any) -> bool:
+    """A read that names something: not ``None``, an empty or blank string, or an empty list or object."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict)):
+        return bool(value)
+    return value is not None
 
 
 def _mean(values: list[float]) -> float | None:
@@ -177,8 +191,10 @@ def _field_block(scored: Mapping[str, Any], labels: Mapping[str, Any], files: Ma
     block: dict[str, Any] = {}
     for name in FIELDS:
         hits = [(d, s["fields"][name]) for d, s in scored.items() if name in s["fields"]]
+        filled = sum(1 for s in scored.values() if name in s.get("filled_on_null", ()))
         if not hits:
-            block[name] = {"accuracy": None, "n": 0, "source": None, "status": "unlabelled", "verified": None}
+            block[name] = {"accuracy": None, "n": 0, "source": None, "status": "unlabelled", "verified": None,
+                           "filled_on_null": filled}
             continue
         used = [labels[d]["fields"][name] for d, _ in hits]
         near = {lab["file"] for lab in used if lab["source"] == "near_gold"}
@@ -186,7 +202,8 @@ def _field_block(scored: Mapping[str, Any], labels: Mapping[str, Any], files: Ma
         block[name] = {"accuracy": _mean([v for _, v in hits]), "n": len(hits),
                        "source": min((lab["source"] for lab in used), key=SOURCES.index), "status": "scored",
                        "verified": (all(c is not None and not c.get("cite_blocked") for c in checks)
-                                    if near else None)}
+                                    if near else None),
+                       "filled_on_null": filled}
     return block
 
 
@@ -225,7 +242,8 @@ def check(run: str | Path, labels: Path | str | Sequence[Path | str], *, baselin
         "label": LABEL,
         "run_id": run_id,
         "counts": {"items": len(arm), "scored_docs": len(scored), "dataset_verified": verified,
-                   **{k: counts[k] for k in ("mergers", "no_pred", "failed", "stale_labels", "null_labels")}},
+                   **{k: counts[k] for k in ("mergers", "no_pred", "failed", "stale_labels", "null_labels",
+                                                  "filled_on_null")}},
         "label_files": {name: {"sha256": f["sha256"], "spot_check": f["spot_check"]} for name, f in files.items()},
         "fields": _field_block(scored, doc_labels, files),
         "spot_check": _spot_block(files, doc_labels),
@@ -248,12 +266,14 @@ def default_output(run_id: str, *, runs_root: Path | None = None) -> Path:
     return Path(runs_root).parent / "entity_checks" / f"{run_id}.merger_entities.json"
 
 
-def write_check(result: Mapping[str, Any], path: Path | str, *, source: Path | str | None = None) -> Path:
-    """Write the result; with ``source`` (the checked run directory), refuse a path inside it."""
+def write_check(result: Mapping[str, Any], path: Path | str, *,
+                source: Path | str | Sequence[Path | str] | None = None) -> Path:
+    """Write the result; refuse a path inside any ``source`` run directory (the run and its baseline)."""
     out = Path(path)
-    if source is not None:
-        run_dir = Path(source).resolve()
-        target = out.resolve()
+    sources = [] if source is None else [source] if isinstance(source, (str, Path)) else list(source)
+    target = out.resolve()
+    for src in sources:
+        run_dir = Path(src).resolve()
         if target == run_dir or run_dir in target.parents:
             raise EntityCheckError(f"{out} is inside the source run {run_dir}; the check never writes the run")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -269,6 +289,7 @@ def digest(result: Mapping[str, Any], path: Path | str | None = None) -> str:
         head += f" vs baseline {result['baseline_id']}"
     lines = [head, f"mergers {c['mergers']}, scored {c['scored_docs']}, failed {c['failed']}, "
                    f"stale labels {c['stale_labels']}, null labels (not scored) {c['null_labels']}, "
+                   f"filled where the label is null {c['filled_on_null']}, "
                    f"dataset digest {'checked' if c['dataset_verified'] else 'not in the lock'}"]
     spot = result["spot_check"]
     if spot is None:
@@ -285,7 +306,7 @@ def digest(result: Mapping[str, Any], path: Path | str | None = None) -> str:
             continue
         mark = {None: "", True: ", verified", False: ", unverified"}[f["verified"]]
         lines.append(f"  {name}: accuracy {f['accuracy']} (n {f['n']}, {f['source']}{mark})")
-    lines.append(f"MAUD accuracy (headline, for context): {result['maud_accuracy']}")
+    lines.append(f"MAUD on finished mergers (not the gate's headline): {result['maud_accuracy']}")
     pair = result.get("paired")
     if pair:
         lines.append(f"paired over {pair['n_docs']} documents: MAUD {pair['maud_accuracy']['baseline']} -> "
@@ -337,7 +358,7 @@ def spot_sample(labels: Path | str, *, n: int = 5, seed: int, out_dir: Path | st
                     lab = near[doc_id][name]
                     writer.writerow({"doc_id": doc_id, "field": name, "value": _text(lab["value"]),
                                      "evidence": _evidence(lab["evidence"]),
-                                     "labels_sha256": files[path.name]["sha256"], "correct": ""})
+                                     "labels_sha256": files[str(path.resolve())]["sha256"], "correct": ""})
     return sheet
 
 
