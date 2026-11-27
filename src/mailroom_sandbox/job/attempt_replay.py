@@ -155,7 +155,12 @@ def selection_meets(selection: Mapping[str, Any]) -> bool:
 
 
 def evidence_meets_confirming_arm(evidence: Mapping[str, Any]) -> bool:
-    """B: CUAD false clauses fall by at least ``FP_DROP``, missed rise by at most ``FN_RISE_PER_100`` per 100."""
+    """B: CUAD false clauses fall by at least ``FP_DROP``, missed rise by at most ``FN_RISE_PER_100`` per 100,
+    and no class with at least ``MIN_CLASS_N`` scored documents loses filtered quality."""
+    for block in (evidence.get("by_class") or {}).values():
+        before, after = block.get("before"), block.get("after")
+        if (block.get("scored_n") or 0) >= MIN_CLASS_N and before is not None and after is not None and after < before:
+            return False
     contract = (evidence.get("by_class") or {}).get("contract") or {}
     n = contract.get("cuad_n", contract.get("scored_n")) or 0
     fp_before = contract.get("cuad_fp_before") or 0
@@ -169,12 +174,17 @@ def evidence_meets_confirming_arm(evidence: Mapping[str, Any]) -> bool:
 def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = True) -> dict[str, Any]:
     """The replay of one finished run (JSON-serializable); the run directory is only read."""
     from mailroom_sandbox import rescore
-    from mailroom_sandbox.job.pair_report import load_arm
+    from mailroom_sandbox.job.pair_report import _failed, load_arm
 
     files = rescore.locate(run, runs_root=runs_root)
     lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
     if lock.get("task") not in (None, "pipeline"):
         raise ReplayError(f"task {lock.get('task')!r} runs no graph extraction: nothing to replay")
+    if (lock.get("judge") or {}).get("mode") == "correct":
+        # HF-025 writes verified fixes into extracted_data but not into the attempt history, so a
+        # restored attempt would drop them: the combination the run spec refuses.
+        raise ReplayError("judge.mode correct: keep_best_attempt is refused with it, so selection cannot be "
+                          "replayed (the attempt history does not hold the judge's fixes)")
     if activate:
         _activate(lock)
     arm = load_arm(files.path)
@@ -182,9 +192,15 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
     docs: list[dict[str, Any]] = []
     human = 0
     for entry in arm.values():
-        pred = (entry["item"] or {}).get("pred")
+        item = entry["item"] or {}
+        pred = item.get("pred")
         if not isinstance(pred, Mapping) or not isinstance(pred.get("extracted_data"), Mapping):
             skipped["no_pred"] += 1
+            continue
+        if _failed(item):
+            # The gate scores an unfinished document 0 whatever it extracted (SHF-011), and the
+            # graph never selected or reviewed it: no evidence for either change.
+            skipped["failed"] += 1
             continue
         doc = _document(entry["row"], pred)
         if doc is None:

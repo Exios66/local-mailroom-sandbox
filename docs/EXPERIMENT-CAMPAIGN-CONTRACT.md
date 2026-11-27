@@ -66,7 +66,7 @@ The complete implementations and upstream retirement conditions live in
 | HF-025 | With a `judge:` section, every judge ruling and the extraction before the judge are recorded in the result (`judge_rulings`, `before_judge`); `mode: verify` leaves the vendored judge unchanged | `test_correcting_judge.py` |
 | HF-026 | With `judge: mode: correct`, the arbiter makes no call; the judge's ruling is final and is not a governor round | `test_correcting_judge.py` |
 | HF-027 | With `judge: mode: correct`, a judge-ordered retry asks for and replaces only the named fields, then the judge rules a second and final time; a failed re-read (unparseable, guardrail-failed, unsupported or schema-invalid) goes to a person without a second ruling | `test_correcting_judge.py` |
-| HF-029 | With `job.evidence_check: true`, a one-call read drops the list items (`cuad_clauses`, `claim_checklist`, `action_items`, `denial_reasons`) whose quote is not in the document, records them, and never empties an extraction | `test_evidence_check.py` |
+| HF-029 | With `job.evidence_check: true`, a one-call read drops the `cuad_clauses` and `claim_checklist` items whose quoted span is not in the document, records them, and never empties an extraction | `test_evidence_check.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |

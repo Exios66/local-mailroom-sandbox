@@ -67,9 +67,11 @@ HF-029 wraps `graph.build_graph._enrich_contract_result`, which both `extract_no
 
 - **Scope.** Only an extraction read in one call. A chunked extraction keeps the configured merge
   policy, so the filter never runs twice.
-- **Fields.** The vendored `_DEFAULT_EVIDENCE_FIELDS`: `cuad_clauses`, `claim_checklist`,
-  `action_items` and `denial_reasons`. Label lists (`maud_clauses`, parties, keywords) are never
-  filtered, so mergers are unaffected.
+- **Fields.** `cuad_clauses` and `claim_checklist`, the vendored `_DEFAULT_EVIDENCE_FIELDS` whose items
+  are `"<Category>: <quoted span>"`. Amended at review: the other two vendored fields, `action_items`
+  and `denial_reasons`, are checked as whole-item quotes, but the prompts ask for summaries ("concrete
+  actions with stated deadlines"), so a one-call read's true items were dropped. Label lists
+  (`maud_clauses`, parties, keywords) are never filtered, so mergers are unaffected.
 - **Rule.** The document text is the window. An item is dropped only when the vendored test returns
   `False`, i.e. it has a checkable quote and none of it is found. An evidenced or unverifiable item
   (`True` or `None`) is kept.
@@ -110,8 +112,9 @@ It runs offline only and is tested on a fixture run store.
 
 - **A** ships if quality is not lower on any class with `scored_n` of at least 10, and is higher
   overall.
-- **B** goes to a paid confirming arm if false items fall by at least 25% while missed items rise by
-  no more than 2 per 100 documents. It is adopted on that arm's result.
+- **B** goes to a paid confirming arm if CUAD false clauses fall by at least 25%, missed clauses rise by
+  no more than 2 per 100 contracts, and no class with `scored_n` of at least 10 loses filtered quality
+  (the last condition was added at review). It is adopted on that arm's result.
 
 ## Out of scope
 

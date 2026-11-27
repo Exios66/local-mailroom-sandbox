@@ -60,6 +60,10 @@ def _items():
         # One attempt: nothing to select. Its FAKE clause is the evidence check's target.
         {"item_id": "d2", "ok": True, "pred": _pred([_attempt(1, WORSE, "partial", 0.9)])},
         {"item_id": "d3", "ok": False, "error": "boom", "pred": None},
+        # Aborted with a partial extraction: the gate scores it 0 either way, so it is no evidence.
+        {"item_id": "d6", "ok": False, "error": "cost cap", "pred": _pred([_attempt(1, GOOD, "complete", 0.9),
+                                                                          _attempt(2, WORSE, "partial", 0.9)],
+                                                                         stage="failed")},
         {"item_id": "d4", "ok": True, "pred": _pred([_attempt(1, WORSE, "partial", 0.9)],
                                                     extraction_source="human")},
         # Archived, and the better-ranked earlier attempt is unsure: the archive keeps the latest.
@@ -122,7 +126,7 @@ def test_the_filter_counts_dropped_items_and_cuad_errors(tmp_path, activated):
 
 def test_skips_are_counted_and_scored_n_reported(tmp_path, activated):
     out = ar.replay(_store(tmp_path, _items()))
-    assert out["counts"]["items"] == 5 and out["counts"]["skipped"] == {"no_pred": 1}
+    assert out["counts"]["items"] == 6 and out["counts"]["skipped"] == {"failed": 1, "no_pred": 1}
     assert out["counts"]["human_source"] == 1  # scored on its latest extraction; never re-selected
     assert out["counts"]["scored_n"] == 4
     assert out["selection"]["overall"]["scored_n"] == out["evidence"]["overall"]["scored_n"] == 4
@@ -147,6 +151,13 @@ def test_the_bars_follow_the_design():
     ev["by_class"]["contract"].update(cuad_fn_after=50, cuad_fp_after=31)
     assert ar.evidence_meets_confirming_arm(ev) is False
     assert ar.evidence_meets_confirming_arm({"by_class": {}}) is False  # no contracts: nothing shown
+    # A class whose filtered quality falls (n >= 10) vetoes the arm, whatever CUAD shows.
+    good = {"by_class": {"contract": {"scored_n": 100, "before": 0.5, "after": 0.5, "cuad_fp_before": 40,
+                                      "cuad_fp_after": 30, "cuad_fn_before": 50, "cuad_fn_after": 50},
+                         "insurance_claim": {"scored_n": 10, "before": 0.8, "after": 0.79}}}
+    assert ar.evidence_meets_confirming_arm(good) is False
+    good["by_class"]["insurance_claim"]["scored_n"] = 9
+    assert ar.evidence_meets_confirming_arm(good) is True
 
 
 def test_the_replay_is_labelled_an_estimate_and_writes_its_file(tmp_path, activated):
@@ -156,6 +167,16 @@ def test_the_replay_is_labelled_an_estimate_and_writes_its_file(tmp_path, activa
     assert json.loads(path.read_text())["label"] == "offline replay (estimate)"
     text = ar.digest(out, path)
     assert "offline replay (estimate)" in text and "scored_n 4" in text and str(path) in text
+
+
+def test_a_correct_mode_run_is_refused(tmp_path):
+    run = _store(tmp_path, _items())
+    lock = json.loads((run / "spec.lock.json").read_text())
+    (run / "spec.lock.json").write_text(json.dumps({**lock, "judge": {"mode": "correct"}}))
+    with pytest.raises(ar.ReplayError, match="judge.mode correct"):
+        ar.replay(run, activate=False)
+    (run / "spec.lock.json").write_text(json.dumps({**lock, "judge": {"mode": "verify"}}))
+    assert ar.replay(run, activate=False)["counts"]["scored_n"] == 4
 
 
 def test_the_replay_never_writes_the_source_run(tmp_path, activated):

@@ -3,8 +3,9 @@
 On the OpenRouter route every document is read in one call, so the vendored ``evidence`` chunk
 merge (``chunking.merge.policy``) never runs and nothing checks list items against the text. With
 ``job.evidence_check: true``, :func:`filter_one_read` applies the vendored single-window evidence
-test (``langchain_agents.specialist_agents._item_support``) to the vendored evidence fields, with
-the whole document as the window:
+test (``langchain_agents.specialist_agents._item_support``) to the evidence fields whose items are
+``"<Category>: <quoted span>"`` (``cuad_clauses``, ``claim_checklist``), with the whole document as
+the window:
 
 * an item is dropped only when the test returns ``False`` (it has a checkable quote and none of it,
   nor a reasoning quote for its field, is in the document); evidenced and unverifiable items stay;
@@ -37,11 +38,18 @@ def active() -> bool:
     return _ACTIVE
 
 
+#: The checked fields: the vendored evidence fields whose items are ``"<Category>: <quoted span>"``.
+#: ``action_items`` and ``denial_reasons`` are also vendored evidence fields, but there the whole
+#: item is the quote and the prompts ask for summaries ("concrete actions with stated deadlines"),
+#: so a one-call read's true items would be dropped. A chunk merge still filters them.
+_SPAN_FIELDS = ("cuad_clauses", "claim_checklist")
+
+
 def fields() -> tuple[str, ...]:
-    """The vendored evidence fields (``_DEFAULT_EVIDENCE_FIELDS``): free text a model quotes."""
+    """The checked fields: the vendored ``_DEFAULT_EVIDENCE_FIELDS`` that carry a quoted span."""
     from langchain_agents.specialist_agents import _DEFAULT_EVIDENCE_FIELDS
 
-    return tuple(_DEFAULT_EVIDENCE_FIELDS)
+    return tuple(f for f in _SPAN_FIELDS if f in _DEFAULT_EVIDENCE_FIELDS)
 
 
 def _entries(result: Mapping[str, Any]) -> list[dict]:

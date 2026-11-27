@@ -36,13 +36,16 @@ def test_an_unevidenced_item_is_dropped_and_recorded():
     assert out["parties"] == ["Acme"]
 
 
-def test_every_vendored_evidence_field_is_checked():
-    assert set(ec.fields()) == {"cuad_clauses", "claim_checklist", "action_items", "denial_reasons"}
-    # Free-text fields are their own quote (no "<Category>:" head).
-    task = "Either party may terminate this Agreement for convenience"
-    out = ec.filter_one_read({"action_items": ["Deliver the widgets to the moon by Friday", task],
+def test_only_category_span_fields_are_checked():
+    # cuad_clauses and claim_checklist items are "<Category>: <quoted span>". Action items and denial
+    # reasons are summaries the prompts ask for, so a whole-item quote test drops true ones.
+    assert ec.fields() == ("cuad_clauses", "claim_checklist")
+    summaries = {"action_items": ["Return signed lease amendment by March 3, 2026"],
+                 "denial_reasons": ["Flood damage excluded under Section 4(b)"], "parties": ["Acme"]}
+    assert ec.filter_one_read(summaries, DOC) == summaries
+    out = ec.filter_one_read({"claim_checklist": [f"Termination: {REAL2.split(': ', 1)[1]}", FAKE],
                               "parties": ["Acme"]}, DOC)
-    assert out["action_items"] == [task]
+    assert out["claim_checklist"] == [f"Termination: {REAL2.split(': ', 1)[1]}"]
 
 
 def test_a_short_unverifiable_item_is_kept():
@@ -145,6 +148,19 @@ def test_hf029_is_registered_with_a_pinned_source():
     vh.apply_hotfixes()
     assert _wrap_depth(bg._enrich_contract_result) == depth  # neither HF-027 nor HF-029 is doubled
     assert getattr(bg._enrich_contract_result, "_sandbox_hotfix", None) == "HF-029"
+
+
+def test_a_filter_error_passes_the_read_through(check_on, monkeypatch):
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+
+    def boom(*_a, **_k):
+        raise RuntimeError("filter bug")
+
+    monkeypatch.setattr(ec, "filter_one_read", boom)
+    out = bg._enrich_contract_result({"cuad_clauses": [REAL, FAKE], "parties": ["Acme"]}, _state())
+    assert out["cuad_clauses"] == [REAL, FAKE] and not out.get("_parse_error")
 
 
 def test_off_changes_nothing():

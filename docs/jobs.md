@@ -745,9 +745,10 @@ older lock that never set it reads as unknown.
 
 ### Evidence check (`job.evidence_check`)
 
-`job.evidence_check: true` turns on HF-029. A one-call read's list items in `cuad_clauses`,
-`claim_checklist`, `action_items` and `denial_reasons` are checked against the whole document with the
-vendored single-window evidence test:
+`job.evidence_check: true` turns on HF-029. A one-call read's `cuad_clauses` and `claim_checklist`
+items (`"<Category>: <quoted span>"`) are checked against the whole document with the vendored
+single-window evidence test. `action_items` and `denial_reasons` are not checked: they are summaries, so
+a whole-item quote test drops true ones.
 
 - a string item is dropped only when it has a checkable quote and neither it nor a reasoning quote for
   its field is in the document; short (unverifiable) and non-string items stay;
@@ -755,7 +756,8 @@ vendored single-window evidence test:
   never see (they strip `_` keys);
 - a chunked read keeps its `chunking.merge` policy;
 - a drop that would leave the extraction empty is skipped (`_evidence_skipped: "would_empty"`), so the
-  check never fails a read or adds a retry.
+  check never fails a read or adds a retry;
+- an error inside the check is logged and the read passes through unfiltered.
 
 Pipeline runs only; hashed only when set.
 
@@ -770,6 +772,9 @@ The replay reads a finished pipeline run and never writes it. It activates the r
 document with the gate's own scorer. Contracts also get CUAD false and missed clauses before and after
 the filter. It prints a digest with the design's adoption bars and writes the full result to
 `data/runtime/replays/<run_id>.attempt_replay.json`.
+
+A correct-mode run is refused (its attempt history does not hold the judge's fixes), and a failed or
+aborted document is skipped and counted, since the gate scores it 0 whatever it extracted.
 
 Its numbers are an offline estimate. Selection is exact, because routing never reads the flag. The
 filter is not: the run's judge rated the unfiltered extraction. Launch the confirming arm

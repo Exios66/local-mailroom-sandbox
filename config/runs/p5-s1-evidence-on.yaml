@@ -6,8 +6,7 @@
 # warranted (bars.evidence_meets_confirming_arm true; no model call, the run is only read):
 #   python scripts/replay_attempt_hygiene.py --run p4-s1-verify-gov-off
 # Same documents, prompts, routes, knobs, labels and caps as the baseline; the only change is HF-029,
-# which drops list items (CUAD clauses, claim checklist, action items, denial reasons) whose quote is
-# not in the document. It adds no model call, so api_cost_cap_usd stays at the baseline's 9.0.
+# which drops CUAD clause and claim-checklist items whose quoted span is not in the document. It adds no model call, so api_cost_cap_usd stays at the baseline's 9.0.
 #
 # Labels: the rc.10 staged overlay. Pull it first (GitHub access, no spend):
 #   python scripts/pull_staged_overlay.py --version 9.3.1-rc.10

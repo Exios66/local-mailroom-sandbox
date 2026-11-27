@@ -1495,7 +1495,10 @@ def _install_evidence_check(_module: Any, original: Callable[..., Any]) -> Calla
                 previous, names = pending
                 keeps = {k: v for k, v in previous.items() if k not in names and not str(k).startswith("_")}
             doc_text = state.get("doc_text") if isinstance(state, Mapping) else None
-            result = evidence_check.filter_one_read(result, doc_text, keeps=keeps)
+            try:
+                result = evidence_check.filter_one_read(result, doc_text, keeps=keeps)
+            except Exception:  # noqa: BLE001 - an opt-in filter must never turn a good read into a parse error
+                _log.warning("HF-029 evidence check failed; the extraction passes through unfiltered", exc_info=True)
         return original(result, state)
 
     return _enrich_contract_result
@@ -1842,8 +1845,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="_enrich_contract_result",
         source_sha256="03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2",
         upstream="sandbox-only (phase 5 evidence check; upstream issue to be filed with the replay's results)",
-        summary="with job.evidence_check, a list item from a one-call read (cuad_clauses, claim_checklist, "
-                "action_items, denial_reasons) that has a checkable quote not found in the document is "
+        summary="with job.evidence_check, a cuad_clauses or claim_checklist item from a one-call read "
+                "that has a checkable quote not found in the document is "
                 "dropped and recorded under _evidence_dropped; a drop that would empty the extraction is skipped",
         install=_install_evidence_check,
         # Installed after HF-027 (both wrap _enrich_contract_result): this layer runs first.
