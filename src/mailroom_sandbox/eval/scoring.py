@@ -116,6 +116,7 @@ def score_extraction_row(
     truth_overrides: Mapping[str, Any] | None = None,
     overlay_fields: Collection[str] | None = None,
     doc_id: Any = None,
+    drop_unseen_headers: bool = True,
 ) -> dict[str, Any]:
     """Dual-reported row scoring: the hotfixed headline plus the raw Dojo-pin values.
 
@@ -142,6 +143,7 @@ def score_extraction_row(
     ``doc_id`` with ``doc_text`` also turns on SHF-019 for correspondence: a header field whose
     truth is the reviewed ``original_header`` label and that the text does not show is left out of
     both sides on the headline and named under ``header_unseen``; the raw side keeps it.
+    ``drop_unseen_headers=False`` leaves SHF-019 off (the R02 scorer hand-check's basis).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -156,7 +158,7 @@ def score_extraction_row(
             on = on - {"SHF-010"}
         if overlay_fields is None:
             on = on - {"SHF-015"}
-        if doc_id is None or doc_text is None:
+        if doc_id is None or not doc_text or not drop_unseen_headers:
             on = on - {"SHF-019"}
         # The overridden truth is SHF-010's correction: with SHF-010 off (stale or unavailable)
         # the headline scores the restored truth too, so nothing moves without being named.

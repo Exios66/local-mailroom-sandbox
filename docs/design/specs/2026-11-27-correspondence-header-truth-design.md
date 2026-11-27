@@ -54,7 +54,7 @@ salutation as the recipient, and no date.
   The check is per document and deliberately generous: a field stays scored when the text contains
   any of its quoted header lines, the value after a header line's colon (a quoted reply's
   `From: jeff.dasovich@enron.com`), or any item of the label value (a signature, a name in the body),
-  case- and whitespace-folded. A restored corpus turns the fix off document by document.
+  with case, whitespace, periods and commas folded. A restored corpus turns the fix off document by document.
 - **Mechanics.** Like SHF-015: the field is dropped from both sides on the hotfixed pass, its presence
   becomes `pending_annotation`, and the row lists it under `header_unseen`. The gate does not count a
   dropped field toward `min_labelled`, and the lowest-field diagnosis (`gate_causes._field_scores`)
@@ -74,8 +74,8 @@ Measured offline on the cached Hub v9.3 corpus (revision `ff4ca546`), with no mo
 
 | Truth preparation | Cells dropped | `sender` | `recipient` | `additional_recipients` | `communication_date` | Documents | Below `min_labelled` 2 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Staged overlay `9.3.1-rc.9` (production slices) | 1,477 | 247 | 351 | 227 | 652 | 709 of 1,000 | 0 |
-| Interim and near-gold overlays | 1,484 | 247 | 351 | 234 | 652 | 709 of 1,000 | 6 (2 dev, 1 calibration, 3 held-out) |
+| Staged overlay `9.3.1-rc.9` (production slices) | 1,470 | 244 | 348 | 226 | 652 | 709 of 1,000 | 0 |
+| Interim and near-gold overlays | 1,477 | 244 | 348 | 233 | 652 | 709 of 1,000 | 6 (2 dev, 1 calibration, 3 held-out) |
 
 Of the 1,795 header cells, the rest stay scored because the text shows them (mostly a name in a
 quoted reply or a signature) or another label replaced the header value. A perfect answer scores

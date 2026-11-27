@@ -225,7 +225,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # extraction scoring takes the corrected subclass for its subclass-specific fields
                  ("mailroom_sandbox.eval.scoring:score_extraction_row",
-                  "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
+                  "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
                  ("mailroom_sandbox.job.gate_causes:_field_scores",
                   "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
                  # the reviewed truth corrections are part of what the fix scores against
@@ -248,7 +248,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
             # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
             # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
             # changes one of them makes the fix stale). A live monkeypatch of a function is not source
@@ -284,7 +284,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "9b111fe41c633467d52841be0e36c641020c0efdbce506d98a4baf28e02339fa"),
+            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
@@ -317,9 +317,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-019",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "d805f791722b97c2a712f16a702b686c8c6322782bbec92d2ac1b66549db55b7"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
             # the gate counts toward min_labelled, and scores fixes against, only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "9b111fe41c633467d52841be0e36c641020c0efdbce506d98a4baf28e02339fa"),
+            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
             ("mailroom_sandbox.job.gate:_fix_accuracy", "fbc36bf451f3019473f247a14dee57ebce751ca79ba6ead0fe2f032b30fe4756"),
             # the lowest-field diagnosis skips what the headline leaves out
             ("mailroom_sandbox.job.gate_causes:_field_scores", "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
@@ -949,8 +949,11 @@ def header_reviews() -> dict[tuple[str, str], dict[str, Any]]:
 
 
 def _flat(text: Any) -> str:
-    """Case-folded text with every whitespace run collapsed to one space."""
-    return re.sub(r"\s+", " ", str(text)).strip().casefold()
+    """Case-folded text with periods, commas and every whitespace run collapsed to one space.
+
+    ``Stacy E. Dickson`` and ``Stacy E Dickson`` read the same; both sides are folded alike.
+    """
+    return re.sub(r"[\s.,]+", " ", str(text)).strip().casefold()
 
 
 def _header_items(value: Any) -> tuple[str, ...]:
@@ -969,7 +972,8 @@ def header_visible(entry: Mapping[str, Any], doc_text: str) -> bool:
 
     Deliberately generous, so only a field the model cannot read is left out: a header line
     (``X-From: Ann M Schmidt``), the part after its colon, or any item of the label value appearing
-    anywhere in the text (a quoted reply, a signature) keeps the field scored. A corpus revision
+    anywhere in the text (a quoted reply, a signature) keeps the field scored. Case, whitespace,
+    periods and commas are folded (:func:`_flat`). A corpus revision
     that writes the header lines back makes every field visible, so the fix is then a no-op.
     """
     text = _flat(doc_text)
@@ -991,11 +995,11 @@ def drop_unseen_header_truth(doc_type: str, doc_id: Any, expected: Mapping[str, 
     still the reviewed ``original_header`` value (a near-gold or staged label that replaced it is
     kept). A field whose header line, header value or label value appears in ``doc_text`` stays
     scored (:func:`header_visible`). An empty label is never dropped. A dropped field's
-    ``gt_presence`` code becomes ``pending_annotation``, as SHF-015 does. No ``doc_id`` or no text
-    means nothing is checked and nothing is dropped.
+    ``gt_presence`` code becomes ``pending_annotation``, as SHF-015 does. No ``doc_id``, or no or
+    empty text, means nothing is checked and nothing is dropped.
     """
     out = dict(expected or {})
-    if str(doc_type or "").strip() != "correspondence" or not doc_id or doc_text is None:
+    if str(doc_type or "").strip() != "correspondence" or not doc_id or not doc_text:
         return out, []
     reviews = header_reviews()
     dropped: list[str] = []

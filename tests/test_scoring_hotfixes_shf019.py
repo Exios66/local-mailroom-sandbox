@@ -123,8 +123,9 @@ def test_shf019_marks_a_dropped_field_pending_annotation():
 def test_shf019_is_off_without_the_document_id_or_text():
     expected = dict(HEADER)
     assert "header_unseen" not in score_extraction_row("correspondence", {}, expected, BODY)  # no doc_id
-    off = score_extraction_row("correspondence", {}, expected, None, doc_id=DOC)
-    assert "header_unseen" not in off and "SHF-019" not in off["scoring_hotfixes"]
+    for text in (None, ""):
+        off = score_extraction_row("correspondence", {}, expected, text, doc_id=DOC)
+        assert "header_unseen" not in off and "SHF-019" not in off["scoring_hotfixes"]
 
 
 def test_shf019_a_stale_fix_leaves_the_dojo_pin(monkeypatch):
@@ -185,3 +186,58 @@ def test_shf019_is_a_no_op_once_the_corpus_restores_the_header_lines():
         assert sh.drop_unseen_header_truth("correspondence", doc_id, truth, BODY)[1] or all(
             not sh._header_items(v) for v in truth.values()), doc_id
         assert sh.drop_unseen_header_truth("correspondence", doc_id, truth, restored)[1] == [], doc_id
+
+
+# --- review follow-ups ---------------------------------------------------------------------------
+
+
+def test_shf019_empty_text_drops_nothing_on_the_headline_or_in_the_gate():
+    row = _row(text="")
+    assert sh.drop_unseen_header_truth("correspondence", DOC, dict(HEADER), "")[1] == []
+    assert gate.labelled_count(row, "correspondence") == gate.labelled_count(row, "correspondence", hotfixed=False)
+    assert "header_unseen" not in score_extraction_row("correspondence", {}, dict(HEADER), "", doc_id=DOC)
+
+
+def test_shf019_folds_periods_and_commas_in_the_visibility_check():
+    entry = {"value": "Stacy E. Dickson", "headers": ("X-From: Stacy E. Dickson",)}
+    assert sh.header_visible(entry, "Regards,\nStacy E Dickson")
+    assert sh.header_visible({"value": "Stacy E Dickson", "headers": ()}, "Stacy E. Dickson, Esq.")
+
+
+def test_shf019_can_be_left_off_by_the_caller():
+    on = score_extraction_row("correspondence", {}, dict(HEADER), BODY, doc_id=DOC)
+    off = score_extraction_row("correspondence", {}, dict(HEADER), BODY, doc_id=DOC, drop_unseen_headers=False)
+    assert on["header_unseen"] == sorted(HEADER) and "header_unseen" not in off
+    assert "SHF-019" not in off["scoring_hotfixes"]
+    row = _row()
+    assert gate.labelled_count(row, "correspondence", drop_unseen_headers=False) == gate.labelled_count(
+        row, "correspondence", hotfixed=False)
+
+
+def test_shf019_the_gate_attributes_an_unscorable_document_to_the_fix_that_took_it_below_the_bar():
+    bars = gate.Bars()
+    assert bars.min_labelled == 2
+    shf019 = {"outcome": "unscorable_archive", "labelled": 1, "labelled_raw": 5, "labelled_header_unseen": 4}
+    shf015 = {"outcome": "unscorable_archive", "labelled": 1, "labelled_raw": 2}
+    both = {"outcome": "unscorable_archive", "labelled": 0, "labelled_raw": 3, "labelled_header_unseen": 1}
+    scorable = {"outcome": "correct_archive", "labelled": 1, "labelled_raw": 5, "labelled_header_unseen": 4}
+    statuses = [shf019, shf015, both, scorable]
+    assert gate._unscorable_by_shf019(statuses, bars) == 1
+    assert gate._unscorable_by_shf015(statuses, bars) == 2  # shf015 and both: below the bar before SHF-019
+
+
+def test_shf019_the_gate_status_records_the_header_drop():
+    status = gate._status({"row": _row(), "item": None, "nodes": []}, gate.Bars())
+    assert status["labelled_raw"] - status["labelled"] == status["labelled_header_unseen"] == len(HEADER)
+
+
+def test_every_scoring_hotfix_data_file_is_bundled_in_the_modal_worker():
+    """The worker has no checkout: a ``file:`` target missing from the image makes the fix
+    ``unavailable`` there, and ``verify_locked_hotfixes`` refuses every locked remote job."""
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "deploy" / "modal_job.py").read_text(encoding="utf-8")
+    files = {t[len(sh.FILE_TARGET):] for fix in sh.HOTFIXES for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)}
+    assert files
+    missing = sorted(rel for rel in files if f'remote_path=f"{{SANDBOX_ROOT}}/{rel}"' not in source)
+    assert missing == []

@@ -160,7 +160,8 @@ def _unit_labels(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
-def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = True) -> int:
+def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = True,
+                   drop_unseen_headers: bool = True) -> int:
     """Labelled units of a row: what the Dojo scores it on, after dropping the templated fields.
 
     Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
@@ -170,6 +171,8 @@ def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = T
     score does not score it (``docs/scoring-hotfixes.md``). SHF-019: neither is a correspondence
     header label the text does not show. ``hotfixed=False`` counts as the Dojo pin does, with no
     SHF-015 or SHF-019 drop: ``_status`` records that as ``labelled_raw`` beside it.
+    ``drop_unseen_headers=False`` applies SHF-015 only (``_status`` records the difference as
+    ``labelled_header_unseen``).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
@@ -182,7 +185,7 @@ def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = T
     if hotfixed and sh.enabled("SHF-015"):
         _, stale = sh.drop_stale_hub_truth(doc_class, raw, sh.overlay_fields(row))
     unseen: list[str] = []
-    if hotfixed and sh.enabled("SHF-019"):
+    if hotfixed and drop_unseen_headers and sh.enabled("SHF-019"):
         _, unseen = sh.drop_unseen_header_truth(doc_class, row.get("id"), raw, row.get("doc_text"))
     _, expected = scope_extraction_pair(doc_class, {}, raw)
     drop = {*TEMPLATED_FIELDS.get(doc_class, ()), *stale, *unseen}
@@ -500,6 +503,11 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     raw_labelled = labelled_count(row, doc_class, hotfixed=False)
     if raw_labelled != out["labelled"]:
         out["labelled_raw"] = raw_labelled
+        # SHF-019: how many of the dropped labels are correspondence header truth the text does not
+        # show, so an unscorable document is attributed to the fix that took it below the bar.
+        unseen = labelled_count(row, doc_class, drop_unseen_headers=False) - out["labelled"]
+        if unseen:
+            out["labelled_header_unseen"] = unseen
     if item is None:
         return out
     pred = item.get("pred") or {}  # an absent or empty prediction reads as before
@@ -587,9 +595,21 @@ def _load(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def _unscorable_by_shf015(statuses: Collection[Mapping[str, Any]], bars: Bars) -> int:
-    """Archived documents that SHF-015 alone made unscorable: enough labels before the stale drop, too few after."""
+    """Archived documents that SHF-015 alone made unscorable: enough labels before the stale drop, too few after.
+
+    Counted before SHF-019's drop (``labelled`` plus ``labelled_header_unseen``), so a document that
+    only SHF-019 took below the bar is counted by :func:`_unscorable_by_shf019` instead.
+    """
     return sum(1 for s in statuses
-               if s["outcome"] == "unscorable_archive" and s["labelled"] < bars.min_labelled <= s.get("labelled_raw", 0))
+               if s["outcome"] == "unscorable_archive"
+               and s["labelled"] + s.get("labelled_header_unseen", 0) < bars.min_labelled <= s.get("labelled_raw", 0))
+
+
+def _unscorable_by_shf019(statuses: Collection[Mapping[str, Any]], bars: Bars) -> int:
+    """Archived documents that SHF-019's drop of unseen correspondence header truth took below ``min_labelled``."""
+    return sum(1 for s in statuses
+               if s["outcome"] == "unscorable_archive"
+               and s["labelled"] < bars.min_labelled <= s["labelled"] + s.get("labelled_header_unseen", 0))
 
 
 def _counts(docs: list[dict[str, Any]]) -> dict[str, int]:
@@ -689,7 +709,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     for status in statuses:
         by_class[status["class"]].append(status)
     classes = {cls: {**_class_rates(_counts(docs)), "gated": cls in bars.gated,
-                     "unscorable_by_shf015": _unscorable_by_shf015(docs, bars)}
+                     "unscorable_by_shf015": _unscorable_by_shf015(docs, bars),
+                     "unscorable_by_shf019": _unscorable_by_shf019(docs, bars)}
                for cls, docs in sorted(by_class.items())}
     pooled_docs = [s for s in statuses if s["class"] in bars.gated]
     pooled = _counts(pooled_docs)
@@ -776,6 +797,7 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
                    "wrong_archive_upper95": _wilson_upper(pooled["wrong"], scorable),
                    "scorable": scorable, "unscorable": pooled["unscorable"],
                    "unscorable_by_shf015": _unscorable_by_shf015(pooled_docs, bars),
+                   "unscorable_by_shf019": _unscorable_by_shf019(pooled_docs, bars),
                    "crashes": crashes, "judge_errors": judge_errors},
         "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
         "audit": trail,
