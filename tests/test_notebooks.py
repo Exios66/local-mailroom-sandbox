@@ -91,6 +91,122 @@ def test_demo_renderer_executes_and_sanitizes_a_real_kernel(tmp_path, monkeypatc
     assert result.cells[0].outputs[0].text == "/demo/python\n"
 
 
+def test_demo_renderer_sanitizes_long_paths_in_dataframes(tmp_path, monkeypatch):
+    """Pandas must not truncate a machine path before sanitization can replace it."""
+    import importlib.util
+    import os
+    import sys
+
+    nbformat = pytest.importorskip("nbformat")
+    pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    pytest.importorskip("pandas")
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "long-paths.ipynb"
+    cell = (
+        "import os, pandas as pd\n"
+        "long = os.path.join(os.environ['MAILROOM_BASE_DIR'], 'runtime', 'prepared', 'x' * 60)\n"
+        "pd.DataFrame({'path': [long]})"
+    )
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(cell)]), source)
+    monkeypatch.setattr(module, "NOTEBOOKS", [source])
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "demos")])
+    assert module.main() == 0
+    data = nbformat.read(tmp_path / "demos" / source.name, as_version=4).cells[0].outputs[0].data
+    expected = "/demo/runtime/data/runtime/prepared/" + "x" * 60
+    for mime in ("text/plain", "text/html"):
+        assert expected in data[mime]
+        assert "..." not in data[mime]
+
+
+def test_demo_renderer_refuses_paths_a_cell_truncated(tmp_path, monkeypatch):
+    """A cell that shortens a path itself defeats sanitization; the render must fail, not leak."""
+    import importlib.util
+    import os
+    import sys
+
+    nbformat = pytest.importorskip("nbformat")
+    pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "truncated.ipynb"
+    cell = "import os; print(os.environ['MAILROOM_BASE_DIR'][:-8] + '...')"
+    nbformat.write(nbformat.v4.new_notebook(cells=[nbformat.v4.new_code_cell(cell)]), source)
+    monkeypatch.setattr(module, "NOTEBOOKS", [source])
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(sys, "argv", ["render_notebook_demos.py", "--out", str(tmp_path / "demos")])
+    assert module.main() == 1
+    assert not (tmp_path / "demos" / source.name).exists()
+
+
+def _render_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("render_demos", repo_root() / "scripts/render_notebook_demos.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_demo_renderer_falls_back_when_short_temp_base_is_not_writable(monkeypatch):
+    import os
+
+    module = _render_module()
+    monkeypatch.setattr(os, "access", lambda *_a, **_k: False)
+    assert module._short_temp_base() is None
+
+
+def test_demo_renderer_flags_a_truncated_checkout_outside_home(tmp_path, monkeypatch):
+    """A checkout outside the home folder, shortened by a cell, is still caught via its parent."""
+    from pathlib import Path
+
+    module = _render_module()
+    checkout = tmp_path / "srv" / "builds" / "local-mailroom-sandbox"
+    monkeypatch.setattr(module, "ROOT", checkout)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path("/nonexistent-home")))
+    markers = module.leak_markers(tmp_path / "render" / "notebook-demos-abc")
+    shortened = str(checkout)[: len(str(checkout)) - 6] + "..."
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": shortened}]}]}
+    assert module.find_path_leaks(nb, markers) == [f"c1:{checkout.resolve().parent}"]
+    clean = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": "/demo/checkout/vendor"}]}]}
+    assert module.find_path_leaks(clean, markers) == []
+
+
+def test_demo_renderer_flags_a_checkout_shortened_inside_its_parent(tmp_path):
+    """A long checkout path cut before its parent ends matches no prefix marker; its elided form does."""
+    module = _render_module()
+    checkout = tmp_path / ("x" * 90) / "local-mailroom-sandbox"
+    shortened = "repo_root   " + str(checkout)[:60] + "...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": shortened}]}]}
+    assert module.find_path_leaks(nb, [], []) == []
+    assert module.find_path_leaks(nb, [], [str(checkout)]) == [f"c1:{str(checkout)[:60]}..."]
+    portable = "/demo/checkout/vendor/llm-mailro...\n/U...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": portable}]}]}
+    assert module.find_path_leaks(nb, [], [str(checkout), "/Users/someone"]) == []
+
+
+def test_demo_renderer_flags_an_elided_path_with_spaces():
+    module = _render_module()
+    checkout = "/srv/build agents/" + "x" * 90 + "/repo"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": "root " + checkout[:60] + "..."}]}]}
+    assert module.find_path_leaks(nb, ["/home/reviewer"], [checkout]) == [f"c1:{checkout[:60]}..."]
+
+
+def test_demo_renderer_ignores_markers_inside_portable_paths():
+    """A short checkout parent ("/src") inside a sanitized path is not a leak; a real one still is."""
+    module = _render_module()
+    safe = "/demo/checkout/src/example.py\n/demo/checkout/src/re...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": safe}]}]}
+    assert module.find_path_leaks(nb, ["/src"], ["/src/repo"]) == []
+    nb["cells"][0]["outputs"][0]["text"] = safe + "cwd=/src/other\n"
+    assert module.find_path_leaks(nb, ["/src"], ["/src/repo"]) == ["c1:/src"]
+
+
 def test_notebooks_execute(tmp_path, monkeypatch):
     """Run all notebooks in order from notebooks/, as Jupyter would, with writes under tmp_path."""
     nbformat = pytest.importorskip("nbformat")

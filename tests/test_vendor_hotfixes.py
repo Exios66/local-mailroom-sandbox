@@ -1,6 +1,8 @@
 """Sandbox hotfixes over the vendored pipeline: fingerprint-bound, recorded, preflight-gated."""
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from mailroom_sandbox import vendor_hotfixes as vh
@@ -1464,8 +1466,86 @@ def test_hf019_is_registered_with_a_pinned_source():
     import graph.build_graph as bg
 
     fix = next(f for f in vh.HOTFIXES if f.id == "HF-019")
-    assert [f.id for f in vh.HOTFIXES][-2:] == ["HF-018", "HF-019"]
+    ids = [f.id for f in vh.HOTFIXES]
+    assert ids.index("HF-018") < ids.index("HF-019")
     assert (fix.module, fix.attr) == ("graph.build_graph", "_detect_conflict")
     assert fix.source_sha256 == vh._source_sha(bg._detect_conflict)
     assert dict(fix.also)["_fetch_matter_context"] == vh._source_sha(bg._fetch_matter_context)
     assert vh.apply_hotfixes()["HF-019"] == "applied"
+
+
+def test_hf023_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-023")
+    assert [f.id for f in vh.HOTFIXES].count("HF-023") == 1
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_instantiate_specialist")
+    assert fix.source_sha256 == vh._source_sha(bg._instantiate_specialist)
+    also = dict(fix.also)
+    for name in ("_build_handoff_context", "extract_node", "_run_chunked_extraction", "retry_extract_node"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
+    depth = _wrap_depth(bg._build_handoff_context)
+    assert vh.apply_hotfixes()["HF-023"] == "applied"  # idempotent: the handoff wrapper is not doubled
+    assert _wrap_depth(bg._build_handoff_context) == depth
+    assert getattr(bg._build_handoff_context, "_sandbox_hotfix", None) == "HF-023"
+
+
+def test_hf024_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+    from agents.judge import CompletenessJudge
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-024")
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_clean_fields_for_judge")
+    assert fix.source_sha256 == vh._source_sha(bg._clean_fields_for_judge)
+    also = dict(fix.also)
+    for name in ("judge_verify_node", "arbiter_node", "_retry_handoff_summary"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert also["agents.judge:CompletenessJudge._field_list"] == vh._source_sha(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"
+    depth = _wrap_depth(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"  # the field-list wrapper is not doubled
+    assert _wrap_depth(CompletenessJudge._field_list) == depth == 1
+    assert isinstance(CompletenessJudge.__dict__["_field_list"], staticmethod)
+
+
+def _wrap_depth(fn) -> int:
+    depth = 0
+    while hasattr(fn, "__wrapped__"):
+        fn, depth = fn.__wrapped__, depth + 1
+    return depth
+
+
+def _foreign_handoff(inner):
+    """Another hotfix's handoff wrapper (PR #437's HF-021 shape): functools.wraps plus its own marker."""
+    import functools
+
+    @functools.wraps(inner)
+    def _build_handoff_context(state):
+        return inner(state) + " [foreign]"
+
+    _build_handoff_context._foreign_handoff = True
+    return _build_handoff_context
+
+
+@pytest.mark.parametrize("foreign_first", [True, False])
+def test_hf023_stacks_with_another_handoff_wrapper(monkeypatch, foreign_first):
+    import graph.build_graph as bg
+    from mailroom_sandbox import subclass_extraction as sx
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-023")
+    vendored = inspect.unwrap(bg._build_handoff_context)
+    instantiate = inspect.unwrap(bg._instantiate_specialist)
+    recorded: list[str] = []
+    monkeypatch.setattr(sx, "record_choice", lambda state: recorded.append(state["doc_id"]))
+    monkeypatch.setattr(bg, "_build_handoff_context", _foreign_handoff(vendored) if foreign_first else vendored)
+    vh._install_subclass_schemas(bg, instantiate)
+    if not foreign_first:
+        monkeypatch.setattr(bg, "_build_handoff_context", _foreign_handoff(bg._build_handoff_context))
+    vh._install_subclass_schemas(bg, instantiate)  # a second install never adds a second HF-023 layer
+    outer = bg._build_handoff_context
+    assert _wrap_depth(outer) == 2
+    assert vh._also_sha(bg, "_build_handoff_context") == dict(fix.also)["_build_handoff_context"]
+    state = {"doc_id": "d1", "doc_type": "contract", "contract_subtype": "license"}
+    assert outer(state) == vendored(state) + " [foreign]"
+    assert recorded == ["d1"]
