@@ -20,7 +20,9 @@
 
 **Spec:** [`docs/design/specs/2026-11-26-correcting-judge-design.md`](../specs/2026-11-26-correcting-judge-design.md), sections "How it works" to "The test, in stages", "Plan" (phase 4 steps 1–9) and "Calls I made".
 
-**Branch:** `claude/phase4-correcting-judge`, cut from `claude/phase3-subclass-schemas` until #438 merges, then rebased on `main`. One PR, which points at this plan.
+**Branch:** `claude/phase4-correcting-judge`, rebased on `main` after #438 (phase 3) was squash-merged. One PR, which points at this plan.
+
+**Status:** approved by the owner (2026-11-27), with a quality and completeness sweep (rulings 13–18, the added tests in Tasks 1, 3, 5 and 7, and the comparison in Task 7).
 
 ## Where the spec and the code disagree (rulings)
 
@@ -57,7 +59,15 @@ A code map taken before this plan found these points. The spec is the authority,
     - Interim truth is `interim_labels.TRUTH_STATUSES`, with `disputed` excluded.
     - All insurance interim labels are `derived`, so insurance examples are thin; the pilot reports it.
     - `dev-look1` holds 300 documents, not 302.
-12. **Hotfix IDs.** HF-025 to HF-027: #425 holds HF-020 to HF-022, #437 HF-021, and #438 HF-023/HF-024.
+12. **Hotfix IDs.** HF-025 to HF-027: #425 holds HF-020 to HF-022, #437 HF-021, and #438 (merged) HF-023/HF-024. #439 adds none.
+13. **Verify mode uses no judge model of its own.** `mode: verify` is today's judge, which runs on the pipeline's configured judge model. `model`, `models_by_class` and `references` therefore apply to `mode: correct` only: a verify section that sets a non-default model, a class override or references is refused, so a lock never names a model that did not run. The price, pin and OpenRouter checks, and the spend-cap pricing, cover the judge models in correct mode only.
+14. **Open PRs that touch what this phase consumes.**
+    - #439 (stacked on #425) gives `gold_labels.evidence_support` a `doc_subclass` keyword, with per-subclass target fields, merger value rules and a per-member quote rule for lists. `verify_fix` takes the predicted subclass and passes `doc_subclass=` when the function accepts it, so merger and corporate fixes get those checks once #439 lands, with no change here.
+    - #439 also rebuilds `config/extraction/subclass_schemas.json`. Whichever of #439 and this PR lands second regenerates `config/extraction/subclass_extraction_fields.json` (`scripts/build_subclass_fields.py`). That changes the field-list sha every pipeline lock carries, so the stage configs are preflighted again after it.
+15. **"Marked judge corrected."** A result whose accepted extraction applied at least one verified fix carries `judge_corrected: true`. It stays in every total and denominator.
+16. **Fix accuracy is scored in the gate only.** Whether a verified fix was right or wrong is decided by scoring that field's fixed value against the run's ground truth in the gate report. Labels for a scored document never reach the judge.
+17. **"Judge-related calls"** (the success rule's 50% cut) are the judge, arbiter and judge-ordered `retry_extract` calls of a judged document, counted from the usage records' node. Classify, extract and boss calls are not judge-related.
+18. **The 2-point margin is a non-inferiority test.** Stage 2 passes on score only when the lower bound of the paired bootstrap interval (`sand42_cards.paired_delta`, judged documents of either arm, same ids) is at or above −2 points. The point estimate alone is not enough.
 
 ## Global Constraints
 
@@ -123,12 +133,14 @@ def test_train_pool_is_refused_on_a_draw_with_calibration_or_pool_rows(): ...
 def test_the_spend_cap_prices_the_judge_models(): ...                  # api_models(lock) ⊇ {model, *models_by_class.values()}
 def test_the_lock_activates_the_judge_and_refuses_a_changed_pool(tmp_path, monkeypatch): ...
 def test_judge_model_picks_the_class_override(): ...                   # merger -> deepseek-v4.1-flash-1017, contract -> qwen3.7-plus
+def test_verify_mode_refuses_judge_models_and_references(): ...        # ruling 13: a non-default model, override or references -> ValidationError
+def test_verify_mode_is_not_price_or_route_checked(): ...              # a verify section on a Modal profile preflights
 ```
 
 - [ ] **Step 2: Run them to verify they fail.** Run: `.venv/bin/python -m pytest -q tests/test_correcting_judge.py -n 0 --no-cov`. Expected: FAIL, because `JudgeSpec` is not defined.
 - [ ] **Step 3: Implement the spec, the refusals and the activation.**
   - Follow the `governor` pattern: a validator, `spec_core` hashing only when set, and `runtime` activation after `governor.activate`.
-  - Price and pin checks reuse `api_budget.unpriced` and `provider_pins.load_pins` (`order: []` is unpinned).
+  - Price and pin checks reuse `api_budget.unpriced` and `provider_pins.load_pins` (`order: []` is unpinned). They run in correct mode only (ruling 13).
   - Leak and train-pool checks sit beside `heldout_seal.leak_errors` in `_prepare_dataset_rows`. The row's set and component come from `config/splits/runbook-v2/assignments.jsonl`.
 - [ ] **Step 4: Run them to verify they pass.** Same command. Expected: PASS. Also run `tests/test_job_spec.py tests/test_job_preflight.py tests/test_governor.py`; expected: PASS.
 - [ ] **Step 5: Commit.** `feat(judge): judge section, lock and preflight refusals (phase 4 step 1)`.
@@ -138,7 +150,7 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
 **Files:**
 - Create: `src/mailroom_sandbox/judge_record.py`.
 - Modify: `src/mailroom_sandbox/vendor_hotfixes.py`: HF-025 install `_install_judge_node`, verify-mode branch only.
-- Modify: `src/mailroom_sandbox/eval/runners.py:1749` (`_run_pipeline_doc` only): copy `judge_rulings` and `before_judge` from the scope.
+- Modify: `src/mailroom_sandbox/eval/runners.py` (`_run_pipeline_doc` only; find it by name, the line moves): copy `judge_rulings`, `before_judge` and `judge_corrected` from the scope.
 - Test: `tests/test_correcting_judge.py`, `tests/test_vendor_hotfixes.py`.
 
 **Interfaces:**
@@ -147,6 +159,7 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
   - `judge_record.note_ruling(entry: Mapping) -> None`, which appends to `scope["judge_rulings"]`.
   - An entry holds: `{"pass": int, "mode": "verify"|"correct", "ruling": str, "score": float|None, "reason": str, "fixes": [FixCheck dicts], "retry_fields": [str], "wrong_fields": [str], "model": str}`.
   - In verify mode, `ruling` holds the vendored verdict.
+  - `judge_record.note_corrected() -> None` sets `scope["judge_corrected"] = True` (ruling 15); Task 4 calls it when an accept applies a verified fix.
 
 - [ ] **Step 1: Write the failing tests.**
   - `test_verify_mode_records_the_verdict_and_the_extraction_before_the_judge`: through `tests/_arbiter_harness.run`, a partial and then complete script. Expect two entries and `before_judge` equal to the first pass's cleaned extraction.
@@ -169,7 +182,7 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
   - `gold_labels.evidence_support(doc_class, name, value, quotes) -> (bool, str)`.
 - Produces:
   - `FixCheck = TypedDict(field, value, quote, verified: bool, why: str)`. `why` is one of `ok`, `not_requested`, `blank`, `quote_not_found`, `unsupported`.
-  - `verify_fix(doc_class: str, doc_text: str, fix: Mapping, *, requested: Collection[str]) -> FixCheck`.
+  - `verify_fix(doc_class: str, doc_text: str, fix: Mapping, *, requested: Collection[str], subclass: str | None = None) -> FixCheck`. It passes `doc_subclass=subclass` to `evidence_support` when that function accepts the keyword (ruling 14).
   - `apply_fixes(extracted: Mapping, checks: list[FixCheck]) -> dict`: only verified fixes, with every other key kept.
 
 - [ ] **Step 1: Write the failing tests.** Each uses a real two-sentence document text.
@@ -179,6 +192,7 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
   - `test_a_value_the_quote_does_not_support_is_rejected`
   - `test_a_fix_outside_the_requested_fields_is_rejected`: covers `_report`, `reasoning`, a field missing from `requested`, and a name outside `DEFAULT_FIELD_TYPES`.
   - `test_apply_fixes_writes_only_verified_values`
+  - `test_verify_fix_passes_the_subclass_when_evidence_support_takes_it`: monkeypatch `evidence_support` with and without a `doc_subclass` keyword; the subclass reaches it only in the first case, and neither raises.
 - [ ] **Step 2: Run to verify they fail.** Run: `.venv/bin/python -m pytest -q tests/test_judge_fixes.py -n 0 --no-cov`. Expected: FAIL (import error).
 - [ ] **Step 3: Implement.** Check in this order: requested, blank, `locate`, then `evidence_support` on the located text.
 - [ ] **Step 4: Run to verify they pass.** Expected: PASS.
@@ -249,10 +263,17 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
   - `test_every_path_ends_within_two_rulings_and_one_retry`: a parametrized grid over rulings {accept, accept+unfixed, retry, human_review} × second rulings, with `VISIT_BOUND` never hit.
   - `test_a_matter_conflict_after_the_judge_goes_to_review_as_today`
   - `test_a_pass_through_arbiter_is_not_a_governor_round`
+  - `test_call_counts_per_path_match_the_design` (stage 0, "call counts per path match the design"). Counted through the call guard:
+    - accept, with or without fixes: 1 judge call;
+    - human review: 1 judge call;
+    - retry then any second ruling: 2 judge calls and 1 extraction call;
+    - every path: 0 arbiter calls.
+  - `test_every_governor_outcome_is_reached_with_the_correcting_judge` (spec step 5): parametrized over `archive_with_caveats`, `retry_budget`, `call_budget`, `spend_budget` and `boss_repeat`. Each ends at its outcome with `governor_stop` recorded and no hard-ceiling crash.
+  - `test_rulings_and_retries_count_toward_the_governor_budgets`: a ruling's call is in the call budget, and a judge-ordered retry is a round.
 - [ ] **Step 2: Run to verify they fail.** Expected: FAIL.
 - [ ] **Step 3: Implement HF-026, HF-027, `fields_only` and the governor change.**
 - [ ] **Step 4: Run to verify they pass.** Expected: PASS, along with `tests/test_governor.py`, `tests/test_vendor_hotfixes.py`, `tests/test_subclass_extraction.py` and `tests/test_experiments.py`.
-- [ ] **Step 5: Commit.** `feat(judge): arbiter pass-through and field-only retry (step 4)`.
+- [ ] **Step 5: Commit.** `feat(judge): arbiter pass-through, field-only retry and governor budgets (steps 4-5)`.
 
 ### Task 6: Extra information: earlier attempts, guide definitions, the reference pool
 
@@ -290,25 +311,39 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
 **Files:**
 - Modify: `src/mailroom_sandbox/job/gate.py`: `_judge_fields(out, row, pred)` in `_status`, and a `_judge_block(statuses)` beside the governor block.
 - Modify: `src/mailroom_sandbox/job/routing_audit.py`: a `judge` block.
-- Test: `tests/test_correcting_judge.py`.
+- Modify: `src/mailroom_sandbox/job/gate_compare.py`: `judge_compare(baseline_dir, judge_dir, bars)`, the success rules for stages 1 and 2.
+- Test: `tests/test_correcting_judge.py`, `tests/test_gate_compare.py`.
 
 **Interfaces:**
 - Produces a gate `judge` block with:
   - `docs_judged`;
   - `rulings` by kind and pass;
-  - `fixes` {proposed, verified, rejected by `why`};
+  - `fixes` {proposed, verified, rejected by `why`, and, for verified fixes on scored fields, `right` and `wrong` against the ground truth (ruling 16)};
+  - `judge_corrected`: the count of documents marked by ruling 15;
   - `retries`;
   - `score_before` and `score_after` on judged documents, labelled "after judge": `_score_pipeline_extraction(row, {"extracted_data": before_judge})` against the final score;
-  - `calls_per_judged_doc`, `cost_per_judged_doc` by class, and `cached_prompt_tokens` when the usage reports them (the pilot measures caching);
+  - `calls_per_judged_doc` and `judge_related_calls_per_judged_doc` (ruling 17), `cost_per_judged_doc` by class, and `cached_prompt_tokens` when the usage reports them (the pilot measures caching);
+  - `review_rate`, `wrong_archive_rate` and `crashes` on judged documents, using the gate's own outcomes;
   - `matter_conflicts`: judged documents with an unadjudicated conflict ("Each one is counted");
   - `governor_stops` by reason.
+- `judge_compare` returns one check per success rule, each with its numbers and `pass`:
+  - judge-related calls per judged document cut by at least 50%;
+  - judge cost per judged document no higher, by class;
+  - the paired score delta on judged documents, with its interval (ruling 18; stage 2 only, and reported but not gating in stage 1);
+  - no more wrong archives;
+  - no hard-ceiling crashes.
+
+  It refuses two runs that drew different documents (`same_documents`).
 
 - [ ] **Step 1: Write the failing tests.**
   - `test_the_gate_reports_rulings_fixes_and_scores_before_and_after`: two synthetic items.
   - `test_runs_without_a_judge_section_report_no_judge_block`
+  - `test_fix_accuracy_scores_verified_fixes_against_the_truth`: one right fix and one wrong fix give `right: 1, wrong: 1`.
+  - `test_judge_compare_applies_every_success_rule` (test_gate_compare): synthetic baseline and judge runs. Each rule passes once and fails once.
+  - `test_judge_compare_refuses_runs_with_different_documents`
 - [ ] **Step 2: Run to verify they fail.**
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run to verify they pass.** Also `tests/test_gate*.py` and `tests/test_routing_audit.py`; expected: PASS.
+- [ ] **Step 4: Run to verify they pass.** Also run `tests/test_gate.py`, `tests/test_gate_causes.py`, `tests/test_gate_compare.py` and `tests/test_routing_calibration.py` (the routing audit's tests); expected: PASS.
 - [ ] **Step 5: Commit.** `feat(judge): judge block in the gate and routing reports (step 7)`.
 
 ### Task 8: Models, pins and the stage configs
@@ -324,8 +359,10 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
 - Test: `tests/test_correcting_judge.py`.
 
 **Spend caps:**
-- Each config's `job.api_cost_cap_usd` = 1.5 × (the production pipeline cap per document × docs + docs × 2 rulings × per-ruling cost).
-- Per-ruling cost: $0.03 qwen, $0.17 merger.
+- Each config's `job.api_cost_cap_usd` = 1.5 × (docs × the production pipeline cap per document + 2 rulings × the per-ruling cost, summed over the draw's documents by class).
+- The production pipeline cap per document is $0.02 (`config/runs/production/slice-0250.yaml`: $5 for 250 documents).
+- Per-ruling cost: $0.03 for qwen, $0.17 for mergers.
+- Counting every drawn document as judged keeps the cap safe. The verify configs price only the pipeline term, since their judge is today's.
 - Every config also has `job.max_wall_seconds`.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -345,7 +382,7 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
   - `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md`: rows for HF-025 to HF-027;
   - `docs/critical-regressions.md`: guards named on rows 1, 3, 5, 6, 9, 12, 14, 15, 17 and 22;
   - `CHANGELOG.md`;
-  - `docs/README.md`: index this plan.
+  - `docs/README.md`: index the upstream issues doc (this plan is already indexed).
 - Create: `docs/design/specs/2026-11-26-correcting-judge-upstream-issues.md`, with drafts of the five upstream issues.
 - Test: `tests/test_docs_drift.py`, `tests/test_doc_paths.py`.
 
@@ -360,3 +397,5 @@ def test_judge_model_picks_the_class_override(): ...                   # merger 
 - **Caching savings.** These are provider-dependent. The caps assume no caching.
 - **Insurance examples.** They are all `derived` interim labels, so their effect may be small.
 - **Upstream issues.** Five drafts in the companion doc, for the owner to file.
+- **#439 / #425 order.** See ruling 14. Whichever lands second regenerates the field lists and re-preflights the stage configs.
+- **Label counts.** `test_the_label_counts_match_the_spec_table` pins the spec's table. If the built pool differs (labels changed since the spec), record a ruling, update the spec table with the built counts, and keep the test pinned to the committed pool.
