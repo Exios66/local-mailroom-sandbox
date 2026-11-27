@@ -22,8 +22,9 @@ must be checked locally. Suppress quota-only review notifications.
 
 | Job | Use | Skill | Do **not** use |
 | --- | --- | --- | --- |
+| Default experimental/deployment API provider | OpenRouter (`openrouter`; new experiment creation selects it explicitly) | [openrouter](../openrouter/SKILL.md) | Provider/model fallback after failed auth; paid calls for log inspection |
 | Offline / CPU-only inference | Ollama (`--profile ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
-| Default live serving; GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`, the default; drive it with `sandbox modal …` / `sandbox vllm …`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
+| Explicit GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`; drive it with `sandbox modal …` / `sandbox vllm …`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
@@ -31,10 +32,10 @@ must be checked locally. Suppress quota-only review notifications.
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
 | Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |
-| Floor viewer / offline replay | `sandbox floor [TARGET]` / `sandbox floor --replay` | [huggingface](../huggingface/SKILL.md) for sample provenance | Model calls for a UI demo; quoting simulated results as measurements |
+| Floor viewer / saved logs / offline replay | `sandbox floor [TARGET]` / `--register-run DIR` / `--replay-run DIR` / `--replay` | [huggingface](../huggingface/SKILL.md) for artifact/sample provenance | Model calls for log inspection; quoting replay output as a new measurement |
 | Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite/coverage; separately scoped hosted jobs for needed campaigns/benchmarks | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; assuming campaign/benchmark jobs already exist; weakening merge gates |
 | Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
-| Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
+| Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | [sand-board-lifecycle](../sand-board-lifecycle/SKILL.md) for the card cycle; [sand-board-hygiene](../sand-board-hygiene/SKILL.md) for stale triage; `governance/PREFIX.md` | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
 ## Observability precedence (`OBSERVABILITY_PROVIDER`)
 
@@ -42,21 +43,21 @@ Canonical default in `.env`: **`langfuse`**.
 
 When `auto`:
 
-1. Langfuse if `LANGFUSE_SECRET_KEY` is set  
-2. else Braintrust if `BRAINTRUST_API_KEY` is set  
-3. else Phoenix if `PHOENIX_TRACING` ≠ `disabled`  
+1. Langfuse if `LANGFUSE_SECRET_KEY` is set
+2. else Braintrust if `BRAINTRUST_API_KEY` is set
+3. else Phoenix if `PHOENIX_TRACING` ≠ `disabled`
 4. else `none`
 
 Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroom_sandbox.eval.tracing`. Phoenix/Braintrust are alternate sinks — they do **not** replace that family schema for The-Mailroom.
 
 ## Serving precedence
 
-1. **`--mock` / offline prep** — no live LLM  
-2. **Modal vLLM** — the default (`modal-vllm`): remote GPU; `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
-3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up -d --compose-profile ollama`, `sandbox pull-models --profile ollama`)
-4. **vLLM local** — NVIDIA host + compose profile `vllm`  
-5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
-6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
+1. **`--mock` / offline prep** — no live LLM
+2. **OpenRouter** — default experimental/deployment provider (`OPENROUTER_API_KEY`); live calls retain credentials and human spend gates. Existing run specs and locks retain their provider.
+3. **Modal vLLM** — explicit GPU serving (`modal-vllm`): `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
+4. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up -d --compose-profile ollama`, `sandbox pull-models --profile ollama`)
+5. **vLLM local** — NVIDIA host + compose profile `vllm`
+6. **llama.cpp / LM Studio** — generic OpenAI base URL profiles
 
 Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom graph/agents. Rewrite models via overlay / `--agent-model`; do not hardcode OpenRouter ids into Ollama.
 
@@ -79,6 +80,10 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
   a labeled run into that base and uses simulated results, never inference.
   A foreign or symlinked replay directory is refused; do not delete it to bypass
   the ownership check. See [sample provenance](../../../data/fixtures/floor/replay/README.md).
+- Saved run folders from any provider can be referenced with `--register-run DIR`
+  or the browser's REGISTER RUN form. References persist in the selected base's
+  `floor-runs.json`; source logs stay unchanged. IMPORT accepts a floor digest,
+  not arbitrary raw or aggregate provider logs. See [floor operation](../../../docs/floor.md).
 
 ## Gotchas
 
@@ -114,7 +119,7 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 ```bash
 sandbox profiles
 sandbox cutover --profile ollama
-sandbox up -d                                       # langfuse only (default modal-vllm); select both profiles for Ollama + Langfuse
+sandbox up -d                                       # langfuse only (default openrouter); select both profiles for Ollama + Langfuse
 sandbox up -d --compose-profile phoenix             # optional sidecar
 sandbox health
 sandbox doctor                                      # offline status of modal/hf/docker/ollama/ssh/git/vllm…; --live probes, --publish feeds the board strip

@@ -70,24 +70,27 @@ sandbox tunnel plan --profile vllm-remote
 sandbox run preflight --profile modal-vllm --config config/runs/x.yaml
 ```
 
-## 3. Serving bring-up (Modal vLLM is the default)
+## 3. Serving bring-up (OpenRouter is the default)
+
+Set `OPENROUTER_API_KEY` privately before using live OpenRouter commands. Viewing
+saved logs and mock runs requires no key. Live experiments retain their budget
+and human-initials gates.
 
 ```bash
-sandbox runbook show serve              # DEFAULT: prewarm → deploy → point → verify → teardown
-sandbox up -d                           # compose: Langfuse (select langfuse and jupyter explicitly to run both)
-sandbox health                          # provider /v1/models + chat + langfuse + phoenix
+sandbox up -d                           # compose: Langfuse
+sandbox health --profile openrouter     # probe the selected API provider
+sandbox runbook show serve              # explicit Modal GPU lifecycle
 ```
 
-- The endpoint is Modal (`modal-vllm`); export `VLLM_BASE_URL` (or
-  `MODAL_WORKSPACE`) after `modal deploy`, as the runbook does.
-- Offline / CPU-only: `sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama`
-  then add `--profile ollama` to later commands (or set `SANDBOX_PROFILE=ollama`,
-  in the shell or `.env`). Without it `pull-models` only prints the Modal prewarm
-  command.
-- `health` exits 1 with a JSON report when the provider endpoint is down (no
-  traceback) and prints a hint when the Modal endpoint URL is unset. Langfuse and
-  Phoenix are reported in the JSON but do not change the exit code.
-- No Docker daemon / no Ollama → clean one-line errors, exit 1.
+- For Modal, follow the serve runbook, export `VLLM_BASE_URL` (or
+  `MODAL_WORKSPACE`), and use `--profile modal-vllm` on subsequent commands.
+- Offline / CPU-only: `sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama`,
+  then use `--profile ollama` or set `SANDBOX_PROFILE=ollama` in the shell or `.env`.
+- A profile flag applies to one invocation. `SANDBOX_PROFILE` supplies the
+  persistent default. Experiment creation supports OpenRouter and Modal; another
+  selected profile requires an explicit supported `--provider`.
+- `health` exits 1 when the selected endpoint is unavailable. Langfuse and Phoenix
+  are reported but do not change the exit code.
 
 ## 4. Vendored family (self-containment)
 
@@ -247,7 +250,7 @@ pip install -e ".[dev]" && sandbox datasets prepare \
   && sandbox run preflight --config config/runs/examples/example.yaml --mock
 ```
 
-**Modal remote GPU (default profile):**
+**Modal remote GPU (explicit profile):**
 
 ```bash
 pip install -e ".[deploy]" && modal token new
@@ -256,7 +259,7 @@ sandbox runbook show serve        # the full lifecycle script (prewarm → deplo
 export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
 modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
 export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
-sandbox health && sandbox run start --config … --job-mode modal
+sandbox health --profile modal-vllm && sandbox run start --config … --job-mode modal
 ```
 
 **Local Ollama (offline opt-out):**
@@ -267,16 +270,16 @@ sandbox pull-models --profile ollama && sandbox health --profile ollama \
   && sandbox pilot --local --profile ollama
 ```
 
-**Provider notes:** the default is `modal-vllm`; `ollama`, `vllm-local`,
-`vllm-remote`, `llamacpp`, `lmstudio` and `openrouter` are explicit
+**Provider notes:** the default is `openrouter`; `modal-vllm`, `ollama`, `vllm-local`,
+`vllm-remote`, `llamacpp` and `lmstudio` are explicit
 alternatives. `sandbox profiles` marks the active default, and `--profile`
 after the subcommand always wins.
 
 ## 12. Verification
 
 ```bash
-.venv/bin/python -m pytest -q        # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
-sandbox health                       # after the serve runbook: provider reachable, exit 0 (Langfuse/Phoenix are reported, not gated)
+.venv/bin/python -m pytest -q tests/test_provider_credentials.py -n 0 --no-cov  # focused offline check; full suite in CI
+sandbox health --profile modal-vllm   # after the serve runbook: provider reachable, exit 0 (Langfuse/Phoenix are reported, not gated)
 ```
 
 ## 13. Troubleshooting (DMR-058 CLI sweep findings)

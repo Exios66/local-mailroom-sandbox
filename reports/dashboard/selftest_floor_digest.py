@@ -94,8 +94,8 @@ EXPECTED_EDGES = {
     ("extract", "archive"), ("archive", "END"),
 }
 RUN_KEYS = {
-    "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
-    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
+    "id", "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
+    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents", "node_models",
     "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
     "routing", "review_routed", "replay", "checkpoint_state", "stalled_s", "last_activity_utc",
     "scores", "node_outcomes", "docs", "docs_truncated", "docs_omitted_healthy",
@@ -571,7 +571,7 @@ def template_wires_live_mode_without_polling_on_file_protocol():
     """The viewer gates pills, clocks and both timers on http(s); routing/class helpers exist."""
     html = TEMPLATE.read_text(encoding="utf-8")
     for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
-                   'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
+                   'if(busy||registering||holdLive)return', "updated ", "classView(", "if(!same)", 'r.state==="running"',
                    "fitGraph()", "outRev", "Routed to human review", "prompt.lock.json",
                    "audit_events", "routed_to_review", "audit log", "STALE", "poll misses"):
         assert needle in html, needle
@@ -948,7 +948,8 @@ def viewer_js(body: str, glue: bool = False) -> str:
     html = TEMPLATE.read_text(encoding="utf-8")
     block = html[html.index("// READS:BEGIN"):html.index("// READS:END")]
     esc_line = next(line for line in html.splitlines() if line.startswith("const esc="))
-    prelude = f"const DOC={json.dumps(_RD_DOC)};\n"
+    prelude = next(line for line in html.splitlines() if line.startswith("function runKey(")) + "\n"
+    prelude += f"const DOC={json.dumps(_RD_DOC)};\n"
     if glue:
         # everything from the glue banner to the click listener: DOCV, rdEnsure, paintDocPanel and rdAct; the caller's body stubs the DOM
         start = html.index("// ── DOCUMENT panel glue")

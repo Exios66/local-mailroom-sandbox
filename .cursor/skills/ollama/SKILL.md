@@ -1,12 +1,15 @@
 ---
 name: ollama
-description: Offline/CPU fallback Ollama provider for local-mailroom-sandbox (compose sandbox-ollama, pull-models, health, cutover). Use for offline/local inference, qwen3:8b / llama3.2:3b smoke, and any SANDBOX_PROFILE=ollama work — not the default (modal-vllm is); prefer it over OpenRouter and Modal only when offline, CPU-only or without a Modal account.
+description: Offline/CPU fallback Ollama provider for local-mailroom-sandbox (compose sandbox-ollama, pull-models, health, cutover). Use for requested local inference, qwen3:8b / llama3.2:3b smoke, or SANDBOX_PROFILE=ollama. OpenRouter is the experimental default; selecting Ollama does not require a Modal account.
 ---
 
 # Ollama (offline/CPU fallback provider)
 
-**When:** Offline or CPU-only inference, `--profile ollama`, CPU smoke, mock→local pilots without a Modal endpoint.  
-**Prefer over:** OpenRouter (opt-in API) and Modal/vLLM when offline or CPU-only; the default profile is `modal-vllm`.
+**When:** Offline or CPU-only inference, `--profile ollama`, or CPU smoke.
+Select Ollama explicitly for those tasks; the default experimental provider is
+OpenRouter. Cached weights are needed for inference without network access;
+pulling missing weights is a separate network operation. Floor log inspection
+and mock checks do not require any inference provider.
 
 ## Profile
 
@@ -22,7 +25,7 @@ description: Offline/CPU fallback Ollama provider for local-mailroom-sandbox (co
 ## Commands
 
 ```bash
-sandbox up -d --compose-profile langfuse --compose-profile ollama   # the default modal-vllm profile starts langfuse only
+sandbox up -d --compose-profile langfuse --compose-profile ollama   # the default openrouter profile starts langfuse only
 sandbox pull-models --profile ollama                     # ollama pull qwen3:8b (container or host)
 sandbox pull-models llama3.2:3b --profile ollama         # CPU smoke
 sandbox cutover --profile ollama --model llama3.2:3b
@@ -48,7 +51,7 @@ Pull prefers `docker exec sandbox-ollama ollama pull …`, else host `ollama`.
 | Host NVIDIA, OpenAI `/v1` locally | profile `vllm-local` + compose `vllm` → see [modal](../modal/SKILL.md) only for remote |
 | Remote GPU without local cards | [modal](../modal/SKILL.md) (`modal-vllm`) |
 | GGUF / LM Studio | profiles `llamacpp` / `lmstudio` |
-| Cloud API comparison | `openrouter` (opt-in key only) |
+| Default experimental/deployment API provider | [openrouter](../openrouter/SKILL.md), with a private API key for live calls |
 
 ## Related
 

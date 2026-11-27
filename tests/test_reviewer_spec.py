@@ -279,9 +279,12 @@ def test_lock_freezes_the_reviewer(tmp_path, job_data_dir, monkeypatch):
 
 
 @pytest.fixture
-def registry():
+def registry(monkeypatch):
     from agents import decision_backend
 
+    # activate() writes these process-wide selections; restore them after each test.
+    monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
+    monkeypatch.setenv("DEFAULT_PROVIDER", "ollama")
     activate("ollama", load_env_file=False)  # puts the mailroom source on sys.path
     decision_backend.register_decision_backend(None)
     yield decision_backend
@@ -365,7 +368,7 @@ def create_experiment(tmp_path):
 
     def create(*options):
         root = tmp_path / ("exp-" + str(len(list(tmp_path.glob("exp-*")))))
-        args = ["experiment", "create", root.name, "--doc-class", "contract", "--samples", "3",
+        args = ["experiment", "create", root.name, "--provider", "openrouter", "--doc-class", "contract", "--samples", "3",
                 "--local-dataset", str(source), "--trace-sink", "none", "--mock", "--output", str(root), *options]
         return cli.main(args), root
 
