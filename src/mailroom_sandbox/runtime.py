@@ -660,6 +660,23 @@ def activate(
     from mailroom_sandbox import governor
 
     governor.activate(locked_job.get("governor"))  # a lock without the key (before phase 2): off
+    from mailroom_sandbox import subclass_extraction
+
+    if locked_job.get("subclass_schemas"):
+        locked_sha = ((locked.get("spec_core") or {}).get("job") or {}).get("subclass_fields_sha256")
+        subclass_extraction.activate(sha256=str(locked_sha or ""), guide=bool(locked_job.get("schema_guide")),
+                                     note=bool(locked_job.get("subclass_field_note")))
+    elif not locked:  # an ad-hoc eval holds no lock: subclass schemas are always used when available
+        from mailroom_sandbox.subclass_fields import read_field_lists
+
+        lists, current_sha = read_field_lists()
+        subclass_extraction.activate(lists, sha256=current_sha, guide=False)
+    else:  # a lock without the key (before phase 3, or a task other than pipeline)
+        subclass_extraction.deactivate()
+    from mailroom_sandbox import correcting_judge
+
+    locked_judge = locked.get("judge")  # a lock without the key (before phase 4): today's judge, no record
+    correcting_judge.activate(locked_judge, pool_sha256=(locked_judge or {}).get("reference_pool_sha256"))
     try:  # every activation sets or restores the descriptions, so one run's choice never leaks
         from mailroom_sandbox.schema_guide import apply_schema_guide
 

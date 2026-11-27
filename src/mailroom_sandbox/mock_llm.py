@@ -112,6 +112,9 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         conf = 0.40 if expect.get("id") == "ambiguous_01" else 0.99
     fields = expect.get("expected_fields") or {}
     text = user_content or ""
+    if text.startswith("Rule on this extraction."):  # the phase 4 correcting judge (its prompt quotes the document)
+        return {"ruling": expect.get("judge_ruling") or "accept", "score": 0.98, "reason": "mock",
+                "wrong_fields": [], "retry_fields": [], "fixes": []}
     if ("Classify this legal document" in text or "RE-EVALUATION REQUESTED" in text
             or "CLASSIFY THIS DOCUMENT" in text):  # the last is the sorter reviewer's prompt
         return {
@@ -152,7 +155,7 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
-    # The vendored handoff ends "Extract this document's fields accordingly...". HF-021
+    # The vendored handoff ends "Extract this document's fields accordingly...". HF-028
     # replaces that sentence with a check ("the sorter classification above is unverified").
     # Both are the in-graph specialist. Missing the rewritten cue used to fall through to
     # the raw-label payload below, which copies expected_fields, gold-only keys included.

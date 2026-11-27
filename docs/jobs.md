@@ -553,6 +553,174 @@ The block is part of the hashed spec when set (not when absent), and HF-018 and 
 [Checkpoint / resume](#checkpoint--resume)). The near-duplicate index is in-process: near copies are found among
 the documents this process has seen in the run.
 
+## Subclass extraction schemas (`job.subclass_schemas`)
+
+Phase 3 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (X1,
+"narrow and extend"). **Always on for `task: pipeline`**: subclass schemas are used whenever one is
+available. Leaving `job.subclass_schemas` unset turns it on for pipeline runs and off for every other task.
+An explicit `false` on a pipeline run is refused, and `true` on another task is refused. Every extraction is
+sent the schema of the document's **predicted** subclass instead of the whole class schema.
+This applies to all five classes: contract (by `contract_subtype`), merger agreement, corporate record,
+correspondence and insurance claim (by `doc_subclass`).
+
+The schemas come from a committed file, `config/extraction/subclass_extraction_fields.json`. It is derived
+from the label registry `config/extraction/subclass_schemas.json` by `python scripts/build_subclass_fields.py`
+(`--check` fails when stale, and `tests/test_subclass_fields.py` checks it too). Every subclass of every class
+has an entry:
+
+- **drop**: class fields the vendored Dojo never scores as a value for the subclass (status
+  `not_applicable`, `absent_from_dojo` or `documented_absent`), unless a dev, calibration or pool label gives
+  the field a value there (the registry's `valued_by_set`). The scorer counts a labeled value, so dropping
+  that field would turn a hit into a miss. Today the drops are:
+  - contract, every subclass: `maud_clauses` and `merger_consideration`;
+  - merger agreement, every subclass: `intent`, `keywords` and `subject_matter`;
+  - insurance claim: `cms_source_table` on `auto` and `property`, plus `adjuster` and `denial_reasons` on
+    the CMS subclasses and `property`;
+  - corporate record: `filing_number` on four subclasses, plus `jurisdiction` and `signatories` on
+    `subsidiary_list`.
+
+  Held-out labels never keep a field. The one held-out `filing_number` value on `bylaws` is therefore not
+  asked for, and scores as a miss on that one held-out document. A subclass's own `output_schema_fields` in
+  the registry, when present, replaces the class's.
+- **add**: fields outside the class schema with dev, calibration or pool labels and an extraction status.
+  Today there are none: the corporate entity fields have no labels yet, and correspondence `content_topic`
+  and `sentiment_label` are label tasks, not extraction fields.
+- **guide**: the labeling-guide text. It replaces a kept or added field's description only when
+  `job.schema_guide` is also on, and never a description `schema_guide` curates. Today every registry guide
+  entry names a curated field, so the curated text is what the model sees.
+
+Held-out labels never shape a list: only the `dev`, `calibration` and `pool` counts are read.
+
+The class schema is kept when the predicted subclass is missing, `unknown`, `other` or not listed, or
+when `classification_confidence` is missing or below the class's `low` band. The sorter reports no
+separate subclass confidence.
+
+For pipeline runs the switch and the file's sha256 are hashed into `spec_hash`. At activation the runtime
+refuses a field list whose sha differs from the locked one, so re-run preflight after rebuilding it. HF-023
+applies the choice: one specialist instance serves one document's extraction and every chunk window, and it
+alone is given the narrowed schema. HF-024 keeps the review consistent with it: the judge's expected-field list and the
+extraction the judge, the arbiter and the retry summary read leave out the dropped fields (and list the added
+ones). The next document, and a fallback extraction, see the class schema. A confidence that is missing, NaN or not
+a number falls back.
+A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer) keeps that
+hotfix's schema; the other classes are unaffected. HF-023 changes the hotfix set, so a run whose lock records a
+set from before it is refused on resume; re-lock it with `--force`, and the new pipeline lock turns subclass
+schemas on. A lock from before the hotfix layer records no set and has no `subclass_schemas` key, so when it
+resumes it runs with class schemas. Preflight resumes it only while it has no checkpoint, and a direct run
+refuses it once work has started. An ad-hoc pipeline eval
+with no lock uses the committed field lists.
+
+### Subclass field note (`job.subclass_field_note`)
+
+The promoted specialist prompts are frozen, class-level text written before subclass schemas. Some of them
+name fields a subclass schema no longer requests. The MAUD merger prompt, for example, sends consideration
+and exchange-ratio language to `subject_matter` or `keywords`, which every non-fallback merger subclass drops (all but `other`). The strict
+schema stops a dropped field from being written, but not its content from moving into a field that is still
+requested (for mergers, `maud_clauses`).
+
+`job.subclass_field_note: true` (pipeline runs only; off by default and hashed only when set) appends a short
+block after the system prompt of a specialist that was sent a narrowed subclass schema. The block names the
+class and subclass, lists the fields the subclass does not request ("leave that content out; never move it
+into another field"), and lists any fields it adds.
+
+- The promoted prompt stays the head of the system prompt, byte for byte. LangChain specialists append the
+  note after `augmented_system_prompt()`, and legacy `agents` specialists after `system_prompt()`.
+- The note is built from the two schemas only, so it follows the committed field lists.
+- A fallback to the class schema, and a subclass whose requested fields equal the class's, get no note.
+- A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer, as in #425)
+  keeps that hotfix's schema and gets no note, as HF-023 leaves it alone.
+- No hotfix ID is taken: the note rides on HF-023's per-instance wrapper.
+
+Adoption is an A/B: `config/runs/sx-note-s1-on.yaml` is the Phase 4 stage 1 baseline
+`config/runs/p4-s1-verify-gov-off.yaml` with only the note on
+(`test_the_note_ab_arm_differs_from_its_baseline_only_in_the_note`). Plan:
+[`docs/design/plans/2026-11-27-subclass-field-note.md`](design/plans/2026-11-27-subclass-field-note.md).
+
+## Correcting judge (`judge:`)
+
+Phase 4 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (plan:
+[`docs/design/plans/2026-11-26-phase4-correcting-judge.md`](design/plans/2026-11-26-phase4-correcting-judge.md)).
+A top-level `judge:` section on a `task: pipeline` run changes how the judge rules; it is refused for any other
+task, and without it the judge is today's and nothing is recorded.
+
+```yaml
+judge:
+  mode: correct                 # verify: today's judge plus the record; correct: a judge that rules on fixes
+  model: qwen/qwen3.7-plus      # correct mode only (default)
+  models_by_class:              # correct mode only (default)
+    merger_agreement: deepseek/deepseek-v4.1-flash-1017
+  references: train_pool        # off (default) or train_pool; catalog is refused until a catalog source exists
+  reference_pool: config/judge/reference-pool-runbook-v2.jsonl   # only with train_pool
+  max_examples: 2               # 0-2 labeled examples of the same class and subclass
+  max_example_chars: 3000
+  max_attempt_chars: 4000       # earlier extraction attempts of this document
+```
+
+Quote `"off"` in YAML: a bare `off` parses as false (the spec reads false as `off` too).
+
+**`mode: verify`** keeps the vendored judge, arbiter and retry, and records each verdict and the extraction
+before the judge (HF-025). It runs on the pipeline's own judge model, so `model`, `models_by_class` and
+`references` are refused with it, and it adds no preflight price or route check.
+
+**`mode: correct`** replaces each judge pass with one ruling (one call, one re-ask on a parse failure). The
+prompt puts the whole document first, then the extraction (requested fields only: the class schema after the
+subclass drops, without `confidence` or `reasoning`), the field definitions, this document's earlier attempts
+and, with `train_pool`, up to two labeled examples. The judge rules `accept` (with fixes), `retry_fields`
+(naming fields) or `human_review`, mapped to the vendored verdicts `complete`, `partial` and `incomplete`.
+The safety rules:
+
+- A fix is applied only when `judge_fixes.verify_fix` checks it: the field was requested and is a target
+  field of the class, the value is not blank (a fix never erases a field), the quote is found in the document,
+  and the located text supports the value under the gate's value rules. Nothing in the check calls a model.
+- An accept that leaves a wrong field unfixed becomes a retry on the first ruling and a person on the second.
+  Its verified fixes are still applied before the retry.
+- A retry asks the specialist for the named fields only and keeps every other extraction field (HF-027), then
+  returns to the judge for its second, final ruling. A second ruling never retries; a retry with no fields goes
+  to a person. A re-read that fails (unparseable, guardrail-failed, unsupported or schema-invalid) goes to a
+  person without a second ruling; a transient-error loop or a Boss conflict keeps the vendored route.
+- After fixes are applied the matter conflict check runs again; a conflict a fix created is parked for a person,
+  never archived.
+- The arbiter makes no call; the judge's ruling is final (HF-026), and the pass-through is not a governor
+  round. Rulings and the retry count toward the governor's call and spend budgets.
+- A document longer than the judge model's context, or a reply that does not parse twice, goes to review
+  (`judge_input_too_long`, `judge_parse_error`).
+
+So every document ends within two rulings and one field retry.
+
+**References.** `train_pool` reads the committed pool `config/judge/reference-pool-runbook-v2.jsonl`, built by
+`python scripts/build_judge_reference_pool.py` (`--check` fails when stale): the truth labels of the runbook-v2
+`calibration` and `pool` documents only, merged in the scorer's own order (`gold_labels.apply_near_gold`), so an
+example never shows a value the run is not scored against: interim truth labels (`use_as_truth`, not `disputed`),
+then the near-gold overlay `data/labels/gold-overlay` (checked against its manifest) on fields interim does not
+give and over an interim gate gap fill (SHF-010; an `original_header` fill and an interim correction stand). Hub
+ground truth is not read (it needs the dataset); no overlay label carries a Hub value, so a Hub-labelled field is
+left out rather than shown wrong. At most two 240-character evidence quotes are kept per field, and an example
+shows only the fields the judge is asked about. Preflight refuses a train_pool draw that holds a calibration or
+pool document, or one sharing a leak component (thread, matter or text) with the pool, and the judged document is
+never its own example. A label change (#425, #439) makes `--check` fail until the pool is rebuilt and re-locked.
+
+**Preflight and lock.** In correct mode preflight refuses a judge model with no price in
+`config/api_prices.yaml`, no provider pin in `config/provider_pins.yaml`, no OpenRouter route, or a missing pool
+file. The spend cap prices the judge models. The section, with the pool's sha256, is hashed into `spec_hash`
+(absent, the hash is unchanged); activation refuses a pool whose bytes differ from the lock. HF-025 to HF-027
+are in every lock's `vendor_hotfixes`, so a run locked before this refuses resume until `--force`.
+
+**Record and reports.** Each judged item records `judge_rulings` (pass, ruling, score, reason, checked fixes,
+retry and wrong fields, model), `before_judge`, `judge_corrected` and `judge_conflict`. The gate report adds a
+`judge` block (rulings, applied fixes and their accuracy against the headline truth, skipping a label SHF-015
+drops as stale, retries, scores before and `after judge`,
+calls, judge-related calls and cost per judged document, cached prompt tokens, review and wrong-archive rates,
+crashes, matter conflicts and governor stops), and the routing audit a `judge` section.
+`gate_compare.judge_compare(baseline_dir, judge_dir, bars, stage=...)` applies the design's success rules to two
+runs of the same documents: judge-related calls per judged document cut by at least half, cost per judged
+document no higher by class, the paired score delta at most 2 points below (bootstrap interval; gating from
+stage 2), no more wrong archives, and no crash from the hard call ceiling.
+
+**Stages.** The stage configs are `config/runs/p4-s1-*.yaml` (dev-look1, 300 documents: verify with the governor
+off and on, correct with and without references) and `config/runs/p4-s2-*.yaml` (dev, 900 documents: verify and
+correct with references); each header states its cap arithmetic. Run the R01 smoke
+`config/runs/rb1-r01-smoke-qwen3.7-plus.yaml` first. Every stage is paid and needs a person's initials.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working

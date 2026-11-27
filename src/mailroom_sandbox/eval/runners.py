@@ -1756,6 +1756,7 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     from mailroom_sandbox.job import call_guard
 
     with call_guard.document() as scope:
+        scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
         raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
@@ -1771,7 +1772,9 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     skipped = int(scope["governor"]["skipped_classify_retries"])
     if skipped:
         result = {**result, "governor_skips": {"classify_retry": skipped}}
-    return result
+    from mailroom_sandbox import judge_record  # phase 4: present only when a judge section ran
+
+    return judge_record.merge(result, scope)
 
 
 def _gate_fired_without_prep(result: Mapping[str, Any]) -> bool:

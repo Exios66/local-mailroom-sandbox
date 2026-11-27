@@ -7,7 +7,7 @@ Machine-readable index: [index.jsonl](index.jsonl) (one row per run iteration).
 | phase | key | experiment | status | folder |
 | --- | --- | --- | --- | --- |
 | 0 Setup | `rb1-r00` | Build and freeze splits and subclass families; leak and length audit | no runs | `rb1-r00-splits-freeze` |
-| 0 Setup | `rb1-r01` | Pin slugs and providers; 10-doc smoke per model | 6 config(s), no runs built | [rb1-r01-provider-pin-smoke](rb1-r01-provider-pin-smoke/README.md) |
+| 0 Setup | `rb1-r01` | Pin slugs and providers; 10-doc smoke per model | 7 config(s), no runs built | [rb1-r01-provider-pin-smoke](rb1-r01-provider-pin-smoke/README.md) |
 | 0 Setup | `rb1-r02` | Scoring harness hand-check (F1, cost-weighted error, Brier/ECE, null floors) | records only (no runs) | [rb1-r02-scorer-handcheck](rb1-r02-scorer-handcheck/README.md) |
 | 0 Setup | `rb1-r03` | Gold-label audit of v0-vs-gold disagreements per lineage | 6 config(s), no runs built | [rb1-r03-gold-audit](rb1-r03-gold-audit/README.md) |
 | 0 Setup | `rb1-g0` | Phase 0 checkpoint (QC, review, stop) | gate not passed | [rb1-g0-checkpoint](rb1-g0-checkpoint/README.md) |

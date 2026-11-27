@@ -179,3 +179,98 @@ def test_paired_ci_bounds_are_json_safe(tmp_path):
     nxt = _run(tmp_path, "next", _ids("a"))
     out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
     json.dumps(out, allow_nan=False)
+
+
+# --- phase 4: judge_compare (the stage 1 and stage 2 success rules) -------------------------------
+
+QWEN = "qwen/qwen3.7-plus"
+
+
+def _judge_run(root, name, docs):
+    run = root / name
+    run.mkdir()
+    with open(run / "dataset.jsonl", "w") as ds, open(run / "items.jsonl", "w") as it:
+        for d in docs:
+            ds.write(json.dumps({"id": d["id"], "expected_doc_class": "corporate_record",
+                                 "expected_fields": json.dumps(LABELS)}) + "\n")
+            pred = {"stage": d.get("stage", "archived"), "doc_type": "corporate_record", "review_causes": [],
+                    "extraction_confidence": 1.0, "_score": d.get("score", 0.95),
+                    "judge_rulings": [{"pass": 1, "mode": d.get("mode", "correct"), "ruling": "accept", "score": 0.9,
+                                       "reason": "", "fixes": [], "retry_fields": [], "wrong_fields": [],
+                                       "model": QWEN}] * d.get("rulings", 1)}
+            usage = {"judge": {"calls": d.get("judge_calls", 1), "prompt_tokens": 1, "completion_tokens": 1,
+                               "models": [QWEN]},
+                     "arbiter": {"calls": d.get("arbiter_calls", 0), "prompt_tokens": 0, "completion_tokens": 0,
+                                 "models": []}}
+            it.write(json.dumps({"item_id": d["id"], "ok": not d.get("crash"), "error": d.get("error", "x") if d.get("crash") else None,
+                                 "prompt_tokens": 1, "completion_tokens": 1, "llm_calls": 3, "usage_by_agent": usage,
+                                 "reported_cost_usd": d.get("cost", 0.01), "pred": pred}) + "\n")
+    return run
+
+
+def _docs(n, **over):
+    return [{"id": f"d{i}", **over} for i in range(n)]
+
+
+def _rule(out, name):
+    return next(c for c in out["checks"] if c["rule"] == name)
+
+
+def test_judge_compare_applies_every_success_rule(tmp_path):
+    base = _judge_run(tmp_path, "base", _docs(30, judge_calls=2, arbiter_calls=2, mode="verify", cost=0.02))
+    good = _judge_run(tmp_path, "good", _docs(30, judge_calls=1, cost=0.01))
+    out = gate_compare.judge_compare(base, good, Bars(), stage=2)
+    assert out["verdict"]["pass"] is True, out
+    for name in ("judge_calls_cut", "judge_cost_by_class", "score_margin", "wrong_archives", "ceiling_crashes"):
+        assert _rule(out, name)["pass"] is True, name
+    assert _rule(out, "judge_calls_cut")["baseline"] == pytest.approx(4.0)
+    bad = _judge_run(tmp_path, "bad", _docs(28, judge_calls=3, arbiter_calls=1, cost=0.05, score=0.5)
+                     + [{"id": "d28", "crash": True}, {"id": "d29", "crash": True}])
+    out = gate_compare.judge_compare(base, bad, Bars(), stage=2)
+    assert out["verdict"]["pass"] is False
+    for name in ("judge_calls_cut", "judge_cost_by_class", "score_margin", "wrong_archives", "ceiling_crashes"):
+        assert _rule(out, name)["pass"] is False, name
+    lower = _rule(out, "score_margin")
+    assert lower["ci_low"] < -2.0 and "delta" in lower
+    stage1 = gate_compare.judge_compare(base, bad, Bars(), stage=1)
+    assert _rule(stage1, "score_margin")["gating"] is False  # reported, not gating, in the pilot
+    assert stage1["verdict"]["reasons"] and not any("score_margin" in r for r in stage1["verdict"]["reasons"])
+
+
+def test_judge_compare_counts_only_the_call_ceiling_as_a_ceiling_crash(tmp_path):
+    base = _judge_run(tmp_path, "base", _docs(3, mode="verify"))
+    capped = _judge_run(tmp_path, "capped", _docs(2) + [
+        {"id": "d2", "crash": True, "error": "call refused: api_cost_cap_usd=44.4 reached ($44.40 spent)"}])
+    assert _rule(gate_compare.judge_compare(base, capped, Bars()), "ceiling_crashes")["ceiling"] == 0
+    ceiling = _judge_run(tmp_path, "ceiling", _docs(2) + [
+        {"id": "d2", "crash": True, "error": "call refused: this document made 40 calls (per-document ceiling 40)"}])
+    assert _rule(gate_compare.judge_compare(base, ceiling, Bars()), "ceiling_crashes")["ceiling"] == 1
+
+
+def test_judge_compare_prices_both_arms_on_the_same_documents(tmp_path, monkeypatch):
+    from mailroom_sandbox.job import gate
+
+    base = _judge_run(tmp_path, "base", _docs(2, mode="verify", cost=0.02))
+    new = _judge_run(tmp_path, "new", _docs(2, cost=0.01))
+    real = gate.doc_cost
+    # d0's cost is unknown in the baseline: only d1 (0.02 vs 0.01) may be compared, not d0's 0.01 too.
+    monkeypatch.setattr(gate, "doc_cost", lambda item: None if item.get("item_id") == "d0"
+                        and item.get("reported_cost_usd") == 0.02 else real(item))
+    classes = _rule(gate_compare.judge_compare(base, new, Bars()), "judge_cost_by_class")["classes"]
+    assert all(v["paired_documents"] == 1 for v in classes.values()), classes
+
+
+def test_judge_compare_refuses_runs_with_different_documents(tmp_path):
+    base = _judge_run(tmp_path, "base", _docs(3, mode="verify"))
+    other = _judge_run(tmp_path, "other", [{"id": "z"}])
+    with pytest.raises(ValueError, match="same documents"):
+        gate_compare.judge_compare(base, other, Bars())
+
+
+def test_judge_compare_scores_documents_judged_in_either_arm(tmp_path):
+    """Plan ruling 18 / review finding: a document only the baseline judged must stay in the score check."""
+    base = _judge_run(tmp_path, "base", _docs(2, mode="verify"))
+    new = _judge_run(tmp_path, "new", [{"id": "d0"}, {"id": "d1", "rulings": 0, "score": 0.2}])
+    margin = _rule(gate_compare.judge_compare(base, new, Bars()), "score_margin")
+    assert margin["paired_documents"] == 2, margin
+    assert margin["pass"] is False  # d1's drop is counted

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import contextvars
 import functools
 import hashlib
 import importlib
@@ -88,6 +89,64 @@ def _install_record_type_from_subclass(_module: Any, original: Callable[..., Any
         return out
 
     return enrich_extraction
+
+
+def _install_subclass_schemas(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-023 (job.subclass_schemas): the predicted subclass picks the extraction schema.
+
+    ``extract_node`` builds the specialist handoff from the document state, then instantiates
+    the specialist once for the whole (possibly chunked) extraction. The handoff wrapper records
+    the choice (``subclass_extraction.record_choice``); the instantiate wrapper hands it to that
+    one agent instance (``bind_choice``). Off, both pass straight through.
+    """
+    from mailroom_sandbox import subclass_extraction as sx
+
+    handoff = module._build_handoff_context
+    if getattr(handoff, _MARK, None) != "HF-023":
+        @functools.wraps(handoff)
+        def _build_handoff_context(state):
+            out = handoff(state)
+            sx.record_choice(state)
+            return out
+
+        setattr(_build_handoff_context, _MARK, "HF-023")
+        module._build_handoff_context = _build_handoff_context
+
+    @functools.wraps(original)
+    def _instantiate_specialist(agent_fn, handoff_context):
+        agent = original(agent_fn, handoff_context)
+        sx.bind_choice(agent)
+        return agent
+
+    return _instantiate_specialist
+
+
+def _install_review_fields(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-024 (job.subclass_schemas): the judge and the arbiter see the fields extraction was asked for.
+
+    ``_clean_fields_for_judge`` builds the extraction the judge, the arbiter and the retry summary
+    read; ``CompletenessJudge._field_list`` is the judge's expected-field list. Both drop the fields
+    HF-023's narrowed schema left out for this document (``subclass_extraction.review_fields`` and
+    ``review_field_list`` read the document's call-guard scope). Off or on a fallback, both pass through.
+    """
+    from agents.judge import CompletenessJudge
+
+    from mailroom_sandbox import subclass_extraction as sx
+
+    field_list = CompletenessJudge.__dict__["_field_list"].__func__
+    if getattr(field_list, _MARK, None) != "HF-024":
+        @functools.wraps(field_list)
+        def _field_list(doc_type: str) -> str:
+            return sx.review_field_list(field_list(doc_type))
+
+        setattr(_field_list, _MARK, "HF-024")
+        CompletenessJudge._field_list = staticmethod(_field_list)
+
+    @functools.wraps(original)
+    def _clean_fields_for_judge(extracted):
+        return sx.review_fields(original(extracted))
+
+    return _clean_fields_for_judge
 
 
 #: The reasoning the vendored CompletenessJudge returns when its structured output failed to parse.
@@ -479,7 +538,7 @@ def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[
             # The vendored accumulator keeps token counts only. The provider's own
             # ``usage.cost`` and cache split are what an accurate bill is priced from.
             note_provider_call(usage)
-            call_guard.after_call(usage)
+            call_guard.after_call(usage, model=model)  # priced at the requested model (Phase 4 review)
 
     return record_usage
 
@@ -1238,34 +1297,50 @@ _HANDOFF_FOLLOW = ("Extract this document's fields accordingly, ensuring every e
 #: Replaces that sentence. The sorter line stays, as unverified context the specialist may correct.
 _HANDOFF_CORRECTION = (
     "The sorter classification above is unverified. If this document is not that doc_type, do not "
-    "extract it: set confidence to 0 and leave this class's fields null. If the subclass, type token, "
-    "or clause family disagrees with the document, extract the document's own values and do not copy "
-    "the sorter's label."
+    "extract it: set confidence to 0, leave this class's fields null, and set reasoning to "
+    "\"specialist_handoff_refusal\". A confidence of 0 without that reasoning means no fields were "
+    "found, and it is not a refusal. If the subclass, type token, or clause family disagrees with "
+    "the document, extract the document's own values and do not copy the sorter's label."
 )
 #: The contract inventory still says the CUAD family matches the sorter. The check replaces that clause.
 _FAMILY_FOLLOW = "matching the sorter subtype."
 _FAMILY_CHECK = "read from the document; do not copy the sorter subtype when it disagrees."
 #: On ``extraction_guardrail`` when a specialist answers 0. Routing reads it and does not call again.
 HANDOFF_REFUSAL = "specialist_handoff_refusal"
-_HANDOFF_RULE = "hf021_specialist_handoff_refusal"
-_TYPE_FIELDS = ("record_type", "communication_type", "claim_type", "cms_source_table")
+_HANDOFF_RULE = "hf028_specialist_handoff_refusal"
+# Type tokens a specialist left empty. Enrichment must not fill these from the sorter subclass.
+_TYPE_FIELDS = ("record_type", "communication_type", "claim_type", "cuad_family")
 
 
 def _explicit_zero(value: Any) -> bool:
-    """True for a numeric 0 the specialist stated. ``False`` and ``None`` are not a refusal."""
+    """True for a numeric 0 the specialist stated. ``False`` and ``None`` are not that number."""
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
 
 
-def _mark_handoff_refusal(out: Any) -> Any:
-    """Name a confidence-0 extraction as a handoff refusal, without touching any other result.
+def _reasoning_has_refusal(reasoning: Any) -> bool:
+    """True when the specialist named the handoff refusal in ``reasoning``."""
+    if isinstance(reasoning, str):
+        return HANDOFF_REFUSAL in reasoning
+    if isinstance(reasoning, Mapping):
+        return any(_reasoning_has_refusal(value) for value in reasoning.values())
+    if isinstance(reasoning, (list, tuple)):
+        return any(_reasoning_has_refusal(value) for value in reasoning)
+    return False
 
-    A parse exception and a missing specialist also store confidence 0. Those are not a
-    specialist refusing the class, so they keep the route they already had.
+
+def _mark_handoff_refusal(out: Any) -> Any:
+    """Mark an explicit wrong-class refusal. A confidence of 0 with no such mark is unchanged.
+
+    Production prompts use 0 for "no fields found". That answer keeps the retry and the judge.
+    A parse exception and a missing specialist also store 0, and they keep their own route.
+    Only a specialist that set ``reasoning`` to the refusal token is not called again.
     """
     if not isinstance(out, dict) or out.get("transient_error") or not _explicit_zero(out.get("extraction_confidence")):
         return out
     data = out.get("extracted_data")
-    if isinstance(data, dict) and (data.get("_parse_error") or data.get("_exception") or data.get("_unsupported")):
+    if not isinstance(data, dict) or data.get("_parse_error") or data.get("_exception") or data.get("_unsupported"):
+        return out
+    if not _reasoning_has_refusal(data.get("reasoning")):
         return out
     issues = [str(item) for item in (out.get("extraction_guardrail") or [])]
     if HANDOFF_REFUSAL not in issues:
@@ -1278,7 +1353,7 @@ def _mark_handoff_refusal(out: Any) -> Any:
 
 
 def _register_handoff_refusal_rules() -> None:
-    """A confidence-0 specialist answer goes to a person, not back to the same specialist.
+    """An explicit handoff refusal goes to a person, not back to the same specialist.
 
     Registered first. It returns a destination only for that refusal, so every other proposed
     route, including HF-011 and HF-014, is unchanged. Idempotent: a rule already first on its
@@ -1326,12 +1401,14 @@ def _wrap_handoff(module: Any) -> None:
 
 
 def _wrap_refusal_enrich() -> None:
-    """A refused extraction does not gain the sorter's type tokens.
+    """A type field the specialist left empty does not gain the sorter subclass.
 
-    HF-001 still fills a null corporate ``record_type`` when the specialist did not refuse.
-    On a numeric confidence of 0, a type field or ``cuad_family`` the specialist left empty
-    stays empty. A value the specialist set keeps enrichment's canonical form (a ``pde``
-    claim line stays ``health``) instead of being written back over it.
+    HF-001 still fills a null corporate ``record_type`` underneath this wrapper. This layer
+    removes that fill, and the same fill for ``communication_type``, ``claim_type`` and
+    ``cuad_family``, whenever the specialist did not set the field, at every confidence.
+    A value the specialist set keeps enrichment's canonical form (a ``pde`` claim line stays
+    ``health``). ``cms_source_table`` stays derived, except on an explicit refusal, where an
+    empty one is dropped too.
     """
     from langchain_agents import doc_inventories
 
@@ -1344,9 +1421,10 @@ def _wrap_refusal_enrich() -> None:
                           extract_class: str | None = None, subtype: str | None = None) -> dict:
         incoming = dict(extracted or {})
         out = current(extracted, doc_type=doc_type, extract_class=extract_class, subtype=subtype)
-        if not _explicit_zero(incoming.get("confidence")):
-            return out
-        for key in (*_TYPE_FIELDS, "cuad_family"):
+        keys = _TYPE_FIELDS
+        if _reasoning_has_refusal(incoming.get("reasoning")) and _explicit_zero(incoming.get("confidence")):
+            keys = (*keys, "cms_source_table")
+        for key in keys:
             if not incoming.get(key):
                 out.pop(key, None)
         return out
@@ -1373,7 +1451,7 @@ def _wrap_retry_extract(module: Any) -> None:
 
 
 def _install_specialist_handoff(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """HF-021: a specialist checks the sorter handoff and is not called again after a refusal."""
+    """HF-028: a specialist checks the sorter handoff and is not called again after a refusal."""
     _wrap_handoff(module)
     _wrap_retry_extract(module)
     _wrap_refusal_enrich()
@@ -1391,6 +1469,232 @@ def _refresh_specialist_handoff(module: Any) -> None:
     _wrap_retry_extract(module)
     _wrap_refusal_enrich()
     _register_handoff_refusal_rules()
+
+def _judge_model_name() -> str:
+    """The model the vendored judge agent is routed to (its ``get_llm`` answer), or ``""``."""
+    try:
+        return str(importlib.import_module("agents.base").get_llm("judge")[1] or "")
+    except Exception:  # noqa: BLE001 — the record never fails a document
+        return ""
+
+
+def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-025: with a ``judge:`` section, record each judge pass and the extraction it first saw.
+
+    Verify mode runs the vendored node unchanged and then records its verdict; a skipped pass
+    or a transient error (the node is re-run) records nothing. Without the section the node is
+    the vendored one.
+    """
+
+    @functools.wraps(original)
+    def judge_verify_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge, judge_record
+
+        cfg = correcting_judge.active()
+        if not cfg:
+            return original(state)
+        if state.get("conflict_detected"):
+            judge_record.note_conflict()
+        if cfg.get("mode") == "correct" and (module.judge_should_run(state)
+                                             or correcting_judge.retry_owed(state)):
+            return _correcting_judge_pass(module, state)
+        update = original(state)
+        verdict = str((update or {}).get("judge_verdict") or "")
+        if not verdict or verdict == "skipped" or update.get("transient_error"):
+            return update
+        judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+        score = update.get("judge_score")
+        judge_record.note_ruling({
+            "pass": int(update.get("judge_pass_count") or int(state.get("judge_pass_count") or 0) + 1),
+            "mode": "verify",
+            "ruling": verdict,
+            "score": None if score is None else float(score),
+            "reason": " ".join(str(f) for f in update.get("judge_findings") or ()) or str(
+                update.get("escalation_reason") or ""),
+            "fixes": [],
+            "retry_fields": [],
+            "wrong_fields": [],
+            "model": _judge_model_name(),
+        })
+        return update
+
+    return judge_verify_node
+
+
+#: How a correcting ruling reads to the vendored routers (after_judge, the arbiter, the gate).
+_RULING_VERDICT = {"accept": "complete", "retry_fields": "partial", "human_review": "incomplete"}
+
+
+def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
+    """HF-025, ``mode: correct``: one ruling replaces the vendored completeness and accuracy calls.
+
+    An accept or a retry writes its verified fixes into ``extracted_data`` (the judge read the whole
+    document, so an accept's verdict is source-verified) and re-runs the matter conflict check on
+    the fixed extraction; a retry reads as ``partial`` and a person as ``incomplete``. A transient provider error is re-run like the vendored node's; a reply that
+    does not parse after one re-ask, or any other failure, is ``judge_error`` and goes to review.
+    """
+    from llm.retry import is_transient_error
+
+    from mailroom_sandbox import correcting_judge, judge_record
+    from mailroom_sandbox.judge_fixes import apply_fixes
+
+    pass_no = int(state.get("judge_pass_count") or 0) + 1
+    judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+    try:
+        entry = correcting_judge.rule(state, pass_no=pass_no)
+    except Exception as exc:  # noqa: BLE001 — every failure is a transient re-run or a person
+        if is_transient_error(exc):
+            transient = int(state.get("transient_retries_judge_verify") or 0) + 1
+            return {"transient_error": True, "transient_retries_judge_verify": transient,
+                    "error_message": f"transient provider error: {str(exc)[:200]}"}
+        cause = "judge_parse_error" if isinstance(exc, JudgeParseError) else type(exc).__name__
+        judge_record.note_ruling({"pass": pass_no, "mode": "correct", "ruling": "human_review", "score": None,
+                                  "reason": cause, "fixes": [], "retry_fields": [], "wrong_fields": [],
+                                  "model": correcting_judge.judge_model(correcting_judge._doc_class(state))})
+        return {"judge_verdict": "judge_error", "transient_error": False,
+                "escalation_reason": f"correcting judge failed ({cause}) — routing to human review"}
+    judge_record.note_ruling(entry)
+    verdict = _RULING_VERDICT[entry["ruling"]]
+    score, findings = entry["score"], [entry["reason"]] if entry["reason"] else []
+    update: dict[str, Any] = {"judge_verdict": verdict, "judge_score": score, "judge_findings": findings,
+                              "judge_source_verified": verdict == "complete", "judge_pass_count": pass_no,
+                              "transient_error": False}
+    if entry["ruling"] in correcting_judge.APPLIES_FIXES:
+        fixes = [check for check in entry["fixes"] if check["verified"]]
+        if fixes:
+            fixed = apply_fixes(state.get("extracted_data") or {}, fixes)
+            update["extracted_data"] = fixed
+            judge_record.note_corrected()
+            # The vendored conflict check ran on the extraction before the fixes: run it again on
+            # the fixed one, so a fixed value that contradicts the matter's archive is never archived
+            # unadjudicated (after_judge parks it for a person).
+            if not state.get("conflict_detected"):
+                conflict, details = module._detect_conflict({**dict(state), "extracted_data": fixed}, fixed)
+                if conflict:
+                    update["conflict_detected"], update["conflict_details"] = True, list(details or [])
+                    judge_record.note_conflict()
+    history = module.attempt_history.record_verdict(state, verdict=verdict, score=score, findings=findings,
+                                                    source_verified=verdict == "complete")
+    if history is not None:
+        update[module.attempt_history.HISTORY_KEY] = history
+    return update
+
+
+def _install_arbiter_passthrough(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-026: in ``judge: mode: correct`` the judge's ruling is final; the arbiter makes no call.
+
+    The ruling the judge just recorded is mapped onto the arbiter's state keys, so the vendored
+    ``after_arbiter`` routes it: a retry ruling becomes ``retry_extraction`` with the named fields,
+    an accept ``accept_with_caveats``, anything else (or no ruling) a person with the judge's
+    reason. Verify mode, and no judge section, run the vendored arbiter.
+    """
+
+    @functools.wraps(original)
+    def arbiter_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        if not correcting_judge.correcting():
+            return original(state)
+        last = correcting_judge.last_ruling() or {}
+        reason = str(last.get("reason") or "no correcting-judge ruling recorded")
+        update: dict[str, Any] = {"arbiter_reasoning": reason, "arbiter_handoff": reason, "transient_error": False}
+        if last.get("ruling") == "retry_fields" and last.get("retry_fields"):
+            fields = list(last["retry_fields"])
+            return {**update, "arbiter_decision": "retry_extraction", "arbiter_fields_to_fix": fields,
+                    "arbiter_retry_count": int(state.get("arbiter_retry_count") or 0) + 1,
+                    "escalation_reason": f"judge ordered re-extraction of {', '.join(fields)}: {reason[:300]}"}
+        if last.get("ruling") == "accept":
+            return {**update, "arbiter_decision": "accept_with_caveats",
+                    "escalation_reason": f"judge accepted: {reason[:400]}"}
+        return {**update, "arbiter_decision": "human_review",
+                "escalation_reason": f"judge sent the document to human review: {reason[:400]}"}
+
+    return arbiter_node
+
+
+#: The HF-027 route rule on ``retry_extract``.
+JUDGE_RETRY_RULE = "HF-027:judge_retry_rejudges"
+#: The fields the judge-ordered re-extraction now running replaces (None: not a field-only retry).
+_FIELD_RETRY: contextvars.ContextVar[tuple[dict, frozenset[str]] | None] = contextvars.ContextVar(
+    "sandbox_field_retry", default=None)
+
+
+def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
+    """``retry_extract``: a judge-ordered re-read gets its second ruling, or a person.
+
+    Only a transient self-loop and a matter conflict for the Boss keep the router's answer. Any
+    other proposal (archive, review, the band gate's ``judge_verify``, a further retry) becomes the
+    judge's second, final ruling when the re-read can be reviewed, and a person when it cannot (the
+    vendored ``_judge_can_review`` limits: empty, a guardrail failure, a lost chunk; plus a
+    specialist failure, an unsupported or schema-invalid extraction). So a failed re-read is never
+    archived, never ruled on again and never retried past the one field retry.
+    """
+    from graph import routing
+
+    from mailroom_sandbox import correcting_judge
+
+    if proposed == "boss_escalation" or state.get("transient_error"):
+        return None
+    if not correcting_judge.retry_owed(state):
+        return None
+    extracted = state.get("extracted_data")
+    if (not isinstance(extracted, Mapping) or extracted.get("_parse_error") or not routing._judge_can_review(state)
+            or routing._extraction_is_unsupported(state)
+            or routing.validate_extraction(state.get("doc_type"), extracted).get("schema_valid") is False):
+        return "human_review"
+    return "judge_verify"
+
+
+def _register_judge_retry_rule(_module: Any) -> None:
+    """(Re)register the HF-027 route rule last on ``retry_extract``; idempotent."""
+    from graph import route_spec
+
+    if any(rule.name == JUDGE_RETRY_RULE for rule in route_spec.route_rules("retry_extract")):
+        return
+    route_spec.add_route_rule("retry_extract", route_spec.RouteRule(JUDGE_RETRY_RULE, _judge_retry_rule))
+
+
+def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-027: a judge-ordered re-extraction asks only for the named fields and replaces only them.
+
+    The specialist is sent the chosen schema restricted to the named fields (``fields_only``); its
+    answer is merged into the previous extraction before the vendored guard, conflict check and
+    attempt history see it (through ``_enrich_contract_result``, the call right after the
+    specialist's), so every other field keeps its value. Any other retry is the vendored node.
+    """
+    from mailroom_sandbox import subclass_extraction as sx
+
+    enrich = module._enrich_contract_result
+    if getattr(enrich, _MARK, None) != "HF-027":
+        @functools.wraps(enrich)
+        def _enrich_contract_result(result: Any, state: Any) -> Any:
+            pending = _FIELD_RETRY.get()
+            if pending is not None and isinstance(result, Mapping):
+                previous, names = pending
+                fresh = {k: v for k, v in result.items() if k in names or k in sx._KEEP_META or str(k).startswith("_")}
+                result = {**{k: v for k, v in previous.items() if not str(k).startswith("_")}, **fresh}
+            return enrich(result, state)
+
+        setattr(_enrich_contract_result, _MARK, "HF-027")
+        module._enrich_contract_result = _enrich_contract_result
+    _register_judge_retry_rule(module)
+
+    @functools.wraps(original)
+    def retry_extract_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        last = correcting_judge.last_ruling() if correcting_judge.correcting() else None
+        if not last or last.get("ruling") != "retry_fields" or not last.get("retry_fields"):
+            return original(state)
+        names = frozenset(str(n) for n in last["retry_fields"])
+        token = _FIELD_RETRY.set((dict(state.get("extracted_data") or {}), names))
+        try:
+            with sx.fields_only(names):
+                return original(state)
+        finally:
+            _FIELD_RETRY.reset(token)
+
+    return retry_extract_node
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
@@ -1613,18 +1917,90 @@ HOTFIXES: tuple[Hotfix, ...] = (
         also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
     ),
     Hotfix(
-        id="HF-021",
+        id="HF-023",
+        module="graph.build_graph",
+        attr="_instantiate_specialist",
+        source_sha256="0f0d09381dade4bba6cdf244be99c47b62d20aadd00e0aa01d53fb9442a20b1a",
+        upstream="upstream issue to be filed (llm-mailroom: every subclass is asked for the whole class "
+                 "schema, including fields the Dojo marks not applicable)",
+        summary="with job.subclass_schemas set, the extraction specialist is sent its predicted subclass's "
+                "schema from the committed field lists (class fields the Dojo marks not applicable dropped, "
+                "labeled extension fields added); an unknown, other or unlisted subclass, or a class "
+                "confidence below the low band, keeps the class schema",
+        install=_install_subclass_schemas,
+        also=(("_build_handoff_context", "92d686345bb9ed5344fa77518f873e646e286a5e043ce119b5b8e6a222485fde"),
+              ("extract_node", "612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5"),
+              ("_run_chunked_extraction", "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f"),
+              ("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52")),
+    ),
+    Hotfix(
+        id="HF-024",
+        module="graph.build_graph",
+        attr="_clean_fields_for_judge",
+        source_sha256="fe41e32bc90964836846b87ee1e0c16f20534eeef251d4af30be8e5b41e55a76",
+        upstream="upstream issue to be filed (llm-mailroom: the judge expects every class field, including "
+                 "fields the extraction was not asked for)",
+        summary="with job.subclass_schemas, the judge's expected-field list, and the fields the judge, the "
+                "arbiter and the retry summary see, are the ones the document's extraction was asked for "
+                "(fields the subclass schema dropped are left out, added ones listed); a fallback extraction "
+                "shows the class fields",
+        install=_install_review_fields,
+        also=(("judge_verify_node", "47ffddc38ccd9db993718beaff30ee99572c7fdbd686267100ffc4b694a3d57e"),
+              ("arbiter_node", "16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f"),
+              ("_retry_handoff_summary", "b55d8b530a3ef4610af94e21c4d1c2caf9260173121747aad6b116eeae32cce7"),
+              ("agents.judge:CompletenessJudge._field_list",
+               "fcb6f8f6c946c86f61ffc878988e0f352530fb9d7f15d29ecaa074596a54ba98")),
+    ),
+    Hotfix(
+        id="HF-025",
+        module="graph.build_graph",
+        attr="judge_verify_node",
+        source_sha256="47ffddc38ccd9db993718beaff30ee99572c7fdbd686267100ffc4b694a3d57e",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with a judge: section, every judge pass is recorded (pass, ruling, score, reason, model) with "
+                "the extraction the judge first saw; mode verify leaves the vendored judge unchanged",
+        install=_install_judge_node,
+        also=(("graph.routing:after_judge", "f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66"),
+              ("agents.judge:CompletenessJudge.judge_completeness",
+               "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9")),
+    ),
+    Hotfix(
+        id="HF-026",
+        module="graph.build_graph",
+        attr="arbiter_node",
+        source_sha256="16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, the arbiter makes no model call: the judge's ruling is mapped onto "
+                "the arbiter's decision (retry the named fields, accept, or a person with the judge's reason)",
+        install=_install_arbiter_passthrough,
+        also=(("graph.routing:after_arbiter", "6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529"),),
+    ),
+    Hotfix(
+        id="HF-027",
+        module="graph.build_graph",
+        attr="retry_extract_node",
+        source_sha256="1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, a judge-ordered re-extraction asks only for the named fields, "
+                "replaces only them in the previous extraction, and returns to the judge for a second, "
+                "final ruling",
+        install=_install_field_retry,
+        refresh=_register_judge_retry_rule,
+        also=(("_enrich_contract_result", "03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2"),
+              ("graph.routing:after_retry_extraction_gated", "1dfa11277467523d6b9bcde376f100bb047d369d04ed8be32259bcf3416fbebe")),
+    ),
+    Hotfix(
+        id="HF-028",
         module="graph.build_graph",
         attr="extract_node",
         source_sha256="612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5",
         upstream="upstream issue to be filed (a specialist follows a wrong sorter handoff and is called again)",
-        summary="the sorter classification in the specialist handoff is unverified: a document that is "
-                "not that class is not extracted (confidence 0, fields left null) and is not sent back "
-                "to the same specialist; a wrong subclass, type token or clause family is corrected from "
-                "the document instead of copied. A numeric confidence of 0 is marked "
-                "specialist_handoff_refusal and routed to human review rather than retry_extract, and "
-                "enrichment does not fill its empty type fields from the sorter subclass. HF-020 is "
-                "left for the subclass-schema plan",
+        summary="the sorter classification in the specialist handoff is unverified. A specialist that "
+                "sets reasoning to specialist_handoff_refusal and confidence to 0 is not called again; "
+                "a confidence of 0 without that reasoning means no fields were found and still retries, "
+                "then reaches the judge. A type field the specialist left empty is not filled from the "
+                "sorter subclass, including a null corporate record_type. A value the specialist set "
+                "keeps its canonical form",
         install=_install_specialist_handoff,
         refresh=_refresh_specialist_handoff,
         also=(("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52"),

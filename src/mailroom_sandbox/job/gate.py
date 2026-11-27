@@ -282,6 +282,173 @@ def _governor_block(statuses: list[dict[str, Any]]) -> dict[str, Any]:
                      if "governor_stop" in s or "duplicate_of" in s or "governor_skips" in s]}
 
 
+# --- phase 4: the judge block (judge: section, ``judge_record``) -------------------------------------------
+
+#: Agents whose calls are judge-related (ruling 17), beside the judge-ordered re-extractions.
+JUDGE_AGENTS = ("judge", "arbiter")
+
+
+def _agent_calls(item: Mapping[str, Any], agents: Collection[str]) -> int:
+    usage = item.get("usage_by_agent") or {}
+    return sum(_reask_count((usage.get(a) or {}).get("calls")) for a in agents if isinstance(usage, Mapping))
+
+
+def judge_retries(pred: Mapping[str, Any], nodes: Collection[Mapping[str, Any]] = ()) -> int:
+    """Re-extractions a judge (or the vendored arbiter) ordered: retry_extract visits, else retry rulings."""
+    visits = sum(1 for n in nodes or () if n.get("node") == "retry_extract")
+    if visits:
+        return visits
+    return sum(1 for r in pred.get("judge_rulings") or () if isinstance(r, Mapping) and r.get("ruling") == "retry_fields")
+
+
+def judge_related_calls(item: Mapping[str, Any], pred: Mapping[str, Any], nodes: Collection[Mapping[str, Any]] = ()) -> int:
+    """Judge, arbiter and judge-ordered re-extraction calls of one document (ruling 17)."""
+    return _agent_calls(item, JUDGE_AGENTS) + judge_retries(pred, nodes)
+
+
+def doc_cost(item: Mapping[str, Any]) -> float | None:
+    """The document's USD cost: the provider's reported cost, else its usage priced per agent model."""
+    reported = item.get("reported_cost_usd")
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        return float(reported)
+    from mailroom_sandbox.job.metrics import call_cost
+
+    total, usage = 0.0, item.get("usage_by_agent") or {}
+    for slot in usage.values() if isinstance(usage, Mapping) else ():
+        models = slot.get("models") or []
+        if not slot.get("calls"):
+            continue
+        cost = call_cost(models[0] if models else None, slot.get("prompt_tokens") or 0,
+                         slot.get("completion_tokens") or 0, calls=int(slot["calls"]))
+        if cost is None:
+            return None
+        total += cost
+    return total if usage else None
+
+
+def _fix_accuracy(row: Mapping[str, Any], fixes: list[Mapping[str, Any]]) -> tuple[int, int]:
+    """Verified fixes on labelled fields scored against the truth: ``(right, wrong)`` (ruling 16).
+
+    The truth is the headline's: a Hub label SHF-015 drops as stale (a heuristic ``intent``, a
+    templated title) is no label here either, so a fix to that field is not scored.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.job.gate_causes import ScorerError, _field_scores
+
+    stale: dict[str, str] = {}
+    if sh.enabled("SHF-015"):
+        _, stale = sh.drop_stale_hub_truth(str(row.get("expected_doc_class")), _fields(row), sh.overlay_fields(row))
+    right = wrong = 0
+    for fix in fixes:
+        if fix["field"] in stale:
+            continue
+        try:
+            scores = _field_scores(row, {"extracted_data": {fix["field"]: fix.get("value")}})
+        except ScorerError:
+            continue
+        if fix["field"] in scores:
+            if scores[fix["field"]] >= 0.999:
+                right += 1
+            else:
+                wrong += 1
+    return right, wrong
+
+
+def _judge_fields(out: dict[str, Any], doc: Mapping[str, Any], pred: Mapping[str, Any], bars: Bars) -> None:
+    """A judged document's record (rulings, fixes, scores before and after the judge, calls, cost)."""
+    rulings = [r for r in pred.get("judge_rulings") or () if isinstance(r, Mapping)]
+    if not rulings:
+        return
+    row, item = doc["row"], doc.get("item") or {}
+    fixes = [f for r in rulings for f in r.get("fixes") or () if isinstance(f, Mapping)]
+    verified = [f for f in fixes if f.get("verified")]
+    # An accept and a retry write their verified fixes (HF-025, correcting_judge.APPLIES_FIXES); a review
+    # ruling's are not applied.
+    from mailroom_sandbox.correcting_judge import APPLIES_FIXES
+
+    applied = [f for r in rulings if r.get("ruling") in APPLIES_FIXES for f in r.get("fixes") or ()
+               if isinstance(f, Mapping) and f.get("verified")]
+    scorable = out["labelled"] >= bars.min_labelled
+    scored_row = without_fields(row, TEMPLATED_FIELDS.get(out["class"], ()))
+    before = pred.get("before_judge")
+    right, wrong = _fix_accuracy(row, applied) if scorable else (0, 0)
+    out["judge"] = {
+        "rulings": [[int(r.get("pass") or 0), str(r.get("ruling") or "")] for r in rulings],
+        "proposed": len(fixes), "verified": len(verified), "applied": len(applied),
+        "rejected": dict(sorted(defaultdict_count(str(f.get("why")) for f in fixes if not f.get("verified")).items())),
+        "right": right, "wrong": wrong,
+        "corrected": bool(pred.get("judge_corrected")),
+        "retries": sum(1 for r in rulings if r.get("ruling") == "retry_fields"),
+        "score_before": _score(scored_row, {"extracted_data": before}) if scorable and isinstance(before, Mapping) else None,
+        "score_after": _score(scored_row, pred) if scorable else None,
+        "calls": _reask_count(item.get("llm_calls")),
+        "judge_calls": judge_related_calls(item, pred, doc.get("nodes") or ()),
+        "cost": doc_cost(item),
+        "cached_tokens": _reask_count(item.get("cached_tokens")) if item.get("cached_tokens") is not None else None,
+        "conflict": bool(pred.get("judge_conflict")),
+    }
+
+
+def defaultdict_count(keys: Any) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for key in keys:
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def _judge_block(statuses: list[dict[str, Any]]) -> dict[str, Any] | None:
+    judged = [s for s in statuses if "judge" in s]
+    if not judged:
+        return None
+    rulings: dict[str, dict[str, int]] = {}
+    rejected: dict[str, int] = {}
+    for s in judged:
+        for pass_no, kind in s["judge"]["rulings"]:
+            rulings.setdefault(kind, {})[str(pass_no)] = rulings.get(kind, {}).get(str(pass_no), 0) + 1
+        for why, n in s["judge"]["rejected"].items():
+            rejected[why] = rejected.get(why, 0) + n
+    paired = [s["judge"] for s in judged if s["judge"]["score_before"] is not None and s["judge"]["score_after"] is not None]
+    costs: dict[str, list[float]] = {}
+    for s in judged:
+        if s["judge"]["cost"] is not None:
+            costs.setdefault(s["class"], []).append(s["judge"]["cost"])
+    cached = [s["judge"]["cached_tokens"] for s in judged if s["judge"]["cached_tokens"] is not None]
+    archived = [s for s in judged if s["outcome"] in ("correct_archive", "wrong_archive")]
+    stops: dict[str, int] = {}
+    for s in judged:
+        if "governor_stop" in s:
+            stops[s["governor_stop"]["reason"]] = stops.get(s["governor_stop"]["reason"], 0) + 1
+    return {
+        "docs_judged": len(judged),
+        "rulings": {k: dict(sorted(v.items())) for k, v in sorted(rulings.items())},
+        "fixes": {"proposed": sum(s["judge"]["proposed"] for s in judged),
+                  "verified": sum(s["judge"]["verified"] for s in judged),
+                  "applied": sum(s["judge"]["applied"] for s in judged),
+                  "rejected": dict(sorted(rejected.items())),
+                  "right": sum(s["judge"]["right"] for s in judged), "wrong": sum(s["judge"]["wrong"] for s in judged)},
+        "judge_corrected": sum(s["judge"]["corrected"] for s in judged),
+        "retries": sum(s["judge"]["retries"] for s in judged),
+        # Scores that include judge fixes are labelled "after judge" (spec "How we will measure it").
+        "scores_label": "after judge", "scored_n": len(paired),
+        "score_before": _mean([j["score_before"] for j in paired]),
+        "score_after": _mean([j["score_after"] for j in paired]),
+        "calls_per_judged_doc": _mean([float(s["judge"]["calls"]) for s in judged]),
+        "judge_related_calls_per_judged_doc": _mean([float(s["judge"]["judge_calls"]) for s in judged]),
+        "cost_per_judged_doc": {cls: _mean(v) for cls, v in sorted(costs.items())},
+        **({"cached_prompt_tokens": sum(cached)} if cached else {}),
+        "review_rate": _rate(sum(s["outcome"] == "review" for s in judged), len(judged)),
+        "wrong_archive_rate": _rate(sum(s["outcome"] == "wrong_archive" for s in archived), len(archived)),
+        "crashes": sum(s["outcome"] == "crashed" for s in judged),
+        "matter_conflicts": sum(s["judge"]["conflict"] for s in judged),
+        "governor_stops": dict(sorted(stops.items())),
+        "docs": [s["id"] for s in judged],
+    }
+
+
 def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     row, item = doc["row"], doc.get("item")
     doc_class = str(row.get("expected_doc_class"))
@@ -305,6 +472,21 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
         # the run returned as failed still made (and billed) its re-asks. A document that raises (the API
         # call guard stopped it, say) writes no item, so its re-asks are not counted: a lower bound.
         out["judge_reasks"] = _judge_reask_counts(pred["judge_reasks"])
+    if pred.get("judge_rulings") and not (item.get("error") or item.get("ok") is False or pred.get("error")):
+        _judge_fields(out, doc, pred, bars)
+    elif pred.get("judge_rulings"):
+        out["judge"] = {"rulings": [[int(r.get("pass") or 0), str(r.get("ruling") or "")]
+                                    for r in pred["judge_rulings"] if isinstance(r, Mapping)],
+                        "proposed": 0, "verified": 0, "applied": 0, "rejected": {}, "right": 0, "wrong": 0, "corrected": False,
+                        "retries": sum(1 for r in pred["judge_rulings"] if isinstance(r, Mapping)
+                                       and r.get("ruling") == "retry_fields"),
+                        "score_before": None, "score_after": None,  # a crashed judged document has no score
+                        # ...but the calls it made before the failure were made, and billed
+                        "calls": _reask_count(item.get("llm_calls")),
+                        "judge_calls": judge_related_calls(item, pred, doc.get("nodes") or ()),
+                        "cost": doc_cost(item),
+                        "cached_tokens": _reask_count(item.get("cached_tokens"))
+                        if item.get("cached_tokens") is not None else None, "conflict": False}
     if item.get("error") or item.get("ok") is False or pred.get("error"):
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
@@ -517,7 +699,11 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     caveated = [s for s in statuses if s.get("arbiter_caveats")]
     reasked = [s for s in statuses if s.get("judge_reasks")]
     governor = _governor_block(statuses)
+    judge = _judge_block(statuses)
     return {
+        # Present only when a judge: section recorded rulings (phase 4, judge_record): rulings, fixes
+        # and their accuracy, scores before and after the judge, calls, cost, outcomes and stops.
+        **({"judge": judge} if judge else {}),
         # Present only when the loop governor acted (phase 2, job.governor): stops by reason and
         # outcome, duplicates linked instead of escalated (HF-019) and sorter retries skipped (L2).
         **({"governor": governor} if governor["docs"] else {}),

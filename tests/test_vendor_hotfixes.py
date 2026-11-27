@@ -1,6 +1,8 @@
 """Sandbox hotfixes over the vendored pipeline: fingerprint-bound, recorded, preflight-gated."""
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from mailroom_sandbox import vendor_hotfixes as vh
@@ -38,8 +40,11 @@ def test_every_corporate_subclass_fills_a_null_record_type(subclass, record_type
     vh.apply_hotfixes()
     from langchain_agents.doc_inventories import enrich_extraction
 
-    out = enrich_extraction({"record_type": None}, doc_type="corporate_record", subtype=subclass)
-    assert out["record_type"] == record_type
+    # HF-001 still maps the subclass. HF-028 drops that fill when the specialist left the field empty.
+    assert enrich_extraction.__wrapped__({"record_type": None}, doc_type="corporate_record",
+                                         subtype=subclass)["record_type"] == record_type
+    assert "record_type" not in enrich_extraction({"record_type": None}, doc_type="corporate_record",
+                                                  subtype=subclass)
 
 
 def test_the_model_record_type_and_other_classes_are_untouched():
@@ -1455,22 +1460,100 @@ def test_hf019_is_registered_with_a_pinned_source():
     import graph.build_graph as bg
 
     fix = next(f for f in vh.HOTFIXES if f.id == "HF-019")
-    assert [f.id for f in vh.HOTFIXES][-3:-1] == ["HF-018", "HF-019"]
+    ids = [f.id for f in vh.HOTFIXES]
+    assert ids.index("HF-018") < ids.index("HF-019")
     assert (fix.module, fix.attr) == ("graph.build_graph", "_detect_conflict")
     assert fix.source_sha256 == vh._source_sha(bg._detect_conflict)
     assert dict(fix.also)["_fetch_matter_context"] == vh._source_sha(bg._fetch_matter_context)
     assert vh.apply_hotfixes()["HF-019"] == "applied"
 
 
-def test_hf021_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it():
+def test_hf023_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-023")
+    assert [f.id for f in vh.HOTFIXES].count("HF-023") == 1
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_instantiate_specialist")
+    assert fix.source_sha256 == vh._source_sha(bg._instantiate_specialist)
+    also = dict(fix.also)
+    for name in ("_build_handoff_context", "extract_node", "_run_chunked_extraction", "retry_extract_node"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
+    depth = _wrap_depth(bg._build_handoff_context)
+    assert vh.apply_hotfixes()["HF-023"] == "applied"  # idempotent: the handoff wrapper is not doubled
+    assert _wrap_depth(bg._build_handoff_context) == depth
+    assert getattr(bg._build_handoff_context, "_sandbox_hotfix", None) == "HF-023"
+
+
+def test_hf024_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+    from agents.judge import CompletenessJudge
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-024")
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_clean_fields_for_judge")
+    assert fix.source_sha256 == vh._source_sha(bg._clean_fields_for_judge)
+    also = dict(fix.also)
+    for name in ("judge_verify_node", "arbiter_node", "_retry_handoff_summary"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert also["agents.judge:CompletenessJudge._field_list"] == vh._source_sha(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"
+    depth = _wrap_depth(CompletenessJudge._field_list)
+    assert vh.apply_hotfixes()["HF-024"] == "applied"  # the field-list wrapper is not doubled
+    assert _wrap_depth(CompletenessJudge._field_list) == depth == 1
+    assert isinstance(CompletenessJudge.__dict__["_field_list"], staticmethod)
+
+
+def _wrap_depth(fn) -> int:
+    depth = 0
+    while hasattr(fn, "__wrapped__"):
+        fn, depth = fn.__wrapped__, depth + 1
+    return depth
+
+
+def _foreign_handoff(inner):
+    """Another hotfix's handoff wrapper (PR #437's HF-021 shape): functools.wraps plus its own marker."""
+    import functools
+
+    @functools.wraps(inner)
+    def _build_handoff_context(state):
+        return inner(state) + " [foreign]"
+
+    _build_handoff_context._foreign_handoff = True
+    return _build_handoff_context
+
+
+@pytest.mark.parametrize("foreign_first", [True, False])
+def test_hf023_stacks_with_another_handoff_wrapper(monkeypatch, foreign_first):
+    import graph.build_graph as bg
+    from mailroom_sandbox import subclass_extraction as sx
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-023")
+    vendored = inspect.unwrap(bg._build_handoff_context)
+    instantiate = inspect.unwrap(bg._instantiate_specialist)
+    recorded: list[str] = []
+    monkeypatch.setattr(sx, "record_choice", lambda state: recorded.append(state["doc_id"]))
+    monkeypatch.setattr(bg, "_build_handoff_context", _foreign_handoff(vendored) if foreign_first else vendored)
+    vh._install_subclass_schemas(bg, instantiate)
+    if not foreign_first:
+        monkeypatch.setattr(bg, "_build_handoff_context", _foreign_handoff(bg._build_handoff_context))
+    vh._install_subclass_schemas(bg, instantiate)  # a second install never adds a second HF-023 layer
+    outer = bg._build_handoff_context
+    assert _wrap_depth(outer) == 2
+    assert vh._also_sha(bg, "_build_handoff_context") == dict(fix.also)["_build_handoff_context"]
+    state = {"doc_id": "d1", "doc_type": "contract", "contract_subtype": "license"}
+    assert outer(state) == vendored(state) + " [foreign]"
+    assert recorded == ["d1"]
+
+
+def test_hf028_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it():
     import graph.build_graph as bg
 
     vh.apply_hotfixes()
-    fix = next(f for f in vh.HOTFIXES if f.id == "HF-021")
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-028")
     assert fix.source_sha256 == vh._source_sha(bg.extract_node)
     assert dict(fix.also)["retry_extract_node"] == vh._source_sha(bg.retry_extract_node)
     assert dict(fix.also)["_build_handoff_context"] == vh._source_sha(bg._build_handoff_context)
-    assert vh.apply_hotfixes()["HF-021"] == "applied"
+    assert vh.apply_hotfixes()["HF-028"] == "applied"
     context = bg._build_handoff_context({"doc_type": "corporate_record", "doc_subclass": "officer_certificate"})
     assert vh._HANDOFF_CORRECTION in context
     assert vh._HANDOFF_FOLLOW not in context
@@ -1478,7 +1561,7 @@ def test_hf021_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it
 
 
 def test_the_rewritten_handoff_still_selects_the_mock_oracle_not_the_raw_labels():
-    """HF-021 drops the sentence the mock used to recognize a specialist. The rewritten
+    """HF-028 drops the sentence the mock used to recognize a specialist. The rewritten
     handoff must still get the schema-filtered oracle, not a copy of the raw labels."""
     import graph.build_graph as bg
 
@@ -1500,12 +1583,19 @@ def test_the_rewritten_handoff_still_selects_the_mock_oracle_not_the_raw_labels(
     assert vh._FAMILY_CHECK in contract
 
 
-def test_a_confidence_zero_extraction_is_a_refusal_and_is_not_sent_back_to_the_specialist():
+def test_a_confidence_zero_with_no_refusal_keeps_the_retry_and_the_judge():
     from graph import route_spec
 
     vh.apply_hotfixes()
-    marked = vh._mark_handoff_refusal({"extraction_confidence": 0.0, "extraction_guardrail": ["schema"],
-                                       "escalation_reason": "already noted"})
+    empty = {"extraction_confidence": 0.0, "extracted_data": {"sender": None},
+             "extraction_guardrail": ["schema"], "escalation_reason": "already noted"}
+    assert vh._mark_handoff_refusal(empty) == empty
+    marked = vh._mark_handoff_refusal({
+        "extraction_confidence": 0.0,
+        "extracted_data": {"reasoning": "specialist_handoff_refusal"},
+        "extraction_guardrail": ["schema"],
+        "escalation_reason": "already noted",
+    })
     assert vh.HANDOFF_REFUSAL in marked["extraction_guardrail"]
     assert "schema" in marked["extraction_guardrail"]
     assert "not called again" in marked["escalation_reason"]
@@ -1521,6 +1611,7 @@ def test_a_confidence_zero_extraction_is_a_refusal_and_is_not_sent_back_to_the_s
 
     rule = next(r for r in route_spec.route_rules("extract") if r.name == vh._HANDOFF_RULE)
     assert route_spec.route_rules("extract")[0] is rule
+    assert rule.decide(empty, "retry_extract") is None
     assert rule.decide({**marked}, "retry_extract") == "human_review"
     assert rule.decide({**marked}, "human_review") is None
     assert rule.decide({**marked, "transient_error": True}, "retry_extract") is None
@@ -1541,14 +1632,22 @@ def test_a_refused_extraction_does_not_adopt_the_sorter_subclass():
     assert kept["record_type"] == "other"
     filled = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
                                subtype="officer_certificate")
-    assert filled["record_type"] == "other"
+    assert "record_type" not in filled
+    blank_type = enrich_extraction({"communication_type": None, "confidence": 0.8},
+                                   doc_type="correspondence", subtype="letter")
+    assert not blank_type.get("communication_type")
     corrected = enrich_extraction({"communication_type": "email", "confidence": 0.8},
                                   doc_type="correspondence", subtype="letter")
     assert corrected["communication_type"] == "email"
     claim = enrich_extraction({"claim_type": "pde", "confidence": 0.0}, doc_type="insurance_claim",
                               subtype="pde")
     assert claim["claim_type"] == "health"
-    assert "cms_source_table" not in claim
+    assert claim.get("cms_source_table") == "pde"
+    refused_claim = enrich_extraction(
+        {"confidence": 0.0, "reasoning": "specialist_handoff_refusal"},
+        doc_type="insurance_claim", subtype="pde")
+    assert "claim_type" not in refused_claim
+    assert "cms_source_table" not in refused_claim
     blank_family = enrich_extraction({"confidence": 0.0}, doc_type="contract", subtype="license")
     assert not blank_family.get("cuad_family")
     own_family = enrich_extraction({"cuad_family": "affiliate", "confidence": 0.0},
