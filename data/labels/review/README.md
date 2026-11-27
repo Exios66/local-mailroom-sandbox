@@ -185,7 +185,9 @@ decides it" for contracts). Only tier-A rows are recorded, where the title match
 verbatim: 54 corporate records, 9 EDGAR contracts and one merger that shares its text with a
 MAUD-annotated twin. Ambiguous rows (certified Delaware bundles, supplemental warrant indentures,
 merger `other` rows without an annotated twin, correspondence marker conflicts) are not recorded
-here and still need a reader.
+here and still need a reader. SHF-013 applies these lines to extraction scoring and the gate's
+field diagnosis as well as to the subclass metric: a corrected document's headline is scored on
+its reviewed subclass's fields, and the Hub-subclass outcome stays under `raw_dojo`.
 
 Rejected: `DOC-f4ce492b979c34e3` (correspondence, Hub `demand`, proposed `email`). The corpus
 labels correspondence by marker precedence (`CORRESPONDENCE_SUBCLASS_PRECEDENCE` in the Dojo's
