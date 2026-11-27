@@ -189,6 +189,23 @@ def test_demo_renderer_flags_a_checkout_shortened_inside_its_parent(tmp_path):
     assert module.find_path_leaks(nb, [], [str(checkout), "/Users/someone"]) == []
 
 
+def test_demo_renderer_flags_an_elided_path_with_spaces():
+    module = _render_module()
+    checkout = "/srv/build agents/" + "x" * 90 + "/repo"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": "root " + checkout[:60] + "..."}]}]}
+    assert module.find_path_leaks(nb, ["/home/reviewer"], [checkout]) == [f"c1:{checkout[:60]}..."]
+
+
+def test_demo_renderer_ignores_markers_inside_portable_paths():
+    """A short checkout parent ("/src") inside a sanitized path is not a leak; a real one still is."""
+    module = _render_module()
+    safe = "/demo/checkout/src/example.py\n/demo/checkout/src/re...\n"
+    nb = {"cells": [{"id": "c1", "outputs": [{"output_type": "stream", "text": safe}]}]}
+    assert module.find_path_leaks(nb, ["/src"], ["/src/repo"]) == []
+    nb["cells"][0]["outputs"][0]["text"] = safe + "cwd=/src/other\n"
+    assert module.find_path_leaks(nb, ["/src"], ["/src/repo"]) == ["c1:/src"]
+
+
 def test_notebooks_execute(tmp_path, monkeypatch):
     """Run all notebooks in order from notebooks/, as Jupyter would, with writes under tmp_path."""
     nbformat = pytest.importorskip("nbformat")

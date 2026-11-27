@@ -72,7 +72,9 @@ def sanitize_demo_outputs(nb, replacements: dict[str, str]) -> None:
             cell["outputs"] = clean(cell["outputs"])
 
 
-_ELIDED_PATH = re.compile(r"(/[^\s\"'<>|]+?)(?:\.\.\.|\u2026)")
+_ELLIPSIS = re.compile(r"\.\.\.|\u2026")
+# A machine path starts a token: "/src" inside the portable "/demo/checkout/src/..." is not one.
+_PATH_START = r"(?<![\w.~-])"
 
 
 def find_path_leaks(nb, markers: list[str], truncatable: list[str] = ()) -> list[str]:
@@ -81,17 +83,21 @@ def find_path_leaks(nb, markers: list[str], truncatable: list[str] = ()) -> list
     A cell can truncate a path itself (for example ``pd.set_option("display.max_colwidth", 80)``),
     so no sanitization rule matches it; this check refuses to publish such a demo. ``markers`` are
     prefixes that must never appear; ``truncatable`` are full paths whose elided form (a prefix of
-    at least two components followed by ``...``) must not appear either.
+    at least two components, spaces allowed, followed by ``...``) must not appear either.
     """
     needles = sorted({str(alias) for marker in markers for alias in _path_aliases(marker)}, key=len, reverse=True)
+    patterns = [(needle, re.compile(_PATH_START + re.escape(needle))) for needle in needles]
     fulls = sorted({str(alias) for path in truncatable for alias in _path_aliases(path)})
     leaks = []
 
     def elided(text):
-        for match in _ELIDED_PATH.finditer(text):
-            token = match.group(1)
-            if token.count("/") >= 2 and any(full.startswith(token) for full in fulls):
-                return token + "..."
+        for match in _ELLIPSIS.finditer(text):
+            end = match.start()
+            for full in fulls:
+                # the longest prefix of ``full`` that the text ends with just before the ellipsis
+                k = next((k for k in range(min(len(full), end), 0, -1) if text.startswith(full[:k], end - k)), 0)
+                if k and full[:k].count("/") >= 2 and not re.match(r"[\w.~-]", text[end - k - 1: end - k] or " "):
+                    return full[:k] + "..."
         return None
 
     def texts(value):
@@ -107,7 +113,7 @@ def find_path_leaks(nb, markers: list[str], truncatable: list[str] = ()) -> list
 
     for cell in nb["cells"]:
         for text in texts(cell.get("outputs") or []):
-            hit = next((needle for needle in needles if needle in text), None) or elided(text)
+            hit = next((needle for needle, pattern in patterns if pattern.search(text)), None) or elided(text)
             if hit:
                 leaks.append(f"{cell.get('id')}:{hit}")
                 break
