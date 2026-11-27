@@ -1435,12 +1435,24 @@ def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
     """``retry_extract``: a judge-ordered re-read goes back to the judge for its second ruling.
 
     A transient self-loop, a matter conflict for the Boss and a further retry keep the router's answer.
+    So does a re-read the judge may not clear (the vendored ``_judge_can_review`` limits: empty, a
+    guardrail failure, a lost chunk; plus a specialist failure, an unsupported or schema-invalid
+    extraction): it goes to a person, never to a second ruling that could archive it.
     """
+    from graph import routing
+
     from mailroom_sandbox import correcting_judge
 
     if proposed not in ("compile_report", "human_review") or state.get("transient_error"):
         return None
-    return "judge_verify" if correcting_judge.retry_owed(state) else None
+    if not correcting_judge.retry_owed(state):
+        return None
+    extracted = state.get("extracted_data")
+    if (not isinstance(extracted, Mapping) or extracted.get("_parse_error") or not routing._judge_can_review(state)
+            or routing._extraction_is_unsupported(state)
+            or routing.validate_extraction(state.get("doc_type"), extracted).get("schema_valid") is False):
+        return None
+    return "judge_verify"
 
 
 def _register_judge_retry_rule(_module: Any) -> None:

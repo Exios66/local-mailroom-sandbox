@@ -488,6 +488,43 @@ def test_a_second_ruling_cannot_retry(monkeypatch, tmp_path):
     assert [r["ruling"] for r in scope["judge_rulings"]] == ["retry_fields", "human_review"]
 
 
+@pytestmark_t5
+@pytest.mark.parametrize("second", ["accept", "quoted"])
+def test_a_failed_field_retry_goes_to_a_person_not_the_judge(second, monkeypatch, tmp_path):
+    """Review finding: a re-read whose specialist raised must never be archived by the second ruling."""
+    import graph.build_graph as bg_module
+
+    def boom(*a, **k):
+        raise ValueError("specialist blew up")
+
+    monkeypatch.setattr(bg_module, "_instantiate_specialist", boom)
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, {"accept": ACCEPT, "quoted": QUOTED}[second]])
+    assert out["stage"] == "review", out["path"]
+    assert [r["ruling"] for r in scope["judge_rulings"]] == ["retry_fields"]  # no second ruling on a failed re-read
+
+
+@pytest.mark.parametrize("bad", ["parse_error", "schema_invalid", "empty", "guardrail"])
+def test_the_rejudge_route_refuses_an_unreviewable_retry(bad, monkeypatch):
+    from graph import routing
+
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    monkeypatch.setattr(cj, "retry_owed", lambda state: True)
+    monkeypatch.setattr(routing, "validate_extraction", lambda doc_type, data: {"schema_valid": True})
+    state = {"doc_type": "corporate_record", "extracted_data": {"entity_name": "Cedar Sample Ltd"}}
+    assert vh._judge_retry_rule(state, "human_review") == "judge_verify"  # a sound re-read owes its ruling
+    if bad == "schema_invalid":
+        monkeypatch.setattr(routing, "validate_extraction", lambda doc_type, data: {"schema_valid": False})
+    elif bad == "parse_error":
+        state["extracted_data"] = {"_parse_error": True, "_exception": "boom"}
+    elif bad == "empty":
+        state["extracted_data"] = {}
+    elif bad == "guardrail":
+        state["extraction_guardrail"] = "hollow_extraction"
+    assert vh._judge_retry_rule(state, "human_review") is None
+    assert vh._judge_retry_rule(state, "compile_report") is None
+
+
 _FIRST = {"accept": ACCEPT, "accept_unfixed": ACCEPT_UNFIXED, "retry": RETRY, "human_review": REVIEW}
 
 
