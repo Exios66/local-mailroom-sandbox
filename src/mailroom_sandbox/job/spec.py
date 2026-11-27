@@ -1172,8 +1172,12 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "trans
 # judge_exhausted_to_arbiter (HF-011): a partial verdict on the last judge pass asks the arbiter.
 # arbiter_full_source (HF-014/HF-015): on a context-fitted route an arbiter acceptance from a
 # whole-source reading archives, and a ruling with no re-extraction budget left is final.
+# keep_best_attempt (llm-mailroom #254, ships false): the report and review handoff use the
+# best-judged extraction attempt instead of the latest; routing never reads it (Phase 5 part 1,
+# docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
-                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source")
+                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source",
+                   "keep_best_attempt")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:
@@ -1400,6 +1404,19 @@ class RunSpec(BaseModel):
     def _judge_in_pipeline(self) -> "RunSpec":
         if self.judge is not None and self.task != "pipeline":
             raise ValueError(f"judge: rules on pipeline extractions; task {self.task!r} runs no graph judge")
+        return self
+
+    @model_validator(mode="after")
+    def _keep_best_needs_verify_judge(self) -> "RunSpec":
+        # HF-025 writes a correct-mode judge's verified fixes into extracted_data, not into the
+        # attempt history, so restoring an earlier attempt could drop them.
+        if self.judge is None or self.judge.mode != "correct":
+            return self
+        blocks = [self.confidence or {}, *((self.confidence or {}).get("by_class") or {}).values()]
+        if any(isinstance(b, dict) and b.get("keep_best_attempt") is True for b in blocks):
+            raise ValueError("confidence.keep_best_attempt keeps an earlier attempt, but judge.mode correct "
+                             "applies fixes the attempt history does not hold; use judge.mode verify or drop "
+                             "the flag")
         return self
 
     @model_validator(mode="after")
