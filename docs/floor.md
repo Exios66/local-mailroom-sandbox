@@ -19,6 +19,25 @@ Open the printed URL yourself; Ctrl-C stops the server and replay worker.
 The bind address is always `127.0.0.1`. The dashboard directory is served, so
 keep access local when the run data contains sensitive metadata.
 
+## Browser debug from committed logs
+
+`scripts/floor_browser.py` serves this viewer for interface debugging. The
+default source is the committed sample in `data/fixtures/floor/replay`,
+copied into the scratch base `data/runtime/floor-browser` (gitignored). The
+printed URL includes `debug=1`. That sample is simulated and is not model
+evidence. The script does not start a model, Modal, or a billed run. To
+inspect a finished run, including one recorded earlier by a billed job, pass
+`--replay-run` with that run directory.
+
+```bash
+python scripts/floor_browser.py
+python scripts/floor_browser.py --dry-run
+python scripts/floor_browser.py --replay-run data/runtime/runs/my-run --replay-speed 20
+```
+
+`.claude/launch.json` names this `mailroom-floor-debug` (port 8769). The
+`mailroom-floor` launch config still serves the operator data store.
+
 ## Options and run discovery
 
 | Option | Behavior |
@@ -47,8 +66,9 @@ same run artifacts.
 The replay sample (also the default when no runs exist) plays the committed
 120-document pinned sample on a wall-clock timeline of about 66 seconds, as its
 own labeled run inside the base. It shows staggered arrivals, recorded node
-latencies, concurrent in-flight documents, failed extracts, documents parked for
-human review, and a reviewer-resolved classification that re-enters extraction.
+latencies, and concurrent in-flight documents. Every document takes one pass
+and archives under its ground-truth class. The sample's lock records the
+checkout's active vendor hotfixes.
 The digest keeps each run's `review_routed` count split by trigger stage; review
 documents stay held (`failed` means a technical failure only). Per-run prompts
 come from `prompt.lock.json` (shown for the highlighted node only). A
@@ -382,9 +402,11 @@ sandbox floor --replay-run /tmp/exported-run --base /tmp/floor-base --replay-spe
 The [sample provenance and files](../data/fixtures/floor/replay/README.md)
 describe 120 public document IDs and metadata, 24 per live class. No document
 text is included. Decisions, scores, token counts and latencies are simulated.
-The roughly 66-second trace includes concurrent arrivals, technical failures,
-parked human reviews and a resolved classification review that re-enters
-extraction. Use it for UI verification, never as experiment evidence.
+The roughly 66-second trace includes concurrent arrivals. Every document
+archives under its ground-truth class. Output-cap truncation, judge parks,
+arbiter re-extraction and class mismatches from earlier samples are not in
+this timeline; it assumes the checkout's active vendor hotfixes. Use it for
+UI verification, never as experiment evidence.
 
 The sample is written to
 `<base>/runtime/runs/replay-mailroom-sample` and persists after shutdown. Only

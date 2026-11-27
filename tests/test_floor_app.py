@@ -117,9 +117,35 @@ def test_base_resolution_flag_then_env_then_repo_data(monkeypatch, tmp_path):
 
 
 def test_floor_url_deep_selects_a_run():
-    """The printed URL deep-selects a run and quotes its name."""
+    """The printed URL deep-selects a run, quotes its name, and can open debug mode."""
     assert floor_app.floor_url(8769) == "http://127.0.0.1:8769/floor.template.html"
     assert floor_app.floor_url(1, "a b/c") == "http://127.0.0.1:1/floor.template.html?run=a%20b%2Fc"
+    assert floor_app.floor_url(8769, debug=True) == "http://127.0.0.1:8769/floor.template.html?debug=1"
+    assert floor_app.floor_url(8769, "replay-mailroom-sample", debug=True) == (
+        "http://127.0.0.1:8769/floor.template.html?run=replay-mailroom-sample&debug=1"
+    )
+
+
+def test_serve_floor_prints_the_debug_url(store, monkeypatch, capsys):
+    """``debug=True`` is the query the page reads, on the URL printed after the first build."""
+    base, graph, _run = store
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+
+    class Server:
+        server_address = ("127.0.0.1", 8769)
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def shutdown(self):
+            pass
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(floor_app, "make_server", lambda *args, **kwargs: Server())
+    assert floor_app.serve_floor(base=base, port=8769, run="run-1", debug=True) == 0
+    assert capsys.readouterr().out.splitlines()[0] == floor_app.floor_url(8769, "run-1", debug=True)
 
 
 # ── digest build API ────────────────────────────────────────────────────────────
@@ -181,6 +207,18 @@ def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
     assert [event["at"] for event in events] == sorted(event["at"] for event in events), "chronological timeline"
     final = [event["checkpoint"] for event in events if "checkpoint" in event][-1]
     assert final == {"state": "done", "cursor": 120, "total": 120}
+    from mailroom_sandbox.vendor_hotfixes import HOTFIXES
+
+    assert lock["vendor_hotfixes"]["applies"] == [fix.id for fix in HOTFIXES]
+    trace = (REPLAY_RUN / "replay.jsonl").read_text(encoding="utf-8")
+    assert "LengthFinishReasonError" not in trace and "human_review" not in trace
+    assert "review_causes" not in trace
+    for event in events:
+        item = event.get("item")
+        if item is None:
+            continue
+        row = next(row for row in dataset if row["id"] == item["item_id"])
+        assert item["ok"] is True and item["pred"] == {"stage": "archived", "doc_type": row["expected_doc_class"]}
 
 
 def test_replay_store_makes_the_run_visible_before_the_first_tick(tmp_path):
@@ -256,12 +294,8 @@ def test_replay_driver_replays_every_document_to_done(tmp_path):
     run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
     items = [json.loads(line) for line in (run / "items.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(items) == 120 and len({item["item_id"] for item in items}) == 120
-    failed = [item for item in items if not item["ok"]]
-    assert len(failed) == 3 and all(item["pred"]["stage"] == "failed" for item in failed)
-    held = [item for item in items if item["pred"]["stage"] == "review"]
-    assert len(held) == 4, "four docs park open at human review"
-    assert len({tuple(item.get("review_causes", [])) for item in held}) >= 3
-    assert all(item["ok"] for item in held), "a parked review document is not a technical failure"
+    assert all(item["ok"] and item["pred"]["stage"] == "archived" for item in items)
+    assert not any(item.get("error") or item.get("review_causes") for item in items)
     checkpoint = json.loads((run / "checkpoint.json").read_text(encoding="utf-8"))
     assert (checkpoint["state"], checkpoint["cursor"], checkpoint["total"]) == ("done", 120, 120)
     assert driver.pos == len(driver.events) and len(refreshes) >= driver.documents
@@ -277,8 +311,8 @@ def _open_nodes(run_dir: Path) -> set[tuple[str, str]]:
     return {key for key, record in latest.items() if record["status"] == "running"}
 
 
-def test_replay_runs_concurrent_docs_and_parks_the_held_one(tmp_path):
-    """Mid-replay several docs are in flight and the held doc is still open at the end."""
+def test_replay_runs_concurrent_docs_and_finishes_them(tmp_path):
+    """Mid-replay several docs are in flight, and none are left open when the trace ends."""
     base = floor_app.replay_store(tmp_path / "base")
     run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
     driver = floor_app.ReplayDriver(base)
@@ -288,8 +322,7 @@ def test_replay_runs_concurrent_docs_and_parks_the_held_one(tmp_path):
             seen = len(_open_nodes(run))
     assert seen >= 2, "docs run concurrently mid-replay (real run dynamics), like live pills"
     assert (run / "checkpoint.json" and json.loads((run / "checkpoint.json").read_text(encoding="utf-8")))["state"] == "done"
-    held = [pair for pair in _open_nodes(run) if pair[1] == "human_review"]
-    assert held, "the parked doc stays open like a live run's held document"
+    assert _open_nodes(run) == set(), "a finished hotfix trace leaves no node running"
 
 
 def test_replay_running_records_carry_real_elapsed_timestamps(tmp_path):
@@ -303,8 +336,8 @@ def test_replay_running_records_carry_real_elapsed_timestamps(tmp_path):
     assert isinstance(recorded["ts"], float) and recorded["ts"] <= time.time() + 60
 
 
-def test_replay_digest_reports_five_classes_and_scripted_misses(tmp_path):
-    """A finished replay feeds the digest the sample classes, outcomes and routing misses."""
+def test_replay_digest_reports_five_classes_and_no_pre_hotfix_failures(tmp_path):
+    """A finished replay archives every document under its ground-truth class."""
     base = floor_app.replay_store(tmp_path / "base")
     driver = floor_app.ReplayDriver(base)
     while driver.step():
@@ -317,42 +350,33 @@ def test_replay_digest_reports_five_classes_and_scripted_misses(tmp_path):
     assert set(run["outcomes"]) == {
         "contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}
     assert all(o["n"] == 24 for o in run["outcomes"].values()), "24 docs per class"
-    assert sum(o["ship"] for o in run["outcomes"].values()) == 113
-    assert sum(o["held"] for o in run["outcomes"].values()) == 4
-    assert sum(o["failed"] for o in run["outcomes"].values()) == 3, "failed stays technical-only"
-    assert sum((v or {}).get("gt", 0) for v in run["routing"].values()) == 116, "four scripted docs carry no doc_type"
-    assert run["predicted"]["insurance_claim"] == 2, "the two misrouted insurance docs"
-    assert run["review_routed"] == {"total": 5, "by_stage": {"classification": 1, "extraction": 2, "judgment": 2}}, \
-        "routed-to-review documents are their own kept metric, split by trigger stage"
+    assert sum(o["ship"] for o in run["outcomes"].values()) == 120
+    assert sum(o["held"] for o in run["outcomes"].values()) == 0
+    assert sum(o["failed"] for o in run["outcomes"].values()) == 0
+    assert sum((v or {}).get("gt", 0) for v in run["routing"].values()) == 120
+    assert run["predicted"] == {cls: 0 for cls in run["outcomes"]}
+    assert run["review_routed"] == {"total": 0, "by_stage": {}}
     assert run["prompts"]["sorter"] == "sorter_local_v0" and len(run["prompts"]) >= 7, \
         "every replayed agent's prompt stem is identifiable post hoc"
     assert "audit_events" in digest["graph_reference"], "the audit side-channel is always surfaced (even empty)"
     assert set(run["per_class"]) == set(run["outcomes"])
 
 
-def test_replay_digest_shows_a_corrected_classification_reentering_extraction(tmp_path):
-    """A human-approved classification review re-enters extraction with the reviewed evidence kept."""
+def test_replay_path_is_one_pass_to_archive(tmp_path):
+    """No document repeats a node or stops on the pre-hotfix review and retry detours."""
     base = floor_app.replay_store(tmp_path / "base")
     driver = floor_app.ReplayDriver(base)
     while driver.step():
         pass
     run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
-    per_doc: dict[str, list[dict]] = {}
+    per_doc: dict[str, list[str]] = {}
     for line in (run / "nodes.jsonl").read_text(encoding="utf-8").splitlines():
         record = json.loads(line)
-        per_doc.setdefault(record["doc"], []).append(record)
-    doc, visits = next(iter(((d, r) for d, r in per_doc.items()
-                             if any(x["node"] == "human_review" and x["status"] == "done" for x in r))), (None, None))
-    assert doc is not None, "one scripted doc gets its classification review resolved by review"
-    seq = [x["node"] for x in visits if x["status"] == "running"]  # one visit per node, no running/done pairs
-    review, back = seq.index("human_review"), len(seq) - 1 - seq[::-1].index("extract")
-    assert seq[review - 1] == "classification_arbiter", "the review follows the classification arbiter"
-    assert back > review and seq[back - 1] == "human_review", "the corrected label re-enters extraction"
-    approved = next(x for x in visits if x["node"] == "human_review" and x["status"] == "done")
-    assert approved["decisions"] == [{"question": "review_decision", "type": "choice", "answer": "approved"}]
-    assert approved["agent"] is None and approved["model"] is None, "a human decided, not an LLM"
-    finals = {i["item_id"]: i for i in map(json.loads, (run / "items.jsonl").read_text(encoding="utf-8").splitlines())}
-    assert finals[doc]["pred"]["stage"] == "archived" and finals[doc]["ok"], "the resolved review completes its item"
+        if record["status"] == "running":
+            per_doc.setdefault(record["doc"], []).append(record["node"])
+        assert record["status"] != "error"
+    straight = ["intake", "classify", "extract", "judge_verify", "compile_report", "catalog_write", "archive"]
+    assert per_doc and all(path == straight for path in per_doc.values())
 
 
 def test_replay_store_is_loud_when_the_fixture_is_missing(tmp_path, monkeypatch):
@@ -733,6 +757,32 @@ def test_template_class_deep_link_uses_the_rails_per_run_guard():
     assert "classView(rr,c)" in html, "the class rail must use the shared helper"
     deep = html[html.index('c=q.get("class")'):html.index("function run()")]
     assert "hasClasses(dr)" in deep and "dr.per_class[c]" in deep and "!classView(dr,c).why" in deep
+
+
+def test_ribbon_keeps_the_digest_clock_visible():
+    """The digest clock stays whole. At a narrow ribbon the title and progress yield so it fits."""
+    css = _template()
+    css = css[:css.index("</style>")]
+    clock = css[css.index(".ribbon .z{"):]
+    clock = clock[:clock.index("}")]
+    assert "flex:none" in clock
+    mode = css[css.index(".ribbon em{"):]
+    mode = mode[:mode.index("}")]
+    assert "min-width:0" in mode and "text-overflow:ellipsis" in mode
+    title = css[css.index("#bigTitle.on{"):]
+    title = title[:title.index("}")]
+    assert "flex:none" in title and "max-width:280px" in title
+    brand = css[css.index(".ribbon b{"):]
+    brand = brand[:brand.index("}")]
+    assert "flex:none" in brand
+    prog = css[css.index("\n.prog{"):]
+    prog = prog[:prog.index("}")]
+    assert "flex:1 1 auto" in prog and "min-width:0" in prog and "overflow:hidden" in prog
+    assert "@container (max-width:1400px){.pbar{width:60px}}" in css
+    narrow = "@container (max-width:1100px){.ribbon b,.ribbon .desc{display:none}.pbar{width:32px}.prog{flex:1 1 auto;min-width:0;overflow:hidden}.pct{min-width:0;overflow:hidden;text-overflow:ellipsis}#bigTitle.on{flex:0 1 140px;max-width:140px;min-width:0}#dbg,#exp,#imp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}}"
+    assert narrow in css
+    phone = "@container (max-width:520px){#dbg,#exp,#imp,#bigTitle,.ribbon em{display:none}.pbar{width:24px}}"
+    assert phone in css
 
 
 def test_template_keeps_the_graph_visible_in_a_narrow_window():
