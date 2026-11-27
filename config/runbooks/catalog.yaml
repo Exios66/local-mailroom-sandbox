@@ -217,9 +217,9 @@ generated_docs:
 runbooks:
   modal-vllm-serving:
     family: serving
-    title: Modal vLLM — deploy, point, verify, teardown (default path)
+    title: Modal vLLM — deploy, point, verify, teardown (explicit GPU path)
     summary: >
-      The sandbox default. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI
+      An explicit GPU serving path. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI
       /v1 surface; the host needs no GPU and no Ollama daemon. Pre-warm the
       weights, deploy once, export VLLM_BASE_URL/VLLM_API_KEY, verify with
       health, run any eval against the same warm endpoint, then tear it down.

@@ -1,24 +1,20 @@
 ---
 name: experiment-figures
 description: >-
-  How this repository makes figures for experiments: per-run figures for LLM-sorter and
-  decision-model runs, the sorter-vs-decision (H5) comparison (total run time, latency, quality
-  against non-inferiority margins, routing, cost), form-floor and threshold calibration, and any
-  new experiment comparison. Covers the fixed colour roles, the type scale, finding-as-title text
-  rules, uncertainty, provenance, the figure-text linter and the render-and-look review. Use it
-  whenever you create, change, review or explain a chart, plot, figure, SVG or visual in this repo,
-  add a figure to a report or campaign, compare runs or arms visually, or are asked to make
-  results "presentable", "publication quality" or "professional", even if the word figure is
-  never used. It extends the general dataviz skill; read this one for anything in this repo.
+  Create, update or review experiment evidence figures in this repository: per-run sorter,
+  decision and specialist figures, paired comparisons, routing, calibration and cost charts.
+  Use for report/campaign figures and publication-quality experiment results. Applies the
+  repository's colour/type system, computed finding titles, uncertainty, provenance and
+  render/lint checks. Excludes viewer/app UI, decorative illustrations and unrelated SVG assets.
 ---
 
 # Experiment figures
 
 A figure here is evidence in a decision (adopt a question set, accept a sorter arm, set a
 threshold). It must say what it shows, be right about it, and look like every other figure in the
-repo so readers compare runs at a glance. The general `dataviz` method still applies (form first,
-colour by job, validated palette, thin marks, one axis, table view, render and look). This skill
-adds what experiments need on top of it.
+repo so readers compare runs at a glance. Choose form before styling, assign colour by role,
+show one measure per axis, retain a data table, and render and inspect the result. The local
+implementation and references below are sufficient; no external skill is required.
 
 ## The implementation already exists: use it
 
@@ -27,6 +23,7 @@ adds what experiments need on top of it.
 | `src/mailroom_sandbox/figure_style.py` | Colour roles, type scale, `Fig` (deterministic SVG), `heading`, `axis_labels`, `legend_below`, `value_axis`, `wilson`, `humanize`, `lint_svg`, and the `lint` command |
 | `src/mailroom_sandbox/decision_figures.py` | Per-run figures for any sorter or decision run (`build`), the paired question-set figure (`paired_svg`) |
 | `src/mailroom_sandbox/comparison_figures.py` | Sorter-arm comparison figures from a `sorter_arms` report (`build`) |
+| `src/mailroom_sandbox/window_figures.py` | Paired specialist window/quality figures and a per-document data table (`build`) |
 
 Commands:
 
@@ -94,7 +91,11 @@ one-off matplotlib script. A figure outside them drifts: its own colours, fonts 
 - **No snake_case on a figure.** Class names, park reasons and groups go through `humanize` or
   a label map (`reason_label`, `GROUP_LABELS`).
 - **One table view per figure set.** Per-run figures write `analysis/<stem>.figure-data.csv`; the
-  comparison figures read `comparison.json`. Every number on a figure is in one of those.
+  comparison figures read `comparison.json`. Window figures export per-document
+  values in their CSV; merge-rule AUROCs are computed from the window confidences
+  in the source run's `items.jsonl` via `job.routing_audit.window_rule_separation`.
+  Retain both `dataset.jsonl` (document IDs and labels) and `items.jsonl` for each
+  run alongside its CSV: `window_figures.load_run` needs both to reproduce figures.
 
 ## Review checklist (run before you hand a figure over)
 

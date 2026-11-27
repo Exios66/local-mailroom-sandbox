@@ -649,7 +649,7 @@ def test_serve_floor_uses_private_digest_storage_and_cleans_it_up(store, tmp_pat
         def server_close(self):
             """No socket was opened."""
 
-    def bind(directory, port, *, digest_dir, runs_root=None):
+    def bind(directory, port, *, digest_dir, runs_root=None, refresher=None):
         """Inspect startup output while it exists, optionally failing the bind."""
         assert directory == assets and digest_dir != assets
         assert json.loads((digest_dir / "floor_digest.json").read_text())["runs"][0]["name"] == "run-1"
@@ -689,7 +689,7 @@ def test_offline_image_copies_floor_assets_and_starts_without_checkout_mount(tmp
     monkeypatch.setitem(sys.modules, "build_floor_digest", None)
     seen = []
 
-    def bind(directory, port, *, digest_dir, runs_root=None):
+    def bind(directory, port, *, digest_dir, runs_root=None, refresher=None):
         """Verify the image template and generated replay digest before refusing the socket."""
         assert directory == image / "reports" / "dashboard"
         assert (directory / "floor.template.html").is_file()
@@ -743,7 +743,7 @@ def test_template_keeps_the_graph_visible_in_a_narrow_window():
     assert ".app{" in narrow and "grid-template-columns:minmax(0,1fr)" in narrow
     # Same specificity as the base rules, so it must come last or .ribbon{grid-column:1/4} rebuilds 3 columns.
     assert "\n.ribbon{" in css and css.index("\n.ribbon{") < css.index("@media (max-width:")
-    assert ".ribbon{grid-column:1}" in narrow
+    assert ".ribbon{grid-column:1;" in narrow and "flex-wrap:wrap" in narrow
     assert "#viewport{" in narrow and "order:" in narrow, "the graph comes first when the rails stack"
     fit = html[html.index("const fitGraph="):]
     fit = fit[:fit.index("};") + 2]
@@ -760,14 +760,13 @@ def test_template_keeps_the_graph_visible_in_a_narrow_window():
     assert html.count('getElementById("zfit").onclick=') == 1, "one fit handler, the guarded one"
 
 
-def test_template_does_one_final_fetch_when_the_run_leaves_running():
-    """One final fetch happens when a live run goes idle."""
+def test_completed_views_continue_discovering_new_runs():
+    """Historical views still poll the store, so later registered runs appear."""
     html = _template()
     live = html[html.index("// ── LIVE refresh"):]
-    assert "wasLive" in live and "(idle&&!wasLive)" in live and "wasLive=!idle" in live
+    assert "if(busy||registering||holdLive)return" in live
+    assert "idle&&!wasLive" not in live
     assert live.count('fetch("floor_digest.json?ts="') == 1, "the existing fetch helper is reused, not duplicated"
-    fetch_at = live.index('fetch("floor_digest.json?ts="')
-    assert live.index("wasLive=!idle") > fetch_at, "mark idle only after a successful final fetch so a failed one retries"
 
 
 # ── recorded replay from any provider ───────────────────────────────────────────
@@ -1522,7 +1521,7 @@ def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
     assert {m.group(1) for m in re.finditer(r'<(\w+)[^>]*data-rd="', block)} == {"button"}
     assert 'tr class="click' not in block and "data-doc" not in block
     glue = html[html.index("function rdFetch("):html.index("function rdEnsure(")]
-    assert "/api/floor/doc" in glue and "encodeURIComponent(run().name)" in glue and "encodeURIComponent(d.id)" in glue
+    assert "/api/floor/doc" in glue and "encodeURIComponent(runKey(run()))" in glue and "encodeURIComponent(d.id)" in glue
     assert "!LIVE" in glue and "holdLive" in glue and "replay" in glue
     # the endpoint's answer is reduced to known shapes before the panel sees it
     assert "function rdCleanDoc(" in html
@@ -1614,7 +1613,7 @@ const setGen=()=>{},menus=()=>{},render=()=>{};
 const run=()=>D.runs[runIdx];
 const hasClasses=()=>false;
 const classView=()=>({why:""});
-'''+share+apply+r'''
+'''+html[html.index('function runKey('):html.index('/** Show the digest')]+share+apply+r'''
 const saved=JSON.parse(JSON.stringify(floorExportObject())).focus;
 DF.cell={gt:"foreign",pred:"unknown"};DF.dec="foreign";DF.outcome="failed";DF.miss=false;DF.q="foreign";
 applyShareFocus(saved);
@@ -1637,3 +1636,231 @@ assert.deepEqual(DF,{cell:null,dec:"",outcome:"",miss:false,q:""});
 '''
     result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize('provider', ['openrouter', 'modal-vllm', 'vllm-local', 'lmstudio', 'custom-provider'])
+def test_register_previous_provider_run_preserves_artifacts_and_document_access(store, tmp_path, provider):
+    base, graph, source = store
+    external = tmp_path / provider / 'previous'
+    shutil.copytree(source, external)
+    (external / 'spec.lock.json').write_text(json.dumps({'profile': provider, 'engine': {'kind': provider, 'model': 'recorded-model'}}))
+    (external / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Synthetic saved source.'}) + '\n')
+    (external / 'doc_texts').mkdir(exist_ok=True)
+    (external / 'doc_texts' / 'nested-source.txt').write_text('Synthetic nested source.')
+    before = {str(p.relative_to(external)): p.read_bytes() for p in external.rglob('*') if p.is_file()}
+    name, resolved = floor_app.register_run(base, str(external))
+    assert resolved == external.resolve() and name == 'previous'
+    # Persistence is on disk, not tied to a viewer process. Re-registering is idempotent.
+    assert floor_app.register_run(base, str(external))[0] == name
+    digest, _, _ = floor_app.build(base, tmp_path / 'out', graph)
+    saved = next(r for r in digest['runs'] if r['name'] == name)
+    assert saved['profile'] == provider
+    assert saved['engine'] == {'kind': provider, 'model': 'recorded-model'}
+    assert floor_app.doc_view(base, name, 'd1')['original'] == 'Synthetic saved source.'
+    assert json.loads((base / 'floor-runs.json').read_text())['paths'] == [str(external.resolve())]
+    assert before == {str(p.relative_to(external)): p.read_bytes() for p in external.rglob('*') if p.is_file()}
+    signature = floor_app.scan_signature(base)
+    with (external / 'nodes.jsonl').open('a') as out:
+        out.write(json.dumps({'doc': 'd2', 'node': 'intake', 'status': 'running'}) + '\n')
+    assert signature != floor_app.scan_signature(base)
+
+
+def test_registered_names_stay_unique_and_nodes_only_logs_load(store, tmp_path):
+    base, graph, source = store
+    directories = [tmp_path / str(i) / 'run-1' for i in range(3)]
+    for i, run in enumerate(directories):
+        run.mkdir(parents=True)
+        (run / 'nodes.jsonl').write_text(json.dumps({'doc': str(i), 'node': 'intake', 'status': 'running'}) + '\n')
+        floor_app.register_run(base, str(run))
+    # A literal name that looks like a disambiguated name must not collide either.
+    literal = tmp_path / 'run-1 (registered)'
+    shutil.copytree(source, literal)
+    floor_app.register_run(base, str(literal))
+    digest, _, _ = floor_app.build(base, tmp_path / 'out', graph)
+    names = [r['name'] for r in digest['runs']]
+    assert len(names) == len(set(names)) == 5
+    assert floor_app.has_runs(base)
+
+
+def test_registered_run_identity_survives_native_name_collision(store, tmp_path):
+    base, graph, source = store
+    external = tmp_path / 'saved' / 'collision'
+    shutil.copytree(source, external)
+    (external / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Saved source.'}) + '\n')
+    floor_app.register_run(base, str(external))
+    before = floor_app.build(base, tmp_path / 'before', graph)[0]
+    saved = next(r for r in before['runs'] if r['name'] == 'collision')
+    native = base / 'runtime' / 'runs' / 'collision'
+    shutil.copytree(external, native)
+    (native / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Native source.'}) + '\n')
+    after = floor_app.build(base, tmp_path / 'after', graph)[0]
+    same = next(r for r in after['runs'] if r['id'] == saved['id'])
+    assert same['name'] != saved['name']
+    assert floor_app.doc_view(base, saved['id'], 'd1')['original'] == 'Saved source.'
+    assert floor_app.doc_view(base, 'collision', 'd1')['original'] == 'Native source.'
+
+
+def test_explicit_native_registration_retains_nodes_only_history(store, tmp_path):
+    base, graph, source = store
+    floor_app.register_run(base, str(source))
+    identity = floor_app.load_builder().run_identity(source)
+    (source / 'items.jsonl').unlink()
+    digest = floor_app.build(base, tmp_path / 'out', graph)[0]
+    assert any(r['id'] == identity for r in digest['runs'])
+    assert json.loads((base / 'floor-runs.json').read_text())['paths'] == [str(source.resolve())]
+
+
+def test_registration_and_poll_interleaving_keeps_selected_source():
+    """Execute the actual async handlers, delaying an old poll's JSON until registration completes."""
+    import subprocess
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node is needed to execute viewer JavaScript')
+    html = _template()
+    keys = html[html.index('function runKey('):html.index('/** Show the digest')]
+    handlers = html[html.index('async function floorResumeLive('):html.index('// elapsed counters tick')]
+    script = r'''
+const assert=require('node:assert/strict');
+let D={classes:[],runs:[{id:'saved-id',name:'collision',docs:[]}]},runIdx=0;
+let holdLive=false,registering=false,shareEpoch=0,CLASS=null,selDoc=null;
+const LIVE=true,run=()=>D.runs[runIdx];
+const elements={registerForm:{},registerNote:{},registerRun:{},runPath:{value:'/saved'}};
+const document={getElementById:id=>elements[id]||(elements[id]={})};
+const usableDigest=d=>!!d,setGen=()=>{},menus=()=>{},render=()=>{},paintShare=()=>{},pad2=x=>x;
+const takeDigest=nd=>{D=nd;runIdx=0;holdLive=false};
+let poll;const setInterval=fn=>{poll=fn};
+const fresh={classes:[],runs:[{id:'native-id',name:'collision',docs:[]},{id:'saved-id',name:'collision (registered)',docs:[]}]};
+let release,releaseRegistration,fetches=0;
+const fetch=async()=>{
+ fetches++;
+ if(fetches===1)return {ok:true,json:()=>new Promise(r=>release=r)};
+ if(fetches===2)return {ok:true,json:async()=>({run:'collision (registered)',run_id:'saved-id'})};
+ if(fetches===3||fetches===5)return {ok:true,json:async()=>fresh};
+ if(fetches===4)return {ok:true,json:()=>new Promise(r=>releaseRegistration=r)};
+ throw Error('unexpected fetch while registration is active');
+};
+''' + keys + handlers + r'''
+(async()=>{
+ const old=poll();await new Promise(setImmediate);assert(release);
+ const registration=elements.registerForm.onsubmit({preventDefault(){}});
+ assert(registering);await poll();assert.equal(fetches,2);
+ await registration;assert.equal(run().id,'saved-id');assert.equal(run().name,'collision (registered)');
+ release({classes:[],runs:[{id:'saved-id',name:'collision',docs:[]}]});await old;
+ assert.equal(D,fresh);assert.equal(run().id,'saved-id');assert(!registering);
+ // With no poll in flight, registration must itself prevent a new background poll.
+ const nextRegistration=elements.registerForm.onsubmit({preventDefault(){}});
+ await new Promise(setImmediate);assert(releaseRegistration);assert(registering);
+ await poll();assert.equal(fetches,4);
+ releaseRegistration({run:'collision (registered)',run_id:'saved-id'});
+ await nextRegistration;assert.equal(run().id,'saved-id');assert.equal(fetches,5);
+ // Legacy name lookup remains available, while identity chooses the original source.
+ assert.equal(findRun(fresh.runs,'collision'),0);assert.equal(findRun(fresh.runs,'saved-id'),1);
+})().catch(e=>{console.error(e);process.exitCode=1});
+'''
+    result = subprocess.run([node, '-e', script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_registration_rejects_summary_and_malformed_logs_without_writing_registry(tmp_path):
+    base = tmp_path / 'base'
+    source = tmp_path / 'source'
+    source.mkdir()
+    with pytest.raises(ValueError, match='run directory'):
+        floor_app.register_run(base, str(source))
+    (source / 'items.jsonl').write_text('[]\n{broken\n')
+    with pytest.raises(ValueError, match='no JSON object'):
+        floor_app.register_run(base, str(source))
+    assert not (base / 'floor-runs.json').exists()
+
+
+def test_register_endpoint_guards_origin_then_loads_previous_run(store, tmp_path):
+    base, graph, source = store
+    external = tmp_path / 'external'
+    shutil.copytree(source, external)
+    refresher = floor_app.DigestRefresher(base, tmp_path / 'digests', graph_path=graph)
+    refresher.refresh()
+    httpd = floor_app.make_server(tmp_path, 0, runs_root=base, digest_dir=refresher.out, refresher=refresher)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    def request(headers, body=None):
+        connection = HTTPConnection(*httpd.server_address, timeout=5)
+        try:
+            connection.request('POST', '/api/floor/register', body=body or json.dumps({'path': str(external)}), headers=headers)
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+    try:
+        assert request({'Content-Type': 'application/json', 'Origin': 'https://other.example'})[0] == 403
+        assert request({'Content-Type': 'text/plain'})[0] == 415
+        assert request({'Content-Type': 'application/json', 'Host': 'evil.example'})[0] == 403
+        assert request({'Content-Type': 'application/json'}, '[]')[0] == 400
+        assert not (base / 'floor-runs.json').exists()
+        status, result = request({'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:' + str(httpd.server_address[1])})
+        assert status == 200 and result['run'] == 'external'
+        assert any(r['name'] == 'external' for r in json.loads((refresher.out / 'floor_digest.json').read_text())['runs'])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=3)
+
+
+def test_cli_registers_a_previous_run_and_selects_it(store, tmp_path, monkeypatch):
+    base, _, source = store
+    external = tmp_path / 'external'
+    shutil.copytree(source, external)
+    seen = []
+    monkeypatch.setattr(floor_app, 'serve_floor', lambda **kw: seen.append(kw) or 0)
+    assert cli.main(['floor', '--base', str(base), '--register-run', str(external)]) == 0
+    assert seen[-1]['run'] == 'external'
+
+
+def test_malformed_shared_digest_is_refused_before_replacing_the_view(store, tmp_path):
+    import subprocess
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node is needed to execute viewer JavaScript')
+    base, graph, _ = store
+    digest, _, _ = floor_app.build(base, tmp_path / 'out', graph)
+    html = _template()
+    helpers = html[html.index('function usableDigest('):html.index('function paintShare(')]
+    blob = json.dumps(digest)
+    script = 'const assert=require("node:assert/strict");\n' + helpers + '\nconst good=' + blob + r''';
+assert(usableDigest(good));
+assert(readShare({mailroom_floor_export:1,digest:good}));
+assert.equal(readShare({...good,runs:[{name:'incomplete'}]}),null);
+assert.equal(readShare({...good,graph_reference:{edges:[null],node_agents:{}}}),null);
+assert.equal(readShare({...good,classes:[{}]}),null);
+for(const value of [{},null,[null],[{id:3}]]){
+ assert.equal(readShare({...good,runs:[{...good.runs[0],docs:value}]}),null);
+}
+for(const value of [[],null,{extract:'model'},{extract:[3]}]){
+ assert.equal(readShare({...good,runs:[{...good.runs[0],node_models:value}]}),null);
+}
+const legacy=structuredClone(good);delete legacy.runs[0].node_models;delete legacy.runs[0].id;
+assert(usableDigest(legacy));
+assert.equal(readShare({mailroom_floor_export:2,digest:good}),null);
+'''
+    result = subprocess.run([node, '-e', script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_refresher_retains_last_digest_after_registry_corruption(store, tmp_path):
+    base, graph, _ = store
+    refresher = floor_app.DigestRefresher(base, tmp_path / 'out', graph_path=graph)
+    assert refresher.refresh()
+    before = (refresher.out / 'floor_digest.json').read_bytes()
+    (base / 'floor-runs.json').write_text('{torn')
+    assert refresher.refresh() is False
+    assert refresher.last_error and (refresher.out / 'floor_digest.json').read_bytes() == before
+    (base / 'floor-runs.json').write_text(json.dumps({'schema': 'mailroom.floor-runs/v1', 'paths': []}))
+    assert refresher.refresh() is True
+
+
+def test_corrupt_registry_is_a_clean_startup_error(tmp_path, capsys):
+    base = tmp_path / 'base'
+    base.mkdir()
+    (base / 'floor-runs.json').write_text('{broken')
+    assert floor_app.serve_floor(base=base, port=0) == 1
+    error = capsys.readouterr().err
+    assert 'invalid floor-runs.json registry' in error and 'Traceback' not in error

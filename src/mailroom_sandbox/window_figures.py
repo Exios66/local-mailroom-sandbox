@@ -12,7 +12,8 @@ confidence per window. These figures answer the questions the window experiments
 - ``window-count``: does quality move with the number of windows a document needs?
 - ``runs``: per-document quality of every run against the target.
 
-Every number is in the ``figure-data.csv`` table ``build`` returns. Built with the house
+The ``figure-data.csv`` table contains per-document values. Merge-rule AUROCs
+also require the source window confidences (``job.routing_audit.window_rule_separation``). Built with the house
 style (``figure_style``); run ids only in the source line.
 """
 from __future__ import annotations

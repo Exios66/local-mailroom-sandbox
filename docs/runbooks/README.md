@@ -25,7 +25,7 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 
 ## Modal + vLLM serving (default path)
 
-- [`modal-vllm-serving`](serving/modal-vllm.md) — Modal vLLM — deploy, point, verify, teardown (default path)
+- [`modal-vllm-serving`](serving/modal-vllm.md) — Modal vLLM — deploy, point, verify, teardown (explicit GPU path)
 
 ## Singular L4 / 1-container Qwen3-8B
 

@@ -543,6 +543,10 @@ def _write_study(root: Path, plan: Plan, generated: list[RunSpec]) -> None:
 
 
 def _create(args) -> int:
+    args.provider = args.provider or args.profile
+    if args.provider not in {'openrouter', 'modal-vllm'}:
+        raise ServiceError(f'experiment create does not support selected profile {args.provider!r}; '
+                           'choose --provider openrouter or --provider modal-vllm explicitly')
     _validate_create_args(args)
     root = Path(args.output or repo_root() / 'config' / 'experiments' / args.study).resolve()
     if root.exists():
@@ -1202,7 +1206,8 @@ def register(sub, leaf) -> None:
     create.add_argument('--split', default='all')
     create.add_argument('--revision', default=FAMILY_HF_REVISION)
     create.add_argument('--local-dataset', default=None, help='local JSONL instead of Hub (also useful for offline mock checks)')
-    create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default='modal-vllm')
+    create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default=None,
+                        help='experimental provider (default: selected profile, otherwise openrouter; unsupported profiles require an explicit provider)')
     create.add_argument('--gpu', default='L4', help='Modal GPU class, optionally :N for tensor parallel')
     create.add_argument('--no-named-image', dest='named_image', action='store_false',
                         help='build the serving image instead of reusing the published sandbox-vllm:<tag>')

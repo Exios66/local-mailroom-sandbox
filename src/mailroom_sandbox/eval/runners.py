@@ -76,7 +76,7 @@ def _cap_gpu(gpu: str | None, gpu_fleet: list[tuple[str, int]] | None, profile: 
     """
     if gpu or gpu_fleet:
         return gpu or "L4"
-    if not profile:  # activate(None) serves the default profile (modal-vllm unless configured)
+    if not profile:  # activate(None) serves the default profile (openrouter unless configured)
         from mailroom_sandbox.providers import default_profile
 
         profile = default_profile()
