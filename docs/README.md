@@ -111,6 +111,7 @@ what was decided at the time; the guides above say how things work now.
 | Phase 1 spend safety | [Plan](design/plans/2026-11-26-phase1-spend-safety.md) |
 | Phase 2 loop governor | [Plan](design/plans/2026-11-26-phase2-governor.md) |
 | Phase 3 subclass extraction schemas | [Plan](design/plans/2026-11-26-phase3-subclass-schemas.md) |
+| Phase 4 correcting judge | [Plan](design/plans/2026-11-26-phase4-correcting-judge.md) |
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
 
 New design records go in `design/<ticket>/`, or in `design/plans/` and
