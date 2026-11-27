@@ -331,7 +331,20 @@ def _score_extraction_row_once(
         payload["unlabeled_fields"] = result["unlabeled_fields"]
     payload.update(assess_extraction_payload({**predicted, **parse_facts}, doc_type, doc_subclass=sub))
     if sh.is_active("SHF-001"):
-        payload.update(sh.hallucination_counts(doc_type, raw_expected, predicted))
+        counts = sh.hallucination_counts(doc_type, raw_expected, predicted)
+        # A field SHF-018 removed is not scored, so it is not a hallucination and not in the
+        # denominator. Leaving it in the denominator diluted the rate after the prediction was popped.
+        excluded = {name for name, reason in subclass_notes.items() if reason == "not_in_subclass_schema"}
+        if excluded:
+            absent = [name for name in sh.documented_absent_fields(doc_type, raw_expected) if name not in excluded]
+            hits = [name for name in counts["hallucinated_fields"] if name not in excluded]
+            counts = {
+                "n_documented_absent": len(absent),
+                "n_hallucinated": len(hits),
+                "hallucinated_fields": hits,
+                "hallucination_rate": round(len(hits) / len(absent), 4) if absent else None,
+            }
+        payload.update(counts)
     if subclass_notes:
         payload["subclass_unscored"] = subclass_notes
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):

@@ -292,7 +292,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-016",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "83b5ccdb72ec220b0cda8197576fe468f7bd2941d11bd51f0b2b49b93f36b249"),
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "104f656351c957044be84880dfe8b10c8b219c26ab28dac39315f2b75dab6fff"),
             # the Dojo reader decides the row's labeled universe; a refresh that changes it
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
@@ -322,9 +322,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="sandbox",
         targets=(
             ("mailroom_sandbox.eval.scoring:_score_extraction_row_once",
-             "83b5ccdb72ec220b0cda8197576fe468f7bd2941d11bd51f0b2b49b93f36b249"),
+             "104f656351c957044be84880dfe8b10c8b219c26ab28dac39315f2b75dab6fff"),
             ("mailroom_sandbox.job.gate_causes:_field_scores",
-             "fec0f8cba07e0cc0371347c40fadab7a942a25e77af7c98dedbbe96c322485a9"),
+             "bd806ce96b36517699666f5a91256918d8e94084bbb630f4f658d3c64ef49690"),
             ("file:config/extraction/subclass_extraction_fields.json",
              "37cae40feaf60563567d5abf04de1e64551c340e35f2d60b0b548cc865c1574c"),
         ),
@@ -332,7 +332,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         summary="scoring uses the subclass's extraction schema: a field the schema drops is "
                 "not a miss or a false positive when the two sides disagree, and a field both "
                 "sides agree on keeps its credit; an insurance supporting_documents or keywords "
-                "item that the claim does not contain and the prediction does not state is not "
+                "item the claim does not contain as its own words, and the prediction does not state, is not "
                 "present on that claim; the raw side keeps the class-schema score and the "
                 "omitted fields are named",
     ),
@@ -856,17 +856,46 @@ def _blank(value: Any) -> bool:
     return bool(is_empty_value(parsed))
 
 
+def _contacts_equal(left: Any, right: Any) -> bool:
+    """SHF-017's token rule, so a dropped name field keeps an equivalent address."""
+    a, b = _address_name_tokens(left), _address_name_tokens(right)
+    if a and b and a == b:
+        return True
+    if a and a == _name_tokens(right):
+        return True
+    return bool(b) and b == _name_tokens(left)
+
+
+def _lists_equivalent(left: list[Any], right: list[Any]) -> bool:
+    if len(left) != len(right):
+        return False
+    pool = list(right)
+    for item in left:
+        for index, other in enumerate(pool):
+            if _norm_item(item) == _norm_item(other) or _contacts_equal(item, other):
+                del pool[index]
+                break
+        else:
+            return False
+    return True
+
+
 def _same_value(expected: Any, predicted: Any) -> bool:
-    """True when the prediction states the same value the truth does."""
+    """True when the prediction states the same value the truth does, including an equivalent contact."""
     left, right = _list_items(expected), _list_items(predicted)
     if left is not None or right is not None:
-        return {_norm_item(item) for item in (left or ())} == {_norm_item(item) for item in (right or ())}
-    return not _blank(expected) and _norm_item(expected) == _norm_item(predicted)
+        return _lists_equivalent(left or [], right or [])
+    if _blank(expected):
+        return False
+    return _norm_item(expected) == _norm_item(predicted) or _contacts_equal(expected, predicted)
 
 
 def _in_claim(item: Any, text: str) -> bool:
+    """The item occurs as its own words. ``form`` does not match inside ``information``."""
     needle = _norm_item(item)
-    return bool(needle) and needle in text
+    if not needle:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", text) is not None
 
 
 def _prediction_states(item: Any, predicted: Any) -> bool:

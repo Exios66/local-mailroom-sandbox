@@ -1,8 +1,9 @@
 # Full-pipeline A/B, arm B: correcting judge, loop governor off.
 # Pair: config/runs/ab-pipeline-governor.yaml (today's judge, governor on).
-# Same documents and production setup as that arm. This arm changes only the judge:
-# mode correct, qwen/qwen3.7-plus, mergers on deepseek/deepseek-v4.1-flash-1017,
-# no reference examples. The governor stays off so the comparison is the two levers.
+# Same documents and production setup. The arms are the two levers, not one
+# change: this arm uses the correcting judge (mode correct, qwen/qwen3.7-plus,
+# mergers on deepseek/deepseek-v4.1-flash-1017, no reference examples) and
+# leaves the governor off. The pair uses today's judge and turns the governor on.
 #
 # api_cost_cap_usd 6.84: 1.5 x (50 x $0.02 + 2 rulings x $0.03, mergers x $0.17).
 # 48 non-mergers and 2 mergers; every drawn document is counted as judged.

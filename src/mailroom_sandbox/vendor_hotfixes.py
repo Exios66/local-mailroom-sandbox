@@ -1796,7 +1796,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "entry; an arbiter ruling only once the judge has already passed) past the document's "
                 "retry, call or spend budget goes to human review, or to the archive when the current "
                 "extraction passed the judge; an arbiter ruling on an extraction the judge has not "
-                "passed is not a counted round; L2 sends a sorter retry at the measured sorter ceiling "
+                "passed is not a counted round, and call and spend budgets still stop that ruling; "
+                "L2 sends a sorter retry at the measured sorter ceiling "
                 "to the second opinion instead",
         install=_install_governor,
     ),

@@ -164,6 +164,71 @@ def test_shf018_without_the_claim_text_the_gold_list_stays():
     assert row["field_scores"]["supporting_documents"] == 0.0
 
 
+def test_shf018_a_short_label_inside_a_longer_word_is_not_in_the_claim():
+    embedded = _row("insurance_claim",
+                    {"supporting_documents": []},
+                    {"supporting_documents": ["form"]},
+                    doc_text="information about the claim", expected_subclass="property")
+    assert embedded["subclass_unscored"]["supporting_documents"] == "not_present_on_claim"
+    assert "supporting_documents" not in embedded["field_scores"]
+    stated = _row("insurance_claim",
+                  {"supporting_documents": []},
+                  {"supporting_documents": ["invoice"]},
+                  doc_text="a contractor invoice is attached", expected_subclass="property")
+    assert stated["field_scores"]["supporting_documents"] == 0.0
+    assert "supporting_documents" not in stated.get("subclass_unscored", {})
+
+
+def test_shf018_an_equivalent_contact_on_a_dropped_field_keeps_its_credit():
+    row = _row("corporate_record",
+               {"entity_name": "Acme Holdings Inc.", "signatories": ["Randy Rice/OTS/Enron@ENRON"]},
+               {"entity_name": "Acme Holdings Inc.", "signatories": ["Randy Rice"]},
+               expected_subclass="subsidiary_list")
+    assert "signatories" not in row.get("subclass_unscored", {})
+    assert row["field_scores"]["signatories"] == 1.0
+    assert row["overall_extraction_score"] == 1.0
+
+
+def test_shf018_a_different_person_on_a_dropped_field_is_not_a_miss():
+    row = _row("corporate_record",
+               {"entity_name": "Acme Holdings Inc.", "signatories": ["Jane Doe"]},
+               {"entity_name": "Acme Holdings Inc.", "signatories": ["Randy Rice"]},
+               expected_subclass="subsidiary_list")
+    assert row["subclass_unscored"]["signatories"] == "not_in_subclass_schema"
+    assert "signatories" not in row["field_scores"]
+    assert row["overall_extraction_score"] == 1.0
+
+
+def test_shf018_a_dropped_field_leaves_the_hallucination_rate():
+    import json
+
+    expected = {
+        "claim_number": "1",
+        "adjuster": None,
+        "denial_reasons": None,
+        "gt_presence": json.dumps({
+            "adjuster": "schema_documented_absence",
+            "denial_reasons": "schema_documented_absence",
+        }),
+    }
+    row = _row("insurance_claim",
+               {"claim_number": "1", "adjuster": "Pat Lee", "denial_reasons": None},
+               expected, doc_text="claim 1", expected_subclass="property")
+    assert row["subclass_unscored"]["adjuster"] == "not_in_subclass_schema"
+    assert "adjuster" not in row["hallucinated_fields"]
+    assert row["n_documented_absent"] == 1
+    assert row["n_hallucinated"] == 0
+    assert row["hallucination_rate"] == 0.0
+
+
+def test_shf018_the_gate_returns_no_scores_when_every_labelled_field_was_dropped():
+    from mailroom_sandbox.job import gate_causes
+
+    row = {"expected_doc_class": "corporate_record", "expected_subclass": "bylaws",
+           "expected_fields": {"filing_number": "0001234567"}}
+    assert gate_causes._field_scores(row, {"extracted_data": {}}) == {}
+
+
 def test_shf018_correspondence_keeps_its_class_schema():
     row = _row("correspondence", {"sender": "John Arnold", "intent": "request"},
                {"sender": "John Arnold", "intent": "request"}, expected_subclass="email")

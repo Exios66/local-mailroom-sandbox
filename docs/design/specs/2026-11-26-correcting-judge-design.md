@@ -377,7 +377,8 @@ CircleCI.
 - The test runs in three stages; the "model only" version is dropped.
 - Governor budgets: 3 counted rounds, 30 calls (mergers 36), spend off until measured. The
   50-document pilot raised the starting value of 2, which parked 20 documents at 6–10 calls. An
-  arbiter ruling on an extraction the judge has not passed is not a counted round. The governor
+  arbiter ruling on an extraction the judge has not passed is not a counted round. Call and spend
+  budgets still stop that ruling. The governor
   is off for existing runs and on for every new test version.
 - A document whose current extraction already passed the checks is archived with caveats when the
   governor stops it; every other stop goes to human review.

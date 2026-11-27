@@ -751,7 +751,8 @@ class GovernorSpec(BaseModel):
     """Per-document loop budgets (phase 2, ``mailroom_sandbox.governor``). Off unless set.
 
     The 50-document pilot set ``retries`` to 3: one classify retry, one confidence re-extraction
-    and one arbiter-ordered re-extraction. An arbiter ruling is not one of those rounds. Two
+    and one arbiter-ordered re-extraction. An arbiter ruling is not one of those rounds until the
+    judge has passed the extraction; a ruling after that pass still counts. Two
     counted rounds parked documents at 6–10 model calls, before that ruling. Call budgets stay
     below the hard call ceiling (``job.call_guard.CALL_CEILING["pipeline"]``, 40), which remains
     the backstop.

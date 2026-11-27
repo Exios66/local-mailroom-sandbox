@@ -507,7 +507,7 @@ refused for any other task. `governor: true` takes every default; a mapping sets
 ```yaml
 job:
   governor:
-    retries: 3                 # counted rounds: classify and extraction retries, boss entries. An arbiter ruling is not one
+    retries: 3                 # counted rounds: classify and extraction retries, boss entries. An arbiter ruling is not one until the judge has passed the extraction
     calls: 30                  # model calls per document (1-39, below the hard ceiling of 40)
     calls_by_class: {merger_agreement: 36}
     spend_usd: null            # off until the pilot measures cost per type
@@ -586,8 +586,10 @@ has an entry:
     `subsidiary_list`.
 
   Held-out labels never keep a field. The one held-out `filing_number` value on `bylaws` is therefore not
-  asked for. SHF-018 does not score a miss on it: the field is named under `subclass_unscored` and the raw
-  score still counts it. A subclass's own `output_schema_fields` in
+  asked for. SHF-018 does not score a miss on it when the prediction disagrees: the field is named under
+  `subclass_unscored` and the raw score still counts it. A dropped field both sides agree on, including
+  both empty, stays and is not named. An insurance list item stays when the claim text is missing or the
+  prediction states that item. A subclass's own `output_schema_fields` in
   the registry, when present, replaces the class's.
 - **add**: fields outside the class schema with dev, calibration or pool labels and an extraction status.
   Today there are none: the corporate entity fields have no labels yet, and correspondence `content_topic`
