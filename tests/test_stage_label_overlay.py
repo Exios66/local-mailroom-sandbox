@@ -128,6 +128,40 @@ def test_join_fills_and_extends_notice_cells(mod):
 GROUND = "renews unless notice is given One Hundred Eighty (180) days, or one hundred and twenty  (120) days, before"
 
 
+def _subclass_builder(mod, *, chosen="subclass_review", derived="Consulting Agreements"):
+    cols = ["document_id", "doc_class", "fields_targeted", "fields_labeled", "label_completeness",
+            "subclass", "subclass_hub_v9_3", "subclass_changed", "cuad_family", "governing_law"]
+    row = {"document_id": "DOC-1", "doc_class": "contract", "fields_targeted": "2", "fields_labeled": "2",
+           "label_completeness": "1.0", "subclass": "Consulting Agreements", "subclass_hub_v9_3": "IP",
+           "subclass_changed": "True", "cuad_family": "Consulting Agreements", "governing_law": "Delaware"}
+    prov = [_cell(field="subclass", value="Consulting Agreements", chosen_source=chosen),
+            _cell(field="cuad_family", value="Consulting Agreements", chosen_source="generated_derived",
+                  evidence=json.dumps([{"derived_from_subclass": derived, "source": "generated_derived"}])),
+            _cell(field="governing_law", value="Delaware")]
+    assist = [dict(row, subclass="IP", subclass_changed="False", cuad_family="IP", governing_law="New York")]
+    return {"labels": (cols, [row]), "provenance": (list(prov[0]), prov), "completeness": (list(prov[0]), [])}, assist
+
+
+def test_join_keeps_a_reviewed_subclass_and_what_it_derives(mod):
+    builder, assist = _subclass_builder(mod)
+    out = mod.join(builder, assist, {"DOC-1": TEXT})
+    # an assist older than the correction is not a dispute; a real field difference still is
+    assert out["counts"]["kept_builder_subclass_review"] == 3
+    assert [q["field"] for q in out["queue"]] == ["governing_law"]
+    _, joined = out["labels"]
+    assert (joined[0]["subclass"], joined[0]["cuad_family"]) == ("Consulting Agreements", "Consulting Agreements")
+
+
+@pytest.mark.parametrize("chosen,derived,queued", [
+    ("near_gold_two_pass", "Consulting Agreements", ["subclass", "subclass_changed", "cuad_family", "governing_law"]),
+    ("subclass_review", "IP", ["cuad_family", "governing_law"]),
+])
+def test_join_queues_a_subclass_the_review_did_not_decide(mod, chosen, derived, queued):
+    builder, assist = _subclass_builder(mod, chosen=chosen, derived=derived)
+    out = mod.join(builder, assist, {"DOC-1": TEXT})
+    assert [q["field"] for q in out["queue"]] == queued
+
+
 @pytest.mark.parametrize("value, expected, missing", [
     ("eighty (180) days", "One Hundred Eighty (180) days", []),
     ("at least six (6) months; twenty (120) days", "at least six (6) months; one hundred and twenty  (120) days", []),
