@@ -49,14 +49,31 @@ def activate(spec: Mapping[str, Any] | None, *, pool_sha256: str | None) -> None
                 f"judge: the reference pool {pool} changed after the run was locked "
                 f"(locked {str(pool_sha256 or 'nothing')[:12]}, now {str(actual or 'missing')[:12]}); "
                 "re-run preflight")
+    global _POOL
     with _LOCK:
         _ACTIVE = copy.deepcopy(dict(spec))
+        _POOL = None
 
 
 def deactivate() -> None:
-    global _ACTIVE
+    global _ACTIVE, _POOL
     with _LOCK:
         _ACTIVE = None
+        _POOL = None
+
+
+#: The active section's reference pool, read once per activation (its bytes are the locked ones).
+_POOL: list[dict[str, Any]] | None = None
+
+
+def _reference_pool() -> list[dict[str, Any]]:
+    global _POOL
+    cfg = _ACTIVE or {}
+    if _POOL is None and cfg.get("reference_pool"):
+        from mailroom_sandbox.judge_references import load_pool
+
+        _POOL = load_pool(cfg["reference_pool"])
+    return _POOL or []
 
 
 def active() -> Mapping[str, Any] | None:
@@ -310,9 +327,21 @@ def rule(state: Mapping[str, Any], *, pass_no: int, guide: Mapping[str, str] | N
     requested = requested_fields(doc_class)
     doc_text = str(state.get("doc_text") or "")
     model = judge_model(doc_class)
+    cfg = _ACTIVE or {}
+    from mailroom_sandbox import judge_references
+
+    if guide is None:
+        guide = judge_references.guide_for(doc_class, subclass)
+    if examples is None:
+        examples = (judge_references.examples(
+            _reference_pool(), doc_class, subclass, k=int(cfg.get("max_examples", 2)),
+            max_chars=int(cfg.get("max_example_chars", 3000)), exclude={str(state.get("doc_id") or "")})
+            if cfg.get("references") == "train_pool" else [])
+    if attempts is None:
+        attempts = judge_references.attempts_for(state, max_chars=int(cfg.get("max_attempt_chars", 4000)))
     prompt = build_prompt(doc_text=doc_text, doc_type=doc_class, subclass=subclass,
                           extracted=_shown_extraction(state, requested), requested_fields=requested,
-                          guide=guide or {}, examples=list(examples or []), attempts=list(attempts or []))
+                          guide=guide, examples=list(examples), attempts=list(attempts))
     entry: dict[str, Any] = {"pass": int(pass_no), "mode": "correct", "ruling": "human_review", "score": None,
                              "reason": "", "fixes": [], "retry_fields": [], "wrong_fields": [], "model": model}
     agent = _agent_class()(model)

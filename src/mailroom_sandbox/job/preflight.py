@@ -1787,9 +1787,14 @@ def _prepare_dataset_rows(spec: RunSpec, store, report: dict[str, Any]):
             report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
             return None, report
     if spec.judge is not None and spec.judge.references == "train_pool":
+        from mailroom_sandbox import judge_references
         from mailroom_sandbox.correcting_judge import reference_set_errors
 
-        refused = reference_set_errors(spec, (row.get("id") for row in store.dataset_rows()))
+        ids = [str(row.get("id")) for row in store.dataset_rows()]
+        components = judge_references.assigned_components()
+        refused = [*reference_set_errors(spec, ids),
+                   *judge_references.pool_leaks(judge_references.load_pool(spec.judge.reference_pool),
+                                                {doc_id: components.get(doc_id, doc_id) for doc_id in ids})]
         if refused:
             report["status"] = "failed"
             report["checks"].append({"name": "judge_references", "ok": False, "detail": "; ".join(refused)})
