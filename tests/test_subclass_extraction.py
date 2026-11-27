@@ -155,8 +155,15 @@ def test_subclass_schemas_is_on_by_default_for_pipeline_runs():
 
 def test_other_tasks_resolve_it_off_and_unhashed():
     spec = _spec(task="correspondence_specialist")
-    assert spec.job.subclass_schemas is False
+    assert spec.job.subclass_schemas is None  # unset, so a dumped spec re-validates for any task
     assert not any(key.startswith("subclass_") for key in spec_core(spec, source_sha256="0" * 64)["job"])
+
+
+def test_a_dumped_spec_of_another_task_revalidates_as_a_pipeline_run():
+    # sandbox experiment create dumps a spec and re-validates it with task: pipeline.
+    data = _spec(task="correspondence_specialist").model_dump(mode="json")
+    data["task"] = "pipeline"
+    assert RunSpec.model_validate(data).job.subclass_schemas is True
 
 
 def test_an_explicit_false_is_refused_for_pipeline_runs():
