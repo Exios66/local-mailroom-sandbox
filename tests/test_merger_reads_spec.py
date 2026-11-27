@@ -56,6 +56,7 @@ def test_merger_switches_are_pipeline_only():
 
 def test_long_document_head_is_allowed_on_sorter_and_pipeline_only():
     assert _spec(task="sorter", long_document_head=True).job.long_document_head is True
+    assert _spec(task="isolated", long_document_head=True).job.long_document_head is True  # runs the sorter spec
     assert _spec(long_document_head=True).job.long_document_head is True
     with pytest.raises(ValidationError, match="long_document_head"):
         _spec(task="specialist", long_document_head=True)

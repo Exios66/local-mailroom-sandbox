@@ -774,6 +774,61 @@ Pipeline runs only; hashed only when set. The gate report counts the check per d
 `evidence_check` block: items dropped per field and per class, skipped reads by reason and the
 documents involved. A run without drops has no such block. The record never changes a score.
 
+## Merger reads and long-document head reads (Phase 5 part 2)
+
+Design: [`design/specs/2026-11-27-phase5-merger-maud-design.md`](design/specs/2026-11-27-phase5-merger-maud-design.md);
+plan: [`design/plans/2026-11-27-phase5-merger-maud.md`](design/plans/2026-11-27-phase5-merger-maud.md). Every
+switch is off unless set and hashed only when set.
+
+### Merger reads (`job.merger`, HF-030; pipeline runs)
+
+```yaml
+job:
+  merger: {subclass_fields: true, question_groups: true, gap_retry: true}   # groups: 1..3, default 3
+```
+
+- `subclass_fields` asks each merger subclass only for its valid fields (the committed
+  `config/extraction/merger_tables.json`, from `scripts/build_merger_tables.py`); `question_groups` and
+  `gap_retry` require it.
+- `question_groups`: after the one whole-document read, the MAUD questions are re-asked in up to three groups,
+  each from the sections the locator (`merger_sections`, rules in `config/extraction/merger_section_rules.json`)
+  finds for its questions. The owning group's valid answer wins, then the main read's; entity fields always stay
+  the main read's. A question whose section is not found keeps the main answer (`_maud_section_missed`); a
+  failed group read keeps the main answers (`_maud_group_failed`). Nothing is read from the whole document again.
+- `gap_retry`: one targeted retry, from sections only, for missing or invalid MAUD items and empty required
+  entity fields (or the dropped consideration field after a subclass disagreement).
+- With `question_groups`, a correct-mode judge retry that names `maud_clauses` re-asks only the questions its
+  fixes or reason name, from their sections; naming none re-asks every question from sections.
+- `confidence.by_class.merger_agreement.judge_max_passes: 0` skips the merger judge: HF-030's route rule sends
+  an in-band extraction to the report and a low one to a person. The vendored routers ignore 0, so preflight
+  refuses it without `question_groups`.
+
+Each read is recorded under `_merger_reads` (group calls and characters, retry calls, targets). Preflight
+prints a `merger_reads` block: the switches, the merger judge settings and the estimated whole-document-read
+equivalents per drawn merger (sorter + intake shares + 1 + group excerpts + one gap retry, as fractions of
+the document).
+
+### Long-document head reads (`job.long_document_head`, HF-032 and HF-033; pipeline, sorter and isolated runs)
+
+An API-routed read of a document over 150,000 characters is cut: the sorter sends its first 120,000 and last
+8,000 characters in one window (HF-032) instead of being refused by HF-010, and intake reads its first 40,000
+(HF-033). A head-read intake never replaces the document's text (`clean_refused: head_read`), so extraction
+still reads the whole document. Each cut is recorded as `head_read` (agent, characters sent, document
+characters) on the item.
+
+### The offline merger entity check
+
+`python scripts/merger_entity_check.py --run <run> --labels <jsonl> [--baseline <run>]` scores a finished run's
+16 merger entity fields and the consideration with the suite scorer against interim, near-gold or gold labels,
+next to MAUD accuracy; it is never the headline score. An unlabelled field reads `unlabelled`, never 0; a
+document whose text changed since labelling is not scored. Near-gold numbers stay unverified until a human
+spot check is recorded (`python scripts/merger_spot_check.py --labels <jsonl> --seed <n>`, then
+`--record <sheet>`); under 0.90 agreement the digest says not to cite them. The check never writes the run.
+
+The confirming arms are `config/runs/p5-s2-merger-reads.yaml` (the stage-1 baseline plus the switches) and the
+paired sorter check `config/runs/p5-s2-head-sorter-{off,on}.yaml` on the 79 dev documents over 150,000
+characters (`config/splits/runbook-v2/dev-long.*`, from `scripts/build_long_dev_ids.py`, local only).
+
 ### Measuring both offline
 
 ```bash

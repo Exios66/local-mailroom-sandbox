@@ -1439,7 +1439,8 @@ class RunSpec(BaseModel):
         if self.job.merger is not None and self.task != "pipeline":
             raise ValueError(f"job.merger changes pipeline merger extraction; task {self.task!r} runs no graph "
                              "extraction")
-        if self.job.long_document_head and self.task not in ("pipeline", "sorter"):
+        # ``isolated`` is the historical alias that runs the sorter spec alone (docs/jobs.md).
+        if self.job.long_document_head and self.task not in ("pipeline", "sorter", "isolated"):
             raise ValueError(f"job.long_document_head cuts sorter and intake reads; task {self.task!r} runs "
                              "neither")
         if self.job.subclass_schemas is False and self.task == "pipeline":

@@ -67,6 +67,9 @@ The complete implementations and upstream retirement conditions live in
 | HF-026 | With `judge: mode: correct`, the arbiter makes no call; the judge's ruling is final and is not a governor round | `test_correcting_judge.py` |
 | HF-027 | With `judge: mode: correct`, a judge-ordered retry asks for and replaces only the named fields, then the judge rules a second and final time; a failed re-read (unparseable, guardrail-failed, unsupported or schema-invalid) goes to a person without a second ruling | `test_correcting_judge.py` |
 | HF-029 | With `job.evidence_check: true`, a one-call read drops the `cuad_clauses` and `claim_checklist` items whose quoted span is not in the document, records them, and never empties an extraction | `test_evidence_check.py` |
+| HF-030 | With `job.merger`, the merger specialist's one whole-document read is followed by MAUD question-group reads from located sections only (the owning read's valid answer wins, entity fields stay the main read's), one gap retry for missing or invalid items, a per-question correct-mode retry, and the route rule that honours a merger `judge_max_passes: 0` | `test_merger_reads_hotfix.py`, `test_merger_judge.py` |
+| HF-032 | With `job.long_document_head`, an API sorter read of a document over 150,000 characters sends its first 120,000 and last 8,000 characters in one window instead of being refused | `test_long_document_head.py` |
+| HF-033 | With `job.long_document_head`, an API intake read of such a document reads its first 40,000 characters and never replaces the document's text | `test_long_document_head.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |

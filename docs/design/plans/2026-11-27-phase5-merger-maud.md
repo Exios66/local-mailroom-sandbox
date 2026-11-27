@@ -95,7 +95,7 @@ edited), Dojo `llm_dojo_scoring.schemas.maud_schema` (vendored), pytest.
     - `on(name: str) -> bool`
     - `activate_head(enabled: bool) -> None` and `head_active() -> bool`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_spec_without_the_switches_keeps_its_hash():  # baseline literal hash, as in the evidence-check test
@@ -128,12 +128,12 @@ def test_a_lock_without_the_keys_activates_nothing():
     ...
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `.venv/bin/python -m pytest -q tests/test_merger_reads_spec.py -n 0 --no-cov`.
 Expected: FAIL (no `merger_reads` module, unknown field).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - Add `MergerReads` and the two fields.
 - Exclude `merger is None` and `long_document_head is False` from the job core, the same way `evidence_check` is
@@ -144,12 +144,12 @@ Expected: FAIL (no `merger_reads` module, unknown field).
 - Reserve HF-030 to HF-033 in `docs/numbering-reservations.md`: HF-030 merger reads, HF-031 MAUD per-question
   correct-mode retry, HF-032 sorter head read, HF-033 intake head read. The next free ID is HF-034.
 
-- [ ] **Step 4: Run them and watch them pass**
+- [x] **Step 4: Run them and watch them pass**
 
 Run the same command plus `tests/test_job_spec.py tests/test_evidence_check.py`.
 Expected: all pass.
 
-- [ ] **Step 5: Commit** as `feat(merger): run-spec switches for merger reads and long-document head reads`.
+- [x] **Step 5: Commit** as `feat(merger): run-spec switches for merger reads and long-document head reads`.
 
 ### Task 2: Generated tables — subclass fields, MAUD groups, near-universal questions
 
@@ -181,7 +181,7 @@ Expected: all pass.
   - `near_universal() -> frozenset[str]`
   - `required_entities(subclass: str) -> tuple[str, ...]`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_cash_drops_the_exchange_ratio_and_stock_drops_the_cash_amount():
@@ -214,9 +214,9 @@ def test_required_entities_add_the_subclass_amount():
     assert merger_tables.required_entities("all_cash")[-1] == "per_share_cash_amount"
 ```
 
-- [ ] **Step 2: Run them and watch them fail** (`tests/test_merger_tables.py`). Expected: import error.
+- [x] **Step 2: Run them and watch them fail** (`tests/test_merger_tables.py`). Expected: import error.
 
-- [ ] **Step 3: Implement the generator and the reader**
+- [x] **Step 3: Implement the generator and the reader**
 
 Subclass drop rule:
 
@@ -245,10 +245,10 @@ Near-universal and the remaining tables:
 - `--check` exits 1 on a diff. The near-universal block is regenerated only when the dataset cache is present;
   otherwise `--check` compares everything else and says so.
 
-- [ ] **Step 4: Run the build, then the tests.** Expected: the tests pass, and
+- [x] **Step 4: Run the build, then the tests.** Expected: the tests pass, and
   `python scripts/build_merger_tables.py --check` exits 0.
 
-- [ ] **Step 5: Commit** as `feat(merger): generated merger tables (subclass fields, MAUD groups, near-universal
+- [x] **Step 5: Commit** as `feat(merger): generated merger tables (subclass fields, MAUD groups, near-universal
   questions)`.
 
 ### Task 3: Section locator and the offline locator check
@@ -273,7 +273,7 @@ Near-universal and the remaining tables:
   - `entity_excerpts(doc_text: str, fields: Iterable[str]) -> tuple[list[Excerpt], list[str]]`
   - `EXCERPT_CAP = 24_000`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_the_body_section_is_found_not_the_table_of_contents():
@@ -301,9 +301,9 @@ def test_every_maud_question_has_a_rule():
     assert {q.name for q in maud_questions()} <= set(rules["questions"])
 ```
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 The locator uses no model call and no network.
 
@@ -326,11 +326,11 @@ same or higher level, capped at `EXCERPT_CAP` and cut at the last blank line bef
 - lists every question under 80%;
 - writes the full result to `data/runtime/merger_sections_check.json`.
 
-- [ ] **Step 4: Run the tests, then the check script.** Expected: the tests pass. Record the script's digest in the
+- [x] **Step 4: Run the tests, then the check script.** Expected: the tests pass. Record the script's digest in the
   ledger. If any question is under 80%, widen its rule words and re-run, and record a ruling for any question still
   under 80%.
 
-- [ ] **Step 5: Commit** as `feat(merger): deterministic section locator and offline locator check`.
+- [x] **Step 5: Commit** as `feat(merger): deterministic section locator and offline locator check`.
 
 ### Task 4: HF-030, merger reads in the specialist step
 
@@ -369,7 +369,7 @@ The hotfix wraps `agents.merger_agreement_specialist.MergerAgreementSpecialist.e
 `langchain_agents.specialist_agents._SpecialistBase.extract` source and `_call_structured`). A chunked read
 (`self._last_chunked` true, or the call went to `extract_chunked`) is passed through untouched.
 
-- [ ] **Step 1: Write the failing pure tests** (`tests/test_merger_extract.py`)
+- [x] **Step 1: Write the failing pure tests** (`tests/test_merger_extract.py`)
 
 ```python
 def test_the_owning_group_answer_wins_and_the_main_answer_fills_a_gap(): ...
@@ -386,7 +386,7 @@ def test_a_subclass_disagreement_targets_the_dropped_amount():
     assert "exchange_ratio" in t.fields
 ```
 
-- [ ] **Step 2: Write the failing hotfix tests** (`tests/test_merger_reads_hotfix.py`). They use the fake
+- [x] **Step 2: Write the failing hotfix tests** (`tests/test_merger_reads_hotfix.py`). They use the fake
   structured call that records every `(user_message, json_schema)` and returns scripted JSON.
 
 ```python
@@ -408,9 +408,9 @@ def test_a_document_that_is_not_a_merger_is_untouched(): ...
 def test_hf030_is_registered_with_a_pinned_source(): ...
 ```
 
-- [ ] **Step 3: Run both files and watch them fail.**
+- [x] **Step 3: Run both files and watch them fail.**
 
-- [ ] **Step 4: Implement `merger_extract` and the HF-030 install.**
+- [x] **Step 4: Implement `merger_extract` and the HF-030 install.**
 
 All extra calls go through the instance's `_call_structured` (so HF-023's swap, the call guard, the governor and
 usage capture see them), with `pages=None`. The shape of one merger read:
@@ -433,10 +433,10 @@ The `subclass_extraction` change:
   reason becomes `"subclass+merger"`.
 - The fallback paths are unchanged.
 
-- [ ] **Step 5: Run both files, plus `tests/test_subclass_extraction.py`, `tests/test_vendor_hotfixes.py` and
+- [x] **Step 5: Run both files, plus `tests/test_subclass_extraction.py`, `tests/test_vendor_hotfixes.py` and
   `tests/test_evidence_check.py`.** Expected: all pass. `python scripts/check_hotfixes.py` reports HF-030 applied.
 
-- [ ] **Step 6: Commit** as `feat(merger): HF-030 section-located MAUD question-group reads and gap retry`.
+- [x] **Step 6: Commit** as `feat(merger): HF-030 section-located MAUD question-group reads and gap retry`.
 
 ### Task 5: Merger judge settings and the correct-mode MAUD retry (HF-031)
 
@@ -453,7 +453,7 @@ The `subclass_extraction` change:
   or the question name inside `maud_clauses`; settle by reading what HF-025's ruling schema emits) re-asks only that
   question from its excerpts. All other `maud_clauses` lines keep their values.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_judge_max_passes_zero_skips_the_merger_judge_and_archives_or_reviews_without_crashing():
@@ -465,16 +465,16 @@ def test_a_correct_mode_retry_naming_one_maud_question_replaces_only_that_line()
 def test_hf031_is_inert_without_question_groups(): ...
 ```
 
-- [ ] **Step 2: Run them and watch them fail.** If the first test already passes on the vendored routing, record
+- [x] **Step 2: Run them and watch them fail.** If the first test already passes on the vendored routing, record
   `Ruling: vendored routing honours judge_max_passes 0` and keep the test as a guard. Otherwise, add the route rule
   `HF-030:merger_judge_off` under HF-030 and re-run.
 
-- [ ] **Step 3: Implement HF-031 and, only if needed, the route rule.**
+- [x] **Step 3: Implement HF-031 and, only if needed, the route rule.**
 
-- [ ] **Step 4: Run** `tests/test_merger_judge.py tests/test_correcting_judge.py tests/test_vendor_hotfixes.py`.
+- [x] **Step 4: Run** `tests/test_merger_judge.py tests/test_correcting_judge.py tests/test_vendor_hotfixes.py`.
   Expected: all pass.
 
-- [ ] **Step 5: Commit** as `feat(merger): merger judge off and per-question correct-mode MAUD retry (HF-031)`.
+- [x] **Step 5: Commit** as `feat(merger): merger judge off and per-question correct-mode MAUD retry (HF-031)`.
 
 ### Task 6: Head reads for long documents (HF-032 sorter, HF-033 intake)
 
@@ -495,7 +495,7 @@ def test_hf031_is_inert_without_question_groups(): ...
   - The read mark: a `head_read` entry, `{"agent": ..., "chars_sent": int, "doc_chars": int}`, recorded in the
     trace and the run item.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_off_by_default_a_long_document_still_reads_whole(): ...
@@ -510,15 +510,15 @@ def test_hf010_still_refuses_a_multi_window_read_when_the_switch_is_off(): ...
 def test_the_head_read_is_recorded(): ...
 ```
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Implement both installs.** Cut `doc_text` before the vendored method runs. Only an API route
+- [x] **Step 3: Implement both installs.** Cut `doc_text` before the vendored method runs. Only an API route
   qualifies, only when `head_active()`, and only over `HEAD_THRESHOLD`.
 
-- [ ] **Step 4: Run** `tests/test_long_document_head.py tests/test_vendor_hotfixes.py`. Expected: all pass.
+- [x] **Step 4: Run** `tests/test_long_document_head.py tests/test_vendor_hotfixes.py`. Expected: all pass.
   `scripts/check_hotfixes.py` reports HF-032 and HF-033 applied.
 
-- [ ] **Step 5: Commit** as `feat(intake): HF-032/HF-033 head reads for long documents`.
+- [x] **Step 5: Commit** as `feat(intake): HF-032/HF-033 head reads for long documents`.
 
 ### Task 7: Merger entity check, near-gold tiers and the spot-check sample
 
@@ -548,7 +548,7 @@ def test_the_head_read_is_recorded(): ...
     `data/runtime/merger_spot_check/`. Its `--record <sheet>` writes the agreement rate into the label MANIFEST
     entry. Below 0.90 it sets `"cite_blocked": true`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_a_field_with_no_labels_reads_unlabelled_not_zero(): ...
@@ -562,14 +562,14 @@ def test_merger_target_fields_are_the_sixteen_entities_and_the_consideration():
     assert len(gold_labels.target_fields("merger_agreement")) == 17
 ```
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Implement.** Mirror `attempt_replay`'s structure and refusals. Read only; no model call.
+- [x] **Step 3: Implement.** Mirror `attempt_replay`'s structure and refusals. Read only; no model call.
 
-- [ ] **Step 4: Run** `tests/test_merger_entities.py tests/test_attempt_replay.py tests/test_gold_labels.py`
+- [x] **Step 4: Run** `tests/test_merger_entities.py tests/test_attempt_replay.py tests/test_gold_labels.py`
   (`test_gold_labels.py` only if it exists). Expected: all pass. The script runs end to end on a fixture run.
 
-- [ ] **Step 5: Commit** as `feat(merger): offline merger entity check with near-gold tiers and a spot-check sample`.
+- [x] **Step 5: Commit** as `feat(merger): offline merger entity check with near-gold tiers and a spot-check sample`.
 
 ### Task 8: Confirming arms, preflight estimate, docs and the full gate run
 
@@ -596,7 +596,7 @@ def test_merger_target_fields_are_the_sixteen_entities_and_the_consideration():
 
 - Consumes: everything above.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_the_merger_arm_differs_from_the_baseline_only_in_its_switches_and_the_merger_judge():
@@ -610,12 +610,12 @@ def test_preflight_reports_the_merger_reads_block_and_estimate(): ...
 def test_a_resume_after_this_change_names_the_new_hotfixes(): ...                   # review focus 5
 ```
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Write the configs and the preflight block.** Each header comment says to launch only with a person's
+- [x] **Step 3: Write the configs and the preflight block.** Each header comment says to launch only with a person's
   initials, and gives the measurement plan from spec §8. The arm keeps `api_cost_cap_usd: 9.0`. Then write the docs.
 
-- [ ] **Step 4: Run every touched and neighbouring test file in one command**, with the files listed inline:
+- [x] **Step 4: Run every touched and neighbouring test file in one command**, with the files listed inline:
   `test_merger_reads_spec test_merger_tables test_merger_sections test_merger_extract test_merger_reads_hotfix
   test_merger_judge test_long_document_head test_merger_entities test_merger_arms test_job_spec test_job_preflight
   test_job_runner test_vendor_hotfixes test_vendor_drift test_evidence_check test_correcting_judge
@@ -641,7 +641,7 @@ Then run every local gate:
 
 Each must exit 0.
 
-- [ ] **Step 5: Commit** as `feat(merger): confirming arms, preflight estimate and docs for Phase 5 part 2`.
+- [x] **Step 5: Commit** as `feat(merger): confirming arms, preflight estimate and docs for Phase 5 part 2`.
 
 ## After the tasks
 

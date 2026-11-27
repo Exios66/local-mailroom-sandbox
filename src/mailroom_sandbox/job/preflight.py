@@ -19,7 +19,7 @@ import time
 import uuid
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
 import llm_dojo_scoring
@@ -886,6 +886,99 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore,
     report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
 
 
+def _api_reader(spec: RunSpec, agent: str) -> bool:
+    route = spec.agent_routes.get(agent)
+    return (route.provider if route is not None else spec.engine.kind) in ("openrouter", "api")
+
+
+def merger_reads_block(spec: RunSpec, rows: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    """Phase 5 part 2: the merger switches, the merger judge and whole-read equivalents per drawn merger.
+
+    The estimate per merger is sorter share + intake share + 1 (the main extraction read) + the
+    question-group excerpts' share + the gap retry's (at most one section read the size of the
+    largest group), each a fraction of the document's characters. ``errors`` names a merger
+    ``judge_max_passes: 0`` without ``job.merger.question_groups``: the vendored routers ignore 0,
+    so the run would still judge every merger. ``None`` for a run with no merger and no switch.
+    """
+    from mailroom_sandbox import merger_reads as mr
+    from mailroom_sandbox import merger_sections, merger_tables
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+    from mailroom_sandbox.job.spec import MergerReadsSpec
+
+    mergers = [str(r.get("doc_text") or "") for r in rows if str(r.get("expected_doc_class") or "") == "merger_agreement"]
+    head = bool(spec.job.long_document_head)
+    if spec.task != "pipeline" or not (mergers or spec.job.merger is not None or head):
+        return None
+    switches = {**(spec.job.merger or MergerReadsSpec()).model_dump(), "long_document_head": head}
+    judge = thresholds_for(effective_thresholds(spec.confidence), "merger_agreement")
+    passes = judge.get("judge_max_passes")
+    errors: list[str] = []
+    rule: bool | None = None
+    if passes == 0:
+        if not switches["question_groups"]:
+            errors.append("confidence.by_class.merger_agreement.judge_max_passes 0 needs job.merger.question_groups "
+                          "(HF-030's route rule): without it the vendored routers ignore 0 and still judge every merger")
+        from graph import route_spec
+
+        from mailroom_sandbox import vendor_hotfixes
+
+        vendor_hotfixes.apply_hotfixes()
+        names = {r.name for node in ("extract", "retry_extract") for r in route_spec.route_rules(node)}
+        rule = switches["question_groups"] and _merger_judge_rule_name() in names
+    shares: dict[str, list[float]] = {k: [] for k in ("sorter", "intake", "groups", "gap_retry")}
+    for text in mergers:
+        chars = max(len(text), 1)
+        long_doc = head and len(text) > mr.HEAD_THRESHOLD
+        shares["sorter"].append(min(1.0, (mr.SORTER_HEAD + mr.SORTER_TAIL) / chars)
+                                if long_doc and _api_reader(spec, "sorter") else 1.0)
+        shares["intake"].append(min(1.0, mr.INTAKE_HEAD / chars) if long_doc and _api_reader(spec, "intake") else 1.0)
+        group = [sum(len(e.text) for e in merger_sections.question_excerpts(text, qs)[0]) / chars
+                 for qs in merger_tables.group_questions(int(switches["groups"])).values()] \
+            if switches["question_groups"] else []
+        shares["groups"].append(sum(group))
+        shares["gap_retry"].append(max(group, default=0.0) if switches["gap_retry"] else 0.0)
+    per = {k: round(sum(v) / len(v), 3) if v else 0.0 for k, v in shares.items()}
+    per["extract"] = 1
+    per["total"] = round(per["sorter"] + per["intake"] + 1 + per["groups"] + per["gap_retry"], 3)
+    return {"switches": switches,
+            "merger_judge": {"judge_max_passes": passes, "arbiter_retry_max": judge.get("arbiter_retry_max"),
+                             "retry_max": judge.get("retry_max"), "judge_rule": rule},
+            "estimate": {"mergers": len(mergers), "per_merger": per,
+                         "mean_chars": round(sum(map(len, mergers)) / len(mergers)) if mergers else 0,
+                         "note": "whole-document-read equivalents per merger; a low-confidence re-read "
+                                 "(retry_max) adds up to one more"},
+            "errors": errors}
+
+
+def _merger_judge_rule_name() -> str:
+    from mailroom_sandbox.merger_extract import MERGER_JUDGE_RULE
+
+    return MERGER_JUDGE_RULE
+
+
+def _record_merger_reads(report: dict[str, Any], spec: RunSpec, store: RunStore) -> bool:
+    """Attach the merger_reads block; False (preflight failed, no lock) only on its judge-routing error."""
+    try:
+        block = merger_reads_block(spec, store.dataset_rows())
+    except Exception as exc:  # noqa: BLE001 — the estimate is advisory
+        _log.debug("merger_reads block skipped", exc_info=exc)
+        report["checks"].append({"name": "merger_reads", "ok": True, "detail": f"skipped: {exc}"})
+        return True
+    if block is None:
+        return True
+    report["merger_reads"] = block
+    if block["errors"]:
+        report["status"] = "failed"
+        report["checks"].append({"name": "merger_reads", "ok": False, "detail": "; ".join(block["errors"])})
+        return False
+    per = block["estimate"]["per_merger"]
+    on = [k for k, v in block["switches"].items() if v is True]
+    report["checks"].append({"name": "merger_reads", "ok": True, "detail": (
+        f"switches {', '.join(on) or 'off'}; merger judge_max_passes {block['merger_judge']['judge_max_passes']}; "
+        f"~{per['total']} whole-read equivalents per merger over {block['estimate']['mergers']} drawn")})
+    return True
+
+
 #: Decision-model tasks: the engine is the reviewer itself (see the engine/reviewer check above).
 _DECISION_MODEL_TASKS = ("sorter_reviewer", "extraction_gate")
 
@@ -1746,6 +1839,8 @@ def _reuse_existing_lock(spec: RunSpec, store, existing, force: bool, report: di
     _note_trace_reads_drift(spec, store, report)
     frozen = (store.read_lock() or {}).get("agent_knobs") or {}
     _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
+    if not _record_merger_reads(report, spec, store):
+        return report
     if not _record_decision_windows(report, spec):
         return report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
@@ -2098,6 +2193,8 @@ def _preflight(
         return failed
     run_knobs = _run_knobs(spec, opened.run_id)
     _record_context_plan(opened.report, spec, opened.store, run_knobs)
+    if not _record_merger_reads(opened.report, spec, opened.store):
+        return opened.report
     if not _record_decision_windows(opened.report, spec):
         return opened.report
     require = require_expanded_inputs or bool(spec.job.require_expanded_inputs)
