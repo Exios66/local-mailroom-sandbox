@@ -133,3 +133,10 @@ def test_a_merger_spec_locks_the_locator_rules_so_a_rule_edit_refuses_a_resume(t
     edited.write_text(merger_sections.RULES_PATH.read_text(encoding="utf-8").replace('"antitrust"', '"antitrust law"'))
     monkeypatch.setattr(merger_sections, "RULES_PATH", edited)
     assert spec_hash(on) != before
+
+
+@pytest.mark.parametrize("subclass", [None, "other", "unknown_subclass"])
+def test_an_unknown_or_other_subclass_requires_no_amount_field(subclass):
+    """Final review: on a class-schema fallback the deal's form is unknown, so the gap retry must not
+    ask an all-cash deal for an exchange ratio (an unscored, made-up value)."""
+    assert merger_tables.required_entities(subclass) == tuple(merger_tables.load()["required_entities"])

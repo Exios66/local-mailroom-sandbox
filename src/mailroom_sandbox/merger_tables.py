@@ -221,9 +221,17 @@ def near_universal() -> frozenset[str]:
     return frozenset(load()["near_universal"]["questions"])
 
 
+#: Subclasses whose deal form says which amount fields it has; ``other``, an unknown subclass or a
+#: class-schema fallback (``None``) require neither, so a retry never asks a cash deal for a ratio.
+_AMOUNT_SUBCLASSES = frozenset({"all_cash", "all_stock", "mixed_cash_stock", "mixed_cash_stock_election"})
+
+
 def required_entities(subclass: str | None) -> tuple[str, ...]:
+    base = tuple(load()["required_entities"])
+    if str(subclass or "").strip() not in _AMOUNT_SUBCLASSES:
+        return base
     dropped = dropped_fields(subclass)
-    return (*load()["required_entities"], *(f for f in AMOUNT_FIELDS if f not in dropped))
+    return (*base, *(f for f in AMOUNT_FIELDS if f not in dropped))
 
 
 def entity_section(field: str) -> str | None:

@@ -86,6 +86,9 @@ def test_an_agreeing_or_unreadable_consideration_asks_no_dropped_field():
         assert "exchange_ratio" not in t.fields, token
 
 
-def test_a_fallback_schema_asks_both_amounts_and_drops_nothing():
+def test_a_fallback_schema_requires_no_amount_field_and_drops_nothing():
+    # Spec part 3: required is "the subclass's consideration-amount field or fields"; a class-schema
+    # fallback has no subclass, so the retry never asks a cash deal for a ratio (final review).
     t = merger_extract.gap_targets({"merger_consideration": "all_stock"}, None, "all_cash", [])
-    assert {"per_share_cash_amount", "exchange_ratio"} <= set(t.fields)
+    assert not {"per_share_cash_amount", "exchange_ratio"} & set(t.fields)
+    assert "governing_law" in t.fields
