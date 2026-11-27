@@ -614,7 +614,7 @@ with no lock uses the committed field lists.
 
 The promoted specialist prompts are frozen, class-level text written before subclass schemas. Some of them
 name fields a subclass schema no longer requests. The MAUD merger prompt, for example, sends consideration
-and exchange-ratio language to `subject_matter` or `keywords`, which every merger subclass drops. The strict
+and exchange-ratio language to `subject_matter` or `keywords`, which every non-fallback merger subclass drops (all but `other`). The strict
 schema stops a dropped field from being written, but not its content from moving into a field that is still
 requested (for mergers, `maud_clauses`).
 
@@ -627,6 +627,8 @@ into another field"), and lists any fields it adds.
   note after `augmented_system_prompt()`, and legacy `agents` specialists after `system_prompt()`.
 - The note is built from the two schemas only, so it follows the committed field lists.
 - A fallback to the class schema, and a subclass whose requested fields equal the class's, get no note.
+- A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer, as in #425)
+  keeps that hotfix's schema and gets no note, as HF-023 leaves it alone.
 - No hotfix ID is taken: the note rides on HF-023's per-instance wrapper.
 
 Adoption is an A/B: `config/runs/sx-note-s1-on.yaml` is the Phase 4 stage 1 baseline

@@ -165,7 +165,7 @@ def field_note(doc_class: str, subclass: str, base: Mapping[str, Any], schema: M
 
     The promoted prompts are class-level text written before subclass schemas; some name fields
     the subclass schema no longer requests (the MAUD merger prompt sends consideration language to
-    ``subject_matter`` or ``keywords``, which every merger subclass drops). The strict schema stops
+    ``subject_matter`` or ``keywords``, which every non-fallback merger subclass drops). The strict schema stops
     a dropped field being written, not its content moving into a field that is still requested.
     The note is built from the two schemas only, so it follows the committed field lists. None
     when the field sets are equal (a fallback, or a subclass that drops and adds nothing).
@@ -283,23 +283,32 @@ def bind_choice(agent: Any) -> None:
             kwargs["json_schema"] = schema
         elif len(args) >= 2 and args[1] is base:  # (user_message, json_schema, ...)
             args = (args[0], schema, *args[2:])
-        if note:
-            kwargs["system_prompt"] = f"{_default_system(agent, kwargs.get('system_prompt'))}\n\n{note}"
         return cls._call_structured(agent, *args, **kwargs)  # resolved per call: observer, sampling
 
     agent._call_structured = _call_structured
+    if note:
+        _append_note(agent, note)
 
 
-def _default_system(agent: Any, explicit: str | None) -> str:
-    """The system prompt a structured call uses when none is passed, with the promoted prompt as its head.
+def _append_note(agent: Any, note: str) -> None:
+    """``job.subclass_field_note``: this instance's default system prompt ends with ``note``.
 
-    LangChain specialists use ``augmented_system_prompt()`` (prompt, skills, tools, memory); the legacy
-    ``agents`` family uses ``system_prompt()`` and appends its skill text later, in ``_call_llm``.
+    The note is added to the method the vendored call falls back to when the caller passes no
+    ``system_prompt`` (no specialist passes one): ``augmented_system_prompt()`` for LangChain
+    specialists (prompt, skills, tools, memory), ``system_prompt()`` for the legacy ``agents`` family
+    (which appends its skill text later, in ``_call_llm``). The call's arguments are left alone, because
+    the floor-read observer measures a caller-passed ``system_prompt`` as request text. The promoted
+    prompt stays the head; only this one document's specialist instance is changed.
     """
-    if explicit is not None:
-        return explicit
-    augmented = getattr(agent, "augmented_system_prompt", None)
-    return str(augmented() if callable(augmented) else agent.system_prompt())
+    name = "augmented_system_prompt" if callable(getattr(type(agent), "augmented_system_prompt", None)) \
+        else "system_prompt"
+    default = getattr(agent, name)
+
+    @functools.wraps(default)
+    def with_note(*args: Any, **kwargs: Any) -> str:
+        return f"{default(*args, **kwargs)}\n\n{note}"
+
+    setattr(agent, name, with_note)
 
 
 # --- HF-024: the judge and the arbiter see the fields the extraction was asked for ----------

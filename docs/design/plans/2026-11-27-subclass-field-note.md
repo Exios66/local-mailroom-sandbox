@@ -24,7 +24,7 @@ so some of their instructions name fields a subclass schema no longer requests.
 
 | Agent | Promoted prompt | Conflict with the subclass schemas |
 | --- | --- | --- |
-| merger | `merger_agreement_specialist_maud_v2` | Sends consideration and exchange-ratio language to `subject_matter` or `keywords`, "never in maud_clauses". All 5 subclasses drop `intent`, `keywords` and `subject_matter`, so that text has nowhere to go but `maud_clauses`, the only scored merger field. |
+| merger | `merger_agreement_specialist_maud_v2` | Sends consideration and exchange-ratio language to `subject_matter` or `keywords`, "never in maud_clauses". The four non-fallback subclasses (all but `other`, which keeps the class schema) drop `intent`, `keywords` and `subject_matter`, so that text has nowhere to go but `maud_clauses`, the only scored merger field. |
 | corporate | `corporate_records_specialist_condensed_v1` | Names `filing_number`, dropped for `bylaws`, `indenture`, `rights_instrument` and `subsidiary_list`; names `jurisdiction` and `signatories`, dropped for `subsidiary_list`. |
 | insurance | `insurance_claims_specialist_condensed_v3` | Names `adjuster` and `denial_reasons`, dropped for 5 of 6 subclasses. |
 | contracts | `contracts_specialist_v33_simplified` | Names `merger_consideration` and `maud_clauses` (set them null and `[]`), dropped for all 25 subclasses. Harmless. |
@@ -43,6 +43,10 @@ field's content into a field it can still write, which is the merger risk.
   content out; never move it into another field") and any fields it adds.
   - The promoted prompt stays the head of the system prompt, byte for byte.
   - A fallback to the class schema, or a subclass whose field set equals the class's, gets no note.
+  - A corporate specialist whose `extract` another hotfix wraps (a corporate schema composer, as in #425)
+    keeps that hotfix's schema and gets no note.
+  - The note is added to that one specialist instance's default prompt method, never to the call's
+    arguments, because the floor-read observer measures a caller-passed `system_prompt` as request text.
 - **Off by default, hashed only when set**, like `job.schema_guide`, so no baseline changes silently.
   Adoption is an A/B the owner launches: `config/runs/sx-note-s1-on.yaml` against the Phase 4 stage 1
   baseline `config/runs/p4-s1-verify-gov-off.yaml`. They use the same 300 dev-look1 documents and differ
@@ -67,9 +71,8 @@ field's content into a field it can still write, which is the merger risk.
    - Runtime: the lock activates it through `subclass_extraction.activate(..., note=...)`. Unlocked evals
      stay off.
    - `subclass_extraction.field_note(doc_class, subclass, base, schema) -> str | None` builds the note;
-     `bind_choice` appends it to the system prompt the call would have used:
-     `augmented_system_prompt()` for LangChain specialists, `system_prompt()` for legacy agents, or an
-     explicit `system_prompt`.
+     `bind_choice` appends it to the instance's default system prompt method:
+     `augmented_system_prompt()` for LangChain specialists, `system_prompt()` for legacy agents.
    - Tests:
      - `test_the_note_names_every_dropped_and_added_field`;
      - `test_no_note_for_a_fallback_or_an_unchanged_subclass`;

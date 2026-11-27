@@ -527,7 +527,13 @@ def test_every_sorter_subclass_token_has_a_field_list_or_a_documented_fallback(c
 
 @pytest.fixture
 def prompts_sent(monkeypatch, schemas):
-    """Like ``captured``, but records the system prompt each specialist structured call would use."""
+    """Like ``captured``, but records the system prompt each specialist structured call uses.
+
+    Each entry is ``(agent, json_schema, system)``, where ``system`` is what the vendored call
+    resolves when the caller passes none: ``augmented_system_prompt()`` (LangChain) or
+    ``system_prompt()`` (legacy agents). The caller-passed ``system_prompt`` must stay unset, because
+    the floor-read observer measures that argument as request text.
+    """
     from agents import base as agents_base
     from langchain_agents import base_agent as lc_base
 
@@ -535,7 +541,10 @@ def prompts_sent(monkeypatch, schemas):
     calls: list[tuple[str, dict, str | None]] = []
 
     def stub(self, user_message, json_schema, *args, **kwargs):
-        calls.append((type(self).__name__, json_schema, kwargs.get("system_prompt")))
+        assert kwargs.get("system_prompt") is None and len(args) == 0, "the note must not ride in the call's arguments"
+        augmented = getattr(self, "augmented_system_prompt", None)
+        system = augmented() if isinstance(self, lc_base.BaseAgent) else self.system_prompt()
+        calls.append((type(self).__name__, json_schema, system))
         return {"confidence": 0.9}
 
     monkeypatch.setattr(agents_base.BaseAgent, "_call_structured", stub)
@@ -629,14 +638,45 @@ def test_the_promoted_prompt_stays_the_head_and_the_note_follows(prompts_sent, s
 def test_off_sends_no_note(prompts_sent, lists, switch_off):
     sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
     _extract("merger_agreement", "all_cash")
-    assert prompts_sent and all(system is None for _, _, system in prompts_sent)
+    assert prompts_sent and all("SUBCLASS FIELDS" not in system for _, _, system in prompts_sent)
 
 
 def test_a_fallback_extraction_gets_no_note(prompts_sent, lists, switch_off):
     sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
     _extract("insurance_claim", "health")
     _extract("merger_agreement", "all_cash", confidence=0.01)
-    assert prompts_sent and all(system is None for _, _, system in prompts_sent)
+    assert prompts_sent and all("SUBCLASS FIELDS" not in system for _, _, system in prompts_sent)
+
+
+def test_the_note_stays_out_of_the_floor_read_request_text(monkeypatch, lists, switch_off):
+    """The read-range observer measures the caller-passed system_prompt; the note must not appear there."""
+    from langchain_agents import base_agent as lc_base
+
+    from mailroom_sandbox.job import read_ranges as rr
+
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
+    texts: list[str] = []
+
+    def stub(self, user_message, json_schema, *args, **kwargs):
+        texts.append(rr._request_text(self, {"user_message": user_message, **kwargs})[1])
+        return {"confidence": 0.9}
+
+    monkeypatch.setattr(lc_base.BaseAgent, "_call_structured", stub)
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
+    _extract("merger_agreement", "all_cash")
+    assert texts and all("SUBCLASS FIELDS" not in text for text in texts)
+
+
+def test_the_note_is_scoped_to_one_specialist_instance(prompts_sent, lists, switch_off):
+    from langchain_agents import base_agent as lc_base
+
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
+    _extract("merger_agreement", "all_cash")
+    assert "SUBCLASS FIELDS" in prompts_sent[-1][2]
+    assert "augmented_system_prompt" not in vars(lc_base.BaseAgent) or not getattr(
+        lc_base.BaseAgent.augmented_system_prompt, "__wrapped__", None)
+    _extract("merger_agreement", "other")  # the next document, a fallback: the class prompt, no note
+    assert "SUBCLASS FIELDS" not in prompts_sent[-1][2]
 
 
 @pytest.mark.parametrize("cls", sorted(_EXTRACTORS))
@@ -649,9 +689,9 @@ def test_every_specialist_family_gets_the_note_on_its_own_default_prompt(cls, pr
     note = sx.field_note(cls, sub, schemas[cls], schema)
     for _, _, system in prompts_sent:
         if note is None:
-            assert system is None
+            assert "SUBCLASS FIELDS" not in system
         else:
-            assert system and system.endswith(f"\n\n{note}") and len(system) > len(note) + 2
+            assert system.endswith(f"\n\n{note}") and len(system) > len(note) + 2
 
 
 def test_the_note_flag_is_hashed_only_when_set():
