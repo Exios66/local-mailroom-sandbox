@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T23:33:15Z",
+  "added_at": "2026-11-27T00:54:43Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -356,6 +356,35 @@
         ],
         "review": []
       }
+    },
+    {
+      "added_at": "2026-11-27T00:54:43Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0a29136832720e65",
+        "DOC-1b1b4b7f3f2d714a",
+        "DOC-f546c7d6cf2e77e2"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical001-ready16-check.jsonl"
+        ],
+        "label": [
+          "merger-critical001-ready16-label.jsonl"
+        ],
+        "review": [
+          "merger-critical001-source-decisions-terra.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -512,12 +541,39 @@
       "urgency": {
         "near_gold": 1000
       }
+    },
+    "merger_agreement": {
+      "acquirer": {
+        "near_gold": 3
+      },
+      "exchange_ratio": {
+        "near_gold": 1
+      },
+      "financial_advisors": {
+        "near_gold": 2
+      },
+      "legal_counsel": {
+        "near_gold": 2
+      },
+      "merger_sub": {
+        "near_gold": 2
+      },
+      "per_share_cash_amount": {
+        "near_gold": 1
+      },
+      "target": {
+        "near_gold": 3
+      },
+      "target_termination_fee": {
+        "near_gold": 2
+      }
     }
   },
   "files": {
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
     "corporate_record.jsonl": "693b0d9e27e1b373898782fc206fa62821f16a609e21b633a24c80e6b662aacb",
-    "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d"
+    "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
+    "merger_agreement.jsonl": "6326eb5f1011b9dc4ef5531a1911f665e6e66f4b152f7afb2c66659d93cdb417"
   },
   "reviewed_at": "2026-11-26T23:33:57Z",
   "schema": "mailroom-gold-labels/v1",
@@ -574,6 +630,7 @@
       "check-correspondence-039.jsonl",
       "check-correspondence-040.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
+      "merger-critical001-ready16-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
@@ -792,6 +849,7 @@
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
+      "merger-critical001-ready16-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
@@ -811,6 +869,7 @@
       "decisions.jsonl",
       "decisions_supersede.jsonl",
       "focus-correspondence-ready4-parent-review.jsonl",
+      "merger-critical001-source-decisions-terra.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
       "review-contract-e40.jsonl",
@@ -869,6 +928,27 @@
       "tier2": [
         "additional_recipients"
       ]
+    },
+    "merger_agreement": {
+      "tier1": [
+        "document_name",
+        "parties",
+        "acquirer",
+        "target",
+        "merger_sub",
+        "signatories",
+        "effective_date",
+        "effective_time",
+        "governing_law",
+        "per_share_cash_amount",
+        "exchange_ratio",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel"
+      ],
+      "tier2": []
     }
   },
   "truth_statuses": [],

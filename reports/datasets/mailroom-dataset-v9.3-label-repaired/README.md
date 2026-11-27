@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,391 labeled,
-5,217 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,401 labeled,
+5,207 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,391 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,401 (89.1%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 These flat per-class counters are not scored-field coverage. They omit corporate subclass
@@ -179,7 +179,7 @@ The five admissions total **83 registered entity fields on 38 documents: 76 popu
 targets and seven documented absences**. The overlay now has **9,739 labels**. Thirty-one
 corporate fields remain held across these admissions.
 
-The missing-only corporate inventory is 1,471 registered entity fields on 422 documents (see
+At the corporate checkpoint, the missing-only inventory was 1,471 registered entity fields on 422 documents (see
 `corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
 its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
 counts describe static annotation coverage, not extraction performance. Machine near-gold labels
@@ -187,6 +187,33 @@ retain `use_as_truth: false`; these additions are not a release cut. Two corresp
 fields remain held for parser or independence-evidence handling. New production preparations
 select the separately verified, landed rc.10 cut; frozen locks retain their earlier selection.
 See [`rc10_selection_verification.json`](rc10_selection_verification.json).
+
+**Merger critical-field checkpoint (2026-11-26).** Independent source-only label and check
+passes, followed by a separate source review, add **16 previously missing populated fields
+on three merger agreements**. The records cover parent/target roles, merger subsidiaries,
+per-share cash or base stock exchange ratio, target termination fees and named financial/legal
+advisors. Four reviews preserve the consideration exceptions, fee triggers and adjustment
+conditions; the stock ratio adopts the check pass's explicit adjustment quote. All 16 additions
+are present in prepared truth and produce field-scoring events. The separate MAUD headline is
+unchanged. These are static eligibility checks, not extraction-performance measurements.
+
+All 10,644 preceding catalog rows, 1,896 supplementary rows and 9,739 overlay field payloads
+are preserved; the overlay now has **9,755 labels**. Twelve assigned fields remain unadmitted:
+five depend on sections absent from a truncated source, two outside dates have conditional
+extensions, two consideration fields conflict with the assigned mixed subclass, and three
+absence answers have only a check pass. No absence or subclass correction is inferred.
+Byte-identical raw submissions, exact admission projections, source ranges, four review
+decisions and the preservation/scoring audit are in
+[`merger-critical001`](../../../data/labels/repair-artifacts/v93-20261126-merger-critical001/README.md).
+
+The flat consensus export changes only those 16 field cells: ten become labeled and six
+replace earlier unreviewed readings. All 34,515 cells previously selected from Hub, owner,
+reviewed interim, near-gold or subclass-review sources keep their values and presence. See
+[`merger_critical001_csv_preservation.json`](merger_critical001_csv_preservation.json).
+The [direct-field merger inventory](merger_direct_missing_coverage.json) still has 2,323 missing opportunities on 152 documents;
+the pilot does not complete the class. Source-type holds, machine `use_as_truth: false`,
+production rc.10 selection and frozen experiment locks remain in effect. This is not rc.11
+or a newly staged release.
 
 **Source-type hold.** A bounded audit of the 61 records currently typed `officer_certificate`
 found headings suggesting 53 designation/amendment instruments, seven incorporation/charter

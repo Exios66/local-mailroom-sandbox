@@ -18931,19 +18931,21 @@
    "fields": {
     "acquirer": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "name: Parent acquiring the target, not its merger subsidiary.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 3,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "document_name": {
      "dojo_status": "pending_annotation",
@@ -19011,35 +19013,39 @@
     },
     "exchange_ratio": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "free text: Stated parent shares per target share.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "financial_advisors": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "governing_law": {
      "dojo_status": "pending_annotation",
@@ -19098,19 +19104,21 @@
     },
     "legal_counsel": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "maud_clauses": {
      "dojo_status": "derived",
@@ -19144,19 +19152,21 @@
     },
     "merger_sub": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "list of names: Merger subsidiary or subsidiaries as written.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 1,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "outside_date": {
      "dojo_status": "pending_annotation",
@@ -19208,19 +19218,21 @@
     },
     "per_share_cash_amount": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "signatories": {
      "dojo_status": "pending_annotation",
@@ -19256,35 +19268,39 @@
     },
     "target": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "name: Target company, not the parent or merger subsidiary.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 3,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "target_termination_fee": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
      "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     }
    },
    "output_schema_fields": [
@@ -19315,19 +19331,21 @@
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
@@ -19515,19 +19533,21 @@
       },
       "merger_sub": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "outside_date": {
        "dojo_status": "pending_annotation",
@@ -19579,19 +19599,21 @@
       },
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -19628,19 +19650,21 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
@@ -19675,28 +19699,30 @@
      ],
      "verdicts": {
       "iterate": 2,
-      "no_truth": 12,
+      "no_truth": 8,
       "not_applicable": 3,
-      "thin": 4
+      "thin": 8
      }
     },
     "all_stock": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
@@ -19754,35 +19780,39 @@
       },
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "free_text",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "financial_advisors": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "governing_law": {
        "dojo_status": "pending_annotation",
@@ -19838,19 +19868,21 @@
       },
       "legal_counsel": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "maud_clauses": {
        "dojo_status": "derived",
@@ -19997,35 +20029,39 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "rows": 24,
@@ -20041,28 +20077,30 @@
       "Accuracy of Target R&W Closing Condition"
      ],
      "verdicts": {
-      "no_truth": 12,
+      "no_truth": 6,
       "not_applicable": 3,
-      "thin": 6
+      "thin": 12
      }
     },
     "mixed_cash_stock": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
@@ -20136,19 +20174,21 @@
       },
       "financial_advisors": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "governing_law": {
        "dojo_status": "pending_annotation",
@@ -20204,19 +20244,21 @@
       },
       "legal_counsel": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "maud_clauses": {
        "dojo_status": "derived",
@@ -20250,19 +20292,21 @@
       },
       "merger_sub": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "outside_date": {
        "dojo_status": "pending_annotation",
@@ -20363,35 +20407,39 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "rows": 13,
@@ -20407,9 +20455,9 @@
       "Compliance with Covenant Closing Condition"
      ],
      "verdicts": {
-      "no_truth": 12,
+      "no_truth": 6,
       "not_applicable": 3,
-      "thin": 6
+      "thin": 12
      }
     },
     "mixed_cash_stock_election": {
@@ -21148,7 +21196,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "2e7d13502d5a7c8e4d1946c4266a127d2a38d723d420d523a8384dd7d681002d",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "0d95a89adebbf6cbef7593e94ae51d323af00d54a8fab39cb67261c25cc38abd",
+  "near_gold_overlay_sha256": "8cbe6dc5d67cd6f8f49ad096fcd14eb6da8c079b8c0aa9e437f1f37bc68508e2",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -21424,6 +21472,12 @@
    "class": "merger_agreement",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "acquirer"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "document_name"
   },
   {
@@ -21442,7 +21496,49 @@
    "class": "merger_agreement",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "exchange_ratio"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "financial_advisors"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "governing_law"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "legal_counsel"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "merger_sub"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "per_share_cash_amount"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "target"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "target_termination_fee"
   }
  ],
  "untruthed_output_fields": {
@@ -21469,17 +21565,9 @@
   ],
   "merger_agreement": [
    "parties",
-   "acquirer",
-   "target",
-   "merger_sub",
    "signatories",
-   "per_share_cash_amount",
-   "exchange_ratio",
-   "target_termination_fee",
    "parent_termination_fee",
-   "outside_date",
-   "financial_advisors",
-   "legal_counsel"
+   "outside_date"
   ]
  }
 }
