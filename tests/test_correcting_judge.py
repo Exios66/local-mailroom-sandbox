@@ -838,6 +838,19 @@ def test_stage_caps_cover_two_rulings_per_document(name):
     assert spec.job.api_cost_cap_usd == pytest.approx(round(1.5 * (docs * PIPELINE_CAP_PER_DOC + judge), 2))
 
 
+@pytest.mark.parametrize("name", sorted(STAGES))
+def test_stage_configs_score_against_the_newest_label_cut(name):
+    """Owner (2026-11-27): the current labels are the rc.10 cut, which production moves to for new preparations."""
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    pins = yaml.safe_load((root / "config" / "staged_overlays.yaml").read_text())["overlays"]
+    versions = [v for v in pins if str(v).startswith("9.3.1-rc.")]
+    newest = max(versions, key=lambda v: int(str(v).rsplit(".", 1)[1]))
+    assert newest == "9.3.1-rc.10"
+    assert _stage(name).dataset.staged_overlay == newest
+
+
 def test_a_yaml_off_reads_as_references_off():
     # YAML 1.1 reads a bare ``references: off`` as False; the section means "off".
     assert JudgeSpec.model_validate({"mode": "correct", "references": False}).references == "off"

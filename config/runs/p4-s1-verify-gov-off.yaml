@@ -7,6 +7,9 @@
 # today's tightened loop limits on every class (judge_max_passes 2, arbiter_retry_max 1).
 # api_cost_cap_usd 9.0: pipeline term only (300 x $0.02), x1.5: today's judge is inside the pipeline cap.
 #
+# Labels: the rc.10 staged overlay, the current cut (owner, 2026-11-27); main's production slices are still
+# on rc.9 until #425 moves them. Pull it first (GitHub access, no spend):
+#   python scripts/pull_staged_overlay.py --version 9.3.1-rc.10
 # Launch (a human supplies the initials; never launch from an agent):
 #   sandbox run preflight --config config/runs/p4-s1-verify-gov-off.yaml
 #   sandbox run start --config config/runs/p4-s1-verify-gov-off.yaml --initials <XX>
@@ -40,7 +43,7 @@ dataset:
   limit: 300
   sample_seed: 3302
   require_task_gt: true
-  staged_overlay: 9.3.1-rc.9
+  staged_overlay: 9.3.1-rc.10
   exclude_ids_file: config/splits/runbook-v2/dev-look1.exclude.ids   # every document outside dev-look1
   draw: ranked
 
