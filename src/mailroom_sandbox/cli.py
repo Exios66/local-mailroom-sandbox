@@ -907,6 +907,8 @@ def build_parser() -> argparse.ArgumentParser:
     floor_p.add_argument("target", nargs="?", default=None, metavar="TARGET", help="run ID to preselect in the viewer (same as --run)")
     floor_p.add_argument("--run", default=None, metavar="ID", help="run ID to preselect (opens floor.template.html?run=ID)")
     floor_p.add_argument("--base", default=None, help="run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data)")
+    floor_p.add_argument("--register-run", action="append", default=[], metavar="DIR",
+                         help="register a previous run directory in this base without modifying its logs (repeatable)")
     replay_group = floor_p.add_mutually_exclusive_group()
     replay_group.add_argument("--replay", action="store_true",
                               help="replay the bundled pinned sample into the base (runs selectable in the RUNS rail); "
@@ -1526,6 +1528,8 @@ def _cmd_up(args: argparse.Namespace) -> int:
     from mailroom_sandbox.services.beacon import service_job
 
     profiles = args.compose_profiles or default_profiles_for(args.profile)
+    if not args.compose_profiles and args.profile == "openrouter":
+        print("openrouter: compose starts Langfuse only — configure OPENROUTER_API_KEY for live calls")
     if not args.compose_profiles and args.profile == "modal-vllm":
         # Compose has no GPU service for the Modal profile: Langfuse comes up,
         # the endpoint does not. Say so instead of leaving the operator to infer it.
@@ -1563,7 +1567,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
     profile = _lp(args.profile)
     if missing_modal_endpoint(profile):
         # Loud, actionable hint instead of a silent localhost:8000 probe: the
-        # Modal profile is the default, and its base URL only exists after a
+        # Modal profile was explicitly selected, and its base URL only exists after a
         # deploy. health_check reports the same condition as a hard failure.
         print(
             "hint: modal-vllm has no VLLM_BASE_URL — after `modal deploy`, export the "
@@ -2792,7 +2796,7 @@ def _cmd_traces_export(args: argparse.Namespace) -> int:
 def _cmd_profiles(args: argparse.Namespace) -> int:
     """List the available profiles and mark the active default.
 
-    The default is ``SANDBOX_PROFILE`` from the environment or ``.env``, else ``modal-vllm``.
+    The default is ``SANDBOX_PROFILE`` from the environment or ``.env``, else ``openrouter``.
     """
     from mailroom_sandbox.providers import available_profiles, default_profile
 
@@ -3494,11 +3498,19 @@ def _cmd_floor(args) -> int:
         raise CLIUsageError("TARGET and --run name different runs; pass one")
     if args.replay_speed is not None and not (args.replay or args.replay_run):
         raise CLIUsageError("--replay-speed requires --replay or --replay-run")
+    base = floor_app.resolve_base(args.base)
+    selected = args.run or args.target
+    for value in args.register_run:
+        try:
+            name, _ = floor_app.register_run(base, value)
+        except (OSError, ValueError) as exc:
+            raise CLIUsageError(str(exc)) from exc
+        selected = selected or name
     return floor_app.serve_floor(
-        base=floor_app.resolve_base(args.base),
+        base=base,
         port=floor_app.DEFAULT_PORT if args.port is None else args.port,
         interval=args.interval,
-        run=args.run or args.target,
+        run=selected,
         replay=args.replay,
         replay_run=args.replay_run,
         replay_speed=args.replay_speed,

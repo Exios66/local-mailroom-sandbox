@@ -26,8 +26,9 @@ collides takes the one assigned here.
 | `HF-023`–`HF-024` | Phase 3 subclass schemas (#438) | landed |
 | `HF-025`–`HF-027` | Phase 4 correcting judge (`judge:`) | landed with the Phase 4 PR |
 | `HF-028` | #437 specialist handoff check | landed |
+| `HF-029` | Phase 5 part 1 evidence check (`job.evidence_check`) | landed with the Phase 5 part 1 PR |
 
-The next free vendor hotfix ID is `HF-029`. Scoring hotfixes have no open collision; the next free
+The next free vendor hotfix ID is `HF-030`. Scoring hotfixes have no open collision; the next free
 ID is `SHF-017`. A PR that registers or reserves an ID advances these in the same change
 (`test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id` checks them).
 
@@ -39,14 +40,15 @@ reserved in advance. Phase 4 adds no row (it names its guards on existing rows).
 | Row | Landed with | Topic |
 | --- | --- | --- |
 | 23 | #436 | an overlay field list keeps a label the policy still calls stale |
+| 24 | #445 | registered floor history is lost, misidentified or mutates source logs |
 
-On `main` the last row is 23. The open claims that collide today:
+On this head the last row is 26. The open claims that still collide:
 
 | Open PR | Rows it adds today | Renumber to | Topic |
 | --- | --- | --- | --- |
 | #425 | 23, 24, 25 | 24, 25, 26 | corporate repair (reviewer identity, missing-field admission, applicability) |
 | #439 | 24 (same text as #425's), 26 | 25, 27 | merger admission, merger money evidence |
-| #437 | 24, 25 | 24, 25 (next free; #425 and #439 have not landed) | specialist handoff refusal; the mock echoing labels |
+| #437 | 25, 26 | 25, 26 (next free after #445's row 24) | specialist handoff refusal; the mock echoing labels |
 
 The "Renumber to" column assumes #425 lands, then #439, then #437. A PR that lands in another order
 takes the next free numbers instead, and updates the rows it cites in its PR description and in any

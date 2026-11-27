@@ -1678,3 +1678,26 @@ def test_a_gold_specialist_subclass_keeps_the_labeled_derivation(monkeypatch):
     sorter = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
                                subtype="indenture")
     assert "record_type" not in sorter
+
+
+def test_a_resume_refusal_names_the_hotfixes_that_changed():
+    """A run locked before a hotfix change cannot resume; the refusal says which fixes moved."""
+    from mailroom_sandbox import scoring_hotfixes, vendor_hotfixes
+    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job.preflight import _hotfix_change, _hotfix_drift_detail
+
+    now = vendor_hotfixes.describe()
+    first, *rest = now["fixes"]
+    older = {"module_sha256": "0" * 64,
+             "fixes": [{**first, "source_sha256": "1" * 64}, *[f for f in rest if f["id"] != "HF-029"],
+                       {"id": "HF-999", "target": "x.y", "source_sha256": "2" * 64}]}
+    assert _hotfix_change(older, now) == f"added HF-029; dropped HF-999; changed {first['id']}"
+    assert _hotfix_change({**now, "module_sha256": "0" * 64}, now) == "only the hotfix module's code changed"
+    detail = _hotfix_drift_detail({"vendor_hotfixes": older}, None)
+    assert "(added HF-029; dropped HF-999" in detail and "use --force to re-lock" in detail
+    scoring = scoring_hotfixes.describe()
+    moved = {**scoring, "fixes": [{**f, "targets": [{"target": "a:b", "source_sha256": "3" * 64}]}
+                                  if f["id"] == "SHF-012" else f for f in scoring["fixes"]]}
+    assert "(changed SHF-012)" in _hotfix_drift_detail({"vendor_hotfixes": now, "scoring_hotfixes": moved}, None)
+    with pytest.raises(RuntimeError, match=r"changed SHF-012.*re-lock with --force"):
+        runner.verify_locked_hotfixes({"scoring_hotfixes": moved})

@@ -15,7 +15,15 @@ blocks it. This skill is the one sanctioned way to change them.
 - The change must already be **committed and merged in the owning repo**
   (`llm-mailroom` for pipeline, `llm-dojo-scoring` for scoring). Never patch the
   snapshot to "fix it here first".
-- `git status` is clean. Ask the user which package(s) and which target revision.
+- Establish a clean maintenance scope and identify the package(s) and target
+  revision from the authorized request. Ask only when those facts are missing.
+- Before either refresh path, require `git status --short -- vendor/` to be
+  clean, or preserve an operator-reviewed recovery diff of all existing vendor
+  changes outside the refreshed trees. Standalone refresh replaces both packages;
+  protect existing changes in both, even when only one pin is changing.
+- Stop all sandbox processes importing this checkout before changing tracked
+  snapshots. Review the complete diff before restarting; staging and rollback
+  do not synchronize live imports.
 
 ## 1. Set the target pin
 
@@ -43,19 +51,23 @@ It does not prompt by itself (Claude Code asks because the command is on the `as
 - **Monorepo** (`../../packages/<name>` exists): `fetch-deps` and
   `python scripts/sync_vendor.py [<name>]` copy the workspace tree (minus the shared vendor
   exclusions: top-level `tests/`/`test/`, `__pycache__`, `*.pyc`, `*.egg-info`,
-  `legalbench/reports`) and do **not** compare it with the pin. First check out or import the pinned revision in
-  `../../packages/<name>` (`git -C ../../packages/<name> rev-parse HEAD` must equal the
-  pin's `sha`) — otherwise the snapshot will not match the provenance you record in step 3.
+  `legalbench/reports`) and do **not** compare it with the pin. First verify
+  that the workspace package contains the reviewed standalone source at the
+  pinned revision. Record the workspace checkout's HEAD and dirty state, then
+  compare the filtered runtime-tree bytes with that source. A monorepo HEAD is
+  a different revision from the standalone pin and need not equal its SHA;
+  matching version/commit metadata alone does not prove matching bytes.
   To refresh one package only, use `python scripts/sync_vendor.py <name>`.
 - **Standalone** (no workspace): `fetch-deps` clones each pinned ref and rejects a SHA
   mismatch before replacing tracked files. Because it refreshes both packages, run it only
   when the other package's pin is already what is vendored, then confirm with
-  `git status vendor/` that only the intended package changed; revert anything else with
-  `git checkout -- vendor/<other>`.
+  `git status --short -- vendor/` that only the intended package changed. An
+  unexpected change is a reason to inspect the refresh and preserve a recovery
+  diff, not to discard another package's changes blindly.
 
 ```bash
 sandbox fetch-deps                          # standalone: both packages, SHA-checked
-python scripts/sync_vendor.py <name>        # monorepo: one package, workspace must be at the pin
+python scripts/sync_vendor.py <name>        # monorepo: one package, verified source bytes
 ```
 
 ## 3. Update provenance
@@ -69,14 +81,21 @@ refresh rewrote them.
 ## 4. Verify (show the output, do not summarize from memory)
 
 ```bash
-.venv/bin/python -m pytest tests/test_vendor.py tests/test_vendor_drift.py \
-  tests/test_vendor_refresh_git.py tests/test_vendor_sync_script.py -q
-.venv/bin/python -m pytest -q -m "not local_llm"
+.venv/bin/python -m pytest -q tests/test_vendor.py tests/test_vendor_drift.py \
+  tests/test_vendor_refresh_git.py tests/test_sync_vendor_script.py -n 0 --no-cov
 ruff check src tests scripts deploy reports notebooks
 ```
 
-Expected: both pytest runs exit 0 with no failures (skips are fine; any failure blocks the
-commit), and `ruff check` prints `All checks passed!`.
+Expected: the focused tests exit 0 (record skips and their missing source), and
+`ruff check` passes. Full-suite/coverage gates run in hosted CI on the final
+head, never as an automatic local skill step. Keep the 84% coverage gate and
+report missing hosted evidence as pending.
+
+Revalidate every pipeline/scoring hotfix whose target moved; update its
+fingerprint and documentation only with evidence, or retire it. Do not accept
+an experiment preflight with stale hotfix targets. See
+[`vendor-hotfixes`](../../../docs/vendor-hotfixes.md) and
+[`scoring-hotfixes`](../../../docs/scoring-hotfixes.md).
 
 `test_vendor_drift.py` also compares against **sibling checkouts** (`../llm-dojo-scoring`,
 `../llm-mailroom/src`) when they exist. When the pinned commit exists in the sibling repo it
@@ -88,5 +107,5 @@ vendor refresh is correct — say which sibling is stale rather than "fixing" ve
 
 ## 5. Commit
 
-One commit titled `vendor: <package> -> <ref> (<short sha>)`, body listing old and new
-pins and the diffstat. Do not push unless asked.
+Use the repository's `chore(vendor): ...` commit format, listing old/new pins,
+source-byte evidence, hotfix status and validation. Do not push unless asked.
