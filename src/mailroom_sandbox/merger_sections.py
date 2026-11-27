@@ -7,7 +7,9 @@ agreement (HF-030). The locator finds:
   ``6.2 No Solicitation.``), anywhere in the text. An anchor counts only when at least
   ``_MIN_BODY`` characters of body follow it before the next candidate, which skips a table of
   contents (titles packed together) and keeps cross references (``Section 6.2 of the …``) out,
-  because a reference has no capitalised title and period;
+  because a reference has no capitalised title and period. A title holding an article heading,
+  another section number or a page number is a contents line, never an anchor, and a repeated
+  section number keeps its longest-bodied occurrence (the body, not its contents entry);
 * **defined terms**: ``"<Term>" means`` (straight or curly quotes), running to the next defined
   term or section anchor;
 * **the preamble**: the opening of the agreement.
@@ -48,6 +50,9 @@ _TERM = re.compile(r"[“\"]\s?([A-Za-z][^”\"\n]{1,80}?)\s?[”\"][^“”\".\
 # the sentence that holds it.
 _PAREN_TERM = re.compile(r"\((?:[^()\n]{0,60}?\s)?(?:an?|the)\s[“\"]\s?([A-Z][^”\"\n]{1,80}?)\s?[”\"]\)")
 _SENTENCE_BACK = 1_500
+# A contents entry swallowed into a title: "Further Action 8 ARTICLE II", "Closing 7 Section 1.9 …",
+# "Termination Fees 53".
+_CONTENTS_TITLE = re.compile(r"\bARTICLE\b|\bArticle\s+[IVXL\d]+\b|\b\d{1,2}\.\d{1,2}\b|\s\d{1,3}$")
 
 
 @dataclass(frozen=True)
@@ -66,24 +71,34 @@ def rules() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
-def _compiled() -> dict[str, tuple[re.Pattern[str] | None, frozenset[str]]]:
+def _compiled() -> dict[str, tuple[tuple[re.Pattern[str], ...], frozenset[str]]]:
+    """Per key: its title patterns in priority order (listed first wins) and its defined terms."""
     out = {}
     for key, rule in rules()["sections"].items():
-        titles = rule.get("titles") or []
-        pattern = re.compile(r"\b(?:" + "|".join(titles) + r")", re.I) if titles else None
-        out[key] = (pattern, frozenset(t.casefold() for t in rule.get("terms") or ()))
+        patterns = tuple(re.compile(r"\b(?:" + title + r")", re.I) for title in rule.get("titles") or ())
+        out[key] = (patterns, frozenset(t.casefold() for t in rule.get("terms") or ()))
     return out
 
 
+def _contents_like(title: str) -> bool:
+    """A table-of-contents line read as a title: it names an article, another section or a page."""
+    return bool(_CONTENTS_TITLE.search(title))
+
+
 def _anchors(text: str) -> list[tuple[int, str, str]]:
-    """Body section anchors ``(position, number, title)``, in order, first occurrence per number."""
+    """Body section anchors ``(position, number, title)``, in order, first occurrence per number.
+
+    A title that reads like a contents line is never an anchor. A later occurrence of a number is a
+    cross reference or an exhibit's own numbering, never the body section (calibration mergers), so
+    the first occurrence with a body wins.
+    """
     # Titles are matched with single ASCII spaces (EDGAR text carries no-break and narrow spaces).
     candidates = [(m.start(), m.group(1), " ".join(m.group(2).split())) for m in _ANCHOR.finditer(text)]
     kept: list[tuple[int, str, str]] = []
     seen: set[str] = set()
     for index, (pos, number, title) in enumerate(candidates):
         nxt = candidates[index + 1][0] if index + 1 < len(candidates) else len(text)
-        if nxt - pos < _MIN_BODY or number in seen:
+        if nxt - pos < _MIN_BODY or number in seen or _contents_like(title):
             continue
         seen.add(number)
         kept.append((pos, number, title))
@@ -134,13 +149,17 @@ def locate(doc_text: str) -> dict[str, Excerpt]:
         return next((s for s in stops if s > pos), len(text))
 
     found: dict[str, Excerpt] = {}
-    for key, (pattern, wanted) in _compiled().items():
-        if pattern is not None:
-            for pos, number, title in anchors:
-                if pattern.search(title):
-                    nxt = next((p for p, _, _ in anchors if p > pos), len(text))
-                    found[key] = _excerpt(key, f"Section {number} {title}", text, pos, nxt)
-                    break
+    for key, (patterns, wanted) in _compiled().items():
+        # A key's titles are tried in their listed order: a specific title ("termination fees") wins
+        # over a general one ("effect of termination") wherever each sits; within one title, the
+        # first anchor in the document.
+        for pattern in patterns:
+            hit = next(((pos, number, title) for pos, number, title in anchors if pattern.search(title)), None)
+            if hit is not None:
+                pos, number, title = hit
+                nxt = next((p for p, _, _ in anchors if p > pos), len(text))
+                found[key] = _excerpt(key, f"Section {number} {title}", text, pos, nxt)
+                break
         if key not in found and wanted:
             for pos, term in terms:
                 if term.casefold() in wanted:

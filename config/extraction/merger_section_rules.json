@@ -19,9 +19,8 @@
     },
     "conditions_parent": {
       "titles": [
-        "conditions to (the )?obligations? of (?!each)",
-        "additional conditions to (the )?obligations? of",
-        "conditions to (the )?obligation of (?!each)"
+        "conditions to (the )?obligations? of (?!each|the company\\b|company\\b)",
+        "additional conditions to (the )?obligations? of (?!the company\\b|company\\b)"
       ]
     },
     "conduct": {
@@ -89,7 +88,8 @@
       "titles": [
         "efforts",
         "regulatory approvals",
-        "filings",
+        "(regulatory|antitrust|hsr) filings",
+        "filings[;,]? (and )?other actions",
         "antitrust",
         "further action",
         "governmental approvals",
@@ -140,10 +140,10 @@
     },
     "termination_fee": {
       "titles": [
-        "termination fee",
-        "effect of termination",
-        "fees and expenses",
-        "expenses"
+        "termination fees?",
+        "termination payments?",
+        "break-?up fee",
+        "effect of termination"
       ]
     }
   },

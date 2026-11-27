@@ -17,6 +17,7 @@ import argparse
 import json
 import statistics
 import sys
+from collections import Counter
 from pathlib import Path
 
 from mailroom_sandbox import merger_sections, merger_tables
@@ -47,9 +48,13 @@ def check(texts: list[tuple[str, str]], groups: int = 3) -> dict:
     questions = list(merger_sections.rules()["questions"])
     per_q = {q: {"found": 0, "chars": []} for q in questions}
     per_group: dict[str, list[int]] = {}
+    headings: dict[str, Counter[str]] = {}
     doc_chars = []
     for _doc_id, text in texts:
         doc_chars.append(len(text))
+        for key, excerpt in merger_sections.locate(text).items():
+            if key != "preamble":
+                headings.setdefault(key, Counter())[excerpt.heading] += 1
         for q in questions:
             excerpts, missed = merger_sections.question_excerpts(text, [q])
             if not missed:
@@ -68,6 +73,11 @@ def check(texts: list[tuple[str, str]], groups: int = 3) -> dict:
     share = (sum(g["median_chars"] for g in groups_out.values()) / median_doc) if median_doc else None
     return {"n": n, "questions": rows, "groups": groups_out, "median_doc_chars": int(median_doc),
             "group_reads_whole_doc_share": round(share, 3) if share is not None else None,
+            # Correctness is a person's call: every heading each key took, to read down the list, plus
+            # the excerpts whose heading still reads like a contents line (should be 0).
+            "headings": {k: dict(c.most_common()) for k, c in sorted(headings.items())},
+            "contents_like_headings": sum(n for c in headings.values() for h, n in c.items()
+                                          if merger_sections._contents_like(h.split(" ", 2)[-1])),
             "under_bar": sorted(q for q, r in rows.items() if (r["found_share"] or 0) < FOUND_BAR)}
 
 
@@ -81,7 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     result = check(_calibration_texts())
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    print(f"calibration mergers: {result['n']} (offline locator check: coverage and size, not correctness)")
+    print(f"calibration mergers: {result['n']} (offline locator check: coverage and size; correctness is read "
+          f"from the per-key headings in the full result)")
+    print(f"  headings that read like a contents line: {result['contents_like_headings']}")
     for q, r in sorted(result["questions"].items(), key=lambda x: x[1]["found_share"] or 0):
         print(f"  {r['found_share']:>5.0%}  median {r['median_chars']:>6}  max {r['max_chars']:>6}  {q}")
     for k, g in result["groups"].items():

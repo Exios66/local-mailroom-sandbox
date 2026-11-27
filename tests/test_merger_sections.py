@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox import merger_sections, merger_tables
 
 BODY = "The parties agree as follows in every respect material to this provision. " * 8  # > 400 chars
@@ -114,3 +116,88 @@ def test_every_maud_question_has_a_rule():
     used = {key for keys in rules["questions"].values() for key in keys}
     assert used <= set(rules["sections"])
     assert set(merger_tables.load()["entity_sections"].values()) <= set(rules["sections"]) | {"preamble"}
+
+
+# --- final review: contents lines and over-broad titles (a wrong excerpt is worse than a miss) ---------
+
+_FILL = "The parties shall act in good faith under this provision at all times. " * 10 + "\n\n"
+
+
+def test_a_contents_line_before_an_article_heading_is_not_taken_for_the_body_section():
+    toc = ("TABLE OF CONTENTS Section 1.8 Closing 7 Section 1.9 Further Action 8 ARTICLE II. REPRESENTATIONS 8 "
+           + " ".join(f"Section 2.{i} Item {i} {9 + i}" for i in range(1, 30)) + "\n")
+    body = "ARTICLE I\nSection 1.9 Further Action. " + _FILL + "Section 1.10 Other Matters. " + _FILL
+    doc = "AGREEMENT AND PLAN OF MERGER\n" + toc + body
+    found = merger_sections.locate(doc)["efforts"]
+    assert found.start >= len(doc) - len(body) and "ARTICLE" not in found.heading
+
+
+def test_a_later_cross_reference_with_the_same_number_does_not_displace_the_body_section():
+    # Calibration shape: "Section 2.7 Effect on Capital Stock." in the body, then "… Section 2.7. Any income
+    # from investment of the Exchange Fund will be payable …" much later (longer to the next anchor).
+    body = "Section 2.7 Effect on Capital Stock. " + _FILL * 2
+    later = "as set out in Section 2.7. Any income from investment of the Exchange Fund will be payable to Parent. " + _FILL * 6
+    doc = body + "Section 2.8 Exchange Procedures. " + _FILL + later + "Section 2.9 Other. " + _FILL
+    assert merger_sections.locate(doc)["consideration"].heading == "Section 2.7 Effect on Capital Stock"
+
+
+def test_a_specific_title_beats_an_earlier_general_one_for_the_same_key():
+    doc = ("Section 8.2 Effect of Termination. " + _FILL + "Section 8.3 Termination Fees. " + _FILL
+           + "Section 8.4 Other. " + _FILL)
+    assert merger_sections.locate(doc)["termination_fee"].heading == "Section 8.3 Termination Fees"
+    only = "Section 8.2 Effect of Termination. " + _FILL + "Section 8.4 Other. " + _FILL
+    assert merger_sections.locate(only)["termination_fee"].heading == "Section 8.2 Effect of Termination"
+
+
+def test_governmental_filings_representations_are_not_the_efforts_covenant_but_filings_other_actions_is():
+    doc = ("Section 4.04 Governmental Filings; No Violations. " + _FILL
+           + "Section 6.04 Cooperation; Regulatory Efforts; Status. " + _FILL)
+    assert merger_sections.locate(doc)["efforts"].heading.startswith("Section 6.04")
+    wlrk = "Section 5.6 Filings; Other Actions; Notification. " + _FILL + "Section 5.7 Other. " + _FILL
+    assert merger_sections.locate(wlrk)["efforts"].heading.startswith("Section 5.6")
+
+
+def test_sec_filings_and_required_filings_representations_are_not_the_efforts_covenant():
+    doc = ("Section 3.4 SEC Filings; Financial Statements. " + _FILL
+           + "Section 3.5 No Conflict; Required Filings and Consents. " + _FILL
+           + "Section 6.5 Regulatory Efforts. " + _FILL)
+    excerpts, _ = merger_sections.question_excerpts(doc, ["General Antitrust Efforts Standard"])
+    assert [e.heading for e in excerpts] == ["Section 6.5 Regulatory Efforts"]
+
+
+def test_a_brokers_or_expenses_section_is_not_the_termination_fee_section():
+    doc = ("Section 3.20 Brokers; Expenses. " + _FILL + "Section 9.5 Fees and Expenses. " + _FILL
+           + "Section 8.3 Termination Fees. " + _FILL)
+    assert merger_sections.locate(doc)["termination_fee"].heading == "Section 8.3 Termination Fees"
+
+
+def test_conditions_to_the_companys_obligations_are_not_the_parent_conditions():
+    doc = ("Section 7.2 Conditions to Obligations of the Company. " + _FILL
+           + "Section 7.3 Conditions to Obligations of Parent and Merger Sub. " + _FILL)
+    assert merger_sections.locate(doc)["conditions_parent"].heading.startswith("Section 7.3")
+
+
+def test_the_offline_check_lists_each_keys_headings_for_review_and_counts_contents_lines():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_merger_sections", "scripts/check_merger_sections.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    doc = ("Section 6.4 Regulatory Efforts. " + _FILL + "Section 8.3 Termination Fees. " + _FILL
+           + "Section 9.8 Governing Law. " + _FILL)
+    result = mod.check([("d1", doc), ("d2", doc)])
+    assert result["headings"]["efforts"] == {"Section 6.4 Regulatory Efforts": 2}
+    assert result["contents_like_headings"] == 0
+
+
+@pytest.mark.parametrize(("key", "title"), [
+    ("efforts", "SEC Filings; Financial Statements"),
+    ("efforts", "No Conflict; Required Filings and Consents"),
+    ("efforts", "Governmental Filings; No Violations"),
+    ("termination_fee", "Brokers; Expenses"),
+    ("termination_fee", "Fees and Expenses"),
+    ("conditions_parent", "Conditions to Obligations of the Company"),
+])
+def test_a_document_with_only_the_wrong_section_is_a_miss_not_a_wrong_excerpt(key, title):
+    doc = f"Section 3.4 {title}. " + _FILL + "Section 3.5 Other Matters. " + _FILL
+    assert key not in merger_sections.locate(doc)
