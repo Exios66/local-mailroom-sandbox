@@ -224,7 +224,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
-                  "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3")),
+                  "c42b2f4939597e3408c949cc08bdd62d1ffc6b7371766fb2196c2adac0378e5b")),
         upstream="sandbox (isolated sorter / sorter_reviewer runs scored doc_type only; reviewed "
                  "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
         summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "

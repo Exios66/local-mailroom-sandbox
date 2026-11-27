@@ -178,6 +178,15 @@ from the document text).
   SHF-013 target, so editing it makes the fix stale until the fingerprint is updated, and every
   run lock records which file a run was scored against.
 
+Strata audit, 2026-11-27 (64 `correct` lines, `review.source` "strata audit 2026-11-27"): an
+offline check of every Hub subclass against the title rule in the Dojo's `SORTER_SUBCLASS_GUIDE`
+("the record the document's own title names" for corporate records; "a title naming one family
+decides it" for contracts). Only tier-A rows are recorded, where the title matches one guide line
+verbatim: 54 corporate records, 9 EDGAR contracts and one merger that shares its text with a
+MAUD-annotated twin. Ambiguous rows (certified Delaware bundles, supplemental warrant indentures,
+merger `other` rows without an annotated twin, correspondence marker conflicts) are not recorded
+here and still need a reader.
+
 Rejected: `DOC-f4ce492b979c34e3` (correspondence, Hub `demand`, proposed `email`). The corpus
 labels correspondence by marker precedence (`CORRESPONDENCE_SUBCLASS_PRECEDENCE` in the Dojo's
 `schemas/sorter_guide.py`: the first form whose marker appears anywhere in the text), and the
