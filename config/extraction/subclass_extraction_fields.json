@@ -1,0 +1,886 @@
+{
+  "classes": {
+    "contract": {
+      "affiliate": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "agency": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "co_branding": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "collaboration": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "consulting": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "development": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "distributor": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "endorsement": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "franchise": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "hosting": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "ip": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "joint_venture": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "license": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "maintenance": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "manufacturing": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "marketing": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "non_compete_no_solicit": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "outsourcing": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "promotion": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "reseller": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "service": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "sponsorship": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "strategic_alliance": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "supply": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      },
+      "transportation": {
+        "add": {},
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
+        "guide": {
+          "agreement_date": "date: The \"dated as of\" or signature date.",
+          "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
+          "dispute_forum": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
+          "expiration_date": "date: End of the initial term when the text states it as a date; else null.",
+          "party_roles": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
+          "payment_terms": "free text: How and when the consideration is paid, as stated.",
+          "signatories": "list of names: Persons who sign the contract, as printed.",
+          "termination_notice_period": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
+          "territory": "free text: The stated territory of the grant, distribution or service."
+        }
+      }
+    },
+    "corporate_record": {
+      "articles_of_incorporation": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "board_resolution": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "bylaws": {
+        "add": {},
+        "drop": [
+          "filing_number"
+        ],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "certificate_of_formation": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "charter_amendment": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "indenture": {
+        "add": {},
+        "drop": [
+          "filing_number"
+        ],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "officer_certificate": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "other": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "powers_of_attorney": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "rights_instrument": {
+        "add": {},
+        "drop": [
+          "filing_number"
+        ],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
+          "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
+        }
+      },
+      "subsidiary_list": {
+        "add": {},
+        "drop": [
+          "filing_number",
+          "jurisdiction",
+          "signatories"
+        ],
+        "guide": {
+          "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
+          "entity_name": "name: The corporation or entity the record is about, full legal name as written."
+        }
+      }
+    },
+    "correspondence": {
+      "attorney_demand": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "demand": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "email": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "letter": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "meeting_request": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "memo": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "notice": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "other": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      },
+      "press_release": {
+        "add": {},
+        "drop": [],
+        "guide": {
+          "action_items": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
+          "additional_recipients": "list: Further To, cc'd or copied parties as written. None: `[]`.",
+          "communication_date": "date: The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated.",
+          "demand_amount": "money: Exact dollars the sender demands the recipient pay (218440.00 for \"$218,440.00\"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert.",
+          "recipient": "name: The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as \"All Enron Houston\"), else a salutation that names a person or a defined group (\"Dear GISB Members\", \"Houston Attendees:\"). A generic salutation (\"Dear Friends\", \"Gentlemen\", \"All\", \"To Our Readers\") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in \"To\", put the first one here and the rest in `additional_recipients`.",
+          "sender": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
+          "urgency": "label: `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency (\"ASAP\", \"immediately\", \"urgent\"). `critical`: legal, financial or safety consequences stated as imminent."
+        }
+      }
+    },
+    "insurance_claim": {
+      "auto": {
+        "add": {},
+        "drop": [
+          "cms_source_table"
+        ],
+        "guide": {}
+      },
+      "carrier": {
+        "add": {},
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
+        "guide": {}
+      },
+      "inpatient": {
+        "add": {},
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
+        "guide": {}
+      },
+      "outpatient": {
+        "add": {},
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
+        "guide": {}
+      },
+      "pde": {
+        "add": {},
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
+        "guide": {}
+      },
+      "property": {
+        "add": {},
+        "drop": [
+          "adjuster",
+          "cms_source_table",
+          "denial_reasons"
+        ],
+        "guide": {}
+      }
+    },
+    "merger_agreement": {
+      "all_cash": {
+        "add": {},
+        "drop": [
+          "intent",
+          "keywords",
+          "subject_matter"
+        ],
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
+      },
+      "all_stock": {
+        "add": {},
+        "drop": [
+          "intent",
+          "keywords",
+          "subject_matter"
+        ],
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
+      },
+      "mixed_cash_stock": {
+        "add": {},
+        "drop": [
+          "intent",
+          "keywords",
+          "subject_matter"
+        ],
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
+      },
+      "mixed_cash_stock_election": {
+        "add": {},
+        "drop": [
+          "intent",
+          "keywords",
+          "subject_matter"
+        ],
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
+      },
+      "other": {
+        "add": {},
+        "drop": [
+          "intent",
+          "keywords",
+          "subject_matter"
+        ],
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
+      }
+    }
+  },
+  "registry_sha256": "ae3a34611dd69d6fa4c6dfd63199e0d78100a6d6378ea21c47932baf651ac5fe",
+  "schema": "mailroom.subclass_extraction_fields/v1"
+}
