@@ -161,7 +161,16 @@ history. Reset requires a replay-owned run or an empty directory; foreign
 content, invalid locks and symlinked run directories are refused. Use a scratch
 base for disposable UI work. Keep review outcomes HELD, with technical errors
 counted as FAILED. Refresh checks must cover missing/incomplete class labels
-and selection reset as well as live-to-idle polling.
+and selection reset as well as completed-run polling and discovery.
+
+Saved runs from any provider use the same artifact contract. Reference an
+existing folder with `sandbox floor --register-run DIR` or the browser's
+REGISTER RUN form; this writes an absolute reference to the selected base's
+`floor-runs.json` without changing source logs. A folder needs document item
+records or node traces. IMPORT accepts an exported/bare floor digest; an
+aggregate experiment summary cannot supply missing per-document paths.
+`--replay-run DIR` instead materializes an app-owned recorded replay, separate
+from the source. These operations need no API key, endpoint or model call.
 
 See the [floor operator guide](../../../docs/floor.md),
 [sample provenance](../../../data/fixtures/floor/replay/README.md) and

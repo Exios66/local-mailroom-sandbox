@@ -27,7 +27,15 @@ models:
   qwen/qwen3.5-9b:
     order: [deepinfra/bf16]
     allow_fallbacks: false
+  # Phase 4 correcting judge default (docs/design/specs/2026-11-26-correcting-judge-design.md):
+  # Alibaba serves the qwen3.7 family; no fallback, so the served model is the priced one.
+  qwen/qwen3.7-plus:
+    # the dated slug from config/api_prices.yaml: OpenRouter may answer with it
+    canonical_slug: qwen/qwen3.7-plus-20260602
+    order: [alibaba]
+    allow_fallbacks: false
   deepseek/deepseek-v4.1-flash-1017:
+    canonical_slug: deepseek/deepseek-v4.1-flash-20261017
     order: [together]
     allow_fallbacks: false
   z-ai/glm-5.3-flashx-legal:

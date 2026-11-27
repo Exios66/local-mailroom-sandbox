@@ -1172,15 +1172,16 @@ def verify_locked_hotfixes(lock: dict[str, Any]) -> None:
     Locks from before the hotfix layer record no set and run as before.
     """
     from mailroom_sandbox import scoring_hotfixes, vendor_hotfixes
-    from mailroom_sandbox.job.preflight import _hotfix_check, _scoring_hotfix_check
+    from mailroom_sandbox.job.preflight import _hotfix_change, _hotfix_check, _scoring_hotfix_check
 
     for key, describe, check in (("vendor_hotfixes", vendor_hotfixes.describe, _hotfix_check),
                                  ("scoring_hotfixes", scoring_hotfixes.describe, _scoring_hotfix_check)):
         if key not in lock:
             continue
-        if lock[key] != describe():
+        if lock[key] != (current := describe()):
             raise RuntimeError(f"{key}: this process carries hotfix code other than the locked set "
-                               "(redeploy the job worker from the locking checkout, or re-lock with --force)")
+                               f"({_hotfix_change(lock[key], current)}; redeploy the job worker from the "
+                               "locking checkout, or re-lock with --force)")
         result = check()
         if not result["ok"]:
             raise RuntimeError(f"{key}: a locked hotfix is not in effect here: {result['detail']}")

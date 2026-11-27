@@ -9,10 +9,13 @@ from mailroom_sandbox.paths import repo_root
 REQUIRED = (
     "sandbox-tool-router",
     "docs-audit-tool-router",
+    "sand-board-lifecycle",
+    "sand-board-hygiene",
     "langfuse",
     "braintrust",
     "apache-phoenix",
     "ollama",
+    "openrouter",
     "modal",
     "huggingface",
 )
@@ -33,3 +36,24 @@ def test_cursor_skills_exist_with_frontmatter():
         assert f"name: {name}" in meta
         assert "description:" in meta
         assert len(meta.strip()) > 40
+
+
+def test_sand_board_hygiene_digest_script():
+    """Offline digest must parse the live board and stay import-free of network."""
+    import json
+    import subprocess
+    import sys
+
+    script = repo_root() / ".cursor" / "skills" / "sand-board-hygiene" / "scripts" / "board_digest.py"
+    assert script.is_file()
+    proc = subprocess.run(
+        [sys.executable, str(script), "--json"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["next_id"].startswith("SAND-")
+    assert payload["open_count"] >= 1
+    assert "by_lane" in payload

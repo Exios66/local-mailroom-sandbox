@@ -321,3 +321,48 @@ def test_release_never_goes_below_zero():
     budget = _live_budget()
     budget.release(0.01)
     assert budget.reserved_usd == 0.0
+
+
+FLASH, PLUS = "qwen/qwen3.7-flash", "qwen/qwen3.7-plus"
+
+
+def test_a_call_is_priced_at_its_own_model_when_it_is_named():
+    """Phase 4 final review: a judge model on the run must not re-price every pipeline call."""
+    from mailroom_sandbox.job.metrics import call_cost
+
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, [FLASH, PLUS])
+    assert budget.estimate_call_usd(5_000, 1_000, model=FLASH) == pytest.approx(call_cost(FLASH, 5_000, 1_000))
+    assert budget.estimate_call_usd(5_000, 1_000) == pytest.approx(call_cost(PLUS, 5_000, 1_000))  # unnamed: dearest
+    assert budget.estimate_call_usd(5_000, 1_000, model="no/such-model") == pytest.approx(
+        call_cost(PLUS, 5_000, 1_000))  # unpriced: dearest
+    budget.start_live()
+    assert budget.add_live(5_000, 1_000, model=FLASH) == pytest.approx(call_cost(FLASH, 5_000, 1_000))
+
+
+def test_finished_usage_is_priced_per_agent_model():
+    from mailroom_sandbox.job.metrics import call_cost
+
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, [FLASH, PLUS])
+    budget.add_usage({"prompt_tokens": 12_000, "completion_tokens": 1_500, "llm_calls": 3, "usage_by_agent": {
+        "extract": {"models": [FLASH], "calls": 2, "prompt_tokens": 10_000, "completion_tokens": 1_000},
+        "judge": {"models": [PLUS], "calls": 1, "prompt_tokens": 2_000, "completion_tokens": 500}}})
+    assert budget.spent_usd == pytest.approx(call_cost(FLASH, 10_000, 1_000, calls=2) + call_cost(PLUS, 2_000, 500))
+    legacy = api_budget.ApiBudget(10.0, 0.10, 0.25, [FLASH, PLUS])
+    legacy.add_usage({"prompt_tokens": 12_000, "completion_tokens": 1_500, "llm_calls": 3})  # no breakdown: dearest
+    assert legacy.spent_usd == pytest.approx(call_cost(PLUS, 12_000, 1_500, calls=3))
+
+
+def test_the_call_guard_prices_a_named_model(monkeypatch):
+    from mailroom_sandbox.job import call_guard
+    from mailroom_sandbox.job.metrics import call_cost
+
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, [FLASH, PLUS])
+    call_guard.arm(budget, None)
+    try:
+        held = call_guard.before_call(5_000, 1_000, model=FLASH)
+        assert held == pytest.approx(call_cost(FLASH, 5_000, 1_000))
+        call_guard.settle(held, billed=False)
+        call_guard.after_call({"prompt_tokens": 5_000, "completion_tokens": 1_000}, model=FLASH)
+        assert budget.live_usd == pytest.approx(call_cost(FLASH, 5_000, 1_000))
+    finally:
+        call_guard.disarm()

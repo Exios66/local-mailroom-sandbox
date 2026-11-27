@@ -113,6 +113,11 @@ def govern(node: str, state: Mapping[str, Any], proposed: str, destinations: Col
         return "review_classify"
     if proposed not in ROUND_DESTINATIONS:
         return proposed
+    if proposed == "arbiter":
+        from mailroom_sandbox import correcting_judge
+
+        if correcting_judge.correcting():  # phase 4: the pass-through arbiter makes no call (HF-026)
+            return proposed
     # A node re-run for a transient error repeats the same round; a self-loop without one (a second
     # re-extraction, when retry_max allows it) is a new round.
     if proposed == node and state.get("transient_error"):

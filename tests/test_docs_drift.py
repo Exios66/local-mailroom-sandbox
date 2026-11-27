@@ -86,6 +86,53 @@ def test_every_hotfix_has_a_doc_row_with_its_status(module, doc, prefix):
     assert set(rows) - registered - retired == set(), f"docs/{doc} lists hotfixes the registry no longer has; mark them retired"
 
 
+@pytest.mark.parametrize("module", ["mailroom_sandbox.vendor_hotfixes", "mailroom_sandbox.scoring_hotfixes"])
+def test_every_hotfix_id_is_registered_once(module):
+    """Two open PRs once used HF-021 for different fixes; a merged head must never carry both."""
+    import collections
+    import importlib
+
+    ids = collections.Counter(fix.id for fix in importlib.import_module(module).HOTFIXES)
+    assert [fid for fid, n in ids.items() if n > 1] == [], "renumber per docs/numbering-reservations.md"
+
+
+def test_critical_regression_rows_are_numbered_once_in_order():
+    """Each row number is used once, 1..N with no gap (open PRs take numbers from the reservations page)."""
+    numbers = [int(m.group(1)) for line in (ROOT / "docs" / "critical-regressions.md").read_text(encoding="utf-8")
+               .splitlines() if (m := re.match(r"^\|\s*(\d+)\s*\|", line))]
+    assert numbers == list(range(1, len(numbers) + 1)), "renumber per docs/numbering-reservations.md"
+
+
+def test_the_reservations_page_lists_every_registered_hotfix_range_it_reserves():
+    """A reserved id that is registered on this head is marked landed, so the page cannot go stale silently."""
+    import importlib
+
+    page = (ROOT / "docs" / "numbering-reservations.md").read_text(encoding="utf-8")
+    registered = {fix.id for fix in importlib.import_module("mailroom_sandbox.vendor_hotfixes").HOTFIXES}
+    for line in page.splitlines():
+        if not line.startswith("| `HF-"):
+            continue
+        ids = re.findall(r"HF-(\d{3})", line.split("|")[1])
+        span = range(int(ids[0]), int(ids[-1]) + 1)
+        landed = any(f"HF-{n:03d}" in registered for n in span)
+        assert landed == ("landed" in line.split("|")[3].lower()), line
+
+
+
+def test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id():
+    """The page's next free HF/SHF ids sit above every id registered here or reserved for open work,
+    so a PR that lands a range cannot leave its own id listed as free."""
+    import importlib
+
+    page = (ROOT / "docs" / "numbering-reservations.md").read_text(encoding="utf-8")
+    for prefix, module in (("HF", "mailroom_sandbox.vendor_hotfixes"), ("SHF", "mailroom_sandbox.scoring_hotfixes")):
+        [free] = re.findall(rf"next free\s+(?:vendor\s+hotfix\s+)?ID\s+is\s+`{prefix}-(\d{{3}})`", page)
+        used = {int(fix.id.split("-")[1]) for fix in importlib.import_module(module).HOTFIXES
+                if fix.id.startswith(f"{prefix}-")}
+        used |= {int(n) for line in page.splitlines() if line.startswith(f"| `{prefix}-")
+                 for n in re.findall(rf"{prefix}-(\d{{3}})", line.split("|")[1])}
+        assert int(free) == max(used) + 1, f"{prefix}: next free is {prefix}-{max(used) + 1:03d}, page says {free}"
+
 def test_readme_names_every_top_level_command():
     """The README CLI block names each `sandbox` command; flags live in docs/cli-reference.md."""
     from mailroom_sandbox.cli import build_parser

@@ -310,3 +310,88 @@ def test_native_bound_call_usage_and_zero_confidence():
     result = agent.extract('text', handoff_context='Sorter classification: doc_type=corporate_record doc_subclass=indenture.')
     assert result['confidence'] == 0.0
     assert agent._last_usage['total_tokens'] == 7
+
+
+@pytest.mark.parametrize('route', ['native', 'langchain', 'chunked'])
+@pytest.mark.parametrize('only', [False, True])
+def test_corporate_composer_carries_fields_to_judge_and_field_retry(monkeypatch, route, only):
+    from agents import base as native_base
+    from agents.corporate_records_specialist import CorporateRecordsSpecialist as Native
+    from agents.judge import CompletenessJudge
+    from graph import build_graph as bg
+    from langchain_agents import base_agent as lc_base
+    from langchain_agents.specialist_agents import CorporateRecordsSpecialist as LangChain
+    from mailroom_sandbox import correcting_judge, subclass_extraction as sx
+    from mailroom_sandbox.job import call_guard
+
+    vendor_hotfixes.apply_hotfixes()
+    sent, reviews = [], []
+
+    def call(self, message, json_schema, *args, **kwargs):
+        if type(self).__name__ == 'CorporateRecordsSpecialist':
+            sent.append(json_schema)
+            return response(json_schema, {'subsidiaries': ['Example Limited']})
+        reviews.append((type(self).__name__, str(message)))
+        return {'confidence': 0.9, 'completeness': 0.6, 'completeness_label': 'partial',
+                'reasoning': 'gaps', 'extraction_correctness': 1.0,
+                'extraction_correctness_label': 'accurate', 'decision': 'human_review',
+                'fields_to_fix': [], 'handoff_summary': ''}
+
+    monkeypatch.setattr(native_base.BaseAgent, '_call_structured', call)
+    monkeypatch.setattr(lc_base.BaseAgent, '_call_structured', call)
+    monkeypatch.setattr(bg, 'judge_should_run', lambda state: True)
+    agent = object.__new__(Native if route == 'native' else LangChain)
+    handoff = 'Sorter classification: doc_type=corporate_record doc_subclass=subsidiary_list.'
+    agent.handoff_context = handoff
+    agent._configured_max_input_chars = lambda: 5000
+    agent.truncate_input = lambda text: text
+    agent._last_usage = None
+
+    def extract():
+        if route == 'native':
+            return agent.extract('Example Limited', handoff_context=handoff)
+        if route == 'chunked':
+            return agent.extract_chunked('Example Limited\n\nMore text', chunk_chars=16, overlap_chars=0)
+        return agent.extract('Example Limited')
+
+    with call_guard.document():
+        if only:
+            with sx.fields_only(['subsidiaries']):
+                result = extract()
+        else:
+            result = extract()
+        assert not result.get('_parse_error')
+        assert sent and all('subsidiaries' in s['properties'] for s in sent)
+        if only:
+            assert all(set(s['properties']) <= {'subsidiaries', 'confidence', 'reasoning'} for s in sent)
+        expected = CompletenessJudge._field_list('corporate_record')
+        assert '  - subsidiaries:' in expected
+        assert '  - subsidiary_jurisdictions:' in expected  # review the whole result after a field retry
+        for field in ('filing_number', 'signatories', 'jurisdiction'):
+            assert f'  - {field}:' not in expected  # empty-only slots cannot carry facts
+        requested = correcting_judge.requested_fields('corporate_record')
+        assert 'subsidiaries' in requested and 'filing_number' not in requested
+        state = {'doc_type': 'corporate_record', 'doc_subclass': 'subsidiary_list',
+                 'doc_text': 'Example Limited', 'extracted_data': {'subsidiaries': ['Example Limited']},
+                 'judge_verdict': 'partial', 'judge_findings': ['gaps'], 'judge_score': 0.6}
+        bg.judge_verify_node(state)
+        bg.arbiter_node(state)
+        assert {'CompletenessJudge', 'ArbiterAgent'} <= {name for name, _ in reviews}
+        assert all('subsidiaries' in message for _, message in reviews)
+        assert not any('  - filing_number:' in message for _, message in reviews)
+    with call_guard.document():
+        assert sx._review() is None
+        assert '  - subsidiaries:' not in CompletenessJudge._field_list('corporate_record')
+
+
+def test_corporate_fallback_replaces_previous_review_schema():
+    from langchain_agents.specialist_agents import CORPORATE_RECORDS_SCHEMA
+    from mailroom_sandbox import subclass_extraction as sx
+    from mailroom_sandbox.job import call_guard
+
+    with call_guard.document():
+        sx.composed_schema(CORPORATE_RECORDS_SCHEMA, request_schema('subsidiary_list', CORPORATE_RECORDS_SCHEMA))
+        assert 'subsidiaries' in sx._review()['add']
+        sx.composed_schema(CORPORATE_RECORDS_SCHEMA, request_schema(None, CORPORATE_RECORDS_SCHEMA))
+        assert not sx._review()['add']
+        assert 'filing_number' not in sx._review()['drop']

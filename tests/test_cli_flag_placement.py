@@ -49,8 +49,8 @@ def test_profile_flag_is_honoured_in_every_placement(command):
 
 
 @pytest.mark.parametrize("command", COMMANDS, ids=lambda c: " ".join(c))
-def test_profile_defaults_to_modal_vllm_when_absent(command):
-    assert build_parser().parse_args(command).profile == "modal-vllm"
+def test_profile_defaults_to_openrouter_when_absent(command):
+    assert build_parser().parse_args(command).profile == "openrouter"
 
 
 def test_env_profile_is_the_default_for_every_placement(monkeypatch):

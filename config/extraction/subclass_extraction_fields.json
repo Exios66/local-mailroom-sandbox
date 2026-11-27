@@ -459,6 +459,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -469,6 +470,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -491,6 +493,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -501,6 +504,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -523,6 +527,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -533,6 +538,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -543,6 +549,7 @@
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
+          "filing_number": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
           "jurisdiction": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
           "signatories": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block."
         }
@@ -789,6 +796,6 @@
       }
     }
   },
-  "registry_sha256": "3cbe53e1cf5d0e0171cbcb6fbd8bc94c15694233c76b733147eb38ae28ffb0cc",
+  "registry_sha256": "8cd07441413b3f234feaa5ee913d70300dcc0ef35cae8bf79e7774dd46cdc761",
   "schema": "mailroom.subclass_extraction_fields/v1"
 }

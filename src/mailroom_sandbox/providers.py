@@ -7,12 +7,11 @@ from dataclasses import dataclass
 
 from mailroom_sandbox.overlay import load_profile, list_profiles
 
-# The sandbox default is the Modal-served vLLM endpoint: no local GPU, no
-# Ollama daemon, the same OpenAI /v1 surface every eval path already uses.
-# Offline work opts out explicitly with `--profile ollama` (or SANDBOX_PROFILE).
+# OpenRouter is the default for new experiments and deployment configuration.
+# Explicit environment/profile choices and frozen run locks keep their provider.
 # Keep this in one place: CLI parsing, runtime activation, and the health hint
 # all read it.
-DEFAULT_PROFILE = "modal-vllm"
+DEFAULT_PROFILE = "openrouter"
 
 KNOWN_PROFILES = ("modal-vllm", "ollama", "vllm-local", "vllm-remote", "llamacpp", "lmstudio", "openrouter")
 

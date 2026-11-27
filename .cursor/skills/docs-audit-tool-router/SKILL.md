@@ -29,7 +29,7 @@ a release/service fact you did not check.
 | Package version, dependency pin, Python floor | `pyproject.toml`, generated requirements, lockfile, installed version | Owning package; report declared vs installed separately |
 | Release/tag claim | `git tag --list`, `gh release view <tag>`, `CHANGELOG.md` heading | The owning repository's release, not a changelog heading alone |
 | Vendor snapshot or `_VENDOR_PINS` | `vendor/<pkg>/VENDOR.md`, `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`, `pytest -q tests/test_vendor_drift.py -n 0 --no-cov` | Owning upstream repo; refresh with `python scripts/sync_vendor.py` or `sandbox fetch-deps`, commit the diff |
-| `fetch-deps` behavior | Run `sandbox fetch-deps`; check exit status, the printed source revision and the resulting `git diff --stat vendor` separately (workspace mirroring may legitimately change it; a failed pinned refresh can leave it clean) | `_cmd_fetch_deps` / `_refresh_vendor*`; report the exact pins and path used |
+| `fetch-deps` behavior | Read `_cmd_fetch_deps` / `_refresh_vendor*` and run their focused offline regressions. An explicitly authorized maintenance refresh additionally checks exit status, resolved source and complete vendor diff. | Immutable pins, source-byte comparison and refresh tests; a docs sweep alone never authorizes a refresh |
 | Dataset revision or row count | `config/datasets.yaml`, `spec.lock.json`, prepared `dataset.jsonl`, run report | Preserve the run's pinned revision; never infer from Hub HEAD |
 | Model name, context window or price | `config/models.yaml`, `config/api_prices.yaml`, OpenRouter/AWS owner page with check date | `config/models.yaml` owner; do not copy a price without a date |
 | Experiment status or metric | Run ID, `report.json`/`report.md`, experiment log, current-head CI | `eval-judge`; distinguish planned, running, simulated, completed, superseded |
@@ -43,8 +43,8 @@ a release/service fact you did not check.
    scope:
 
    ```bash
-   git ls-files '*.md' | grep -v '^vendor/'
-   git ls-files 'AGENTS.md' 'CLAUDE.md' '.cursor/skills/**/*.md' '.opencode/agents/*.md'
+   git ls-files '*.md' | rg -v '^vendor/'
+   git ls-files 'AGENTS.md' 'CLAUDE.md' '.cursor/skills/**' '.claude/skills/**' '.opencode/agents/*.md'
    ```
 
    Exclude `vendor/`, generated `docs/cli-reference.md`, `CHANGELOG.md` history
@@ -92,17 +92,16 @@ a release/service fact you did not check.
      `harness-doctor`.
    - Keep historical results dated and labelled; do not replace them with a
      newer unrelated value.
-6. **Regenerate and re-run.** Re-run step 2 after edits. For a vendor refresh,
-   run `sandbox fetch-deps` for a standalone checkout. Alternatively, run
-   `python scripts/sync_vendor.py` from the sandbox package root only when
-   its monorepo source packages exist under `REPO.parent.parent/packages/`.
-   Record the exit status. For workspace sync, separately record the resolved
-   source paths, their owning checkout revision (`git -C <workspace> rev-parse HEAD`)
-   and dirty state (`git -C <workspace> status --short`); the script prints only
-   destinations and file counts, not source pins. Inspect `git diff --stat vendor`
-   and run the drift guard. A clean diff alone is not
-   proof of success when a workspace mirror was expected. For a dependency
-   change, regenerate requirements and run the lock/import smoke.
+6. **Regenerate and re-run.** Re-run the affected checks from step 2 after edits.
+   A docs/skills sweep does not authorize dependency upgrades or a vendor
+   refresh. When a refresh was explicitly requested, follow the
+   [vendor-sync skill](../../../.claude/skills/vendor-sync/SKILL.md): stop
+   processes using the checkout, verify source bytes and pins, inspect the
+   completed diff, revalidate moved hotfix targets, then restart. Record resolved
+   workspace paths, their checkout revision and dirty state separately from
+   standalone source SHAs. A clean diff or matching version alone is not proof
+   of correct source. For an authorized dependency change, regenerate
+   requirements and run the lock/import smoke.
 7. **Record the audit boundary.** In the PR or handoff write: files inspected,
    commands run, checkout/ref, external check date, corrections, and anything
    still unverified. A green link check does not prove a model price or release
@@ -127,9 +126,11 @@ before closing it:
 
 ## Boundaries
 
-- Do not hand-edit `vendor/**`, `requirements/*.txt`, `uv.lock`, `.env`,
-  `data/runtime/**` or generated runbook Markdown; edit the catalog and
-  regenerate.
+- Do not hand-edit `vendor/**`, `requirements/*.txt`, `uv.lock`, `.env` or
+  generated runbook Markdown; edit the owning source and regenerate. The
+  hand-written `docs/runbooks/production-slices.md` is outside the catalog.
+  Runtime experiment artifacts stay unchanged; credential-free task handoffs
+  use the dispatch contract's designated durable record location.
 - Do not run the full suite or campaign locally to prove a docs claim; use the
   current-head hosted result and cite the commit.
 - Do not silently upgrade dependencies, change a pin, or rewrite an experiment

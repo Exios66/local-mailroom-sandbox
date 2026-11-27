@@ -610,6 +610,198 @@ resumes it runs with class schemas. Preflight resumes it only while it has no ch
 refuses it once work has started. An ad-hoc pipeline eval
 with no lock uses the committed field lists.
 
+### Subclass field note (`job.subclass_field_note`)
+
+The promoted specialist prompts are frozen, class-level text written before subclass schemas. Some of them
+name fields a subclass schema no longer requests. The MAUD merger prompt, for example, sends consideration
+and exchange-ratio language to `subject_matter` or `keywords`, which every non-fallback merger subclass drops (all but `other`). The strict
+schema stops a dropped field from being written, but not its content from moving into a field that is still
+requested (for mergers, `maud_clauses`).
+
+`job.subclass_field_note: true` (pipeline runs only; off by default and hashed only when set) appends a short
+block after the system prompt of a specialist that was sent a narrowed subclass schema. The block names the
+class and subclass, lists the fields the subclass does not request ("leave that content out; never move it
+into another field"), and lists any fields it adds.
+
+- The promoted prompt stays the head of the system prompt, byte for byte. LangChain specialists append the
+  note after `augmented_system_prompt()`, and legacy `agents` specialists after `system_prompt()`.
+- The note is built from the two schemas only, so it follows the committed field lists.
+- A fallback to the class schema, and a subclass whose requested fields equal the class's, get no note.
+- A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer, as in #425)
+  keeps that hotfix's schema and gets no note, as HF-023 leaves it alone.
+- No hotfix ID is taken: the note rides on HF-023's per-instance wrapper.
+
+Adoption is an A/B: `config/runs/sx-note-s1-on.yaml` is the Phase 4 stage 1 baseline
+`config/runs/p4-s1-verify-gov-off.yaml` with only the note on
+(`test_the_note_ab_arm_differs_from_its_baseline_only_in_the_note`). Plan:
+[`docs/design/plans/2026-11-27-subclass-field-note.md`](design/plans/2026-11-27-subclass-field-note.md).
+
+## Correcting judge (`judge:`)
+
+Phase 4 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (plan:
+[`docs/design/plans/2026-11-26-phase4-correcting-judge.md`](design/plans/2026-11-26-phase4-correcting-judge.md)).
+A top-level `judge:` section on a `task: pipeline` run changes how the judge rules; it is refused for any other
+task, and without it the judge is today's and nothing is recorded.
+
+```yaml
+judge:
+  mode: correct                 # verify: today's judge plus the record; correct: a judge that rules on fixes
+  model: qwen/qwen3.7-plus      # correct mode only (default)
+  models_by_class:              # correct mode only (default)
+    merger_agreement: deepseek/deepseek-v4.1-flash-1017
+  references: train_pool        # off (default) or train_pool; catalog is refused until a catalog source exists
+  reference_pool: config/judge/reference-pool-runbook-v2.jsonl   # only with train_pool
+  max_examples: 2               # 0-2 labeled examples of the same class and subclass
+  max_example_chars: 3000
+  max_attempt_chars: 4000       # earlier extraction attempts of this document
+```
+
+Quote `"off"` in YAML: a bare `off` parses as false (the spec reads false as `off` too).
+
+**`mode: verify`** keeps the vendored judge, arbiter and retry, and records each verdict and the extraction
+before the judge (HF-025). It runs on the pipeline's own judge model, so `model`, `models_by_class` and
+`references` are refused with it, and it adds no preflight price or route check.
+
+**`mode: correct`** replaces each judge pass with one ruling (one call, one re-ask on a parse failure). The
+prompt puts the whole document first, then the extraction (requested fields only: the class schema after the
+subclass drops, without `confidence` or `reasoning`), the field definitions, this document's earlier attempts
+and, with `train_pool`, up to two labeled examples. The judge rules `accept` (with fixes), `retry_fields`
+(naming fields) or `human_review`, mapped to the vendored verdicts `complete`, `partial` and `incomplete`.
+The safety rules:
+
+- A fix is applied only when `judge_fixes.verify_fix` checks it: the field was requested and is a target
+  field of the class, the value is not blank (a fix never erases a field), the quote is found in the document,
+  and the located text supports the value under the gate's value rules. Nothing in the check calls a model.
+- An accept that leaves a wrong field unfixed becomes a retry on the first ruling and a person on the second.
+  Its verified fixes are still applied before the retry.
+- A retry asks the specialist for the named fields only and keeps every other extraction field (HF-027), then
+  returns to the judge for its second, final ruling. A second ruling never retries; a retry with no fields goes
+  to a person. A re-read that fails (unparseable, guardrail-failed, unsupported or schema-invalid) goes to a
+  person without a second ruling; a transient-error loop or a Boss conflict keeps the vendored route.
+- After fixes are applied the matter conflict check runs again; a conflict a fix created is parked for a person,
+  never archived.
+- The arbiter makes no call; the judge's ruling is final (HF-026), and the pass-through is not a governor
+  round. Rulings and the retry count toward the governor's call and spend budgets.
+- A document longer than the judge model's context, or a reply that does not parse twice, goes to review
+  (`judge_input_too_long`, `judge_parse_error`).
+
+So every document ends within two rulings and one field retry.
+
+**References.** `train_pool` reads the committed pool `config/judge/reference-pool-runbook-v2.jsonl`, built by
+`python scripts/build_judge_reference_pool.py` (`--check` fails when stale): the truth labels of the runbook-v2
+`calibration` and `pool` documents only, merged in the scorer's own order (`gold_labels.apply_near_gold`), so an
+example never shows a value the run is not scored against: interim truth labels (`use_as_truth`, not `disputed`),
+then the near-gold overlay `data/labels/gold-overlay` (checked against its manifest) on fields interim does not
+give and over an interim gate gap fill (SHF-010; an `original_header` fill and an interim correction stand). Hub
+ground truth is not read (it needs the dataset); no overlay label carries a Hub value, so a Hub-labelled field is
+left out rather than shown wrong. At most two 240-character evidence quotes are kept per field, and an example
+shows only the fields the judge is asked about. Preflight refuses a train_pool draw that holds a calibration or
+pool document, or one sharing a leak component (thread, matter or text) with the pool, and the judged document is
+never its own example. A label change (#425, #439) makes `--check` fail until the pool is rebuilt and re-locked.
+
+**Preflight and lock.** In correct mode preflight refuses a judge model with no price in
+`config/api_prices.yaml`, no provider pin in `config/provider_pins.yaml`, no OpenRouter route, or a missing pool
+file. The spend cap prices the judge models. The section, with the pool's sha256, is hashed into `spec_hash`
+(absent, the hash is unchanged); activation refuses a pool whose bytes differ from the lock. HF-025 to HF-027
+are in every lock's `vendor_hotfixes`, so a run locked before this refuses resume until `--force`.
+
+**Record and reports.** Each judged item records `judge_rulings` (pass, ruling, score, reason, checked fixes,
+retry and wrong fields, model), `before_judge`, `judge_corrected` and `judge_conflict`. The gate report adds a
+`judge` block (rulings, applied fixes and their accuracy against the headline truth, skipping a label SHF-015
+drops as stale, retries, scores before and `after judge`,
+calls, judge-related calls and cost per judged document, cached prompt tokens, review and wrong-archive rates,
+crashes, matter conflicts and governor stops), and the routing audit a `judge` section.
+`gate_compare.judge_compare(baseline_dir, judge_dir, bars, stage=...)` applies the design's success rules to two
+runs of the same documents: judge-related calls per judged document cut by at least half, cost per judged
+document no higher by class, the paired score delta at most 2 points below (bootstrap interval; gating from
+stage 2), no more wrong archives, and no crash from the hard call ceiling.
+
+**Stages.** The stage configs are `config/runs/p4-s1-*.yaml` (dev-look1, 300 documents: verify with the governor
+off and on, correct with and without references) and `config/runs/p4-s2-*.yaml` (dev, 900 documents: verify and
+correct with references); each header states its cap arithmetic. Run the R01 smoke
+`config/runs/rb1-r01-smoke-qwen3.7-plus.yaml` first. Every stage is paid and needs a person's initials.
+
+## Attempt hygiene (Phase 5 part 1)
+
+Two opt-in switches for the OpenRouter route, where every document is read in one call, so the
+chunk-merge fixes never run. Neither adds a model call. Design:
+[`docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md`](design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
+
+### Keep the best-judged attempt (`confidence.keep_best_attempt`)
+
+`confidence.keep_best_attempt: true`, globally or under `confidence.by_class.<class>`, turns on the
+vendored #254 selection. The report and the review handoff use the best-judged extraction attempt
+instead of the latest:
+
+- candidates have a judge verdict and passed the schema and quality gate;
+- they rank `complete` > `partial` > `incomplete`, then by confidence, and a tie keeps the latest;
+- a Boss conflict pins the latest;
+- an archived document never takes an earlier attempt that is still unsure or below the coverage
+  floor.
+
+Routing never reads the flag. Only a real boolean is accepted. It is refused with `judge: mode: correct`,
+whose verified fixes are not in the attempt history. The routing audit reports it per class, and an
+older lock that never set it reads as unknown.
+
+### Evidence check (`job.evidence_check`)
+
+`job.evidence_check: true` turns on HF-029. A one-call read's `cuad_clauses` and `claim_checklist`
+items (`"<Category>: <quoted span>"`) are checked against the whole document with the vendored
+single-window evidence test. `action_items` and `denial_reasons` are not checked: they are summaries, so
+a whole-item quote test drops true ones.
+
+- a string item is dropped only when it has a checkable quote and neither it nor a reasoning quote for
+  its field is in the document; short (unverifiable) and non-string items stay;
+- drops are recorded under `_evidence_dropped`, which the judge, the arbiter and the correcting judge
+  never see (they strip `_` keys);
+- a chunked read keeps its `chunking.merge` policy;
+- a drop that would leave the extraction empty is skipped (`_evidence_skipped: "would_empty"`), so the
+  check never fails a read or adds a retry;
+- an error inside the check is logged and the read passes through unfiltered;
+- on a judge-ordered field-only retry (HF-027), the fields carried over from the previous extraction
+  keep their part of its `_evidence_dropped` record, and the re-read fields get a fresh one;
+- a read that was also given page images (a scanned document) is left alone and marked
+  `_evidence_skipped: "pages"`, since a clause read from an image has no quote in the text layer.
+
+The check itself makes no model call, but a filtered extraction can draw a different judge ruling,
+and so a bounded retry or arbiter call; the run's budgets and caps still bound it. HF-029 marks itself
+stale (not applied) if the vendored evidence fields or the 12-character span minimum change. Preflight
+also refuses `keep_best_attempt` arriving from the taxonomy overlay or `config/components.yaml` with
+`judge: mode: correct`.
+
+Pipeline runs only; hashed only when set. The gate report counts the check per document
+(`evidence_dropped` per field, `evidence_skipped` with its reason for a read left unfiltered) and in an
+`evidence_check` block: items dropped per field and per class, skipped reads by reason and the
+documents involved. A run without drops has no such block. The record never changes a score.
+
+### Measuring both offline
+
+```bash
+python scripts/replay_attempt_hygiene.py --run p4-s1-verify-gov-off
+```
+
+The replay reads a finished pipeline run and never writes it. In a fresh child process (so a Python
+caller's own runtime is left alone), it activates the run's lock with `keep_best_attempt` forced on and scores the latest, the selected and the filtered extraction of every
+document with the gate's own scorer. Contracts also get CUAD false and missed clauses before and after
+the filter. It prints a digest with the design's adoption bars and writes the full result to
+`data/runtime/replays/<run_id>.attempt_replay.json`. Activation rewrites the shared
+`data/runtime/taxonomy.yaml` (as preflight does), so do not replay while a run is being prepared in
+the same checkout. The digest counts documents with an attempt history; with none (items stored
+before pipeline items kept it), bar A reads "no evidence" rather than not met, so run stage 1 from a
+checkout that includes this change. The replay cannot see page images, so it filters a scanned
+document that live HF-029 would leave alone.
+
+A correct-mode run is refused (its attempt history does not hold the judge's fixes), and so are a run
+whose checkpoint still says `running`, a `dataset.jsonl` that no longer matches the lock's digest, and an
+`--out` inside the source run. A failed or aborted document is skipped and counted, since the gate scores
+it 0 whatever it extracted. A human-entered extraction is scored but never filtered, because HF-029 only
+sees the specialist's read.
+
+Its numbers are an offline estimate. Selection is exact, because routing never reads the flag. The
+filter is not: the run's judge rated the unfiltered extraction. Launch the confirming arm
+`config/runs/p5-s1-evidence-on.yaml` (a person's initials at the spend gate) only when
+`bars.evidence_meets_confirming_arm` is true.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working
