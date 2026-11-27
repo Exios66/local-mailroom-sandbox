@@ -1,6 +1,8 @@
 """Sandbox hotfixes over the vendored pipeline: fingerprint-bound, recorded, preflight-gated."""
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from mailroom_sandbox import vendor_hotfixes as vh
@@ -1455,8 +1457,26 @@ def test_hf019_is_registered_with_a_pinned_source():
     import graph.build_graph as bg
 
     fix = next(f for f in vh.HOTFIXES if f.id == "HF-019")
-    assert [f.id for f in vh.HOTFIXES][-2:] == ["HF-018", "HF-019"]
+    assert [f.id for f in vh.HOTFIXES][-3:-1] == ["HF-018", "HF-019"]
     assert (fix.module, fix.attr) == ("graph.build_graph", "_detect_conflict")
     assert fix.source_sha256 == vh._source_sha(bg._detect_conflict)
     assert dict(fix.also)["_fetch_matter_context"] == vh._source_sha(bg._fetch_matter_context)
     assert vh.apply_hotfixes()["HF-019"] == "applied"
+
+
+def test_hf020_is_registered_with_a_pinned_source():
+    import graph.build_graph as bg
+
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-020")
+    assert [f.id for f in vh.HOTFIXES][-1] == "HF-020"
+    assert (fix.module, fix.attr) == ("graph.build_graph", "_instantiate_specialist")
+    assert fix.source_sha256 == vh._source_sha(bg._instantiate_specialist)
+    also = dict(fix.also)
+    for name in ("_build_handoff_context", "extract_node", "_run_chunked_extraction"):
+        assert also[name] == vh._source_sha(getattr(bg, name)), name
+    assert vh.apply_hotfixes()["HF-020"] == "applied"
+    assert vh.apply_hotfixes()["HF-020"] == "applied"  # idempotent: the handoff wrapper is not doubled
+    handoff = bg._build_handoff_context
+    assert getattr(handoff, "_sandbox_hotfix", None) == "HF-020"
+    assert not hasattr(handoff.__wrapped__, "__wrapped__")
+    assert inspect.unwrap(handoff) is handoff.__wrapped__

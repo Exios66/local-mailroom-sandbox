@@ -13,8 +13,20 @@ switch is active; see :func:`activate`.
 
 from __future__ import annotations
 
+import contextvars
 import copy
+import functools
+import logging
+import threading
 from typing import Any, Mapping
+
+_log = logging.getLogger(__name__)
+_LOCK = threading.Lock()
+#: Process-wide like the governor: agent-task workers do not inherit the lock's ContextVar.
+_ACTIVE: dict[str, Any] | None = None
+#: The choice ``record_choice`` made for the extraction being set up: (class schema, chosen schema).
+_PENDING: contextvars.ContextVar[tuple[dict, dict] | None] = contextvars.ContextVar(
+    "sandbox_subclass_schema", default=None)
 
 FALLBACK_SUBCLASSES = frozenset({"", "unknown", "other"})
 
@@ -78,3 +90,75 @@ def low_band(doc_class: str) -> float | None:
 
     value = get_confidence_thresholds(doc_class).get("low")
     return None if value is None else float(value)
+
+
+def activate(lists: Mapping[str, Any], *, sha256: str, guide: bool) -> None:
+    """Turn the switch on for this process; refuses a field list that differs from the lock's."""
+    from mailroom_sandbox.subclass_fields import field_lists_sha256
+
+    global _ACTIVE
+    actual = field_lists_sha256()
+    if sha256 != actual:
+        raise RuntimeError(
+            f"job.subclass_schemas: the subclass field list changed after the run was locked "
+            f"(locked {sha256[:12] or 'nothing'}, now {actual[:12]}); re-run preflight")
+    with _LOCK:
+        _ACTIVE = {"lists": copy.deepcopy(dict(lists)), "guide": bool(guide)}
+
+
+def deactivate() -> None:
+    global _ACTIVE
+    with _LOCK:
+        _ACTIVE = None
+    _PENDING.set(None)
+
+
+def active() -> bool:
+    return _ACTIVE is not None
+
+
+def record_choice(state: Mapping[str, Any]) -> None:
+    """HF-020: pick the schema for the extraction ``extract_node`` is about to run."""
+    cfg = _ACTIVE
+    if cfg is None:
+        _PENDING.set(None)
+        return
+    from langchain_agents.specialist_agents import SPECIALIST_SCHEMAS
+    from pipeline.config import resolve_extract_class
+
+    doc_type = str(state.get("doc_type") or "")
+    doc_class = resolve_extract_class(doc_type) or doc_type
+    base = SPECIALIST_SCHEMAS.get(doc_class)
+    if base is None:
+        _PENDING.set(None)
+        return
+    subclass = state.get("contract_subtype") if doc_class == "contract" else state.get("doc_subclass")
+    schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
+                                   cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
+    _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
+    _PENDING.set(None if schema is base else (base, schema))
+
+
+def bind_choice(agent: Any) -> None:
+    """HF-020: give the extraction's specialist instance the recorded schema (consumed once).
+
+    The instance-level ``_call_structured`` swaps ``json_schema`` only when it is the class
+    schema object, then calls the class method (read-range observer, sampling, vendored call),
+    so the swap holds for every chunk window of this agent and never reaches another agent.
+    """
+    choice = _PENDING.get()
+    _PENDING.set(None)
+    if choice is None:
+        return
+    base, schema = choice
+    cls = type(agent)
+
+    @functools.wraps(cls._call_structured)
+    def _call_structured(*args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("json_schema") is base:
+            kwargs["json_schema"] = schema
+        elif len(args) >= 2 and args[1] is base:  # (user_message, json_schema, ...)
+            args = (args[0], schema, *args[2:])
+        return cls._call_structured(agent, *args, **kwargs)  # resolved per call: observer, sampling
+
+    agent._call_structured = _call_structured

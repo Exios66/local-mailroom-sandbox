@@ -656,6 +656,13 @@ def known_tasks() -> tuple[str, ...]:
     return base + agents
 
 
+def _subclass_fields_sha256() -> str:
+    """sha256 of the committed subclass field lists (job.subclass_schemas)."""
+    from mailroom_sandbox.subclass_fields import field_lists_sha256
+
+    return field_lists_sha256()
+
+
 def _file_sha256(path: str) -> str:
     """sha256 of a repo-relative (or absolute) input file the spec hash pins by content."""
     from mailroom_sandbox.paths import repo_root
@@ -771,6 +778,10 @@ class JobSpec(BaseModel):
     # plus loop fixes L2, L4 and L5 (mailroom_sandbox.governor). `true` means the defaults. Off by
     # default; hashed only when set.
     governor: GovernorSpec | None = None
+    # Phase 3 (X1): the predicted subclass picks the extraction schema from the committed field
+    # lists (mailroom_sandbox.subclass_extraction, HF-020). Off by default; hashed only when set,
+    # together with the sha256 of config/extraction/subclass_extraction_fields.json.
+    subclass_schemas: bool = False
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1300,6 +1311,12 @@ class RunSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _subclass_schemas_in_pipeline(self) -> "RunSpec":
+        if self.job.subclass_schemas and self.task != "pipeline":
+            raise ValueError(f"job.subclass_schemas picks pipeline extraction schemas; task {self.task!r} runs no graph extraction")
+        return self
+
+    @model_validator(mode="after")
     def _governor_in_pipeline(self) -> "RunSpec":
         if self.job.governor is not None and self.task != "pipeline":
             raise ValueError(f"job.governor budgets pipeline routing; task {self.task!r} runs no graph routing")
@@ -1468,17 +1485,19 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
-        # require_expanded_inputs and governor are hashed only when set, so older YAMLs keep their hash.
+        # require_expanded_inputs, governor and subclass_schemas are hashed only when set, so older
+        # YAMLs keep their hash.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs") and value is False)
+                                    "require_expanded_inputs", "subclass_schemas") and value is False)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)
                    and not (key == "governor" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
-                   if spec.job.specialist_subclass_file else {})},
+                   if spec.job.specialist_subclass_file else {}),
+                **({"subclass_fields_sha256": _subclass_fields_sha256()} if spec.job.subclass_schemas else {})},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,

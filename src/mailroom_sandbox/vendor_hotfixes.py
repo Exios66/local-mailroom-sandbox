@@ -90,6 +90,36 @@ def _install_record_type_from_subclass(_module: Any, original: Callable[..., Any
     return enrich_extraction
 
 
+def _install_subclass_schemas(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-020 (job.subclass_schemas): the predicted subclass picks the extraction schema.
+
+    ``extract_node`` builds the specialist handoff from the document state, then instantiates
+    the specialist once for the whole (possibly chunked) extraction. The handoff wrapper records
+    the choice (``subclass_extraction.record_choice``); the instantiate wrapper hands it to that
+    one agent instance (``bind_choice``). Off, both pass straight through.
+    """
+    from mailroom_sandbox import subclass_extraction as sx
+
+    handoff = module._build_handoff_context
+    if getattr(handoff, _MARK, None) != "HF-020":
+        @functools.wraps(handoff)
+        def _build_handoff_context(state):
+            out = handoff(state)
+            sx.record_choice(state)
+            return out
+
+        setattr(_build_handoff_context, _MARK, "HF-020")
+        module._build_handoff_context = _build_handoff_context
+
+    @functools.wraps(original)
+    def _instantiate_specialist(agent_fn, handoff_context):
+        agent = original(agent_fn, handoff_context)
+        sx.bind_choice(agent)
+        return agent
+
+    return _instantiate_specialist
+
+
 #: The reasoning the vendored CompletenessJudge returns when its structured output failed to parse.
 JUDGE_PARSE_FAILURE = "judge output failed to parse"
 
@@ -1450,6 +1480,22 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "recorded as duplicate_of and does not go to the Boss",
         install=_install_duplicate_link,
         also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
+    ),
+    Hotfix(
+        id="HF-020",
+        module="graph.build_graph",
+        attr="_instantiate_specialist",
+        source_sha256="0f0d09381dade4bba6cdf244be99c47b62d20aadd00e0aa01d53fb9442a20b1a",
+        upstream="upstream issue to be filed (llm-mailroom: every subclass is asked for the whole class "
+                 "schema, including fields the Dojo marks not applicable)",
+        summary="with job.subclass_schemas set, the extraction specialist is sent its predicted subclass's "
+                "schema from the committed field lists (class fields the Dojo marks not applicable dropped, "
+                "labeled extension fields added); an unknown, other or unlisted subclass, or a class "
+                "confidence below the low band, keeps the class schema",
+        install=_install_subclass_schemas,
+        also=(("_build_handoff_context", "92d686345bb9ed5344fa77518f873e646e286a5e043ce119b5b8e6a222485fde"),
+              ("extract_node", "612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5"),
+              ("_run_chunked_extraction", "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f")),
     ),
 )
 

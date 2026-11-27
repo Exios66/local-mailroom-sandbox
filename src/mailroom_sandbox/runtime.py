@@ -660,6 +660,16 @@ def activate(
     from mailroom_sandbox import governor
 
     governor.activate(locked_job.get("governor"))  # a lock without the key (before phase 2): off
+    from mailroom_sandbox import subclass_extraction
+
+    if locked_job.get("subclass_schemas"):
+        from mailroom_sandbox.subclass_fields import load_field_lists
+
+        locked_sha = ((locked.get("spec_core") or {}).get("job") or {}).get("subclass_fields_sha256")
+        subclass_extraction.activate(load_field_lists(), sha256=str(locked_sha or ""),
+                                     guide=bool(locked_job.get("schema_guide")))
+    else:  # a lock without the key (before phase 3), or the switch off
+        subclass_extraction.deactivate()
     try:  # every activation sets or restores the descriptions, so one run's choice never leaks
         from mailroom_sandbox.schema_guide import apply_schema_guide
 
