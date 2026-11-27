@@ -1653,3 +1653,28 @@ def test_a_refused_extraction_does_not_adopt_the_sorter_subclass():
     own_family = enrich_extraction({"cuad_family": "affiliate", "confidence": 0.0},
                                    doc_type="contract", subtype="license")
     assert own_family["cuad_family"] == "affiliate"
+
+
+def test_a_gold_specialist_subclass_keeps_the_labeled_derivation(monkeypatch):
+    """``specialist_subclass: gold`` asks derived fields to copy the labeled subclass.
+
+    A pipeline run and a saved sorter pass still drop an empty type field. An explicit
+    refusal drops it even on a gold run.
+    """
+    vh.apply_hotfixes()
+    from langchain_agents.doc_inventories import enrich_extraction
+
+    from mailroom_sandbox import runtime
+
+    monkeypatch.setattr(runtime, "specialist_subclass_source", lambda: ("gold", None))
+    gold = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                             subtype="indenture")
+    assert gold["record_type"] == "other"
+    refused = enrich_extraction(
+        {"record_type": None, "confidence": 0.0, "reasoning": "specialist_handoff_refusal"},
+        doc_type="corporate_record", subtype="indenture")
+    assert "record_type" not in refused
+    monkeypatch.setattr(runtime, "specialist_subclass_source", lambda: ("sorter", "saved.jsonl"))
+    sorter = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                               subtype="indenture")
+    assert "record_type" not in sorter

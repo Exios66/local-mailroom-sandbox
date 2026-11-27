@@ -1400,12 +1400,27 @@ def _wrap_handoff(module: Any) -> None:
     module._build_handoff_context = _build_handoff_context
 
 
+def _gold_subclass_derivation() -> bool:
+    """True when an isolated specialist run asked derived fields to copy the labeled subclass.
+
+    ``job.specialist_subclass: gold`` is that request. A pipeline run and a saved sorter pass
+    are not: their subclass is the sorter's, and an empty type field must not copy it.
+    """
+    try:
+        from mailroom_sandbox.runtime import specialist_subclass_source
+    except Exception:  # noqa: BLE001 — enrichment must not fail closed on an import
+        return False
+    return specialist_subclass_source()[0] == "gold"
+
+
 def _wrap_refusal_enrich() -> None:
     """A type field the specialist left empty does not gain the sorter subclass.
 
     HF-001 still fills a null corporate ``record_type`` underneath this wrapper. This layer
     removes that fill, and the same fill for ``communication_type``, ``claim_type`` and
     ``cuad_family``, whenever the specialist did not set the field, at every confidence.
+    An isolated run with ``specialist_subclass: gold`` keeps the fill: that setting asks
+    derived fields to copy the labeled subclass. An explicit refusal still drops them.
     A value the specialist set keeps enrichment's canonical form (a ``pde`` claim line stays
     ``health``). ``cms_source_table`` stays derived, except on an explicit refusal, where an
     empty one is dropped too.
@@ -1421,8 +1436,12 @@ def _wrap_refusal_enrich() -> None:
                           extract_class: str | None = None, subtype: str | None = None) -> dict:
         incoming = dict(extracted or {})
         out = current(extracted, doc_type=doc_type, extract_class=extract_class, subtype=subtype)
+        refused = (_reasoning_has_refusal(incoming.get("reasoning"))
+                   and _explicit_zero(incoming.get("confidence")))
+        if _gold_subclass_derivation() and not refused:
+            return out
         keys = _TYPE_FIELDS
-        if _reasoning_has_refusal(incoming.get("reasoning")) and _explicit_zero(incoming.get("confidence")):
+        if refused:
             keys = (*keys, "cms_source_table")
         for key in keys:
             if not incoming.get(key):
@@ -1999,7 +2018,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "sets reasoning to specialist_handoff_refusal and confidence to 0 is not called again; "
                 "a confidence of 0 without that reasoning means no fields were found and still retries, "
                 "then reaches the judge. A type field the specialist left empty is not filled from the "
-                "sorter subclass, including a null corporate record_type. A value the specialist set "
+                "sorter subclass, including a null corporate record_type. An isolated run with "
+                "specialist_subclass gold keeps that labeled derivation. A value the specialist set "
                 "keeps its canonical form",
         install=_install_specialist_handoff,
         refresh=_refresh_specialist_handoff,
