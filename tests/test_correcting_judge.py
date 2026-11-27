@@ -708,3 +708,80 @@ def test_a_judged_matter_conflict_is_recorded(monkeypatch, tmp_path):
     with call_guard.document() as scope:
         bg.judge_verify_node(_state(conflict_detected=True, conflict_details=["governing_law"]))
     assert scope["judge_conflict"] is True
+
+
+# --- Task 8: models, pins and the stage configs --------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+STAGES = {
+    "p4-s1-verify-gov-off": ("dev-look1", "verify", False), "p4-s1-verify-gov-on": ("dev-look1", "verify", True),
+    "p4-s1-correct-refs": ("dev-look1", "train_pool", True), "p4-s1-correct-norefs": ("dev-look1", "off", True),
+    "p4-s2-verify": ("dev", "verify", True), "p4-s2-correct-refs": ("dev", "train_pool", True),
+}
+PIPELINE_CAP_PER_DOC = 0.02
+RULING_COST = {"merger_agreement": 0.17}
+RULING_COST_DEFAULT = 0.03
+
+
+def _stage(name):
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    return load_run_spec(Path("config/runs") / f"{name}.yaml")
+
+
+def test_both_judge_models_are_priced_and_pinned():
+    from mailroom_sandbox import provider_pins
+    from mailroom_sandbox.job.metrics import token_price
+
+    pins = provider_pins.load_pins()
+    for model in (QWEN, FLASH):
+        assert token_price(model) is not None, model
+        assert pins[model]["order"] and pins[model]["allow_fallbacks"] is False, model
+    assert pins[QWEN]["order"] == ["alibaba"]
+
+
+@pytest.mark.parametrize("name", sorted(STAGES))
+def test_every_stage_config_preflights_offline(name, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-offline-check")
+    split, refs, gov = STAGES[name]
+    spec = _stage(name)
+    assert spec.run_id == name and spec.task == "pipeline" and spec.job.max_wall_seconds
+    assert spec.dataset.exclude_ids_file == f"config/splits/runbook-v2/{split}.exclude.ids"
+    assert (spec.job.governor is not None) is gov
+    for cls in ("contract", "corporate_record", "correspondence", "insurance_claim", "merger_agreement"):
+        limits = spec.confidence["by_class"][cls]
+        assert (limits["judge_max_passes"], limits["arbiter_retry_max"]) == (2, 1), cls
+    assert preflight._engine_errors(spec) == []  # routes, reviewer, judge models, pins, prices (no network)
+    assert not api_budget.unpriced(api_budget.spec_api_models(spec))
+    if refs == "verify":
+        assert spec.judge.mode == "verify"
+    else:
+        assert spec.judge.mode == "correct" and spec.judge.references == refs
+    if refs == "train_pool":
+        ids = [line.strip() for line in Path(f"config/splits/runbook-v2/{split}.ids").read_text().splitlines()
+               if line.strip() and not line.startswith("#")]
+        from mailroom_sandbox import judge_references as jr
+
+        components = jr.assigned_components()
+        assert cj.reference_set_errors(spec, ids) == []
+        assert jr.pool_leaks(jr.load_pool(spec.judge.reference_pool), {i: components.get(i, i) for i in ids}) == []
+
+
+@pytest.mark.parametrize("name", sorted(STAGES))
+def test_stage_caps_cover_two_rulings_per_document(name):
+    spec = _stage(name)
+    buckets = {b["doc_class"]: int(b["count"]) for b in spec.dataset.strata["buckets"]}
+    docs = sum(buckets.values())
+    assert spec.dataset.limit in (None, docs)
+    assert docs == (300 if STAGES[name][0] == "dev-look1" else 900)
+    judge = 0.0 if spec.judge.mode == "verify" else sum(
+        n * 2 * RULING_COST.get(cls, RULING_COST_DEFAULT) for cls, n in buckets.items())
+    assert spec.job.api_cost_cap_usd == pytest.approx(round(1.5 * (docs * PIPELINE_CAP_PER_DOC + judge), 2))
+
+
+def test_a_yaml_off_reads_as_references_off():
+    # YAML 1.1 reads a bare ``references: off`` as False; the section means "off".
+    assert JudgeSpec.model_validate({"mode": "correct", "references": False}).references == "off"
+    with pytest.raises(ValidationError):
+        JudgeSpec.model_validate({"mode": "correct", "references": True})

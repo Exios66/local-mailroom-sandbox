@@ -1,0 +1,77 @@
+# Evaluation runbook R01 (SAND-108): 10-document provider-pin smoke for qwen/qwen3.7-plus, the
+# Phase 4 correcting-judge model (docs/design/plans/2026-11-26-phase4-correcting-judge.md). Run it
+# before the Phase 4 stage 1 configs (config/runs/p4-s1-*.yaml), as for every pinned chat model.
+# Gate: every ledger row for qwen/qwen3.7-plus is `status: verified` (non-empty provider_pins.yaml
+# `order`, served provider inside it, served model equal to the id or its canonical_slug), and
+# the ledger holds at least 10 docs x 2 per-document agents = 20 rows (scripts/check_r01_smoke.py).
+# Same shape as rb1-r01-smoke-qwen3.7-flash.yaml: the whole pipeline on 2 dev-look1 documents per
+# class, judge and boss routed to this model, so every chat call is qwen/qwen3.7-plus on both
+# call paths (langchain and retry_chat_completion). No agent_knobs (context fit). The smoke checks
+# routing, not accuracy.
+#
+# Pin: config/provider_pins.yaml `order: [alibaba]`, allow_fallbacks false.
+#
+# Cost (config/api_prices.yaml list prices: $0.32 / $1.28 per M tokens below 256k prompt tokens,
+# so every read here is the base tier; same draw as the flash smoke, the two mergers ~82k and
+# ~102k tokens per whole-document read; output as in the flash smoke): about $0.22 on the clean
+# path (intake, sorter, specialist), about $0.33 with the review and judge reads, worst case
+# about $0.80 (3 extraction, judge and arbiter passes each). Caps: api_cost_cap_usd 0.40 covers
+# the judged path, not the worst case (checked before each document; concurrency 2 keeps the
+# overshoot to the documents in flight); raising it is the owner's call. max_wall_seconds 1800.
+# Launch only with the owner's initials at the spend gate, from the repository root:
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-plus.jsonl sandbox run preflight --config config/runs/rb1-r01-smoke-qwen3.7-plus.yaml
+#   SANDBOX_SERVED_LOG=data/runtime/rb1-r01/served-qwen3.7-plus.jsonl sandbox run start --config config/runs/rb1-r01-smoke-qwen3.7-plus.yaml --initials <XX>
+# Gate (offline, after the run):
+#   python scripts/check_r01_smoke.py --ledger data/runtime/rb1-r01/served-qwen3.7-plus.jsonl --config config/runs/rb1-r01-smoke-qwen3.7-plus.yaml
+schema: sandbox.run/v1
+run_id: rb1-r01-smoke-qwen3.7-plus
+task: pipeline
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  draw: ranked
+  require_task_gt: false
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev-look1.exclude.ids
+  strata:
+    buckets:
+      - {doc_class: contract, count: 2}
+      - {doc_class: corporate_record, count: 2}
+      - {doc_class: correspondence, count: 2}
+      - {doc_class: insurance_claim, count: 2}
+      - {doc_class: merger_agreement, count: 2}
+  limit: 10
+  sample_seed: 20261118
+  interim_labels: true
+  near_gold_labels: true
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-plus
+  modal: null
+
+agent_routes:
+  judge: {provider: openrouter, model: qwen/qwen3.7-plus}
+  boss: {provider: openrouter, model: qwen/qwen3.7-plus}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 2
+  cost_cap_usd: 0.40
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.40
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, runbook, R01, provider-pin-smoke]

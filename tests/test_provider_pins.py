@@ -155,6 +155,7 @@ def test_committed_pins_name_one_endpoint_each_without_fallbacks():
     assert {m: p["order"] for m, p in pins.items()} == {
         "qwen/qwen3.7-flash": ["alibaba"],
         "qwen/qwen3.5-9b": ["deepinfra/bf16"],
+        "qwen/qwen3.7-plus": ["alibaba"],  # the Phase 4 correcting judge
         "deepseek/deepseek-v4.1-flash-1017": ["together"],
         "z-ai/glm-5.3-flashx-legal": ["z-ai/fp8"],
     }

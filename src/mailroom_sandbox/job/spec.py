@@ -722,6 +722,11 @@ class JudgeSpec(BaseModel):
     max_attempt_chars: int = Field(default=4000, ge=0)
     max_example_chars: int = Field(default=3000, ge=0)
 
+    @field_validator("references", mode="before")
+    @classmethod
+    def _yaml_off(cls, value: Any) -> Any:
+        return "off" if value is False else value  # YAML 1.1 reads a bare ``off`` as false
+
     @model_validator(mode="after")
     def _consistent(self) -> "JudgeSpec":
         if self.references == "catalog":
