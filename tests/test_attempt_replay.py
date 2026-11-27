@@ -82,22 +82,41 @@ def activated(monkeypatch):
 
 
 def test_a_stored_pipeline_answer_keeps_the_attempt_history():
-    from graph.state import DocumentState
+    """The item a pipeline document becomes carries every key the vendored selection reads.
 
+    Goes through the real item builder (``eval.runners._pipeline_item``) and the real persistence
+    (``job.runner._persist_isolated_items``), so a key the builder drops fails here.
+    """
+    from mailroom_sandbox.eval import runners as eval_runners
     from mailroom_sandbox.job import runner
 
-    assert "extraction_attempt_history" in DocumentState.__annotations__  # graph.invoke returns the state
+    history = [_attempt(1, GOOD, "complete", 0.9), _attempt(2, WORSE, "partial", 0.9)]
+    state = {**_pred(history), "conflict_detected": False, "extraction_source": "pipeline",
+             "judge_source_verified": False, "selected_attempt": 2,
+             "selected_attempt_reason": "keep_best_attempt_off", "doc_text": DOC}
+    item = eval_runners._pipeline_item(_row("d1"), state, {}, None)
 
     class Store:
         items: list = []
 
-        def append_item(self, item):
-            self.items.append(json.loads(json.dumps(item)))
+        def append_item(self, entry):
+            self.items.append(json.loads(json.dumps(entry)))
 
-    history = [_attempt(1, GOOD, "complete", 0.9)]
     store = Store()
-    runner._persist_isolated_items(store, [{"id": "d1", "pred": _pred(history), "score": {}}], seen=set())
-    assert store.items[0]["pred"]["extraction_attempt_history"] == history
+    runner._persist_isolated_items(store, [{"id": "d1", "pred": item, "score": {}}], seen=set())
+    pred = store.items[0]["pred"]
+    assert pred["extraction_attempt_history"] == history
+    for key in ("conflict_detected", "extraction_source", "judge_source_verified", "judge_verdict",
+                "selected_attempt", "selected_attempt_reason"):
+        assert pred[key] == state[key], key
+    assert "doc_text" not in pred  # the document text stays out of items.jsonl
+
+
+def test_an_item_without_attempt_keys_keeps_its_old_shape():
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    item = eval_runners._pipeline_item(_row("d1"), {"stage": "review"}, {}, None)
+    assert not {"extraction_attempt_history", "conflict_detected", "selected_attempt"} & set(item)
 
 
 def test_selection_restores_the_better_judged_attempt(tmp_path, activated):
