@@ -790,13 +790,20 @@ def cmd_add(args: argparse.Namespace) -> int:
     for old, new in ((gdata, catalog), (sdata, supplementary)):
         merged.append({cls: [*old.get(cls, []), *new.get(cls, [])] for cls in sorted({*old, *new})})
     with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
-        drift = _rewrite_drift(gold_stage, gmanifest, gdata) + _rewrite_drift(supp_stage, smanifest, sdata)
+        drift = _rewrite_drift(gold_stage, gmanifest, {c: gdata[c] for c in catalog if c in gdata})
+        drift += _rewrite_drift(supp_stage, smanifest, {c: sdata[c] for c in supplementary if c in sdata})
         if drift:
             print("add refused: " + "\n  ".join(drift), file=sys.stderr)
             return 1
         left = []
-        for stage, old, data in ((gold_stage, gmanifest, merged[0]), (supp_stage, smanifest, merged[1])):
-            files = _write_class_files(stage, data)
+        for stage, source, old, data, new in ((gold_stage, gold, gmanifest, merged[0], catalog),
+                                              (supp_stage, supp, smanifest, merged[1], supplementary)):
+            files = {}
+            for name, sha in old["files"].items():
+                if Path(name).stem not in new:
+                    (stage / name).write_bytes((source / name).read_bytes())
+                    files[name] = sha
+            files.update(_write_class_files(stage, {cls: data[cls] for cls in new}))
             manifest = _added_manifest(old, data, files, args, binding, now, doc_ids,
                                        missing_fields=missing_fields)
             (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
