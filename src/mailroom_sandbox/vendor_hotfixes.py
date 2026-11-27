@@ -1232,6 +1232,154 @@ def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callab
     return _detect_conflict
 
 
+#: The sentence the vendored handoff uses to tell a specialist to follow the sorter.
+_HANDOFF_FOLLOW = ("Extract this document's fields accordingly, ensuring every expected item of "
+                   "this document class is captured.")
+#: Replaces that sentence. The sorter line stays, as unverified context the specialist may correct.
+_HANDOFF_CORRECTION = (
+    "The sorter classification above is unverified. If this document is not that doc_type, do not "
+    "extract it: set confidence to 0 and leave this class's fields null. If the subclass, type token, "
+    "or clause family disagrees with the document, extract the document's own values and do not copy "
+    "the sorter's label."
+)
+#: On ``extraction_guardrail`` when a specialist answers 0. Routing reads it and does not call again.
+HANDOFF_REFUSAL = "specialist_handoff_refusal"
+_HANDOFF_RULE = "hf021_specialist_handoff_refusal"
+_TYPE_FIELDS = ("record_type", "communication_type", "claim_type", "cms_source_table")
+
+
+def _explicit_zero(value: Any) -> bool:
+    """True for a numeric 0 the specialist stated. ``False`` and ``None`` are not a refusal."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
+
+
+def _mark_handoff_refusal(out: Any) -> Any:
+    """Name a confidence-0 extraction as a handoff refusal, without touching any other result."""
+    if not isinstance(out, dict) or out.get("transient_error") or not _explicit_zero(out.get("extraction_confidence")):
+        return out
+    issues = [str(item) for item in (out.get("extraction_guardrail") or [])]
+    if HANDOFF_REFUSAL not in issues:
+        issues.append(HANDOFF_REFUSAL)
+    note = "specialist refused the sorter handoff (confidence 0) and is not called again"
+    reason = str(out.get("escalation_reason") or "")
+    if note not in reason:
+        reason = f"{reason}; {note}" if reason else note
+    return {**out, "extraction_guardrail": issues, "escalation_reason": reason}
+
+
+def _register_handoff_refusal_rules() -> None:
+    """A confidence-0 specialist answer goes to a person, not back to the same specialist.
+
+    Registered first. It returns a destination only for that refusal, so every other proposed
+    route, including HF-011 and HF-014, is unchanged. Idempotent: a rule already first on its
+    node is left there.
+    """
+    from graph import route_spec
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "retry_extract" or state.get("transient_error"):
+            return None
+        issues = state.get("extraction_guardrail") or ()
+        return "human_review" if HANDOFF_REFUSAL in issues else None
+
+    for node in ("extract", "retry_extract"):
+        current = route_spec.route_rules(node)
+        mine = next((rule for rule in current if rule.name == _HANDOFF_RULE), None)
+        if mine is not None and current and current[0] is mine:
+            continue
+        if mine is not None:
+            route_spec.remove_route_rule(node, _HANDOFF_RULE)
+        route_spec.add_route_rule(node, route_spec.RouteRule(_HANDOFF_RULE, decide), position="first")
+
+
+def _wrap_handoff(module: Any) -> None:
+    """The sorter line stays. The instruction to follow it becomes an instruction to check it."""
+    current = module._build_handoff_context
+    if getattr(current, "_hf021_handoff", None):
+        return
+
+    @functools.wraps(current)
+    def _build_handoff_context(state: Any) -> Any:
+        context = current(state)
+        if isinstance(context, str) and _HANDOFF_FOLLOW in context:
+            return context.replace(_HANDOFF_FOLLOW, _HANDOFF_CORRECTION, 1)
+        if isinstance(context, str):
+            return f"{context} {_HANDOFF_CORRECTION}"
+        return context
+
+    _build_handoff_context._hf021_handoff = True  # type: ignore[attr-defined]
+    module._build_handoff_context = _build_handoff_context
+
+
+def _wrap_refusal_enrich() -> None:
+    """A refused extraction does not gain the sorter's type tokens.
+
+    HF-001 still fills a null corporate ``record_type`` when the specialist did not refuse.
+    On a numeric confidence of 0, a field the specialist left empty stays empty, and a value
+    the specialist did set is put back if enrichment replaced it.
+    """
+    from langchain_agents import doc_inventories
+
+    current = doc_inventories.enrich_extraction
+    if getattr(current, "_hf021_enrich", None):
+        return
+
+    @functools.wraps(current)
+    def enrich_extraction(extracted: dict | None = None, *, doc_type: str | None = None,
+                          extract_class: str | None = None, subtype: str | None = None) -> dict:
+        incoming = dict(extracted or {})
+        out = current(extracted, doc_type=doc_type, extract_class=extract_class, subtype=subtype)
+        if not _explicit_zero(incoming.get("confidence")):
+            return out
+        for key in _TYPE_FIELDS:
+            if incoming.get(key):
+                out[key] = incoming[key]
+            else:
+                out.pop(key, None)
+        return out
+
+    # HF-001's mark stays on the function tests and the lock identity read.
+    mark = getattr(current, "_sandbox_hotfix", None)
+    if mark is not None:
+        enrich_extraction._sandbox_hotfix = mark  # type: ignore[attr-defined]
+    enrich_extraction._hf021_enrich = True  # type: ignore[attr-defined]
+    doc_inventories.enrich_extraction = enrich_extraction
+
+
+def _wrap_retry_extract(module: Any) -> None:
+    current = module.retry_extract_node
+    if getattr(current, "_hf021_retry", None):
+        return
+
+    @functools.wraps(current)
+    def retry_extract_node(state: Any) -> Any:
+        return _mark_handoff_refusal(current(state))
+
+    retry_extract_node._hf021_retry = True  # type: ignore[attr-defined]
+    module.retry_extract_node = retry_extract_node
+
+
+def _install_specialist_handoff(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-021: a specialist checks the sorter handoff and is not called again after a refusal."""
+    _wrap_handoff(module)
+    _wrap_retry_extract(module)
+    _wrap_refusal_enrich()
+    _register_handoff_refusal_rules()
+
+    @functools.wraps(original)
+    def extract_node(state: Any) -> Any:
+        return _mark_handoff_refusal(original(state))
+
+    return extract_node
+
+
+def _refresh_specialist_handoff(module: Any) -> None:
+    _wrap_handoff(module)
+    _wrap_retry_extract(module)
+    _wrap_refusal_enrich()
+    _register_handoff_refusal_rules()
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(
         id="HF-001",
@@ -1450,6 +1598,24 @@ HOTFIXES: tuple[Hotfix, ...] = (
                 "recorded as duplicate_of and does not go to the Boss",
         install=_install_duplicate_link,
         also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
+    ),
+    Hotfix(
+        id="HF-021",
+        module="graph.build_graph",
+        attr="extract_node",
+        source_sha256="612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5",
+        upstream="upstream issue to be filed (a specialist follows a wrong sorter handoff and is called again)",
+        summary="the sorter classification in the specialist handoff is unverified: a document that is "
+                "not that class is not extracted (confidence 0, fields left null) and is not sent back "
+                "to the same specialist; a wrong subclass, type token or clause family is corrected from "
+                "the document instead of copied. A numeric confidence of 0 is marked "
+                "specialist_handoff_refusal and routed to human review rather than retry_extract, and "
+                "enrichment does not fill its empty type fields from the sorter subclass. HF-020 is "
+                "left for the subclass-schema plan",
+        install=_install_specialist_handoff,
+        refresh=_refresh_specialist_handoff,
+        also=(("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52"),
+              ("_build_handoff_context", "92d686345bb9ed5344fa77518f873e646e286a5e043ce119b5b8e6a222485fde")),
     ),
 )
 

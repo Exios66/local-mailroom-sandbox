@@ -1455,8 +1455,66 @@ def test_hf019_is_registered_with_a_pinned_source():
     import graph.build_graph as bg
 
     fix = next(f for f in vh.HOTFIXES if f.id == "HF-019")
-    assert [f.id for f in vh.HOTFIXES][-2:] == ["HF-018", "HF-019"]
+    assert [f.id for f in vh.HOTFIXES][-3:-1] == ["HF-018", "HF-019"]
     assert (fix.module, fix.attr) == ("graph.build_graph", "_detect_conflict")
     assert fix.source_sha256 == vh._source_sha(bg._detect_conflict)
     assert dict(fix.also)["_fetch_matter_context"] == vh._source_sha(bg._fetch_matter_context)
     assert vh.apply_hotfixes()["HF-019"] == "applied"
+
+
+def test_hf021_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it():
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-021")
+    assert fix.source_sha256 == vh._source_sha(bg.extract_node)
+    assert dict(fix.also)["retry_extract_node"] == vh._source_sha(bg.retry_extract_node)
+    assert dict(fix.also)["_build_handoff_context"] == vh._source_sha(bg._build_handoff_context)
+    assert vh.apply_hotfixes()["HF-021"] == "applied"
+    context = bg._build_handoff_context({"doc_type": "corporate_record", "doc_subclass": "officer_certificate"})
+    assert vh._HANDOFF_CORRECTION in context
+    assert vh._HANDOFF_FOLLOW not in context
+    assert "doc_subclass=officer_certificate" in context
+
+
+def test_a_confidence_zero_extraction_is_a_refusal_and_is_not_sent_back_to_the_specialist():
+    from graph import route_spec
+
+    vh.apply_hotfixes()
+    marked = vh._mark_handoff_refusal({"extraction_confidence": 0.0, "extraction_guardrail": ["schema"],
+                                       "escalation_reason": "already noted"})
+    assert vh.HANDOFF_REFUSAL in marked["extraction_guardrail"]
+    assert "schema" in marked["extraction_guardrail"]
+    assert "not called again" in marked["escalation_reason"]
+    assert vh._mark_handoff_refusal({"extraction_confidence": 0.8})["extraction_confidence"] == 0.8
+    assert "extraction_guardrail" not in vh._mark_handoff_refusal({"extraction_confidence": 0.8})
+    assert vh._mark_handoff_refusal({"extraction_confidence": 0.0, "transient_error": True}) == {
+        "extraction_confidence": 0.0, "transient_error": True}
+    assert vh._mark_handoff_refusal({"extraction_confidence": None}) == {"extraction_confidence": None}
+
+    rule = next(r for r in route_spec.route_rules("extract") if r.name == vh._HANDOFF_RULE)
+    assert route_spec.route_rules("extract")[0] is rule
+    assert rule.decide({**marked}, "retry_extract") == "human_review"
+    assert rule.decide({**marked}, "human_review") is None
+    assert rule.decide({**marked, "transient_error": True}, "retry_extract") is None
+    assert rule.decide({"extraction_confidence": 0.4}, "retry_extract") is None
+    retry_rule = next(r for r in route_spec.route_rules("retry_extract") if r.name == vh._HANDOFF_RULE)
+    assert retry_rule.decide({**marked}, "retry_extract") == "human_review"
+
+
+def test_a_refused_extraction_does_not_adopt_the_sorter_subclass():
+    vh.apply_hotfixes()
+    from langchain_agents.doc_inventories import enrich_extraction
+
+    refused = enrich_extraction({"record_type": None, "confidence": 0.0}, doc_type="corporate_record",
+                                subtype="officer_certificate")
+    assert "record_type" not in refused
+    kept = enrich_extraction({"record_type": "other", "confidence": 0.0}, doc_type="corporate_record",
+                             subtype="articles_of_incorporation")
+    assert kept["record_type"] == "other"
+    filled = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                               subtype="officer_certificate")
+    assert filled["record_type"] == "other"
+    corrected = enrich_extraction({"communication_type": "email", "confidence": 0.8},
+                                  doc_type="correspondence", subtype="letter")
+    assert corrected["communication_type"] == "email"
