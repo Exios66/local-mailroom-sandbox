@@ -795,8 +795,14 @@ job:
   finds for its questions. The owning group's valid answer wins, then the main read's; entity fields always stay
   the main read's. A question whose section is not found keeps the main answer (`_maud_section_missed`); a
   failed group read keeps the main answers (`_maud_group_failed`). Nothing is read from the whole document again.
-- `gap_retry`: one targeted retry, from sections only, for missing or invalid MAUD items and empty required
-  entity fields (or the dropped consideration field after a subclass disagreement).
+  The locator takes a numbered heading's first occurrence, skips table-of-contents lines, and tries each key's
+  titles in their listed order; `tests/test_merger_tables.py` locks the rules file's digest, and the run's spec
+  hash carries it (`merger_section_rules_sha256`). `python scripts/check_merger_sections.py` reports, offline,
+  how many drawn mergers each key is found in and under which headings.
+- `gap_retry`: one targeted retry per document, from sections only, for missing or invalid MAUD items and empty
+  required entity fields: the subclass's own amount field or fields (none for an unknown or `other` subclass), or
+  the dropped consideration field after a subclass disagreement. A re-extraction repeats the group reads but
+  never a second retry (`retry_skipped: once_per_document`).
 - With `question_groups`, a correct-mode judge retry that names `maud_clauses` re-asks only the questions its
   fixes or reason name, from their sections; naming none re-asks every question from sections.
 - `confidence.by_class.merger_agreement.judge_max_passes: 0` skips the merger judge: HF-030's route rule sends
@@ -814,16 +820,19 @@ An API-routed read of a document over 150,000 characters is cut: the sorter send
 8,000 characters in one window (HF-032) instead of being refused by HF-010, and intake reads its first 40,000
 (HF-033). A head-read intake never replaces the document's text (`clean_refused: head_read`), so extraction
 still reads the whole document. Each cut is recorded as `head_read` (agent, characters sent, document
-characters) on the item.
+characters) on the item, including on sorter-only (`task: isolated`) items.
 
 ### The offline merger entity check
 
 `python scripts/merger_entity_check.py --run <run> --labels <jsonl> [--baseline <run>]` scores a finished run's
 16 merger entity fields and the consideration with the suite scorer against interim, near-gold or gold labels,
 next to MAUD accuracy; it is never the headline score. An unlabelled field reads `unlabelled`, never 0; a
-document whose text changed since labelling is not scored. Near-gold numbers stay unverified until a human
+document whose text changed since labelling is not scored. A null label is not scored either, but a value read
+where it says the field is absent is counted (`filled_on_null`, per field and in total). Near-gold numbers stay unverified until a human
 spot check is recorded (`python scripts/merger_spot_check.py --labels <jsonl> --seed <n>`, then
-`--record <sheet>`); under 0.90 agreement the digest says not to cite them. The check never writes the run.
+`--record <sheet>`); under 0.90 agreement the digest says not to cite them. Each label file keeps its own
+spot check, so an unchecked file never borrows a checked one's of the same name. The check never writes the run
+or the baseline.
 
 The confirming arms are `config/runs/p5-s2-merger-reads.yaml` (the stage-1 baseline plus the switches) and the
 paired sorter check `config/runs/p5-s2-head-sorter-{off,on}.yaml` on the 79 dev documents over 150,000
