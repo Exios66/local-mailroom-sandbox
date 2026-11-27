@@ -10,6 +10,7 @@ It requires no model server, API key or tracing service.
 sandbox floor                                      # history, or bundled replay if no runs exist
 sandbox floor my-run --base /path/to/mailroom-data  # preselect a run in that store
 sandbox floor --run my-run --interval 2 --port 8769
+sandbox floor --register-run /path/to/previous/run  # reference existing logs, any provider
 sandbox floor --replay --base /tmp/mailroom-floor-demo
 sandbox floor --replay-run data/runtime/runs/my-run   # recorded run from any provider
 sandbox floor --replay-run my-run --base data --replay-speed 20
@@ -25,13 +26,39 @@ keep access local when the run data contains sensitive metadata.
 | --- | --- |
 | `TARGET` or `--run ID` | Preselect a run by ID; all discovered runs remain available. Supplying both with different IDs is a usage error. |
 | `--base DIR` | Data-store root, with `run-history/` and `runtime/runs/` beneath it. Defaults to `MAILROOM_BASE_DIR`, otherwise `<repo>/data`; `~` is expanded. |
+| `--register-run DIR` | Persistently register an existing run folder without copying or modifying its logs; repeat for multiple folders. The first registration is selected unless TARGET/--run is given. |
 | `--port PORT` | Default 8769; 0 requests an available port, reported in the printed URL. |
 | `--interval SECONDS` | Digest rebuild check interval, default 5 seconds. Must be finite and positive; values below 0.1 are clamped to 0.1 seconds. |
 | `--replay` | Create/reset the owned sample run inside the chosen base and play its simulated trace alongside history. |
 | `--replay-run PATH_OR_RUN` | Materialize a recorded run from any provider as an app-owned replay and play its node/item timeline. A bare run id is resolved under the base's live or history store. |
 | `--replay-speed N` | Timeline multiplier. Default 1x for `--replay`, 10x for `--replay-run`; use a higher value for long recorded runs. |
 
-A run is discoverable when its directory contains `items.jsonl` under either
+The **Load previous run** form accepts a local server filesystem path, including
+folders outside `--base`. Registration stores absolute references in
+`<base>/floor-runs.json`, serialized using `<base>/.floor-runs.lock`; the folder
+must stay accessible. It needs no provider
+account, API key or serving process. OpenRouter, Modal/vLLM, LM Studio and other
+providers use the same run artifact schema. The run list shows the configured `profile` and `engine.model` from
+`spec.lock.json`; a missing profile falls back to `engine.kind`. If neither
+provider value is present it shows `provider not recorded`; a missing model
+shows `model not recorded`. The node card shows models
+observed in node logs separately from its labelled configured fallback. Neither
+uses the current provider default.
+
+Registered folders need `items.jsonl` objects with `item_id` or `id`, or
+`nodes.jsonl` objects with both `doc` and `node`.
+Nodes-only logs include selectable document paths. Without an item record, a
+document remains `open` (final outcome unknown), with no inferred prediction,
+stage or score, even when a node recorded a terminal stage. Item-outcome totals
+count only stored items.
+Missing registered folders are omitted until they return. Aggregate summary logs
+(including `reports/experiment_log.jsonl`) do not contain the per-document floor
+trace: select the original run folder, or IMPORT an exported floor digest.
+Registration references survive server restarts. The JSON POST endpoint uses
+the same loopback Host check as document access and rejects foreign origins.
+Source logs remain read-only; only the selected base's registry and coordination lock are written.
+
+An unregistered run is discoverable when its directory contains `items.jsonl` under either
 store location. The refresher checks modification times and sizes of
 `items.jsonl`, `nodes.jsonl`, `checkpoint.json`, `spec.lock.json`,
 `prompt.lock.json` and `dataset.jsonl`, plus the run directories. It skips a
@@ -63,16 +90,19 @@ logs and the [job guide](jobs.md) for starting or resuming real runs.
 ## Live refresh and navigation
 
 The viewer selects the latest running run when available, otherwise the last
-run in the digest. Deep links accept `?run=<id>&class=<live-class>`; a class
+run in the digest. Each source directory has a stable opaque run ID, independent of its display
+name and collision suffix. Selection, document access and new deep links use
+that ID; legacy name links and older digest exports still load. Deep links
+accept `?run=<id>&class=<live-class>`; a class
 must exist in that run. Changing runs or refreshing a digest clears an
 unavailable class and updates the title and mode together. Valid run, class
 and highlighted-node selections survive refreshes.
 
-Over HTTP(S), a selected running run polls the digest every 3 seconds, with
-one follow-up poll after it becomes idle. Node elapsed clocks tick each
+Over HTTP(S), the viewer polls the digest every 3 seconds. Node elapsed clocks tick each
 second while documents remain in flight. The server's `--interval` controls
 digest rebuild checks, independently of this browser polling interval.
-Completed-only views stop polling; reload to discover later runs. A `file://`
+Completed views also poll, so later runs appear without reloading. Imported
+snapshots pause polling until LIVE is selected. A `file://`
 view is a static snapshot without live pills, clocks or polling.
 
 Three consecutive fetch failures mark the view stale while retaining its
@@ -118,6 +148,7 @@ stays labelled replay.
 | Routed to human review | Documents routed for review, split by classification, extraction, judgment or reporting trigger; resolved reviews can still contribute. |
 | Dashed audit arrows | Stage-audit side effects parsed from `_emit_stage_audit` call sites in the vendored graph, rather than workflow edges. The review arrow carries the routed count. |
 | Prompt card | Per-run stems from `prompt.lock.json` for the highlighted node's agents, with code-default fallback when unavailable. Deterministic nodes do not imply an LLM call. |
+| Model card | The models recorded at the selected node; when those are absent, the run's engine model and provider are explicitly labelled configured engine. A hybrid agent is never presented as having used the base model without that qualification. |
 
 A run whose checkpoint still says `running` but whose `items.jsonl`,
 `nodes.jsonl` and `checkpoint.json` have not changed for 15 minutes is shown

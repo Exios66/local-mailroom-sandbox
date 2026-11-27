@@ -1522,6 +1522,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `target` | No | run ID to preselect in the viewer (same as --run) |
 | `--run` | No | run ID to preselect (opens floor.template.html?run=ID) |
 | `--base` | No | run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data) |
+| `--register-run` | No | register a previous run directory in this base without modifying its logs (repeatable) |
 | `--replay` | No | replay the bundled pinned sample into the base (runs selectable in the RUNS rail); only the replay run dir resets each time |
 | `--replay-run` | No | replay a recorded run directory (or a run id in the base) from any provider; copies it under an app-owned replay id and plays its items/nodes timeline |
 | `--replay-speed` | No | timeline speed for --replay/--replay-run (default: 1x bundled, 10x recorded) |
@@ -2432,7 +2433,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--split` | No |  |
 | `--revision` | No |  |
 | `--local-dataset` | No | local JSONL instead of Hub (also useful for offline mock checks) |
-| `--provider` | No | Choices: modal-vllm, openrouter. |
+| `--provider` | No | experimental provider (default: selected profile, otherwise openrouter; unsupported profiles require an explicit provider) Choices: modal-vllm, openrouter. |
 | `--gpu` | No | Modal GPU class, optionally :N for tensor parallel |
 | `--no-named-image` | No | build the serving image instead of reusing the published sandbox-vllm:<tag> |
 | `--replicas` | No | override cell replica count |

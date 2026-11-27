@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./profile.schema.json
 name: modal-vllm
 description: >-
-  Modal-deployed vLLM — the sandbox default serving path (no local GPU, no
+  Modal-deployed vLLM — explicitly selected GPU serving (no local GPU, no
   Ollama daemon). Needs VLLM_BASE_URL/VLLM_API_KEY from a deployed
   deploy/modal_vllm.py app; `sandbox runbook show serve` is the full runbook.
 provider: vllm
