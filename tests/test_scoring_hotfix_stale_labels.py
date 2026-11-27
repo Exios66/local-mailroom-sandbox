@@ -2,8 +2,9 @@
 
 Each test scores a prepared row through the run's own scorer (``runners._score_pipeline_extraction``,
 which every pipeline, rescore, pair report and gate path shares) and asserts both sides: the raw
-Dojo-pin pass still scores the stale label, the hotfixed headline does not, and a label an overlay
-supplied is never dropped. Network-free; no LLM calls.
+Dojo-pin pass still scores the stale label, the hotfixed headline does not, and an overlay keeps a
+heuristic intent. A value the policy still calls metadata or a record-title template is dropped
+even when the overlay lists the field. Network-free; no LLM calls.
 """
 from __future__ import annotations
 
@@ -58,6 +59,66 @@ def test_shf015_never_drops_an_overlay_supplied_label(marker):
         row, {"extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu", "intent": "payment_demand"}})
     assert "stale_hub_labels" not in wrong
     assert wrong["overall_extraction_score"] == wrong["raw_dojo"]["overall_extraction_score"] < 1.0
+
+
+def test_shf015_an_overlay_does_not_keep_keywords_the_policy_still_calls_metadata():
+    """The staged overlay lists keywords after stripping a mailbox path, and the value is still a topic tag.
+
+    Production slice 0100, 28 of 30 correspondence rows. Content keywords must not be scored against that tag.
+    """
+    fields = {"sender": "Ann Lee", "recipient": "Bo Chu", "keywords": ["energy_market", "email"],
+              "intent": "analysis", "intent_source": "llm_zero_shot"}
+    row = _row(fields, staged_overlay={"version": "9.3.1-rc.9", "fields": ["keywords", "sender", "recipient"],
+                                       "overrides": {"keywords": {"hub_presence": "populated"}}})
+    scored = runners._score_pipeline_extraction(
+        row, {"extracted_data": {"sender": "Ann Lee", "recipient": "Bo Chu",
+                                 "keywords": ["v/x", "forward spreads"], "intent": "analysis"}})
+    assert scored["stale_hub_labels"]["keywords"] == "keywords_metadata"
+    assert scored["overall_extraction_score"] == 1.0
+    assert scored["raw_dojo"]["overall_extraction_score"] < 1.0
+
+
+def test_shf015_an_overlay_keeps_content_keywords():
+    fields = {"sender": "Ann Lee", "keywords": ["Mary", "Canada reports", "Enron"],
+              "intent": "analysis", "intent_source": "llm_zero_shot"}
+    row = _row(fields, staged_overlay={"version": "9.3.1-rc.9", "fields": ["keywords"]})
+    scored = runners._score_pipeline_extraction(
+        row, {"extracted_data": {"sender": "Ann Lee", "keywords": ["gas desk"], "intent": "analysis"}})
+    assert "keywords" not in scored.get("stale_hub_labels", {})
+    assert scored["overall_extraction_score"] < 1.0
+
+
+def test_shf015_a_corporate_record_title_is_not_truth():
+    """All 14 corporate rows on production slice 0100 are ``<label> of <entity>`` plus those two keywords."""
+    fields = {"entity_name": "ARTES MEDICAL INC", "record_type": "articles_of_incorporation",
+              "subject_matter": "Charter amendment of ARTES MEDICAL INC.",
+              "keywords": ["Charter amendment", "ARTES MEDICAL INC"], "intent": "entity_formation",
+              "intent_source": "heuristic"}
+    row = {**_row(fields), "expected_doc_class": "corporate_record",
+           "doc_text": "Certificate of Amendment of Artes Medical, Inc."}
+    scored = runners._score_pipeline_extraction(
+        row, {"doc_type": "corporate_record", "extracted_data": {
+            "entity_name": "ARTES MEDICAL INC", "record_type": "articles_of_incorporation",
+            "subject_matter": "Amends the certificate of incorporation to authorize two classes of stock.",
+            "keywords": ["preferred stock", "reverse split"], "intent": "entity_formation"}})
+    assert scored["stale_hub_labels"]["subject_matter"] == "subject_matter_record_title"
+    assert scored["stale_hub_labels"]["keywords"] == "keywords_record_title"
+    assert scored["overall_extraction_score"] == 1.0
+
+
+def test_shf015_a_corporate_summary_is_not_a_record_title():
+    fields = {"entity_name": "ARTES MEDICAL INC",
+              "subject_matter": "Amends the certificate to authorize two classes of stock.",
+              "keywords": ["preferred stock", "reverse split"]}
+    row = {**_row(fields), "expected_doc_class": "corporate_record"}
+    scored = runners._score_pipeline_extraction(
+        row, {"doc_type": "corporate_record", "extracted_data": {
+            "entity_name": "ARTES MEDICAL INC",
+            "subject_matter": "A joinder agreement for a different company.",
+            "keywords": ["Valley Rents"]}})
+    assert "subject_matter" not in scored.get("stale_hub_labels", {})
+    assert "keywords" not in scored.get("stale_hub_labels", {})
+    assert scored["overall_extraction_score"] < 1.0
 
 
 def test_shf015_a_stale_staged_overlay_marker_supplies_nothing():

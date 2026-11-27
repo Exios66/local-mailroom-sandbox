@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **SHF-015 no longer keeps a stale keyword list just because an overlay names the field.** An overlay listing keeps a heuristic `intent` (a reviewed intent leaves `intent_source` as `heuristic`) and drops every other value the label policy still calls stale. On production slice 0100 that is 28 of 30 correspondence `keywords` fields: the staged overlay stripped the mailbox path and left a topic tag plus a type token, and the headline was scoring body keywords against that tag (correspondence mean 0.484 to 0.544 on a rescore of the stored answers). A corporate subject that is exactly the two keywords joined by "of" (optional trailing period, either order) is dropped too (all 14 corporate rows on that slice; mean 0.712 to 0.897). Merger is unchanged at 0.246 because the headline is MAUD accuracy; the suite field score on the same answers is 0.835. Content keywords an overlay actually replaced are still scored. Guard: `tests/test_scoring_hotfix_stale_labels.py`.
 - **Phase 3 subclass extraction schemas (`job.subclass_schemas`, always on for pipeline runs).** Every
   pipeline extraction (all five classes) is sent its predicted subclass's schema from the committed
   `config/extraction/subclass_extraction_fields.json`, which `scripts/build_subclass_fields.py` derives from the
