@@ -281,9 +281,11 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
         summary="the headline drops the Hub labels the Dojo's label policy calls stale (a heuristic intent; "
                 "templated correspondence and corporate subject_matter / metadata keywords) from both sides, "
-                "so a correct answer is not scored against a template; a value an interim, near-gold or "
-                "staged overlay supplied is never dropped, and the dropped fields are named "
-                "(stale_hub_labels); the gate does not count a dropped label toward min_labelled",
+                "so a correct answer is not scored against a template; an overlay keeps a heuristic intent "
+                "(a reviewed intent leaves intent_source heuristic) and does not keep a value the policy "
+                "still calls a template or metadata keywords; a corporate title that is exactly one keyword "
+                "of the other is dropped too; the dropped fields are named (stale_hub_labels); the gate "
+                "does not count a dropped label toward min_labelled",
     ),
     ScoringHotfix(
         id="SHF-016",
@@ -787,15 +789,60 @@ def overlay_fields(row: Mapping[str, Any] | None) -> frozenset[str]:
     return frozenset(out)
 
 
+#: Stale reasons an overlay listing may keep. A reviewed intent still carries
+#: ``intent_source: heuristic``, so that reason alone is not proof the value is the Hub template.
+_OVERLAY_KEEP_REASONS = frozenset({"intent_heuristic"})
+
+
+def _keyword_strings(value: Any) -> list[str]:
+    """Keyword texts from a list or a JSON list string. Other strings stay one keyword."""
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("["):
+            try:
+                value = json.loads(text)
+            except json.JSONDecodeError:
+                return [text] if text else []
+        else:
+            return [text] if text else []
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _record_title_templates(doc_type: str, fields: Mapping[str, Any]) -> dict[str, str]:
+    """Corporate titles that are exactly ``<keyword> of <keyword>`` and nothing else.
+
+    The Dojo's corporate template mark is the SEC EDGAR exhibit note, so a Hub title such as
+    ``Charter amendment of ARTES MEDICAL INC.`` with those two strings as its keywords stays
+    scored. The production slice's corporate rows are all this shape. A real summary does not
+    equal the two keywords joined by ``of``.
+    """
+    if str(doc_type or "").strip() != "corporate_record":
+        return {}
+    keywords = _keyword_strings(fields.get("keywords"))
+    subject = str(fields.get("subject_matter") or "").strip()
+    if len(keywords) != 2 or not subject:
+        return {}
+    left, right = keywords
+    titles = {f"{left} of {right}", f"{left} of {right}.", f"{right} of {left}", f"{right} of {left}."}
+    if subject not in titles:
+        return {}
+    return {"subject_matter": "subject_matter_record_title", "keywords": "keywords_record_title"}
+
+
 def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
                          keep: Iterable[str]) -> tuple[dict[str, Any], dict[str, str]]:
     """SHF-015: ``(expected, dropped)`` with the Hub labels the Dojo's label policy calls stale removed.
 
     The policy is the vendored ``llm_dojo_scoring.schemas.label_policy.stale_hub_labels``: a
     heuristic ``intent`` (``intent_source == "heuristic"``), and the templated ``subject_matter`` /
-    metadata ``keywords`` of corporate records and correspondence. A field in ``keep`` (one an
-    overlay supplied: an interim correction leaves ``intent_source`` as it was) is never dropped.
-    A dropped field's ``gt_presence`` code becomes ``pending_annotation`` (unlabelled), as
+    metadata ``keywords`` of corporate records and correspondence. An overlay listing keeps a
+    field only when its stale reason is ``intent_heuristic`` (a reviewed intent leaves that
+    source flag). A template or metadata-keyword value the policy still names is dropped even
+    if the overlay lists the field: the staged overlay often only strips a mailbox path and
+    leaves the topic tag. A corporate record-title pair is dropped the same way. A dropped
+    field's ``gt_presence`` code becomes ``pending_annotation`` (unlabelled), as
     ``drop_stale_hub_labels`` does, so SHF-001 never restores it as an expected-empty field.
     """
     from llm_dojo_scoring.schemas.label_policy import stale_hub_labels
@@ -805,7 +852,10 @@ def drop_stale_hub_truth(doc_type: str, expected: Mapping[str, Any] | None,
     found = stale_hub_labels(doc_type, out)
     if not isinstance(found, Mapping):  # no stale labels (None or any other shape), never an error
         found = {}
-    dropped = {f: why for f, why in found.items() if f not in kept}
+    found = dict(found)
+    found.update(_record_title_templates(doc_type, out))
+    dropped = {f: why for f, why in found.items()
+               if f not in kept or why not in _OVERLAY_KEEP_REASONS}
     if not dropped:
         return out, {}
     for name in dropped:
