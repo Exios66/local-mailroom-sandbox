@@ -499,6 +499,74 @@ def test_preimported_pdf_transcriber_uses_pinned_guarded_transport(vendored, mon
     assert len(pp.ledger()) == 1
 
 
+# L1 (phase 2): one retry layer. Each HTTP attempt the vendored loop sends is guarded, counted and capped at
+# the run deadline, and the OpenAI SDK's own retries are off underneath it.
+
+
+class _ServerError(Exception):
+    status_code = 503
+
+
+class _SdkClient:
+    """An OpenAI-shaped client: ``with_options`` and ``chat.completions.create`` with scripted outcomes."""
+
+    def __init__(self, base_url, outcomes, options=True):
+        self.base_url, self.outcomes, self.sent, self.options = base_url, list(outcomes), [], []
+        self.max_retries = 2  # the OpenAI SDK default
+        outer = self
+
+        class _Completions:
+            def create(self, **kw):
+                outer.sent.append(kw)
+                outcome = outer.outcomes.pop(0)
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return outcome
+
+        self.chat = types.SimpleNamespace(completions=_Completions())
+        if options:
+            self.with_options = self._with_options
+
+    def _with_options(self, **opts):
+        self.options.append(opts)
+        return self
+
+
+def _loop(attempts=3):
+    """Stand-in for the vendored retry loop: up to ``attempts`` sends, each with the call timeout."""
+
+    def original(client, timeout=600.0, **kwargs):
+        for attempt in range(1, attempts + 1):
+            try:
+                response = client.chat.completions.create(**kwargs, timeout=timeout)
+                if getattr(response, "choices", None) == []:  # as the vendored validate_completion does
+                    raise RuntimeError("LLM response had no usable completion")
+                return response
+            except Exception:
+                if attempt == attempts:
+                    raise
+
+    return original
+
+
+@pytest.fixture
+def run_deadline():
+    from pipeline import limits
+
+    yield limits.set_run_deadline
+    limits.set_run_deadline(None)
+
+
+def _install(monkeypatch, original):
+    monkeypatch.setattr(sys.modules["llm.retry"], "retry_chat_completion", original)
+    monkeypatch.setattr(sys.modules["agents.base"], "retry_chat_completion", original)
+    pp.apply_provider_pins(PINS)
+    return sys.modules["agents.base"].retry_chat_completion
+
+
+_REQUEST = {"model": "qwen/qwen3.7-flash", "messages": [{"role": "user", "content": "x" * 4000}], "max_tokens": 100}
+
+
 # S2 (phase 1): the guarded transports reserve each request's cost and always settle it.
 
 
@@ -515,23 +583,13 @@ def armed_budget():
 def test_pinned_chat_completion_releases_on_success_and_charges_on_timeout(vendored, monkeypatch, armed_budget):
     import httpx
 
-    outcomes = ["ok", "timeout"]
-
-    def original(client, **kwargs):
-        if outcomes.pop(0) == "timeout":
-            raise httpx.ReadTimeout("no response")
-        return _Resp(kwargs["model"], "Alibaba")
-
-    monkeypatch.setattr(sys.modules["llm.retry"], "retry_chat_completion", original)
-    monkeypatch.setattr(sys.modules["agents.base"], "retry_chat_completion", original)
-    pp.apply_provider_pins(PINS)
-    base = sys.modules["agents.base"]
-    client = _Client("https://openrouter.ai/api/v1")
-    request = {"model": "qwen/qwen3.7-flash", "messages": [{"role": "user", "content": "x" * 4000}], "max_tokens": 100}
-    base.retry_chat_completion(client, **request)
+    call = _install(monkeypatch, _loop(attempts=1))
+    client = _SdkClient("https://openrouter.ai/api/v1",
+                        [_Resp("qwen/qwen3.7-flash", "Alibaba"), httpx.ReadTimeout("no response")])
+    call(client, **_REQUEST)
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
     with pytest.raises(httpx.ReadTimeout):
-        base.retry_chat_completion(client, **request)
+        call(client, **_REQUEST)
     assert armed_budget.reserved_usd == 0.0
     assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))
 
@@ -560,6 +618,38 @@ def test_langchain_reservation_is_settled_on_success_and_on_failure(lc_pins, arm
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0
 
 
+def test_a_failed_langchain_attempt_counts_toward_the_document(lc_pins):
+    import httpx
+    from langchain_openai import ChatOpenAI
+
+    from mailroom_sandbox.job import call_guard
+
+    def handler(request):
+        raise httpx.ReadTimeout("no response")
+
+    cls = pp.pinned_chat_openai(ChatOpenAI)
+    for base_url in ("https://openrouter.ai/api/v1", "http://vllm.invalid/v1"):  # L1 counts every attempt
+        llm = cls(model="qwen/qwen3.7-flash", api_key="test-key", base_url=base_url, max_retries=0,
+                  http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+        with call_guard.document() as scope:
+            for _ in range(3):
+                with pytest.raises(Exception):
+                    llm.invoke("x")
+        assert scope["llm_calls"] == 3, base_url
+
+
+def test_a_refused_langchain_request_is_not_counted(lc_pins, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba")], [],
+                       max_tokens=50)
+    armed_budget.reserve(0.999999)
+    with call_guard.document() as scope:
+        with pytest.raises(Exception, match="call refused"):
+            llm.invoke("x" * 400)
+    assert scope["llm_calls"] == 0
+
+
 def test_a_langchain_request_too_dear_for_the_cap_never_goes_out(lc_pins, armed_budget):
     sent = []
     llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba")], sent,
@@ -568,3 +658,86 @@ def test_a_langchain_request_too_dear_for_the_cap_never_goes_out(lc_pins, armed_
     with pytest.raises(Exception, match="call refused"):
         llm.invoke("x" * 400)
     assert sent == []
+
+
+def test_each_http_attempt_reserves_and_settles_once(vendored, monkeypatch, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    reservations = []
+    real_guard = pp._guard_call
+    monkeypatch.setattr(pp, "_guard_call", lambda *a: reservations.append(a) or real_guard(*a))
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("https://openrouter.ai/api/v1",
+                        [_ServerError("bad gateway"), _ServerError("bad gateway"), _Resp("qwen/qwen3.7-flash", "Alibaba")])
+    with call_guard.document() as scope:
+        call(client, **_REQUEST)
+    assert len(reservations) == 3 and len(client.sent) == 3
+    assert armed_budget.reserved_usd == 0.0  # every reservation ended
+    assert armed_budget.unreported_usd == pytest.approx(2 * armed_budget.estimate_call_usd(1000, 100))
+    assert (scope["calls"], scope["llm_calls"]) == (2, 2)  # the returned call is priced by after_call (HF-004)
+
+
+class _EmptyResp:
+    """A 200 whose ``choices`` is empty: the vendored ``validate_completion`` rejects it."""
+    model, choices, model_extra = "qwen/qwen3.7-flash", [], {}
+
+
+def test_a_reply_with_no_usable_choice_counts_as_a_failed_attempt(vendored, monkeypatch, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("https://openrouter.ai/api/v1", [_EmptyResp(), _Resp("qwen/qwen3.7-flash", "Alibaba")])
+    with call_guard.document() as scope:
+        call(client, **_REQUEST)
+    assert len(client.sent) == 2 and armed_budget.reserved_usd == 0.0
+    assert armed_budget.unreported_usd == pytest.approx(armed_budget.estimate_call_usd(1000, 100))  # may be billed
+    assert (scope["calls"], scope["llm_calls"]) == (1, 1)  # the empty reply; the returned call is priced later
+
+
+def test_sdk_retries_are_off_under_the_wrapper(vendored, monkeypatch):
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("http://vllm.invalid/v1", [_Resp("m", "p")])
+    call(client, model="m", messages=[])
+    assert client.options == [{"max_retries": 0}]
+
+
+def test_the_attempt_timeout_never_outlives_the_run_deadline(vendored, monkeypatch, run_deadline):
+    import time
+
+    run_deadline(time.time() + 5)
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("http://vllm.invalid/v1", [_Resp("m", "p")])
+    call(client, model="m", messages=[], timeout=600.0)
+    assert 1.0 <= client.sent[0]["timeout"] <= 5.0
+
+
+def test_no_attempt_is_sent_past_the_run_deadline(vendored, monkeypatch, run_deadline, armed_budget):
+    import time
+
+    from pipeline.limits import RunDeadlineExceeded
+
+    run_deadline(time.time() - 1)
+    call = _install(monkeypatch, _loop(attempts=1))
+    client = _SdkClient("https://openrouter.ai/api/v1", [_Resp("qwen/qwen3.7-flash", "Alibaba")])
+    with pytest.raises(RunDeadlineExceeded):
+        call(client, **_REQUEST)
+    assert client.sent == []
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd == 0.0
+
+
+def test_a_mock_client_keeps_its_scripted_create(vendored, monkeypatch):
+    from unittest.mock import MagicMock
+
+    call = _install(monkeypatch, _loop())
+    client = MagicMock()  # the mock pilot's client: with_options would return a new, unscripted mock
+    client.base_url = "http://vllm.invalid/v1"
+    client.chat.completions.create.side_effect = lambda **kw: _Resp(kw["model"], "p")
+    assert call(client, model="m", messages=[]).model == "m"
+    client.with_options.assert_not_called()
+
+
+def test_a_client_without_with_options_still_works(vendored, monkeypatch):
+    call = _install(monkeypatch, _loop())
+    client = _SdkClient("http://vllm.invalid/v1", [_Resp("m", "p")], options=False)
+    assert call(client, model="m", messages=[]).model == "m"
+    assert client.sent[0]["timeout"] == 600.0  # no deadline: the call timeout is untouched

@@ -263,6 +263,12 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
     have = set(causes)
     if outcome == "crashed":
         return "mechanism:transient" if "transient" in _error_text(doc).lower() else "mechanism:crashed"
+    stop = pred.get("governor_stop")
+    if outcome == "review" and isinstance(stop, Mapping) and stop.get("reason"):
+        # The loop governor sent it (phase 2): its budget, not the last node, ended the document.
+        # A near-empty input keeps the input cause it always had.
+        reason = str(stop["reason"])
+        return "input:near_empty" if reason == "near_empty" else f"governor:{reason}"
     for token, kind in _MECHANISM.items():
         if token in have or (token == "judge_error" and status.get("judge_error")):
             return f"mechanism:{kind}"

@@ -306,3 +306,28 @@ def test_a_decisions_timeout_is_charged_at_its_reservation(monkeypatch, transpor
     with pytest.raises(httpx.ReadTimeout):
         db._post_decision({"model": "m", "messages": [{"content": "x" * 4000}]}, timeout=120, attempts=1)
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0
+
+
+# --- L1: a failed Decisions attempt still counts toward the document's budget ---------------
+
+def test_each_failed_decisions_attempt_counts_toward_the_document(monkeypatch, transport):
+    from mailroom_sandbox.job import call_guard
+
+    _, calls, _ = transport  # every attempt answers 429
+    with call_guard.document() as doc:
+        with pytest.raises(RuntimeError, match="Decisions API 429"):
+            db._post_decision({}, timeout=120, attempts=3)
+    assert len(calls) == 3 and doc["llm_calls"] == 3
+
+
+def test_a_decisions_transport_failure_counts_toward_the_document(monkeypatch, transport):
+    from mailroom_sandbox.job import call_guard
+
+    def post(*args, **kwargs):
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(httpx, "post", post)
+    with call_guard.document() as doc:
+        with pytest.raises(httpx.ConnectError):
+            db._post_decision({}, timeout=120, attempts=2)
+    assert doc["llm_calls"] == 2
