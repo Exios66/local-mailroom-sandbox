@@ -1,0 +1,234 @@
+{
+  "schema": "mailroom.merger_section_rules/v1",
+  "source": "llm_dojo_scoring.schemas.maud_schema MaudQuestion.sections, reviewed (Phase 5 part 2, docs/design/specs/2026-11-27-phase5-merger-maud-design.md)",
+  "sections": {
+    "change_of_recommendation": {
+      "titles": [
+        "change (of|in) (the )?(company )?(board )?recommendation",
+        "adverse recommendation change",
+        "board recommendation",
+        "recommendation change"
+      ]
+    },
+    "conditions_each": {
+      "titles": [
+        "conditions to (the )?(obligations of )?each party",
+        "conditions to (the )?(closing|merger)",
+        "mutual conditions"
+      ]
+    },
+    "conditions_parent": {
+      "titles": [
+        "conditions to (the )?obligations? of (?!each)",
+        "additional conditions to (the )?obligations? of",
+        "conditions to (the )?obligation of (?!each)"
+      ]
+    },
+    "conduct": {
+      "titles": [
+        "conduct of (\\w+ )?business",
+        "conduct of (the )?company",
+        "business conduct",
+        "interim operations",
+        "operations? of (the )?company",
+        "(affirmative|negative) covenants",
+        "covenants (of|relating to) (the )?company"
+      ]
+    },
+    "consideration": {
+      "titles": [
+        "conversion of",
+        "effect (of the merger )?on (the )?capital stock",
+        "effect on (shares|securities|stock)",
+        "merger consideration",
+        "treatment of (shares|capital stock)"
+      ]
+    },
+    "def_acquisition_proposal": {
+      "terms": [
+        "Acquisition Proposal",
+        "Takeover Proposal",
+        "Company Takeover Proposal",
+        "Competing Proposal",
+        "Alternative Proposal",
+        "Company Acquisition Proposal",
+        "Acquisition Transaction"
+      ]
+    },
+    "def_intervening": {
+      "terms": [
+        "Intervening Event",
+        "Company Intervening Event"
+      ]
+    },
+    "def_knowledge": {
+      "terms": [
+        "Knowledge",
+        "Knowledge of the Company",
+        "Company Knowledge",
+        "Company’s Knowledge",
+        "Company's Knowledge"
+      ]
+    },
+    "def_mae": {
+      "terms": [
+        "Company Material Adverse Effect",
+        "Material Adverse Effect",
+        "Company Material Adverse Change",
+        "Material Adverse Change"
+      ]
+    },
+    "def_superior": {
+      "terms": [
+        "Superior Proposal",
+        "Superior Offer",
+        "Company Superior Proposal"
+      ]
+    },
+    "efforts": {
+      "titles": [
+        "efforts",
+        "regulatory approvals",
+        "filings",
+        "antitrust",
+        "further action",
+        "governmental approvals",
+        "hsr act"
+      ]
+    },
+    "governing_law": {
+      "titles": [
+        "governing law",
+        "choice of law",
+        "applicable law"
+      ]
+    },
+    "no_solicitation": {
+      "titles": [
+        "no solicitation",
+        "no[- ]shop",
+        "non[- ]solicitation",
+        "acquisition proposals",
+        "takeover proposals",
+        "solicitation"
+      ]
+    },
+    "specific_performance": {
+      "titles": [
+        "specific performance",
+        "specific enforcement",
+        "enforcement",
+        "remedies"
+      ]
+    },
+    "stockholders_meeting": {
+      "titles": [
+        "(stockholder|shareholder)s?[’']? meeting",
+        "proxy statement",
+        "company (stockholder|shareholder) approval"
+      ]
+    },
+    "termination": {
+      "titles": [
+        "termination(?! fee)"
+      ],
+      "terms": [
+        "Outside Date",
+        "End Date",
+        "Termination Date"
+      ]
+    },
+    "termination_fee": {
+      "titles": [
+        "termination fee",
+        "effect of termination",
+        "fees and expenses",
+        "expenses"
+      ]
+    }
+  },
+  "questions": {
+    "Absence of Litigation Closing Condition": [
+      "conditions_each",
+      "conditions_parent"
+    ],
+    "Accuracy of Target R&W Closing Condition": [
+      "conditions_parent",
+      "conditions_each"
+    ],
+    "Agreement provides for matching rights in connection with COR": [
+      "change_of_recommendation",
+      "no_solicitation"
+    ],
+    "Agreement provides for matching rights in connection with FTR": [
+      "no_solicitation",
+      "termination"
+    ],
+    "Breach of Meeting Covenant": [
+      "termination_fee",
+      "stockholders_meeting"
+    ],
+    "Breach of No Shop": [
+      "termination_fee",
+      "no_solicitation"
+    ],
+    "Compliance with Covenant Closing Condition": [
+      "conditions_parent",
+      "conditions_each"
+    ],
+    "FTR Triggers": [
+      "no_solicitation",
+      "termination"
+    ],
+    "Fiduciary exception to COR covenant": [
+      "change_of_recommendation",
+      "no_solicitation"
+    ],
+    "Fiduciary exception:  Board determination (no-shop)": [
+      "no_solicitation"
+    ],
+    "General Antitrust Efforts Standard": [
+      "efforts"
+    ],
+    "Intervening Event Definition": [
+      "def_intervening",
+      "change_of_recommendation"
+    ],
+    "Knowledge Definition": [
+      "def_knowledge"
+    ],
+    "Limitations on FTR Exercise": [
+      "termination",
+      "no_solicitation"
+    ],
+    "MAE Definition": [
+      "def_mae"
+    ],
+    "Negative interim operating covenant": [
+      "conduct"
+    ],
+    "No-Shop": [
+      "no_solicitation"
+    ],
+    "Ordinary course covenant": [
+      "conduct"
+    ],
+    "Specific Performance": [
+      "specific_performance"
+    ],
+    "Superior Offer Definition": [
+      "def_superior"
+    ],
+    "Tail Period & Acquisition Proposal Details": [
+      "termination_fee",
+      "def_acquisition_proposal"
+    ],
+    "Type of Consideration": [
+      "consideration"
+    ]
+  },
+  "fallback": {
+    "Accuracy of Target R&W Closing Condition": true,
+    "Compliance with Covenant Closing Condition": true
+  }
+}
