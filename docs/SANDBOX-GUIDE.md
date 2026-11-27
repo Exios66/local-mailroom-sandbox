@@ -160,7 +160,7 @@ reference — every command, subcommand, argument and parser-required marker —
 | `sandbox runbook show serve` | Default Modal vLLM path: deploy → point → verify → teardown |
 | `sandbox up` | Start compose services (default `modal-vllm`: Langfuse only) |
 | `sandbox down` | Stop compose services |
-| `sandbox pull-models --profile ollama` | Pull required Ollama models (on the default `modal-vllm` it only prints the Modal prewarm command) |
+| `sandbox pull-models --profile ollama` | Pull required Ollama models (on explicitly selected `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
 | `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 15 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
@@ -488,8 +488,9 @@ export MODAL_WORKSPACE=<workspace>
 sandbox health --profile modal-vllm
 ```
 
-`modal-vllm` is the default profile, so the `--profile` flag is optional; it is
-spelled out here to make the endpoint being probed explicit.
+`openrouter` is the default experimental/deployment profile. Select
+`--profile modal-vllm` explicitly to probe a deployed GPU endpoint; existing
+run configurations keep their provider.
 
 ### Key knobs
 

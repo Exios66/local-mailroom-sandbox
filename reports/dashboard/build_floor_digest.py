@@ -406,7 +406,7 @@ def _int_if_whole(x: float):
 
 
 def discover_runs(base: Path) -> list[tuple[str, Path]]:
-    """(source, dir) for every dir containing items.jsonl; history first, names sorted."""
+    """History/live runs containing items.jsonl, followed by registered run references."""
     found: list[tuple[str, Path]] = []
     for source, parent in (("history", base / "run-history"), ("live", base / "runtime" / "runs")):
         if not parent.is_dir():
@@ -414,6 +414,21 @@ def discover_runs(base: Path) -> list[tuple[str, Path]]:
         for child in sorted(parent.iterdir(), key=lambda p: p.name):
             if child.is_dir() and (child / "items.jsonl").is_file():
                 found.append((source, child))
+    seen = {path.resolve() for _, path in found}
+    registry = base / "floor-runs.json"
+    if registry.is_file():
+        data = read_json(registry)
+        if data.get("schema") != "mailroom.floor-runs/v1" or not isinstance(data.get("paths"), list):
+            raise ValueError("invalid floor-runs.json registry")
+        for value in data["paths"]:
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise ValueError("floor registry paths must be absolute strings")
+            path = Path(value)
+            if path.resolve() not in seen and path.is_dir() and any(
+                (path / name).is_file() for name in ("items.jsonl", "nodes.jsonl")
+            ):
+                found.append(("registered", path))
+                seen.add(path.resolve())
     return found
 
 
@@ -1743,6 +1758,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     node_docs: dict[str, set[str]] = {}
     ms_by_node: dict[str, list[float]] = {}
     agents_by_node: dict[str, Counter] = {}
+    models_by_node: dict[str, set[str]] = {}
     for doc, recs in per_doc_records.items():
         for r in recs:
             node_docs.setdefault(r["node"], set()).add(doc)
@@ -1751,6 +1767,8 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
                 ms_by_node.setdefault(r["node"], []).append(ms)
             if r.get("agent"):
                 agents_by_node.setdefault(r["node"], Counter())[str(r["agent"])] += 1
+            if isinstance(r.get("model"), str) and r["model"]:
+                models_by_node.setdefault(r["node"], set()).add(r["model"])
 
     def doc_edges(doc: str) -> Counter:
         """Count consecutive allowed transitions for one document, excluding self-loops."""
@@ -1908,6 +1926,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),
         "node_agents": {n: dict(sorted(c.items())) for n, c in sorted(agents_by_node.items())},
+        "node_models": {n: sorted(models) for n, models in sorted(models_by_node.items())},
         "node_ms_p50": {n: (_int_if_whole(statistics.median(ms_by_node[n])) if ms_by_node.get(n) else 0)
                         for n in sorted(node_docs)},
         "aborts_by_last_node": dict(sorted(aborts.items())),
@@ -1941,7 +1960,11 @@ def named_runs(runs_found: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
     named: list[tuple[str, Path]] = []
     used: set[str] = set()
     for source, path in runs_found:
-        name = path.name if path.name not in used else f"{path.name} ({source})"
+        name = path.name
+        index = 1
+        while name in used:
+            name = f"{path.name} ({source}{' ' + str(index) if index > 1 else ''})"
+            index += 1
         used.add(name)
         named.append((name, path))
     return named

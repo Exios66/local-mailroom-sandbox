@@ -6,20 +6,25 @@ points mailroom at `data/runtime/taxonomy.yaml`.
 
 | Profile | Mailroom provider | Default base URL | Default model |
 | --- | --- | --- | --- |
-| `modal-vllm` (default) | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3.5-9B` (online fp8) |
+| `modal-vllm` (explicit GPU) | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3.5-9B` (online fp8) |
 | `ollama` (offline) | `ollama` | `http://localhost:11434/v1` | `qwen3:8b` |
 | `vllm-local` | `vllm` | `http://localhost:8000/v1` | `Qwen/Qwen3.5-9B` (compose serves it bf16) |
 | `vllm-remote` | `vllm` | `http://localhost:18000/v1` (SSH forward) | `Qwen/Qwen3.5-9B` |
 | `llamacpp` | `generic` | `http://localhost:8080/v1` | `qwen3-8b` |
 | `lmstudio` | `generic` | `http://localhost:1234/v1` | `qwen3-8b` |
-| `openrouter` | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen3.5-9b` (same weights as the Modal default) |
+| `openrouter` (default) | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen3.5-9b` (same weights as the Modal default) |
 
-Remote serving — Modal deployment (the **default path**: `sandbox runbook show serve`),
+Remote serving — Modal deployment (explicit GPU path: `sandbox runbook show serve`),
 SSH-tunnel workflow (`sandbox tunnel`), CHTC/HTCondor job paths, and the
 portable conda env — is documented in
 [`remote-serving.md`](remote-serving.md).
 
-OpenRouter is **opt-in**. The default `.env` does not set `OPENROUTER_API_KEY`.
+OpenRouter is the **default experimental and deployment provider**. Configure
+`OPENROUTER_API_KEY` privately for live calls; creating experiments and viewing
+logs need no key. The template leaves the key unset. Explicit profiles, run YAMLs
+and immutable locks keep their provider. The run schema retains legacy Modal
+defaults for older specs with omitted fields; new experiment creation writes
+OpenRouter explicitly.
 For the 2026-10-10 hosted **Qwen3-8B** catalog sunset vs local weights, see
 [`openrouter-sunset-audit.md`](../archive/openrouter-sunset-audit.md) (SAND-024 / issue #30).
 Comparable serving metrics (TTFT, throughput, GPU on local only) are scored

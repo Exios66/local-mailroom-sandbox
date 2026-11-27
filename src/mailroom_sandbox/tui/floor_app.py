@@ -10,6 +10,7 @@ idle floor costs one cheap stat sweep per interval.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import importlib.util
 import json
 import shutil
@@ -41,6 +42,7 @@ MIN_INTERVAL_S = 0.1
 STALL_RECHECK_S = 60.0
 PAGE = "floor.template.html"
 DOC_ENDPOINT = "/api/floor/doc"
+REGISTER_ENDPOINT = "/api/floor/register"
 REPLAY_RUN_ID = "replay-mailroom-sample"
 REPLAY_DIR = ("data", "fixtures", "floor", "replay")
 # files in a run dir that change as a run progresses (a dir counts as a run once items.jsonl exists)
@@ -83,25 +85,64 @@ def build(base: Path, out: Path, graph_path: Path | None = None) -> tuple[dict, 
 def scan_signature(base: Path) -> tuple:
     """Cheap change detector: (path, mtime_ns, size) of every run artifact plus the run dirs themselves.
 
-    No file is opened. A new or removed run dir changes the tuple through its parent listing,
+    Only registry references and file stats are read. A new or removed run dir changes the tuple through its parent listing,
     and a growing nodes/items file changes it through mtime and size. Unreadable parent
     directories and artifacts that cannot be statted are omitted.
     """
     sig: list[tuple[str, int, int]] = []
+    registry = base / "floor-runs.json"
+    if registry.exists():
+        st = registry.stat()
+        sig.append((str(registry), st.st_mtime_ns, st.st_size))
+    runs = {path for _, path in load_builder().discover_runs(base)}
     for parent in (base / "run-history", base / "runtime" / "runs"):
         try:
-            children = sorted(p for p in parent.iterdir() if p.is_dir())
+            runs.update(p for p in parent.iterdir() if p.is_dir())
         except OSError:
             continue
-        for run in children:
-            sig.append((str(run), 0, 0))
-            for name in RUN_ARTIFACTS:
-                try:
-                    st = (run / name).stat()
-                except OSError:
-                    continue
-                sig.append((str(run / name), st.st_mtime_ns, st.st_size))
+    for run in sorted(runs):
+        sig.append((str(run), 0, 0))
+        for name in RUN_ARTIFACTS:
+            try:
+                st = (run / name).stat()
+            except OSError:
+                continue
+            sig.append((str(run / name), st.st_mtime_ns, st.st_size))
     return tuple(sig)
+
+
+def register_run(base: Path, value: str) -> tuple[str, Path]:
+    """Persist a reference to a recorded run; never copy or modify its artifacts."""
+    path = Path(value).expanduser().resolve(strict=True)
+    if not path.is_dir() or not any((path / n).is_file() for n in ("items.jsonl", "nodes.jsonl")):
+        raise ValueError("choose a run directory containing items.jsonl or nodes.jsonl; IMPORT accepts floor digests")
+    builder = load_builder()
+    items = builder.read_jsonl(path / "items.jsonl")
+    nodes = builder.read_jsonl(path / "nodes.jsonl")
+    if not (any(r.get("item_id", r.get("id")) is not None for r in items)
+            or any(r.get("doc") is not None and r.get("node") for r in nodes)):
+        raise ValueError("run logs contain no JSON object records with document IDs or node traces")
+    # Validate aggregation before publishing the reference. A provider is metadata, never a filter.
+    try:
+        builder.build_run(path.name, path, set())
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"invalid run artifacts: {exc}") from exc
+    base.mkdir(parents=True, exist_ok=True)
+    registry = base / "floor-runs.json"
+    if registry.is_symlink():
+        raise ValueError("floor registry must not be a symlink")
+    with (base / ".floor-runs.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        existing = builder.discover_runs(base)
+        if path not in {p.resolve() for _, p in existing}:
+            data = json.loads(registry.read_text()) if registry.exists() else {"schema": "mailroom.floor-runs/v1", "paths": []}
+            data["paths"].append(str(path))
+            with TemporaryDirectory(prefix=".floor-registry-", dir=base) as staging:
+                tmp = Path(staging) / registry.name
+                tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                tmp.replace(registry)
+        named = builder.named_runs(builder.discover_runs(base))
+    return next((name, p) for name, p in named if p.resolve() == path)
 
 
 class DigestRefresher:
@@ -130,11 +171,11 @@ class DigestRefresher:
 
     def _refresh(self) -> bool:
         """One refresh under ``_lock``; see :meth:`refresh` for semantics."""
-        sig = scan_signature(self.base)
-        recheck = self._live_runs and time.monotonic() - self._built_at >= STALL_RECHECK_S
-        if sig == self._sig and not recheck:
-            return False
         try:
+            sig = scan_signature(self.base)
+            recheck = self._live_runs and time.monotonic() - self._built_at >= STALL_RECHECK_S
+            if sig == self._sig and not recheck:
+                return False
             result = build(self.base, self.out, self.graph_path)
         except Exception as exc:  # noqa: BLE001 — a transient read/replace failure must not kill the loop
             if self._sig is None and self.builds == 0:
@@ -278,11 +319,43 @@ class _FloorHandler(SimpleHTTPRequestHandler):
     """Static handler for the dashboard dir: quiet, and never cached (the digest changes under it)."""
 
     def __init__(self, *args: Any, digest_directory: Path | None = None,
-                 runs_root: Path | None = None, **kwargs: Any) -> None:
+                 runs_root: Path | None = None, refresher: DigestRefresher | None = None, **kwargs: Any) -> None:
         """Serve dashboard assets with optional process-private digest files and a run store."""
         self.digest_directory = digest_directory
         self.runs_root = runs_root
+        self.refresher = refresher
         super().__init__(*args, **kwargs)
+
+    def do_POST(self) -> None:  # noqa: N802
+        """Register a local run only from a same-origin JSON request."""
+        if self._refuse_foreign_host(body=True):
+            return
+        if urlsplit(self.path).path != REGISTER_ENDPOINT or self.runs_root is None or self.refresher is None:
+            self._send_json(404, {"error": "registration unavailable"})
+            return
+        origin = self.headers.get("Origin")
+        if (origin and origin != "http://" + self.headers.get("Host", "")) or self.headers.get("Sec-Fetch-Site") == "cross-site":
+            self._send_json(403, {"error": "same-origin request required"})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self._send_json(415, {"error": "application/json required"})
+            return
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= 16384:
+                raise ValueError("invalid request size")
+            data = json.loads(self.rfile.read(size))
+            value = data.get("path") if isinstance(data, dict) else None
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("a run directory path is required")
+            name, _ = register_run(self.runs_root, value)
+            self.refresher.refresh()
+            if self.refresher.last_error:
+                raise ValueError("run registered, digest rebuild failed; retry after checking the server log")
+        except (OSError, ValueError, TypeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        self._send_json(200, {"run": name})
 
     def _send_json(self, status: int, payload: dict) -> None:
         """Write one JSON response (never cached; ``end_headers`` adds the cache directive)."""
@@ -374,7 +447,7 @@ class _FloorHandler(SimpleHTTPRequestHandler):
 
 
 def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path | None = None,
-                runs_root: Path | None = None) -> ThreadingHTTPServer:
+                runs_root: Path | None = None, refresher: DigestRefresher | None = None) -> ThreadingHTTPServer:
     """Bind a loopback server for ``directory`` (port 0 = ephemeral), without serving yet.
 
     ``runs_root`` is the run store (the builder's ``--base``) behind ``GET /api/floor/doc``;
@@ -383,7 +456,7 @@ def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path |
     return ThreadingHTTPServer(
         (DEFAULT_HOST, port),
         partial(_FloorHandler, directory=str(directory.resolve()), digest_directory=digest_dir,
-                runs_root=runs_root),
+                runs_root=runs_root, refresher=refresher),
     )
 
 
@@ -538,13 +611,7 @@ class ReplayDriver:
 
 def has_runs(base: Path) -> bool:
     """True when ``base`` has a run directory with ``items.jsonl`` (the builder's discovery rule)."""
-    for parent in (base / "runtime" / "runs", base / "run-history"):
-        try:
-            if any((p / "items.jsonl").is_file() for p in parent.iterdir() if p.is_dir()):
-                return True
-        except OSError:
-            continue
-    return False
+    return bool(load_builder().discover_runs(base))
 
 
 def serve_floor(
@@ -607,9 +674,15 @@ def _serve_floor(
                   file=sys.stderr, flush=True)
             return 1
         run = run or recorded.run_id
-    elif not replay and run is None and replay_base().is_dir() and not has_runs(base):
-        print(f"sandbox floor: no runs under {base}; replaying the bundled sample", file=sys.stderr, flush=True)
-        replay = True
+    elif not replay and run is None and replay_base().is_dir():
+        try:
+            empty = not has_runs(base)
+        except (OSError, ValueError) as exc:
+            print(f"sandbox floor: cannot discover runs: {exc}", file=sys.stderr, flush=True)
+            return 1
+        if empty:
+            print(f"sandbox floor: no runs under {base}; replaying the bundled sample", file=sys.stderr, flush=True)
+            replay = True
     if replay and driver is None:
         try:
             base = replay_store(base)
@@ -628,7 +701,7 @@ def _serve_floor(
         print(f"sandbox floor: error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         return 1
     try:
-        httpd = make_server(out, port, digest_dir=digest_dir, runs_root=base)
+        httpd = make_server(out, port, digest_dir=digest_dir, runs_root=base, refresher=refresher)
     except OSError as exc:  # port already in use / not bindable
         print(f"sandbox floor: cannot listen on {DEFAULT_HOST}:{port}: {exc}", file=sys.stderr, flush=True)
         return 1

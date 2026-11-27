@@ -95,7 +95,7 @@ EXPECTED_EDGES = {
 }
 RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
-    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
+    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents", "node_models",
     "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
     "routing", "review_routed", "replay", "checkpoint_state", "stalled_s", "last_activity_utc",
     "scores", "node_outcomes", "docs", "docs_truncated", "docs_omitted_healthy",
@@ -571,7 +571,7 @@ def template_wires_live_mode_without_polling_on_file_protocol():
     """The viewer gates pills, clocks and both timers on http(s); routing/class helpers exist."""
     html = TEMPLATE.read_text(encoding="utf-8")
     for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
-                   'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
+                   'if(busy||holdLive)return', "updated ", "classView(", "if(!same)", 'r.state==="running"',
                    "fitGraph()", "outRev", "Routed to human review", "prompt.lock.json",
                    "audit_events", "routed_to_review", "audit log", "STALE", "poll misses"):
         assert needle in html, needle

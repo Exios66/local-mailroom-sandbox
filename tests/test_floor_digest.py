@@ -274,3 +274,17 @@ def test_doc_chars_is_null_without_a_working_basis_call(tmp_path):
     run_dir = _reads_run(tmp_path, reads=[_read(1, "intake", [[0, 5]], basis="raw", doc_chars=30)])
     reads = _doc_row(builder.build_run("run-r", run_dir, set())[0])["debug"]["reads"]
     assert reads["doc_chars"] is None
+
+
+def test_node_models_preserve_observed_hybrid_identity_without_filling_missing_models(tmp_path):
+    root = tmp_path / 'data'
+    run = _reads_run(root, reads=None)
+    (run / 'spec.lock.json').write_text(json.dumps({'profile': 'openrouter', 'engine': {'kind': 'openrouter', 'model': 'base-model'}}))
+    (run / 'nodes.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in [
+        {'doc': 'd1', 'node': 'extract', 'status': 'done', 'model': 'specialist-model'},
+        {'doc': 'd1', 'node': 'judge_verify', 'status': 'done', 'model': 'judge-model'},
+        {'doc': 'd1', 'node': 'archive', 'status': 'done'},
+    ]))
+    digest, _ = floor_app.load_builder().build_run('test', run, set())
+    assert digest['node_models'] == {'extract': ['specialist-model'], 'judge_verify': ['judge-model']}
+    assert digest['engine']['model'] == 'base-model'

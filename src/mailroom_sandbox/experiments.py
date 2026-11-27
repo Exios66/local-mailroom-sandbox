@@ -1202,7 +1202,8 @@ def register(sub, leaf) -> None:
     create.add_argument('--split', default='all')
     create.add_argument('--revision', default=FAMILY_HF_REVISION)
     create.add_argument('--local-dataset', default=None, help='local JSONL instead of Hub (also useful for offline mock checks)')
-    create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default='modal-vllm')
+    create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default='openrouter',
+                        help='experimental provider (default: openrouter; explicit run configurations retain their provider)')
     create.add_argument('--gpu', default='L4', help='Modal GPU class, optionally :N for tensor parallel')
     create.add_argument('--no-named-image', dest='named_image', action='store_false',
                         help='build the serving image instead of reusing the published sandbox-vllm:<tag>')

@@ -24,10 +24,11 @@ def design(tmp_path):
     source.write_text(''.join(json.dumps({'id': f'c{i}', 'doc_text': 'Email from Jane to John: meeting tomorrow.',
         'expected_doc_class': 'correspondence', 'expected_subclass': 'email', 'expected_stage': 'archived',
         'expected_fields': {'sender': 'Jane'}}) + '\n' for i in range(3)))
-    def create(*options):
+    def create(*options, provider="modal-vllm"):
         root = tmp_path / ('design-' + str(len(list(tmp_path.glob('design-*')))))
         args = ['experiment', 'create', root.name, '--doc-class', 'correspondence', '--samples', '3', '--subclass', 'email',
-                '--local-dataset', str(source), '--trace-sink', 'none', '--output', str(root), *options]
+                '--local-dataset', str(source), '--trace-sink', 'none', '--output', str(root),
+                *(['--provider', provider] if provider else []), *options]
         assert cli.main(args) == 0
         return root / 'experiment.yaml'
     return create
@@ -387,3 +388,14 @@ def test_create_fills_unset_ceilings_from_the_design_and_keeps_explicit_ones(des
     assert 'recommended' in capsys.readouterr().out
     _, _, runs = ex._load(design('--max-wall-seconds', '900', '--cost-cap-usd', '3'))
     assert (runs[0][1].job.max_wall_seconds, runs[0][1].job.cost_cap_usd) == (900, 3.0)
+
+
+def test_new_experiments_default_to_openrouter_with_api_budget_and_no_gpu(design):
+    config = design('--mock', provider=None)
+    _, _, runs = ex._load(config)
+    assert cli.build_parser().parse_args(['experiment', 'create', 'new']).provider == 'openrouter'
+    for _, spec in runs:
+        assert spec.profile == spec.engine.kind == 'openrouter'
+        assert spec.engine.model == 'qwen/qwen3.5-9b'
+        assert spec.job.api_cost_cap_usd > 0 and spec.job.max_wall_seconds > 0
+        assert not any(route.provider == 'modal-vllm' for route in spec.agent_routes.values())
