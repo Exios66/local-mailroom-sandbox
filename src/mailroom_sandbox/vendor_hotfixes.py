@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import contextvars
 import functools
 import hashlib
 import importlib
@@ -1313,7 +1314,8 @@ def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[.
         cfg = correcting_judge.active()
         if not cfg:
             return original(state)
-        if cfg.get("mode") == "correct" and module.judge_should_run(state):
+        if cfg.get("mode") == "correct" and (module.judge_should_run(state)
+                                             or correcting_judge.retry_owed(state)):
             return _correcting_judge_pass(module, state)
         update = original(state)
         verdict = str((update or {}).get("judge_verdict") or "")
@@ -1386,6 +1388,109 @@ def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
     if history is not None:
         update[module.attempt_history.HISTORY_KEY] = history
     return update
+
+
+def _install_arbiter_passthrough(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-026: in ``judge: mode: correct`` the judge's ruling is final; the arbiter makes no call.
+
+    The ruling the judge just recorded is mapped onto the arbiter's state keys, so the vendored
+    ``after_arbiter`` routes it: a retry ruling becomes ``retry_extraction`` with the named fields,
+    an accept ``accept_with_caveats``, anything else (or no ruling) a person with the judge's
+    reason. Verify mode, and no judge section, run the vendored arbiter.
+    """
+
+    @functools.wraps(original)
+    def arbiter_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        if not correcting_judge.correcting():
+            return original(state)
+        last = correcting_judge.last_ruling() or {}
+        reason = str(last.get("reason") or "no correcting-judge ruling recorded")
+        update: dict[str, Any] = {"arbiter_reasoning": reason, "arbiter_handoff": reason, "transient_error": False}
+        if last.get("ruling") == "retry_fields" and last.get("retry_fields"):
+            fields = list(last["retry_fields"])
+            return {**update, "arbiter_decision": "retry_extraction", "arbiter_fields_to_fix": fields,
+                    "arbiter_retry_count": int(state.get("arbiter_retry_count") or 0) + 1,
+                    "escalation_reason": f"judge ordered re-extraction of {', '.join(fields)}: {reason[:300]}"}
+        if last.get("ruling") == "accept":
+            return {**update, "arbiter_decision": "accept_with_caveats",
+                    "escalation_reason": f"judge accepted: {reason[:400]}"}
+        return {**update, "arbiter_decision": "human_review",
+                "escalation_reason": f"judge sent the document to human review: {reason[:400]}"}
+
+    return arbiter_node
+
+
+#: The HF-027 route rule on ``retry_extract``.
+JUDGE_RETRY_RULE = "HF-027:judge_retry_rejudges"
+#: The fields the judge-ordered re-extraction now running replaces (None: not a field-only retry).
+_FIELD_RETRY: contextvars.ContextVar[tuple[dict, frozenset[str]] | None] = contextvars.ContextVar(
+    "sandbox_field_retry", default=None)
+
+
+def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
+    """``retry_extract``: a judge-ordered re-read goes back to the judge for its second ruling.
+
+    A transient self-loop, a matter conflict for the Boss and a further retry keep the router's answer.
+    """
+    from mailroom_sandbox import correcting_judge
+
+    if proposed not in ("compile_report", "human_review") or state.get("transient_error"):
+        return None
+    return "judge_verify" if correcting_judge.retry_owed(state) else None
+
+
+def _register_judge_retry_rule(_module: Any) -> None:
+    """(Re)register the HF-027 route rule last on ``retry_extract``; idempotent."""
+    from graph import route_spec
+
+    if any(rule.name == JUDGE_RETRY_RULE for rule in route_spec.route_rules("retry_extract")):
+        return
+    route_spec.add_route_rule("retry_extract", route_spec.RouteRule(JUDGE_RETRY_RULE, _judge_retry_rule))
+
+
+def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-027: a judge-ordered re-extraction asks only for the named fields and replaces only them.
+
+    The specialist is sent the chosen schema restricted to the named fields (``fields_only``); its
+    answer is merged into the previous extraction before the vendored guard, conflict check and
+    attempt history see it (through ``_enrich_contract_result``, the call right after the
+    specialist's), so every other field keeps its value. Any other retry is the vendored node.
+    """
+    from mailroom_sandbox import subclass_extraction as sx
+
+    enrich = module._enrich_contract_result
+    if getattr(enrich, _MARK, None) != "HF-027":
+        @functools.wraps(enrich)
+        def _enrich_contract_result(result: Any, state: Any) -> Any:
+            pending = _FIELD_RETRY.get()
+            if pending is not None and isinstance(result, Mapping):
+                previous, names = pending
+                fresh = {k: v for k, v in result.items() if k in names or k in sx._KEEP_META or str(k).startswith("_")}
+                result = {**{k: v for k, v in previous.items() if not str(k).startswith("_")}, **fresh}
+            return enrich(result, state)
+
+        setattr(_enrich_contract_result, _MARK, "HF-027")
+        module._enrich_contract_result = _enrich_contract_result
+    _register_judge_retry_rule(module)
+
+    @functools.wraps(original)
+    def retry_extract_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        last = correcting_judge.last_ruling() if correcting_judge.correcting() else None
+        if not last or last.get("ruling") != "retry_fields" or not last.get("retry_fields"):
+            return original(state)
+        names = frozenset(str(n) for n in last["retry_fields"])
+        token = _FIELD_RETRY.set((dict(state.get("extracted_data") or {}), names))
+        try:
+            with sx.fields_only(names):
+                return original(state)
+        finally:
+            _FIELD_RETRY.reset(token)
+
+    return retry_extract_node
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
@@ -1654,6 +1759,31 @@ HOTFIXES: tuple[Hotfix, ...] = (
         also=(("graph.routing:after_judge", "f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66"),
               ("agents.judge:CompletenessJudge.judge_completeness",
                "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9")),
+    ),
+    Hotfix(
+        id="HF-026",
+        module="graph.build_graph",
+        attr="arbiter_node",
+        source_sha256="16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, the arbiter makes no model call: the judge's ruling is mapped onto "
+                "the arbiter's decision (retry the named fields, accept, or a person with the judge's reason)",
+        install=_install_arbiter_passthrough,
+        also=(("graph.routing:after_arbiter", "6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529"),),
+    ),
+    Hotfix(
+        id="HF-027",
+        module="graph.build_graph",
+        attr="retry_extract_node",
+        source_sha256="1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, a judge-ordered re-extraction asks only for the named fields, "
+                "replaces only them in the previous extraction, and returns to the judge for a second, "
+                "final ruling",
+        install=_install_field_retry,
+        refresh=_register_judge_retry_rule,
+        also=(("_enrich_contract_result", "03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2"),
+              ("graph.routing:after_retry_extraction_gated", "1dfa11277467523d6b9bcde376f100bb047d369d04ed8be32259bcf3416fbebe")),
     ),
 )
 

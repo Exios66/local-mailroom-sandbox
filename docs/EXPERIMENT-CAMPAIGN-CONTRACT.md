@@ -64,6 +64,8 @@ The complete implementations and upstream retirement conditions live in
 | HF-023 | In pipeline runs (`job.subclass_schemas`, always on), extraction is sent the predicted subclass's schema (class fields the Dojo never scores as a value and no dev, calibration or pool label gives a value are dropped; labeled extension fields added); unknown or low-confidence subclasses keep the class schema | `test_subclass_extraction.py`, `test_subclass_fields.py` |
 | HF-024 | With `job.subclass_schemas`, the judge, the arbiter and the retry summary see only the fields the extraction was asked for; the judge's expected-field list matches the narrowed schema | `test_subclass_extraction.py` |
 | HF-025 | With a `judge:` section, every judge ruling and the extraction before the judge are recorded in the result (`judge_rulings`, `before_judge`); `mode: verify` leaves the vendored judge unchanged | `test_correcting_judge.py` |
+| HF-026 | With `judge: mode: correct`, the arbiter makes no call; the judge's ruling is final and is not a governor round | `test_correcting_judge.py` |
+| HF-027 | With `judge: mode: correct`, a judge-ordered retry asks for and replaces only the named fields, then the judge rules a second and final time | `test_correcting_judge.py` |
 | SHF-001–004 | Count documented absences and correct name, currency and identifier matching | `test_scoring_hotfixes.py` |
 | SHF-005–008 | Keep failed rows in denominators; count missing truth and abstentions; refuse invented verdict truth | `test_scoring_hotfixes.py` |
 | SHF-009–010 | Apply decision-form abstention and reviewed truth precedence | `test_scoring_hotfixes.py` |

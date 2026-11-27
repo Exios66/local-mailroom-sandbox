@@ -415,3 +415,184 @@ def test_the_mock_answers_the_correcting_judge():
                              subclass=None, extracted={}, requested_fields=[], guide={}, examples=[], attempts=[])
     answer = fake_structured_payload(prompt, {"doc_type": "contract"})
     assert answer["ruling"] == "accept" and answer["fixes"] == [] and set(cj.RULING_SCHEMA["required"]) <= set(answer)
+
+
+# --- Task 5: arbiter pass-through, field-only retry, the two-ruling limit and the governor -------
+
+from mailroom_sandbox import governor  # noqa: E402
+from mailroom_sandbox.job.spec import GovernorSpec  # noqa: E402
+
+ACCEPT = _reply()
+REVIEW = _reply(ruling="human_review", reason="a person must decide")
+RETRY = _reply(ruling="retry_fields", wrong=["entity_name"], retry=["entity_name"], reason="re-read the name")
+ACCEPT_UNFIXED = _reply(wrong=["record_type"], reason="record type wrong")
+QUOTED = _reply(fixes=[{"field": "entity_name", "value": "Cedar Sample Ltd", "quote": "Cedar Sample Ltd board"}],
+                wrong=["entity_name"])
+
+
+def _corrected(monkeypatch, tmp_path, rulings, *, gov=None, preset=None, **script):
+    """One harness document with the correcting judge on and its rulings scripted."""
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    governor.activate(gov)
+    _correct_on()
+    with call_guard.document() as scope:
+        for key, value in (preset or {}).items():
+            (scope["governor"] if key in scope["governor"] else scope)[key] = value
+        out = run(bg, monkeypatch, Script(rulings=list(rulings), confs=[0.88] * 4, real_retry=True,
+                                          judge=[("complete", "accurate")], **script))
+    governor.activate(None)
+    return out, scope
+
+
+pytestmark_t5 = pytest.mark.usefixtures("arbiter_harness_state")
+
+
+@pytestmark_t5
+def test_the_arbiter_makes_no_call_in_correct_mode(monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT])
+    assert out["arbiter"] == 0 and "arbiter" in out["path"]
+    assert out["judge_c"] == out["judge_a"] == 0  # the vendored judge calls are replaced, not added to
+
+
+@pytestmark_t5
+def test_a_retry_asks_only_for_the_named_fields(monkeypatch, tmp_path):
+    out, _ = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT])
+    [schema] = out["retry_schemas"]
+    assert set(schema["properties"]) == {"entity_name", "confidence"}
+    assert set(schema.get("required") or ()) <= {"entity_name", "confidence"}
+
+
+@pytestmark_t5
+def test_a_retry_keeps_every_other_field(monkeypatch, tmp_path):
+    out, _ = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT])
+    data = out["state"]["extracted_data"]
+    assert data["entity_name"] == "Cedar Sample Limited"  # the named field is re-read
+    assert data["record_type"] == "minutes"  # the unnamed one keeps the first extraction's value
+    history = out["state"]["extraction_attempt_history"]
+    assert history[-1]["kind"] == "retry_extract" and history[-1]["extracted_data"]["record_type"] == "minutes"
+
+
+@pytestmark_t5
+def test_a_retry_returns_to_the_judge(monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT])
+    assert out["rulings"] == 2 and out["path"].count("judge_verify") == 2
+    assert out["stage"] == "archived", out["path"]
+    assert [r["ruling"] for r in scope["judge_rulings"]] == ["retry_fields", "accept"]
+
+
+@pytestmark_t5
+def test_a_second_ruling_cannot_retry(monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, RETRY])
+    assert out["stage"] == "review", out["path"]
+    assert out["rulings"] == 2 and out["path"].count("retry_extract") == 1
+    assert [r["ruling"] for r in scope["judge_rulings"]] == ["retry_fields", "human_review"]
+
+
+_FIRST = {"accept": ACCEPT, "accept_unfixed": ACCEPT_UNFIXED, "retry": RETRY, "human_review": REVIEW}
+
+
+@pytestmark_t5
+@pytest.mark.parametrize("first", sorted(_FIRST))
+@pytest.mark.parametrize("second", sorted(_FIRST))
+def test_every_path_ends_within_two_rulings_and_one_retry(first, second, monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [_FIRST[first], _FIRST[second]])
+    assert out["rulings"] <= 2 and out["path"].count("retry_extract") <= 1 and out["arbiter"] == 0
+    assert out["stage"] in ("archived", "review"), out["path"]
+    if first == "accept":
+        assert out["stage"] == "archived" and out["rulings"] == 1
+    if first == "human_review":
+        assert out["stage"] == "review" and out["rulings"] == 1
+
+
+@pytestmark_t5
+def test_a_matter_conflict_after_the_judge_goes_to_review_as_today(monkeypatch, tmp_path):
+    out, _ = _corrected(monkeypatch, tmp_path, [ACCEPT], conflict=True, boss="reject")
+    assert out["boss"] == 1 and out["stage"] == "review", out["path"]
+
+
+@pytestmark_t5
+def test_a_pass_through_arbiter_is_not_a_governor_round(monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT], gov=GovernorSpec())
+    assert scope["governor"]["retries"] == 1  # the judge-ordered re-extraction only
+    assert "governor_stop" not in scope and out["stage"] == "archived"
+
+
+@pytestmark_t5
+@pytest.mark.parametrize(("rulings", "rulings_n", "extractions"), [
+    ([ACCEPT], 1, 0), ([QUOTED], 1, 0), ([REVIEW], 1, 0),
+    ([RETRY, ACCEPT], 2, 1), ([RETRY, REVIEW], 2, 1), ([RETRY, RETRY], 2, 1),
+])
+def test_call_counts_per_path_match_the_design(rulings, rulings_n, extractions, monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, rulings)
+    assert out["rulings"] == rulings_n and len(out["retry_schemas"]) == extractions
+    assert out["arbiter"] == 0 and out["judge_c"] == out["judge_a"] == 0
+    assert scope["llm_calls"] == rulings_n + extractions  # every ruling and re-read reached the call guard
+
+
+@pytestmark_t5
+@pytest.mark.parametrize(("reason", "gov", "preset", "script"), [
+    ("retry_budget", {"retries": 0}, {}, {}),
+    ("call_budget", {}, {"llm_calls": 99}, {}),
+    ("spend_budget", {"spend_usd": 0.01}, {"spend_usd": 1.0}, {}),
+    ("boss_repeat", {}, {"boss": 1}, {"conflict": True}),
+])
+def test_every_governor_outcome_is_reached_with_the_correcting_judge(reason, gov, preset, script, monkeypatch,
+                                                                     tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT], gov=GovernorSpec(**gov), preset=preset,
+                            **script)
+    assert scope["governor_stop"]["reason"] == reason, scope.get("governor_stop")
+    assert scope["governor_stop"]["outcome"] == "human_review" and out["stage"] == "review"
+    assert not scope["refused"]  # the hard ceiling never had to stop the document
+
+
+def test_a_stopped_round_after_an_accept_archives_with_caveats():
+    # An accepted extraction proposes no further round in correct mode (the only one left is a boss
+    # entry, never archived), so the archive outcome is pinned where a round can still follow an accept.
+    _correct_on()
+    governor.activate(GovernorSpec(retries=0))
+    passed = {"judge_verdict": "complete", "extraction_confidence": 0.95, "conflict_detected": False,
+              "extraction_attempt_history": [{"judge_verdict": "complete"}]}
+    with call_guard.document() as scope:
+        dest = governor.govern("arbiter", passed, "retry_extract", {"compile_report", "retry_extract", "human_review"})
+    governor.activate(None)
+    assert dest == "compile_report" and scope["governor_stop"]["outcome"] == "archive_with_caveats"
+
+
+@pytestmark_t5
+def test_rulings_and_retries_count_toward_the_governor_budgets(monkeypatch, tmp_path):
+    out, scope = _corrected(monkeypatch, tmp_path, [RETRY, ACCEPT], gov=GovernorSpec())
+    assert scope["llm_calls"] == 3  # ruling, re-read, ruling
+    assert scope["governor"]["retries"] == 1  # the judge-ordered retry is a round
+
+
+def test_hf026_and_hf027_are_registered_with_pinned_sources():
+    import graph.build_graph as bg
+    import graph.routing as routing
+    from graph import route_spec
+
+    from mailroom_sandbox import vendor_hotfixes as vh
+
+    for fid, attr in (("HF-026", "arbiter_node"), ("HF-027", "retry_extract_node")):
+        fix = next(f for f in vh.HOTFIXES if f.id == fid)
+        assert [f.id for f in vh.HOTFIXES].count(fid) == 1
+        assert (fix.module, fix.attr) == ("graph.build_graph", attr)
+        assert fix.source_sha256 == vh._source_sha(getattr(bg, attr))
+    also = dict(next(f for f in vh.HOTFIXES if f.id == "HF-027").also)
+    assert also["_enrich_contract_result"] == vh._source_sha(bg._enrich_contract_result)
+    assert also["graph.routing:after_retry_extraction_gated"] == vh._source_sha(routing.after_retry_extraction_gated)
+    status = vh.apply_hotfixes()
+    assert status["HF-026"] == status["HF-027"] == "applied"
+    enrich = bg._enrich_contract_result
+    vh.apply_hotfixes()  # idempotent: no second merge layer, one route rule
+    assert bg._enrich_contract_result is enrich
+    assert [r.name for r in route_spec.route_rules("retry_extract")].count(vh.JUDGE_RETRY_RULE) == 1
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_verify_mode_keeps_the_vendored_arbiter_and_retry(monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    cj.activate({"mode": "verify"}, pool_sha256=None)
+    with call_guard.document() as scope:
+        out = run(bg, monkeypatch, Script(judge=[("partial", "accurate"), ("complete", "accurate")],
+                                          arbiter=["retry_extraction"], confs=[0.88, 0.88]))
+    assert out["arbiter"] == 1 and out["judge_c"] == 2 and len(scope["judge_rulings"]) == 2

@@ -14,6 +14,7 @@ hotfix wraps (the dedicated corporate composer) keeps that hotfix's schema.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import copy
 import functools
@@ -21,15 +22,20 @@ import logging
 import math
 import re
 import threading
-from typing import Any, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 _log = logging.getLogger(__name__)
 _LOCK = threading.Lock()
 #: Process-wide like the governor: agent-task workers do not inherit the lock's ContextVar.
 _ACTIVE: dict[str, Any] | None = None
-#: The choice ``record_choice`` made for the extraction being set up: (class schema, chosen schema).
-_PENDING: contextvars.ContextVar[tuple[dict, dict] | None] = contextvars.ContextVar(
+#: The choice ``record_choice`` made for the extraction being set up: (class schema, schema sent,
+#: schema the judge reviews against). The last differs from the one sent only under fields_only.
+_PENDING: contextvars.ContextVar[tuple[dict, dict, dict] | None] = contextvars.ContextVar(
     "sandbox_subclass_schema", default=None)
+#: Phase 4 field-only retry: the fields a judge-ordered re-extraction asks for (None: every field).
+_ONLY: contextvars.ContextVar[frozenset[str] | None] = contextvars.ContextVar("sandbox_fields_only", default=None)
+#: Extraction metadata a field-only schema keeps beside the named fields.
+_KEEP_META = frozenset({"confidence", "reasoning"})
 
 FALLBACK_SUBCLASSES = frozenset({"", "unknown", "other"})
 
@@ -147,10 +153,29 @@ def active() -> bool:
     return _ACTIVE is not None
 
 
+@contextlib.contextmanager
+def fields_only(names: Iterable[str]) -> Iterator[None]:
+    """Phase 4 (HF-027): the extraction set up inside asks only for ``names`` (plus metadata)."""
+    token = _ONLY.set(frozenset(str(n) for n in names))
+    try:
+        yield
+    finally:
+        _ONLY.reset(token)
+
+
+def _restrict(schema: Mapping[str, Any], names: frozenset[str]) -> dict[str, Any]:
+    out = copy.deepcopy(dict(schema))
+    keep = names | _KEEP_META
+    out["properties"] = {k: v for k, v in (out.get("properties") or {}).items() if k in keep}
+    if "required" in out:
+        out["required"] = [k for k in out.get("required") or () if k in out["properties"]]
+    return out
+
+
 def record_choice(state: Mapping[str, Any]) -> None:
     """HF-023: pick the schema for the extraction ``extract_node`` is about to run."""
-    cfg = _ACTIVE
-    if cfg is None:
+    cfg, only = _ACTIVE, _ONLY.get()
+    if cfg is None and only is None:
         _PENDING.set(None)
         return
     from langchain_agents.specialist_agents import SPECIALIST_SCHEMAS
@@ -163,10 +188,16 @@ def record_choice(state: Mapping[str, Any]) -> None:
         _PENDING.set(None)
         return
     subclass = state.get("contract_subtype") if doc_class == "contract" else state.get("doc_subclass")
-    schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
-                                   cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
-    _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
-    _PENDING.set(None if schema is base else (base, schema))
+    schema = base
+    if cfg is not None:
+        schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
+                                       cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
+        _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
+    if only is not None:
+        # The judge still reviews the whole (merged) extraction against the subclass schema.
+        _PENDING.set((base, _restrict(schema, only), schema))
+        return
+    _PENDING.set(None if schema is base else (base, schema, schema))
 
 
 #: Specialists whose ``extract`` a corporate-schema hotfix may wrap (PR #425 composes its own
@@ -196,13 +227,13 @@ def bind_choice(agent: Any) -> None:
     _record_review(None)
     if choice is None:
         return
-    base, schema = choice
+    base, schema, review = choice
     cls = type(agent)
     if _composed_elsewhere(cls):
         _log.info("subclass schema for %s left to %s on %s.extract", getattr(agent, "doc_id", None) or "extraction",
                   getattr(cls.extract, _hotfix_mark(), None), cls.__name__)
         return
-    _record_review(base, schema)
+    _record_review(None if review is base else base, review)
     if getattr(agent, "schema", None) is base:
         # LangChain specialists also normalize and score evidence confidence on self.schema:
         # with the class schema there, every dropped field would count as "not found".

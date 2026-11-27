@@ -338,3 +338,27 @@ def rule(state: Mapping[str, Any], *, pass_no: int, guide: Mapping[str, str] | N
         ruling, reason = "human_review", f"{reason} [second ruling: no further retry]".strip()
     return {**entry, "ruling": ruling, "score": _score(answer.get("score")), "reason": reason, "fixes": checks,
             "retry_fields": retry if ruling == "retry_fields" else [], "wrong_fields": wrong}
+
+
+# --- After a ruling (Task 5): the pass-through arbiter, the field-only retry, the re-ruling -----
+
+def correcting() -> bool:
+    """Whether ``judge: mode: correct`` is active in this process."""
+    return bool(_ACTIVE) and _ACTIVE.get("mode") == "correct"
+
+
+def last_ruling() -> Mapping[str, Any] | None:
+    """The document's latest recorded ruling (from its call-guard scope), or None."""
+    from mailroom_sandbox.job import call_guard
+
+    scope = call_guard.scope() or {}
+    rulings = scope.get("judge_rulings") or []
+    return rulings[-1] if rulings else None
+
+
+def retry_owed(state: Mapping[str, Any]) -> bool:
+    """A judge-ordered re-read just ran and owes its second, final ruling."""
+    last = last_ruling()
+    return (correcting() and last is not None and last.get("mode") == "correct"
+            and last.get("ruling") == "retry_fields" and int(last.get("pass") or 0) == 1
+            and int(state.get("judge_pass_count") or 0) == 1)
