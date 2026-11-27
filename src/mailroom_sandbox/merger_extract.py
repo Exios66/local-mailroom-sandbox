@@ -334,13 +334,22 @@ def _merger_reads(agent: Any, result: dict[str, Any], doc_text: str, cfg: Mappin
         invalid = _group_reads(agent, out, doc_text, cfg, sorter, marks)
     elif cfg.get("gap_retry"):
         invalid = combine(out, {}, int(cfg["groups"]))[1]
-    if cfg.get("gap_retry"):
+    # The spec's bound: at most one gap-retry call per document. A graph re-extraction (low confidence,
+    # retry_extract) re-runs the main read and its group reads, but never a second retry.
+    from mailroom_sandbox.job import call_guard
+
+    scope = call_guard.scope()
+    if scope is not None and scope.get("merger_gap_retry"):
+        marks["retry_skipped"] = "once_per_document"
+    elif cfg.get("gap_retry"):
         targets = gap_targets(out, schema_sub, sorter, invalid)
         _retry(agent, out, doc_text, sorter, targets.questions, targets.fields, marks)
     else:
         dropped = disagreement_fields(out, schema_sub, sorter)
         if dropped:
             _retry(agent, out, doc_text, sorter, (), dropped, marks)
+    if scope is not None and marks.get("retry_calls"):
+        scope["merger_gap_retry"] = True
     out["_merger_reads"] = marks
     return out
 

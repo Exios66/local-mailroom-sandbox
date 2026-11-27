@@ -13,7 +13,9 @@ Design: docs/design/specs/2026-11-27-phase5-merger-maud-design.md.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 #: Head reads apply to documents longer than this many characters.
@@ -73,7 +75,27 @@ def record_head_read(agent: str, chars_sent: int, doc_chars: int) -> None:
     from mailroom_sandbox.job import call_guard
 
     logging.getLogger(__name__).info("head_read agent=%s chars_sent=%d doc_chars=%d", agent, chars_sent, doc_chars)
+    mark = {"agent": agent, "chars_sent": int(chars_sent), "doc_chars": int(doc_chars)}
     scope = call_guard.scope()
     if scope is not None:
-        scope.setdefault("head_read", []).append(
-            {"agent": agent, "chars_sent": int(chars_sent), "doc_chars": int(doc_chars)})
+        scope.setdefault("head_read", []).append(mark)
+    else:
+        collected = _ROW_HEAD_READS.get()
+        if collected is not None:  # an isolated (sorter-only) row: no call-guard scope
+            collected.append(mark)
+
+
+#: Head reads of the current isolated evaluator row (``eval.runners.run_isolated_eval``), which runs
+#: outside ``call_guard.document``; ``None`` outside :func:`collect_head_reads`.
+_ROW_HEAD_READS: ContextVar[list[dict[str, int | str]] | None] = ContextVar("row_head_reads", default=None)
+
+
+@contextmanager
+def collect_head_reads() -> Iterator[list[dict[str, int | str]]]:
+    """Collect the head reads of one isolated row, for its run item."""
+    marks: list[dict[str, int | str]] = []
+    token = _ROW_HEAD_READS.set(marks)
+    try:
+        yield marks
+    finally:
+        _ROW_HEAD_READS.reset(token)

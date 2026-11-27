@@ -657,10 +657,14 @@ def known_tasks() -> tuple[str, ...]:
 
 
 def _merger_reads_shas() -> dict[str, str]:
-    """sha256 of the committed tables job.merger reads (a change after the lock refuses a resume)."""
-    from mailroom_sandbox import merger_tables
+    """sha256 of the committed files job.merger reads: its tables and the section locator's rules.
 
-    return {"merger_tables_sha256": merger_tables.sha256()}
+    A change to either after the lock refuses a resume, so one measurement never mixes two locators.
+    """
+    from mailroom_sandbox import merger_sections, merger_tables
+
+    return {"merger_tables_sha256": merger_tables.sha256(),
+            "merger_section_rules_sha256": hashlib.sha256(merger_sections.RULES_PATH.read_bytes()).hexdigest()}
 
 
 def _subclass_fields_sha256() -> str:

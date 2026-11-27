@@ -912,12 +912,9 @@ def merger_reads_block(spec: RunSpec, rows: Sequence[Mapping[str, Any]]) -> dict
     switches = {**(spec.job.merger or MergerReadsSpec()).model_dump(), "long_document_head": head}
     judge = thresholds_for(effective_thresholds(spec.confidence), "merger_agreement")
     passes = judge.get("judge_max_passes")
-    errors: list[str] = []
+    errors = merger_judge_errors(spec)
     rule: bool | None = None
     if passes == 0:
-        if not switches["question_groups"]:
-            errors.append("confidence.by_class.merger_agreement.judge_max_passes 0 needs job.merger.question_groups "
-                          "(HF-030's route rule): without it the vendored routers ignore 0 and still judge every merger")
         from graph import route_spec
 
         from mailroom_sandbox import vendor_hotfixes
@@ -946,8 +943,25 @@ def merger_reads_block(spec: RunSpec, rows: Sequence[Mapping[str, Any]]) -> dict
             "estimate": {"mergers": len(mergers), "per_merger": per,
                          "mean_chars": round(sum(map(len, mergers)) / len(mergers)) if mergers else 0,
                          "note": "whole-document-read equivalents per merger; a low-confidence re-read "
-                                 "(retry_max) adds up to one more"},
+                                 "(retry_max) repeats the main read and the group reads (never the gap "
+                                 "retry, at most one a document)"},
             "errors": errors}
+
+
+def merger_judge_errors(spec: RunSpec) -> list[str]:
+    """The spec-only refusal: a merger ``judge_max_passes: 0`` on a pipeline run without question groups.
+
+    It reads no dataset row, so nothing the estimate does can skip it (critical regressions 4 and 5).
+    """
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+
+    if spec.task != "pipeline":
+        return []
+    passes = thresholds_for(effective_thresholds(spec.confidence), "merger_agreement").get("judge_max_passes")
+    if passes == 0 and not (spec.job.merger is not None and spec.job.merger.question_groups):
+        return ["confidence.by_class.merger_agreement.judge_max_passes 0 needs job.merger.question_groups "
+                "(HF-030's route rule): without it the vendored routers ignore 0 and still judge every merger"]
+    return []
 
 
 def _merger_judge_rule_name() -> str:
@@ -957,14 +971,27 @@ def _merger_judge_rule_name() -> str:
 
 
 def _record_merger_reads(report: dict[str, Any], spec: RunSpec, store: RunStore) -> bool:
-    """Attach the merger_reads block; False (preflight failed, no lock) only on its judge-routing error."""
+    """Attach the merger_reads block; False (preflight failed, no lock) only on its judge-routing error.
+
+    The refusal is computed from the spec alone, before the advisory estimate, so an estimate that
+    raises (an unreadable row, a locator error) never skips it.
+    """
+    refused = merger_judge_errors(spec)
     try:
         block = merger_reads_block(spec, store.dataset_rows())
-    except Exception as exc:  # noqa: BLE001 — the estimate is advisory
+    except Exception as exc:  # noqa: BLE001 — the estimate is advisory; the refusal is not
         _log.debug("merger_reads block skipped", exc_info=exc)
+        if refused:
+            report["status"] = "failed"
+            report["checks"].append({"name": "merger_reads", "ok": False, "detail": "; ".join(refused)})
+            return False
         report["checks"].append({"name": "merger_reads", "ok": True, "detail": f"skipped: {exc}"})
         return True
     if block is None:
+        if refused:
+            report["status"] = "failed"
+            report["checks"].append({"name": "merger_reads", "ok": False, "detail": "; ".join(refused)})
+            return False
         return True
     report["merger_reads"] = block
     if block["errors"]:

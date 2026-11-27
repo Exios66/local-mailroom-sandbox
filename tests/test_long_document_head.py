@@ -146,3 +146,23 @@ def test_repeated_apply_keeps_one_layer_per_fix_on_a_shared_target():
         layers.append(getattr(fn, "__dict__", {}).get("_sandbox_hotfix"))
         fn = getattr(fn, "__wrapped__", None)
     assert [x for x in layers if x] == ["HF-033", "HF-003"]
+
+
+def test_a_sorter_only_run_records_each_head_read_on_its_item(monkeypatch):
+    """Final review: the isolated sorter (the p5-s2-head-sorter arms) has no call-guard scope, so the
+    head read is collected per row and copied onto the item; without it an arm whose route silently
+    read whole documents would look like a passing head arm."""
+    from mailroom_sandbox.eval import runners
+
+    def predict(spec, row, *, mock):
+        if row["id"] == "long":
+            merger_reads.record_head_read("sorter", 128_000, 400_000)
+        return {"doc_type": "merger_agreement"}, False
+
+    monkeypatch.setattr(runners, "_predict_spec", predict)
+    rows = [{"id": "long", "doc_text": "x", "expected": "merger_agreement"},
+            {"id": "short", "doc_text": "y", "expected": "merger_agreement"}]
+    result = runners.run_isolated_eval("sorter", profile="ollama", rows=rows, mock=False, concurrency=1)
+    items = {i["id"]: i for i in result["rows"]}
+    assert items["long"]["head_read"] == [{"agent": "sorter", "chars_sent": 128_000, "doc_chars": 400_000}]
+    assert "head_read" not in items["short"]

@@ -112,3 +112,24 @@ def test_a_merger_spec_locks_the_tables_sha():
 def test_an_unknown_group_count_is_refused(groups):
     with pytest.raises(ValueError):
         merger_tables.group_questions(groups)
+
+
+def test_a_merger_spec_locks_the_locator_rules_so_a_rule_edit_refuses_a_resume(tmp_path, monkeypatch):
+    import hashlib
+
+    from mailroom_sandbox import merger_sections
+    from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, spec_core, spec_hash
+
+    def spec(**job):
+        return RunSpec(run_id="r-mt", task="pipeline", dataset=DatasetSpec(local_path="file:///x.jsonl"),
+                       engine={"kind": "vllm-local", "modal": None}, job={"mock": True, **job})
+
+    on = spec(merger={"subclass_fields": True})
+    rules_sha = hashlib.sha256(merger_sections.RULES_PATH.read_bytes()).hexdigest()
+    assert spec_core(on)["job"]["merger_section_rules_sha256"] == rules_sha
+    assert "merger_section_rules_sha256" not in spec_core(spec())["job"]
+    before = spec_hash(on)
+    edited = tmp_path / "rules.json"
+    edited.write_text(merger_sections.RULES_PATH.read_text(encoding="utf-8").replace('"antitrust"', '"antitrust law"'))
+    monkeypatch.setattr(merger_sections, "RULES_PATH", edited)
+    assert spec_hash(on) != before

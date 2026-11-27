@@ -266,3 +266,18 @@ def test_hf030_is_registered_with_a_pinned_source():
 
     assert getattr(_SpecialistBase.extract, "_sandbox_hotfix", None) is None    # only the merger class
     assert ContractsSpecialist.extract is _SpecialistBase.extract
+
+
+def test_a_re_extraction_repeats_the_group_reads_but_never_a_second_gap_retry(merger):
+    """Final review: a low-confidence re-read re-runs the main read, so its group reads run again
+    (or its MAUD answers fall back to the main read's), but the gap retry is at most once a document."""
+    from mailroom_sandbox.job import call_guard
+
+    with call_guard.document():
+        first, calls_1 = merger()
+        second, calls_2 = merger()
+    assert len(calls_1) == 5 and len(calls_2) == 4                 # main + 3 groups; no second gap retry
+    assert second["_merger_reads"]["retry_skipped"] == "once_per_document"
+    assert _ok("No-Shop", 1) in second["maud_clauses"]
+    _, calls_3 = merger()                                          # a new document gets its retry
+    assert len(calls_3) == 5

@@ -143,3 +143,30 @@ def test_a_refused_merger_judge_stops_preflight_before_the_lock():
     ok: dict = {"status": "prepared", "checks": []}
     assert preflight._record_merger_reads(ok, load_spec(RUNS / "p5-s2-merger-reads.yaml"), Store()) is True
     assert ok["status"] == "prepared" and ok["merger_reads"]["estimate"]["mergers"] == 1
+
+
+def test_the_merger_judge_refusal_holds_when_the_estimate_raises(monkeypatch):
+    from mailroom_sandbox import merger_sections
+
+    spec = load_spec(RUNS / "p5-s2-merger-reads.yaml")
+    spec.job.merger.question_groups = False
+    spec.job.merger.gap_retry = False
+
+    def boom(*_a, **_k):
+        raise RuntimeError("locator failed")
+
+    monkeypatch.setattr(merger_sections, "question_excerpts", boom)
+    monkeypatch.setattr(merger_sections, "locate", boom)
+
+    class Store:
+        def dataset_rows(self):
+            return _rows()
+
+    class Broken:
+        def dataset_rows(self):
+            raise RuntimeError("no rows")
+
+    for store in (Store(), Broken()):
+        report: dict = {"status": "prepared", "checks": []}
+        assert preflight._record_merger_reads(report, spec, store) is False
+        assert report["status"] == "failed" and "question_groups" in report["checks"][-1]["detail"]
