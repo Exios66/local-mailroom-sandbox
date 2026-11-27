@@ -193,7 +193,8 @@ same vendor refresh.
 ## Adding one
 
 1. Reproduce the defect against the vendored code in a test.
-2. Add a `Hotfix` to `HOTFIXES` with the target's current source sha256
+2. Take the next free ID from [the numbering reservations](numbering-reservations.md) and add a `Hotfix` to
+   `HOTFIXES` with the target's current source sha256
    (`hashlib.sha256(inspect.getsource(fn).encode()).hexdigest()`), an upstream reference and a
    wrapper that changes only the defect.
 3. Add a row above and a CHANGELOG entry, and open the upstream issue.

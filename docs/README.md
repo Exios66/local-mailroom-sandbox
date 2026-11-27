@@ -114,6 +114,7 @@ what was decided at the time; the guides above say how things work now.
 | Phase 4 correcting judge | [Plan](design/plans/2026-11-26-phase4-correcting-judge.md) |
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
 | Correcting judge upstream issues | [Drafts](design/specs/2026-11-26-correcting-judge-upstream-issues.md) for `llm-mailroom`, for the owner to file |
+| Numbering reservations | [Hotfix IDs and critical-regression rows](numbering-reservations.md) claimed by open PRs |
 
 New design records go in `design/<ticket>/`, or in `design/plans/` and
 `design/specs/` with a date prefix. Plans a tool writes to its own default
