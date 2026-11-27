@@ -42,7 +42,11 @@ def test_the_flag_is_refused_with_the_correcting_judge():
     assert _spec(confidence={"keep_best_attempt": False}, judge={"mode": "correct"})
 
 
-def test_a_spec_without_the_flag_keeps_its_hash():
+def test_a_spec_without_the_flag_keeps_its_hash(monkeypatch):
+    # Freeze the baseline's schema-list input: label repairs intentionally change that
+    # digest, independently of keep_best_attempt. Other tests guard schema-input drift.
+    monkeypatch.setattr("mailroom_sandbox.job.spec._subclass_fields_sha256",
+                        lambda: "37cae40feaf60563567d5abf04de1e64551c340e35f2d60b0b548cc865c1574c")
     assert spec_hash(load_run_spec("config/runs/p4-s1-verify-gov-off.yaml")) == (
         "7293c6342d502a2d42f2d052a0e985031f7343723baf242c983ba2313c0bb288")  # main at 1dcafd5
 

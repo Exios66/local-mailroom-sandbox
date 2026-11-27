@@ -24,8 +24,9 @@ so `sandbox floor` can be viewed and debugged on a machine with no run store.
 
 Every document takes one pass, `intake → classify → extract → judge_verify →
 compile_report → catalog_write → archive`, and the item's predicted class is
-its ground-truth class. The trace assumes the checkout's active vendor
-hotfixes (the ids in `spec.lock.json` under `vendor_hotfixes.applies`):
+its ground-truth class. The trace assumes its recorded vendor
+hotfix set (the ids in `spec.lock.json` under `vendor_hotfixes.applies`); it is not
+restamped when newer runtime hotfixes are added. Under that scripted set,
 output-cap truncation (`LengthFinishReasonError`), judge parks, arbiter
 re-extraction and class mismatches from earlier samples are not replayed.
 
