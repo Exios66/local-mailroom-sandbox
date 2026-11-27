@@ -610,6 +610,80 @@ resumes it runs with class schemas. Preflight resumes it only while it has no ch
 refuses it once work has started. An ad-hoc pipeline eval
 with no lock uses the committed field lists.
 
+## Correcting judge (`judge:`)
+
+Phase 4 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (plan:
+[`docs/design/plans/2026-11-26-phase4-correcting-judge.md`](design/plans/2026-11-26-phase4-correcting-judge.md)).
+A top-level `judge:` section on a `task: pipeline` run changes how the judge rules; it is refused for any other
+task, and without it the judge is today's and nothing is recorded.
+
+```yaml
+judge:
+  mode: correct                 # verify: today's judge plus the record; correct: a judge that rules on fixes
+  model: qwen/qwen3.7-plus      # correct mode only (default)
+  models_by_class:              # correct mode only (default)
+    merger_agreement: deepseek/deepseek-v4.1-flash-1017
+  references: train_pool        # off (default) or train_pool; catalog is refused until a catalog source exists
+  reference_pool: config/judge/reference-pool-runbook-v2.jsonl   # only with train_pool
+  max_examples: 2               # 0-2 labeled examples of the same class and subclass
+  max_example_chars: 3000
+  max_attempt_chars: 4000       # earlier extraction attempts of this document
+```
+
+Quote `"off"` in YAML: a bare `off` parses as false (the spec reads false as `off` too).
+
+**`mode: verify`** keeps the vendored judge, arbiter and retry, and records each verdict and the extraction
+before the judge (HF-025). It runs on the pipeline's own judge model, so `model`, `models_by_class` and
+`references` are refused with it, and it adds no preflight price or route check.
+
+**`mode: correct`** replaces each judge pass with one ruling (one call, one re-ask on a parse failure). The
+prompt puts the whole document first, then the extraction (requested fields only: the class schema after the
+subclass drops, without `confidence` or `reasoning`), the field definitions, this document's earlier attempts
+and, with `train_pool`, up to two labeled examples. The judge rules `accept` (with fixes), `retry_fields`
+(naming fields) or `human_review`, mapped to the vendored verdicts `complete`, `partial` and `incomplete`.
+The safety rules:
+
+- A fix is applied only when `judge_fixes.verify_fix` checks it: the field was requested and is a target
+  field of the class, the value is not blank (a fix never erases a field), the quote is found in the document,
+  and the located text supports the value under the gate's value rules. Nothing in the check calls a model.
+- An accept that leaves a wrong field unfixed becomes a retry on the first ruling and a person on the second.
+- A retry asks the specialist for the named fields only and keeps every other field (HF-027), then returns to
+  the judge for its second, final ruling. A second ruling never retries; a retry with no fields goes to a person.
+- The arbiter makes no call; the judge's ruling is final (HF-026), and the pass-through is not a governor
+  round. Rulings and the retry count toward the governor's call and spend budgets.
+- A document longer than the judge model's context, or a reply that does not parse twice, goes to review
+  (`judge_input_too_long`, `judge_parse_error`).
+
+So every document ends within two rulings and one field retry.
+
+**References.** `train_pool` reads the committed pool `config/judge/reference-pool-runbook-v2.jsonl`, built by
+`python scripts/build_judge_reference_pool.py` (`--check` fails when stale): the truth labels of the runbook-v2
+`calibration` and `pool` documents only, near-gold (`status: near_gold`) winning over interim labels
+(`use_as_truth`, not `disputed`), with at most two 240-character evidence quotes per field. Preflight refuses a
+train_pool draw that holds a calibration or pool document, or one sharing a leak component (thread, matter or
+text) with the pool, and the judged document is never its own example.
+
+**Preflight and lock.** In correct mode preflight refuses a judge model with no price in
+`config/api_prices.yaml`, no provider pin in `config/provider_pins.yaml`, no OpenRouter route, or a missing pool
+file. The spend cap prices the judge models. The section, with the pool's sha256, is hashed into `spec_hash`
+(absent, the hash is unchanged); activation refuses a pool whose bytes differ from the lock. HF-025 to HF-027
+are in every lock's `vendor_hotfixes`, so a run locked before this refuses resume until `--force`.
+
+**Record and reports.** Each judged item records `judge_rulings` (pass, ruling, score, reason, checked fixes,
+retry and wrong fields, model), `before_judge`, `judge_corrected` and `judge_conflict`. The gate report adds a
+`judge` block (rulings, fixes and their accuracy against the truth, retries, scores before and `after judge`,
+calls, judge-related calls and cost per judged document, cached prompt tokens, review and wrong-archive rates,
+crashes, matter conflicts and governor stops), and the routing audit a `judge` section.
+`gate_compare.judge_compare(baseline_dir, judge_dir, bars, stage=...)` applies the design's success rules to two
+runs of the same documents: judge-related calls per judged document cut by at least half, cost per judged
+document no higher by class, the paired score delta at most 2 points below (bootstrap interval; gating from
+stage 2), no more wrong archives, and no crash from the hard call ceiling.
+
+**Stages.** The stage configs are `config/runs/p4-s1-*.yaml` (dev-look1, 300 documents: verify with the governor
+off and on, correct with and without references) and `config/runs/p4-s2-*.yaml` (dev, 900 documents: verify and
+correct with references); each header states its cap arithmetic. Run the R01 smoke
+`config/runs/rb1-r01-smoke-qwen3.7-plus.yaml` first. Every stage is paid and needs a person's initials.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working
