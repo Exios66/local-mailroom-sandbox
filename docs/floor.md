@@ -39,13 +39,18 @@ folders outside `--base`. Registration stores absolute references in
 must stay accessible. It needs no provider
 account, API key or serving process. OpenRouter, Modal/vLLM, LM Studio and other
 providers use the same run artifact schema. The run list shows the configured `profile` and `engine.model` from
-`spec.lock.json`, with placeholders when absent. The node card shows models
+`spec.lock.json`; a missing profile falls back to `engine.kind`. If neither
+provider value is present it shows `provider not recorded`; a missing model
+shows `model not recorded`. The node card shows models
 observed in node logs separately from its labelled configured fallback. Neither
 uses the current provider default.
 
 Registered folders need `items.jsonl` objects with `item_id` or `id`, or
 `nodes.jsonl` objects with both `doc` and `node`.
-Nodes-only logs show available paths without inventing outcomes or scores.
+Nodes-only logs include selectable document paths. Without an item record, a
+document remains `open` (final outcome unknown), with no inferred prediction,
+stage or score, even when a node recorded a terminal stage. Item-outcome totals
+count only stored items.
 Missing registered folders are omitted until they return. Aggregate summary logs
 (including `reports/experiment_log.jsonl`) do not contain the per-document floor
 trace: select the original run folder, or IMPORT an exported floor digest.

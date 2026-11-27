@@ -27,6 +27,7 @@ MAUD_LABELS = {
 def environment(monkeypatch, job_data_dir):
     monkeypatch.setattr('mailroom_sandbox.runtime.dotenv_files', lambda: [])
     monkeypatch.setattr('mailroom_sandbox.paths.dotenv_files', lambda: [])
+    monkeypatch.setenv('SANDBOX_PROFILE', 'openrouter')
     monkeypatch.delenv('MODAL_WORKSPACE', raising=False)
 
 

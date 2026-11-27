@@ -1792,16 +1792,21 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     ok_count = 0
     item_class: dict[str, str] = {}
     doc_rows: list[dict] = []
-    for item_id, it in items:
+    # A live/partial trace may precede its item record. Keep that document inspectable
+    # without treating a node's stage as a final item outcome or prediction.
+    for item_id in dict.fromkeys([*items_by_id, *per_doc_records]):
+        recorded_item = item_id in items_by_id
+        it = items_by_id.get(item_id, {})
         ok = it.get("ok")
         if ok:
             ok_count += 1
-        stage = _item_stage(it) or last_stage_from_nodes(item_id)
+        stage = (_item_stage(it) or last_stage_from_nodes(item_id)) if recorded_item else None
         bucket = _stage_bucket(stage, ok if isinstance(ok, bool) else None)
         cls = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "") or "?"
         item_class[item_id] = cls
         recs = per_doc_records.get(item_id) or []
         seq = visit_seq(recs)
+        note = _error_text(it) if recorded_item else "No item record; final outcome and prediction are unknown."
         doc_rows.append({
             "id": item_id,
             "gt": None if cls == "?" else cls,
@@ -1816,11 +1821,13 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             "review": _review_trigger(it, recs),
             # Present only on an archive accepted with arbiter caveats (HF-014 marker).
             **({"caveats": caveats} if (caveats := _arbiter_caveats(it)) else {}),
-            "note": _error_text(it),
+            "note": note,
             "debug": _diagnose(it, recs, bucket, str(stage) if stage else None,
-                               _review_trigger(it, recs), _error_text(it), _pred_class(it),
+                               _review_trigger(it, recs), note, _pred_class(it),
                                None if cls == "?" else cls, plain),
         })
+        if not recorded_item:
+            continue  # item outcome totals count stored items only
         for table, key in ((outcomes, cls), (class_outcomes, ds_class.get(item_id))):
             if key is None:
                 continue

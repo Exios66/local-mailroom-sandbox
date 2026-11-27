@@ -31,7 +31,9 @@ BRAINTRUST_PROJECT=mailroom-sandbox
 `mailroom_sandbox.eval.tracing` implements a native Braintrust adapter:
 `document_pipeline_trace` and `child_observation` emit spans, score helpers attach scores, and
 `flush_traces` flushes the logger. It requires both an API key and a project
-name or ID. Initialization, span-start/end and flush failures are logged and counted.
+name or ID. SDK initialization exceptions, span-start/end and flush failures are
+logged and counted. A configured API key without either project variable only
+warns and returns without recording spans or incrementing the initialization counter.
 Span `log`, `update` and `score` calls can propagate SDK errors without incrementing
 those counters; a selected sink or zero counter is not proof of delivery. Inspect
 `tests/test_tracing_braintrust.py` and the export diagnostics before claiming

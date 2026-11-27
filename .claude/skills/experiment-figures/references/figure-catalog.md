@@ -44,7 +44,8 @@ Built by `window_figures.build`; written by `python -m mailroom_sandbox.window_f
 "<label>=<run dir>" ... --base <label> --cand <label> --stem <stem> --out <dir>`, with a
 `<stem>.figure-data.csv` per-document table. Merge-rule AUROCs require the original
 window confidences from each source `items.jsonl` (`job.routing_audit.window_rule_separation`);
-they are not included in that CSV. Specialists use the third-system colour (aqua); the paired
+they are not included in that CSV. Retain each run's `dataset.jsonl` too:
+`window_figures.load_run` reads its document IDs and labels. Specialists use the third-system colour (aqua); the paired
 reference run is neutral grey.
 
 | Figure | Question | Form |

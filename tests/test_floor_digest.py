@@ -288,3 +288,35 @@ def test_node_models_preserve_observed_hybrid_identity_without_filling_missing_m
     digest, _ = floor_app.load_builder().build_run('test', run, set())
     assert digest['node_models'] == {'extract': ['specialist-model'], 'judge_verify': ['judge-model']}
     assert digest['engine']['model'] == 'base-model'
+
+
+def test_nodes_only_documents_are_inspectable_without_inferred_results(tmp_path):
+    builder = floor_app.load_builder()
+    run = _reads_run(tmp_path, reads=None)
+    (run / 'items.jsonl').unlink()
+    (run / 'nodes.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in [
+        {'doc': 'd1', 'node': 'intake', 'status': 'done'},
+        {'doc': 'd1', 'node': 'archive', 'status': 'done', 'stage': 'archived'},
+        {'doc': 'unlabelled', 'node': 'human_review', 'status': 'done', 'stage': 'human_review'},
+    ]))
+    digest, _ = builder.build_run('partial', run, {('intake', 'archive')})
+    rows = {r['id']: r for r in digest['docs']}
+    assert set(rows) == {'d1', 'unlabelled'}
+    assert rows['d1']['path'] == ['intake', 'archive']
+    assert rows['unlabelled']['path'] == ['human_review']
+    assert rows['d1']['gt'] == 'contract' and rows['unlabelled']['gt'] is None
+    for row in rows.values():
+        assert row['outcome'] == 'open'
+        assert row['stage'] is row['pred'] is row['score'] is None
+        assert 'unknown' in row['note']
+    assert digest['items_attempted'] == digest['items_ok'] == 0
+    assert digest['outcomes'] == {}
+    assert digest['scores']['classification']['n'] == digest['scores']['extraction']['n'] == 0
+    assert digest['node_outcomes']['archive']['open'] == 1
+    assert digest['review_routed']['total'] == 0
+    # When an item arrives, its stored result wins without duplicating the trace row.
+    (run / 'items.jsonl').write_text(json.dumps({'item_id': 'd1', 'ok': True, 'stage': 'archived'}) + '\n')
+    updated, _ = builder.build_run('partial', run, {('intake', 'archive')})
+    assert len(updated['docs']) == 2
+    assert _doc_row(updated)['outcome'] == 'ship'
+    assert updated['items_attempted'] == updated['items_ok'] == 1

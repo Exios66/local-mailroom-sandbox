@@ -93,8 +93,9 @@ one-off matplotlib script. A figure outside them drifts: its own colours, fonts 
 - **One table view per figure set.** Per-run figures write `analysis/<stem>.figure-data.csv`; the
   comparison figures read `comparison.json`. Window figures export per-document
   values in their CSV; merge-rule AUROCs are computed from the window confidences
-  in the source run's `items.jsonl` via `job.routing_audit.window_rule_separation`. Retain
-  those source artifacts too; the CSV alone cannot reproduce `window-rules`.
+  in the source run's `items.jsonl` via `job.routing_audit.window_rule_separation`.
+  Retain both `dataset.jsonl` (document IDs and labels) and `items.jsonl` for each
+  run alongside its CSV: `window_figures.load_run` needs both to reproduce figures.
 
 ## Review checklist (run before you hand a figure over)
 
