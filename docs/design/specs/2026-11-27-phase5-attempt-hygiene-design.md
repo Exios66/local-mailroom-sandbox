@@ -1,6 +1,6 @@
 # Phase 5, part 1: attempt hygiene on the OpenRouter route
 
-**Status.** Design, for approval. Part 1 of Phase 5 of the
+**Status.** Approved 2026-11-27; implemented per the [plan](../plans/2026-11-27-phase5-attempt-hygiene.md). Part 1 of Phase 5 of the
 [correcting-judge design](2026-11-26-correcting-judge-design.md) (rows D1 and D2), re-scoped to the
 production route: OpenRouter, `qwen3.7-flash`, context-fitted whole-document reads.
 

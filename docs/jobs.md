@@ -721,6 +721,61 @@ off and on, correct with and without references) and `config/runs/p4-s2-*.yaml` 
 correct with references); each header states its cap arithmetic. Run the R01 smoke
 `config/runs/rb1-r01-smoke-qwen3.7-plus.yaml` first. Every stage is paid and needs a person's initials.
 
+## Attempt hygiene (Phase 5 part 1)
+
+Two opt-in switches for the OpenRouter route, where every document is read in one call, so the
+chunk-merge fixes never run. Neither adds a model call. Design:
+[`docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md`](design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
+
+### Keep the best-judged attempt (`confidence.keep_best_attempt`)
+
+`confidence.keep_best_attempt: true`, globally or under `confidence.by_class.<class>`, turns on the
+vendored #254 selection. The report and the review handoff use the best-judged extraction attempt
+instead of the latest:
+
+- candidates have a judge verdict and passed the schema and quality gate;
+- they rank `complete` > `partial` > `incomplete`, then by confidence, and a tie keeps the latest;
+- a Boss conflict pins the latest;
+- an archived document never takes an earlier attempt that is still unsure or below the coverage
+  floor.
+
+Routing never reads the flag. Only a real boolean is accepted. It is refused with `judge: mode: correct`,
+whose verified fixes are not in the attempt history. The routing audit reports it per class, and an
+older lock that never set it reads as unknown.
+
+### Evidence check (`job.evidence_check`)
+
+`job.evidence_check: true` turns on HF-029. A one-call read's list items in `cuad_clauses`,
+`claim_checklist`, `action_items` and `denial_reasons` are checked against the whole document with the
+vendored single-window evidence test:
+
+- a string item is dropped only when it has a checkable quote and neither it nor a reasoning quote for
+  its field is in the document; short (unverifiable) and non-string items stay;
+- drops are recorded under `_evidence_dropped`, which the judge, the arbiter and the correcting judge
+  never see (they strip `_` keys);
+- a chunked read keeps its `chunking.merge` policy;
+- a drop that would leave the extraction empty is skipped (`_evidence_skipped: "would_empty"`), so the
+  check never fails a read or adds a retry.
+
+Pipeline runs only; hashed only when set.
+
+### Measuring both offline
+
+```bash
+python scripts/replay_attempt_hygiene.py --run p4-s1-verify-gov-off
+```
+
+The replay reads a finished pipeline run and never writes it. It activates the run's lock with
+`keep_best_attempt` forced on and scores the latest, the selected and the filtered extraction of every
+document with the gate's own scorer. Contracts also get CUAD false and missed clauses before and after
+the filter. It prints a digest with the design's adoption bars and writes the full result to
+`data/runtime/replays/<run_id>.attempt_replay.json`.
+
+Its numbers are an offline estimate. Selection is exact, because routing never reads the flag. The
+filter is not: the run's judge rated the unfiltered extraction. Launch the confirming arm
+`config/runs/p5-s1-evidence-on.yaml` (a person's initials at the spend gate) only when
+`bars.evidence_meets_confirming_arm` is true.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working

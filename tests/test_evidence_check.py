@@ -216,3 +216,18 @@ def test_the_lock_activates_the_check(monkeypatch):
         assert not ec.active()
     finally:
         ec.activate(False)
+
+
+def test_the_confirming_arm_differs_from_its_baseline_only_in_the_check():
+    import yaml
+
+    def core(name):
+        spec = RunSpec.model_validate(yaml.safe_load(open(f"config/runs/{name}.yaml", encoding="utf-8")))
+        out = spec_core(spec)
+        out.pop("trace", None)  # tags only
+        return out
+
+    on, off = core("p5-s1-evidence-on"), core("p4-s1-verify-gov-off")
+    assert on["job"].pop("evidence_check") is True
+    assert "evidence_check" not in off["job"]
+    assert on == off
