@@ -105,6 +105,7 @@ def read_sources(classes: Iterable[str] | None = None) -> tuple[list[dict], list
     """``(assignments, interim, near_gold)`` from the committed files; the overlay must match its manifest."""
     from mailroom_sandbox.gold_labels import near_gold_snapshot
 
+    classes = None if classes is None else list(classes)  # read twice below; a generator would empty
     assignments = _jsonl(ASSIGNMENTS)
     names = sorted(classes or {p.stem for p in INTERIM_DIR.glob("*.jsonl")})
     interim = [r for name in names for r in _jsonl(INTERIM_DIR / f"{name}.jsonl")]
@@ -112,7 +113,7 @@ def read_sources(classes: Iterable[str] | None = None) -> tuple[list[dict], list
     if problems:
         raise ValueError(f"{NEAR_GOLD_DIR}: {'; '.join(problems[:3])}")
     near_gold = [r for _, r in sorted(records.items())
-                 if classes is None or str(r.get("doc_class")) in set(classes)]
+                 if classes is None or str(r.get("doc_class")) in classes]
     return assignments, interim, near_gold
 
 

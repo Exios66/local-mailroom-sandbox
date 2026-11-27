@@ -222,3 +222,11 @@ def test_rule_feeds_the_prompt_its_references(references, monkeypatch, tmp_path)
         assert '"C-1"' not in prompts[0].split("LABELED_EXAMPLES")[1]  # never the judged document's own labels
     else:
         assert "LABELED_EXAMPLES" not in prompts[0]
+
+
+def test_read_sources_accepts_a_one_shot_class_iterable():
+    """A generator of class names filters near-gold the same way a list does (it is read once)."""
+    assignments, interim, near_gold = jr.read_sources(["contract"])
+    assert near_gold, "the committed overlay has contract near-gold records"
+    once = jr.read_sources(c for c in ["contract"])
+    assert once == (assignments, interim, near_gold)

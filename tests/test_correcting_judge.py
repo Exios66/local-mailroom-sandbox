@@ -799,6 +799,23 @@ def test_both_judge_models_are_priced_and_pinned():
     assert pins[QWEN]["order"] == ["alibaba"]
 
 
+@pytest.mark.parametrize("model", [QWEN, FLASH])
+def test_a_judge_model_answering_with_its_dated_slug_is_verified(model):
+    """OpenRouter may answer with the dated slug the price catalog names; that is the same model."""
+    import yaml
+
+    from mailroom_sandbox import provider_pins
+
+    pins = provider_pins.load_pins()
+    with open("config/api_prices.yaml", encoding="utf-8") as fh:
+        dated = yaml.safe_load(fh)["models"][model]["canonical_slug"]
+    assert pins[model]["canonical_slug"] == dated
+    entry = provider_pins._record(model, {"model": dated, "provider": pins[model]["order"][0]}, pins)
+    assert entry["status"] == "verified", entry
+    other = provider_pins._record(model, {"model": f"{model}-lite", "provider": pins[model]["order"][0]}, pins)
+    assert other["status"] == "mismatch"
+
+
 @pytest.mark.parametrize("name", sorted(STAGES))
 def test_every_stage_config_preflights_offline(name, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-offline-check")
