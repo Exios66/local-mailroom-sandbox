@@ -282,6 +282,37 @@ def _governor_block(statuses: list[dict[str, Any]]) -> dict[str, Any]:
                      if "governor_stop" in s or "duplicate_of" in s or "governor_skips" in s]}
 
 
+def _evidence_fields(out: dict[str, Any], pred: Mapping[str, Any]) -> None:
+    """HF-029's marks on a finished extraction (``job.evidence_check``): items dropped per field, a skipped read."""
+    extracted = pred.get("extracted_data")
+    if not isinstance(extracted, Mapping):
+        return
+    record = extracted.get("_evidence_dropped")
+    if isinstance(record, Mapping):
+        dropped = {str(f): len(v) for f, v in sorted(record.items()) if isinstance(v, list) and v}
+        if dropped:
+            out["evidence_dropped"] = dropped
+    if extracted.get("_evidence_skipped") in ("would_empty", "pages"):
+        out["evidence_skipped"] = str(extracted["_evidence_skipped"])
+
+
+def _evidence_block(statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    dropped: dict[str, int] = {}
+    skipped: dict[str, int] = {}
+    by_class: dict[str, dict[str, int]] = {}
+    for s in statuses:
+        if s.get("evidence_skipped"):
+            skipped[s["evidence_skipped"]] = skipped.get(s["evidence_skipped"], 0) + 1
+        for f, n in (s.get("evidence_dropped") or {}).items():
+            dropped[f] = dropped.get(f, 0) + n
+            cls = by_class.setdefault(s["class"], {})
+            cls[f] = cls.get(f, 0) + n
+    return {"dropped": dict(sorted(dropped.items())),
+            "skipped": dict(sorted(skipped.items())),
+            "by_class": {c: dict(sorted(v.items())) for c, v in sorted(by_class.items())},
+            "docs": [s["id"] for s in statuses if "evidence_dropped" in s or "evidence_skipped" in s]}
+
+
 # --- phase 4: the judge block (judge: section, ``judge_record``) -------------------------------------------
 
 #: Agents whose calls are judge-related (ruling 17), beside the judge-ordered re-extractions.
@@ -491,6 +522,7 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
         return out
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
     _governor_fields(out, pred)
+    _evidence_fields(out, pred)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
     if out["stage"] == "archived":
@@ -699,6 +731,7 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     caveated = [s for s in statuses if s.get("arbiter_caveats")]
     reasked = [s for s in statuses if s.get("judge_reasks")]
     governor = _governor_block(statuses)
+    evidence = _evidence_block(statuses)
     judge = _judge_block(statuses)
     return {
         # Present only when a judge: section recorded rulings (phase 4, judge_record): rulings, fixes
@@ -707,6 +740,10 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
         # Present only when the loop governor acted (phase 2, job.governor): stops by reason and
         # outcome, duplicates linked instead of escalated (HF-019) and sorter retries skipped (L2).
         **({"governor": governor} if governor["docs"] else {}),
+        # Present only when the evidence check (HF-029, job.evidence_check) dropped an item or left a
+        # read unfiltered (``would_empty``: the drop would have emptied it; ``pages``: it was read from
+        # page images too): items dropped per field and class, and skipped reads by reason.
+        **({"evidence_check": evidence} if evidence["docs"] else {}),
         # Present only when a judge answer that did not parse was asked once more (HF-002 / HF-013):
         # how often, and how each re-ask ended: ``recovered`` (second answer parsed), ``parked``
         # (it did not parse either: a judge error, counted under ``judge_errors`` above) or

@@ -850,6 +850,10 @@ class JobSpec(BaseModel):
     # fields it adds (mailroom_sandbox.subclass_extraction.field_note). Pipeline runs only. Off by
     # default; hashed only when set. Plan: docs/design/plans/2026-11-27-subclass-field-note.md.
     subclass_field_note: StrictBool = False
+    # HF-029: a list item a one-call read cannot quote from its document is dropped and recorded
+    # (mailroom_sandbox.evidence_check). Pipeline runs only. Off by default; hashed only when set.
+    # Design: docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md.
+    evidence_check: StrictBool = False
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1172,8 +1176,12 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "trans
 # judge_exhausted_to_arbiter (HF-011): a partial verdict on the last judge pass asks the arbiter.
 # arbiter_full_source (HF-014/HF-015): on a context-fitted route an arbiter acceptance from a
 # whole-source reading archives, and a ruling with no re-extraction budget left is final.
+# keep_best_attempt (llm-mailroom #254, ships false): the report and review handoff use the
+# best-judged extraction attempt instead of the latest; routing never reads it (Phase 5 part 1,
+# docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
-                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source")
+                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source",
+                   "keep_best_attempt")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:
@@ -1387,6 +1395,9 @@ class RunSpec(BaseModel):
         if self.job.subclass_field_note and self.task != "pipeline":
             raise ValueError(f"job.subclass_field_note annotates pipeline subclass schemas; task {self.task!r} "
                              "runs no graph extraction")
+        if self.job.evidence_check and self.task != "pipeline":
+            raise ValueError(f"job.evidence_check filters pipeline extractions; task {self.task!r} runs no graph "
+                             "extraction")
         if self.job.subclass_schemas is False and self.task == "pipeline":
             raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
                              "extraction schema is used whenever one is listed")
@@ -1400,6 +1411,19 @@ class RunSpec(BaseModel):
     def _judge_in_pipeline(self) -> "RunSpec":
         if self.judge is not None and self.task != "pipeline":
             raise ValueError(f"judge: rules on pipeline extractions; task {self.task!r} runs no graph judge")
+        return self
+
+    @model_validator(mode="after")
+    def _keep_best_needs_verify_judge(self) -> "RunSpec":
+        # HF-025 writes a correct-mode judge's verified fixes into extracted_data, not into the
+        # attempt history, so restoring an earlier attempt could drop them.
+        if self.judge is None or self.judge.mode != "correct":
+            return self
+        blocks = [self.confidence or {}, *((self.confidence or {}).get("by_class") or {}).values()]
+        if any(isinstance(b, dict) and b.get("keep_best_attempt") is True for b in blocks):
+            raise ValueError("confidence.keep_best_attempt keeps an earlier attempt, but judge.mode correct "
+                             "applies fixes the attempt history does not hold; use judge.mode verify or drop "
+                             "the flag")
         return self
 
     @model_validator(mode="after")
@@ -1574,13 +1598,14 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
-        # require_expanded_inputs, subclass_field_note and governor are hashed only when set, so older YAMLs keep their
+        # require_expanded_inputs, subclass_field_note, evidence_check and governor are hashed only when set, so older YAMLs keep their
         # hash. subclass_schemas is always on for pipeline runs, so it is hashed when on (with the
         # field list's sha256) and absent for other tasks.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs", "subclass_field_note") and value is False)
+                                    "require_expanded_inputs", "subclass_field_note", "evidence_check")
+                                    and value is False)
                    and not (key == "subclass_schemas" and not value)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")

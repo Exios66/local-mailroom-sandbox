@@ -225,6 +225,26 @@ def _decision_slots_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
+def _keep_best_errors(spec: RunSpec) -> list[str]:
+    """``keep_best_attempt`` from any layer (overlay, components, the run) with ``judge: mode: correct``.
+
+    The run spec refuses its own block; this catches the flag arriving from the taxonomy overlay or
+    ``config/components.yaml``, which the spec never sees.
+    """
+    if spec.judge is None or spec.judge.mode != "correct":
+        return []
+    from mailroom_sandbox.job import routing_audit
+
+    block = routing_audit.effective_thresholds(spec.confidence)
+    where = [("confidence", block), *((f"confidence.by_class.{c}", b) for c, b in (block.get("by_class") or {}).items())]
+    named = [w for w, b in where if isinstance(b, Mapping) and b.get("keep_best_attempt") is True]
+    if not named:
+        return []
+    return [f"{', '.join(named)}.keep_best_attempt (from the overlay or components) keeps an earlier attempt, "
+            "but judge.mode correct applies fixes the attempt history does not hold; drop the flag or use "
+            "judge.mode verify"]
+
+
 _ARCHIVE_CHECK_FLAGS = ("judge_complete_archives", "arbiter_accept_archives", "judge_clears_low_confidence")
 
 
@@ -646,6 +666,7 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         *_decision_slots_errors(spec),
         *_judge_errors(spec),
         *_archive_check_errors(spec),
+        *_keep_best_errors(spec),
         *_reviewer_class_errors(spec),
         *_jev_backend_errors(spec),
         *_reviewer_backend_errors(spec),
@@ -1471,17 +1492,33 @@ def _open_preflight(spec: RunSpec, *, run_id: str, config_path, offline: bool, d
     return _OpenRun(store, existing, report, prompt_block, prompt_text_sha, report_group, package, run_id)
 
 
+def _hotfix_change(locked: Any, current: Mapping[str, Any]) -> str:
+    """Which fixes a locked hotfix set lacks, has extra or pins differently, against the current one."""
+    def by_id(block: Any) -> dict[str, Any]:
+        fixes = block.get("fixes") if isinstance(block, Mapping) else None
+        return {str(f.get("id")): {k: v for k, v in f.items() if k != "id"}
+                for f in (fixes if isinstance(fixes, list) else []) if isinstance(f, Mapping)}
+
+    old, new = by_id(locked), by_id(current)
+    parts = [f"{label} {', '.join(ids)}" for label, ids in (
+        ("added", sorted(set(new) - set(old))), ("dropped", sorted(set(old) - set(new))),
+        ("changed", sorted(i for i in set(old) & set(new) if old[i] != new[i]))) if ids]
+    return "; ".join(parts) or "only the hotfix module's code changed"
+
+
 def _hotfix_drift_detail(existing: Mapping[str, Any], store) -> str | None:
     """Why a recorded hotfix set, or a pre-hotfix lock with completed work, cannot resume."""
     from mailroom_sandbox import vendor_hotfixes
 
     # Locks from before the hotfix layer carry no key and resume; a recorded set must match.
-    if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != vendor_hotfixes.describe():
-        return "vendor hotfix set changed since this run was locked; restore it or use --force to re-lock"
+    if "vendor_hotfixes" in existing and existing["vendor_hotfixes"] != (now := vendor_hotfixes.describe()):
+        return (f"vendor hotfix set changed since this run was locked ({_hotfix_change(existing['vendor_hotfixes'], now)}); "
+                "restore it or use --force to re-lock")
     from mailroom_sandbox import scoring_hotfixes
 
-    if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != scoring_hotfixes.describe():
-        return "scoring hotfix set changed since this run was locked; restore it or use --force to re-lock"
+    if "scoring_hotfixes" in existing and existing["scoring_hotfixes"] != (now := scoring_hotfixes.describe()):
+        return (f"scoring hotfix set changed since this run was locked ({_hotfix_change(existing['scoring_hotfixes'], now)}); "
+                "restore it or use --force to re-lock")
     # A lock from before the scoring hotfix layer with completed work would resume its pending
     # rows on the hotfixed basis next to rows scored raw: one run, two scoring bases.
     if "scoring_hotfixes" not in existing and store.read_checkpoint():

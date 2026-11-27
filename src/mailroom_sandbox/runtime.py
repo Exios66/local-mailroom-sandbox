@@ -660,6 +660,9 @@ def activate(
     from mailroom_sandbox import governor
 
     governor.activate(locked_job.get("governor"))  # a lock without the key (before phase 2): off
+    from mailroom_sandbox import evidence_check
+
+    evidence_check.activate(bool(locked_job.get("evidence_check")))  # HF-029; unlocked evals stay off
     from mailroom_sandbox import subclass_extraction
 
     if locked_job.get("subclass_schemas"):
