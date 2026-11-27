@@ -204,6 +204,15 @@ def build_prompt(*, doc_text: str, doc_type: str, subclass: str | None, extracte
     return "\n\n".join(parts)
 
 
+def _own_ids(state: Mapping[str, Any]) -> set[str]:
+    """This document's ids: the pipeline's ``doc_id`` (an intake id) and the dataset row id the runner
+    put in its call-guard scope, so a pool document is never its own example."""
+    from mailroom_sandbox.job import call_guard
+
+    ids = {str(state.get("doc_id") or ""), str((call_guard.scope() or {}).get("row_id") or "")}
+    return {i for i in ids if i}
+
+
 def _doc_class(state: Mapping[str, Any]) -> str:
     doc_type = str(state.get("doc_type") or "")
     try:
@@ -335,7 +344,7 @@ def rule(state: Mapping[str, Any], *, pass_no: int, guide: Mapping[str, str] | N
     if examples is None:
         examples = (judge_references.examples(
             _reference_pool(), doc_class, subclass, k=int(cfg.get("max_examples", 2)),
-            max_chars=int(cfg.get("max_example_chars", 3000)), exclude={str(state.get("doc_id") or "")})
+            max_chars=int(cfg.get("max_example_chars", 3000)), exclude=_own_ids(state), fields=requested)
             if cfg.get("references") == "train_pool" else [])
     if attempts is None:
         attempts = judge_references.attempts_for(state, max_chars=int(cfg.get("max_attempt_chars", 4000)))

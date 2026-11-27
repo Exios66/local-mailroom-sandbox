@@ -104,17 +104,24 @@ def _fit(example: dict[str, Any], max_chars: int) -> dict[str, Any] | None:
 
 
 def examples(pool: Iterable[Mapping[str, Any]], doc_class: str, subclass: str | None, *, k: int, max_chars: int,
-             exclude: Collection[str] = ()) -> list[dict[str, Any]]:
-    """At most ``k`` pool documents of the same class and subclass, by doc id, each within ``max_chars``."""
+             exclude: Collection[str] = (), fields: Collection[str] | None = None) -> list[dict[str, Any]]:
+    """At most ``k`` pool documents of the same class and subclass, by doc id, each within ``max_chars``.
+
+    With ``fields`` (the judge's requested fields), an example shows only those, so a field the
+    extraction was not asked for (a subclass drop) never reaches the prompt; one with none is skipped.
+    """
     if k <= 0 or not subclass:
         return []
+    wanted = None if fields is None else set(fields)
     out: list[dict[str, Any]] = []
     for row in sorted(pool, key=lambda r: str(r.get("doc_id"))):
         if row.get("doc_class") != doc_class or row.get("subclass") != subclass or row.get("doc_id") in exclude:
             continue
-        fitted = _fit({"doc_id": row["doc_id"], "subclass": subclass,
-                       "fields": {n: {"value": f.get("value"), "evidence": list(f.get("evidence") or [])}
-                                  for n, f in (row.get("fields") or {}).items()}}, max_chars)
+        shown = {n: {"value": f.get("value"), "evidence": list(f.get("evidence") or [])}
+                 for n, f in (row.get("fields") or {}).items() if wanted is None or n in wanted}
+        if not shown:
+            continue
+        fitted = _fit({"doc_id": row["doc_id"], "subclass": subclass, "fields": shown}, max_chars)
         if fitted is not None:
             out.append(fitted)
         if len(out) >= k:

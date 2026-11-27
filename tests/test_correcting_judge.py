@@ -230,6 +230,16 @@ def test_the_runner_copies_the_record_into_the_result(monkeypatch):
     assert runners._run_pipeline_doc({"id": "d1"}) == {"id": "d1", "stage": "archived"}
 
 
+def test_the_runner_records_the_dataset_row_id_in_the_document_scope(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    seen = {}
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once",
+                        lambda row, **k: seen.update(call_guard.scope() or {}) or {"stage": "archived"})
+    runners._run_pipeline_doc({"id": "DOC-row-7"})
+    assert seen["row_id"] == "DOC-row-7"
+
+
 def test_hf025_is_registered_with_a_pinned_source():
     import graph.build_graph as bg
     import graph.routing as routing

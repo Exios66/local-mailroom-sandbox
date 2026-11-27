@@ -72,6 +72,13 @@ def test_examples_match_type_and_subtype_and_are_capped_at_two():
     assert all(len(json.dumps(e)) <= 120 for e in jr.examples(pool, "contract", "Service", k=2, max_chars=120))
 
 
+def test_examples_show_only_the_requested_fields():
+    """Review finding: an example must not show a field the extraction was not asked for (a Phase 3 drop)."""
+    picked = jr.examples(_pool(), "contract", "Service", k=2, max_chars=3000, fields={"governing_law"})
+    assert [e["doc_id"] for e in picked] == ["C-1"]  # C-2 labels only parties, so it has nothing to show
+    assert set(picked[0]["fields"]) == {"governing_law"}
+
+
 def test_a_drawn_document_sharing_a_component_with_the_pool_is_refused(tmp_path, monkeypatch):
     from mailroom_sandbox.job import preflight
 
@@ -183,9 +190,14 @@ def test_rule_feeds_the_prompt_its_references(references, monkeypatch, tmp_path)
                  "max_attempt_chars": 4000, "max_example_chars": 3000}, pool_sha256=sha)
     history = [{"attempt_no": 1, "kind": "extract", "extracted_data": {"governing_law": "Nevada"}},
                {"attempt_no": 2, "kind": "retry_extract", "extracted_data": {"governing_law": "Delaware"}}]
+    from mailroom_sandbox.job import call_guard
+
     try:
-        cj.rule({"doc_id": "C-1", "doc_type": "contract", "contract_subtype": "Service", "doc_text": "Text.",
-                 "extracted_data": {"governing_law": "Delaware"}, "extraction_attempt_history": history}, pass_no=2)
+        with call_guard.document() as scope:
+            scope["row_id"] = "C-1"  # the dataset row id; the pipeline's own doc_id is an intake UUID
+            cj.rule({"doc_id": "6ca7c5fa-a4ee-4bad-b9ae-87d1029e0f35", "doc_type": "contract",
+                     "contract_subtype": "Service", "doc_text": "Text.", "extracted_data": {"governing_law": "Delaware"},
+                     "extraction_attempt_history": history}, pass_no=2)
     finally:
         cj.deactivate()
     assert "EARLIER_ATTEMPTS" in prompts[0] and "Nevada" in prompts[0]

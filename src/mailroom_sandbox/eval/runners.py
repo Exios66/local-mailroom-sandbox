@@ -1756,6 +1756,7 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     from mailroom_sandbox.job import call_guard
 
     with call_guard.document() as scope:
+        scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
         raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
