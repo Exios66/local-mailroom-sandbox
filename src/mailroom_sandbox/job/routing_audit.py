@@ -442,7 +442,28 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
                      "suggestions need a run that records it")
     if docs and len(docs) < 50:
         notes.append(f"{len(docs)} documents: treat fire rates and suggestions as directional, not calibrated")
+    judge = _judge_section(lock.get("judge"), items, rows)
     return {"run_id": lock.get("run_id") or root.name, "target_quality": target, "judge_model": model,
             "thresholds_source": source,
             "docs": len(docs), "classes": classes,
+            # Present only when the run locked a phase 4 judge: section (correcting_judge).
+            **({"judge": judge} if judge else {}),
             "findings": [f for c in classes.values() for f in c["findings"]], "notes": notes}
+
+
+def _judge_section(locked: Any, items: Mapping[str, Mapping[str, Any]],
+                   rows: Mapping[str, Mapping[str, Any]]) -> dict[str, Any] | None:
+    """The locked judge section and, per class, judged documents, rulings per judged document and retries."""
+    if not isinstance(locked, Mapping):
+        return None
+    per_class: dict[str, list[list[Mapping[str, Any]]]] = defaultdict(list)
+    for doc_id, row in rows.items():
+        pred = (items.get(doc_id) or {}).get("pred") or {}
+        rulings = [r for r in pred.get("judge_rulings") or () if isinstance(r, Mapping)] if isinstance(pred, Mapping) else []
+        if rulings:
+            per_class[str(row.get("expected_doc_class") or "unknown")].append(rulings)
+    return {"mode": locked.get("mode"), "references": locked.get("references"),
+            "models": {"default": locked.get("model"), **dict(locked.get("models_by_class") or {})},
+            "classes": {cls: {"judged": len(docs), "rulings_per_judged_doc": _mean([float(len(d)) for d in docs]),
+                              "retries": sum(1 for d in docs for r in d if r.get("ruling") == "retry_fields")}
+                        for cls, docs in sorted(per_class.items())}}

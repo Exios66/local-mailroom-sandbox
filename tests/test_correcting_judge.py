@@ -596,3 +596,115 @@ def test_verify_mode_keeps_the_vendored_arbiter_and_retry(monkeypatch, tmp_path)
         out = run(bg, monkeypatch, Script(judge=[("partial", "accurate"), ("complete", "accurate")],
                                           arbiter=["retry_extraction"], confs=[0.88, 0.88]))
     assert out["arbiter"] == 1 and out["judge_c"] == 2 and len(scope["judge_rulings"]) == 2
+
+
+# --- Task 7: reports ------------------------------------------------------------------------------
+
+from mailroom_sandbox.job import gate  # noqa: E402
+from mailroom_sandbox.job.gate import Bars  # noqa: E402
+
+_LABELS = {"entity_name": "Acme Corp", "record_type": "bylaws"}
+
+
+def _ruling(pass_no, ruling, fixes=()):
+    return {"pass": pass_no, "mode": "correct", "ruling": ruling, "score": 0.9, "reason": "r", "fixes": list(fixes),
+            "retry_fields": ["entity_name"] if ruling == "retry_fields" else [], "wrong_fields": [], "model": QWEN}
+
+
+def _fixcheck(field, value, verified=True, why="ok"):
+    return {"field": field, "value": value, "quote": "q", "verified": verified, "why": why}
+
+
+def _gate_run(root, name, docs):
+    run = root / name
+    run.mkdir()
+    with open(run / "dataset.jsonl", "w") as ds, open(run / "items.jsonl", "w") as it:
+        for d in docs:
+            ds.write(json.dumps({"id": d["id"], "expected_doc_class": "corporate_record",
+                                 "expected_fields": json.dumps(_LABELS)}) + "\n")
+            pred = {"stage": d.get("stage", "archived"), "doc_type": "corporate_record", "review_causes": [],
+                    "extraction_confidence": 1.0, "extracted_data": {"_s": d.get("score", 0.95)},
+                    **({"judge_rulings": d["rulings"], "before_judge": {"_s": d.get("before", 0.8)}}
+                       if "rulings" in d else {}),
+                    **({"judge_corrected": True} if d.get("corrected") else {}),
+                    **({"judge_conflict": True} if d.get("conflict") else {}),
+                    **({"governor_stop": d["stop"]} if d.get("stop") else {})}
+            usage = {"judge": {"calls": d.get("judge_calls", 1), "prompt_tokens": 10, "completion_tokens": 5,
+                               "models": [QWEN]},
+                     "arbiter": {"calls": d.get("arbiter_calls", 0), "prompt_tokens": 0, "completion_tokens": 0,
+                                 "models": []}}
+            it.write(json.dumps({"item_id": d["id"], "ok": not d.get("crash"), "error": "boom" if d.get("crash") else None,
+                                 "prompt_tokens": 10, "completion_tokens": 5, "llm_calls": d.get("calls", 3),
+                                 "usage_by_agent": usage, "reported_cost_usd": d.get("cost", 0.01),
+                                 **({"cached_tokens": d["cached"]} if "cached" in d else {}), "pred": pred}) + "\n")
+    return run
+
+
+@pytest.fixture
+def scored(monkeypatch):
+    monkeypatch.setattr(gate, "_score", lambda row, pred: (pred.get("extracted_data") or {}).get("_s"))
+
+
+def test_the_gate_reports_rulings_fixes_and_scores_before_and_after(tmp_path, scored):
+    run = _gate_run(tmp_path, "judged", [
+        {"id": "a", "rulings": [_ruling(1, "accept", [_fixcheck("entity_name", "Acme Corp"),
+                                                       _fixcheck("record_type", "x", False, "unsupported")])],
+         "corrected": True, "score": 0.95, "before": 0.85, "cached": 100},
+        {"id": "b", "rulings": [_ruling(1, "retry_fields"), _ruling(2, "human_review")], "stage": "review",
+         "calls": 5, "conflict": True, "stop": {"reason": "retry_budget", "outcome": "human_review"}},
+        {"id": "c"},  # not judged
+    ])
+    block = gate.gate_report(run, Bars(), audit=False)["judge"]
+    assert block["docs_judged"] == 2 and block["docs"] == ["a", "b"]
+    assert block["rulings"] == {"accept": {"1": 1}, "retry_fields": {"1": 1}, "human_review": {"2": 1}}
+    assert block["fixes"]["proposed"] == 2 and block["fixes"]["verified"] == 1
+    assert block["fixes"]["rejected"] == {"unsupported": 1}
+    assert block["judge_corrected"] == 1 and block["retries"] == 1
+    assert block["score_before"] == pytest.approx(0.825) and block["score_after"] == pytest.approx(0.95)
+    assert block["scores_label"] == "after judge" and block["scored_n"] == 2
+    assert block["calls_per_judged_doc"] == pytest.approx(4.0)
+    assert block["judge_related_calls_per_judged_doc"] == pytest.approx(1.5)  # judge 1 each, plus b's retry
+    assert block["cost_per_judged_doc"] == {"corporate_record": pytest.approx(0.01)}
+    assert block["cached_prompt_tokens"] == 100
+    assert block["review_rate"] == pytest.approx(0.5) and block["crashes"] == 0
+    assert block["matter_conflicts"] == 1 and block["governor_stops"] == {"retry_budget": 1}
+
+
+def test_runs_without_a_judge_section_report_no_judge_block(tmp_path, scored):
+    run = _gate_run(tmp_path, "plain", [{"id": "a"}, {"id": "b"}])
+    assert "judge" not in gate.gate_report(run, Bars(), audit=False)
+
+
+def test_fix_accuracy_scores_verified_fixes_against_the_truth(tmp_path, scored):
+    run = _gate_run(tmp_path, "fixes", [
+        {"id": "a", "rulings": [_ruling(1, "accept", [_fixcheck("entity_name", "Acme Corp"),
+                                                       _fixcheck("record_type", "minutes")])]}])
+    fixes = gate.gate_report(run, Bars(), audit=False)["judge"]["fixes"]
+    assert (fixes["right"], fixes["wrong"]) == (1, 1)
+
+
+def test_the_routing_audit_reports_the_judge_section(tmp_path):
+    from mailroom_sandbox.job import routing_audit
+
+    run = _gate_run(tmp_path, "audited", [
+        {"id": "a", "rulings": [_ruling(1, "accept")]},
+        {"id": "b", "rulings": [_ruling(1, "retry_fields"), _ruling(2, "accept")]}, {"id": "c"}])
+    lock = {"run_id": "audited", "judge": {"mode": "correct", "model": QWEN,
+                                           "models_by_class": {"merger_agreement": FLASH}, "references": "off"}}
+    (run / "spec.lock.json").write_text(json.dumps(lock))
+    block = routing_audit.audit(run)["judge"]
+    assert block["mode"] == "correct" and block["models"] == {"default": QWEN, "merger_agreement": FLASH}
+    assert block["classes"]["corporate_record"] == {"judged": 2, "rulings_per_judged_doc": 1.5, "retries": 1}
+    (run / "spec.lock.json").write_text(json.dumps({"run_id": "audited"}))
+    assert "judge" not in routing_audit.audit(run)
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_a_judged_matter_conflict_is_recorded(monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    _fake_judge(monkeypatch, [_reply()])
+    _correct_on()
+    with call_guard.document() as scope:
+        bg.judge_verify_node(_state(conflict_detected=True, conflict_details=["governing_law"]))
+    assert scope["judge_conflict"] is True

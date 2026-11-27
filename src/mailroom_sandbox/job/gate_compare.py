@@ -152,3 +152,95 @@ def threshold_evidence(run_dir: Path, bars: Bars, *, grid: tuple[float, ...] = D
     return {"run_id": Path(run_dir).name, "label": LABEL, "grid": list(grid),
             "classes": {cls: _block(entries, grid, gate._counts(statuses[cls])) for cls, entries in sorted(by_class.items())},
             "pooled": _block(pooled, grid, gate._counts(every))}
+
+
+# --- phase 4: the correcting judge against today's judge (stages 1 and 2) -------------------------
+
+#: Judge-related calls per judged document must fall by at least this share (spec "Success").
+JUDGE_CALL_CUT = 0.5
+#: On judged documents the score may be at most this many points below today's (owner decision).
+SCORE_MARGIN_POINTS = 2.0
+
+
+def _judge_docs(run_dir: Path, bars: Bars) -> dict[str, dict[str, Any]]:
+    """Per document: status, judge-related calls, cost and score after the judge (gate scoring)."""
+    from mailroom_sandbox.job.pair_report import load_arm
+
+    out: dict[str, dict[str, Any]] = {}
+    report = gate.gate_report(run_dir, bars, audit=False)
+    statuses = {s["id"]: s for s in report["docs"]}
+    for doc_id, doc in load_arm(run_dir).items():
+        item = doc.get("item") or {}
+        pred = item.get("pred") if isinstance(item.get("pred"), dict) else {}
+        status = statuses.get(doc_id) or {}
+        row = doc["row"]
+        cls = str(row.get("expected_doc_class"))
+        scored = None
+        if status.get("labelled", 0) >= bars.min_labelled and not status.get("outcome") == "crashed":
+            scored = gate._score(gate.without_fields(row, gate.TEMPLATED_FIELDS.get(cls, ())), pred)
+        out[doc_id] = {"status": status, "class": cls, "judged": bool(pred.get("judge_rulings")),
+                       "correct_mode": any(isinstance(r, dict) and r.get("mode") == "correct"
+                                           for r in pred.get("judge_rulings") or ()),
+                       "calls": gate.judge_related_calls(item, pred, doc.get("nodes") or ()),
+                       "cost": gate.doc_cost(item), "score": scored,
+                       "ceiling": "call guard" in str(item.get("error") or "")}
+    for doc_id in set(statuses) - set(out):  # a document the run never wrote an item for
+        out[doc_id] = {"status": statuses[doc_id], "class": statuses[doc_id]["class"], "judged": False,
+                       "correct_mode": False, "calls": 0, "cost": None, "score": None, "ceiling": False}
+    return out
+
+
+def _avg(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def judge_compare(baseline_dir: Path, judge_dir: Path, bars: Bars, *, stage: int = 2) -> dict[str, Any]:
+    """The correcting judge's success rules against today's judge on the same documents.
+
+    One check per rule, each with its numbers and ``pass``: judge-related calls per judged document
+    cut by at least half; cost per judged document no higher, by class; the paired score delta on
+    judged documents at most 2 points below with its bootstrap interval (ruling 18: gating in
+    stage 2, reported in stage 1); no more wrong archives; no more crashes and none from the hard
+    call ceiling. Judged documents are those the judge run's correcting judge ruled on.
+    """
+    from mailroom_sandbox.job.sand42_cards import bootstrap_mean_ci
+
+    baseline_dir, judge_dir = Path(baseline_dir), Path(judge_dir)
+    if not same_documents(baseline_dir, judge_dir):
+        raise ValueError(f"judge_compare needs the same documents in both runs: {baseline_dir.name} and "
+                         f"{judge_dir.name} drew different documents")
+    base, new = _judge_docs(baseline_dir, bars), _judge_docs(judge_dir, bars)
+    judged = sorted(i for i, d in new.items() if d["judged"] and d["correct_mode"])
+    checks: list[dict[str, Any]] = []
+    b_calls = _avg([float(base[i]["calls"]) for i in judged])
+    n_calls = _avg([float(new[i]["calls"]) for i in judged])
+    checks.append({"rule": "judge_calls_cut", "baseline": b_calls, "judge": n_calls, "max_share": JUDGE_CALL_CUT,
+                   "pass": bool(judged) and b_calls is not None and n_calls is not None
+                   and n_calls <= (1 - JUDGE_CALL_CUT) * b_calls, "gating": True})
+    by_class: dict[str, dict[str, float | None]] = {}
+    for cls in sorted({new[i]["class"] for i in judged}):
+        ids = [i for i in judged if new[i]["class"] == cls]
+        b = _avg([base[i]["cost"] for i in ids if base[i]["cost"] is not None])
+        n = _avg([new[i]["cost"] for i in ids if new[i]["cost"] is not None])
+        by_class[cls] = {"baseline": b, "judge": n}
+    checks.append({"rule": "judge_cost_by_class", "classes": by_class, "gating": True,
+                   "pass": bool(by_class) and all(v["baseline"] is not None and v["judge"] is not None
+                                                  and v["judge"] <= v["baseline"] for v in by_class.values())})
+    diffs = [100.0 * (new[i]["score"] - base[i]["score"]) for i in judged
+             if new[i]["score"] is not None and base[i]["score"] is not None]
+    ci = bootstrap_mean_ci(diffs) if diffs else None
+    checks.append({"rule": "score_margin", "paired_documents": len(diffs), "delta": ci[0] if ci else None,
+                   "ci_low": ci[1] if ci else None, "ci_high": ci[2] if ci else None,
+                   "margin_points": SCORE_MARGIN_POINTS, "gating": stage >= 2,
+                   "pass": ci is not None and ci[1] >= -SCORE_MARGIN_POINTS})
+    wrong = {name: sum(1 for d in arm.values() if d["status"].get("outcome") == "wrong_archive")
+             for name, arm in (("baseline", base), ("judge", new))}
+    checks.append({"rule": "wrong_archives", **wrong, "gating": True, "pass": wrong["judge"] <= wrong["baseline"]})
+    crashes = {name: sum(1 for d in arm.values() if d["status"].get("outcome") == "crashed")
+               for name, arm in (("baseline", base), ("judge", new))}
+    ceiling = sum(1 for d in new.values() if d["ceiling"])
+    checks.append({"rule": "ceiling_crashes", **crashes, "ceiling": ceiling, "gating": True,
+                   "pass": ceiling == 0 and crashes["judge"] <= crashes["baseline"]})
+    reasons = [f"{c['rule']} failed" for c in checks if c["gating"] and not c["pass"]]
+    return {"baseline": baseline_dir.name, "judge": judge_dir.name, "stage": stage, "judged_docs": len(judged),
+            "checks": checks, "verdict": {"pass": not reasons, "reasons": reasons}}

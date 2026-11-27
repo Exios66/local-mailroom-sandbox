@@ -12,7 +12,7 @@ import copy
 from typing import Any, Mapping
 
 #: The scope keys the runner copies into a result.
-KEYS = ("judge_rulings", "before_judge", "judge_corrected")
+KEYS = ("judge_rulings", "before_judge", "judge_corrected", "judge_conflict")
 
 
 def _scope() -> dict[str, Any] | None:
@@ -40,6 +40,13 @@ def note_corrected() -> None:
     scope = _scope()
     if scope is not None:
         scope["judge_corrected"] = True
+
+
+def note_conflict() -> None:
+    """A judged document carried a matter conflict (spec "Matter conflicts ... Each one is counted")."""
+    scope = _scope()
+    if scope is not None:
+        scope["judge_conflict"] = True
 
 
 def merge(result: Mapping[str, Any], scope: Mapping[str, Any]) -> dict[str, Any]:

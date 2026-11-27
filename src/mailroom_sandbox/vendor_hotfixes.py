@@ -1314,6 +1314,8 @@ def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[.
         cfg = correcting_judge.active()
         if not cfg:
             return original(state)
+        if state.get("conflict_detected"):
+            judge_record.note_conflict()
         if cfg.get("mode") == "correct" and (module.judge_should_run(state)
                                              or correcting_judge.retry_owed(state)):
             return _correcting_judge_pass(module, state)
