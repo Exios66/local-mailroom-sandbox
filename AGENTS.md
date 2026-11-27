@@ -242,6 +242,7 @@ sandbox web [TARGET]                  # = watch --web: themed browser watcher (h
 sandbox web --demo                    # = sandbox dev: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 sandbox board [--tui] [--demo] [--interval SECS] [--probe-interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
+python scripts/floor_browser.py [--dry-run|--replay-run PATH]  # browser-debug the floor on the committed replay sample (scratch base data/runtime/floor-browser, URL includes debug=1); refuses --live/--real/--submit/--initials; docs/floor.md
 sandbox floor [TARGET|--run ID] [--base DIR] [--port PORT] [--interval SECS] [--replay|--replay-run PATH]  # live pipeline floor on http://127.0.0.1:8769/floor.template.html; --replay plays the labeled 120-doc sample inside the base; docs/floor.md
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
 # long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)

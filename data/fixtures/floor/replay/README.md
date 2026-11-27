@@ -22,14 +22,12 @@ so `sandbox floor` can be viewed and debugged on a machine with no run store.
   `<class>_specialist_simplified`, …), locked so the run's prompt versions stay
   identifiable post hoc in the viewer; no prompt text or model output is claimed.
 
-Human-review semantics scripted in the trace: one misclassified document reaches
-`human_review` after `classification_arbiter`, is resolved there by the (simulated)
-reviewer with the corrected label, and re-enters `extract` with the fresh label —
-the graph's approved-review contract. Four other documents park OPEN at human
-review (two judge-triggered, two extract-triggered, each with `review_causes`
-naming the trigger), and three fail technically at extract. Parked documents
-outcomes show as Held (review), never as Failed; the digest's `review_routed`
-metric keeps every routed document count per trigger stage.
+Every document takes one pass, `intake → classify → extract → judge_verify →
+compile_report → catalog_write → archive`, and the item's predicted class is
+its ground-truth class. The trace assumes the checkout's active vendor
+hotfixes (the ids in `spec.lock.json` under `vendor_hotfixes.applies`):
+output-cap truncation (`LengthFinishReasonError`), judge parks, arbiter
+re-extraction and class mismatches from earlier samples are not replayed.
 
 Source corpora and licenses are inherited from the dataset card; only identifiers
 and metadata are copied here.
@@ -44,9 +42,8 @@ sandbox floor --replay-run <recorded-run>   # a real Modal/OpenRouter/Ollama/…
 
 `--replay` resets just `runtime/runs/replay-mailroom-sample` inside the base and plays the
 timeline in real time (~66 s): docs arrive staggered (a pilot-scale run) and stay in flight
-for their recorded latencies (nodes run for ~0.1–1.8 s while other docs proceed), with a few
-docs failing at extract, four parking open at human review and one classification review
-resolved by the reviewer that re-enters extraction — so the run list, progress bar, class
+for their recorded latencies (nodes run for ~0.1–1.8 s while other docs proceed), and each
+one archives under its ground-truth class — so the run list, progress bar, class
 rail, routing, node counts, RUNNING pills with growing elapsed timers, outcome buckets and
 the Routed-to-human-review strip move like a live run while the base's historical runs stay
 untouched and selectable in the same RUNS rail. The sample run persists in the base
