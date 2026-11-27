@@ -32,8 +32,9 @@ It is part 1 of Phase 5 of [`2026-11-26-correcting-judge-design.md`](../specs/20
 - `job.evidence_check` is refused unless `task: pipeline`.
 - `keep_best_attempt` is refused with `judge: mode: correct`, both globally and under `by_class`.
 - Only a real boolean is accepted for `keep_best_attempt`: a quoted `"true"` is refused.
-- Filtered fields are the vendored `_DEFAULT_EVIDENCE_FIELDS` (`cuad_clauses`, `claim_checklist`,
-  `action_items`, `denial_reasons`), imported, not copied.
+- Filtered fields are `cuad_clauses` and `claim_checklist`, the vendored `_DEFAULT_EVIDENCE_FIELDS` whose
+  items are `"<Category>: <quoted span>"` (narrowed at review: `action_items` and `denial_reasons` are
+  summaries, and a whole-item quote test drops true ones).
 - An item is dropped only when `_item_support` returns `False`.
 - No paid or live run. The replay is offline. Local tests run named files only, with `-n 0 --no-cov`.
 - HF-029 takes the next free ID. `docs/numbering-reservations.md` then says the next free vendor hotfix
@@ -152,12 +153,13 @@ would both pick up. Task 2 must leave it unchanged too.
 - Produces:
   - `evidence_check.activate(enabled: bool) -> None` and `evidence_check.active() -> bool`, as module
     state reset on every activation;
-  - `evidence_check.FIELDS: tuple[str, ...]`, which is the vendored `_DEFAULT_EVIDENCE_FIELDS`;
-  - `evidence_check.filter_one_read(result: Any, doc_text: str | None) -> Any`.
+  - `evidence_check.fields() -> tuple[str, ...]`: `cuad_clauses` and `claim_checklist`, each kept only
+    while the vendored `_DEFAULT_EVIDENCE_FIELDS` still lists it;
+  - `evidence_check.filter_one_read(result: Any, doc_text: str | None, *, keeps=None) -> Any`.
 - How `filter_one_read` behaves:
   - It returns `result` unchanged when `result` is not a mapping, carries `_n_chunks` (a chunked read) or
     `_parse_error`, or when `doc_text` is empty.
-  - Otherwise it returns a new dict. Each list in `FIELDS` keeps every non-string item, and every string
+  - Otherwise it returns a new dict. Each list in `fields()` keeps every non-string item, and every string
     item for which `_item_support(item, field, entries, _fold(doc_text))` is not `False`.
   - `entries` is `result["reasoning"]["entries"]` when that is a list, filtered to dict entries, and `[]`
     otherwise.
@@ -226,7 +228,8 @@ def test_the_lock_activates_the_check(...):
 
 - Create: `src/mailroom_sandbox/job/attempt_replay.py`.
 - Create: `scripts/replay_attempt_hygiene.py`, an argparse wrapper: `--run <run_id|path>` and
-  `--out <json>`, with the default `<run dir>/attempt_replay.json`. It prints the digest.
+  `--out <json>`, with the default `data/runtime/replays/<run_id>.attempt_replay.json` (beside the run
+  store, never inside a run; an `--out` inside the source run is refused). It prints the digest.
 - Test: `tests/test_attempt_replay.py`, which builds a fixture run store in `tmp_path`.
 
 **Interfaces:**
@@ -252,8 +255,8 @@ def test_the_lock_activates_the_check(...):
     `cuad_fn_after`;
   - `bars`: `selection_meets` and `evidence_meets_confirming_arm`, booleans per the design's adoption bars:
     - A: no class with `scored_n >= 10` is lower, and the overall mean is higher;
-    - B: CUAD false positives fall by at least 25%, and CUAD false negatives rise by no more than
-      2 per 100 documents.
+    - B: CUAD false positives fall by at least 25%, CUAD false negatives rise by no more than
+      2 per 100 documents, and no class with `scored_n >= 10` loses filtered quality.
 - Rules:
   - An archived item (`pred["stage"] != "review"`) uses `for_archive=True`.
   - The filter's document text is `pred.get("doc_text")`, falling back to `row["doc_text"]`. The

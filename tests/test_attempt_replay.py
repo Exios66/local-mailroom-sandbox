@@ -137,8 +137,9 @@ def test_an_archived_unsure_earlier_attempt_is_not_selected(tmp_path, activated)
 def test_the_filter_counts_dropped_items_and_cuad_errors(tmp_path, activated):
     out = ar.replay(_store(tmp_path, _items()))
     contract = out["evidence"]["by_class"]["contract"]
-    assert contract["dropped"] == {"cuad_clauses": 4}  # d1, d2, d4 and d5 each carry the FAKE clause
-    assert contract["cuad_fp_before"] == 4 and contract["cuad_fp_after"] == 0
+    # d1, d2, d4 and d5 each carry the FAKE clause; d4 is human-entered, which live HF-029 never sees.
+    assert contract["dropped"] == {"cuad_clauses": 3}
+    assert contract["cuad_fp_before"] == 4 and contract["cuad_fp_after"] == 1
     assert contract["cuad_fn_after"] == contract["cuad_fn_before"]
     assert contract["after"] >= contract["before"]
 
@@ -212,3 +213,65 @@ def test_the_replay_never_writes_the_source_run(tmp_path, activated):
 def test_the_default_output_sits_outside_the_run(tmp_path):
     path = ar.default_output("r-replay", runs_root=tmp_path / "runs")
     assert path == tmp_path / "replays" / "r-replay.attempt_replay.json"
+
+
+def test_a_human_entered_extraction_is_not_filtered(tmp_path, activated):
+    # HF-029 runs on the specialist's read; a reviewer's edit never passes through it.
+    docs = {d["id"]: d for d in ar.replay(_store(tmp_path, _items()))["documents"]}
+    assert docs["d4"]["human_source"] is True and docs["d4"]["dropped"] == {}
+    assert docs["d4"]["filtered_quality"] == docs["d4"]["latest_quality"]
+    assert docs["d2"]["human_source"] is False and docs["d2"]["dropped"] == {"cuad_clauses": 1}
+
+
+def test_a_running_run_is_refused(tmp_path):
+    run = _store(tmp_path, _items())
+    (run / "checkpoint.json").write_text(json.dumps({"state": "running"}))
+    with pytest.raises(ar.ReplayError, match="running"):
+        ar.replay(run, activate=False)
+    (run / "checkpoint.json").write_text(json.dumps({"state": "done"}))
+    assert ar.replay(run, activate=False)["counts"]["scored_n"] == 4
+
+
+def test_a_drifted_dataset_is_refused(tmp_path):
+    run = _store(tmp_path, _items())
+    assert ar.replay(run, activate=False)["counts"]["dataset_verified"] is False  # the lock has no digest
+    lock = json.loads((run / "spec.lock.json").read_text())
+    digest = hashlib.sha256((run / "dataset.jsonl").read_bytes()).hexdigest()
+    (run / "spec.lock.json").write_text(json.dumps({**lock, "dataset": {"sha256": digest}}))
+    assert ar.replay(run, activate=False)["counts"]["dataset_verified"] is True
+    with (run / "dataset.jsonl").open("a") as fh:
+        fh.write(json.dumps(_row("extra")) + "\n")
+    with pytest.raises(ar.ReplayError, match="dataset.jsonl changed"):
+        ar.replay(run, activate=False)
+
+
+def test_the_output_is_never_inside_the_source_run(tmp_path):
+    run = _store(tmp_path, _items())
+    result = ar.replay(run, activate=False)
+    before = (run / "items.jsonl").read_bytes()
+    with pytest.raises(ar.ReplayError, match="inside the source run"):
+        ar.write_replay(result, run / "items.jsonl", source=run)
+    alias = tmp_path / "alias"
+    alias.symlink_to(run, target_is_directory=True)
+    with pytest.raises(ar.ReplayError, match="inside the source run"):
+        ar.write_replay(result, alias / "new.json", source=run)
+    assert (run / "items.jsonl").read_bytes() == before
+    assert ar.write_replay(result, tmp_path / "out.json", source=run).is_file()
+
+
+def test_the_script_refuses_an_output_inside_the_run(tmp_path, capsys):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("replay_script", "scripts/replay_attempt_hygiene.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    run = _store(tmp_path, _items())
+    lock_before = (run / "spec.lock.json").read_bytes()
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(ar, "_activate", lambda lock: None)
+    try:
+        assert script.main(["--run", str(run), "--out", str(run / "spec.lock.json")]) == 2
+    finally:
+        monkey.undo()
+    assert (run / "spec.lock.json").read_bytes() == lock_before
+    assert "inside the source run" in capsys.readouterr().err

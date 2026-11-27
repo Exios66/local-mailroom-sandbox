@@ -102,7 +102,8 @@ A replay script, `scripts/replay_attempt_hygiene.py --run <run_id>`, reads a fin
 prints, per class and overall:
 
 - latest-versus-selected quality, and how many documents selection changed;
-- CUAD and checklist missed or false items, and quality before and after the filter;
+- CUAD missed and false clauses, and quality before and after the filter (checklist items have no item
+  scorer in the gate, so they are reported by dropped counts and quality);
 - items dropped per field;
 - `scored_n` throughout.
 

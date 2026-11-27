@@ -20,6 +20,7 @@ the design's adoption bars (``docs/design/specs/2026-11-27-phase5-attempt-hygien
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter, defaultdict
 from copy import deepcopy
@@ -91,7 +92,9 @@ def _document(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, Any]
     selection = _attempt_selection(pred, for_archive=archived)
     selected = selection.get("extracted_data", latest)
     text = pred.get("doc_text") or row.get("doc_text")
-    filtered = evidence_check.filter_one_read(latest, text)
+    human = pred.get("extraction_source") == "human"
+    # HF-029 filters the specialist's read; a reviewer's edit never passes through it.
+    filtered = latest if human else evidence_check.filter_one_read(latest, text)
     q_latest = _score(scored_row, {**pred, "extracted_data": latest})
     if q_latest is None:
         return None
@@ -106,6 +109,7 @@ def _document(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, Any]
         if filtered is not latest else {},
         "would_empty": filtered.get("_evidence_skipped") == "would_empty",
         "text_from_row": not pred.get("doc_text"),
+        "human_source": human,
     }
     if cls == "contract":
         before, after = _cuad(row, latest), _cuad(row, filtered)
@@ -177,7 +181,11 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
     from mailroom_sandbox.job.pair_report import _failed, load_arm
 
     files = rescore.locate(run, runs_root=runs_root)
-    lock = json.loads(files.files["spec.lock.json"].read_text(encoding="utf-8"))
+    try:
+        lock = rescore._finished_lock(files, force=False)  # a running checkpoint is refused
+    except rescore.RescoreError as exc:
+        raise ReplayError(str(exc).replace("re-score a finished run (or --force)", "replay a finished run")) from exc
+    dataset_verified = _verify_dataset(files.path, lock)
     if lock.get("task") not in (None, "pipeline"):
         raise ReplayError(f"task {lock.get('task')!r} runs no graph extraction: nothing to replay")
     if (lock.get("judge") or {}).get("mode") == "correct":
@@ -190,7 +198,6 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
     arm = load_arm(files.path)
     skipped: Counter[str] = Counter()
     docs: list[dict[str, Any]] = []
-    human = 0
     for entry in arm.values():
         item = entry["item"] or {}
         pred = item.get("pred")
@@ -206,7 +213,6 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
         if doc is None:
             skipped["no_labels"] += 1
             continue
-        human += pred.get("extraction_source") == "human"
         docs.append(doc)
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for d in docs:
@@ -219,13 +225,28 @@ def replay(run: str | Path, *, runs_root: Path | None = None, activate: bool = T
         "label": LABEL,
         "run_id": lock.get("run_id") or files.path.name,
         "counts": {"items": len(arm), "scored_n": len(docs), "skipped": dict(sorted(skipped.items())),
-                   "human_source": human, "text_from_row": sum(1 for d in docs if d["text_from_row"])},
+                   "human_source": sum(1 for d in docs if d["human_source"]),
+                   "dataset_verified": dataset_verified, "text_from_row": sum(1 for d in docs if d["text_from_row"])},
         "selection": selection,
         "evidence": evidence,
         "bars": {"selection_meets": selection_meets(selection),
                  "evidence_meets_confirming_arm": evidence_meets_confirming_arm(evidence)},
         "documents": docs,
     }
+
+
+def _verify_dataset(run_dir: Path, lock: Mapping[str, Any]) -> bool:
+    """True when ``dataset.jsonl`` matches the lock's digest; refuse a drifted file (as scoring does)."""
+    expected = str(((lock.get("dataset") if isinstance(lock.get("dataset"), Mapping) else None) or {})
+                   .get("sha256") or "")
+    path = run_dir / "dataset.jsonl"
+    if not expected or not path.is_file():
+        return False
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ReplayError(f"dataset.jsonl changed since the lock (lock={expected[:12]} file={actual[:12]}): "
+                          "refusing to score drifted truth rows")
+    return True
 
 
 def default_output(run_id: str, *, runs_root: Path | None = None) -> Path:
@@ -237,8 +258,14 @@ def default_output(run_id: str, *, runs_root: Path | None = None) -> Path:
     return Path(runs_root).parent / "replays" / f"{run_id}.attempt_replay.json"
 
 
-def write_replay(result: Mapping[str, Any], path: Path | str) -> Path:
+def write_replay(result: Mapping[str, Any], path: Path | str, *, source: Path | str | None = None) -> Path:
+    """Write the result; with ``source`` (the replayed run directory), refuse a path inside it."""
     out = Path(path)
+    if source is not None:
+        run_dir = Path(source).resolve()
+        target = out.resolve()
+        if target == run_dir or run_dir in target.parents:
+            raise ReplayError(f"{out} is inside the source run {run_dir}; the replay never writes the run")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out

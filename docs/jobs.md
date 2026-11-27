@@ -773,8 +773,11 @@ document with the gate's own scorer. Contracts also get CUAD false and missed cl
 the filter. It prints a digest with the design's adoption bars and writes the full result to
 `data/runtime/replays/<run_id>.attempt_replay.json`.
 
-A correct-mode run is refused (its attempt history does not hold the judge's fixes), and a failed or
-aborted document is skipped and counted, since the gate scores it 0 whatever it extracted.
+A correct-mode run is refused (its attempt history does not hold the judge's fixes), and so are a run
+whose checkpoint still says `running`, a `dataset.jsonl` that no longer matches the lock's digest, and an
+`--out` inside the source run. A failed or aborted document is skipped and counted, since the gate scores
+it 0 whatever it extracted. A human-entered extraction is scored but never filtered, because HF-029 only
+sees the specialist's read.
 
 Its numbers are an offline estimate. Selection is exact, because routing never reads the flag. The
 filter is not: the run's judge rated the unfiltered extraction. Launch the confirming arm

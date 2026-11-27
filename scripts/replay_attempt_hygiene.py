@@ -25,11 +25,15 @@ def main(argv: list[str] | None = None) -> int:
                                                  "(default: data/runtime/replays/<run_id>.attempt_replay.json)")
     args = parser.parse_args(argv)
     try:
-        result = attempt_replay.replay(args.run)
+        from mailroom_sandbox import rescore
+
+        source = rescore.locate(args.run).path
+        result = attempt_replay.replay(source)
+        out = attempt_replay.write_replay(result, args.out or attempt_replay.default_output(result["run_id"]),
+                                          source=source)
     except (attempt_replay.ReplayError, RuntimeError) as exc:
         print(f"replay failed: {exc}", file=sys.stderr)
         return 2
-    out = attempt_replay.write_replay(result, args.out or attempt_replay.default_output(result["run_id"]))
     print(attempt_replay.digest(result, out))
     return 0
 
