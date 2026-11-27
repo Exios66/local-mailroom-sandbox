@@ -92,8 +92,11 @@ def _retry_exempt(proposed: str, state: Mapping[str, Any]) -> bool:
     and a person. Counting that ruling as a retry parked it instead: on the 50-document pilot,
     18 of the 20 ``retry_budget`` reviews stopped at ``judge_verify`` proposing ``arbiter``, with
     7–10 calls of a 30-call budget. A ruling on an extraction the judge already passed still
-    counts, so the stop archives it instead of paying for another call. The re-extraction the
-    arbiter orders is ``retry_extract`` and always counts. Call and spend budgets still apply.
+    counts when this check runs, so the stop archives it instead of paying for another call.
+    In judge mode correct, ``govern`` returns any arbiter proposal before this check, so that
+    pass-through ruling is not counted. The re-extraction the
+    arbiter orders is ``retry_extract`` and always counts. Call and spend budgets still apply
+    on the path that reaches this check.
     """
     return proposed == "arbiter" and not _passed_judge(state)
 

@@ -108,7 +108,7 @@ document, `job/call_guard.py`). When it trips, the document crashes and drops ou
 
 | Budget | Counts | Default (my call; the pilot sets the final values) |
 |---|---|---|
-| Retries | classify retries, extraction retries, judge-requested retries, the re-extraction an arbiter orders, boss entries. The arbiter's own ruling is not a counted round when the judge has not passed the extraction | 3 per document (the 50-document pilot; 2 parked 20 documents at 6–10 calls) |
+| Retries | classify retries, extraction retries, judge-requested retries, the re-extraction an arbiter orders, boss entries. The arbiter's own ruling is not a counted round when the judge has not passed the extraction. In judge mode correct the pass-through arbiter is never a counted round | 3 per document (the 50-document pilot; 2 parked 20 documents at 6–10 calls) |
 | Model calls | every LLM call for the document | 30 (below the hard ceiling of 40); mergers 36 |
 | Spend | priced calls for the document, using the live call guard | off until the pilot measures cost per type |
 

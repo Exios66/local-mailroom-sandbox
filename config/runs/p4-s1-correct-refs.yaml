@@ -98,7 +98,7 @@ job:
   api_cost_cap_usd: 44.4
   require_expanded_inputs: true
   blind_routing: true
-  governor: true            # 3 counted rounds; an arbiter ruling is not one until the judge has passed
+  governor: true            # 3 counted rounds; the pass-through arbiter is not a counted round
 
 trace:
   sink: none
