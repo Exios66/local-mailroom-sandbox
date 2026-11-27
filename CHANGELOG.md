@@ -14,8 +14,8 @@
   insurance `cms_source_table`, `adjuster`, `denial_reasons` where absent; corporate `filing_number` on four
   subclasses, plus `jurisdiction`/`signatories` on `subsidiary_list`. Labeled extension fields are added; today
   there are none. An unknown, `other` or unlisted subclass, or a class confidence below the `low` band, keeps
-  the class schema. The file's sha256 is locked for pipeline runs; a run locked before HF-023 is refused on resume,
-  and `--force` re-locks it with subclass schemas on. HF-023 applies the choice per specialist instance and leaves a corporate specialist whose
+  the class schema. The file's sha256 is locked for pipeline runs; a run whose lock records a hotfix set from before HF-023 is
+  refused on resume, and `--force` re-locks it with subclass schemas on. HF-023 applies the choice per specialist instance and leaves a corporate specialist whose
   `extract` another hotfix composes to that hotfix. HF-024 gives the judge, the arbiter and the retry summary
   the same fields: dropped fields are not listed as expected or shown. A missing, NaN or non-numeric
   confidence falls back to the class schema. An ad-hoc pipeline eval with no lock uses the committed field

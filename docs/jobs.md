@@ -603,9 +603,11 @@ extraction the judge, the arbiter and the retry summary read leave out the dropp
 ones). The next document, and a fallback extraction, see the class schema. A confidence that is missing, NaN or not
 a number falls back.
 A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer) keeps that
-hotfix's schema; the other classes are unaffected. HF-023 changes the locked hotfix set, so a run locked
-before it is refused on resume. Re-lock it with `--force`; the new pipeline lock turns subclass schemas on. An
-ad-hoc pipeline eval with no lock uses the committed field lists.
+hotfix's schema; the other classes are unaffected. HF-023 changes the hotfix set, so a run whose lock records a
+set from before it is refused on resume; re-lock it with `--force`, and the new pipeline lock turns subclass
+schemas on. A lock from before the hotfix layer records no set: with no started work it resumes with class
+schemas (it has no `subclass_schemas` key), and a started one is refused by the runner. An ad-hoc pipeline eval
+with no lock uses the committed field lists.
 
 ## Read ranges (`job.trace_reads`)
 
