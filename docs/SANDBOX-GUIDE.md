@@ -97,7 +97,7 @@ The sandbox reads `.env` from the repo root. Key groups:
 
 ```bash
 # Permanent (edit .env):
-SANDBOX_PROFILE=ollama          # offline opt-out; the default is modal-vllm
+SANDBOX_PROFILE=ollama          # offline opt-out; the default is openrouter
 
 # Per-command:
 sandbox eval sorter --local --profile modal-vllm
@@ -158,7 +158,7 @@ reference — every command, subcommand, argument and parser-required marker —
 | `sandbox agents list` | Show all pipeline agents and their current models |
 | `sandbox cutover --profile X --agent-model NAME=tag` | Override one agent's model |
 | `sandbox runbook show serve` | Default Modal vLLM path: deploy → point → verify → teardown |
-| `sandbox up` | Start compose services (default `modal-vllm`: Langfuse only) |
+| `sandbox up` | Start compose services (default `openrouter`: Langfuse only) |
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models --profile ollama` | Pull required Ollama models (on explicitly selected `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
@@ -445,7 +445,7 @@ logs and track spend — see [pretty-logging/mailroom-themed-logging.md](pretty-
 
 ## 9. Modal deployment
 
-This is the **default serving path**. The canonical, always-current script is
+This is the **explicit Modal GPU serving path**. The canonical, always-current script is
 [`sandbox runbook show serve`](runbooks/serving/modal-vllm.md) — generated from
 `config/runbooks/catalog.yaml`, so the pins below and the deploy code cannot
 drift apart.
@@ -533,7 +533,7 @@ export SANDBOX_TUNNEL_USER=jdoe
 sandbox tunnel --profile vllm-remote plan    # print SSH command
 sandbox tunnel --profile vllm-remote up      # forward → localhost:18000
 sandbox health  --profile vllm-remote
-sandbox eval sorter --local                  # evals hit the tunneled engine
+sandbox eval sorter --local --profile vllm-remote  # evals hit the tunneled engine
 sandbox tunnel  --profile vllm-remote down
 ```
 

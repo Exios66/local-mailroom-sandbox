@@ -35,19 +35,23 @@ keep access local when the run data contains sensitive metadata.
 
 The **Load previous run** form accepts a local server filesystem path, including
 folders outside `--base`. Registration stores absolute references in
-`<base>/floor-runs.json`; the folder must stay accessible. It needs no provider
+`<base>/floor-runs.json`, serialized using `<base>/.floor-runs.lock`; the folder
+must stay accessible. It needs no provider
 account, API key or serving process. OpenRouter, Modal/vLLM, LM Studio and other
-providers use the same run artifact schema. The run list shows the recorded
-provider and model, independent of the current default.
+providers use the same run artifact schema. The run list shows the configured `profile` and `engine.model` from
+`spec.lock.json`, with placeholders when absent. The node card shows models
+observed in node logs separately from its labelled configured fallback. Neither
+uses the current provider default.
 
-Registered folders need `items.jsonl` or `nodes.jsonl` with JSON object records.
+Registered folders need `items.jsonl` objects with `item_id` or `id`, or
+`nodes.jsonl` objects with both `doc` and `node`.
 Nodes-only logs show available paths without inventing outcomes or scores.
 Missing registered folders are omitted until they return. Aggregate summary logs
 (including `reports/experiment_log.jsonl`) do not contain the per-document floor
 trace: select the original run folder, or IMPORT an exported floor digest.
 Registration references survive server restarts. The JSON POST endpoint uses
 the same loopback Host check as document access and rejects foreign origins.
-Source logs remain read-only; only the selected base's registry is written.
+Source logs remain read-only; only the selected base's registry and coordination lock are written.
 
 An unregistered run is discoverable when its directory contains `items.jsonl` under either
 store location. The refresher checks modification times and sizes of
@@ -81,7 +85,10 @@ logs and the [job guide](jobs.md) for starting or resuming real runs.
 ## Live refresh and navigation
 
 The viewer selects the latest running run when available, otherwise the last
-run in the digest. Deep links accept `?run=<id>&class=<live-class>`; a class
+run in the digest. Each source directory has a stable opaque run ID, independent of its display
+name and collision suffix. Selection, document access and new deep links use
+that ID; legacy name links and older digest exports still load. Deep links
+accept `?run=<id>&class=<live-class>`; a class
 must exist in that run. Changing runs or refreshing a digest clears an
 unavailable class and updates the title and mode together. Valid run, class
 and highlighted-node selections survive refreshes.

@@ -14,6 +14,7 @@ from mailroom_sandbox.services._exec import ServiceError
 def environment(monkeypatch, job_data_dir):
     monkeypatch.setattr('mailroom_sandbox.runtime.dotenv_files', lambda: [])
     monkeypatch.setattr('mailroom_sandbox.paths.dotenv_files', lambda: [])
+    monkeypatch.setenv('SANDBOX_PROFILE', 'openrouter')
     monkeypatch.setenv('MODAL_WORKSPACE', 'test-workspace')
     monkeypatch.setenv('OPENROUTER_API_KEY', 'fake-for-offline-tests')
 
@@ -393,9 +394,41 @@ def test_create_fills_unset_ceilings_from_the_design_and_keeps_explicit_ones(des
 def test_new_experiments_default_to_openrouter_with_api_budget_and_no_gpu(design):
     config = design('--mock', provider=None)
     _, _, runs = ex._load(config)
-    assert cli.build_parser().parse_args(['experiment', 'create', 'new']).provider == 'openrouter'
+    assert cli.build_parser().parse_args(['experiment', 'create', 'new']).provider is None
     for _, spec in runs:
         assert spec.profile == spec.engine.kind == 'openrouter'
         assert spec.engine.model == 'qwen/qwen3.5-9b'
         assert spec.job.api_cost_cap_usd > 0 and spec.job.max_wall_seconds > 0
         assert not any(route.provider == 'modal-vllm' for route in spec.agent_routes.values())
+
+
+@pytest.mark.parametrize('profile', ['modal-vllm', 'openrouter'])
+def test_experiment_provider_honors_selected_profile(design, monkeypatch, profile):
+    monkeypatch.setenv('SANDBOX_PROFILE', profile)
+    spec = ex._load(design('--mock', provider=None))[2][0][1]
+    assert spec.profile == spec.engine.kind == profile
+
+
+def test_unsupported_experiment_profile_is_refused_without_writing(tmp_path, monkeypatch, capsys, design):
+    monkeypatch.setenv('SANDBOX_PROFILE', 'ollama')
+    output = tmp_path / 'refused'
+    assert cli.main(['experiment', 'create', 'refused', '--mock', '--output', str(output)]) != 0
+    assert 'does not support selected profile' in capsys.readouterr().err
+    assert not output.exists()
+    # An explicit provider is sufficient to override the unsupported environment.
+    assert ex._load(design('--mock', provider='openrouter'))[2][0][1].engine.kind == 'openrouter'
+
+
+@pytest.mark.parametrize('flags', [
+    ['--profile', 'modal-vllm', 'experiment', 'create'],
+    ['experiment', 'create', '--profile', 'modal-vllm'],
+    ['experiment', 'create'],
+])
+def test_experiment_profile_flags_and_dotenv_are_honored(tmp_path, monkeypatch, flags):
+    monkeypatch.delenv('SANDBOX_PROFILE', raising=False)
+    env = tmp_path / '.env'
+    env.write_text('SANDBOX_PROFILE=modal-vllm\n')
+    monkeypatch.setattr('mailroom_sandbox.paths.dotenv_files', lambda: [env])
+    output = tmp_path / 'study'
+    assert cli.main([*flags, 'study', '--mock', '--output', str(output)]) == 0
+    assert ex._load(output / 'experiment.yaml')[2][0][1].engine.kind == 'modal-vllm'

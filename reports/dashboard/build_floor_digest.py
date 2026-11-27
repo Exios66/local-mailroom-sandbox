@@ -1955,6 +1955,11 @@ def resolve_base(arg: str | None) -> Path:
     return Path(arg or os.environ.get("MAILROOM_BASE_DIR") or "./data")
 
 
+def run_identity(path: Path) -> str:
+    """Stable, opaque identity for a source directory, independent of display-name collisions."""
+    return "run-" + hashlib.sha256(os.fsencode(path.resolve())).hexdigest()
+
+
 def named_runs(runs_found: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
     """``(digest run name, dir)`` for each discovered run; a repeated dir name gains ``(source)``."""
     named: list[tuple[str, Path]] = []
@@ -1991,6 +1996,7 @@ def build_digest(base: Path, graph_path: Path) -> dict:
     classes: set[str] = set()
     for name, path in named_runs(runs_found):
         run, run_classes = build_run(name, path, edge_set, plain_edges)
+        run["id"] = run_identity(path)
         runs.append(run)
         classes |= run_classes
     return {

@@ -23,7 +23,7 @@ implementation and references below are sufficient; no external skill is require
 | `src/mailroom_sandbox/figure_style.py` | Colour roles, type scale, `Fig` (deterministic SVG), `heading`, `axis_labels`, `legend_below`, `value_axis`, `wilson`, `humanize`, `lint_svg`, and the `lint` command |
 | `src/mailroom_sandbox/decision_figures.py` | Per-run figures for any sorter or decision run (`build`), the paired question-set figure (`paired_svg`) |
 | `src/mailroom_sandbox/comparison_figures.py` | Sorter-arm comparison figures from a `sorter_arms` report (`build`) |
-| `src/mailroom_sandbox/window_figures.py` | Paired specialist window/quality figures and their data table (`build`) |
+| `src/mailroom_sandbox/window_figures.py` | Paired specialist window/quality figures and a per-document data table (`build`) |
 
 Commands:
 
@@ -91,7 +91,10 @@ one-off matplotlib script. A figure outside them drifts: its own colours, fonts 
 - **No snake_case on a figure.** Class names, park reasons and groups go through `humanize` or
   a label map (`reason_label`, `GROUP_LABELS`).
 - **One table view per figure set.** Per-run figures write `analysis/<stem>.figure-data.csv`; the
-  comparison figures read `comparison.json`. Every number on a figure is in one of those.
+  comparison figures read `comparison.json`. Window figures export per-document
+  values in their CSV; merge-rule AUROCs are computed from the window confidences
+  in the source run's `items.jsonl` via `job.routing_audit.window_rule_separation`. Retain
+  those source artifacts too; the CSV alone cannot reproduce `window-rules`.
 
 ## Review checklist (run before you hand a figure over)
 

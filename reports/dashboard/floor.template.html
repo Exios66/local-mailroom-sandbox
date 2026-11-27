@@ -1,5 +1,5 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mailroom · Pipeline Floor</title><style>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mailroom · Pipeline Floor</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:Consolas,"Cascadia Mono",monospace;background:#05070a;color:#b8c6d4;font-size:12px}
@@ -170,7 +170,9 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 <script>
 let D=window.DIGEST;
 if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
-const bootDigest=D;let holdLive=false,shareEpoch=0;
+const bootDigest=D;let holdLive=false,shareEpoch=0,registering=false;
+function runKey(r){return r.id||r.name}
+function findRun(runs,key){const i=runs.findIndex(r=>runKey(r)===key);return i>=0?i:runs.findIndex(r=>r.name===key)}
 /** Show the digest's generated time (ribbon and right rail); called at load and after each live refresh. */
 function setGen(){
  document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
@@ -191,7 +193,7 @@ let TAB="scores";const DF={outcome:"",miss:false,q:"",cell:null,dec:""};   // dr
 let DEBUG=false, ISSUE="problems", MODE=null;
 const ISSUE_IDS=["problems","loop","stuck","held","failed","open","miss","diverted","all"];
 const PROBLEM=["stuck","held","failed","open","miss","diverted"];
-{const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>&debug=1&issue=
+{const q=new URLSearchParams(location.search),ri=findRun(D.runs,q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>&debug=1&issue=
  if(ri>=0)runIdx=ri;
  DEBUG=q.get("debug")==="1";
  if(ISSUE_IDS.includes(q.get("issue")))ISSUE=q.get("issue");
@@ -269,7 +271,7 @@ function sinceMs(v){
  return null}
 /** Stamp first-seen for newly in-flight nodes of the selected run; forget nodes no longer in flight. */
 function pruneSeen(){
- const r=run(),f=r.inflight||{},pre=r.name+"|";
+ const r=run(),f=r.inflight||{},pre=runKey(r)+"|";
  for(const k of Object.keys(seenAt))if(k.startsWith(pre)&&!(f[k.slice(pre.length)]||[]).length)delete seenAt[k];
  for(const n of Object.keys(f))if(f[n].length&&!(pre+n in seenAt))seenAt[pre+n]=Date.now()}
 const pad2=n=>String(n).padStart(2,"0");
@@ -278,7 +280,7 @@ function paintPill(b,id){
  const list=inflightList(id),now=Date.now(),known=list.map(e=>sinceMs(e.since)).filter(t=>t!=null);
  let el;
  if(known.length){const s=Math.max(0,Math.floor((now-Math.min(...known))/1000));el=pad2(Math.floor(s/60))+":"+pad2(s%60)}
- else{const s=Math.max(0,Math.floor((now-(seenAt[run().name+"|"+id]||now))/1000));el="~"+s+"s"}
+ else{const s=Math.max(0,Math.floor((now-(seenAt[runKey(run())+"|"+id]||now))/1000));el="~"+s+"s"}
  b.innerHTML=`RUNNING<span class="el">${el}</span>`+(list.length>1?`<span class="ct">·${list.length}</span>`:"");
  b.title=list.length+" in flight: "+list.map(e=>e.doc).join(", ")}
 /** Ribbon bar: cursor / total docs, pct, and AVG min/doc; 100% when the run is complete; hidden with no total. */
@@ -441,7 +443,7 @@ function syncDebug(){
  if(DEBUG)q.set("debug","1");else q.delete("debug");
  if(DEBUG&&ISSUE&&ISSUE!=="problems")q.set("issue",ISSUE);else q.delete("issue");
  if(DEBUG&&MODE)q.set("mode",MODE);else q.delete("mode");
- q.set("run", run().name);
+ q.set("run", runKey(run()));
  if(CLASS)q.set("class", CLASS);else q.delete("class");
  if(selDoc)q.set("doc", selDoc);else q.delete("doc");
  if(selNode&&!selDoc)q.set("node", selNode);else q.delete("node");
@@ -1041,13 +1043,13 @@ function rdFetch(d){
  if(why){DOCV.status="unavailable";DOCV.reason=why;DOCV.retry=false;return}
  DOCV.status="loading";DOCV.retry=false;
  const key=DOCV.key,epoch=DOCV.epoch,fail=(msg)=>{if(DOCV.key!==key||DOCV.epoch!==epoch)return;DOCV.status="unavailable";DOCV.retry=true;DOCV.reason=msg;paintDocPanel()};
- fetch("/api/floor/doc?run="+encodeURIComponent(run().name)+"&doc="+encodeURIComponent(d.id),{cache:"no-store"})
+ fetch("/api/floor/doc?run="+encodeURIComponent(runKey(run()))+"&doc="+encodeURIComponent(d.id),{cache:"no-store"})
   .then(res=>{if(!res.ok)throw new Error(res.status===404?"the floor server has no recorded text for this run or document (HTTP 404)":"the floor server answered HTTP "+res.status);return res.json()})
   .then(raw=>{if(DOCV.key!==key||DOCV.epoch!==epoch)return;const data=rdCleanDoc(raw);if(!data){fail("the floor server sent an unreadable answer");return}
    DOCV.data=data;DOCV.status="ok";paintDocPanel()})
   .catch(err=>fail(err instanceof TypeError?"the floor server did not answer":String(err&&err.message||err)))}
 function rdEnsure(d){
- const key=run().name+"\u0000"+d.id+"\u0000"+(holdLive?"snapshot":"live");
+ const key=runKey(run())+"\u0000"+d.id+"\u0000"+(holdLive?"snapshot":"live");
  const reads=(d.debug&&d.debug.reads)||null;
  const storeHash=reads&&typeof reads.text_hash==="string"?reads.text_hash:null;
  const served=DOCV.data&&typeof DOCV.data.text_hash==="string"?DOCV.data.text_hash:null;
@@ -1201,13 +1203,16 @@ const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;const b=contentB
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
 // ── Shareable digest (the viewer contract, not the raw run logs) ──
-function shareFocus(){return {run:run().name,class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode,tab:TAB,filters:{...DF,cell:DF.cell?{...DF.cell}:null}}}
+function shareFocus(){return {run:runKey(run()),class:CLASS,debug:DEBUG?1:0,issue:ISSUE,mode:MODE,doc:selDoc,node:selNode,tab:TAB,filters:{...DF,cell:DF.cell?{...DF.cell}:null}}}
 function floorExportObject(){
  return {mailroom_floor_export:1,exported_utc:new Date().toISOString().replace(/\.\d{3}Z$/,"Z"),focus:shareFocus(),digest:D}}
 function usableDigest(d){
  const object=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
  return !!(d&&typeof d==="object"&&!Array.isArray(d)&&Array.isArray(d.runs)&&d.runs.length
   &&d.runs.every(r=>object(r)&&typeof r.name==="string"&&r.name
+    &&(r.id===undefined||(typeof r.id==="string"&&r.id))
+    &&(r.docs===undefined||(Array.isArray(r.docs)&&r.docs.every(x=>object(x)&&typeof x.id==="string")))
+    &&(r.node_models===undefined||(object(r.node_models)&&Object.values(r.node_models).every(models=>Array.isArray(models)&&models.every(m=>typeof m==="string"))))
     &&["engine","per_class","node_fires","edge_fires","node_agents","node_ms_p50","aborts_by_last_node","outcomes","tokens"].every(k=>object(r[k])))
   &&d.graph_reference&&typeof d.graph_reference==="object"&&Array.isArray(d.graph_reference.edges)
   &&object(d.graph_reference.node_agents)&&d.graph_reference.edges.every(e=>Array.isArray(e)&&e.length===2&&e.every(n=>typeof n==="string"))
@@ -1227,7 +1232,7 @@ function paintShare(msg){
 function applyShareFocus(focus, keepFilters=false){
  let i=-1;D.runs.forEach((r,n)=>{if(r.state==="running")i=n});
  const name=focus&&typeof focus.run==="string"?focus.run:"";
- const named=name?D.runs.findIndex(r=>r.name===name):-1;
+ const named=name?findRun(D.runs,name):-1;
  runIdx=named>=0?named:(i>=0?i:D.runs.length-1);
  CLASS=null;selNode=null;selDoc=null;DEBUG=false;ISSUE="problems";MODE=null;TAB="scores";
  if(!keepFilters)Object.assign(DF,{outcome:"",miss:false,q:"",cell:null,dec:""});
@@ -1268,21 +1273,23 @@ function floorDownload(){
  setTimeout(()=>URL.revokeObjectURL(a.href),1500);if(!holdLive)paintShare("exported")}
 async function floorResumeLive(){
  if(!LIVE){shareEpoch++;takeDigest(bootDigest,null,false);paintShare("");return}
- if(busy)return;
+ if(busy||registering)return;
  const epoch=++shareEpoch;busy=true;
  try{
   const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
   if(epoch!==shareEpoch)return;
   const nd=res.ok?await res.json():null;
+  if(epoch!==shareEpoch)return;
   if(!usableDigest(nd)){paintShare("live digest unavailable");return}
-  const name=run().name;takeDigest(nd,null,false);
-  const i=D.runs.findIndex(r=>r.name===name);if(i>=0)runIdx=i;menus();render();paintShare("");
+  const key=runKey(run());takeDigest(nd,null,false);
+  const i=findRun(D.runs,key);if(i>=0)runIdx=i;menus();render();paintShare("");
  }catch(e){paintShare("live digest unavailable")}
  finally{busy=false}}
 document.getElementById("registerForm").onsubmit=async e=>{
  e.preventDefault();const note=document.getElementById("registerNote"),button=document.getElementById("registerRun");
  if(!LIVE){note.textContent="Registration needs the local sandbox floor server.";return}
- const epoch=++shareEpoch;
+ if(registering)return;
+ const epoch=++shareEpoch;registering=true;
  button.disabled=true;note.textContent="Loading run…";
  try{
   const res=await fetch("/api/floor/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:document.getElementById("runPath").value})});
@@ -1291,10 +1298,10 @@ document.getElementById("registerForm").onsubmit=async e=>{
   const reply=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
   const nd=reply.ok?await reply.json():null;if(!usableDigest(nd))throw new Error("Run registered; digest unavailable. Reload to retry.");
   if(epoch!==shareEpoch)return;
-  takeDigest(nd,null,false);const index=D.runs.findIndex(r=>r.name===result.run);if(index>=0)runIdx=index;
+  shareEpoch++;takeDigest(nd,null,false);const index=findRun(D.runs,result.run_id||result.run);if(index>=0)runIdx=index;
   menus();render();paintShare("");note.textContent="Loaded "+result.run+". Source logs unchanged.";
  }catch(error){note.textContent=error.message||"Registration failed"}
- finally{button.disabled=false}};
+ finally{registering=false;button.disabled=false}};
 // ── LIVE refresh (all server views discover history; file:// stays static) ──
 let busy=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");
@@ -1303,15 +1310,16 @@ function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t
  +(stale>=3?" · STALE ("+stale+" poll misses)":"")}
 if(LIVE){
  setInterval(async()=>{
-  if(busy||holdLive)return;
+  if(busy||registering||holdLive)return;
   const epoch=shareEpoch;busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
    if(holdLive||epoch!==shareEpoch)return;
    if(!res.ok){stale++;stampUpdated();return}
    const nd=await res.json();
+   if(holdLive||registering||epoch!==shareEpoch)return;
    if(!usableDigest(nd)){stale++;stampUpdated();return}   // retain the last good view on invalid data
-   const same=JSON.stringify(nd)===JSON.stringify(D),name=run().name,i=nd.runs.findIndex(x=>x.name===name);
+   const same=JSON.stringify(nd)===JSON.stringify(D),key=runKey(run()),i=findRun(nd.runs,key);
    D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
    if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
    if(selDoc&&!(run().docs||[]).some(x=>x.id===selDoc))selDoc=null;

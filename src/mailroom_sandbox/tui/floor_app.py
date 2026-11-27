@@ -133,9 +133,9 @@ def register_run(base: Path, value: str) -> tuple[str, Path]:
         raise ValueError("floor registry must not be a symlink")
     with (base / ".floor-runs.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        existing = builder.discover_runs(base)
-        if path not in {p.resolve() for _, p in existing}:
-            data = json.loads(registry.read_text()) if registry.exists() else {"schema": "mailroom.floor-runs/v1", "paths": []}
+        builder.discover_runs(base)  # validate an existing registry before modifying it
+        data = json.loads(registry.read_text()) if registry.exists() else {"schema": "mailroom.floor-runs/v1", "paths": []}
+        if str(path) not in data["paths"]:
             data["paths"].append(str(path))
             with TemporaryDirectory(prefix=".floor-registry-", dir=base) as staging:
                 tmp = Path(staging) / registry.name
@@ -281,7 +281,10 @@ def doc_view(runs_root: Path, run: str, doc: str) -> dict | None:
     original. Both stay false and null when either text is missing.
     """
     builder = load_builder()
-    run_dir = dict(builder.named_runs(builder.discover_runs(Path(runs_root)))).get(run)
+    named = builder.named_runs(builder.discover_runs(Path(runs_root)))
+    run_dir = next((path for _, path in named if builder.run_identity(path) == run), None)
+    if run_dir is None:  # legacy links and exports used display names
+        run_dir = dict(named).get(run)
     if run_dir is None:
         return None
     row = _last_row(run_dir / "dataset.jsonl", lambda r: str(r.get("id") or r.get("filename")) == doc)
@@ -348,14 +351,14 @@ class _FloorHandler(SimpleHTTPRequestHandler):
             value = data.get("path") if isinstance(data, dict) else None
             if not isinstance(value, str) or not value.strip():
                 raise ValueError("a run directory path is required")
-            name, _ = register_run(self.runs_root, value)
+            name, path = register_run(self.runs_root, value)
             self.refresher.refresh()
             if self.refresher.last_error:
                 raise ValueError("run registered, digest rebuild failed; retry after checking the server log")
         except (OSError, ValueError, TypeError) as exc:
             self._send_json(400, {"error": str(exc)})
             return
-        self._send_json(200, {"run": name})
+        self._send_json(200, {"run": name, "run_id": load_builder().run_identity(path)})
 
     def _send_json(self, status: int, payload: dict) -> None:
         """Write one JSON response (never cached; ``end_headers`` adds the cache directive)."""
@@ -610,7 +613,7 @@ class ReplayDriver:
 
 
 def has_runs(base: Path) -> bool:
-    """True when ``base`` has a run directory with ``items.jsonl`` (the builder's discovery rule)."""
+    """True when the builder discovers native items or registered items/node traces."""
     return bool(load_builder().discover_runs(base))
 
 

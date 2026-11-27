@@ -122,7 +122,7 @@ export SANDBOX_TUNNEL_USER=jdoe
 sandbox tunnel --profile vllm-remote plan    # print the exact ssh command
 sandbox tunnel --profile vllm-remote up      # detached forward → localhost:18000
 sandbox health  --profile vllm-remote
-sandbox eval sorter --local                  # evals hit the tunneled engine
+sandbox eval sorter --local --profile vllm-remote  # evals hit the tunneled engine
 sandbox tunnel  --profile vllm-remote down
 ```
 

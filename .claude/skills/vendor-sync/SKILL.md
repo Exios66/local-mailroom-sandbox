@@ -17,6 +17,10 @@ blocks it. This skill is the one sanctioned way to change them.
   snapshot to "fix it here first".
 - Establish a clean maintenance scope and identify the package(s) and target
   revision from the authorized request. Ask only when those facts are missing.
+- Before either refresh path, require `git status --short -- vendor/` to be
+  clean, or preserve an operator-reviewed recovery diff of all existing vendor
+  changes outside the refreshed trees. Standalone refresh replaces both packages;
+  protect existing changes in both, even when only one pin is changing.
 - Stop all sandbox processes importing this checkout before changing tracked
   snapshots. Review the complete diff before restarting; staging and rollback
   do not synchronize live imports.

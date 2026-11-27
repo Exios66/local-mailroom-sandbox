@@ -29,10 +29,11 @@ BRAINTRUST_PROJECT=mailroom-sandbox
 | Disable in pytest (`OBSERVABILITY_PROVIDER=none`) | Put API keys in fixtures or compose YAML |
 
 `mailroom_sandbox.eval.tracing` implements a native Braintrust adapter:
-`pipeline_trace` and `node_span` emit spans, score helpers attach scores, and
+`document_pipeline_trace` and `child_observation` emit spans, score helpers attach scores, and
 `flush_traces` flushes the logger. It requires both an API key and a project
-name or ID. Initialization/span/flush failures are logged and counted; a
-selected sink is not proof of successful delivery. Inspect
+name or ID. Initialization, span-start/end and flush failures are logged and counted.
+Span `log`, `update` and `score` calls can propagate SDK errors without incrementing
+those counters; a selected sink or zero counter is not proof of delivery. Inspect
 `tests/test_tracing_braintrust.py` and the export diagnostics before claiming
 hosted evidence. Durable scores still go to `reports/` via Dojo/experiment log.
 

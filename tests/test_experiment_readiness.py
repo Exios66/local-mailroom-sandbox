@@ -101,7 +101,7 @@ def test_mock_pipeline_campaign_prepares_without_modal_workspace_and_reports_qua
     # MODAL_WORKSPACE, which must not refuse a mock campaign's review.
     source = _write(tmp_path / "docs.jsonl", [_row(i) for i in range(2)])
     config = tmp_path / "pipe" / "experiment.yaml"
-    assert cli.main(["experiment", "create", "pipe", "--task", "pipeline", "--doc-class", "correspondence",
+    assert cli.main(["experiment", "create", "pipe", "--provider", "modal-vllm", "--task", "pipeline", "--doc-class", "correspondence",
                      "--samples", "2", "--mock", "--trace-sink", "none", "--local-dataset", str(source),
                      "--output", str(config.parent)]) == 0
     assert "judge" in ex._load(config)[2][0][1].agent_routes

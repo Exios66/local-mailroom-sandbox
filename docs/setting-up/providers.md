@@ -23,8 +23,9 @@ OpenRouter is the **default experimental and deployment provider**. Configure
 `OPENROUTER_API_KEY` privately for live calls; creating experiments and viewing
 logs need no key. The template leaves the key unset. Explicit profiles, run YAMLs
 and immutable locks keep their provider. The run schema retains legacy Modal
-defaults for older specs with omitted fields; new experiment creation writes
-OpenRouter explicitly.
+defaults for older specs with omitted fields. New experiment creation writes
+the selected provider explicitly, defaulting to OpenRouter; unsupported profile
+selections are refused until a supported `--provider` is supplied.
 For the 2026-10-10 hosted **Qwen3-8B** catalog sunset vs local weights, see
 [`openrouter-sunset-audit.md`](../archive/openrouter-sunset-audit.md) (SAND-024 / issue #30).
 Comparable serving metrics (TTFT, throughput, GPU on local only) are scored

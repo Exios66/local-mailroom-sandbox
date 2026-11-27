@@ -2433,7 +2433,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--split` | No |  |
 | `--revision` | No |  |
 | `--local-dataset` | No | local JSONL instead of Hub (also useful for offline mock checks) |
-| `--provider` | No | experimental provider (default: openrouter; explicit run configurations retain their provider) Choices: modal-vllm, openrouter. |
+| `--provider` | No | experimental provider (default: selected profile, otherwise openrouter; unsupported profiles require an explicit provider) Choices: modal-vllm, openrouter. |
 | `--gpu` | No | Modal GPU class, optionally :N for tensor parallel |
 | `--no-named-image` | No | build the serving image instead of reusing the published sandbox-vllm:<tag> |
 | `--replicas` | No | override cell replica count |

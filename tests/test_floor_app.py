@@ -764,7 +764,7 @@ def test_completed_views_continue_discovering_new_runs():
     """Historical views still poll the store, so later registered runs appear."""
     html = _template()
     live = html[html.index("// ── LIVE refresh"):]
-    assert "if(busy||holdLive)return" in live
+    assert "if(busy||registering||holdLive)return" in live
     assert "idle&&!wasLive" not in live
     assert live.count('fetch("floor_digest.json?ts="') == 1, "the existing fetch helper is reused, not duplicated"
 
@@ -1521,7 +1521,7 @@ def test_document_panel_wires_only_native_buttons_and_never_raw_document_html():
     assert {m.group(1) for m in re.finditer(r'<(\w+)[^>]*data-rd="', block)} == {"button"}
     assert 'tr class="click' not in block and "data-doc" not in block
     glue = html[html.index("function rdFetch("):html.index("function rdEnsure(")]
-    assert "/api/floor/doc" in glue and "encodeURIComponent(run().name)" in glue and "encodeURIComponent(d.id)" in glue
+    assert "/api/floor/doc" in glue and "encodeURIComponent(runKey(run()))" in glue and "encodeURIComponent(d.id)" in glue
     assert "!LIVE" in glue and "holdLive" in glue and "replay" in glue
     # the endpoint's answer is reduced to known shapes before the panel sees it
     assert "function rdCleanDoc(" in html
@@ -1613,7 +1613,7 @@ const setGen=()=>{},menus=()=>{},render=()=>{};
 const run=()=>D.runs[runIdx];
 const hasClasses=()=>false;
 const classView=()=>({why:""});
-'''+share+apply+r'''
+'''+html[html.index('function runKey('):html.index('/** Show the digest')]+share+apply+r'''
 const saved=JSON.parse(JSON.stringify(floorExportObject())).focus;
 DF.cell={gt:"foreign",pred:"unknown"};DF.dec="foreign";DF.outcome="failed";DF.miss=false;DF.q="foreign";
 applyShareFocus(saved);
@@ -1645,7 +1645,9 @@ def test_register_previous_provider_run_preserves_artifacts_and_document_access(
     shutil.copytree(source, external)
     (external / 'spec.lock.json').write_text(json.dumps({'profile': provider, 'engine': {'kind': provider, 'model': 'recorded-model'}}))
     (external / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Synthetic saved source.'}) + '\n')
-    before = {p.name: p.read_bytes() for p in external.iterdir() if p.is_file()}
+    (external / 'doc_texts').mkdir(exist_ok=True)
+    (external / 'doc_texts' / 'nested-source.txt').write_text('Synthetic nested source.')
+    before = {str(p.relative_to(external)): p.read_bytes() for p in external.rglob('*') if p.is_file()}
     name, resolved = floor_app.register_run(base, str(external))
     assert resolved == external.resolve() and name == 'previous'
     # Persistence is on disk, not tied to a viewer process. Re-registering is idempotent.
@@ -1656,7 +1658,7 @@ def test_register_previous_provider_run_preserves_artifacts_and_document_access(
     assert saved['engine'] == {'kind': provider, 'model': 'recorded-model'}
     assert floor_app.doc_view(base, name, 'd1')['original'] == 'Synthetic saved source.'
     assert json.loads((base / 'floor-runs.json').read_text())['paths'] == [str(external.resolve())]
-    assert before == {p.name: p.read_bytes() for p in external.iterdir() if p.is_file()}
+    assert before == {str(p.relative_to(external)): p.read_bytes() for p in external.rglob('*') if p.is_file()}
     signature = floor_app.scan_signature(base)
     with (external / 'nodes.jsonl').open('a') as out:
         out.write(json.dumps({'doc': 'd2', 'node': 'intake', 'status': 'running'}) + '\n')
@@ -1678,6 +1680,85 @@ def test_registered_names_stay_unique_and_nodes_only_logs_load(store, tmp_path):
     names = [r['name'] for r in digest['runs']]
     assert len(names) == len(set(names)) == 5
     assert floor_app.has_runs(base)
+
+
+def test_registered_run_identity_survives_native_name_collision(store, tmp_path):
+    base, graph, source = store
+    external = tmp_path / 'saved' / 'collision'
+    shutil.copytree(source, external)
+    (external / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Saved source.'}) + '\n')
+    floor_app.register_run(base, str(external))
+    before = floor_app.build(base, tmp_path / 'before', graph)[0]
+    saved = next(r for r in before['runs'] if r['name'] == 'collision')
+    native = base / 'runtime' / 'runs' / 'collision'
+    shutil.copytree(external, native)
+    (native / 'dataset.jsonl').write_text(json.dumps({'id': 'd1', 'doc_text': 'Native source.'}) + '\n')
+    after = floor_app.build(base, tmp_path / 'after', graph)[0]
+    same = next(r for r in after['runs'] if r['id'] == saved['id'])
+    assert same['name'] != saved['name']
+    assert floor_app.doc_view(base, saved['id'], 'd1')['original'] == 'Saved source.'
+    assert floor_app.doc_view(base, 'collision', 'd1')['original'] == 'Native source.'
+
+
+def test_explicit_native_registration_retains_nodes_only_history(store, tmp_path):
+    base, graph, source = store
+    floor_app.register_run(base, str(source))
+    identity = floor_app.load_builder().run_identity(source)
+    (source / 'items.jsonl').unlink()
+    digest = floor_app.build(base, tmp_path / 'out', graph)[0]
+    assert any(r['id'] == identity for r in digest['runs'])
+    assert json.loads((base / 'floor-runs.json').read_text())['paths'] == [str(source.resolve())]
+
+
+def test_registration_and_poll_interleaving_keeps_selected_source():
+    """Execute the actual async handlers, delaying an old poll's JSON until registration completes."""
+    import subprocess
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node is needed to execute viewer JavaScript')
+    html = _template()
+    keys = html[html.index('function runKey('):html.index('/** Show the digest')]
+    handlers = html[html.index('async function floorResumeLive('):html.index('// elapsed counters tick')]
+    script = r'''
+const assert=require('node:assert/strict');
+let D={classes:[],runs:[{id:'saved-id',name:'collision',docs:[]}]},runIdx=0;
+let holdLive=false,registering=false,shareEpoch=0,CLASS=null,selDoc=null;
+const LIVE=true,run=()=>D.runs[runIdx];
+const elements={registerForm:{},registerNote:{},registerRun:{},runPath:{value:'/saved'}};
+const document={getElementById:id=>elements[id]||(elements[id]={})};
+const usableDigest=d=>!!d,setGen=()=>{},menus=()=>{},render=()=>{},paintShare=()=>{},pad2=x=>x;
+const takeDigest=nd=>{D=nd;runIdx=0;holdLive=false};
+let poll;const setInterval=fn=>{poll=fn};
+const fresh={classes:[],runs:[{id:'native-id',name:'collision',docs:[]},{id:'saved-id',name:'collision (registered)',docs:[]}]};
+let release,releaseRegistration,fetches=0;
+const fetch=async()=>{
+ fetches++;
+ if(fetches===1)return {ok:true,json:()=>new Promise(r=>release=r)};
+ if(fetches===2)return {ok:true,json:async()=>({run:'collision (registered)',run_id:'saved-id'})};
+ if(fetches===3||fetches===5)return {ok:true,json:async()=>fresh};
+ if(fetches===4)return {ok:true,json:()=>new Promise(r=>releaseRegistration=r)};
+ throw Error('unexpected fetch while registration is active');
+};
+''' + keys + handlers + r'''
+(async()=>{
+ const old=poll();await new Promise(setImmediate);assert(release);
+ const registration=elements.registerForm.onsubmit({preventDefault(){}});
+ assert(registering);await poll();assert.equal(fetches,2);
+ await registration;assert.equal(run().id,'saved-id');assert.equal(run().name,'collision (registered)');
+ release({classes:[],runs:[{id:'saved-id',name:'collision',docs:[]}]});await old;
+ assert.equal(D,fresh);assert.equal(run().id,'saved-id');assert(!registering);
+ // With no poll in flight, registration must itself prevent a new background poll.
+ const nextRegistration=elements.registerForm.onsubmit({preventDefault(){}});
+ await new Promise(setImmediate);assert(releaseRegistration);assert(registering);
+ await poll();assert.equal(fetches,4);
+ releaseRegistration({run:'collision (registered)',run_id:'saved-id'});
+ await nextRegistration;assert.equal(run().id,'saved-id');assert.equal(fetches,5);
+ // Legacy name lookup remains available, while identity chooses the original source.
+ assert.equal(findRun(fresh.runs,'collision'),0);assert.equal(findRun(fresh.runs,'saved-id'),1);
+})().catch(e=>{console.error(e);process.exitCode=1});
+'''
+    result = subprocess.run([node, '-e', script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_registration_rejects_summary_and_malformed_logs_without_writing_registry(tmp_path):
@@ -1750,6 +1831,14 @@ assert(readShare({mailroom_floor_export:1,digest:good}));
 assert.equal(readShare({...good,runs:[{name:'incomplete'}]}),null);
 assert.equal(readShare({...good,graph_reference:{edges:[null],node_agents:{}}}),null);
 assert.equal(readShare({...good,classes:[{}]}),null);
+for(const value of [{},null,[null],[{id:3}]]){
+ assert.equal(readShare({...good,runs:[{...good.runs[0],docs:value}]}),null);
+}
+for(const value of [[],null,{extract:'model'},{extract:[3]}]){
+ assert.equal(readShare({...good,runs:[{...good.runs[0],node_models:value}]}),null);
+}
+const legacy=structuredClone(good);delete legacy.runs[0].node_models;delete legacy.runs[0].id;
+assert(usableDigest(legacy));
 assert.equal(readShare({mailroom_floor_export:2,digest:good}),null);
 '''
     result = subprocess.run([node, '-e', script], capture_output=True, text=True, timeout=10)

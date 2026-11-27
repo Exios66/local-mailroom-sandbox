@@ -43,7 +43,7 @@ a release/service fact you did not check.
    scope:
 
    ```bash
-   rg --files --hidden -g '*.md' -g '!vendor/**' -g '!.git/**' -g '!data/**'
+   git ls-files '*.md' | rg -v '^vendor/'
    git ls-files 'AGENTS.md' 'CLAUDE.md' '.cursor/skills/**' '.claude/skills/**' '.opencode/agents/*.md'
    ```
 

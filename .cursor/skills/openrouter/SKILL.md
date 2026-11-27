@@ -8,7 +8,9 @@ description: Configure OpenRouter, the default experimental/deployment provider 
 Read [sandbox-tool-router](../sandbox-tool-router/SKILL.md) first. OpenRouter is
 the default for new experiment creation and CLI profile selection. Explicit
 profiles, existing environment selections, run YAMLs and immutable locks retain
-their provider; the legacy run schema still supplies Modal defaults to old
+their provider. Experiment creation supports OpenRouter and Modal and refuses
+an unsupported selected profile before writing files; choose an explicit
+`--provider` to override it. The legacy run schema still supplies Modal defaults to old
 specs with omitted fields. Never migrate a locked run by changing its provider.
 
 ## Configuration and identity
