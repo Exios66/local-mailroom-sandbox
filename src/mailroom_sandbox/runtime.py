@@ -663,6 +663,10 @@ def activate(
     from mailroom_sandbox import evidence_check
 
     evidence_check.activate(bool(locked_job.get("evidence_check")))  # HF-029; unlocked evals stay off
+    from mailroom_sandbox import merger_reads
+
+    merger_reads.activate(locked_job.get("merger"))  # HF-030/HF-031; a lock without the key: off
+    merger_reads.activate_head(locked_job.get("long_document_head") is True)  # HF-032/HF-033
     from mailroom_sandbox import subclass_extraction
 
     if locked_job.get("subclass_schemas"):
