@@ -11,6 +11,13 @@ launch sequential cells, stop their managed apps, and compile outcome reports.
 Creating or reviewing an experiment never calls Hugging Face, an LLM, or Modal.
 Preflight may download the pinned Hub data; it does not deploy or probe an LLM.
 
+New experiments default to **OpenRouter**, unless `SANDBOX_PROFILE`, `.env` or
+`--profile` explicitly selects a supported provider. `--provider` wins over that
+selection. Creation supports OpenRouter and Modal; an unsupported selected
+profile fails before writing files and requires an explicit `--provider`. Use
+`--provider modal-vllm` for GPU experiments. Existing YAMLs and locks retain their provider, model and budgets;
+this default does not migrate or relaunch them.
+
 ## Select the design and settings
 
 ```bash
@@ -30,7 +37,7 @@ before signing. Repeated `--doc-class` and `--subclass` narrow the corpus.
 
 ```bash
 sandbox experiment create sand42-next \
-  --design sand42 --samples 50 --seed 42 \
+  --provider modal-vllm --design sand42 --samples 50 --seed 42 \
   --model Qwen/Qwen3-8B-AWQ --gpu L4 \
   --set engine.vllm.max_num_seqs=16 \
   --set engine.vllm.gpu_memory_utilization=0.90 \
@@ -86,10 +93,10 @@ sandbox experiment create pipeline-api --task pipeline \
   --samples 10 --trace-sink langfuse
 ```
 
-Modal/vLLM default with API agents (hybrid):
+Explicit Modal/vLLM engine with API agents (hybrid):
 
 ```bash
-sandbox experiment create pipeline-hybrid --task pipeline \
+sandbox experiment create pipeline-hybrid --provider modal-vllm --task pipeline \
   --model Qwen/Qwen3-8B-AWQ --gpu L4 --samples 10 \
   --agent-route sorter=openrouter:qwen/qwen3.7-flash \
   --agent-route judge=openrouter:deepseek/deepseek-v4-flash \

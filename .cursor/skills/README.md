@@ -6,8 +6,9 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | --- | --- |
 | [sandbox-tool-router](sandbox-tool-router/SKILL.md) | **Start here** — pick the right tool |
 | [docs-audit-tool-router](docs-audit-tool-router/SKILL.md) | Full docs/README staleness sweep — links, paths, CLI/defaults, pins, versions, generated artifacts |
+| [openrouter](openrouter/SKILL.md) | **Default** experimental/deployment API provider, hybrid routes and API spend preflight |
 | [ollama](ollama/SKILL.md) | Offline/CPU fallback LLM (`--profile ollama`) |
-| [modal](modal/SKILL.md) | **Default** serving: Modal vLLM |
+| [modal](modal/SKILL.md) | Explicit GPU serving: Modal vLLM |
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |
 | [apache-phoenix](apache-phoenix/SKILL.md) | Optional Phoenix sidecar |
 | [braintrust](braintrust/SKILL.md) | Opt-in hosted Braintrust |
@@ -21,6 +22,7 @@ sample is not evidence of a measured model result.
 Coding **subagents** (GEPA prompt engineer, trace analyst, harness doctor,
 adversarial reviewer): roster in [`config/subagents/`](../../config/subagents/),
 prompts in [`.opencode/agents/`](../../.opencode/agents/) — sync Cursor stubs
-with `sandbox subagents sync --harness cursor`.
+with `sandbox subagents sync --harness project` (OpenCode project profiles and
+Cursor stubs; no global or sibling writes).
 
 Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/setting-up/docker-offline.md`](../../docs/setting-up/docker-offline.md).

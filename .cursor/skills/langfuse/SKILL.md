@@ -32,12 +32,15 @@ LANGFUSE_SECRET_KEY=sk-lf-sandbox
 ## Start / verify
 
 ```bash
-sandbox up -d                      # default modal-vllm profile → langfuse only; select both profiles explicitly for Ollama
+sandbox up -d                      # default openrouter profile → langfuse only; select both profiles explicitly for Ollama
 sandbox health                     # probes provider + Langfuse health
 sandbox traces export              # data/traces/export.json
 ```
 
-Compose services: `postgres`, `clickhouse`, `redis`, `minio`, `langfuse-web`, `langfuse-worker` under profile `langfuse`.
+Compose services: `postgres`, `clickhouse`, `redis`, `minio`, `langfuse-web`,
+`langfuse-worker` under profile `langfuse`. Web and worker are declared at
+`3.225.15` in `deploy/docker-compose.yml`; the Python SDK range is in
+`pyproject.toml`. Inspect the actual installed version separately.
 
 Inside the Jupyter container use `LANGFUSE_HOST=http://langfuse-web:3000`.
 

@@ -2,7 +2,7 @@
 
 Local-first experiment harness around the Mailroom family: it runs prompt loops,
 evals and calibration against a **vendored** copy of `llm-mailroom` and
-`llm-dojo-scoring`, with Modal/vLLM as the default serving path and Langfuse as the
+`llm-dojo-scoring`, with OpenRouter as the default experimental provider and Langfuse as the
 default trace sink. It does **not** reimplement the pipeline. Python 3.11+.
 
 Open [`AGENTS.md`](AGENTS.md) at task start; it is the full command reference and
@@ -84,7 +84,7 @@ sandbox doctor                                              # offline status of 
   Initials belong to a human — never invent them.
 - Every paid run needs `job.max_wall_seconds`; GPU runs need `job.cost_cap_usd`;
   OpenRouter runs need `job.api_cost_cap_usd` plus a price in `config/api_prices.yaml`.
-- Default serving is Modal vLLM; Ollama is an offline fallback; OpenRouter is opt-in.
+- OpenRouter is the default experimental/deployment provider; Modal/vLLM is an explicit GPU option and Ollama is an offline fallback. Existing run specs and locks retain their provider.
   Do not use Phoenix or Braintrust as the The-Mailroom sink.
 
 ## Do not hand-edit (a hook blocks these)

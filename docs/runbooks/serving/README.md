@@ -4,11 +4,11 @@
 
 Generated family rollup. Canonical per-id cards live at their catalog paths.
 
-## Modal vLLM — deploy, point, verify, teardown (default path)
+## Modal vLLM — deploy, point, verify, teardown (explicit GPU path)
 
 **id:** `modal-vllm-serving` · **family:** `serving` · **serving:** `qwen35-9b`
 
-The sandbox default. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI /v1 surface; the host needs no GPU and no Ollama daemon. Pre-warm the weights, deploy once, export VLLM_BASE_URL/VLLM_API_KEY, verify with health, run any eval against the same warm endpoint, then tear it down.
+An explicit GPU serving path. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI /v1 surface; the host needs no GPU and no Ollama daemon. Pre-warm the weights, deploy once, export VLLM_BASE_URL/VLLM_API_KEY, verify with health, run any eval against the same warm endpoint, then tear it down.
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show modal-vllm-serving`.
 
@@ -80,7 +80,7 @@ A deployed Modal job worker must carry the lock's exact hotfix and source identi
 ### Operator script
 
 ```bash
-# Modal vLLM — deploy, point, verify, teardown (default path)
+# Modal vLLM — deploy, point, verify, teardown (explicit GPU path)
 # sandbox runbook show modal-vllm-serving
 set -euo pipefail
 

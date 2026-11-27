@@ -52,6 +52,24 @@ def test_hf004_prices_every_vendored_call_and_the_guard_refuses_the_next():
     assert doc["refused"].startswith("call refused")
 
 
+def test_hf004_prices_a_call_at_the_model_it_names():
+    """Phase 4 final review: a dearer judge model on the run does not re-price the pipeline's calls."""
+    from mailroom_sandbox.job.metrics import call_cost
+
+    assert vh.apply_hotfixes()["HF-004"] == "applied"
+    from pipeline import limits
+
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, ["qwen/qwen3.7-flash", "qwen/qwen3.7-plus"])
+    call_guard.arm(budget, ceiling=40)
+    with call_guard.document():
+        limits.reset_run_usage()
+        limits.record_usage({"input_tokens": 5_000, "output_tokens": 1_000}, "qwen/qwen3.7-flash", agent="sorter")
+        assert budget.live_usd == pytest.approx(call_cost("qwen/qwen3.7-flash", 5_000, 1_000))
+        limits.record_usage({"input_tokens": 5_000, "output_tokens": 1_000}, agent="judge")  # unnamed: dearest
+        assert budget.live_usd == pytest.approx(call_cost("qwen/qwen3.7-flash", 5_000, 1_000)
+                                                + call_cost("qwen/qwen3.7-plus", 5_000, 1_000))
+
+
 def test_the_per_document_ceiling_refuses_a_runaway_document_only():
     call_guard.arm(_budget(cap=1_000.0), ceiling=3)
     with call_guard.document() as runaway:

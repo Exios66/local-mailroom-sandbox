@@ -14,6 +14,7 @@ hotfix wraps (the dedicated corporate composer) keeps that hotfix's schema.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import copy
 import functools
@@ -21,15 +22,20 @@ import logging
 import math
 import re
 import threading
-from typing import Any, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 _log = logging.getLogger(__name__)
 _LOCK = threading.Lock()
 #: Process-wide like the governor: agent-task workers do not inherit the lock's ContextVar.
 _ACTIVE: dict[str, Any] | None = None
-#: The choice ``record_choice`` made for the extraction being set up: (class schema, chosen schema).
-_PENDING: contextvars.ContextVar[tuple[dict, dict] | None] = contextvars.ContextVar(
+#: The choice ``record_choice`` made for the extraction being set up: (class schema, schema sent,
+#: schema the judge reviews against). The last differs from the one sent only under fields_only.
+_PENDING: contextvars.ContextVar[tuple[dict, dict, dict, str | None] | None] = contextvars.ContextVar(
     "sandbox_subclass_schema", default=None)
+#: Phase 4 field-only retry: the fields a judge-ordered re-extraction asks for (None: every field).
+_ONLY: contextvars.ContextVar[frozenset[str] | None] = contextvars.ContextVar("sandbox_fields_only", default=None)
+#: Extraction metadata a field-only schema keeps beside the named fields.
+_KEEP_META = frozenset({"confidence", "reasoning"})
 
 FALLBACK_SUBCLASSES = frozenset({"", "unknown", "other"})
 
@@ -115,8 +121,11 @@ def low_band(doc_class: str) -> float | None:
     return None if value is None else float(value)
 
 
-def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool) -> None:
+def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool, note: bool = False) -> None:
     """Turn the switch on for this process; refuses a field list that differs from the lock's.
+
+    ``note`` (``job.subclass_field_note``) also appends :func:`field_note` to the system prompt of
+    a specialist sent a narrowed subclass schema.
 
     Without ``lists`` the committed file is read once, and the lists come from the same bytes the
     sha is taken of, so a file replaced between a parse and a hash cannot pass the lock check.
@@ -133,7 +142,7 @@ def activate(lists: Mapping[str, Any] | None = None, *, sha256: str, guide: bool
             f"job.subclass_schemas: the subclass field list changed after the run was locked "
             f"(locked {sha256[:12] or 'nothing'}, now {actual[:12]}); re-run preflight")
     with _LOCK:
-        _ACTIVE = {"lists": copy.deepcopy(dict(lists)), "guide": bool(guide)}
+        _ACTIVE = {"lists": copy.deepcopy(dict(lists)), "guide": bool(guide), "note": bool(note)}
 
 
 def deactivate() -> None:
@@ -147,10 +156,62 @@ def active() -> bool:
     return _ACTIVE is not None
 
 
+def note_active() -> bool:
+    return bool(_ACTIVE and _ACTIVE.get("note"))
+
+
+def field_note(doc_class: str, subclass: str, base: Mapping[str, Any], schema: Mapping[str, Any]) -> str | None:
+    """``job.subclass_field_note``: the block appended after a specialist's (frozen) system prompt.
+
+    The promoted prompts are class-level text written before subclass schemas; some name fields
+    the subclass schema no longer requests (the MAUD merger prompt sends consideration language to
+    ``subject_matter`` or ``keywords``, which every non-fallback merger subclass drops). The strict schema stops
+    a dropped field being written, not its content moving into a field that is still requested.
+    The note is built from the two schemas only, so it follows the committed field lists. None
+    when the field sets are equal (a fallback, or a subclass that drops and adds nothing).
+    """
+    base_fields = list((base.get("properties") or {}))
+    fields = list((schema.get("properties") or {}))
+    dropped = [name for name in base_fields if name not in fields]
+    added = [name for name in fields if name not in base_fields]
+    if not (dropped or added):
+        return None
+    lines = ["SUBCLASS FIELDS",
+             f"This document was sorted as {doc_class} / {subclass}; the response schema lists the fields "
+             "to fill for it."]
+    if dropped:
+        lines.append("Not requested for this subclass: " + ", ".join(f"`{n}`" for n in dropped)
+                     + ". Where the instructions above ask for any of these, leave that content out; "
+                     "never move it into another field.")
+    if added:
+        lines.append("Requested for this subclass in addition to the class fields: "
+                     + ", ".join(f"`{n}`" for n in added) + " (see each field's description in the schema).")
+    return "\n".join(lines)
+
+
+@contextlib.contextmanager
+def fields_only(names: Iterable[str]) -> Iterator[None]:
+    """Phase 4 (HF-027): the extraction set up inside asks only for ``names`` (plus metadata)."""
+    token = _ONLY.set(frozenset(str(n) for n in names))
+    try:
+        yield
+    finally:
+        _ONLY.reset(token)
+
+
+def _restrict(schema: Mapping[str, Any], names: frozenset[str]) -> dict[str, Any]:
+    out = copy.deepcopy(dict(schema))
+    keep = names | _KEEP_META
+    out["properties"] = {k: v for k, v in (out.get("properties") or {}).items() if k in keep}
+    if "required" in out:
+        out["required"] = [k for k in out.get("required") or () if k in out["properties"]]
+    return out
+
+
 def record_choice(state: Mapping[str, Any]) -> None:
     """HF-023: pick the schema for the extraction ``extract_node`` is about to run."""
-    cfg = _ACTIVE
-    if cfg is None:
+    cfg, only = _ACTIVE, _ONLY.get()
+    if cfg is None and only is None:
         _PENDING.set(None)
         return
     from langchain_agents.specialist_agents import SPECIALIST_SCHEMAS
@@ -163,10 +224,18 @@ def record_choice(state: Mapping[str, Any]) -> None:
         _PENDING.set(None)
         return
     subclass = state.get("contract_subtype") if doc_class == "contract" else state.get("doc_subclass")
-    schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
-                                   cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
-    _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
-    _PENDING.set(None if schema is base else (base, schema))
+    schema, note = base, None
+    if cfg is not None:
+        schema, reason = choose_schema(doc_class, subclass, state.get("classification_confidence"), base,
+                                       cfg["lists"], low=low_band(doc_class), guide=cfg["guide"])
+        _log.info("subclass schema for %s: %s/%s -> %s", state.get("doc_id"), doc_class, subclass, reason)
+        if cfg.get("note") and schema is not base:
+            note = field_note(doc_class, str(subclass or "").strip(), base, schema)
+    if only is not None:
+        # The judge still reviews the whole (merged) extraction against the subclass schema.
+        _PENDING.set((base, _restrict(schema, only), schema, note))
+        return
+    _PENDING.set(None if schema is base else (base, schema, schema, note))
 
 
 #: Specialists whose ``extract`` a corporate-schema hotfix may wrap (PR #425 composes its own
@@ -196,13 +265,13 @@ def bind_choice(agent: Any) -> None:
     _record_review(None)
     if choice is None:
         return
-    base, schema = choice
+    base, schema, review, note = choice
     cls = type(agent)
     if _composed_elsewhere(cls):
         _log.info("subclass schema for %s left to %s on %s.extract", getattr(agent, "doc_id", None) or "extraction",
                   getattr(cls.extract, _hotfix_mark(), None), cls.__name__)
         return
-    _record_review(base, schema)
+    _record_review(None if review is base else base, review)
     if getattr(agent, "schema", None) is base:
         # LangChain specialists also normalize and score evidence confidence on self.schema:
         # with the class schema there, every dropped field would count as "not found".
@@ -217,6 +286,29 @@ def bind_choice(agent: Any) -> None:
         return cls._call_structured(agent, *args, **kwargs)  # resolved per call: observer, sampling
 
     agent._call_structured = _call_structured
+    if note:
+        _append_note(agent, note)
+
+
+def _append_note(agent: Any, note: str) -> None:
+    """``job.subclass_field_note``: this instance's default system prompt ends with ``note``.
+
+    The note is added to the method the vendored call falls back to when the caller passes no
+    ``system_prompt`` (no specialist passes one): ``augmented_system_prompt()`` for LangChain
+    specialists (prompt, skills, tools, memory), ``system_prompt()`` for the legacy ``agents`` family
+    (which appends its skill text later, in ``_call_llm``). The call's arguments are left alone, because
+    the floor-read observer measures a caller-passed ``system_prompt`` as request text. The promoted
+    prompt stays the head; only this one document's specialist instance is changed.
+    """
+    name = "augmented_system_prompt" if callable(getattr(type(agent), "augmented_system_prompt", None)) \
+        else "system_prompt"
+    default = getattr(agent, name)
+
+    @functools.wraps(default)
+    def with_note(*args: Any, **kwargs: Any) -> str:
+        return f"{default(*args, **kwargs)}\n\n{note}"
+
+    setattr(agent, name, with_note)
 
 
 # --- HF-024: the judge and the arbiter see the fields the extraction was asked for ----------

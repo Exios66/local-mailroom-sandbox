@@ -50,9 +50,9 @@
 ## 🧪 What is this?
 
 A local-first experiment sandbox for the LLM-Mailroom pipeline. It runs the
-full classify → extract → report → archive graph on a Modal GPU (the default
-`modal-vllm` endpoint), on your own machine with Ollama, vLLM, llama.cpp or
-LM Studio, or against an opt-in OpenRouter key — never the default.
+full classify → extract → report → archive graph through OpenRouter (the default
+experimental/deployment provider), on a Modal GPU, or on your own machine with
+Ollama, vLLM, llama.cpp or LM Studio.
 
 This repository does **not** fork the pipeline. It ships the family code it
 needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline
@@ -101,16 +101,20 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # Stop every sandbox process using this checkout before refreshing vendor trees.
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
 # sandbox deps fetch --check --offline  # read-only: vendor pin, verified caches, selected source
-sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
-sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
-sandbox health                     # probes the deployed modal-vllm endpoint
+sandbox up -d                      # Langfuse; configure OPENROUTER_API_KEY privately for live calls
+sandbox runbook show serve         # explicit Modal GPU option: prewarm → deploy → point → verify → teardown
+sandbox health                     # probes the selected provider (OpenRouter by default)
 sandbox pilot --mock               # machinery only, no LLM
-sandbox pilot --local              # real model on the deployed endpoint
+sandbox pilot --local              # real call to the selected provider; API billing applies
 ```
 
-The default serving path is **Modal vLLM**: one L4 behind an OpenAI `/v1`
-endpoint — no local GPU, no Ollama daemon. `sandbox runbook show serve` prints
-the whole lifecycle as a copy-pasteable script:
+The default experimental/deployment provider is **OpenRouter**. New experiments
+write OpenRouter explicitly and require API budgets and human initials before
+launch. Existing run YAMLs and immutable locks retain their provider. The legacy
+run schema keeps its Modal defaults for older specs that omitted fields.
+
+For an explicitly selected **Modal vLLM** GPU, `sandbox runbook show serve`
+prints the lifecycle as a copy-pasteable script:
 
 1. `modal profile activate` + pre-warm the weights into the Modal volume
 2. `modal deploy deploy/modal_vllm.py` (prints the endpoint URL)
@@ -148,7 +152,7 @@ sandbox health --profile ollama                        # probes the offline prof
 <div align="center">
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/readme/flow-mobile.svg"/>
-  <img src="docs/assets/readme/flow.svg" alt="The default path from install to a scored run: install, bring up Langfuse, deploy the Modal vLLM endpoint with the serve runbook, probe the provider and trace sinks, run the pilot with the mock and then against the deployed endpoint, and score with the vendored dojo; matrix, run specs, Modal workers, comparisons and the watch TUI branch off it" width="100%"/>
+  <img src="docs/assets/readme/flow.svg" alt="Historical Modal path from install to a scored run: install, bring up Langfuse, deploy the Modal vLLM endpoint with the serve runbook, probe the provider and trace sinks, run the pilot with the mock and then against the deployed endpoint, and score with the vendored dojo; matrix, run specs, Modal workers, comparisons and the watch TUI branch off it" width="100%"/>
 </picture>
 </div>
 
@@ -175,15 +179,15 @@ document enters in `nodes.jsonl` (SAND-076), so `sandbox watch` and
 ## 📟 At a glance
 
 <div align="center">
-<img src="docs/assets/readme/tui.svg" alt="Dashboard: the seven provider profiles with what each targets, and a log of a mock pilot run on the default Modal vLLM profile" width="90%"/>
+<img src="docs/assets/readme/tui.svg" alt="Dashboard: the seven provider profiles with what each targets, and a log of a mock pilot run on the explicitly selected Modal vLLM profile" width="90%"/>
 </div>
 
 <div align="center">
 
 | Component | Default | Notes |
 | :--- | :--- | :--- |
-| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3.5-9B` (fp8, text-only); `--profile ollama` is the offline opt-out |
-| **API comparison** | OpenRouter (opt-in) | `qwen/qwen3.5-9b`, the same weights as the Modal default |
+| **Default provider** | OpenRouter (`openrouter`) | `qwen/qwen3.5-9b`; live calls require a private API key and experimental spend approval |
+| **GPU comparison** | Modal vLLM (explicit) | `Qwen/Qwen3.5-9B`, the same weights as the OpenRouter default |
 | **Judge** | `Qwen/Qwen3.5-27B` on Modal | Its own L40S app in Modal pipeline experiments; `deepseek/deepseek-v4-flash` on OpenRouter |
 | **Specialists** | the base model | `--specialist-tier mid` or `full` moves all five onto a stronger model |
 | **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
@@ -234,7 +238,7 @@ Every top-level command, grouped. Flags and every subcommand are in the generate
 
 ```bash
 # Setup and serving
-sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
+sandbox runbook show serve     # explicit GPU path: Modal vLLM deploy → point → verify → teardown
 sandbox runbook list|show <id>|check|write              # operator runbooks (catalog → docs/runbooks/)
 sandbox up | down | health | doctor | pull-models | cutover | profiles | agents
 sandbox fetch-deps | deps fetch [--check]               # refresh vendor snapshots | verified release cache
@@ -254,7 +258,7 @@ sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every cl
 sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
 sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
-sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # default serving
+sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # explicit GPU serving
 sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1 --local   # API serving
 sandbox modernbert status|eval                          # mailroom-ml ModernBERT feeder
 
@@ -288,6 +292,7 @@ sandbox web [TARGET]            # themed browser watcher; no TARGET = the SAND-0
 sandbox watch [TARGET]          # same in the terminal; TARGET = run ID | run YAML | run name | experiment.yaml (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox floor [RUN] [--base DIR] [--replay]   # live pipeline floor + offline replay on :8769 (docs/floor.md)
 sandbox floor --replay-run <run-dir|id>      # replay a recorded Modal/OpenRouter/Ollama run, any provider
+sandbox floor --register-run <run-dir>       # load previous logs in place; also available in the browser
 sandbox web --demo [--pipeline] # themed watch UI on a synthetic run (no Modal, no spend; = sandbox dev)
 sandbox board [--tui]           # persistent job board for every mailroom.beacon/v1 job
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
@@ -493,7 +498,9 @@ active provider and the trace sinks.
 <details>
 <summary><b>Does anything cost money by default?</b></summary>
 
-Not silently. The default profile is `modal-vllm`: its container scales to zero
+Not silently. The default profile is `openrouter`: live calls need a private API
+key, and experiment launch requires human initials and API spend caps. Explicit
+`modal-vllm` configurations rent a GPU: its container scales to zero
 after 120s idle, and the runbook tears the app down when the last eval finishes,
 so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr).
 A Modal pipeline experiment also deploys the judge's L40S app (≈ $1.95/hr), and
@@ -504,7 +511,7 @@ Modal GPU (or has no API model) also needs `job.cost_cap_usd`, and a run that
 sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a known token price for each API
 model. The GPU cap does not limit OpenRouter spend. `sandbox experiment create`
 recommends all three from the design.
-The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
+The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is the default,
 and the `api-evals/` harness is the real-spend API path, kept outside the package.
 
 </details>
@@ -537,7 +544,7 @@ The sandbox drives the vendored family code through these open-source projects.
 
 | Project | What it does here |
 | :--- | :--- |
-| [vLLM](https://github.com/vllm-project/vllm) | The serving engine behind every profile, including the default `modal-vllm` endpoint |
+| [vLLM](https://github.com/vllm-project/vllm) | The serving engine behind the explicitly selected Modal and vLLM profiles |
 | [Modal](https://modal.com/) | The default GPU host: Modal vLLM serving and job workers under `deploy/` (the `[deploy]` extra) |
 | [Ollama](https://github.com/ollama/ollama) | The offline/CPU fallback provider (`qwen3:8b`, `--profile ollama`) |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | Runs the vendored 13-node pipeline graph (the `[pipeline]` extra) |

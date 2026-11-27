@@ -13,6 +13,7 @@ REQUIRED = (
     "braintrust",
     "apache-phoenix",
     "ollama",
+    "openrouter",
     "modal",
     "huggingface",
 )

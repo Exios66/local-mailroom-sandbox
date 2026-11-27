@@ -46,7 +46,7 @@ def _run(root, docs, name="slice"):
             if d.get("item", True) is False:
                 continue
             for _ in range(d.get("repeat", 1)):
-                pred = {"stage": d.get("stage", "archived"), "extracted_data": {},
+                pred = {"stage": d.get("stage", "archived"), "extracted_data": d.get("extracted", {}),
                         "review_causes": d.get("causes") or [], "_score": d.get("score", 0.95),
                         **({"arbiter_caveats": d["caveats"]} if "caveats" in d else {}),
                         **({"judge_reasks": d["reasks"]} if "reasks" in d else {}),
@@ -573,3 +573,32 @@ def test_duplicates_are_counted_in_the_gate(tmp_path):
 
 def test_a_run_without_the_governor_keeps_its_report_shape(tmp_path):
     assert "governor" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
+
+
+def test_evidence_check_drops_are_counted(tmp_path):
+    """HF-029 (job.evidence_check): the items it dropped, and the reads it left alone, per document."""
+    run = _run(tmp_path, [
+        {"id": "a", "cls": "contract", "extracted": {"cuad_clauses": ["x"],
+                                                     "_evidence_dropped": {"cuad_clauses": ["F1", "F2"]}}},
+        {"id": "b", "cls": "contract", "stage": "review",
+         "extracted": {"_evidence_dropped": {"cuad_clauses": ["F"], "claim_checklist": ["G"]}}},
+        {"id": "c", "cls": "contract", "extracted": {"cuad_clauses": ["F"], "_evidence_skipped": "would_empty"}},
+        {"id": "d", "cls": "contract"},
+        {"id": "e", "cls": "contract", "error": "boom", "extracted": {"_evidence_dropped": {"cuad_clauses": ["F"]}}},
+        {"id": "f", "cls": "contract", "extracted": {"_evidence_dropped": "garbled"}},
+        {"id": "g", "cls": "contract", "extracted": {"cuad_clauses": ["F"], "_evidence_skipped": "pages"}},
+    ])
+    report = gate.gate_report(run, Bars())
+    out = {d["id"]: d for d in report["docs"]}
+    assert out["a"]["evidence_dropped"] == {"cuad_clauses": 2}
+    assert out["b"]["evidence_dropped"] == {"claim_checklist": 1, "cuad_clauses": 1}
+    assert out["c"]["evidence_skipped"] == "would_empty" and out["g"]["evidence_skipped"] == "pages"
+    assert not {"evidence_dropped", "evidence_skipped"} & (set(out["d"]) | set(out["e"]) | set(out["f"]))
+    assert report["evidence_check"] == {"dropped": {"claim_checklist": 1, "cuad_clauses": 3},
+                                        "skipped": {"pages": 1, "would_empty": 1},
+                                        "by_class": {"contract": {"claim_checklist": 1, "cuad_clauses": 3}},
+                                        "docs": ["a", "b", "c", "g"]}
+
+
+def test_a_run_without_the_evidence_check_keeps_its_report_shape(tmp_path):
+    assert "evidence_check" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())

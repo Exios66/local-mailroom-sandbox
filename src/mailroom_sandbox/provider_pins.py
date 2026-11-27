@@ -105,7 +105,7 @@ def load_pins(path: Path | None = None) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
+def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0, model: str | None = None) -> float:
     """``call_guard.before_call()``, then tell the read-range observer what the guard decided.
 
     A request the guard refuses never goes out, so the floor must not show it as read; one it
@@ -115,7 +115,7 @@ def _guard_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
     from mailroom_sandbox.job import call_guard, read_ranges
 
     try:
-        held = call_guard.before_call(prompt_tokens, completion_tokens)
+        held = call_guard.before_call(prompt_tokens, completion_tokens, model)
     except BaseException:
         read_ranges.refuse_pending()
         raise
@@ -161,7 +161,8 @@ class _AttemptGuardedCompletions:
         request = _deadline_capped(request)
         # rb1 R01 / S2: no attempt past the run's cap or the document's ceiling; each reserves its
         # worst-case cost until it ends.
-        held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)))
+        held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)),
+                            model=request.get("model"))
                 if self._guarded else 0.0)
         sender = _without_sdk_retries(self._client)
         try:
@@ -544,7 +545,8 @@ def pinned_chat_openai(parent: type) -> type:
             else:  # S2: inside _generate, which settles the reservation however the request ends
                 from mailroom_sandbox.job import call_guard
 
-                holder.append(_guard_call(*call_guard.request_tokens(payload.get("messages"), _output_cap(payload))))
+                holder.append(_guard_call(*call_guard.request_tokens(payload.get("messages"), _output_cap(payload)),
+                                          model=payload.get("model") or getattr(self, "model_name", None)))
             model = str(payload.get("model") or getattr(self, "model_name", "") or "")
             pins = _ACTIVE  # one snapshot per request, as on the retry_chat_completion path
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]

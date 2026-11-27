@@ -212,14 +212,14 @@ def _ceiling_refusal(ceiling: int | None) -> str | None:
     return None
 
 
-def before_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
+def before_call(prompt_tokens: int = 0, completion_tokens: int = 0, model: str | None = None) -> float:
     """Raise before an API call that would pass the run's cap or the document's call ceiling.
 
     A sized request (``request_tokens``) reserves its estimated cost, which this returns; the caller
     passes it to ``settle`` when the request ends. Unarmed, or with no size, nothing is reserved (0.0).
     """
     budget, ceiling = _STATE["budget"], _STATE["ceiling"]
-    estimate = (budget.estimate_call_usd(prompt_tokens, completion_tokens)
+    estimate = (budget.estimate_call_usd(prompt_tokens, completion_tokens, model)
                 if budget is not None and (prompt_tokens or completion_tokens) else 0.0)
     if not estimate:
         reason = _refusal()
@@ -317,8 +317,11 @@ def _count(value: Any) -> int:
         return 0
 
 
-def after_call(usage: Any) -> None:
-    """Price one returned call (OpenAI ``usage`` object or LangChain usage dict) and count it."""
+def after_call(usage: Any, model: str | None = None) -> None:
+    """Price one returned call (OpenAI ``usage`` object or LangChain usage dict) and count it.
+
+    ``model`` is the requested model, priced on its own; unnamed, the run's dearest model is.
+    """
     budget = _STATE["budget"]
     doc = _DOC.get()
     if doc is not None:
@@ -333,9 +336,9 @@ def after_call(usage: Any) -> None:
         completion = getattr(usage, "completion_tokens", None)
     pending = _take_pending(budget)
     if pending:
-        cost = budget.price_settling(pending, budget.estimate_call_usd(_count(prompt), _count(completion)))
+        cost = budget.price_settling(pending, budget.estimate_call_usd(_count(prompt), _count(completion), model))
     else:
-        cost = budget.add_live(_count(prompt), _count(completion))
+        cost = budget.add_live(_count(prompt), _count(completion), model)
     if doc is not None:
         doc["calls"] += 1
         doc["spend_usd"] += float(cost or 0.0)

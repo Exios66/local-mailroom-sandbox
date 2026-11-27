@@ -19,7 +19,7 @@ Generated pages are never edited by hand: [`cli-reference.md`](cli-reference.md)
 | [Quickstart](setting-up/QUICKSTART.md) | Install, first mock and live run, the canonical workflows |
 | [Sandbox guide](SANDBOX-GUIDE.md) | Long-form walkthrough of the offline sandbox |
 | [Layout contract](setting-up/LAYOUT.md) | Which folder owns what, frozen surfaces, junk policy |
-| [Providers](setting-up/providers.md) | Modal vLLM (default), Ollama, local vLLM, llama.cpp, LM Studio, OpenRouter |
+| [Providers](setting-up/providers.md) | OpenRouter (default), Modal vLLM, Ollama, local vLLM, llama.cpp, LM Studio |
 | [Remote serving](setting-up/remote-serving.md) | Modal, SSH-tunnelled vLLM, CHTC, conda |
 | [Docker offline](setting-up/docker-offline.md) | Dockerfile, Compose profiles, prep notebooks |
 | [Sister repos](setting-up/sister-repos.md) | The Mailroom family map |
@@ -111,7 +111,12 @@ what was decided at the time; the guides above say how things work now.
 | Phase 1 spend safety | [Plan](design/plans/2026-11-26-phase1-spend-safety.md) |
 | Phase 2 loop governor | [Plan](design/plans/2026-11-26-phase2-governor.md) |
 | Phase 3 subclass extraction schemas | [Plan](design/plans/2026-11-26-phase3-subclass-schemas.md) |
+| Phase 4 correcting judge | [Plan](design/plans/2026-11-26-phase4-correcting-judge.md) |
+| Subclass field note for promoted specialist prompts | [Plan](design/plans/2026-11-27-subclass-field-note.md) |
 | Correcting judge | [Design](design/specs/2026-11-26-correcting-judge-design.md) (draft) |
+| Correcting judge upstream issues | [Drafts](design/specs/2026-11-26-correcting-judge-upstream-issues.md) for `llm-mailroom`, for the owner to file |
+| Phase 5 attempt hygiene (OpenRouter route) | [Design](design/specs/2026-11-27-phase5-attempt-hygiene-design.md) and [plan](design/plans/2026-11-27-phase5-attempt-hygiene.md) |
+| Numbering reservations | [Hotfix IDs and critical-regression rows](numbering-reservations.md) claimed by open PRs |
 
 New design records go in `design/<ticket>/`, or in `design/plans/` and
 `design/specs/` with a date prefix. Plans a tool writes to its own default
