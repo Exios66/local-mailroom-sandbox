@@ -1313,6 +1313,8 @@ def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[.
         cfg = correcting_judge.active()
         if not cfg:
             return original(state)
+        if cfg.get("mode") == "correct" and module.judge_should_run(state):
+            return _correcting_judge_pass(module, state)
         update = original(state)
         verdict = str((update or {}).get("judge_verdict") or "")
         if not verdict or verdict == "skipped" or update.get("transient_error"):
@@ -1334,6 +1336,56 @@ def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[.
         return update
 
     return judge_verify_node
+
+
+#: How a correcting ruling reads to the vendored routers (after_judge, the arbiter, the gate).
+_RULING_VERDICT = {"accept": "complete", "retry_fields": "partial", "human_review": "incomplete"}
+
+
+def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
+    """HF-025, ``mode: correct``: one ruling replaces the vendored completeness and accuracy calls.
+
+    An accept writes the verified fixes into ``extracted_data`` (the judge read the whole document,
+    so the verdict is source-verified); a retry reads as ``partial`` and a person as
+    ``incomplete``. A transient provider error is re-run like the vendored node's; a reply that
+    does not parse after one re-ask, or any other failure, is ``judge_error`` and goes to review.
+    """
+    from llm.retry import is_transient_error
+
+    from mailroom_sandbox import correcting_judge, judge_record
+    from mailroom_sandbox.judge_fixes import apply_fixes
+
+    pass_no = int(state.get("judge_pass_count") or 0) + 1
+    judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+    try:
+        entry = correcting_judge.rule(state, pass_no=pass_no)
+    except Exception as exc:  # noqa: BLE001 — every failure is a transient re-run or a person
+        if is_transient_error(exc):
+            transient = int(state.get("transient_retries_judge_verify") or 0) + 1
+            return {"transient_error": True, "transient_retries_judge_verify": transient,
+                    "error_message": f"transient provider error: {str(exc)[:200]}"}
+        cause = "judge_parse_error" if isinstance(exc, JudgeParseError) else type(exc).__name__
+        judge_record.note_ruling({"pass": pass_no, "mode": "correct", "ruling": "human_review", "score": None,
+                                  "reason": cause, "fixes": [], "retry_fields": [], "wrong_fields": [],
+                                  "model": correcting_judge.judge_model(correcting_judge._doc_class(state))})
+        return {"judge_verdict": "judge_error", "transient_error": False,
+                "escalation_reason": f"correcting judge failed ({cause}) — routing to human review"}
+    judge_record.note_ruling(entry)
+    verdict = _RULING_VERDICT[entry["ruling"]]
+    score, findings = entry["score"], [entry["reason"]] if entry["reason"] else []
+    update: dict[str, Any] = {"judge_verdict": verdict, "judge_score": score, "judge_findings": findings,
+                              "judge_source_verified": verdict == "complete", "judge_pass_count": pass_no,
+                              "transient_error": False}
+    if entry["ruling"] == "accept":
+        fixes = [check for check in entry["fixes"] if check["verified"]]
+        if fixes:
+            update["extracted_data"] = apply_fixes(state.get("extracted_data") or {}, fixes)
+            judge_record.note_corrected()
+    history = module.attempt_history.record_verdict(state, verdict=verdict, score=score, findings=findings,
+                                                    source_verified=verdict == "complete")
+    if history is not None:
+        update[module.attempt_history.HISTORY_KEY] = history
+    return update
 
 
 HOTFIXES: tuple[Hotfix, ...] = (

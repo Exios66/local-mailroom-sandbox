@@ -249,3 +249,169 @@ def test_hf025_is_registered_with_a_pinned_source():
     node = bg.judge_verify_node
     assert vh.apply_hotfixes()["HF-025"] == "applied"  # idempotent: the node is not wrapped twice
     assert bg.judge_verify_node is node
+
+
+# --- Task 4: the correcting judge and its ruling -------------------------------------------------
+
+from unittest.mock import MagicMock  # noqa: E402
+
+DOC = ("This Services Agreement is made between Acme Holdings Ltd and Birch Logistics LLC. "
+       "It is effective as of March 3, 2024.")
+EXTRACTED = {"document_name": "Services Agreement", "parties": ["Acme Holdings Ltd"], "effective_date": None,
+             "governing_law": "Delaware", "maud_clauses": ["x"], "confidence": 0.7, "reasoning": "r"}
+
+
+def _reply(ruling="accept", fixes=(), wrong=(), retry=(), score=0.9, reason="harness ruling"):
+    return {"ruling": ruling, "score": score, "reason": reason, "wrong_fields": list(wrong),
+            "retry_fields": list(retry), "fixes": [dict(f) for f in fixes]}
+
+
+def _fake_judge(monkeypatch, replies):
+    """Answer each correcting-judge call with the next reply; return the captured calls."""
+    calls: list[dict] = []
+    seq = list(replies)
+
+    def call(self, user_message, json_schema=None, *a, **k):
+        calls.append({"model": self.model, "prompt": user_message, "schema": json_schema})
+        return seq[min(len(calls), len(seq)) - 1]
+
+    monkeypatch.setattr("agents.base.get_llm", lambda *a, **k: (MagicMock(), "harness-model"))
+    monkeypatch.setattr(cj.CorrectingJudge, "_call_structured", call)
+    return calls
+
+
+def _state(**over):
+    return {"doc_id": "D1", "doc_type": "contract", "contract_subtype": "Service", "doc_text": DOC,
+            "extracted_data": dict(EXTRACTED), "extraction_confidence": 0.7, "judge_pass_count": 0, **over}
+
+
+_DATE_FIX = {"field": "effective_date", "value": "2024-03-03", "quote": "effective as of March 3, 2024"}
+_BAD_FIX = {"field": "governing_law", "value": "England", "quote": "governed by English law"}
+
+
+def _correct_on():
+    cj.activate({**JudgeSpec(mode="correct").model_dump(), "reference_pool_sha256": None}, pool_sha256=None)
+
+
+def test_the_prompt_puts_the_document_first():
+    prompt = cj.build_prompt(doc_text=DOC, doc_type="contract", subclass="Service",
+                             extracted={"parties": ["Acme Holdings Ltd"]}, requested_fields=["parties"],
+                             guide={"parties": "Every party named as bound."},
+                             examples=[{"doc_id": "EX-1", "fields": {"parties": ["X"]}}],
+                             attempts=[{"attempt": 1, "fields": {"parties": []}}])
+    assert prompt.startswith("Rule on this extraction.")
+    order = [prompt.index(DOC), prompt.index("Every party named as bound."), prompt.index("EX-1"),
+             prompt.index('"attempt": 1'), prompt.index('"Acme Holdings Ltd"')]
+    assert order == sorted(order), order
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_an_accept_applies_only_verified_fixes(monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    _fake_judge(monkeypatch, [_reply(fixes=[_DATE_FIX, _BAD_FIX], wrong=["effective_date"])])
+    _correct_on()
+    with call_guard.document() as scope:
+        update = bg.judge_verify_node(_state())
+    assert update["judge_verdict"] == "complete" and update["judge_source_verified"] is True
+    assert update["extracted_data"]["effective_date"] == "2024-03-03"
+    assert update["extracted_data"]["governing_law"] == "Delaware"  # the unsupported fix is not applied
+    assert update["judge_pass_count"] == 1 and update["judge_findings"] == ["harness ruling"]
+    assert scope["judge_corrected"] is True
+    [entry] = scope["judge_rulings"]
+    assert [(f["field"], f["why"]) for f in entry["fixes"]] == [("effective_date", "ok"), ("governing_law", "quote_not_found")]
+    assert scope["before_judge"]["effective_date"] is None
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_an_accept_with_an_unfixed_wrong_field_retries_on_the_first_ruling(monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    _fake_judge(monkeypatch, [_reply(fixes=[_BAD_FIX], wrong=["governing_law"])])
+    _correct_on()
+    with call_guard.document() as scope:
+        first = bg.judge_verify_node(_state())
+        second = bg.judge_verify_node(_state(judge_pass_count=1))
+    assert first["judge_verdict"] == "partial" and "extracted_data" not in first
+    assert second["judge_verdict"] == "incomplete"
+    assert [r["ruling"] for r in scope["judge_rulings"]] == ["retry_fields", "human_review"]
+    assert scope["judge_rulings"][0]["retry_fields"] == ["governing_law"]
+    assert "judge_corrected" not in scope
+
+
+def test_a_ruling_is_one_call(monkeypatch):
+    calls = _fake_judge(monkeypatch, [_reply()])
+    _correct_on()
+    with call_guard.document():
+        entry = cj.rule(_state(), pass_no=1)
+    assert len(calls) == 1 and entry["ruling"] == "accept" and entry["mode"] == "correct"
+    assert calls[0]["schema"] == cj.RULING_SCHEMA
+
+
+def test_a_parse_failure_is_asked_once_then_reviewed(monkeypatch):
+    from mailroom_sandbox.vendor_hotfixes import JUDGE_REPAIR_NOTE, JudgeParseError
+
+    garbage = {"_raw": "not json", "_parse_error": True}
+    calls = _fake_judge(monkeypatch, [garbage, _reply()])
+    _correct_on()
+    with call_guard.document():
+        assert cj.rule(_state(), pass_no=1)["ruling"] == "accept"
+    assert len(calls) == 2 and JUDGE_REPAIR_NOTE in calls[1]["prompt"]
+    calls = _fake_judge(monkeypatch, [garbage, {"ruling": "maybe"}])
+    with call_guard.document(), pytest.raises(JudgeParseError):
+        cj.rule(_state(), pass_no=1)
+    assert len(calls) == 2
+
+
+@pytest.mark.usefixtures("arbiter_harness_state")
+def test_a_parse_failure_twice_goes_to_review_from_the_node(monkeypatch, tmp_path):
+    bg = activate_profile(monkeypatch, tmp_path, "openrouter")
+    monkeypatch.setattr(bg, "judge_should_run", lambda state: True)
+    _fake_judge(monkeypatch, [{"_raw": "x", "_parse_error": True}])
+    _correct_on()
+    with call_guard.document() as scope:
+        update = bg.judge_verify_node(_state())
+    assert update["judge_verdict"] == "judge_error" and "review" in update["escalation_reason"]
+    assert scope["judge_rulings"][-1]["ruling"] == "human_review"
+
+
+def test_a_document_over_the_judge_context_goes_to_review(monkeypatch):
+    from mailroom_sandbox import context_fit
+
+    calls = _fake_judge(monkeypatch, [_reply()])
+    monkeypatch.setattr(context_fit, "api_context_lengths", lambda: {QWEN: 1000})
+    _correct_on()
+    with call_guard.document():
+        entry = cj.rule(_state(doc_text="x" * 10_000), pass_no=1)
+    assert calls == []
+    assert (entry["ruling"], entry["reason"]) == ("human_review", "judge_input_too_long")
+
+
+def test_merger_documents_are_judged_by_the_class_model(monkeypatch):
+    calls = _fake_judge(monkeypatch, [_reply()])
+    _correct_on()
+    with call_guard.document():
+        entry = cj.rule(_state(doc_type="merger_agreement", doc_subclass="stock_purchase"), pass_no=1)
+    assert calls[0]["model"] == FLASH and entry["model"] == FLASH
+
+
+def test_the_judge_sees_only_the_requested_fields(monkeypatch):
+    calls = _fake_judge(monkeypatch, [_reply(fixes=[{"field": "maud_clauses", "value": ["y"], "quote": "Acme"}])])
+    _correct_on()
+    with call_guard.document() as scope:
+        scope["subclass_schema"] = {"drop": ["maud_clauses"], "add": {}}
+        requested = cj.requested_fields("contract")
+        entry = cj.rule(_state(), pass_no=1)
+    assert "maud_clauses" not in requested and {"parties", "effective_date"} <= set(requested)
+    assert not {"confidence", "reasoning"} & set(requested)
+    assert "maud_clauses" not in calls[0]["prompt"]
+    assert entry["fixes"][0]["why"] == "not_requested"
+
+
+def test_the_mock_answers_the_correcting_judge():
+    from mailroom_sandbox.mock_llm import fake_structured_payload
+
+    prompt = cj.build_prompt(doc_text="Evaluate extraction completeness of this Arbiter text.", doc_type="contract",
+                             subclass=None, extracted={}, requested_fields=[], guide={}, examples=[], attempts=[])
+    answer = fake_structured_payload(prompt, {"doc_type": "contract"})
+    assert answer["ruling"] == "accept" and answer["fixes"] == [] and set(cj.RULING_SCHEMA["required"]) <= set(answer)
