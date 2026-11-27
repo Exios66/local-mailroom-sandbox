@@ -27,7 +27,7 @@ collides takes the one assigned here.
 | `HF-025`–`HF-027` | Phase 4 correcting judge (`judge:`) | landed with the Phase 4 PR |
 | `HF-028` | #437 specialist handoff check (registered there as `HF-021`; renumber on rebase) | open |
 | `HF-029` | Phase 5 part 1 evidence check (`job.evidence_check`) | landed with the Phase 5 part 1 PR |
-| `HF-030`–`HF-033` | Phase 5 part 2 merger reads (`job.merger`: HF-030 group reads and gap retry, HF-031 per-question correct-mode retry) and head reads (`job.long_document_head`: HF-032 sorter, HF-033 intake) | landed in part (HF-030 registered, with the per-question correct-mode retry folded into it; HF-031 released unused, not reassigned; HF-032–HF-033 in this change) |
+| `HF-030`–`HF-033` | Phase 5 part 2 merger reads (`job.merger`: HF-030 group reads and gap retry, HF-031 per-question correct-mode retry) and head reads (`job.long_document_head`: HF-032 sorter, HF-033 intake) | landed (HF-030, HF-032, HF-033 registered; the per-question correct-mode retry is folded into HF-030 and HF-031 is released unused, not reassigned) |
 
 The next free vendor hotfix ID is `HF-034`. Scoring hotfixes have no open collision; the next free
 ID is `SHF-017`. A PR that registers or reserves an ID advances these in the same change

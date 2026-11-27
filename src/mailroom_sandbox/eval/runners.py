@@ -1771,7 +1771,8 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         result = {**result, "judge_reasks": scope["judge_reasks"]}
     # Phase 2 governor marks, present only when they happened (critical regression 22: a routing
     # change that moves a document between review and the archive carries a mark).
-    for key in ("governor_stop", "duplicate_of"):
+    # Phase 5 part 2 (HF-032/HF-033): a sorter or intake head read, with the characters sent.
+    for key in ("governor_stop", "duplicate_of", "head_read"):
         if scope.get(key):
             result = {**result, key: scope[key]}
     skipped = int(scope["governor"]["skipped_classify_retries"])

@@ -64,3 +64,16 @@ def head_text(text: str, head: int, tail: int = 0) -> str:
     omitted = len(text) - head - tail
     marker = f"\n\n[… {omitted} characters of the document omitted …]\n\n"
     return text[:head] + marker + (text[-tail:] if tail else "")
+
+
+def record_head_read(agent: str, chars_sent: int, doc_chars: int) -> None:
+    """Mark a head read (HF-032/HF-033) in the trace and the document's call-guard scope (the run item)."""
+    import logging
+
+    from mailroom_sandbox.job import call_guard
+
+    logging.getLogger(__name__).info("head_read agent=%s chars_sent=%d doc_chars=%d", agent, chars_sent, doc_chars)
+    scope = call_guard.scope()
+    if scope is not None:
+        scope.setdefault("head_read", []).append(
+            {"agent": agent, "chars_sent": int(chars_sent), "doc_chars": int(doc_chars)})
