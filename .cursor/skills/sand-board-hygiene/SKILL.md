@@ -43,9 +43,13 @@ tokens, `in_progress`/`review` without a `#NNN` reference).
 ### 2. Reconcile with GitHub (read-only first)
 
 ```bash
-gh issue list --state open --limit 100 --json number,title,updatedAt,labels
-gh pr list --state open --limit 100 --json number,title,updatedAt,headRefName
+gh issue list --state all --limit 100 --json number,title,updatedAt,labels,state
+gh pr list --state all --limit 100 --json number,title,updatedAt,headRefName,state
 ```
+
+An open-only list hides the merged PRs and closed issues the table below
+uses. If a board row's `#NNN` is not in the first page, look that number up
+directly.
 
 Match `SAND-NNN` in issue/PR titles to board rows. Record:
 
@@ -79,7 +83,7 @@ npx --yes markdownlint-cli2@0.18.1 governance/TASKS.md
 
 These are **prompts for review**, not license to mass-close:
 
-- **review** + merged PR + closed issue → overdue **done** move (highest priority).
+- **review** + merged PR + green required hosted gates + closed issue → overdue **done** move (highest priority).
 - **in_progress** / **needs_attention** with no `#` PR/issue and owner inactive →
   confirm abandon vs. still blocked.
 - **todo** marked "mission critical" with a closed upstream issue → re-read scope

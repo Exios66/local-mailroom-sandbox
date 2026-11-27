@@ -1,8 +1,9 @@
 ---
 name: sand-board-lifecycle
 description: >-
-  Complete the SAND board card cycle (allocate → todo → in_progress → review →
-  done/cancelled) for sandbox-isolated work in local-mailroom-sandbox. Use
+  Complete the SAND board card cycle (allocate → todo → in_progress →
+  needs_attention → review → done/cancelled) for sandbox-isolated work in
+  local-mailroom-sandbox. Use
   whenever starting, taking, reviewing, merging, closing, or handing off a
   SAND-* card, PR, or issue; when the user mentions the board, governance,
   TASKS.md, Next ID, or card status; and before claiming work is finished so
@@ -25,9 +26,12 @@ For open-card triage and stale hygiene (no specific card in hand), use
 - **Prefix:** only `SAND-NNN` / `SAND-NNN-k` on this board. Never open `DMR-*`
   here. Cross-family work belongs on the Digital-Mailroom hub; cite
   `Related: DMR-NNN` in notes when a SAND card tracks family-driven work.
-- **Numbering authority:** allocate the next ID in `TASKS.md` **first**, then
-  open the GitHub issue. The **Next ID** line must stay strictly greater than
-  every listed primary `SAND-NNN` (`tests/test_governance_sand.py`).
+- **Numbering authority:** allocate the next ID in `TASKS.md` **first** and
+  push that row before opening a tracking issue. Two branches can take the
+  same Next ID; if the id is already on main or another open card, take the
+  new Next ID and do not open a second issue for the old one. The **Next ID**
+  line must stay strictly greater than every listed primary `SAND-NNN`
+  (`tests/test_governance_sand.py`).
 - **Lanes:** `todo` → `in_progress` → `needs_attention` → `review` → `done`
   (or `cancelled` with a one-line reason). Bold the Status cell (`**done**`).
 - **Evidence over vibes:** Notes carry PR numbers, squash SHAs, issue links,
@@ -88,7 +92,7 @@ Before saying the work is finished, verify:
 | Check | Passes when |
 | --- | --- |
 | Card row exists | `SAND-NNN` appears in `TASKS.md` |
-| Lane matches reality | open PR ⇒ **review**; merged + issue closed ⇒ **done** |
+| Lane matches reality | open PR ⇒ **review**; merged, required hosted gates green, and issue closed ⇒ **done** |
 | Next ID | greater than max listed primary |
 | Prefix | no `DMR-*` / `SANDBOX-*` in the active table |
 | Evidence | Notes name PR/SHA/issue; no secrets or requester quotes |
