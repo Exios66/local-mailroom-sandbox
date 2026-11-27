@@ -31,18 +31,22 @@ ID is `SHF-017`.
 ## Critical-regressions rows
 
 Rows must stay consecutive, so a row takes the next free number when its PR lands, not a number
-reserved in advance. On `main` the last row is 22. Phase 4 adds no row (it names its guards on
-existing rows). The open claims that collide today:
+reserved in advance. Phase 4 adds no row (it names its guards on existing rows).
 
-| Open PR | Rows it adds today | Topic |
+| Row | Landed with | Topic |
 | --- | --- | --- |
-| #425 | 23, 24, 25 | corporate repair (reviewer identity, missing-field admission, applicability) |
-| #439 | 24 (same text as #425's), 26 | merger admission, merger money evidence |
-| #436 | 23 | an overlay field list keeps a label the policy still calls stale |
-| #437 | 23, 24 | specialist handoff refusal; the mock echoing labels |
+| 23 | #436 | an overlay field list keeps a label the policy still calls stale |
 
-Landing #425 and #439 first keeps their 23–26. Whichever of #436 and #437 lands next renumbers its
-rows to follow, and updates the rows it cites in its PR description and in any test or doc that
-names them.
+On `main` the last row is 23. The open claims that collide today:
+
+| Open PR | Rows it adds today | Renumber to | Topic |
+| --- | --- | --- | --- |
+| #425 | 23, 24, 25 | 24, 25, 26 | corporate repair (reviewer identity, missing-field admission, applicability) |
+| #439 | 24 (same text as #425's), 26 | 25, 27 | merger admission, merger money evidence |
+| #437 | 23, 24 | 28, 29 if it lands after #425 and #439, else the next free numbers | specialist handoff refusal; the mock echoing labels |
+
+The "Renumber to" column assumes #425 lands, then #439, then #437. A PR that lands in another order
+takes the next free numbers instead, and updates the rows it cites in its PR description and in any
+test or doc that names them.
 
 When a PR lands, mark its range landed here in the same change.
