@@ -4,8 +4,13 @@ Three questions, one figure each, all built with ``figure_style``:
 
 - ``inventory_svg``: which runs exist, and how many are real rather than mock plumbing checks.
 - ``setups_svg``: within one comparable cohort (same task **and** dataset fingerprint), which
-  model and prompt setup scores best, with a 95% Wilson interval on pooled documents.
-- ``trend_svg``: how one cohort's exact match moved run by run, each run with its interval.
+  setup (provider, profile, model and prompt) scores best, with a 95% Wilson interval.
+- ``trend_svg``: how one setup's exact match moved run by run in a cohort, each with its interval.
+
+Runs in a cohort re-score the same documents, so pooling a setup's runs averages run-to-run
+noise but adds no documents: its interval uses the dataset's document count, not runs × documents.
+Exact match is a share of documents only when every document scores 0 or 1; a run whose mean
+times its scored count is not a whole number has partial credit, and gets no binomial interval.
 
 Every builder returns ``(svg, rows)``: the SVG text and the table view of every plotted number.
 Titles are computed from the data (``.claude/skills/experiment-figures``), so they stay true when
@@ -14,6 +19,7 @@ the log changes. Mock scores are 1.0 by construction and are always labelled as 
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from mailroom_sandbox import figure_style as fs
@@ -66,24 +72,57 @@ def flatten_record(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def setup_key(row: dict[str, Any]) -> tuple[str, str]:
-    """What defines a setup: the full model id and the prompt version (labels may shorten them)."""
-    return str(row.get("model") or ""), str(row.get("prompt") or "")
+def setup_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
+    """What defines a setup: provider, profile, full model id and prompt version. One model id can
+    be served by different providers or profiles (with different quantization or limits)."""
+    return tuple(str(row.get(k) or "") for k in ("provider", "profile", "model", "prompt"))
 
 
-def setup_label(row: dict[str, Any], full_model: bool = False) -> str:
+def setup_label(row: dict[str, Any], full_model: bool = False, serving: bool = False) -> str:
+    """``model · prompt``; ``full_model`` keeps the org prefix, ``serving`` adds provider/profile."""
     model = row.get("model")
     model = (model if full_model else fs.short_model(model)) if model else "Default model"
     prompt = row.get("prompt") or "default prompt"
-    return f"{model} · {prompt.replace('_', ' ')}"
+    label = f"{model} · {prompt.replace('_', ' ')}"
+    if serving:
+        serving_on = "/".join(str(row.get(k)).replace("_", " ") for k in ("provider", "profile") if row.get(k))
+        label += f" ({serving_on or 'default serving'})"
+    return label
+
+
+def setup_labels(rows: Iterable[dict[str, Any]]) -> dict[tuple[str, str, str, str], str]:
+    """The shortest label per setup that still tells every setup in ``rows`` apart."""
+    first = {}
+    for r in rows:
+        first.setdefault(setup_key(r), r)
+    for detail in ({}, {"full_model": True}, {"full_model": True, "serving": True}):
+        labels = {key: setup_label(r, **detail) for key, r in first.items()}
+        if len(set(labels.values())) == len(labels):
+            break
+    return labels
 
 
 def _scored(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in rows if r.get(METRIC) is not None and r.get("n_scored")]
 
 
-def _correct(row: dict[str, Any]) -> int:
-    return round(row[METRIC] * row["n_scored"])
+def _score(row: dict[str, Any]) -> float:
+    """Summed per-document score: correct documents for a 0/1 metric."""
+    return row[METRIC] * row["n_scored"]
+
+
+def _partial(row: dict[str, Any]) -> bool:
+    """True when the mean is not a share of whole documents (partial credit, e.g. extraction)."""
+    return abs(_score(row) - round(_score(row))) > 1e-6
+
+
+def _when(timestamp: Any) -> tuple[int, Any]:
+    """Sort key in UTC; a naive timestamp counts as UTC, unparseable ones sort last as text."""
+    try:
+        when = datetime.fromisoformat(str(timestamp))
+    except ValueError:
+        return 1, str(timestamp)
+    return 0, (when if when.tzinfo else when.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
 
 
 def _subtitle(required: Sequence[str], optional: Sequence[str] = ()) -> str:
@@ -127,7 +166,7 @@ def cohorts(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 def _cohort_rows(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any) -> list[dict[str, Any]]:
     picked = [r for r in _scored(rows) if r["task"] == task and r["fingerprint"] == fingerprint]
     real = [r for r in picked if not r["mock"]]
-    return sorted(real or picked, key=lambda r: (str(r.get("timestamp")), str(r.get("experiment"))))
+    return sorted(real or picked, key=lambda r: (_when(r.get("timestamp")), str(r.get("experiment"))))
 
 
 def _cohort_name(task: Any, fingerprint: Any) -> str:
@@ -188,25 +227,31 @@ def inventory_svg(rows: Iterable[dict[str, Any]], source: str = "experiment log"
 
 def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
                source: str = "experiment log") -> tuple[str, list[dict]]:
-    """Pooled exact match per model and prompt setup within one cohort, with 95% Wilson intervals."""
+    """Mean exact match per setup within one cohort, with a 95% Wilson interval on the dataset's
+    documents (repeat runs re-score the same documents, so they are not pooled as new ones)."""
     picked = _cohort_rows(rows, task, fingerprint)
     mock = bool(picked) and all(r["mock"] for r in picked)
-    pooled: dict[tuple[str, str], dict[str, Any]] = {}
+    labels = setup_labels(picked)
+    pooled: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for r in picked:
-        p = pooled.setdefault(setup_key(r), {"setup": setup_label(r), "model": r.get("model"),
-                                             "prompt": r.get("prompt"), "runs": 0, "correct": 0, "documents": 0})
+        p = pooled.setdefault(setup_key(r), {"setup": labels[setup_key(r)], "provider": r.get("provider"),
+                                             "profile": r.get("profile"), "model": r.get("model"),
+                                             "prompt": r.get("prompt"), "runs": 0, "score": 0.0, "scored": 0,
+                                             "documents": 0, "partial": False})
         p["runs"] += 1
-        p["correct"] += _correct(r)
-        p["documents"] += r["n_scored"]
-    labels = [p["setup"] for p in pooled.values()]
-    for p in pooled.values():  # two org/model ids with one short name: show the full ids
-        if labels.count(p["setup"]) > 1:
-            p["setup"] = setup_label(p, full_model=True)
+        p["score"] += _score(r)
+        p["scored"] += r["n_scored"]
+        p["documents"] = max(p["documents"], r["n_scored"])
+        p["partial"] = p["partial"] or _partial(r)
     data = []
     for p in pooled.values():
-        lo, hi = fs.wilson(p["correct"], p["documents"])
-        data.append({**p, "rate": p["correct"] / p["documents"], "low": lo, "high": hi})
+        rate = p["score"] / p["scored"]
+        lo, hi = (None, None) if p["partial"] else fs.wilson(rate * p["documents"], p["documents"])
+        correct = None if p["partial"] else round(p["score"])
+        data.append({**{k: v for k, v in p.items() if k != "score"}, "correct": correct, "rate": rate,
+                     "low": lo, "high": hi})
     data.sort(key=lambda d: (d["rate"], d["documents"], d["setup"]))
+    partial = any(d["partial"] for d in data)
 
     name = _cohort_name(task, fingerprint)
     if not data:
@@ -217,6 +262,10 @@ def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
         d = data[0]
         title = _fit(f"One setup in this cohort: {_pct(d['rate'])} exact match on {d['documents']} documents",
                      "One setup in this cohort, so there is nothing to compare")
+    elif partial:
+        best = data[-1]
+        title = _fit(f"Setup {best['setup']} scores highest at {_pct(best['rate'])}; partial credit has no interval",
+                     "Partial-credit scores have no interval, so the setups are not ranked")
     else:
         best, rest = data[-1], data[:-1]
         overlapping = [d for d in rest if d["high"] >= best["low"]]
@@ -225,17 +274,22 @@ def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
         else:
             title = _fit(f"Setup {best['setup']} leads at {_pct(best['rate'])} exact match",
                          f"One setup leads at {_pct(best['rate'])} exact match")
-    subtitle = _subtitle(["Exact match pooled over runs", name, "95% Wilson interval"], [MOCK_NOTE] if mock else [])
+    measure, band = (("Mean score per setup", "no interval: partial-credit scores") if partial else
+                     ("Exact match per setup", "95% Wilson interval on the dataset's documents"))
+    subtitle = _subtitle([measure, name, band], [MOCK_NOTE] if mock else [])
 
     colour = fs.SYSTEM_COLOURS[fs.system_of_task(task)]
     with fs.Fig(salt="log-setups") as f:
         fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 1.2 + 0.45 * max(len(data), 1)))
         for yi, d in enumerate(data):
-            ax.plot([100 * d["low"], 100 * d["high"]], [yi, yi], color=colour, linewidth=2.2,
-                    solid_capstyle="butt", alpha=0.45)
+            if d["low"] is not None:
+                ax.plot([100 * d["low"], 100 * d["high"]], [yi, yi], color=colour, linewidth=2.2,
+                        solid_capstyle="butt", alpha=0.45)
             ax.plot(100 * d["rate"], yi, "o", color=colour, markersize=6.5,
                     markerfacecolor=fs.SURFACE if mock else colour)
-            ax.annotate(f"{d['correct']}/{d['documents']} · {_runs(d['runs'])}", (100, yi), xytext=(8, 0),
+            count = (f"{d['correct']}/{d['documents']}" if d["runs"] == 1 and d["correct"] is not None
+                     else f"{d['documents']} docs")
+            ax.annotate(f"{count} · {_runs(d['runs'])}", (100, yi), xytext=(8, 0),
                         textcoords="offset points", va="center", ha="left", fontsize=fs.SIZE["annotation"],
                         color=fs.INK_2)
         ax.set_yticks(range(len(data)), [d["setup"] for d in data])
@@ -245,25 +299,43 @@ def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
         ax.set_ylim(-0.6, max(len(data), 1) - 0.4)
         ax.xaxis.set_major_formatter(f.plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
         fs.value_axis(ax, "x")
-        fs.axis_labels(ax, x="Exact match (% of documents)")
+        fs.axis_labels(ax, x="Mean score (%)" if partial else "Exact match (% of documents)")
         fs.heading(fig, ax, title, subtitle, f"Source: {source} · dataset {fingerprint}")
         return f.svg(fig), data
 
 
 # ---------------------------------------------------------------- figure 3: one cohort over time
 
-def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
-              source: str = "experiment log") -> tuple[str, list[dict]]:
-    """Exact match run by run (oldest to newest) for one cohort, each with a 95% Wilson interval."""
+def main_setup(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any) -> tuple[str, str, str, str] | None:
+    """The cohort setup with the most runs (ties: the most recent run), the trend's default."""
     picked = _cohort_rows(rows, task, fingerprint)
+    if not picked:
+        return None
+    last = {setup_key(r): i for i, r in enumerate(picked)}
+    runs = {key: sum(setup_key(r) == key for r in picked) for key in last}
+    return max(last, key=lambda key: (runs[key], last[key]))
+
+
+def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any, setup: tuple | None = None,
+              source: str = "experiment log") -> tuple[str, list[dict]]:
+    """Exact match run by run (oldest to newest) for one setup in a cohort, each with a 95% Wilson
+    interval. ``setup`` is a ``setup_key``; the default is ``main_setup``, so the line never joins
+    runs of different setups."""
+    rows = list(rows)
+    cohort = _cohort_rows(rows, task, fingerprint)
+    setup = tuple(setup) if setup is not None else main_setup(rows, task, fingerprint)
+    picked = [r for r in cohort if setup_key(r) == setup]
+    label = setup_labels(cohort).get(setup, "")
+    others = len({setup_key(r) for r in cohort} - {setup})
     mock = bool(picked) and all(r["mock"] for r in picked)
     data = []
     for i, r in enumerate(picked, 1):
-        k, n = _correct(r), r["n_scored"]
-        lo, hi = fs.wilson(k, n)
-        data.append({"run": i, "experiment": r["experiment"], "timestamp": str(r["timestamp"]),
-                     "setup": setup_label(r), "correct": k, "documents": n, "rate": k / n,
-                     "low": lo, "high": hi})
+        n, partial = r["n_scored"], _partial(r)
+        lo, hi = (None, None) if partial else fs.wilson(round(_score(r)), n)
+        data.append({"run": i, "experiment": r["experiment"], "timestamp": str(r["timestamp"]), "setup": label,
+                     "correct": None if partial else round(_score(r)), "documents": n, "rate": r[METRIC],
+                     "partial": partial, "low": lo, "high": hi})
+    partial = any(d["partial"] for d in data)
 
     if not data:
         title = "No scored runs in this cohort"
@@ -272,6 +344,11 @@ def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
                  else "The only run is mock, so exact match is 100% by construction")
     elif len(data) == 1:
         title = f"A single run so far: {_pct(data[0]['rate'])} exact match"
+    elif partial:
+        first, last = data[0], data[-1]
+        title = _fit(f"Score went from {_pct(first['rate'])} to {_pct(last['rate'])} over {len(data)} runs; "
+                     "partial credit has no interval",
+                     f"Score went from {_pct(first['rate'])} to {_pct(last['rate'])} over {len(data)} runs")
     else:
         first, last = data[0], data[-1]
         ns = [d["documents"] for d in data]
@@ -285,15 +362,19 @@ def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
                          f"Exact match {level} over {len(data)} runs")
     dates = sorted(d["timestamp"][:10] for d in data)
     when = (dates[0] if dates[0] == dates[-1] else f"{dates[0]} to {dates[-1]}") if dates else "no dates"
-    subtitle = _subtitle(["Exact match per run", _cohort_name(task, fingerprint), "95% Wilson interval"],
-                         ([MOCK_NOTE] if mock else []) + [when])
+    hidden = [f"{others} other setup{'s' if others > 1 else ''} not shown"] if others else []
+    subtitle = _subtitle([_cohort_name(task, fingerprint),
+                          "no interval: partial credit" if partial else "95% Wilson interval"],
+                         ([f"setup {label.replace(' · ', ', ')}"] if label else []) + ([MOCK_NOTE] if mock else [])
+                         + hidden + [when])
 
     colour = fs.SYSTEM_COLOURS[fs.system_of_task(task)]
     with fs.Fig(salt="log-trend") as f:
         fig, ax = f.plt.subplots(figsize=(fs.WIDTH, 3.0))
         xs = [d["run"] for d in data]
-        ax.vlines(xs, [100 * d["low"] for d in data], [100 * d["high"] for d in data], color=colour,
-                  linewidth=2.2, alpha=0.4)
+        bands = [d for d in data if d["low"] is not None]
+        ax.vlines([d["run"] for d in bands], [100 * d["low"] for d in bands], [100 * d["high"] for d in bands],
+                  color=colour, linewidth=2.2, alpha=0.4)
         ax.plot(xs, [100 * d["rate"] for d in data], "-o", color=colour, linewidth=1.2, markersize=5.5,
                 markerfacecolor=fs.SURFACE if mock else colour)
         ax.set_ylim(0, 104)  # headroom so markers at 100% are not clipped
@@ -304,6 +385,6 @@ def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
         ax.set_xticks(list(range(1, len(data) + 1, step)) or [1])
         ax.yaxis.set_major_formatter(f.plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
         fs.value_axis(ax, "y")
-        fs.axis_labels(ax, x="Run, oldest to newest", y="Exact match (%)")
+        fs.axis_labels(ax, x="Run, oldest to newest", y="Mean score (%)" if partial else "Exact match (%)")
         fs.heading(fig, ax, title, subtitle, f"Source: {source} · dataset {fingerprint}")
         return f.svg(fig), data

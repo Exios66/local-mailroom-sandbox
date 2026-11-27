@@ -65,7 +65,15 @@ def test_setups_title_refuses_to_rank_overlapping_intervals():
 def test_setups_pools_runs_and_ignores_other_cohorts():
     rows = _rows(_record(exact=1.0, n=4), _record(exact=0.5, n=4), _record(fp="other", exact=0.0, n=50))
     _, data = lf.setups_svg(rows, "sorter", "fp1")
-    assert data == [pytest.approx({**data[0], "runs": 2, "correct": 6, "documents": 8, "rate": 0.75})]
+    assert data == [pytest.approx({**data[0], "runs": 2, "correct": 6, "scored": 8, "documents": 4, "rate": 0.75})]
+
+
+def test_repeat_runs_do_not_narrow_the_interval():
+    """Repeat runs re-score the same documents, so the interval stays at one run's n."""
+    one = lf.setups_svg(_rows(_record(exact=0.5, n=20)), "sorter", "fp1")[1][0]
+    five = lf.setups_svg(_rows(*[_record(exact=0.5, n=20) for _ in range(5)]), "sorter", "fp1")[1][0]
+    assert (five["low"], five["high"]) == pytest.approx((one["low"], one["high"]))
+    assert five["documents"] == 20 and five["scored"] == 100
 
 
 def test_setups_mock_only_cohort_is_labelled():
@@ -87,6 +95,42 @@ def test_trend_title_flags_tiny_runs_as_unresolvable():
     rows = _rows(_record(n=2, ts="2026-11-01T00:00:00+00:00"), _record(n=2, ts="2026-11-02T00:00:00+00:00"))
     svg, _ = lf.trend_svg(rows, "sorter", "fp1")
     assert "Exact match was 100% on every run; no change is resolvable at n = 2 each" in svg
+
+
+def test_trend_orders_runs_by_utc_time_not_text():
+    rows = _rows(_record(exact=0.9, n=100, ts="2026-11-01T08:00:00+05:00", name="early"),
+                 _record(exact=0.3, n=100, ts="2026-11-01T04:00:00+00:00", name="late"))
+    _, data = lf.trend_svg(rows, "sorter", "fp1")
+    assert [d["experiment"] for d in data] == ["early", "late"]
+
+
+def test_trend_follows_one_setup_and_names_the_rest():
+    rows = _rows(*[_record(model="org/a", ts=f"2026-11-0{i}T00:00:00+00:00") for i in (1, 2)],
+                 _record(model="org/b", exact=0.0, n=100, ts="2026-11-03T00:00:00+00:00"))
+    svg, data = lf.trend_svg(rows, "sorter", "fp1")
+    assert {d["setup"] for d in data} == {"a · v1"} and len(data) == 2
+    assert "1 other setup not shown" in svg and lint_svg(svg) == []
+    _, data = lf.trend_svg(rows, "sorter", "fp1", setup=lf.setup_key(rows[-1]))
+    assert [d["rate"] for d in data] == [0.0]
+
+
+def test_setups_keep_one_model_on_two_serving_paths_apart():
+    rows = _rows({**_record(exact=1.0, n=10), "provider": "modal", "profile": "modal_vllm"},
+                 {**_record(exact=0.0, n=10), "provider": "openrouter", "profile": "api"})
+    svg, data = lf.setups_svg(rows, "sorter", "fp1")
+    assert sorted(d["setup"] for d in data) == ["org/model-a · v1 (modal/modal vllm)",
+                                               "org/model-a · v1 (openrouter/api)"]
+    assert lf.cohorts(rows)[0]["setups"] == 2 and lint_svg(svg) == []
+
+
+def test_partial_credit_scores_get_no_binomial_interval():
+    rows = _rows(_record(exact=0.37, n=10, model="org/a"), _record(exact=0.9, n=10, model="org/b"))
+    svg, data = lf.setups_svg(rows, "sorter", "fp1")
+    partial, whole = sorted(data, key=lambda d: d["model"])
+    assert partial["low"] is None and partial["correct"] is None and whole["correct"] == 9
+    assert "partial credit has no interval" in svg and "Mean score" in svg and lint_svg(svg) == []
+    svg, data = lf.trend_svg(rows[:1], "sorter", "fp1")
+    assert data[0]["partial"] and data[0]["low"] is None and lint_svg(svg) == []
 
 
 def test_trend_prefers_real_runs_over_mock():
