@@ -152,7 +152,7 @@ def test_the_label_counts_match_the_spec_table():
     rows = [json.loads(line) for line in jr.POOL_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
     counts = collections.Counter(row["doc_class"] for row in rows)
     assert counts == {"contract": 33, "corporate_record": 119, "correspondence": 550, "insurance_claim": 322,
-                      "merger_agreement": 4}
+                      "merger_agreement": 5}
     assert {row["set"] for row in rows} == {"calibration", "pool"}
 
 

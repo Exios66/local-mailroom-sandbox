@@ -88,9 +88,15 @@ MIN_LABEL_QUOTE_TOKENS = 3
 
 #: Unlabelled scored fields to label, per class, in priority order. Tier 1 is mission-critical:
 #: who sent what to whom and when, how urgent it is, money demanded, who signed and when it
-#: binds. Tier 2 is captured when the evidence supports it. Merger agreements are excluded
-#: (length); their easy wins are deterministic, not labeled here.
+#: binds. Tier 2 is captured when the evidence supports it.
 TARGET_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
+    "merger_agreement": {
+        "tier1": ("document_name", "parties", "acquirer", "target", "merger_sub", "signatories",
+                  "effective_date", "effective_time", "governing_law", "per_share_cash_amount",
+                  "exchange_ratio", "target_termination_fee", "parent_termination_fee", "outside_date",
+                  "financial_advisors", "legal_counsel"),
+        "tier2": (),
+    },
     "correspondence": {
         "tier1": ("sender", "recipient", "communication_date", "urgency", "demand_amount", "action_items"),
         "tier2": ("additional_recipients",),
@@ -127,12 +133,23 @@ def _corporate_subclass(doc_subclass: str):
     return SUBCLASS_SCHEMAS[doc_subclass]
 
 
+def _merger_subclass(doc_subclass: str) -> str:
+    _ensure_vendor_path()
+    from llm_dojo_scoring.schemas.corpus import DOC_TYPE_SUBCLASSES
+
+    if not isinstance(doc_subclass, str) or doc_subclass not in DOC_TYPE_SUBCLASSES["merger_agreement"]:
+        raise KeyError(f"unknown merger agreement subclass {doc_subclass!r}")
+    return doc_subclass
+
+
 def target_fields(doc_class: str, tiers: Iterable[str] = ("tier1", "tier2"),
                   doc_subclass: str | None = None) -> tuple[str, ...]:
-    """Targets for a subclass; omitted subclass retains the legacy core-only API."""
+    """Return targets; merger requires a known subclass, corporate optionally narrows by it."""
     tiers = tuple(tiers)
     spec = TARGET_FIELDS.get(doc_class, {})
     core = tuple(f for tier in tiers for f in spec.get(tier, ()))
+    if doc_class == "merger_agreement":
+        _merger_subclass(doc_subclass)
     if doc_class == "corporate_record" and doc_subclass is not None:
         schema = _corporate_subclass(doc_subclass)
         return tuple(f for f in core if f in schema.core_applicable) + (
@@ -171,6 +188,8 @@ def work_queue(rows: Iterable[Mapping[str, Any]], tiers: Iterable[str] = ("tier1
     for row in rows:
         cls = row.get("expected")
         subclass = row.get("expected_subclass")
+        if cls == "merger_agreement":
+            _merger_subclass(subclass)
         if cls == "corporate_record":
             _corporate_subclass(subclass)  # corpus identity is mandatory for queue generation
         fields = target_fields(cls, tiers, subclass)
@@ -357,6 +376,30 @@ def _money_supported(value: float, evidence: str) -> bool:
 _PLAIN_DOLLARS = re.compile(r"\$(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 
 
+def _merger_dollars_supported(value: str, evidence: str) -> bool:
+    """A merger amount needs a dollar marker attached to the same figure."""
+    wanted = _figures(value)
+    for match in _FIGURE.finditer(evidence):
+        before, after = evidence[:match.start()], evidence[match.end():]
+        # A bare dollar sign may not be part of C$, A$, CAD $, etc. Likewise,
+        # reject an explicit foreign qualifier after the amount.
+        prefix = re.search(r"(?<![\w$])(?:US\s*\$|USD\s*\$?|\$)\s*$", before, re.I)
+        suffix = re.match(r"\s*USD\b", after, re.I)
+        foreign = re.match(
+            r"\s*(?:CAD|AUD|NZD|HKD|SGD|GBP|EUR|CHF|JPY|CNY|INR|MXN|Canadian|Australian|New Zealand|"
+            r"Hong Kong|Singapore|euros?|pounds?)\b|\s*[$€£]", after, re.I)
+        # Do not treat a suffix USD as permission to override a foreign prefix.
+        foreign_prefix = re.search(
+            r"(?:\b(?:CAD|AUD|NZD|HKD|SGD|GBP|EUR|CHF|JPY|CNY|INR|MXN|Canadian|Australian|New Zealand|"
+            r"Hong Kong|Singapore)\s*\$?|(?<![A-Za-z])[A-Za-z€£]\$|[€£])\s*$", before, re.I)
+        foreign_prefix = foreign_prefix or re.search(r"(?<![A-Za-z])(?:C|A|NZ|HK|SG)\s+\$\s*$", before)
+        if foreign or foreign_prefix or (not prefix and not suffix):
+            continue
+        if wanted & _figures(match.group()):
+            return True
+    return False
+
+
 def _money_text_supported(value: str, evidence: str) -> bool:
     """A currency phrase kept as text: it appears in the evidence as written (whitespace
     normalised, not inside a longer figure) and holds a finite figure the quote shows as money.
@@ -447,6 +490,8 @@ def _schema_bits(doc_class: str, doc_subclass: str | None = None):
     from llm_dojo_scoring.scoring.suites import DEFAULT_FIELD_TYPES
     from schemas.documents import EXTRACTION_SCHEMAS
 
+    if doc_class == "merger_agreement":
+        _merger_subclass(doc_subclass)
     types = DEFAULT_FIELD_TYPES[doc_class]
     payload = contract_empty_payload(doc_class)
     model = EXTRACTION_SCHEMAS[doc_class]
@@ -498,6 +543,23 @@ def _corporate_value_error(model: Any, name: str, value: Any, ftype: str, subcla
         TypeAdapter(model.model_fields[name].annotation).validate_python(value, strict=True)
     except (KeyError, ValidationError):
         return "invalid registered field type"
+    if isinstance(value, list) and any(not item.strip() for item in value):
+        return "empty list member"
+    if ftype == "money" and value is not None and not _PLAIN_DOLLARS.fullmatch(value.strip()):
+        return "money must be a plain dollar figure"
+    return None
+
+
+def _merger_value_error(model: Any, name: str, value: Any, ftype: str) -> str | None:
+    """Reject coercible input before normalization; keep currency as plain source dollars."""
+    from pydantic import TypeAdapter, ValidationError
+
+    try:
+        TypeAdapter(model.model_fields[name].annotation).validate_python(value, strict=True)
+    except (KeyError, ValidationError):
+        return "invalid registered field type"
+    if isinstance(value, str) and not value.strip():
+        return "empty scalar must be null"
     if isinstance(value, list) and any(not item.strip() for item in value):
         return "empty list member"
     if ftype == "money" and value is not None and not _PLAIN_DOLLARS.fullmatch(value.strip()):
@@ -651,7 +713,8 @@ def _list_value_supported(res: FieldResult, value: Any, ftype: str, ev_text: str
 
 
 def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ftype: str, spans: list,
-                     ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
+                     ev_text: str, empty_value: Any, money_as_text: bool,
+                     merger_money: bool = False) -> bool | None:
     """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
     if name == "filing_number":
         return any(_identifier_supported(value, sp["text"]) for sp in spans)
@@ -659,6 +722,8 @@ def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ft
         # One quote must hold the whole date: "May 14" and "2020" from two quotes never make one.
         return _date_value_supported(res, value, spans)
     if ftype == "money" and money_as_text:
+        if merger_money:
+            return any(_merger_dollars_supported(str(raw_value), sp["text"]) for sp in spans)
         # The pipeline field is a currency phrase (contract_value: str), kept as written.
         return any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
     if ftype == "money":
@@ -673,7 +738,8 @@ def _value_supported(res: FieldResult, name: str, value: Any, raw_value: Any, ft
 
 
 def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
-                 vocab: tuple[str, ...] | None, empty_value: Any, *, money_as_text: bool = False) -> FieldResult:
+                 vocab: tuple[str, ...] | None, empty_value: Any, *, money_as_text: bool = False,
+                 merger_money: bool = False) -> FieldResult:
     res = FieldResult(field=name, ok=False, evidence=[], checks={})
     if not isinstance(entry, Mapping):
         res.reason = "entry is not an object"
@@ -704,7 +770,8 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     res.evidence = spans
     ev_text = " ".join(s["text"] for s in spans)
 
-    supported = _value_supported(res, name, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text)
+    supported = _value_supported(res, name, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text,
+                                 merger_money)
     if supported is None:
         return res
     res.checks["value_supported"] = supported
@@ -734,13 +801,17 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str],
     are applied. An empty value is supported (absence is not checked here).
     """
     types, vocab, _empty, empty_value, model = _schema_bits(doc_class, doc_subclass)
-    if doc_class == "corporate_record" and doc_subclass is not None and name not in target_fields(doc_class, doc_subclass=doc_subclass):
+    if doc_class in ("corporate_record", "merger_agreement") and doc_subclass is not None and name not in target_fields(doc_class, doc_subclass=doc_subclass):
         return False, f"not a target field of {doc_class}/{doc_subclass}"
     if name not in types:
         return False, f"not a target field of {doc_class}"
     ftype = str(types[name])
     if doc_class == "corporate_record" and doc_subclass is not None:
         error = _corporate_value_error(model, name, value, ftype, doc_subclass)
+        if error:
+            return False, error
+    if doc_class == "merger_agreement":
+        error = _merger_value_error(model, name, value, ftype)
         if error:
             return False, error
     norm = _normalize(value, ftype)
@@ -755,12 +826,12 @@ def evidence_support(doc_class: str, name: str, value: Any, quotes: list[str],
     res = FieldResult(field=name, ok=False)
     ev_text = " ".join(s["text"] for s in spans)
     supported = _value_supported(res, name, norm, value, ftype, spans, ev_text,
-                                 empty_value(name), _text_field(model, name))
+                                 empty_value(name), _text_field(model, name), doc_class == "merger_agreement")
     if supported is None:
         return False, res.reason or "type rule failed"
     if not supported:
         return False, "value not supported by its evidence"
-    if doc_class == "corporate_record" and doc_subclass is not None and isinstance(norm, list):
+    if doc_class in ("corporate_record", "merger_agreement") and doc_subclass is not None and isinstance(norm, list):
         if not all(any(_token_coverage(item, s["text"]) >= 0.8 for s in spans) for item in norm):
             return False, "each list member needs its own supporting quote"
     rule = _field_rule(name, norm, ev_text)
@@ -793,6 +864,15 @@ def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str,
             result.fields[name] = FieldResult(field=name, ok=False, reason="not a target field",
                                               evidence=[], checks={})
             continue
+        if doc_class == "merger_agreement" and isinstance(entry, Mapping):
+            error = _merger_value_error(model, name, entry.get("value"), str(types[name]))
+            if error:
+                result.fields[name] = FieldResult(field=name, ok=False, reason=error)
+                continue
+            quotes = _entry_quotes(entry)
+            if quotes is not None and any(not isinstance(q, str) for q in quotes):
+                result.fields[name] = FieldResult(field=name, ok=False, reason="evidence is not a list of quotes")
+                continue
         if doc_class == "corporate_record" and doc_subclass is not None and isinstance(entry, Mapping):
             error = _corporate_value_error(model, name, entry.get("value"), str(types[name]), doc_subclass)
             if error:
@@ -803,9 +883,10 @@ def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str,
                 result.fields[name] = FieldResult(field=name, ok=False, reason="evidence is not a list of quotes")
                 continue
         result.fields[name] = _check_field(name, entry, doc_text, str(types[name]), vocab.get(name),
-                                           empty_value(name), money_as_text=_text_field(model, name))
+                                           empty_value(name), money_as_text=_text_field(model, name),
+                                           merger_money=doc_class == "merger_agreement")
         fr = result.fields[name]
-        if doc_class == "corporate_record" and doc_subclass is not None and fr.ok and isinstance(fr.value, list):
+        if doc_class in ("corporate_record", "merger_agreement") and doc_subclass is not None and fr.ok and isinstance(fr.value, list):
             if not all(any(_token_coverage(item, span["text"]) >= 0.8 for span in fr.evidence)
                        for item in fr.value):
                 fr.ok = False

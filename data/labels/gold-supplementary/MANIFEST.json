@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T23:33:15Z",
+  "added_at": "2026-11-27T01:34:05Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -356,6 +356,63 @@
         ],
         "review": []
       }
+    },
+    {
+      "added_at": "2026-11-27T00:54:43Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0a29136832720e65",
+        "DOC-1b1b4b7f3f2d714a",
+        "DOC-f546c7d6cf2e77e2"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical001-ready16-check.jsonl"
+        ],
+        "label": [
+          "merger-critical001-ready16-label.jsonl"
+        ],
+        "review": [
+          "merger-critical001-source-decisions-terra.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-27T01:34:05Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-681bc6115b882191",
+        "DOC-eac7882cff200545"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical002-ready13-check.jsonl"
+        ],
+        "label": [
+          "merger-critical002-ready13-label.jsonl"
+        ],
+        "review": [
+          "merger-critical002-source-decisions-terra.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -410,12 +467,18 @@
       "urgency": {
         "gate_reject": 2
       }
+    },
+    "merger_agreement": {
+      "-": {
+        "notes": 5
+      }
     }
   },
   "files": {
     "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
     "corporate_record.jsonl": "232845aa2a22b4fcd894d29e3d601e6fc9e86e87e9742bacb4682224b0f5aa25",
-    "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22"
+    "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22",
+    "merger_agreement.jsonl": "56fc7812961db59a63206994b672acf7698e039f77d05adb9cdeff6d614edea6"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
   "schema": "mailroom-gold-supplementary/v1",
@@ -473,6 +536,8 @@
       "check-correspondence-039.jsonl",
       "check-correspondence-040.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
+      "merger-critical001-ready16-check.jsonl",
+      "merger-critical002-ready13-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
@@ -691,6 +756,8 @@
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
+      "merger-critical001-ready16-label.jsonl",
+      "merger-critical002-ready13-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
@@ -707,6 +774,8 @@
     ],
     "review": [
       "focus-correspondence-ready4-parent-review.jsonl",
+      "merger-critical001-source-decisions-terra.jsonl",
+      "merger-critical002-source-decisions-terra.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e40.jsonl",
       "review-corp-1.jsonl",
@@ -763,6 +832,27 @@
       "tier2": [
         "additional_recipients"
       ]
+    },
+    "merger_agreement": {
+      "tier1": [
+        "document_name",
+        "parties",
+        "acquirer",
+        "target",
+        "merger_sub",
+        "signatories",
+        "effective_date",
+        "effective_time",
+        "governing_law",
+        "per_share_cash_amount",
+        "exchange_ratio",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel"
+      ],
+      "tier2": []
     }
   },
   "truth_statuses": [],

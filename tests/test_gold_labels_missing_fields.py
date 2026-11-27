@@ -192,6 +192,54 @@ def test_add_missing_fields_appends_the_new_field_and_preserves_existing_records
     assert gl.verify_catalog(gold) == [] and gl.verify_catalog(supp) == []
 
 
+@pytest.mark.parametrize("store", ["gold", "supp"])
+def test_add_preserves_unrelated_noncanonical_class_bytes(cli, store):
+    tmp = _built(cli)
+    folder = tmp / store
+    path = folder / "corporate_record.jsonl"
+    if store == "gold":
+        rec = gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]
+        rec = {**rec, "doc_id": "OTHER", "label_id": "other-label", "note": "·"}
+    else:
+        rec = {"kind": "notes", "doc_id": "OTHER", "label": {"note": "·"}}
+    original = (json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n").encode()
+    path.write_bytes(original)
+    manifest_path = folder / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text())
+    digest = hashlib.sha256(original).hexdigest()
+    manifest["files"][path.name] = digest
+    manifest_path.write_text(json.dumps(manifest))
+    assert gl.verify_catalog(folder) == []
+
+    assert _add(cli, [_s("DOC-1", "label", DATE_LABEL)], [_s("DOC-1", "check", DATE_CHECK)]) == 0
+    assert path.read_bytes() == original
+    assert json.loads(manifest_path.read_text())["files"][path.name] == digest
+    assert gl.verify_catalog(folder) == []
+
+
+@pytest.mark.parametrize("store", ["gold", "supp"])
+def test_add_refuses_noncanonical_touched_class_atomically(cli, capsys, store):
+    tmp = _built(cli)
+    folder = tmp / store
+    path = folder / "correspondence.jsonl"
+    if store == "gold":
+        rec = {**gl.read_jsonl(path)[0], "note": "·"}
+    else:
+        rec = {"kind": "notes", "doc_id": "OTHER", "label": {"note": "·"}}
+    original = (json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n").encode()
+    path.write_bytes(original)
+    manifest_path = folder / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][path.name] = hashlib.sha256(original).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    assert gl.verify_catalog(folder) == []
+    before = _store_bytes(tmp)
+    label = {**_s("DOC-1", "label", DATE_LABEL), "supplementary": {"note": "new"}}
+    assert _add(cli, [label], [_s("DOC-1", "check", DATE_CHECK)]) == 1
+    assert "re-serialising its rows changes the file" in capsys.readouterr().err
+    assert _store_bytes(tmp) == before
+
+
 def test_add_missing_fields_refuses_a_duplicate_key_without_mutating(cli, capsys):
     tmp = _built(cli)
     before = _store_bytes(tmp)
@@ -339,3 +387,26 @@ def test_missing_fields_source_identity_allows_legacy_missing_subclass(cli):
     held["corporate_record"].extend([{**held["corporate_record"][0], "subclass": "subsidiary_list"},
                                      {**held["corporate_record"][0], "subclass": "indenture"}])
     assert mod._missing_field_source_problems(submitted, [], held)
+
+
+@pytest.mark.parametrize('new_subclass', ['all_stock', None])
+def test_missing_merger_subclass_drift_refuses_atomically(cli, monkeypatch, capsys, new_subclass):
+    mod, write, build, tmp = cli
+    text = 'Agreement by Alpha Corp, parent, and Beta LLC, target.'
+    row = {'document_id': 'DOC-1', 'filename': 'merger.txt', 'expected': 'merger_agreement',
+           'expected_subclass': 'all_cash', 'content_sha256': hashlib.sha256(text.encode()).hexdigest()}
+    monkeypatch.setattr(mod, '_load_corpus', lambda _: ([row], {'merger.txt': text}))
+    label = write('merger-label.jsonl', [_s('DOC-1', 'label', {'acquirer': {'value': 'Alpha Corp', 'evidence': ['Alpha Corp']}})])
+    check = write('merger-check.jsonl', [_s('DOC-1', 'check', {'acquirer': {'value': 'Alpha Corp', 'evidence': ['Alpha Corp, parent']}})])
+    assert build('--label', label, '--check', check) == 0
+    before = _store_bytes(tmp)
+    row['expected_subclass'] = new_subclass
+    label_fields = {'target': {'value': 'Beta LLC', 'evidence': ['Beta LLC']}}
+    check_fields = {'target': {'value': 'Beta LLC', 'evidence': ['Beta LLC, target']}}
+    if new_subclass is None:
+        with pytest.raises(SystemExit):
+            _add(cli, [_s('DOC-1', 'label', label_fields)], [_s('DOC-1', 'check', check_fields)])
+    else:
+        assert _add(cli, [_s('DOC-1', 'label', label_fields)], [_s('DOC-1', 'check', check_fields)]) == 1
+        assert 'subclass differs' in capsys.readouterr().err
+    assert _store_bytes(tmp) == before

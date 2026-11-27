@@ -1,0 +1,240 @@
+{
+  "schema": "mailroom.merger-csv-preservation/v1",
+  "protected_cells_preserved": 34515,
+  "provenance_cells_changed": 16,
+  "newly_labeled": 10,
+  "only_admitted_fields_changed": true,
+  "changes": [
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "acquirer",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "TRATON SE",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "target",
+      "before": {
+        "value": "Navistar International Corporation",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Navistar International Corporation",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "merger_sub",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"Dusk Inc.\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "target_termination_fee",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "$125,000,000",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "financial_advisors",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"J.P. Morgan Securities LLC\", \"PJT Partners LP\", \"Bank of America Merrill Lynch International DAC\", \"Goldman Sachs Bank Europe SE\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "legal_counsel",
+      "before": {
+        "value": "[\"Davis Polk & Wardwell LLP\", \"Sullivan & Cromwell LLP\"]",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "[\"Davis Polk & Wardwell LLP\", \"Sullivan & Cromwell LLP\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "acquirer",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "GLACIER BANCORP, INC.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "target",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "ALTABANCORP",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "exchange_ratio",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "0.7971",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "target_termination_fee",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "$35,000,000",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "financial_advisors",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"Keefe, Bruyette & Woods, Inc.\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "legal_counsel",
+      "before": {
+        "value": "[\"Miller Nash Graham & Dunn LLP\"]",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "[\"Miller Nash Graham & Dunn LLP\", \"Jones Day\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "acquirer",
+      "before": {
+        "value": "Centene Corporation",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Centene Corporation",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "target",
+      "before": {
+        "value": "Magellan Health, Inc.",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Magellan Health, Inc.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "merger_sub",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"Mayflower Merger Sub, Inc.\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "per_share_cash_amount",
+      "before": {
+        "value": "$95.00",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "$95.00",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    }
+  ],
+  "outputs": {
+    "mailroom_dataset_v9.3_label_repaired.csv": "accdb6c4817d4663afb0caa1ebf05bbc63afd417e621439ec0c20d19ff18f286",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "e74f99a3c9b760b80bfa45fb084a94a1d58db15854dd3ff141718815648e1460",
+    "mailroom_dataset_v9.3_label_repaired_summary.json": "30f4b95cc6c2ad1269cc6b9090b7a1bdc53141906565901e44e6f9585ccd782d",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "99fd96d8c56e9c46afd4ca9835d4e8d217adb69ba1ef1b49ab85c804bc3fc46a"
+  },
+  "measurement": "Flat consensus coverage; distinct from 16 newly admitted per-field scoring targets and unchanged MAUD headline."
+}

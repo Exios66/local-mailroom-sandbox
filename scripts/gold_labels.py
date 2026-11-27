@@ -163,9 +163,9 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
             if row.get("content_sha256") and row["content_sha256"] != measured:
                 raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
                                  "refusing to label a document whose text is not the published one")
-            if row["expected"] == "corporate_record":
+            if row["expected"] in ("corporate_record", "merger_agreement"):
                 try:
-                    gl._corporate_subclass(row.get("expected_subclass"))
+                    (gl._corporate_subclass if row["expected"] == "corporate_record" else gl._merger_subclass)(row.get("expected_subclass"))
                 except KeyError as exc:
                     raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
@@ -709,9 +709,10 @@ def _missing_field_source_problems(labelled: list, checked: list,
                             "rebuild the catalog before adding fields")
             continue
         cls, content_sha, doc_sha, filename = next(iter(identities))
-        if cls == "corporate_record":
+        if cls in ("corporate_record", "merger_agreement"):
             subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
-            if len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+            missing = cls == "merger_agreement" and any(r.get("subclass") is None for r in held[doc_id])
+            if missing or len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
                 problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
         if cls != doc["doc_class"]:
             problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
@@ -789,13 +790,20 @@ def cmd_add(args: argparse.Namespace) -> int:
     for old, new in ((gdata, catalog), (sdata, supplementary)):
         merged.append({cls: [*old.get(cls, []), *new.get(cls, [])] for cls in sorted({*old, *new})})
     with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
-        drift = _rewrite_drift(gold_stage, gmanifest, gdata) + _rewrite_drift(supp_stage, smanifest, sdata)
+        drift = _rewrite_drift(gold_stage, gmanifest, {c: gdata[c] for c in catalog if c in gdata})
+        drift += _rewrite_drift(supp_stage, smanifest, {c: sdata[c] for c in supplementary if c in sdata})
         if drift:
             print("add refused: " + "\n  ".join(drift), file=sys.stderr)
             return 1
         left = []
-        for stage, old, data in ((gold_stage, gmanifest, merged[0]), (supp_stage, smanifest, merged[1])):
-            files = _write_class_files(stage, data)
+        for stage, source, old, data, new in ((gold_stage, gold, gmanifest, merged[0], catalog),
+                                              (supp_stage, supp, smanifest, merged[1], supplementary)):
+            files = {}
+            for name, sha in old["files"].items():
+                if Path(name).stem not in new:
+                    (stage / name).write_bytes((source / name).read_bytes())
+                    files[name] = sha
+            files.update(_write_class_files(stage, {cls: data[cls] for cls in new}))
             manifest = _added_manifest(old, data, files, args, binding, now, doc_ids,
                                        missing_fields=missing_fields)
             (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -872,9 +880,9 @@ def cmd_review(args: argparse.Namespace) -> int:
             problems.append(f"{key[0]}.{key[1]}: corpus identity differs from the label's")
             continue
         subclass = row.get("expected_subclass")
-        if cls == "corporate_record":
+        if cls in ("corporate_record", "merger_agreement"):
             try:
-                gl._corporate_subclass(subclass)
+                (gl._corporate_subclass if cls == "corporate_record" else gl._merger_subclass)(subclass)
             except KeyError as exc:
                 problems.append(f"{key[0]}.{key[1]}: {exc}")
                 continue

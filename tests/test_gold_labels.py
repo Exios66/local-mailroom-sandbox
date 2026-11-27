@@ -170,10 +170,12 @@ def test_work_queue_skips_fields_the_hub_labels():
         "content_sha256": "x",
         "gt_fields": json.dumps({"entity_name": "Acme Inc.",
                                  "gt_presence": json.dumps({"signatories": "not_applicable"})}),
-    }, {"document_id": "DOC-8", "filename": "g", "expected": "merger_agreement", "gt_fields": "{}"}]
+    }, {"document_id": "DOC-8", "filename": "g", "expected": "merger_agreement",
+        "expected_subclass": "all_cash", "gt_fields": "{}"}]
     queue = gl.work_queue(rows)
-    assert [q["doc_id"] for q in queue] == ["DOC-9"]
+    assert [q["doc_id"] for q in queue] == ["DOC-9", "DOC-8"]
     assert queue[0]["fields"] == ["effective_date", "jurisdiction", "certifying_officer", "last_amended_date"]
+    assert queue[1]["fields"] == list(gl.TARGET_FIELDS["merger_agreement"]["tier1"])
 
 
 def test_cuad_dates_need_exactly_one_calendar_date():

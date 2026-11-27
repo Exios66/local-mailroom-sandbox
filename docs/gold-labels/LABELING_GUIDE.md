@@ -69,13 +69,19 @@ Write one JSON object per document, one per line (JSONL):
   amount, pay, payment, sum, fee, price, owe, balance or total in the same quote. `$218,440.00`,
   `USD 218,440` and `$2.5 million` support 218440 or 2500000, never a part of the digits;
   "Dated May 14, 2020" supports neither 2020 nor 14. `0` needs a written 0.
-  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) is a
+  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value` and merger currency fields) is a
   plain dollar figure the Dojo money scorer parses: `$` and the digits, with commas and cents as
   written ("$250,000", "$400,000.00"). Repeat the phrase as written when it already has that form.
   Otherwise write the same amount in that form: write a scale word out ("$5 million" becomes
   "$5,000,000"), drop a currency code ("US$400,000.00" and "$55,000USD" become "$400,000.00" and
   "$55,000"), and drop a rate ("$40 per month" becomes "$40"). Never compute a total. The quote
-  stays the passage as written, and the gate checks that it shows the same amount as money.
+  stays the passage as written. For merger fields, the same figure must have a source dollar
+  marker (`$`, `US$` or `USD`); a payment word alone is insufficient. Hold a non-US or
+  ambiguously qualified dollar amount, an explicit non-dollar amount, or an amount with unknown
+  currency: omit the field and explain why in `supplementary.notes`, rather than mark it absent
+  or change its currency symbol. Preserve all source qualifiers in the quote and notes. The
+  automated check cannot identify every currency qualifier, especially one away from the figure;
+  review the surrounding source for currency and hold the field when it is ambiguous.
   `scripts/gold_labels.py check` rejects a `near_gold` phrase that Dojo cannot parse.
 - **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
   ("Supplier", "Licensee", plural or defined-term forms are fine); `other` is the only role
@@ -173,7 +179,7 @@ equals the stored one, even when only the check pass carries it, and even when a
 it. Settle an existing record with `review`; never re-add it. The document's class,
 `content_sha256`, `doc_sha` and source filename must still match the records already in the
 catalog, so fields are never mixed across source texts or classes under one `doc_id`. Schema
-revision bindings may differ when that source identity is unchanged. The known corporate subclass must also agree with the current corpus; legacy records without
+revision bindings may differ when that source identity is unchanged. The known corporate or merger subclass must also agree with the current corpus; legacy records without
 a subclass binding retain their existing metadata. The add still needs both independent passes for each document.
 
 Existing records and their schema bindings are not rewritten. New rows carry the `--revision`
@@ -305,6 +311,50 @@ pipeline's `ContractExtraction` v2 fields.
 | `dispute_forum` | name | Courts or arbitral seat for disputes, kept separate from governing law. |
 | `payment_terms` | free text | How and when the consideration is paid, as stated. |
 | `territory` | free text | The stated territory of the grant, distribution or service. |
+
+## Merger agreement fields
+
+The pinned Dojo `MergerAgreementExtraction` v2 and runtime model define these 16 direct
+fields. Use only the assigned missing fields and the corpus's observed subclass; never infer
+or change the subclass from consideration answers or a submission. An unknown subclass is
+held. Do not label derived `merger_consideration` or `maud_clauses`, or inapplicable
+`intent`, `subject_matter` or `keywords`. Each populated list member needs its own
+supporting quote. Use `[]` or null only after a documented search for an applicable field.
+
+| Field | Type | Definition |
+|---|---|---|
+| `document_name` | name | Agreement title as stated. |
+| `parties` | list of names | All contracting entities as written. |
+| `acquirer` | name | Parent acquiring the target, not its merger subsidiary. |
+| `target` | name | Target company, not the parent or merger subsidiary. |
+| `merger_sub` | list of names | Merger subsidiary or subsidiaries as written. |
+| `signatories` | list of names | Persons who actually sign for the parties; do not invent names from blank signature lines. |
+| `effective_date` | date | Actual merger Effective Date only, not execution or dated-as-of date. |
+| `effective_time` | free text | Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date. |
+| `governing_law` | name | Governing-law sentence, distinct from dispute forum. |
+| `per_share_cash_amount` | money (text) | Stated cash per target share, not aggregate equity or debt value. |
+| `exchange_ratio` | free text | Stated parent shares per target share. |
+| `target_termination_fee` | money (text) | Stated fee payable by target, distinguishing conditions and caps. |
+| `parent_termination_fee` | money (text) | Stated reverse termination fee payable by parent, distinguishing conditions and caps. |
+| `outside_date` | date | Actual Outside or End Date, distinct from execution and Effective Date. |
+| `financial_advisors` | list of names | Financial advisors in brokers and fairness opinion provisions. |
+| `legal_counsel` | list of names | Law firms named on notice copy-recipient lines, not financial advisors. |
+
+For money use the plain dollar figure only for a source-supported dollar amount, as in the currency
+rule above; never infer a figure, convert currency, calculate a total or choose among ambiguous
+conditional fees. Record conditions and caps in supplementary notes and hold a field if one
+scalar cannot faithfully represent it. Dates require a complete source calendar date in ISO
+form. Although the registry permits relative `outside_date` strings, hold relative or
+conditional dates in this pilot. Do not use the agreement's execution or dated-as-of date as
+the actual Effective Date without explicit source support. Never fill placeholder people.
+
+For `all_cash`, examine per-share cash; for `all_stock`, the exchange ratio; for
+`mixed_cash_stock`, both; for `mixed_cash_stock_election`, the election and both forms; for
+`other`, examine the stated terms. These are search priorities, never proof that a blank field
+is absent. For long agreements, read the first and last 15,000 characters and conduct an
+exhaustive per-field anchor search across the rest, including definitions, consideration,
+closing, effective time, termination, fees, advisors and notices. Read surrounding passages,
+record ranges searched, and hold ambiguous source evidence in supplementary notes.
 
 ## Long documents
 

@@ -591,6 +591,31 @@ def test_corporate_entity_uses_only_matching_bound_row_identity(tmp_path):
                     doc_subclass="subsidiary_list")["subsidiaries"][0] == UNGROUNDED
 
 
+@pytest.mark.parametrize("reviewed", [False, True])
+def test_merger_grounding_binds_subclass_and_checks_each_list_member(tmp_path, reviewed):
+    from mailroom_sandbox.interim_labels import doc_sha
+
+    text = "Alpha Corp and Beta LLC are parties."
+    row = {"id": "DOC-1", "doc_text": text, "expected_doc_class": "merger_agreement",
+           "expected_subclass": "all_cash"}
+    label = {"value": ["Alpha Corp", "Beta LLC"], "evidence": ["Alpha Corp", "Beta LLC"],
+             "review": {"reviewer": {"role": "review"}} if reviewed else None,
+             "basis": "review_read_message"}
+
+    def check(case, lab=label, source=row, **record):
+        return _overlay(tmp_path / case, {"parties": lab}, "merger_agreement",
+                        rows={"DOC-1": source}, doc_sha256=doc_sha(text), **record)["parties"][0]
+
+    assert check("bound") == GROUNDED
+    assert check("conflict", doc_subclass="all_stock") == UNGROUNDED
+    assert check("missing", source={**row, "expected_subclass": None}) == UNGROUNDED
+    assert check("invalid", source={**row, "expected_subclass": "invalid"}) == UNGROUNDED
+    assert check("class", source={**row, "expected_doc_class": "contract"}) == UNGROUNDED
+    assert check("stale", source={**row, "doc_text": "changed"}) == NO_EVIDENCE
+    assert check("type", lab={**label, "value": ["Alpha Corp", True]}) == UNGROUNDED
+    assert check("split", lab={**label, "evidence": ["Alpha", "Corp", "Beta LLC"]}) == UNGROUNDED
+
+
 def test_overlay_label_is_checked_against_each_evidence_shape(tmp_path):
     span = {"text": "made on this 1st day of December, 2015 by and between"}
     status = _overlay(

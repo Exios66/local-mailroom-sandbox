@@ -756,7 +756,24 @@
           "keywords",
           "subject_matter"
         ],
-        "guide": {}
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
       },
       "all_stock": {
         "add": {},
@@ -765,7 +782,24 @@
           "keywords",
           "subject_matter"
         ],
-        "guide": {}
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
       },
       "mixed_cash_stock": {
         "add": {},
@@ -774,7 +808,24 @@
           "keywords",
           "subject_matter"
         ],
-        "guide": {}
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
       },
       "mixed_cash_stock_election": {
         "add": {},
@@ -783,7 +834,24 @@
           "keywords",
           "subject_matter"
         ],
-        "guide": {}
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
       },
       "other": {
         "add": {},
@@ -792,10 +860,27 @@
           "keywords",
           "subject_matter"
         ],
-        "guide": {}
+        "guide": {
+          "acquirer": "name: Parent acquiring the target, not its merger subsidiary.",
+          "document_name": "name: Agreement title as stated.",
+          "effective_date": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
+          "effective_time": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
+          "exchange_ratio": "free text: Stated parent shares per target share.",
+          "financial_advisors": "list of names: Financial advisors in brokers and fairness opinion provisions.",
+          "governing_law": "name: Governing-law sentence, distinct from dispute forum.",
+          "legal_counsel": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
+          "merger_sub": "list of names: Merger subsidiary or subsidiaries as written.",
+          "outside_date": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
+          "parent_termination_fee": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
+          "parties": "list of names: All contracting entities as written.",
+          "per_share_cash_amount": "money (text): Stated cash per target share, not aggregate equity or debt value.",
+          "signatories": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
+          "target": "name: Target company, not the parent or merger subsidiary.",
+          "target_termination_fee": "money (text): Stated fee payable by target, distinguishing conditions and caps."
+        }
       }
     }
   },
-  "registry_sha256": "8cd07441413b3f234feaa5ee913d70300dcc0ef35cae8bf79e7774dd46cdc761",
+  "registry_sha256": "ae3a34611dd69d6fa4c6dfd63199e0d78100a6d6378ea21c47932baf651ac5fe",
   "schema": "mailroom.subclass_extraction_fields/v1"
 }

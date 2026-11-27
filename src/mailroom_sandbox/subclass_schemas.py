@@ -52,7 +52,7 @@ MIN_DEV = 20
 CONSTANT_SHARE = 0.95
 _SKIP_OUTPUT = {"reasoning", "confidence"}
 _GUIDE_SECTIONS = {"Correspondence fields": "correspondence", "Corporate record fields": "corporate_record",
-                   "Contract fields": "contract"}
+                   "Contract fields": "contract", "Merger agreement fields": "merger_agreement"}
 
 
 class SchemaError(RuntimeError):
