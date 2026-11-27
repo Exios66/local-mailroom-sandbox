@@ -658,10 +658,15 @@ So every document ends within two rulings and one field retry.
 
 **References.** `train_pool` reads the committed pool `config/judge/reference-pool-runbook-v2.jsonl`, built by
 `python scripts/build_judge_reference_pool.py` (`--check` fails when stale): the truth labels of the runbook-v2
-`calibration` and `pool` documents only, near-gold (`status: near_gold`) winning over interim labels
-(`use_as_truth`, not `disputed`), with at most two 240-character evidence quotes per field. Preflight refuses a
-train_pool draw that holds a calibration or pool document, or one sharing a leak component (thread, matter or
-text) with the pool, and the judged document is never its own example.
+`calibration` and `pool` documents only, merged in the scorer's own order (`gold_labels.apply_near_gold`), so an
+example never shows a value the run is not scored against: interim truth labels (`use_as_truth`, not `disputed`),
+then the near-gold overlay `data/labels/gold-overlay` (checked against its manifest) on fields interim does not
+give and over an interim gate gap fill (SHF-010; an `original_header` fill and an interim correction stand). Hub
+ground truth is not read (it needs the dataset); no overlay label carries a Hub value, so a Hub-labelled field is
+left out rather than shown wrong. At most two 240-character evidence quotes are kept per field, and an example
+shows only the fields the judge is asked about. Preflight refuses a train_pool draw that holds a calibration or
+pool document, or one sharing a leak component (thread, matter or text) with the pool, and the judged document is
+never its own example. A label change (#425, #439) makes `--check` fail until the pool is rebuilt and re-locked.
 
 **Preflight and lock.** In correct mode preflight refuses a judge model with no price in
 `config/api_prices.yaml`, no provider pin in `config/provider_pins.yaml`, no OpenRouter route, or a missing pool

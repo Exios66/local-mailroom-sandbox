@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write config/judge/reference-pool-runbook-v2.jsonl from the near-gold and interim labels.
+"""Write config/judge/reference-pool-runbook-v2.jsonl from the interim and near-gold overlay labels.
 
 ``--check`` exits 1 when the committed pool is stale. See ``mailroom_sandbox.judge_references``.
 """

@@ -2,12 +2,17 @@
 
 - **The reference pool** (``config/judge/reference-pool-runbook-v2.jsonl``, built by
   ``scripts/build_judge_reference_pool.py``): truth labels of the runbook-v2 ``calibration`` and
-  ``pool`` documents only, from the near-gold catalog (``data/labels/gold/``, status
-  ``near_gold``) and the interim labels (``data/labels/interim/``, ``use_as_truth`` and not
-  ``disputed``). Near-gold wins on a field both give. Those sets are never tested with
+  ``pool`` documents only, merged with the scorer's own precedence (``gold_labels.apply_near_gold``)
+  so an example never shows a value the run would not be scored against: interim truth labels
+  (``data/labels/interim``, ``use_as_truth`` and not ``disputed``), then the near-gold overlay
+  (``data/labels/gold-overlay``, the scorer's near-gold layer, manifest-verified) on fields interim
+  does not give, and over an interim gate gap fill (SHF-010; an ``original_header`` fill stands).
+  Hub ground truth is not read (it needs the dataset): no overlay label carries a Hub value, so a
+  Hub-labelled field is left out rather than shown wrong. Those sets are never tested with
   ``references: train_pool`` (preflight refuses the draw), and a drawn document that shares a
   leak component (thread, matter or text) with a pool document is refused too.
-- **Examples**: at most two pool documents of the same class and subclass, by doc id.
+- **Examples**: at most two pool documents of the same class and subclass, by doc id, showing
+  only the requested fields.
 - **Earlier attempts** of this document, and the **guide definitions** for its fields.
 """
 
@@ -20,7 +25,7 @@ from typing import Any, Collection, Iterable, Mapping
 ROOT = Path(__file__).resolve().parents[2]
 POOL_PATH = ROOT / "config" / "judge" / "reference-pool-runbook-v2.jsonl"
 ASSIGNMENTS = ROOT / "config" / "splits" / "runbook-v2" / "assignments.jsonl"
-NEAR_GOLD_DIR = ROOT / "data" / "labels" / "gold"
+NEAR_GOLD_DIR = ROOT / "data" / "labels" / "gold-overlay"
 INTERIM_DIR = ROOT / "data" / "labels" / "interim"
 #: The only sets examples come from (owner decision, spec "References without cheating").
 POOL_SETS = frozenset({"calibration", "pool"})
@@ -48,11 +53,23 @@ def _evidence(items: Any) -> list[str]:
     return out
 
 
+def _near_gold_wins(interim_label: Mapping[str, Any]) -> bool:
+    """SHF-010 (``gold_labels.supersede_interim_gap_fills``): near-gold replaces an interim gate gap fill."""
+    from mailroom_sandbox.gold_labels import INTERIM_BASES_OVER_NEAR_GOLD
+
+    return (interim_label.get("status") == "gap_fill"
+            and str(interim_label.get("basis") or "") not in INTERIM_BASES_OVER_NEAR_GOLD)
+
+
 def build_pool(assignments: Iterable[Mapping[str, Any]], interim: Iterable[Mapping[str, Any]],
                near_gold: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Pool rows ``{doc_id, doc_class, subclass, set, component, fields}``, sorted by class and doc id."""
+    """Pool rows ``{doc_id, doc_class, subclass, set, component, fields}``, sorted by class and doc id.
+
+    ``near_gold`` holds gold-overlay records (``{doc_id, labels: {field: {value, basis, evidence}}}``).
+    """
     sets = {str(row["id"]): row for row in assignments if row.get("set") in POOL_SETS}
     fields: dict[str, dict[str, dict[str, Any]]] = {}
+    superseded: dict[str, set[str]] = {}
     for record in interim:
         doc_id = str(record.get("doc_id"))
         if doc_id not in sets:
@@ -61,11 +78,19 @@ def build_pool(assignments: Iterable[Mapping[str, Any]], interim: Iterable[Mappi
             if isinstance(label, Mapping) and label.get("use_as_truth") and label.get("status") != "disputed":
                 fields.setdefault(doc_id, {})[name] = {"value": label.get("value"), "source": "interim",
                                                        "evidence": _evidence(label.get("evidence"))}
-    for row in near_gold:  # near-gold wins over interim on a field both give
-        doc_id = str(row.get("doc_id"))
-        if doc_id in sets and row.get("status") == "near_gold" and row.get("field"):
-            fields.setdefault(doc_id, {})[str(row["field"])] = {"value": row.get("value"), "source": "near_gold",
-                                                                "evidence": _evidence(row.get("evidence"))}
+                if _near_gold_wins(label):
+                    superseded.setdefault(doc_id, set()).add(name)
+    for record in near_gold:
+        doc_id = str(record.get("doc_id"))
+        if doc_id not in sets:
+            continue
+        for name, label in (record.get("labels") or {}).items():
+            if not isinstance(label, Mapping) or not str(label.get("basis") or "").startswith("near_gold:"):
+                continue
+            if name in fields.get(doc_id, {}) and name not in superseded.get(doc_id, set()):
+                continue  # an interim label the scorer keeps over near-gold
+            fields.setdefault(doc_id, {})[str(name)] = {"value": label.get("value"), "source": "near_gold",
+                                                        "evidence": _evidence(label.get("evidence"))}
     rows = []
     for doc_id, named in fields.items():
         assigned = sets[doc_id]
@@ -77,11 +102,17 @@ def build_pool(assignments: Iterable[Mapping[str, Any]], interim: Iterable[Mappi
 
 
 def read_sources(classes: Iterable[str] | None = None) -> tuple[list[dict], list[dict], list[dict]]:
-    """``(assignments, interim, near_gold)`` from the committed files."""
+    """``(assignments, interim, near_gold)`` from the committed files; the overlay must match its manifest."""
+    from mailroom_sandbox.gold_labels import near_gold_snapshot
+
     assignments = _jsonl(ASSIGNMENTS)
-    names = sorted(classes or {p.stem for d in (INTERIM_DIR, NEAR_GOLD_DIR) for p in d.glob("*.jsonl")})
+    names = sorted(classes or {p.stem for p in INTERIM_DIR.glob("*.jsonl")})
     interim = [r for name in names for r in _jsonl(INTERIM_DIR / f"{name}.jsonl")]
-    near_gold = [r for name in names for r in _jsonl(NEAR_GOLD_DIR / f"{name}.jsonl")]
+    records, _sha, problems = near_gold_snapshot(NEAR_GOLD_DIR)
+    if problems:
+        raise ValueError(f"{NEAR_GOLD_DIR}: {'; '.join(problems[:3])}")
+    near_gold = [r for _, r in sorted(records.items())
+                 if classes is None or str(r.get("doc_class")) in set(classes)]
     return assignments, interim, near_gold
 
 

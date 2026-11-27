@@ -21,24 +21,34 @@ ASSIGN = [
 ]
 
 
-def _gold(doc_id, field, value, status="near_gold", text="quoted"):
-    return {"doc_id": doc_id, "doc_class": "contract", "field": field, "value": value, "status": status,
+def _ng(value, basis="near_gold:two_pass_agree", text="quoted"):
+    """One gold-overlay label (the scorer's near-gold layer, ``data/labels/gold-overlay``)."""
+    return {"value": value, "basis": basis, "use_as_truth": False, "status": "gap_fill",
             "evidence": [{"start": 0, "end": 6, "text": text}]}
+
+
+def _overlay(doc_id, labels):
+    return {"doc_id": doc_id, "doc_class": "contract", "doc_subclass": "Service", "labels": labels}
 
 
 def _interim(doc_id, labels):
     return {"doc_id": doc_id, "doc_class": "contract", "doc_subclass": "Service", "labels": labels}
 
 
-def _truth(value, status="gap_fill"):
-    return {"value": value, "status": status, "use_as_truth": status != "disputed"}
+def _truth(value, status="gap_fill", basis="gate_accepted_grounded"):
+    return {"value": value, "status": status, "basis": basis, "use_as_truth": status != "disputed"}
 
 
 def _pool():
-    near_gold = [_gold("C-1", "governing_law", "Delaware"), _gold("C-3", "governing_law", "Texas"),
-                 _gold("C-4", "governing_law", "Ohio"), _gold("C-2", "parties", ["A Ltd"]),
-                 _gold("C-6", "governing_law", "Utah", status="candidate")]
-    interim = [_interim("C-1", {"governing_law": _truth("New York"), "term_length": _truth("2 years")}),
+    near_gold = [_overlay("C-1", {"governing_law": _ng("Delaware"), "parties": _ng(["C1 Ltd"]),
+                                  "effective_date": _ng("2020-01-01")}),
+                 _overlay("C-3", {"governing_law": _ng("Texas")}), _overlay("C-4", {"governing_law": _ng("Ohio")}),
+                 _overlay("C-2", {"parties": _ng(["A Ltd"])}),
+                 _overlay("C-6", {"governing_law": _ng("Utah", basis="candidate:one_pass")})]
+    interim = [_interim("C-1", {"governing_law": _truth("New York"),  # a gate gap fill: near-gold supersedes it
+                                "parties": _truth(["C1 Holdings Ltd"], basis="original_header"),  # kept over near-gold
+                                "effective_date": _truth("2020-02-02", status="correction", basis="review_read_record"),
+                                "term_length": _truth("2 years")}),
                _interim("C-2", {"governing_law": _truth("Maine", status="disputed")}),
                _interim("C-5", {"term_length": _truth("1 year")})]
     return jr.build_pool(ASSIGN, interim, near_gold)
@@ -51,15 +61,20 @@ def test_the_pool_holds_only_calibration_and_pool_documents():
     assert pool[0]["component"] == "K1" and pool[0]["subclass"] == "Service"
 
 
-def test_near_gold_wins_over_interim_on_a_field():
+def test_the_pool_follows_the_scorers_truth_precedence():
+    """Owner (2026-11-27): examples match the truth runs are scored against (``gold_labels.apply_near_gold``)."""
     fields = _pool()[0]["fields"]
+    # SHF-010: reviewed near-gold supersedes an interim gate gap fill.
     assert fields["governing_law"] == {"value": "Delaware", "source": "near_gold", "evidence": ["quoted"]}
+    # An original_header gap fill and an interim correction stand over near-gold.
+    assert fields["parties"]["value"] == ["C1 Holdings Ltd"] and fields["parties"]["source"] == "interim"
+    assert fields["effective_date"]["value"] == "2020-02-02" and fields["effective_date"]["source"] == "interim"
     assert fields["term_length"]["source"] == "interim"  # a field only interim labels gives a value
 
 
 def test_disputed_labels_are_left_out():
     c2 = next(r for r in _pool() if r["doc_id"] == "C-2")
-    assert set(c2["fields"]) == {"parties"}  # the disputed interim label and the candidate row are not truth
+    assert set(c2["fields"]) == {"parties"}  # the disputed interim label and a non-near-gold basis are not truth
 
 
 def test_examples_match_type_and_subtype_and_are_capped_at_two():
