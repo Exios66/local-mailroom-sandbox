@@ -90,6 +90,11 @@ REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
 # llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
 # Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
 DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
+# The extraction attempt history (llm-mailroom #254, graph/attempts.py) and every state key its
+# keep-best selection reads, so a finished run can be replayed offline with
+# confidence.keep_best_attempt on (mailroom_sandbox.job.attempt_replay). Present only when set.
+ATTEMPT_FIELDS = ("extraction_attempt_history", "selected_attempt", "selected_attempt_reason", "judge_verdict",
+                  "judge_source_verified", "conflict_detected", "extraction_source")
 
 
 def _arbiter_caveats(result: dict[str, Any]) -> dict[str, Any] | None:
@@ -1853,6 +1858,8 @@ def _pipeline_item(row: dict[str, Any], result: Mapping[str, Any], outcome: Mapp
            if result.get("extraction_gate") is not None else {}),
         # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
         **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
+        # Present only when the graph recorded them (Phase 5 part 1 replay).
+        **{key: result.get(key) for key in ATTEMPT_FIELDS if result.get(key) is not None},
         # Present only on an archive the extraction arbiter accepted with caveats (HF-014 marker):
         # reports, the gate and the floor digest separate these from clean archives.
         **({"arbiter_caveats": caveats} if (caveats := _arbiter_caveats(result)) else {}),

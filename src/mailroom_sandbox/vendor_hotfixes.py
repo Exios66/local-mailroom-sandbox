@@ -1475,6 +1475,77 @@ def _register_judge_retry_rule(_module: Any) -> None:
     route_spec.add_route_rule("retry_extract", route_spec.RouteRule(JUDGE_RETRY_RULE, _judge_retry_rule))
 
 
+def _has_layer(fn: Any, fix_id: str) -> bool:
+    """Whether a wrapper ``fix_id`` installed is anywhere in ``fn``'s ``__wrapped__`` chain.
+
+    Each layer's own mark is read (``functools.wraps`` copies the one below it, and
+    :func:`apply_hotfixes` then overwrites it), so a layer under another hotfix's still counts.
+    """
+    seen = 0
+    while fn is not None and seen < 64:
+        if getattr(fn, "__dict__", {}).get(_MARK) == fix_id:
+            return True
+        fn, seen = getattr(fn, "__wrapped__", None), seen + 1
+    return False
+
+
+def _carried_drops(result: Any, previous: Mapping[str, Any], names: frozenset[str]) -> Any:
+    """A field-only retry's result with the previous extraction's drop record for the fields it carries."""
+    record = previous.get("_evidence_dropped")
+    if not isinstance(result, Mapping) or not isinstance(record, Mapping):
+        return result
+    carried = {f: v for f, v in record.items() if f not in names}
+    if not carried:
+        return result
+    fresh = result.get("_evidence_dropped")
+    return {**result, "_evidence_dropped": {**carried, **(fresh if isinstance(fresh, Mapping) else {})}}
+
+
+def _install_evidence_check(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-029: with ``job.evidence_check``, a one-call read's unquotable list items are dropped.
+
+    ``_enrich_contract_result`` is the call right after the specialist's in both ``extract_node``
+    and ``retry_extract_node``, so the filtered extraction is what the guard, the conflict check,
+    the attempt history and the judge see. Installed after HF-027, this layer runs first: on a
+    judge-ordered field-only retry it filters the fresh fields, and the fields HF-027 carries over
+    from the previous (already filtered) extraction count for the emptiness rule and keep their
+    part of its ``_evidence_dropped`` record. A read that was also given page images
+    (``state["doc_pages"]``) is left alone and marked ``_evidence_skipped: "pages"``: a clause read
+    from an image has no quote in ``doc_text``.
+    """
+    from langchain_agents import specialist_agents
+
+    from mailroom_sandbox import evidence_check
+
+    # The check is only meaningful while the vendored test still has the shape it was written for.
+    if not evidence_check.fields():
+        raise HotfixDrift("the vendored evidence fields no longer include cuad_clauses or claim_checklist")
+    if getattr(specialist_agents, "_MIN_SPAN_CHARS", None) != 12:
+        raise HotfixDrift("the vendored _MIN_SPAN_CHARS is no longer 12")
+
+    @functools.wraps(original)
+    def _enrich_contract_result(result: Any, state: Any) -> Any:
+        if evidence_check.active() and isinstance(state, Mapping) and state.get("doc_pages"):
+            if isinstance(result, Mapping) and "_n_chunks" not in result and not result.get("_parse_error"):
+                result = {**result, "_evidence_skipped": "pages"}
+        elif evidence_check.active():
+            pending = _FIELD_RETRY.get()
+            keeps = None
+            if pending is not None:
+                previous, names = pending
+                keeps = {k: v for k, v in previous.items() if k not in names and not str(k).startswith("_")}
+            doc_text = state.get("doc_text") if isinstance(state, Mapping) else None
+            try:
+                result = evidence_check.filter_one_read(result, doc_text, keeps=keeps)
+                if pending is not None:
+                    result = _carried_drops(result, pending[0], pending[1])
+            except Exception:  # noqa: BLE001 - an opt-in filter must never turn a good read into a parse error
+                _log.warning("HF-029 evidence check failed; the extraction passes through unfiltered", exc_info=True)
+        return original(result, state)
+
+    return _enrich_contract_result
+
+
 def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
     """HF-027: a judge-ordered re-extraction asks only for the named fields and replaces only them.
 
@@ -1486,7 +1557,9 @@ def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[
     from mailroom_sandbox import subclass_extraction as sx
 
     enrich = module._enrich_contract_result
-    if getattr(enrich, _MARK, None) != "HF-027":
+    # Checked down the chain: HF-029 wraps this layer, so a re-install of the node (after a reload
+    # or a test put the vendored node back) must not wrap the merge a second time.
+    if not _has_layer(enrich, "HF-027"):
         @functools.wraps(enrich)
         def _enrich_contract_result(result: Any, state: Any) -> Any:
             pending = _FIELD_RETRY.get()
@@ -1809,6 +1882,30 @@ HOTFIXES: tuple[Hotfix, ...] = (
         refresh=_register_judge_retry_rule,
         also=(("_enrich_contract_result", "03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2"),
               ("graph.routing:after_retry_extraction_gated", "1dfa11277467523d6b9bcde376f100bb047d369d04ed8be32259bcf3416fbebe")),
+    ),
+    Hotfix(
+        id="HF-029",
+        module="graph.build_graph",
+        attr="_enrich_contract_result",
+        source_sha256="03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2",
+        upstream="sandbox-only (phase 5 evidence check; upstream issue to be filed with the replay's results)",
+        summary="with job.evidence_check, a cuad_clauses or claim_checklist item from a one-call read "
+                "that has a checkable quote not found in the document is "
+                "dropped and recorded under _evidence_dropped; a drop that would empty the extraction is skipped",
+        install=_install_evidence_check,
+        # Installed after HF-027 (both wrap _enrich_contract_result): this layer runs first.
+        also=(("extract_node", "612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5"),
+              ("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52"),
+              ("langchain_agents.specialist_agents:_item_support",
+               "3ce628784c5f74b073dbdb91b02f900f195855f9741055efea66eb2c7df2a1da"),
+              ("langchain_agents.specialist_agents:_evidence_fragments",
+               "830794c4d2c28ef6c738edd29e673ac19bff07c4ec48627c084cf1394efeb88f"),
+              ("langchain_agents.specialist_agents:_fold",
+               "99927a58b944d0627665db8f884639225dc5e5cf1de28eba1ad6540adf47263e"),
+              ("langchain_agents.specialist_agents:_contains_evidence",
+               "bef5c22ffa332bcc66d6e00f1ed0a39c84259f75524e0331ff256eaf4adbb1cd"),
+              ("pipeline.guards:_has_substantive_content",
+               "f2c330e491e66e415b6f2fd8dc17b7532350b6c729202b1ad675c6e16298978f")),
     ),
 )
 
