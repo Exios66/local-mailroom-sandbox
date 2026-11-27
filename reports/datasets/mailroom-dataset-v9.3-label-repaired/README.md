@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,401 labeled,
-5,207 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,407 labeled,
+5,201 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,401 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,407 (89.2%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 These flat per-class counters are not scored-field coverage. They omit corporate subclass
@@ -214,6 +214,31 @@ The [direct-field merger inventory](merger_direct_missing_coverage.json) still h
 the pilot does not complete the class. Source-type holds, machine `use_as_truth: false`,
 production rc.10 selection and frozen experiment locks remain in effect. This is not rc.11
 or a newly staged release.
+
+**Election and other merger subclasses (2026-11-26).** A second independent label/check
+batch and scoped source adjudication add **13 populated fields on two agreements**. Three
+reviews preserve share exclusions and election/proration/adjustment terms. All 13 produce
+field-scoring events and preserve the preceding 10,660 catalog rows and 9,755 overlay field
+payloads. Three assignments remain unadmitted: an unfinished exchange-ratio search and two
+party/subsidiary fields whose preamble names conflict with the execution blocks. Exact passes,
+projections, source ranges and audits are in
+[`merger-critical002`](../../../data/labels/repair-artifacts/v93-20261126-merger-critical002/README.md).
+
+The two merger batches total **29 populated fields on five agreements**, spanning all five
+corpus merger subclasses, with **15 assignments unadmitted**. The current overlay has
+**9,768 labels**. The latest flat regeneration changes only the 13 admitted field cells:
+six become populated and seven replace unreviewed readings. All 34,531 previously protected
+cells retain values and presence; see
+[`merger_critical002_csv_preservation.json`](merger_critical002_csv_preservation.json).
+Current flat coverage is **43,407 / 48,686 (89.2%)**, while the direct merger inventory still
+has **2,310 missing opportunities on 152 documents**. Subclass representation does not imply
+complete field coverage. Neither batch changes the MAUD headline or constitutes rc.11.
+
+Merger money admission now requires a source dollar marker attached to the same exact figure
+in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
+The scoped guard covers both submission and stored-evidence checks and preserves legacy
+contract/corporate matching. Non-adjacent or unrecognized currency qualifiers require source
+review; the automated check does not certify every currency context.
 
 **Source-type hold.** A bounded audit of the 61 records currently typed `officer_certificate`
 found headings suggesting 53 designation/amendment instruments, seven incorporation/charter

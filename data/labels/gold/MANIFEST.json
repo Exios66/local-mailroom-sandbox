@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-27T00:54:43Z",
+  "added_at": "2026-11-27T01:34:05Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -385,6 +385,34 @@
           "merger-critical001-source-decisions-terra.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-27T01:34:05Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-681bc6115b882191",
+        "DOC-eac7882cff200545"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical002-ready13-check.jsonl"
+        ],
+        "label": [
+          "merger-critical002-ready13-label.jsonl"
+        ],
+        "review": [
+          "merger-critical002-source-decisions-terra.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -544,25 +572,37 @@
     },
     "merger_agreement": {
       "acquirer": {
-        "near_gold": 3
+        "near_gold": 5
+      },
+      "document_name": {
+        "near_gold": 1
       },
       "exchange_ratio": {
-        "near_gold": 1
+        "near_gold": 2
       },
       "financial_advisors": {
         "near_gold": 2
+      },
+      "governing_law": {
+        "near_gold": 1
       },
       "legal_counsel": {
         "near_gold": 2
       },
       "merger_sub": {
-        "near_gold": 2
+        "near_gold": 3
       },
-      "per_share_cash_amount": {
+      "parties": {
         "near_gold": 1
       },
-      "target": {
+      "per_share_cash_amount": {
         "near_gold": 3
+      },
+      "signatories": {
+        "near_gold": 2
+      },
+      "target": {
+        "near_gold": 5
       },
       "target_termination_fee": {
         "near_gold": 2
@@ -573,7 +613,7 @@
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
     "corporate_record.jsonl": "693b0d9e27e1b373898782fc206fa62821f16a609e21b633a24c80e6b662aacb",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
-    "merger_agreement.jsonl": "6326eb5f1011b9dc4ef5531a1911f665e6e66f4b152f7afb2c66659d93cdb417"
+    "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
   "reviewed_at": "2026-11-26T23:33:57Z",
   "schema": "mailroom-gold-labels/v1",
@@ -631,6 +671,7 @@
       "check-correspondence-040.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
       "merger-critical001-ready16-check.jsonl",
+      "merger-critical002-ready13-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
@@ -850,6 +891,7 @@
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
       "merger-critical001-ready16-label.jsonl",
+      "merger-critical002-ready13-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
@@ -870,6 +912,7 @@
       "decisions_supersede.jsonl",
       "focus-correspondence-ready4-parent-review.jsonl",
       "merger-critical001-source-decisions-terra.jsonl",
+      "merger-critical002-source-decisions-terra.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
       "review-contract-e40.jsonl",

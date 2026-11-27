@@ -1,0 +1,198 @@
+{
+  "schema": "mailroom.merger-csv-preservation/v1",
+  "protected_cells_preserved": 34531,
+  "provenance_cells_changed": 13,
+  "newly_labeled": 6,
+  "only_admitted_fields_changed": true,
+  "changes": [
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "signatories",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"Ken Reali\", \"Anthony D\u2019Adamio\", \"Joseph P. Dwyer\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "acquirer",
+      "before": {
+        "value": "Bioventus Inc.",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Bioventus Inc.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "target",
+      "before": {
+        "value": "Misonix, Inc.",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Misonix, Inc.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "per_share_cash_amount",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "$28.00",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "exchange_ratio",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "1.6839",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "document_name",
+      "before": {
+        "value": "Agreement and Plan of Merger",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "AGREEMENT AND PLAN OF MERGER",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "parties",
+      "before": {
+        "value": "[\"Raven Industries, Inc.\", \"CNH Industrial N.V.\"]",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "[\"Raven Industries, Inc.\", \"CNH Industrial N.V.\", \"CNH Industrial South Dakota, Inc.\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "signatories",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"Dan Rykhus\", \"Scott Wine\", \"Oddonne Incisa\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "governing_law",
+      "before": {
+        "value": "State of Delaware",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Except to the extent the provisions of South Dakota Law are applicable to the Merger or to the fiduciary duties of the Company\u2019s Board of Directors, this Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to the conflicts of law rules of such state.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "acquirer",
+      "before": {
+        "value": "CNH Industrial N.V.",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "CNH Industrial N.V.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "target",
+      "before": {
+        "value": "Raven Industries, Inc.",
+        "presence": "populated",
+        "chosen_source": "generated_rule"
+      },
+      "after": {
+        "value": "Raven Industries, Inc.",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "merger_sub",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "[\"CNH Industrial South Dakota, Inc.\"]",
+        "presence": "populated",
+        "chosen_source": "near_gold_two_pass"
+      }
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "per_share_cash_amount",
+      "before": {
+        "value": "",
+        "presence": "unlabeled",
+        "chosen_source": ""
+      },
+      "after": {
+        "value": "$58.00",
+        "presence": "populated",
+        "chosen_source": "near_gold_reviewed"
+      }
+    }
+  ],
+  "outputs": {
+    "mailroom_dataset_v9.3_label_repaired.csv": "4bed83276ba717d3cdb391e6615f2d17ade915755dde659efc58a85d7acf341d",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "60d40c94195d3bdf7bb8e61ce323ca0c25b8f64133c12f512e9671ab33873506",
+    "mailroom_dataset_v9.3_label_repaired_summary.json": "fe6fae8a59bc495bf27a7bd8cc6c532b58dc6a8344a27faa561490ebd64ad449",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "d55156770d431257f0198e8c9c19e7b2b719bbae9464ffe05b1dbe5c92469673"
+  },
+  "measurement": "Flat consensus coverage; distinct from 13 newly admitted direct field-scoring targets and the unchanged MAUD headline."
+}
