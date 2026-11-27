@@ -179,7 +179,8 @@ class _AttemptGuardedCompletions:
             call_guard.note_failed_attempt()
             return response
         if held:
-            call_guard.settle(held, billed=False)
+            # Keep the worst-case hold until record_usage prices this reply (no gap for the next call).
+            call_guard.settle(held, billed=False, await_price=True)
         return response
 
 
@@ -512,8 +513,12 @@ def _settle_all(holder: list[float], exc: BaseException | None) -> None:
     from mailroom_sandbox.job import call_guard
 
     billed = exc is not None and call_guard.billed_failure(exc)
+    # pop() yields the last reservation first: that is the reply the agent prices. Earlier ones are
+    # retries the client absorbed; they settle now, as they did before, and must not stay on the cap.
+    priced = exc is None
     while holder:
-        call_guard.settle(holder.pop(), billed=billed)
+        call_guard.settle(holder.pop(), billed=billed, await_price=priced)
+        priced = False
 
 
 def pinned_chat_openai(parent: type) -> type:

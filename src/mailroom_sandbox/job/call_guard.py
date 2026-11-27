@@ -15,11 +15,12 @@ armed here:
   into an error row: a document cut short by the guard is never scored as a pipeline outcome.
 
 - every guarded request reserves its worst-case cost before it goes out (``before_call`` with the
-  request's size, ``request_tokens``) and is settled when it ends (``settle``): a success releases the
-  reservation (``after_call`` then prices the real usage); a failure that may have been billed (a
-  timeout, a 5xx, a dropped response) is charged at its reservation; a request the provider rejected
-  (HTTP 4xx) or that never connected is released. A request whose estimate would pass the cap, with
-  every reservation in flight, is refused before it goes out.
+  request's size, ``request_tokens``) and is settled when it ends (``settle``): a success keeps that
+  hold (``await_price``) until ``after_call`` prices the real usage, so another request cannot pass
+  in the gap; a failure that may have been billed (a timeout, a 5xx, a dropped response) is charged
+  at its reservation in that same step; a request the provider rejected (HTTP 4xx) or that never
+  connected is released. A request whose estimate would pass the cap, with every reservation and
+  unpriced success still held, is refused before it goes out.
 
 Spend therefore stops at the cap, within the size estimate's error (0.25 tokens per character; the
 output cap, or ``DEFAULT_COMPLETION_RESERVE_TOKENS`` when a request sets none).
@@ -31,6 +32,7 @@ import contextlib
 import contextvars
 import math
 import threading
+from collections import deque
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -48,6 +50,8 @@ _LOCK = threading.Lock()
 _STATE: dict[str, Any] = {"budget": None, "ceiling": None}
 _DOC: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("sandbox_call_guard_doc", default=None)
 _EXC: list[type] = []
+#: This thread's success reservations waiting for ``after_call``: ``(budget.hold_token, usd)``.
+_PENDING = threading.local()
 
 
 def ceiling_for(lock: Mapping[str, Any]) -> int:
@@ -57,6 +61,9 @@ def ceiling_for(lock: Mapping[str, Any]) -> int:
 
 def arm(budget: Any, ceiling: int | None) -> None:
     """Guard every later API call with ``budget`` (an ``ApiBudget``) and the per-document ceiling."""
+    queue = getattr(_PENDING, "prices", None)
+    if queue is not None:
+        queue.clear()  # a new run does not price the previous run's replies
     if budget is not None:
         budget.start_live()
     with _LOCK:
@@ -229,17 +236,48 @@ def before_call(prompt_tokens: int = 0, completion_tokens: int = 0) -> float:
     return estimate if budget is not None else 0.0
 
 
-def settle(reserved_usd: float, *, billed: bool) -> None:
-    """End a request's reservation; ``billed`` charges it (a failure the provider may have billed)."""
+def _pending() -> deque[tuple[int, float]]:
+    queue = getattr(_PENDING, "prices", None)
+    if queue is None:
+        queue = deque()
+        _PENDING.prices = queue
+    return queue
+
+
+def _take_pending(budget: Any) -> float:
+    """The oldest success reservation this thread still has to price for ``budget`` (0 when none)."""
+    queue = getattr(_PENDING, "prices", None)
+    if not queue:
+        return 0.0
+    key = budget.hold_token
+    while queue and queue[0][0] != key:
+        queue.popleft()
+    if not queue:
+        return 0.0
+    return queue.popleft()[1]
+
+
+def settle(reserved_usd: float, *, billed: bool, await_price: bool = False) -> None:
+    """End a request's reservation.
+
+    ``billed`` charges it, in the same step that drops it (a failure the provider may have billed).
+    ``await_price`` keeps a success's worst-case cost against the cap until ``after_call`` prices the
+    usage this thread records for it. Neither flag releases a rejection (HTTP 4xx, never connected).
+    """
     budget = _STATE["budget"]
     if budget is None or not reserved_usd:
         return
-    budget.release(reserved_usd)
     if billed:
-        budget.charge_unreported(reserved_usd)
+        budget.settle_billed(reserved_usd)
         doc = _DOC.get()
         if doc is not None:
             doc["spend_usd"] += float(reserved_usd)
+        return
+    if await_price:
+        budget.release_to_settling(reserved_usd)
+        _pending().append((budget.hold_token, float(reserved_usd)))
+        return
+    budget.release_unbilled(reserved_usd)
 
 
 def _status_code(exc: BaseException) -> int | None:
@@ -293,7 +331,11 @@ def after_call(usage: Any) -> None:
     else:
         prompt = getattr(usage, "prompt_tokens", None)
         completion = getattr(usage, "completion_tokens", None)
-    cost = budget.add_live(_count(prompt), _count(completion))
+    pending = _take_pending(budget)
+    if pending:
+        cost = budget.price_settling(pending, budget.estimate_call_usd(_count(prompt), _count(completion)))
+    else:
+        cost = budget.add_live(_count(prompt), _count(completion))
     if doc is not None:
         doc["calls"] += 1
         doc["spend_usd"] += float(cost or 0.0)

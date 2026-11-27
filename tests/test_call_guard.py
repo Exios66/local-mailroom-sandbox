@@ -237,9 +237,32 @@ def test_a_settled_success_releases_and_after_call_prices_the_real_usage():
     budget = _armed(cap=1.0)
     held = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
     call_guard.settle(held, billed=False)
-    assert budget.reserved_usd == 0.0 and budget.unreported_usd == 0.0
+    assert budget.reserved_usd == 0.0 and budget.unreported_usd == 0.0 and budget.settling_usd == 0.0
     call_guard.after_call({"prompt_tokens": 100_000, "completion_tokens": 0})
     assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(100_000, 0))
+
+
+def test_a_success_holds_the_cap_until_its_usage_is_priced():
+    """The reply is back before record_usage prices it. Dropping the reservation there lets the next
+    request through, and the real bill lands after it has already gone out."""
+    budget = _armed(cap=0.05)
+    held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)  # about $0.03
+    call_guard.settle(held, billed=False, await_price=True)
+    assert budget.reserved_usd == 0.0 and budget.settling_usd == pytest.approx(held)
+    with pytest.raises(Exception, match="awaiting price"):
+        call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+    call_guard.after_call({"prompt_tokens": 1, "completion_tokens": 0})
+    assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(1, 0))
+    call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)  # the real bill left room
+
+
+def test_a_rejected_request_frees_the_cap():
+    budget = _armed(cap=0.05)
+    held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+    call_guard.settle(held, billed=False)  # HTTP 4xx or never connected: not billed
+    assert budget.reserved_usd == 0.0 and budget.settling_usd == 0.0 and budget.unreported_usd == 0.0
+    call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
 
 
 class _Status(Exception):

@@ -12,6 +12,7 @@ served, so the estimate errs high: the safe direction for a ceiling.
 
 from __future__ import annotations
 
+import itertools
 import math
 import threading
 from collections.abc import Iterable, Mapping
@@ -132,6 +133,9 @@ def budget_errors(lock: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+_HOLD = itertools.count()
+
+
 class ApiBudget:
     """Running API token spend against ``job.api_cost_cap_usd``.
 
@@ -150,10 +154,12 @@ class ApiBudget:
         self.documents = 0
         self.live_usd = 0.0  # per-call spend since start_live()
         self.reserved_usd = 0.0  # worst-case cost of requests sent but not yet settled (call_guard)
+        self.settling_usd = 0.0  # a success's reservation, held until after_call prices the real usage
         self.unreported_usd = 0.0  # failed requests that may have been billed, charged at their reservation
         self._live_base: float | None = None  # spent_usd when live tracking started
         self._lock = threading.Lock()
         self._reserve_lock = threading.Lock()  # serialises check-and-reserve (try_reserve)
+        self.hold_token = next(_HOLD)  # identifies this budget's unpriced successes; never reused
 
     def _cost(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> float:
         """Price the tokens at each model's tier for the average call size, the dearest model winning."""
@@ -213,6 +219,43 @@ class ApiBudget:
         with self._lock:
             self.reserved_usd = max(0.0, self.reserved_usd - max(0.0, float(usd)))
 
+    def release_to_settling(self, usd: float) -> None:
+        """Move a finished success's reservation onto ``settling_usd`` until its usage is priced.
+
+        The cap still counts it. Releasing first and pricing later lets another request pass in the gap.
+        """
+        usd = max(0.0, float(usd))
+        with self._reserve_lock:
+            with self._lock:
+                self.reserved_usd = max(0.0, self.reserved_usd - usd)
+                self.settling_usd += usd
+
+    def price_settling(self, reserved_usd: float, cost: float) -> float:
+        """Replace one success's held reservation with the priced cost of its usage. Returns that cost."""
+        reserved_usd = max(0.0, float(reserved_usd))
+        cost = max(0.0, float(cost))
+        with self._reserve_lock:
+            with self._lock:
+                self.settling_usd = max(0.0, self.settling_usd - reserved_usd)
+                self.live_usd += cost
+        return cost
+
+    def settle_billed(self, usd: float) -> None:
+        """Drop a reservation and charge it, as one step (a failure the provider may have billed)."""
+        usd = max(0.0, float(usd))
+        with self._reserve_lock:
+            with self._lock:
+                self.reserved_usd = max(0.0, self.reserved_usd - usd)
+                self.live_usd += usd
+                self.unreported_usd += usd
+
+    def release_unbilled(self, usd: float) -> None:
+        """Drop a reservation the provider did not bill (HTTP 4xx, or the request never connected)."""
+        usd = max(0.0, float(usd))
+        with self._reserve_lock:
+            with self._lock:
+                self.reserved_usd = max(0.0, self.reserved_usd - usd)
+
     def charge_unreported(self, usd: float) -> None:
         """Charge a request that failed without usage but may have been billed (its reservation)."""
         usd = max(0.0, float(usd))
@@ -242,16 +285,21 @@ class ApiBudget:
 
         ``in_flight`` documents have started but not finished: their spend is not in the total yet,
         so concurrent runs count each at the mean finished-document cost. Requests in flight hold their
-        reservation (``reserved_usd``), and ``extra_usd`` is the next request's own estimate.
+        reservation (``reserved_usd``), a success not yet priced holds ``settling_usd``, and ``extra_usd``
+        is the next request's own estimate.
         """
         # Per-call spend bounds documents still running; the projection covers the rest.
         with self._lock:
             reserved = self.reserved_usd
-        projected = max(self.projected_usd(in_flight), self.live_total_usd() + reserved + max(0.0, extra_usd))
+            settling = self.settling_usd
+        projected = max(self.projected_usd(in_flight),
+                        self.live_total_usd() + reserved + settling + max(0.0, extra_usd))
         if projected >= self.cap_usd:
             pending = f", {in_flight} in flight" if in_flight else ""
             if reserved:
                 pending += f", ${reserved:.4f} reserved"
+            if settling:
+                pending += f", ${settling:.4f} awaiting price"
             if extra_usd:
                 pending += f", next call est ${extra_usd:.4f}"
             return (f"api_cost_cap_usd={self.cap_usd} reached (est_api_usd={projected:.4f}{pending} "

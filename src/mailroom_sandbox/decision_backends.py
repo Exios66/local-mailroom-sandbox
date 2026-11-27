@@ -838,8 +838,9 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             call_guard.note_failed_attempt()
             raise
         else:
-            # Settled before the body is read: a 200 is priced by after_call below, a 5xx may have been billed.
-            call_guard.settle(held, billed=resp.status_code >= 500)
+            # A 200 stays on the cap until after_call prices it. A 5xx is charged as the reservation
+            # drops; a 4xx is released. Both happen before the body is read.
+            call_guard.settle(held, billed=resp.status_code >= 500, await_price=resp.status_code == 200)
             if resp.status_code == 200:
                 data = resp.json()
                 # The single live charge for this HTTP response. HF-004 also
