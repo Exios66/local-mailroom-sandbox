@@ -84,6 +84,14 @@ class Script:
     # What the sorter reviewer answers when the sorter is in the medium band (``sorter=None``).
     reviewer_causes: list[str] = field(default_factory=lambda: ["reviewer_low_confidence"])
     reviewer_doc_type: str = "corporate_record"
+    # Phase 4 correcting judge (``judge: mode: correct``, activated by the test): one reply per
+    # ruling call, matched on the "Rule on this extraction." prompt. None leaves the judge unscripted.
+    rulings: list[dict[str, Any]] | None = None
+    # The re-extraction runs the real retry_extract node (HF-027's field-only retry); its specialist
+    # call is answered with ``retry_payload`` and the schema it was sent is captured.
+    real_retry: bool = False
+    retry_payload: dict[str, Any] = field(default_factory=lambda: {
+        "entity_name": "Cedar Sample Limited", "record_type": "resolution", "confidence": 0.95})
 
 
 def activate_profile(monkeypatch, tmp_path, profile: str, *, reviewer: bool = False):
@@ -120,7 +128,8 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
     monkeypatch.setattr(retry, "is_transient_error",
                         lambda exc: isinstance(exc, Blip) or original_transient(exc))
     calls: dict[str, Any] = {"judge_c": 0, "judge_a": 0, "judge_c_reasks": 0, "judge_a_reasks": 0, "arbiter": 0,
-                             "carb": 0, "decisions_posts": 0, "boss": 0, "arbiter_prompts": [], "arbiter_schemas": []}
+                             "carb": 0, "decisions_posts": 0, "boss": 0, "arbiter_prompts": [], "arbiter_schemas": [],
+                             "rulings": 0, "ruling_prompts": [], "retry_schemas": []}
     passes = {"n": 0}
     # HF-002 / HF-013 ask a judge once more after a parse failure: the call that follows a parse
     # failure of the same method is its re-ask, not a new pass.
@@ -168,6 +177,19 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
 
     monkeypatch.setattr(CompletenessJudge, "_call_structured", judge_call)
     monkeypatch.setattr(ArbiterAgent, "_call_structured", arbiter_call)
+    if script.rulings is not None:
+        from mailroom_sandbox import correcting_judge
+        from mailroom_sandbox.job import call_guard
+
+        def ruling_call(self, user_message, *a, **k):
+            assert user_message.startswith("Rule on this extraction."), user_message[:80]
+            i = calls["rulings"]
+            calls["rulings"] += 1
+            calls["ruling_prompts"].append(user_message)
+            call_guard.after_call({})  # one returned model call, as the pinned client counts it
+            return dict(pick(script.rulings, i))
+
+        monkeypatch.setattr(correcting_judge.CorrectingJudge, "_call_structured", ruling_call)
     if script.decisions_down:
         import httpx
 
@@ -226,6 +248,24 @@ def run(bg, monkeypatch, script: Script) -> dict[str, Any]:
 
         monkeypatch.setattr(bg, "_run_chunked_extraction", refuse_extract)
         del scripted["extract"], scripted["retry_extract"]
+    if script.real_retry:
+        from langchain_agents.specialist_agents import SPECIALIST_SCHEMAS
+
+        from mailroom_sandbox.job import call_guard
+
+        def chunked(agent_fn, doc_text, pages, handoff_context):
+            agent = bg._instantiate_specialist(agent_fn, handoff_context)  # HF-023 binds the chosen schema
+
+            def capture(self, user_message, json_schema=None, *a, **k):
+                calls["retry_schemas"].append(json_schema)
+                call_guard.after_call({})
+                return dict(script.retry_payload)
+
+            monkeypatch.setattr(type(agent), "_call_structured", capture, raising=False)
+            return agent._call_structured("Extract this document's fields", SPECIALIST_SCHEMAS["corporate_record"])
+
+        monkeypatch.setattr(bg, "_run_chunked_extraction", chunked)
+        del scripted["retry_extract"]
     if not script.decisions_down:
         scripted["review_classify"] = lambda s: {
             "review_verdict": "decision_parks", "review_route": "human_review", "reviewer_confidence": 0.4,

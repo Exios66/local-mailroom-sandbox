@@ -34,6 +34,7 @@ from mailroom_sandbox.job.spec import (
     RunSpec,
     core_hash,
     engine_base_url,
+    judge_core,
     resolve_run_id,
     run_dir,
     spec_core,
@@ -561,6 +562,35 @@ def _missing_reviewer_errors(spec: RunSpec) -> list[str]:
     return []
 
 
+def _judge_errors(spec: RunSpec) -> list[str]:
+    """Phase 4 ``judge: mode: correct``: priced, pinned judge models on OpenRouter, and the pool file.
+
+    Verify mode runs today's judge on the pipeline's judge model, so it adds nothing to check.
+    """
+    judge = spec.judge
+    if judge is None or judge.mode != "correct":
+        return []
+    from mailroom_sandbox import correcting_judge, provider_pins
+    from mailroom_sandbox.agent_routes import describe
+    from mailroom_sandbox.job.api_budget import unpriced
+
+    errs: list[str] = []
+    models = correcting_judge.judge_models(judge.model_dump())
+    errs += [f"judge model {model} has no price in config/api_prices.yaml" for model in unpriced(models)]
+    pins = provider_pins.load_pins()
+    errs += [f"judge model {model} has no provider pin in config/provider_pins.yaml (served model must match)"
+             for model in models if not ((pins.get(model) or {}).get("order"))]
+    provider = str((describe(spec).get("judge") or {}).get("provider") or "")
+    if provider != "openrouter":
+        errs.append(f"judge.mode correct calls its judge models on OpenRouter; profile {spec.profile!r} routes the "
+                    f"judge to {provider or 'nothing'}")
+    from mailroom_sandbox.judge_references import pool_path
+
+    if judge.reference_pool and not pool_path(judge.reference_pool).is_file():
+        errs.append(f"judge.reference_pool {judge.reference_pool} is not a file")
+    return errs
+
+
 def _openrouter_key_error(spec: RunSpec) -> list[str]:
     # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
     needs_key = spec.engine.kind == "openrouter" and not spec.job.mock
@@ -614,6 +644,7 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         *_confidence_class_errors(spec),
         *_agent_route_errors(spec),
         *_decision_slots_errors(spec),
+        *_judge_errors(spec),
         *_archive_check_errors(spec),
         *_reviewer_class_errors(spec),
         *_jev_backend_errors(spec),
@@ -1757,6 +1788,24 @@ def _prepare_dataset_rows(spec: RunSpec, store, report: dict[str, Any]):
             report["status"] = "failed"
             report["checks"].append({"name": "heldout_seal", "ok": False, "detail": "; ".join(leaked)})
             return None, report
+    if spec.judge is not None and spec.judge.references == "train_pool":
+        from mailroom_sandbox import judge_references
+        from mailroom_sandbox.correcting_judge import reference_set_errors
+
+        from mailroom_sandbox.job.spec import judge_core
+
+        ids = [str(row.get("id")) for row in store.dataset_rows()]
+        components = judge_references.assigned_components()
+        scanned_sha, pool_rows = judge_references.read_pool(spec.judge.reference_pool)
+        refused = [*reference_set_errors(spec, ids),
+                   *judge_references.pool_leaks(pool_rows, {doc_id: components.get(doc_id, doc_id) for doc_id in ids})]
+        if scanned_sha != judge_core(spec.judge)["reference_pool_sha256"]:
+            # The leak scan must cover the bytes the lock pins; a pool edited mid-preflight is refused.
+            refused.append(f"judge.reference_pool {spec.judge.reference_pool} changed during preflight; re-run it")
+        if refused:
+            report["status"] = "failed"
+            report["checks"].append({"name": "judge_references", "ok": False, "detail": "; ".join(refused)})
+            return None, report
     failed = _target_row_failure(spec, store, report)
     if failed is not None:
         return None, failed
@@ -1926,6 +1975,7 @@ def _commit_prepared_lock(spec: RunSpec, opened: _OpenRun, prov: Mapping[str, An
         **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
         **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
         **({"decision_slots": _decision_slots_lock(spec)} if spec.decision_slots else {}),
+        **({"judge": judge_core(spec.judge)} if spec.judge else {}),
         **({"confidence": spec.confidence} if spec.confidence else {}),
         "prompt": opened.prompt_block,
         "engine": spec.engine.model_dump(),
