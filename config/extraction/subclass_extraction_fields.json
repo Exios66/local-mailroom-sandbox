@@ -390,9 +390,7 @@
       },
       "board_resolution": {
         "add": {},
-        "drop": [
-          "filing_number"
-        ],
+        "drop": [],
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
@@ -446,9 +444,7 @@
       },
       "officer_certificate": {
         "add": {},
-        "drop": [
-          "filing_number"
-        ],
+        "drop": [],
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
@@ -468,9 +464,7 @@
       },
       "powers_of_attorney": {
         "add": {},
-        "drop": [
-          "filing_number"
-        ],
+        "drop": [],
         "guide": {
           "effective_date": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
           "entity_name": "name: The corporation or entity the record is about, full legal name as written.",
@@ -702,6 +696,6 @@
       }
     }
   },
-  "registry_sha256": "012e748e47feff608496013f7975aa843285b06c6e773f1a6fdd6d7408825515",
+  "registry_sha256": "3cbe53e1cf5d0e0171cbcb6fbd8bc94c15694233c76b733147eb38ae28ffb0cc",
   "schema": "mailroom.subclass_extraction_fields/v1"
 }

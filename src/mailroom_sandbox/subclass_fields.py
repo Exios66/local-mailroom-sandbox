@@ -6,7 +6,9 @@ Runs hash the committed file into their lock and never rebuild it. Every (class,
 subclass) in the registry gets an entry:
 
 * ``drop``: class-schema fields the vendored Dojo marks ``not_applicable`` for the
-  subclass. That status comes from the Dojo field map, not from labels.
+  subclass, unless a dev, calibration or pool label gives the field a value there (the
+  registry's ``valued_by_set``): the scorer counts a labeled value, so dropping it would turn
+  a hit into a miss. The status comes from the Dojo field map, not from labels.
 * ``add``: fields outside the class schema with dev, calibration or pool labels whose Dojo
   status is an extraction status (not ``not_applicable``, ``label_task``,
   ``pending_annotation`` or ``absent_from_dojo``).
@@ -38,8 +40,8 @@ def _canonical_sha256(registry: Mapping[str, Any]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _schema_labels(entry: Mapping[str, Any]) -> int:
-    by_set = entry.get("labeled_by_set") or {}
+def _schema_count(entry: Mapping[str, Any], key: str) -> int:
+    by_set = entry.get(key) or {}
     return sum(int(by_set.get(name) or 0) for name in SCHEMA_SETS)
 
 
@@ -51,10 +53,10 @@ def _subclass_lists(fields: Mapping[str, Any], output_fields: set[str]) -> dict[
         entry = fields[name]
         status = entry.get("dojo_status")
         if name in output_fields:
-            if status == "not_applicable":
+            if status == "not_applicable" and _schema_count(entry, "valued_by_set") <= 0:
                 drop.append(name)
                 continue
-        elif status in _NOT_EXTRACTION or _schema_labels(entry) <= 0:
+        elif status in _NOT_EXTRACTION or _schema_count(entry, "labeled_by_set") <= 0:
             continue
         else:
             add[name] = {"type": str(entry.get("type") or "text")}

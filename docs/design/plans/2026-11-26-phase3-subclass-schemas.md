@@ -35,6 +35,23 @@ The spec assumed the registry held labels for the corporate extension fields. It
 
    The sorter reports no separate subclass confidence.
 
+**As built (execution rulings, 2026-11-27):**
+
+- **The drop rule is tighter than decision 1.** A not-applicable field is dropped only when no dev,
+  calibration or pool label gives it a value. The interim overlay gives corporate `filing_number` real values
+  on `board_resolution`, `officer_certificate` and `powers_of_attorney`, and the scorer counts a labeled
+  value. The registry gained a per-field `valued_by_set` for this.
+- **What is dropped:** `filing_number` on `bylaws`, `indenture` and `rights_instrument`; all three fields on
+  `subsidiary_list`; and the three merger fields on every merger subclass.
+- **Bylaws `filing_number`.** Its one value label is held-out, so it is still dropped, and that document
+  scores the field as a miss. This is the cost of the held-out rule.
+- **Where HF-020 hooks in.** It targets `_instantiate_specialist` and swaps the schema per specialist
+  instance, instead of stacking on HF-009's `_run_chunked_extraction` and patching `_call_structured` on the
+  classes. Hotfix marks are per attribute, and the sampling layer's native path bypasses a class wrapper.
+- **Coverage.** All five classes are covered and tested, at the owner's request. Contract, correspondence and
+  insurance subclasses get their own schema, which equals the class schema until a field is dropped or added
+  (or `job.schema_guide` adds guide text).
+
 Consequences for the spec's other bullets:
 
 - **Scorer allow-list.** It gains nothing today. Every possible extension field (a corporate Dojo entity) is already allowed by `eval/extraction_scope._allowed_fields`, so no SHF is re-pinned. A test (Task 4) fails if a future added field is not scoreable, and that is when an SHF change is due.
@@ -93,7 +110,7 @@ Consequences for the spec's other bullets:
   - **add:** a field not in `output_schema_fields` with `dojo_status` not in (`not_applicable`, `label_task`, `pending_annotation`, `absent_from_dojo`), and with `labeled_by_set["dev"] + ["calibration"] + ["pool"] > 0`.
   - **guide:** the entry's `guide` string, for kept and added fields that have one.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_subclass_fields.py`, using the real committed registry unless noted:
+- [x] **Step 1: Write the failing tests** in `tests/test_subclass_fields.py`, using the real committed registry unless noted:
   - `test_not_applicable_class_fields_are_dropped`:
     - `subsidiary_list` drop == `["filing_number", "jurisdiction", "signatories"]`;
     - merger `all_cash` drop == `["intent", "keywords", "subject_matter"]`;
@@ -103,10 +120,10 @@ Consequences for the spec's other bullets:
   - `test_a_held_out_only_extension_field_is_not_added`: the same field with only `heldout: 5` is absent from `add`.
   - `test_label_task_fields_are_never_added`: no correspondence subclass has `content_topic` or `sentiment_label` in `add`.
   - `test_the_committed_field_lists_match_the_registry`: `load_field_lists() == build_field_lists(json.load(registry))`, and `registry_sha256` matches the registry file.
-- [ ] **Step 2: Run them.** `.venv/bin/python -m pytest -q tests/test_subclass_fields.py -n 0 --no-cov`. Expected: FAIL (module missing).
-- [ ] **Step 3: Implement `subclass_fields.py` and the script, then generate the file.** `python scripts/build_subclass_fields.py`.
-- [ ] **Step 4: Run them again.** Same command. Expected: all PASS. `python scripts/build_subclass_fields.py --check` exits 0.
-- [ ] **Step 5: Commit** `feat(subclass): committed subclass field lists from the label registry (phase3 task 1)`.
+- [x] **Step 2: Run them.** `.venv/bin/python -m pytest -q tests/test_subclass_fields.py -n 0 --no-cov`. Expected: FAIL (module missing).
+- [x] **Step 3: Implement `subclass_fields.py` and the script, then generate the file.** `python scripts/build_subclass_fields.py`.
+- [x] **Step 4: Run them again.** Same command. Expected: all PASS. `python scripts/build_subclass_fields.py --check` exits 0.
+- [x] **Step 5: Commit** `feat(subclass): committed subclass field lists from the label registry (phase3 task 1)`.
 
 ### Task 2: Schema selection
 
@@ -131,7 +148,7 @@ Consequences for the spec's other bullets:
   - Each `add` field becomes `properties[f] = {"type": ["array", "null"], "items": {"type": "string"}}` when its registry type is `list` or ends in `_list`. Otherwise it is `{"type": ["string", "null"]}`. It is appended to `required` when `base["required"]` lists every base property; strict structured output needs that.
   - With `guide=True`, each kept or added field with guide text gets that text as its `description`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_a_listed_subclass_gets_its_narrowed_schema`:
     - `corporate_record` / `subsidiary_list`, with confidence 0.99 and the real `SPECIALIST_SCHEMAS["corporate_record"]`;
     - `filing_number` is in neither `properties` nor `required`, and the reason is `"subclass"`;
@@ -144,10 +161,10 @@ Consequences for the spec's other bullets:
     - `0.6` gets `"subclass"`.
   - `test_an_added_field_is_requested`: synthetic lists with `add: {"certifying_officer": {"type": "name"}}` on `bylaws`. The field is in `properties` and in `required`.
   - `test_guide_text_replaces_descriptions_only_with_schema_guide`. With `guide=False`, descriptions equal the base's. With `guide=True`, a field with guide text carries it.
-- [ ] **Step 2: Run them.** `.venv/bin/python -m pytest -q tests/test_subclass_extraction.py -n 0 --no-cov`. Expected: FAIL.
-- [ ] **Step 3: Implement the module.**
-- [ ] **Step 4: Run them again.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(subclass): choose a subclass extraction schema with class fallback (phase3 task 2)`.
+- [x] **Step 2: Run them.** `.venv/bin/python -m pytest -q tests/test_subclass_extraction.py -n 0 --no-cov`. Expected: FAIL.
+- [x] **Step 3: Implement the module.**
+- [x] **Step 4: Run them again.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(subclass): choose a subclass extraction schema with class fallback (phase3 task 2)`.
 
 ### Task 3: The switch, the lock and HF-020
 
@@ -177,7 +194,7 @@ Consequences for the spec's other bullets:
     Wrappers 3 and 4 replace `json_schema` with the active choice only when `json_schema is` the base schema object the choice was made from. Every other call is untouched.
   - Off (`active()` false), every wrapper passes straight through.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_subclass_schemas_is_off_by_default_and_unhashed` (test_job_spec): a pipeline spec without the key has the same `spec_hash` as before, and `spec_core` has no `subclass_` keys.
   - `test_subclass_schemas_requires_a_pipeline_task` (test_job_spec): the key on a non-pipeline task fails validation.
   - `test_the_lock_changes_when_the_field_list_changes`: monkeypatch `FIELDS_PATH` to a temporary copy, then change one `drop` list. `spec_hash` differs.
@@ -191,16 +208,16 @@ Consequences for the spec's other bullets:
   - `test_every_chunk_gets_the_narrowed_schema`: a document longer than one window (monkeypatch the chunk config to small windows). Every captured call uses the narrowed schema, and the merged result is returned.
   - `test_the_narrowed_schema_ends_with_its_extraction`: after the extraction returns, a `_call_structured` with the class schema (as the judge would make) is not replaced, and `_ACTIVE` is unset.
   - `test_hf020_is_registered_and_current` (test_vendor_hotfixes): HF-020 is in `HOTFIXES` and its targets are not stale.
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
 
   ```bash
   .venv/bin/python -m pytest -q tests/test_subclass_extraction.py tests/test_job_spec.py tests/test_vendor_hotfixes.py -n 0 --no-cov
   ```
 
   Expected: the new tests FAIL.
-- [ ] **Step 3: Implement the spec field, `spec_core`, runtime activation (deactivate when the locked job has it off) and HF-020.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS. Then run `tests/test_runtime.py`, `tests/test_schema_guide.py` and `tests/test_scoring_hotfix_fingerprint.py`. Expected: PASS, with no SHF made stale.
-- [ ] **Step 5: Commit** `feat(subclass): job.subclass_schemas switch, lock hash and HF-020 (phase3 task 3)`.
+- [x] **Step 3: Implement the spec field, `spec_core`, runtime activation (deactivate when the locked job has it off) and HF-020.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS. Then run `tests/test_runtime.py`, `tests/test_schema_guide.py` and `tests/test_scoring_hotfix_fingerprint.py`. Expected: PASS, with no SHF made stale.
+- [x] **Step 5: Commit** `feat(subclass): job.subclass_schemas switch, lock hash and HF-020 (phase3 task 3)`.
 
 ### Task 4: Scoring guards and docs
 
@@ -219,7 +236,7 @@ Consequences for the spec's other bullets:
 
 - Consumes: the committed lists (Task 1) and `eval.scoring.score_extraction_row(doc_type, predicted, expected, doc_subclass=...)`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_a_dropped_field_never_changes_a_score`: for every (class, subclass, field) in a committed `drop` list:
     - build `expected` with that field set to a non-empty value plus one kept field, and score two predictions with `score_extraction_row`: one with the field set to the same value, one without the field;
     - the headline score and the field events are equal.
@@ -227,15 +244,15 @@ Consequences for the spec's other bullets:
     If this fails for a field, the builder must also keep any field the scorer counts. Record that as a ruling and add that condition to Task 1's drop rule.
   - `test_every_added_field_is_scoreable`: for every committed `add` field, `applicable_expected_fields(cls, {f: "x"})` keeps `f`. Also check the synthetic `bylaws`/`certifying_officer` case from Task 1.
   - `test_docs_name_hf020`: `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` each mention `HF-020`, if the existing hotfix-doc test does not already enforce this. Check `tests/test_vendor_hotfixes.py` first and skip this test if it does.
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
 
   ```bash
   .venv/bin/python -m pytest -q tests/test_subclass_extraction.py -n 0 --no-cov
   ```
 
   Expected: the docs test FAILs. The scoring tests PASS if the Dojo skips `not_applicable` fields, as `extraction_schemas.py` documents; a pass there is a finding to record, not a skipped RED.
-- [ ] **Step 3: Write the docs.**
-- [ ] **Step 4: Run every touched test file.**
+- [x] **Step 3: Write the docs.**
+- [x] **Step 4: Run every touched test file.**
 
   ```bash
   .venv/bin/python -m pytest -q tests/test_subclass_fields.py tests/test_subclass_extraction.py tests/test_job_spec.py tests/test_vendor_hotfixes.py tests/test_runtime.py tests/test_schema_guide.py tests/test_scoring_hotfix_fingerprint.py tests/test_docs_drift.py tests/test_doc_paths.py -n 0 --no-cov
@@ -243,7 +260,7 @@ Consequences for the spec's other bullets:
   ```
 
   Expected: PASS and clean.
-- [ ] **Step 5: Commit** `docs(subclass): document job.subclass_schemas and HF-020; scoring guards (phase3 task 4)`.
+- [x] **Step 5: Commit** `docs(subclass): document job.subclass_schemas and HF-020; scoring guards (phase3 task 4)`.
 
 ## Risks and follow-ups
 

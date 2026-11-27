@@ -553,6 +553,42 @@ The block is part of the hashed spec when set (not when absent), and HF-018 and 
 [Checkpoint / resume](#checkpoint--resume)). The near-duplicate index is in-process: near copies are found among
 the documents this process has seen in the run.
 
+## Subclass extraction schemas (`job.subclass_schemas`)
+
+Phase 3 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (X1,
+"narrow and extend"). Off by default. With `job.subclass_schemas: true` (`task: pipeline` only), every
+extraction is sent the schema of the document's **predicted** subclass instead of the whole class schema.
+This applies to all five classes: contract (by `contract_subtype`), merger agreement, corporate record,
+correspondence and insurance claim (by `doc_subclass`).
+
+The schemas come from a committed file, `config/extraction/subclass_extraction_fields.json`. It is derived
+from the label registry `config/extraction/subclass_schemas.json` by `python scripts/build_subclass_fields.py`
+(`--check` fails when stale, and `tests/test_subclass_fields.py` checks it too). Every subclass of every class
+has an entry:
+
+- **drop**: class fields the vendored Dojo marks `not_applicable` for the subclass, unless a dev,
+  calibration or pool label gives the field a value there (the registry's `valued_by_set`). The scorer
+  counts a labeled value, so dropping that field would turn a hit into a miss. Today that is merger
+  `intent`, `keywords` and `subject_matter`, and corporate `filing_number` on four subclasses (plus
+  `jurisdiction` and `signatories` on `subsidiary_list`).
+- **add**: fields outside the class schema with dev, calibration or pool labels and an extraction status.
+  Today there are none: the corporate entity fields have no labels yet, and correspondence `content_topic`
+  and `sentiment_label` are label tasks, not extraction fields.
+- **guide**: the labeling-guide text. It replaces a kept or added field's description only when
+  `job.schema_guide` is also on.
+
+Held-out labels never shape a list: only the `dev`, `calibration` and `pool` counts are read.
+
+The class schema is kept when the predicted subclass is missing, `unknown`, `other` or not listed, or
+when `classification_confidence` is missing or below the class's `low` band. The sorter reports no
+separate subclass confidence.
+
+The switch and the file's sha256 are hashed into `spec_hash` only when set. At activation the runtime
+refuses a field list whose sha differs from the locked one, so re-run preflight after rebuilding it. HF-020
+applies the choice: one specialist instance serves one document's extraction and every chunk window, and it
+alone is given the narrowed schema. The judge, the arbiter and the next document still see the class schema.
+HF-020 changes the locked hotfix set, so a run locked before it resumes only with `--force`.
+
 ## Read ranges (`job.trace_reads`)
 
 A `task: pipeline` run records which character ranges of each document's working

@@ -191,6 +191,8 @@ class _Subclass:
     problems: list[dict[str, Any]]
     labeled: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     by_set: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
+    # Labels that carry a value (not a blank or a not-applicable mark), by set: what a schema may keep.
+    valued_by_set: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     values: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
 
     @property
@@ -230,6 +232,8 @@ class _Subclass:
                 self.labeled[name][src] += 1
                 self.by_set[name][self.sets.get(str(r.get("id")), "unassigned")] += 1
                 val = _value(exp.get(name))
+                if val not in (None, "", [], {}):
+                    self.valued_by_set[name][self.sets.get(str(r.get("id")), "unassigned")] += 1
                 self.values[name].append(val)
                 self._check_vocabulary(name, val, r.get("id"), src)
             corp = self.corp
@@ -268,6 +272,7 @@ class _Subclass:
         }
         if sets:
             entry["labeled_by_set"] = {s: self.by_set[name].get(s, 0) for s in SETS}
+            entry["valued_by_set"] = {s: self.valued_by_set[name].get(s, 0) for s in SETS}
         if dominant:
             entry["dominant"] = dominant
         if name in entities:

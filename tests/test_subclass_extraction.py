@@ -242,3 +242,45 @@ def test_the_narrowed_schema_ends_with_its_extraction(captured, schemas, lists, 
     agent = CorporateRecordsSpecialist()  # a later caller (the judge, the next document) builds its own agent
     agent._call_structured("again", json_schema=schemas["corporate_record"])
     assert captured[0][1] is schemas["corporate_record"]
+
+
+# --- Task 4: scoring guards -------------------------------------------------------------------
+
+_KEPT = {"merger_agreement": "document_name", "corporate_record": "entity_name", "contract": "document_name",
+         "correspondence": "sender", "insurance_claim": "claim_number"}
+
+
+def _score(cls, sub, predicted, expected):
+    from mailroom_sandbox.eval.scoring import score_extraction_row
+
+    out = score_extraction_row(cls, dict(predicted), dict(expected), doc_subclass=sub, field_scores=True)
+    return out["overall_extraction_score"], out.get("field_scores")
+
+
+def _drops(lists):
+    return [(cls, sub, f) for cls, subs in lists["classes"].items() for sub, e in subs.items() for f in e["drop"]]
+
+
+def test_a_dropped_field_never_changes_a_score(lists):
+    runtime.activate(load_env_file=False)
+    drops = _drops(lists)
+    assert drops
+    for cls, sub, field in drops:
+        kept = _KEPT[cls]
+        # The truth every dropped field carries: blank, marked not applicable (Hub gt_presence).
+        expected = {kept: "Acme Holdings Inc.", field: "", "gt_presence": {field: "not_applicable"}}
+        asked = _score(cls, sub, {kept: "Acme Holdings Inc.", field: None}, expected)
+        dropped = _score(cls, sub, {kept: "Acme Holdings Inc."}, expected)
+        assert dropped == asked, (cls, sub, field)
+        stated = _score(cls, sub, {kept: "Acme Holdings Inc.", field: "a stated value"}, expected)
+        assert dropped[0] >= stated[0], (cls, sub, field)  # dropping can only remove a false positive
+
+
+def test_every_added_field_is_scoreable(lists):
+    from mailroom_sandbox.eval.extraction_scope import applicable_expected_fields
+
+    runtime.activate(load_env_file=False)
+    added = [(cls, f) for cls, subs in lists["classes"].items() for e in subs.values() for f in e["add"]]
+    added.append(("corporate_record", "certifying_officer"))  # the synthetic extension of Task 1
+    for cls, field in added:
+        assert field in applicable_expected_fields(cls, {field: "x"}), (cls, field)
