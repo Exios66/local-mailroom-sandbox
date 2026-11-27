@@ -118,6 +118,7 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
 | `docs-audit-tool-router` | Full README/docs staleness sweeps: links, paths, CLI/defaults, pins, versions, counts and generated artifacts |
+| `openrouter` | **Default** experimental/deployment provider, API routes and spend preflight |
 | `modal` | Explicit GPU serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
 | `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |

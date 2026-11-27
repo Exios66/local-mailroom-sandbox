@@ -22,6 +22,7 @@ must be checked locally. Suppress quota-only review notifications.
 
 | Job | Use | Skill | Do **not** use |
 | --- | --- | --- | --- |
+| Default experimental/deployment API provider | OpenRouter (`openrouter`; new experiment creation selects it explicitly) | [openrouter](../openrouter/SKILL.md) | Provider/model fallback after failed auth; paid calls for log inspection |
 | Offline / CPU-only inference | Ollama (`--profile ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
 | Explicit GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`; drive it with `sandbox modal …` / `sandbox vllm …`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
@@ -31,7 +32,7 @@ must be checked locally. Suppress quota-only review notifications.
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
 | Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |
-| Floor viewer / offline replay | `sandbox floor [TARGET]` / `sandbox floor --replay` | [huggingface](../huggingface/SKILL.md) for sample provenance | Model calls for a UI demo; quoting simulated results as measurements |
+| Floor viewer / saved logs / offline replay | `sandbox floor [TARGET]` / `--register-run DIR` / `--replay-run DIR` / `--replay` | [huggingface](../huggingface/SKILL.md) for artifact/sample provenance | Model calls for log inspection; quoting replay output as a new measurement |
 | Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite/coverage; separately scoped hosted jobs for needed campaigns/benchmarks | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; assuming campaign/benchmark jobs already exist; weakening merge gates |
 | Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
@@ -79,6 +80,10 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
   a labeled run into that base and uses simulated results, never inference.
   A foreign or symlinked replay directory is refused; do not delete it to bypass
   the ownership check. See [sample provenance](../../../data/fixtures/floor/replay/README.md).
+- Saved run folders from any provider can be referenced with `--register-run DIR`
+  or the browser's REGISTER RUN form. References persist in the selected base's
+  `floor-runs.json`; source logs stay unchanged. IMPORT accepts a floor digest,
+  not arbitrary raw or aggregate provider logs. See [floor operation](../../../docs/floor.md).
 
 ## Gotchas
 

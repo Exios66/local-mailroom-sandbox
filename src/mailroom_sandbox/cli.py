@@ -1567,7 +1567,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
     profile = _lp(args.profile)
     if missing_modal_endpoint(profile):
         # Loud, actionable hint instead of a silent localhost:8000 probe: the
-        # Modal profile is the default, and its base URL only exists after a
+        # Modal profile was explicitly selected, and its base URL only exists after a
         # deploy. health_check reports the same condition as a hard failure.
         print(
             "hint: modal-vllm has no VLLM_BASE_URL — after `modal deploy`, export the "
