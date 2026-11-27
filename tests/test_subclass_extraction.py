@@ -78,9 +78,31 @@ def test_an_added_field_is_requested(schemas, lists):
     assert schema["properties"]["amendments"] == {"type": ["array", "null"], "items": {"type": "string"}}
 
 
+def test_the_curated_schema_guide_text_wins_over_the_registry_guide(schemas, lists):
+    from mailroom_sandbox.schema_guide import GUIDE_DESCRIPTIONS
+
+    curated = set(GUIDE_DESCRIPTIONS["contract"])
+    entry = lists["classes"]["contract"]["license"]
+    overlap = curated & set(entry["guide"])
+    assert overlap
+    guided, _ = _choose(schemas, lists, "contract", "license", guide=True)
+    for field in overlap:
+        assert guided["properties"][field].get("description") == schemas["contract"]["properties"][field].get(
+            "description"), field
+
+
 def test_guide_text_replaces_descriptions_only_with_schema_guide(schemas, lists):
+    from mailroom_sandbox.schema_guide import GUIDE_DESCRIPTIONS
+
+    # Today every registry guide entry names a curated field (the curated text wins), so the
+    # registry text is pinned on a kept field schema_guide does not describe.
+    lists = copy.deepcopy(lists)
     entry = lists["classes"]["corporate_record"]["bylaws"]
-    field, text = next(iter(entry["guide"].items()))
+    curated = set(GUIDE_DESCRIPTIONS.get("corporate_record") or ())
+    field = sorted(set(schemas["corporate_record"]["properties"]) - curated - set(entry["drop"])
+                   - {"confidence", "reasoning"})[0]
+    text = "Registry guide text for this subclass."
+    entry["guide"][field] = text
     plain, _ = _choose(schemas, lists, "corporate_record", "bylaws", guide=False)
     guided, _ = _choose(schemas, lists, "corporate_record", "bylaws", guide=True)
     assert plain["properties"][field].get("description") == schemas["corporate_record"]["properties"][field].get(
@@ -96,7 +118,7 @@ def test_low_band_reads_the_class_threshold():
     assert sx.low_band("merger_agreement") == get_confidence_thresholds("merger_agreement").get("low")
 
 
-# --- Task 3: the switch, the lock and HF-020 -------------------------------------------------
+# --- Task 3: the switch, the lock and HF-023 -------------------------------------------------
 
 from pydantic import ValidationError  # noqa: E402
 
@@ -124,12 +146,22 @@ def switch_off():
     sx.deactivate()
 
 
-def test_subclass_schemas_is_off_by_default_and_unhashed():
-    core = spec_core(_spec(), source_sha256="0" * 64)["job"]
-    assert not any(key.startswith("subclass_") for key in core)
-    assert spec_hash(_spec()) == spec_hash(_spec(subclass_schemas=False))
-    on = spec_core(_spec(subclass_schemas=True), source_sha256="0" * 64)["job"]
+def test_subclass_schemas_is_on_by_default_for_pipeline_runs():
+    assert _spec().job.subclass_schemas is True
+    on = spec_core(_spec(), source_sha256="0" * 64)["job"]
     assert on["subclass_schemas"] is True and on["subclass_fields_sha256"] == sf.field_lists_sha256()
+    assert spec_hash(_spec()) == spec_hash(_spec(subclass_schemas=True))
+
+
+def test_other_tasks_resolve_it_off_and_unhashed():
+    spec = _spec(task="correspondence_specialist")
+    assert spec.job.subclass_schemas is False
+    assert not any(key.startswith("subclass_") for key in spec_core(spec, source_sha256="0" * 64)["job"])
+
+
+def test_an_explicit_false_is_refused_for_pipeline_runs():
+    with pytest.raises(ValidationError, match="always"):
+        _spec(subclass_schemas=False)
 
 
 def test_subclass_schemas_requires_a_pipeline_task():
@@ -138,13 +170,13 @@ def test_subclass_schemas_requires_a_pipeline_task():
 
 
 def test_the_lock_changes_when_the_field_list_changes(tmp_path, monkeypatch):
-    before = spec_hash(_spec(subclass_schemas=True))
+    before = spec_hash(_spec())
     changed = sf.load_field_lists()
     changed["classes"]["contract"]["license"]["drop"] = ["territory"]
     path = tmp_path / "fields.json"
     path.write_text(sf.render(changed), encoding="utf-8")
     monkeypatch.setattr(sf, "FIELDS_PATH", path)
-    assert spec_hash(_spec(subclass_schemas=True)) != before
+    assert spec_hash(_spec()) != before
 
 
 def test_a_field_list_changed_after_the_lock_refuses_to_activate(switch_off):
@@ -167,11 +199,11 @@ def test_the_lock_activates_subclass_schemas(monkeypatch, switch_off):
 
 @pytest.fixture
 def captured(monkeypatch, schemas):
-    """Apply HF-020 and record the json_schema every specialist structured call is sent."""
+    """Apply HF-023 and record the json_schema every specialist structured call is sent."""
     from agents import base as agents_base
     from langchain_agents import base_agent as lc_base
 
-    assert vh.apply_hotfixes()["HF-020"] == "applied"
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
     calls: list[tuple[str, dict]] = []
 
     def stub(self, user_message, json_schema, *args, **kwargs):
@@ -222,6 +254,24 @@ def test_a_low_confidence_extraction_sends_the_class_schema(captured, schemas, l
     assert captured and all(sent is schemas["merger_agreement"] for _, sent in captured)
 
 
+def test_a_reply_without_confidence_is_scored_on_the_narrowed_schema(monkeypatch, schemas, lists, switch_off):
+    """Review Important 1: the evidence-confidence fallback counts only the requested fields."""
+    from agents import base as agents_base
+    from langchain_agents import base_agent as lc_base
+
+    assert vh.apply_hotfixes()["HF-023"] == "applied"
+
+    def filled(self, user_message, json_schema, *args, **kwargs):
+        return {f: "x" for f in json_schema["properties"] if f not in ("confidence", "reasoning")}
+
+    monkeypatch.setattr(agents_base.BaseAgent, "_call_structured", filled)
+    monkeypatch.setattr(lc_base.BaseAgent, "_call_structured", filled)
+    off = _extract("merger_agreement", "all_cash")
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    on = _extract("merger_agreement", "all_cash")
+    assert on.get("confidence") == off.get("confidence")
+
+
 def test_every_chunk_gets_the_narrowed_schema(captured, schemas, lists, switch_off, monkeypatch):
     import graph.build_graph as bg
 
@@ -244,6 +294,28 @@ def test_the_narrowed_schema_ends_with_its_extraction(captured, schemas, lists, 
     assert captured[0][1] is schemas["corporate_record"]
 
 
+def test_a_corporate_extract_another_hotfix_composes_is_left_to_it(captured, schemas, lists, switch_off, monkeypatch):
+    """A hotfix on CorporateRecordsSpecialist.extract (PR #425's corporate composer) owns its schema."""
+    import functools
+
+    from agents.corporate_records_specialist import CorporateRecordsSpecialist
+
+    original = CorporateRecordsSpecialist.extract
+
+    @functools.wraps(original)
+    def composed(self, *args, **kwargs):
+        return original(self, *args, **kwargs)
+
+    composed._sandbox_hotfix = "HF-020"
+    monkeypatch.setattr(CorporateRecordsSpecialist, "extract", composed)
+    sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
+    _extract("corporate_record", "subsidiary_list")
+    assert captured and all(sent is schemas["corporate_record"] for _, sent in captured)
+    captured.clear()
+    _extract("merger_agreement", "all_cash")  # the other classes still get their subclass schema
+    assert captured and all("intent" not in sent["properties"] for _, sent in captured)
+
+
 # --- Task 4: scoring guards -------------------------------------------------------------------
 
 _KEPT = {"merger_agreement": "document_name", "corporate_record": "entity_name", "contract": "document_name",
@@ -261,18 +333,23 @@ def _drops(lists):
     return [(cls, sub, f) for cls, subs in lists["classes"].items() for sub, e in subs.items() for f in e["drop"]]
 
 
-def test_a_dropped_field_never_changes_a_score(lists):
+def test_a_dropped_field_never_changes_a_score(schemas, lists):
     runtime.activate(load_env_file=False)
     drops = _drops(lists)
     assert drops
     for cls, sub, field in drops:
         kept = _KEPT[cls]
-        # The truth every dropped field carries: blank, marked not applicable (Hub gt_presence).
-        expected = {kept: "Acme Holdings Inc.", field: "", "gt_presence": {field: "not_applicable"}}
+        listy = "array" in str(schemas[cls]["properties"].get(field, {}).get("type"))
+        blank = [] if listy else ""
+        # The truth a dropped field carries: blank, and marked not applicable where the Hub says so.
+        expected = {kept: "Acme Holdings Inc.", field: blank}
+        if cls in ("corporate_record", "merger_agreement"):
+            expected["gt_presence"] = {field: "not_applicable"}
         asked = _score(cls, sub, {kept: "Acme Holdings Inc.", field: None}, expected)
         dropped = _score(cls, sub, {kept: "Acme Holdings Inc."}, expected)
         assert dropped == asked, (cls, sub, field)
-        stated = _score(cls, sub, {kept: "Acme Holdings Inc.", field: "a stated value"}, expected)
+        stated = _score(cls, sub, {kept: "Acme Holdings Inc.", field: ["a stated value"] if listy else "a stated value"},
+                        expected)
         assert dropped[0] >= stated[0], (cls, sub, field)  # dropping can only remove a false positive
 
 

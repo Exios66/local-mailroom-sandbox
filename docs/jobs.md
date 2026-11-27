@@ -556,8 +556,10 @@ the documents this process has seen in the run.
 ## Subclass extraction schemas (`job.subclass_schemas`)
 
 Phase 3 of the [correcting-judge design](design/specs/2026-11-26-correcting-judge-design.md) (X1,
-"narrow and extend"). Off by default. With `job.subclass_schemas: true` (`task: pipeline` only), every
-extraction is sent the schema of the document's **predicted** subclass instead of the whole class schema.
+"narrow and extend"). **Always on for `task: pipeline`**: subclass schemas are used whenever one is
+available. Leaving `job.subclass_schemas` unset turns it on for pipeline runs and off for every other task.
+An explicit `false` on a pipeline run is refused, and `true` on another task is refused. Every extraction is
+sent the schema of the document's **predicted** subclass instead of the whole class schema.
 This applies to all five classes: contract (by `contract_subtype`), merger agreement, corporate record,
 correspondence and insurance claim (by `doc_subclass`).
 
@@ -566,16 +568,26 @@ from the label registry `config/extraction/subclass_schemas.json` by `python scr
 (`--check` fails when stale, and `tests/test_subclass_fields.py` checks it too). Every subclass of every class
 has an entry:
 
-- **drop**: class fields the vendored Dojo marks `not_applicable` for the subclass, unless a dev,
-  calibration or pool label gives the field a value there (the registry's `valued_by_set`). The scorer
-  counts a labeled value, so dropping that field would turn a hit into a miss. Today that is merger
-  `intent`, `keywords` and `subject_matter`, and corporate `filing_number` on four subclasses (plus
-  `jurisdiction` and `signatories` on `subsidiary_list`).
+- **drop**: class fields the vendored Dojo never scores as a value for the subclass (status
+  `not_applicable`, `absent_from_dojo` or `documented_absent`), unless a dev, calibration or pool label gives
+  the field a value there (the registry's `valued_by_set`). The scorer counts a labeled value, so dropping
+  that field would turn a hit into a miss. Today the drops are:
+  - contract, every subclass: `maud_clauses` and `merger_consideration`;
+  - merger agreement, every subclass: `intent`, `keywords` and `subject_matter`;
+  - insurance claim: `cms_source_table` on `auto` and `property`, plus `adjuster` and `denial_reasons` on
+    the CMS subclasses and `property`;
+  - corporate record: `filing_number` on four subclasses, plus `jurisdiction` and `signatories` on
+    `subsidiary_list`.
+
+  Held-out labels never keep a field. The one held-out `filing_number` value on `bylaws` is therefore not
+  asked for, and scores as a miss on that one held-out document. A subclass's own `output_schema_fields` in
+  the registry, when present, replaces the class's.
 - **add**: fields outside the class schema with dev, calibration or pool labels and an extraction status.
   Today there are none: the corporate entity fields have no labels yet, and correspondence `content_topic`
   and `sentiment_label` are label tasks, not extraction fields.
 - **guide**: the labeling-guide text. It replaces a kept or added field's description only when
-  `job.schema_guide` is also on.
+  `job.schema_guide` is also on, and never a description `schema_guide` curates. Today every registry guide
+  entry names a curated field, so the curated text is what the model sees.
 
 Held-out labels never shape a list: only the `dev`, `calibration` and `pool` counts are read.
 
@@ -583,11 +595,14 @@ The class schema is kept when the predicted subclass is missing, `unknown`, `oth
 when `classification_confidence` is missing or below the class's `low` band. The sorter reports no
 separate subclass confidence.
 
-The switch and the file's sha256 are hashed into `spec_hash` only when set. At activation the runtime
-refuses a field list whose sha differs from the locked one, so re-run preflight after rebuilding it. HF-020
+For pipeline runs the switch and the file's sha256 are hashed into `spec_hash`. At activation the runtime
+refuses a field list whose sha differs from the locked one, so re-run preflight after rebuilding it. HF-023
 applies the choice: one specialist instance serves one document's extraction and every chunk window, and it
 alone is given the narrowed schema. The judge, the arbiter and the next document still see the class schema.
-HF-020 changes the locked hotfix set, so a run locked before it resumes only with `--force`.
+A corporate specialist whose `extract` another hotfix wraps (a dedicated corporate schema composer) keeps that
+hotfix's schema; the other classes are unaffected. A lock from before phase 3 has no
+`subclass_schemas` key, so it still resumes with the class schemas. HF-023 changes the locked hotfix set, so a
+run locked before it resumes only with `--force`.
 
 ## Read ranges (`job.trace_reads`)
 

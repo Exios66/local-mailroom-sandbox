@@ -3,7 +3,10 @@
     "contract": {
       "affiliate": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -18,7 +21,10 @@
       },
       "agency": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -33,7 +39,10 @@
       },
       "co_branding": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -48,7 +57,10 @@
       },
       "collaboration": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -63,7 +75,10 @@
       },
       "consulting": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -78,7 +93,10 @@
       },
       "development": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -93,7 +111,10 @@
       },
       "distributor": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -108,7 +129,10 @@
       },
       "endorsement": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -123,7 +147,10 @@
       },
       "franchise": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -138,7 +165,10 @@
       },
       "hosting": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -153,7 +183,10 @@
       },
       "ip": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -168,7 +201,10 @@
       },
       "joint_venture": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -183,7 +219,10 @@
       },
       "license": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -198,7 +237,10 @@
       },
       "maintenance": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -213,7 +255,10 @@
       },
       "manufacturing": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -228,7 +273,10 @@
       },
       "marketing": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -243,7 +291,10 @@
       },
       "non_compete_no_solicit": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -258,7 +309,10 @@
       },
       "outsourcing": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -273,7 +327,10 @@
       },
       "promotion": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -288,7 +345,10 @@
       },
       "reseller": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -303,7 +363,10 @@
       },
       "service": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -318,7 +381,10 @@
       },
       "sponsorship": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -333,7 +399,10 @@
       },
       "strategic_alliance": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -348,7 +417,10 @@
       },
       "supply": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -363,7 +435,10 @@
       },
       "transportation": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "maud_clauses",
+          "merger_consideration"
+        ],
         "guide": {
           "agreement_date": "date: The \"dated as of\" or signature date.",
           "contract_value": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
@@ -619,32 +694,50 @@
     "insurance_claim": {
       "auto": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "cms_source_table"
+        ],
         "guide": {}
       },
       "carrier": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
         "guide": {}
       },
       "inpatient": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
         "guide": {}
       },
       "outpatient": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
         "guide": {}
       },
       "pde": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "adjuster",
+          "denial_reasons"
+        ],
         "guide": {}
       },
       "property": {
         "add": {},
-        "drop": [],
+        "drop": [
+          "adjuster",
+          "cms_source_table",
+          "denial_reasons"
+        ],
         "guide": {}
       }
     },

@@ -25,7 +25,15 @@ def test_not_applicable_class_fields_are_dropped(registry):
     lists = sf.build_field_lists(registry)
     assert _entry(lists, "corporate_record", "subsidiary_list")["drop"] == ["filing_number", "jurisdiction", "signatories"]
     assert _entry(lists, "merger_agreement", "all_cash")["drop"] == ["intent", "keywords", "subject_matter"]
-    assert _entry(lists, "contract", "license")["drop"] == []
+    assert _entry(lists, "contract", "license")["drop"] == ["maud_clauses", "merger_consideration"]
+    assert _entry(lists, "insurance_claim", "auto")["drop"] == ["cms_source_table"]
+    assert {"adjuster", "denial_reasons"} <= set(_entry(lists, "insurance_claim", "carrier")["drop"])
+
+
+def test_every_document_type_has_a_subclass_schema_that_differs_from_its_class(registry):
+    lists = sf.build_field_lists(registry)
+    for cls in ("contract", "merger_agreement", "corporate_record", "insurance_claim"):
+        assert any(e["drop"] or e["add"] for e in lists["classes"][cls].values()), cls
 
 
 def test_a_not_applicable_field_with_values_outside_held_out_is_kept(registry):
@@ -59,6 +67,18 @@ def test_the_registry_counts_value_labels_by_set(registry):
     assert fields["filing_number"]["valued_by_set"]["dev"] == 1
     merger = registry["classes"]["merger_agreement"]["subclasses"]["all_cash"]["fields"]["intent"]
     assert sum(merger["valued_by_set"].values()) == 0  # the Hub marks it not applicable, with no value
+
+
+def test_a_subclass_output_schema_overrides_the_class_one(registry):
+    # PR #425 records corporate request fields per subclass; a field the subclass is not asked
+    # for is neither dropped nor added there.
+    changed = copy.deepcopy(registry)
+    sub = changed["classes"]["corporate_record"]["subclasses"]["subsidiary_list"]
+    sub["output_schema_fields"] = [f for f in changed["classes"]["corporate_record"]["output_schema_fields"]
+                                   if f != "signatories"]
+    entry = _entry(sf.build_field_lists(changed), "corporate_record", "subsidiary_list")
+    assert entry["drop"] == ["filing_number", "jurisdiction"]
+    assert "signatories" not in entry["add"]
 
 
 def test_every_class_and_subclass_has_an_entry(registry):

@@ -779,9 +779,10 @@ class JobSpec(BaseModel):
     # default; hashed only when set.
     governor: GovernorSpec | None = None
     # Phase 3 (X1): the predicted subclass picks the extraction schema from the committed field
-    # lists (mailroom_sandbox.subclass_extraction, HF-020). Off by default; hashed only when set,
-    # together with the sha256 of config/extraction/subclass_extraction_fields.json.
-    subclass_schemas: bool = False
+    # lists (mailroom_sandbox.subclass_extraction, HF-023). Always on for task: pipeline (an
+    # explicit false is refused) and off for every other task (resolved in RunSpec). Hashed when
+    # on, together with the sha256 of config/extraction/subclass_extraction_fields.json.
+    subclass_schemas: bool | None = None
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1314,6 +1315,11 @@ class RunSpec(BaseModel):
     def _subclass_schemas_in_pipeline(self) -> "RunSpec":
         if self.job.subclass_schemas and self.task != "pipeline":
             raise ValueError(f"job.subclass_schemas picks pipeline extraction schemas; task {self.task!r} runs no graph extraction")
+        if self.job.subclass_schemas is False and self.task == "pipeline":
+            raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
+                             "extraction schema is used whenever one is listed")
+        if self.job.subclass_schemas is None:
+            self.job.subclass_schemas = self.task == "pipeline"
         return self
 
     @model_validator(mode="after")
@@ -1485,12 +1491,14 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
-        # require_expanded_inputs, governor and subclass_schemas are hashed only when set, so older
-        # YAMLs keep their hash.
+        # require_expanded_inputs and governor are hashed only when set, so older YAMLs keep their
+        # hash. subclass_schemas is always on for pipeline runs, so it is hashed when on (with the
+        # field list's sha256) and absent for other tasks.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs", "subclass_schemas") and value is False)
+                                    "require_expanded_inputs") and value is False)
+                   and not (key == "subclass_schemas" and not value)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
                    and not (key == "specialist_subclass_file" and value is None)

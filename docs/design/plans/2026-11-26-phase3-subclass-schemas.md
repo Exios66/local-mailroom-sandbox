@@ -8,7 +8,7 @@
 
 - A committed field list, `config/extraction/subclass_extraction_fields.json`, is derived from the label registry `config/extraction/subclass_schemas.json` by a pure builder that never reads held-out counts.
 - A pure selector turns (class, predicted subclass, confidence, class schema) into the schema to send.
-- One vendor hotfix, HF-020, picks the schema when `extract_node` builds its handoff. It swaps the schema into the specialist's structured call only for the duration of that extraction. `vendor/` is not edited.
+- One vendor hotfix, HF-023, picks the schema when `extract_node` builds its handoff. It swaps the schema into the specialist's structured call only for the duration of that extraction. `vendor/` is not edited.
 
 **Tech Stack:** Python 3.11, pydantic (job spec), `contextvars`, pytest. The vendored `llm-mailroom` graph and specialists and the vendored `llm-dojo-scoring` scorer are unchanged.
 
@@ -45,7 +45,7 @@ The spec assumed the registry held labels for the corporate extension fields. It
   `subsidiary_list`; and the three merger fields on every merger subclass.
 - **Bylaws `filing_number`.** Its one value label is held-out, so it is still dropped, and that document
   scores the field as a miss. This is the cost of the held-out rule.
-- **Where HF-020 hooks in.** It targets `_instantiate_specialist` and swaps the schema per specialist
+- **Where HF-023 hooks in.** It targets `_instantiate_specialist` and swaps the schema per specialist
   instance, instead of stacking on HF-009's `_run_chunked_extraction` and patching `_call_structured` on the
   classes. Hotfix marks are per attribute, and the sampling layer's native path bypasses a class wrapper.
 - **Coverage.** All five classes are covered and tested, at the owner's request. Contract, correspondence and
@@ -59,9 +59,9 @@ Consequences for the spec's other bullets:
 
 ## Global Constraints
 
-- No edits to `vendor/`. Pipeline behaviour changes through `src/mailroom_sandbox/vendor_hotfixes.py` (HF-020), with its row in `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` in the same change.
+- No edits to `vendor/`. Pipeline behaviour changes through `src/mailroom_sandbox/vendor_hotfixes.py` (HF-023), with its row in `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` in the same change.
 - The field lists are a committed file hashed into the run lock and never rebuilt during a run. Held-out labels never shape a schema: the builder reads `labeled_by_set` keys `dev`, `calibration` and `pool` only (the split's spelling is `heldout`).
-- The switch is `job.subclass_schemas`: off by default. When unset, `spec_hash`, the lock and every request are byte-identical to today. It is valid only with `task: pipeline`.
+- The switch is `job.subclass_schemas`, valid only with `task: pipeline`. *As built (owner, 2026-11-27): always on for pipeline runs. Unset resolves on, an explicit `false` is refused, other tasks resolve off and unhashed, and a lock from before phase 3 resumes off.*
 - No paid or live runs by an agent. Every test is offline.
 - Local checks: named test files with `-n 0 --no-cov`; full suite and coverage (`fail_under = 84`, never lowered) in hosted CircleCI.
 - Never edit `_run_pipeline_doc_once` or `_pipeline_item` in `eval/runners.py` (pinned by SHF-012), or `eval/extraction_scope.applicable_expected_fields` (pinned by SHF-001 and SHF-015).
@@ -166,7 +166,7 @@ Consequences for the spec's other bullets:
 - [x] **Step 4: Run them again.** Expected: PASS.
 - [x] **Step 5: Commit** `feat(subclass): choose a subclass extraction schema with class fallback (phase3 task 2)`.
 
-### Task 3: The switch, the lock and HF-020
+### Task 3: The switch, the lock and HF-023
 
 **Files:**
 
@@ -174,7 +174,7 @@ Consequences for the spec's other bullets:
   - `src/mailroom_sandbox/job/spec.py`: field next to `governor`; pipeline-only validator like `_governor_in_pipeline`; `spec_core` additions like the governor's at `spec_core` / `specialist_subclass_sha256`.
 - Modify: `src/mailroom_sandbox/runtime.py`, with activation next to the governor's (`locked_job` block).
 - Modify: `src/mailroom_sandbox/subclass_extraction.py`, adding the activation state and the wrappers.
-- Modify: `src/mailroom_sandbox/vendor_hotfixes.py`, adding HF-020 to `HOTFIXES` after HF-019.
+- Modify: `src/mailroom_sandbox/vendor_hotfixes.py`, adding HF-023 to `HOTFIXES` after HF-019.
 - Test: `tests/test_subclass_extraction.py`, `tests/test_job_spec.py` and `tests/test_vendor_hotfixes.py`.
 
 **Interfaces:**
@@ -185,7 +185,7 @@ Consequences for the spec's other bullets:
   - `subclass_extraction.activate(lists: Mapping[str, Any], *, sha256: str, guide: bool) -> None`. It raises `RuntimeError` when `field_lists_sha256() != sha256`.
   - `subclass_extraction.deactivate() -> None`.
   - `subclass_extraction.active() -> bool`.
-  - HF-020, which wraps four things:
+  - HF-023, which wraps four things:
     1. `graph.build_graph._build_handoff_context(state)`: when active, it records the choice in a `ContextVar` (`_PENDING`) from `state["doc_type"]` (resolved with the vendored `resolve_extract_class`), the subclass and `state["classification_confidence"]`. The subclass is `state["contract_subtype"]` for `contract` and `state["doc_subclass"]` otherwise. The return value is unchanged.
     2. `graph.build_graph._run_chunked_extraction`, stacked over HF-009: it moves `_PENDING` into `_ACTIVE` for the duration of the call, resets `_ACTIVE` in `finally`, and clears `_PENDING`.
     3. `agents.base.BaseAgent._call_structured` (corporate, correspondence, insurance).
@@ -200,14 +200,14 @@ Consequences for the spec's other bullets:
   - `test_the_lock_changes_when_the_field_list_changes`: monkeypatch `FIELDS_PATH` to a temporary copy, then change one `drop` list. `spec_hash` differs.
   - `test_a_field_list_changed_after_the_lock_refuses_to_activate`: `activate(..., sha256="0"*64)` raises `RuntimeError`.
   - `test_an_extraction_requests_the_narrowed_schema`: parametrized over `corporate_record`/`subsidiary_list` (agents base) and `merger_agreement`/`all_cash` (langchain base).
-    - Apply HF-020 and activate.
+    - Apply HF-023 and activate.
     - Stub the provider call under `_call_structured` to capture `json_schema`.
     - Drive `_build_handoff_context(state)` and then the vendored `_extract_<class>` with a short text.
     - The captured schema lacks the dropped fields.
   - `test_off_sends_the_class_schema_unchanged`: the same setup with the switch off. The captured schema `is SPECIALIST_SCHEMAS[cls]`.
   - `test_every_chunk_gets_the_narrowed_schema`: a document longer than one window (monkeypatch the chunk config to small windows). Every captured call uses the narrowed schema, and the merged result is returned.
   - `test_the_narrowed_schema_ends_with_its_extraction`: after the extraction returns, a `_call_structured` with the class schema (as the judge would make) is not replaced, and `_ACTIVE` is unset.
-  - `test_hf020_is_registered_and_current` (test_vendor_hotfixes): HF-020 is in `HOTFIXES` and its targets are not stale.
+  - `test_hf023_is_registered_and_current` (test_vendor_hotfixes): HF-023 is in `HOTFIXES` and its targets are not stale.
 - [x] **Step 2: Run them.**
 
   ```bash
@@ -215,9 +215,9 @@ Consequences for the spec's other bullets:
   ```
 
   Expected: the new tests FAIL.
-- [x] **Step 3: Implement the spec field, `spec_core`, runtime activation (deactivate when the locked job has it off) and HF-020.**
+- [x] **Step 3: Implement the spec field, `spec_core`, runtime activation (deactivate when the locked job has it off) and HF-023.**
 - [x] **Step 4: Run them again.** Same command. Expected: PASS. Then run `tests/test_runtime.py`, `tests/test_schema_guide.py` and `tests/test_scoring_hotfix_fingerprint.py`. Expected: PASS, with no SHF made stale.
-- [x] **Step 5: Commit** `feat(subclass): job.subclass_schemas switch, lock hash and HF-020 (phase3 task 3)`.
+- [x] **Step 5: Commit** `feat(subclass): job.subclass_schemas switch, lock hash and HF-023 (phase3 task 3)`.
 
 ### Task 4: Scoring guards and docs
 
@@ -226,7 +226,7 @@ Consequences for the spec's other bullets:
 - Test: `tests/test_subclass_extraction.py`
 - Modify:
   - `docs/jobs.md`: a `job.subclass_schemas` section with the three rules, the fallback, the guide interaction and the lock hash;
-  - `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md`: HF-020 rows;
+  - `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md`: HF-023 rows;
   - `docs/critical-regressions.md`: rows 1 and 3, naming the guard tests;
   - `CHANGELOG.md`: Unreleased;
   - `docs/README.md`: an index row for this plan, if not added with it;
@@ -243,7 +243,7 @@ Consequences for the spec's other bullets:
 
     If this fails for a field, the builder must also keep any field the scorer counts. Record that as a ruling and add that condition to Task 1's drop rule.
   - `test_every_added_field_is_scoreable`: for every committed `add` field, `applicable_expected_fields(cls, {f: "x"})` keeps `f`. Also check the synthetic `bylaws`/`certifying_officer` case from Task 1.
-  - `test_docs_name_hf020`: `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` each mention `HF-020`, if the existing hotfix-doc test does not already enforce this. Check `tests/test_vendor_hotfixes.py` first and skip this test if it does.
+  - `test_docs_name_hf023`: `docs/vendor-hotfixes.md` and `docs/EXPERIMENT-CAMPAIGN-CONTRACT.md` each mention `HF-023`, if the existing hotfix-doc test does not already enforce this. Check `tests/test_vendor_hotfixes.py` first and skip this test if it does.
 - [x] **Step 2: Run them.**
 
   ```bash
@@ -260,11 +260,21 @@ Consequences for the spec's other bullets:
   ```
 
   Expected: PASS and clean.
-- [x] **Step 5: Commit** `docs(subclass): document job.subclass_schemas and HF-020; scoring guards (phase3 task 4)`.
+- [x] **Step 5: Commit** `docs(subclass): document job.subclass_schemas and HF-023; scoring guards (phase3 task 4)`.
+
+### Later owner decisions (2026-11-27) and open-PR alignment
+
+- **Always on.** "Subclass-specific extraction schemas should always be used when they are available." `job.subclass_schemas` resolves on for every pipeline run, and an explicit `false` is refused.
+- **All document types.** Narrowing also drops fields whose Dojo status is `absent_from_dojo` or `documented_absent` (the scorer never counts them as a value), on the same no-dev/calibration/pool-value condition. That adds contract `maud_clauses`/`merger_consideration` and insurance `cms_source_table`/`adjuster`/`denial_reasons` where absent. Corporate `filing_number` stays on the three subclasses whose interim labels carry values.
+- **Open PRs.**
+  - The hotfix is HF-023, because #425 registers HF-020 to HF-022 and #437 registers HF-021. Those two still collide with each other.
+  - #425 composes its own corporate request schema on `CorporateRecordsSpecialist.extract`, and HF-023 leaves a corporate specialist with a hotfixed `extract` to it. #425's registry change, per-subclass `output_schema_fields`, is read by the field-list builder. Its rebuilt `subclass_schemas.json` must be regenerated together with this branch's `valued_by_set`, followed by `python scripts/build_subclass_fields.py`.
+  - #437's `_build_handoff_context` wrapper stacks with HF-023's in either order (`test_hf023_stacks_with_another_handoff_wrapper`).
+  - #436 only removes truth labels, which leave both sides of the score, so the drops stay score-neutral.
 
 ## Risks and follow-ups
 
 - **The extension is empty today.** It adds a field only once that field has labels. Labeling the corporate entity fields is the follow-up that makes it do anything.
-- **Narrowing is small today:** 3 merger fields and up to 3 corporate fields. Most of the spec's token saving waits on labels or a later owner decision.
-- **Unfinished runs.** HF-020 changes the locked hotfix set, so an unfinished run locked before this PR resumes only with `--force`, as in phase 2.
+- **Narrowing is small today:** 2–3 fields per subclass (contract, merger and insurance, and up to 3 for corporate). Most of the spec's token saving waits on labels or a later owner decision.
+- **Unfinished runs.** HF-023 changes the locked hotfix set, so an unfinished run locked before this PR resumes only with `--force`, as in phase 2.
 - **Upstream issue draft** (for the owner to file in llm-mailroom): "Extraction asks every subclass for the whole class schema, including fields the Dojo marks not applicable."

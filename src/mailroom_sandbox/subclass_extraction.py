@@ -7,8 +7,9 @@ same object, when the subclass is missing, ``unknown``, ``other`` or not listed,
 when the confidence is missing or below the class's ``low`` band. The sorter reports no
 separate subclass confidence, so the class confidence decides.
 
-HF-020 (``vendor_hotfixes``) applies the choice to the vendored extraction call while the
-switch is active; see :func:`activate`.
+HF-023 (``vendor_hotfixes``) applies the choice to the vendored extraction call while the
+switch is active; see :func:`activate`. A corporate specialist whose ``extract`` another
+hotfix wraps (the dedicated corporate composer) keeps that hotfix's schema.
 """
 
 from __future__ import annotations
@@ -43,7 +44,15 @@ def _added_property(spec: Mapping[str, Any]) -> dict[str, Any]:
     return {"type": ["string", "null"]}
 
 
-def _narrow(base: Mapping[str, Any], entry: Mapping[str, Any], *, guide: bool) -> dict[str, Any]:
+def _curated(doc_class: str) -> frozenset[str]:
+    """Fields whose description ``job.schema_guide`` already sets (its curated text wins)."""
+    from mailroom_sandbox.schema_guide import GUIDE_DESCRIPTIONS
+
+    return frozenset(GUIDE_DESCRIPTIONS.get(doc_class) or ())
+
+
+def _narrow(base: Mapping[str, Any], entry: Mapping[str, Any], *, guide: bool, curated: frozenset[str] = frozenset()
+            ) -> dict[str, Any]:
     schema = copy.deepcopy(dict(base))
     properties: dict[str, Any] = schema.setdefault("properties", {})
     required = list(schema.get("required") or [])
@@ -58,7 +67,7 @@ def _narrow(base: Mapping[str, Any], entry: Mapping[str, Any], *, guide: bool) -
             required.append(name)
     if guide:
         for name, text in (entry.get("guide") or {}).items():
-            if name in properties and isinstance(properties[name], dict):
+            if name in properties and name not in curated and isinstance(properties[name], dict):
                 properties[name]["description"] = text
     schema["required"] = required
     return schema
@@ -81,7 +90,7 @@ def choose_schema(
         return base, "fallback:unknown"
     if confidence is None or (low is not None and float(confidence) < float(low)):
         return base, "fallback:low_confidence"
-    return _narrow(base, entry, guide=guide), "subclass"
+    return _narrow(base, entry, guide=guide, curated=_curated(doc_class) if guide else frozenset()), "subclass"
 
 
 def low_band(doc_class: str) -> float | None:
@@ -118,7 +127,7 @@ def active() -> bool:
 
 
 def record_choice(state: Mapping[str, Any]) -> None:
-    """HF-020: pick the schema for the extraction ``extract_node`` is about to run."""
+    """HF-023: pick the schema for the extraction ``extract_node`` is about to run."""
     cfg = _ACTIVE
     if cfg is None:
         _PENDING.set(None)
@@ -139,8 +148,23 @@ def record_choice(state: Mapping[str, Any]) -> None:
     _PENDING.set(None if schema is base else (base, schema))
 
 
+#: Specialists whose ``extract`` a corporate-schema hotfix may wrap (PR #425 composes its own
+#: corporate request schema there); when one does, that hotfix owns the schema.
+_COMPOSED_BY_OWN_HOTFIX = frozenset({"CorporateRecordsSpecialist"})
+
+
+def _hotfix_mark() -> str:
+    from mailroom_sandbox.vendor_hotfixes import _MARK
+
+    return _MARK
+
+
+def _composed_elsewhere(cls: type) -> bool:
+    return cls.__name__ in _COMPOSED_BY_OWN_HOTFIX and bool(getattr(getattr(cls, "extract", None), _hotfix_mark(), None))
+
+
 def bind_choice(agent: Any) -> None:
-    """HF-020: give the extraction's specialist instance the recorded schema (consumed once).
+    """HF-023: give the extraction's specialist instance the recorded schema (consumed once).
 
     The instance-level ``_call_structured`` swaps ``json_schema`` only when it is the class
     schema object, then calls the class method (read-range observer, sampling, vendored call),
@@ -152,6 +176,14 @@ def bind_choice(agent: Any) -> None:
         return
     base, schema = choice
     cls = type(agent)
+    if _composed_elsewhere(cls):
+        _log.info("subclass schema for %s left to %s on %s.extract", getattr(agent, "doc_id", None) or "extraction",
+                  getattr(cls.extract, _hotfix_mark(), None), cls.__name__)
+        return
+    if getattr(agent, "schema", None) is base:
+        # LangChain specialists also normalize and score evidence confidence on self.schema:
+        # with the class schema there, every dropped field would count as "not found".
+        agent.schema = schema
 
     @functools.wraps(cls._call_structured)
     def _call_structured(*args: Any, **kwargs: Any) -> Any:

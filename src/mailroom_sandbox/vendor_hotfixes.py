@@ -91,7 +91,7 @@ def _install_record_type_from_subclass(_module: Any, original: Callable[..., Any
 
 
 def _install_subclass_schemas(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
-    """HF-020 (job.subclass_schemas): the predicted subclass picks the extraction schema.
+    """HF-023 (job.subclass_schemas): the predicted subclass picks the extraction schema.
 
     ``extract_node`` builds the specialist handoff from the document state, then instantiates
     the specialist once for the whole (possibly chunked) extraction. The handoff wrapper records
@@ -101,14 +101,14 @@ def _install_subclass_schemas(module: Any, original: Callable[..., Any]) -> Call
     from mailroom_sandbox import subclass_extraction as sx
 
     handoff = module._build_handoff_context
-    if getattr(handoff, _MARK, None) != "HF-020":
+    if getattr(handoff, _MARK, None) != "HF-023":
         @functools.wraps(handoff)
         def _build_handoff_context(state):
             out = handoff(state)
             sx.record_choice(state)
             return out
 
-        setattr(_build_handoff_context, _MARK, "HF-020")
+        setattr(_build_handoff_context, _MARK, "HF-023")
         module._build_handoff_context = _build_handoff_context
 
     @functools.wraps(original)
@@ -1482,7 +1482,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         also=(("_fetch_matter_context", "87ce2d4d4a41dfb8d2b9b1bc4fdb848ebd0ea88d34f0d85883d1d0492b445ab2"),),
     ),
     Hotfix(
-        id="HF-020",
+        id="HF-023",
         module="graph.build_graph",
         attr="_instantiate_specialist",
         source_sha256="0f0d09381dade4bba6cdf244be99c47b62d20aadd00e0aa01d53fb9442a20b1a",

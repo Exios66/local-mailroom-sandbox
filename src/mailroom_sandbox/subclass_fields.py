@@ -5,14 +5,18 @@ Derived from the label registry ``config/extraction/subclass_schemas.json`` by
 Runs hash the committed file into their lock and never rebuild it. Every (class,
 subclass) in the registry gets an entry:
 
-* ``drop``: class-schema fields the vendored Dojo marks ``not_applicable`` for the
-  subclass, unless a dev, calibration or pool label gives the field a value there (the
-  registry's ``valued_by_set``): the scorer counts a labeled value, so dropping it would turn
-  a hit into a miss. The status comes from the Dojo field map, not from labels.
+* ``drop``: class-schema fields the vendored Dojo does not score as a value for the subclass
+  (status ``not_applicable``, ``absent_from_dojo`` or ``documented_absent``), unless a dev,
+  calibration or pool label gives the field a value there (the registry's ``valued_by_set``):
+  the scorer counts a labeled value, so dropping it would turn a hit into a miss. The status
+  comes from the Dojo field map, not from labels.
 * ``add``: fields outside the class schema with dev, calibration or pool labels whose Dojo
   status is an extraction status (not ``not_applicable``, ``label_task``,
   ``pending_annotation`` or ``absent_from_dojo``).
 * ``guide``: the labeling-guide text for kept and added fields that have one.
+
+A subclass's own ``output_schema_fields`` (when the registry records one) replaces the
+class's for that subclass.
 
 Held-out labels never shape a list: only the ``dev``, ``calibration`` and ``pool`` counts
 are read. Regenerate with ``python scripts/build_subclass_fields.py``.
@@ -33,6 +37,8 @@ SCHEMA_ID = "mailroom.subclass_extraction_fields/v1"
 #: Label sets a schema may be drawn from. ``heldout`` is deliberately absent.
 SCHEMA_SETS = ("dev", "calibration", "pool")
 _NOT_EXTRACTION = frozenset({"not_applicable", "label_task", "pending_annotation", "absent_from_dojo"})
+#: Dojo statuses under which a field is never scored as a value for the subclass.
+UNSCORED_FOR_SUBCLASS = frozenset({"not_applicable", "absent_from_dojo", "documented_absent"})
 
 
 def _canonical_sha256(registry: Mapping[str, Any]) -> str:
@@ -53,7 +59,7 @@ def _subclass_lists(fields: Mapping[str, Any], output_fields: set[str]) -> dict[
         entry = fields[name]
         status = entry.get("dojo_status")
         if name in output_fields:
-            if status == "not_applicable" and _schema_count(entry, "valued_by_set") <= 0:
+            if status in UNSCORED_FOR_SUBCLASS and _schema_count(entry, "valued_by_set") <= 0:
                 drop.append(name)
                 continue
         elif status in _NOT_EXTRACTION or _schema_count(entry, "labeled_by_set") <= 0:
@@ -74,7 +80,9 @@ def build_field_lists(registry: Mapping[str, Any]) -> dict[str, Any]:
         output_fields = set(entry.get("output_schema_fields") or ())
         subclasses = entry.get("subclasses") or {}
         classes[cls] = {
-            sub: _subclass_lists(subclasses[sub].get("fields") or {}, output_fields) for sub in sorted(subclasses)
+            sub: _subclass_lists(subclasses[sub].get("fields") or {},
+                                 set(subclasses[sub].get("output_schema_fields") or output_fields))
+            for sub in sorted(subclasses)
         }
     return {"schema": SCHEMA_ID, "registry_sha256": _canonical_sha256(registry), "classes": classes}
 
