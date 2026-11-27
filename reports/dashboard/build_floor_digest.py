@@ -406,7 +406,7 @@ def _int_if_whole(x: float):
 
 
 def discover_runs(base: Path) -> list[tuple[str, Path]]:
-    """(source, dir) for every dir containing items.jsonl; history first, names sorted."""
+    """History/live runs containing items.jsonl, followed by registered run references."""
     found: list[tuple[str, Path]] = []
     for source, parent in (("history", base / "run-history"), ("live", base / "runtime" / "runs")):
         if not parent.is_dir():
@@ -414,6 +414,21 @@ def discover_runs(base: Path) -> list[tuple[str, Path]]:
         for child in sorted(parent.iterdir(), key=lambda p: p.name):
             if child.is_dir() and (child / "items.jsonl").is_file():
                 found.append((source, child))
+    seen = {path.resolve() for _, path in found}
+    registry = base / "floor-runs.json"
+    if registry.is_file():
+        data = read_json(registry)
+        if data.get("schema") != "mailroom.floor-runs/v1" or not isinstance(data.get("paths"), list):
+            raise ValueError("invalid floor-runs.json registry")
+        for value in data["paths"]:
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise ValueError("floor registry paths must be absolute strings")
+            path = Path(value)
+            if path.resolve() not in seen and path.is_dir() and any(
+                (path / name).is_file() for name in ("items.jsonl", "nodes.jsonl")
+            ):
+                found.append(("registered", path))
+                seen.add(path.resolve())
     return found
 
 
@@ -1743,6 +1758,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     node_docs: dict[str, set[str]] = {}
     ms_by_node: dict[str, list[float]] = {}
     agents_by_node: dict[str, Counter] = {}
+    models_by_node: dict[str, set[str]] = {}
     for doc, recs in per_doc_records.items():
         for r in recs:
             node_docs.setdefault(r["node"], set()).add(doc)
@@ -1751,6 +1767,8 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
                 ms_by_node.setdefault(r["node"], []).append(ms)
             if r.get("agent"):
                 agents_by_node.setdefault(r["node"], Counter())[str(r["agent"])] += 1
+            if isinstance(r.get("model"), str) and r["model"]:
+                models_by_node.setdefault(r["node"], set()).add(r["model"])
 
     def doc_edges(doc: str) -> Counter:
         """Count consecutive allowed transitions for one document, excluding self-loops."""
@@ -1774,16 +1792,21 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
     ok_count = 0
     item_class: dict[str, str] = {}
     doc_rows: list[dict] = []
-    for item_id, it in items:
+    # A live/partial trace may precede its item record. Keep that document inspectable
+    # without treating a node's stage as a final item outcome or prediction.
+    for item_id in dict.fromkeys([*items_by_id, *per_doc_records]):
+        recorded_item = item_id in items_by_id
+        it = items_by_id.get(item_id, {})
         ok = it.get("ok")
         if ok:
             ok_count += 1
-        stage = _item_stage(it) or last_stage_from_nodes(item_id)
+        stage = (_item_stage(it) or last_stage_from_nodes(item_id)) if recorded_item else None
         bucket = _stage_bucket(stage, ok if isinstance(ok, bool) else None)
         cls = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "") or "?"
         item_class[item_id] = cls
         recs = per_doc_records.get(item_id) or []
         seq = visit_seq(recs)
+        note = _error_text(it) if recorded_item else "No item record; final outcome and prediction are unknown."
         doc_rows.append({
             "id": item_id,
             "gt": None if cls == "?" else cls,
@@ -1798,11 +1821,13 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
             "review": _review_trigger(it, recs),
             # Present only on an archive accepted with arbiter caveats (HF-014 marker).
             **({"caveats": caveats} if (caveats := _arbiter_caveats(it)) else {}),
-            "note": _error_text(it),
+            "note": note,
             "debug": _diagnose(it, recs, bucket, str(stage) if stage else None,
-                               _review_trigger(it, recs), _error_text(it), _pred_class(it),
+                               _review_trigger(it, recs), note, _pred_class(it),
                                None if cls == "?" else cls, plain),
         })
+        if not recorded_item:
+            continue  # item outcome totals count stored items only
         for table, key in ((outcomes, cls), (class_outcomes, ds_class.get(item_id))):
             if key is None:
                 continue
@@ -1908,6 +1933,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]],
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),
         "node_agents": {n: dict(sorted(c.items())) for n, c in sorted(agents_by_node.items())},
+        "node_models": {n: sorted(models) for n, models in sorted(models_by_node.items())},
         "node_ms_p50": {n: (_int_if_whole(statistics.median(ms_by_node[n])) if ms_by_node.get(n) else 0)
                         for n in sorted(node_docs)},
         "aborts_by_last_node": dict(sorted(aborts.items())),
@@ -1936,12 +1962,21 @@ def resolve_base(arg: str | None) -> Path:
     return Path(arg or os.environ.get("MAILROOM_BASE_DIR") or "./data")
 
 
+def run_identity(path: Path) -> str:
+    """Stable, opaque identity for a source directory, independent of display-name collisions."""
+    return "run-" + hashlib.sha256(os.fsencode(path.resolve())).hexdigest()
+
+
 def named_runs(runs_found: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
     """``(digest run name, dir)`` for each discovered run; a repeated dir name gains ``(source)``."""
     named: list[tuple[str, Path]] = []
     used: set[str] = set()
     for source, path in runs_found:
-        name = path.name if path.name not in used else f"{path.name} ({source})"
+        name = path.name
+        index = 1
+        while name in used:
+            name = f"{path.name} ({source}{' ' + str(index) if index > 1 else ''})"
+            index += 1
         used.add(name)
         named.append((name, path))
     return named
@@ -1968,6 +2003,7 @@ def build_digest(base: Path, graph_path: Path) -> dict:
     classes: set[str] = set()
     for name, path in named_runs(runs_found):
         run, run_classes = build_run(name, path, edge_set, plain_edges)
+        run["id"] = run_identity(path)
         runs.append(run)
         classes |= run_classes
     return {

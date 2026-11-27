@@ -663,6 +663,20 @@ def _subclass_fields_sha256() -> str:
     return field_lists_sha256()
 
 
+def judge_core(judge: JudgeSpec) -> dict[str, Any]:
+    """The hashed and locked ``judge:`` entry: the section plus the reference pool's sha256."""
+    pool = judge.reference_pool
+    return {**judge.model_dump(), "reference_pool_sha256": _optional_file_sha256(pool) if pool else None}
+
+
+def _optional_file_sha256(path: str) -> str | None:
+    """``_file_sha256``, or None for a missing file (preflight refuses it by name)."""
+    try:
+        return _file_sha256(path)
+    except FileNotFoundError:
+        return None
+
+
 def _file_sha256(path: str) -> str:
     """sha256 of a repo-relative (or absolute) input file the spec hash pins by content."""
     from mailroom_sandbox.paths import repo_root
@@ -683,6 +697,54 @@ def _check_task(value: str) -> str:
     if value not in tasks:
         raise ValueError(f"unknown task {value!r}; have {sorted(tasks)}")
     return value
+
+
+#: Phase 4 judge models (spec "The models, balanced for cost"): Plus by default, Flash for mergers.
+JUDGE_MODEL = "qwen/qwen3.7-plus"
+JUDGE_MODELS_BY_CLASS = {"merger_agreement": "deepseek/deepseek-v4.1-flash-1017"}
+
+
+class JudgeSpec(BaseModel):
+    """Phase 4 correcting judge (``mailroom_sandbox.correcting_judge``). Off unless the section is set.
+
+    ``mode: verify`` is today's judge plus the record (it runs on the pipeline's own judge model, so
+    the model, class overrides and references apply to ``mode: correct`` only). ``catalog`` references
+    are refused until a catalog source exists (unscored real mail, phase 6).
+    """
+
+    model_config = {"extra": "forbid"}
+    mode: Literal["verify", "correct"] = "verify"
+    model: str = Field(default=JUDGE_MODEL, min_length=1)
+    models_by_class: dict[str, str] = Field(default_factory=lambda: dict(JUDGE_MODELS_BY_CLASS))
+    references: Literal["off", "train_pool", "catalog"] = "off"
+    reference_pool: str | None = None
+    max_examples: int = Field(default=2, ge=0, le=2)
+    max_attempt_chars: int = Field(default=4000, ge=0)
+    max_example_chars: int = Field(default=3000, ge=0)
+
+    @field_validator("references", mode="before")
+    @classmethod
+    def _yaml_off(cls, value: Any) -> Any:
+        return "off" if value is False else value  # YAML 1.1 reads a bare ``off`` as false
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "JudgeSpec":
+        if self.references == "catalog":
+            raise ValueError("judge.references: catalog is refused: no catalog source exists, and catalog "
+                             "examples are only for unscored real mail")
+        if self.references == "train_pool" and not self.reference_pool:
+            raise ValueError("judge.references: train_pool needs judge.reference_pool (the committed pool file)")
+        if self.reference_pool and self.references != "train_pool":
+            raise ValueError("judge.reference_pool is read only with judge.references: train_pool")
+        if self.mode == "verify":
+            set_here = [name for name, changed in (
+                ("model", self.model != JUDGE_MODEL),
+                ("models_by_class", self.models_by_class != JUDGE_MODELS_BY_CLASS),
+                ("references", self.references != "off")) if changed]
+            if set_here:
+                raise ValueError(f"judge.mode verify runs today's judge on the pipeline's judge model; "
+                                 f"{', '.join(set_here)} apply to judge.mode correct only")
+        return self
 
 
 class GovernorSpec(BaseModel):
@@ -783,6 +845,15 @@ class JobSpec(BaseModel):
     # explicit false is refused) and off for every other task (resolved in RunSpec). Hashed when
     # on, together with the sha256 of config/extraction/subclass_extraction_fields.json.
     subclass_schemas: bool | None = None
+    # With subclass schemas, a specialist sent a narrowed subclass schema also gets a short note after
+    # its (frozen, class-level) system prompt naming the fields that subclass does not request and the
+    # fields it adds (mailroom_sandbox.subclass_extraction.field_note). Pipeline runs only. Off by
+    # default; hashed only when set. Plan: docs/design/plans/2026-11-27-subclass-field-note.md.
+    subclass_field_note: StrictBool = False
+    # HF-029: a list item a one-call read cannot quote from its document is dropped and recorded
+    # (mailroom_sandbox.evidence_check). Pipeline runs only. Off by default; hashed only when set.
+    # Design: docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md.
+    evidence_check: StrictBool = False
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1105,8 +1176,12 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "trans
 # judge_exhausted_to_arbiter (HF-011): a partial verdict on the last judge pass asks the arbiter.
 # arbiter_full_source (HF-014/HF-015): on a context-fitted route an arbiter acceptance from a
 # whole-source reading archives, and a ruling with no re-extraction budget left is final.
+# keep_best_attempt (llm-mailroom #254, ships false): the report and review handoff use the
+# best-judged extraction attempt instead of the latest; routing never reads it (Phase 5 part 1,
+# docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
-                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source")
+                   "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source",
+                   "keep_best_attempt")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:
@@ -1248,6 +1323,8 @@ class RunSpec(BaseModel):
     reviewer: ReviewerSpec | None = None
     extraction_gate: ExtractionGateSpec | None = None
     decision_slots: DecisionSlotsSpec | None = None
+    # Phase 4 correcting judge (spec "The switch"). Off, and unhashed, unless set.
+    judge: JudgeSpec | None = None
     # Run-scoped routing thresholds (the taxonomy `confidence` block), merged over the
     # vendored + overlay values. Thresholds are calibrated per model: a self-reported
     # confidence scale differs between Qwen on OpenRouter and a Modal-served 9B.
@@ -1315,6 +1392,12 @@ class RunSpec(BaseModel):
     def _subclass_schemas_in_pipeline(self) -> "RunSpec":
         if self.job.subclass_schemas and self.task != "pipeline":
             raise ValueError(f"job.subclass_schemas picks pipeline extraction schemas; task {self.task!r} runs no graph extraction")
+        if self.job.subclass_field_note and self.task != "pipeline":
+            raise ValueError(f"job.subclass_field_note annotates pipeline subclass schemas; task {self.task!r} "
+                             "runs no graph extraction")
+        if self.job.evidence_check and self.task != "pipeline":
+            raise ValueError(f"job.evidence_check filters pipeline extractions; task {self.task!r} runs no graph "
+                             "extraction")
         if self.job.subclass_schemas is False and self.task == "pipeline":
             raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
                              "extraction schema is used whenever one is listed")
@@ -1322,6 +1405,25 @@ class RunSpec(BaseModel):
             # A copy, so a JobSpec shared with another RunSpec is never changed; other tasks stay
             # unset, so a dump re-validates for any task.
             self.job = self.job.model_copy(update={"subclass_schemas": True})
+        return self
+
+    @model_validator(mode="after")
+    def _judge_in_pipeline(self) -> "RunSpec":
+        if self.judge is not None and self.task != "pipeline":
+            raise ValueError(f"judge: rules on pipeline extractions; task {self.task!r} runs no graph judge")
+        return self
+
+    @model_validator(mode="after")
+    def _keep_best_needs_verify_judge(self) -> "RunSpec":
+        # HF-025 writes a correct-mode judge's verified fixes into extracted_data, not into the
+        # attempt history, so restoring an earlier attempt could drop them.
+        if self.judge is None or self.judge.mode != "correct":
+            return self
+        blocks = [self.confidence or {}, *((self.confidence or {}).get("by_class") or {}).values()]
+        if any(isinstance(b, dict) and b.get("keep_best_attempt") is True for b in blocks):
+            raise ValueError("confidence.keep_best_attempt keeps an earlier attempt, but judge.mode correct "
+                             "applies fixes the attempt history does not hold; use judge.mode verify or drop "
+                             "the flag")
         return self
 
     @model_validator(mode="after")
@@ -1480,6 +1582,9 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
         **({"extraction_gate": spec.extraction_gate.model_dump()} if spec.extraction_gate else {}),
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"decision_slots": spec.decision_slots.model_dump()} if spec.decision_slots else {}),
+        # Hashed only when set (with the reference pool's sha256), so every pre-existing run YAML
+        # keeps its spec_hash.
+        **({"judge": judge_core(spec.judge)} if spec.judge else {}),
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"confidence": spec.confidence} if spec.confidence else {}),
         "task": spec.task,
@@ -1493,13 +1598,14 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd, blind_routing, pipeline_handoff, schema_guide, longest_first,
-        # require_expanded_inputs and governor are hashed only when set, so older YAMLs keep their
+        # require_expanded_inputs, subclass_field_note, evidence_check and governor are hashed only when set, so older YAMLs keep their
         # hash. subclass_schemas is always on for pipeline runs, so it is hashed when on (with the
         # field list's sha256) and absent for other tasks.
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs") and value is False)
+                                    "require_expanded_inputs", "subclass_field_note", "evidence_check")
+                                    and value is False)
                    and not (key == "subclass_schemas" and not value)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")

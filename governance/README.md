@@ -37,4 +37,13 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done` ·
 | [`archive/`](archive/) | Closed missions / superseded card schemes |
 | [`PREFIX.md`](PREFIX.md) | Short cheat-sheet for agents / operators |
 
+## Agent skills
+
+Agents should load these before starting, reviewing, or closing board work:
+
+| Skill | Use for |
+| --- | --- |
+| [`.cursor/skills/sand-board-lifecycle/SKILL.md`](../.cursor/skills/sand-board-lifecycle/SKILL.md) | Complete the card cycle (allocate → in_progress → review → done/cancelled) |
+| [`.cursor/skills/sand-board-hygiene/SKILL.md`](../.cursor/skills/sand-board-hygiene/SKILL.md) | Triage stale open cards and reconcile lanes with issues/PRs |
+
 Next free ID: see the **Next ID** line at the top of `TASKS.md`.

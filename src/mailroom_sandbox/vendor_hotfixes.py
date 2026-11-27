@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import contextvars
 import functools
 import hashlib
 import importlib
@@ -537,7 +538,7 @@ def _install_call_spend(_module: Any, original: Callable[..., Any]) -> Callable[
             # The vendored accumulator keeps token counts only. The provider's own
             # ``usage.cost`` and cache split are what an accurate bill is priced from.
             note_provider_call(usage)
-            call_guard.after_call(usage)
+            call_guard.after_call(usage, model=model)  # priced at the requested model (Phase 4 review)
 
     return record_usage
 
@@ -986,10 +987,13 @@ def _install_corporate_native(module: Any, original: Callable[..., Any]) -> Call
         from mailroom_sandbox.corporate_extraction import handoff_with_guidance, request_schema, subclass_from_handoff, validate_response
 
         subclass = subclass_from_handoff(handoff_context)
+        from mailroom_sandbox.subclass_extraction import composed_schema
+
         agent = copy.copy(self)
         call = self._call_structured
         def structured(message: str, **kwargs: Any) -> dict:
-            schema = request_schema(subclass, module.CORPORATE_RECORDS_SCHEMA)
+            schema = composed_schema(module.CORPORATE_RECORDS_SCHEMA,
+                                     request_schema(subclass, module.CORPORATE_RECORDS_SCHEMA))
             kwargs["json_schema"] = schema
             result = call(message, **kwargs)
             if result.get("_parse_error") or validate_response(result, schema):
@@ -1013,7 +1017,9 @@ def _install_corporate_langchain(_module: Any, original: Callable[..., Any]) -> 
         agent._corporate_schema_active = True
         handoff = getattr(self, "handoff_context", None)
         subclass = subclass_from_handoff(handoff)
-        agent.schema = request_schema(subclass, self.schema)
+        from mailroom_sandbox.subclass_extraction import composed_schema
+
+        agent.schema = composed_schema(self.schema, request_schema(subclass, self.schema))
         agent.handoff_context = handoff_with_guidance(handoff, subclass)
         call = agent._call_structured
         if getattr(call, "__self__", None) is self:
@@ -1344,6 +1350,306 @@ def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callab
     return _detect_conflict
 
 
+def _judge_model_name() -> str:
+    """The model the vendored judge agent is routed to (its ``get_llm`` answer), or ``""``."""
+    try:
+        return str(importlib.import_module("agents.base").get_llm("judge")[1] or "")
+    except Exception:  # noqa: BLE001 — the record never fails a document
+        return ""
+
+
+def _install_judge_node(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-025: with a ``judge:`` section, record each judge pass and the extraction it first saw.
+
+    Verify mode runs the vendored node unchanged and then records its verdict; a skipped pass
+    or a transient error (the node is re-run) records nothing. Without the section the node is
+    the vendored one.
+    """
+
+    @functools.wraps(original)
+    def judge_verify_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge, judge_record
+
+        cfg = correcting_judge.active()
+        if not cfg:
+            return original(state)
+        if state.get("conflict_detected"):
+            judge_record.note_conflict()
+        if cfg.get("mode") == "correct" and (module.judge_should_run(state)
+                                             or correcting_judge.retry_owed(state)):
+            return _correcting_judge_pass(module, state)
+        update = original(state)
+        verdict = str((update or {}).get("judge_verdict") or "")
+        if not verdict or verdict == "skipped" or update.get("transient_error"):
+            return update
+        judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+        score = update.get("judge_score")
+        judge_record.note_ruling({
+            "pass": int(update.get("judge_pass_count") or int(state.get("judge_pass_count") or 0) + 1),
+            "mode": "verify",
+            "ruling": verdict,
+            "score": None if score is None else float(score),
+            "reason": " ".join(str(f) for f in update.get("judge_findings") or ()) or str(
+                update.get("escalation_reason") or ""),
+            "fixes": [],
+            "retry_fields": [],
+            "wrong_fields": [],
+            "model": _judge_model_name(),
+        })
+        return update
+
+    return judge_verify_node
+
+
+#: How a correcting ruling reads to the vendored routers (after_judge, the arbiter, the gate).
+_RULING_VERDICT = {"accept": "complete", "retry_fields": "partial", "human_review": "incomplete"}
+
+
+def _correcting_judge_pass(module: Any, state: Any) -> dict[str, Any]:
+    """HF-025, ``mode: correct``: one ruling replaces the vendored completeness and accuracy calls.
+
+    An accept or a retry writes its verified fixes into ``extracted_data`` (the judge read the whole
+    document, so an accept's verdict is source-verified) and re-runs the matter conflict check on
+    the fixed extraction; a retry reads as ``partial`` and a person as ``incomplete``. A transient provider error is re-run like the vendored node's; a reply that
+    does not parse after one re-ask, or any other failure, is ``judge_error`` and goes to review.
+    """
+    from llm.retry import is_transient_error
+
+    from mailroom_sandbox import correcting_judge, judge_record
+    from mailroom_sandbox.judge_fixes import apply_fixes
+
+    pass_no = int(state.get("judge_pass_count") or 0) + 1
+    judge_record.note_before(module._clean_fields_for_judge(state.get("extracted_data")))
+    try:
+        entry = correcting_judge.rule(state, pass_no=pass_no)
+    except Exception as exc:  # noqa: BLE001 — every failure is a transient re-run or a person
+        if is_transient_error(exc):
+            transient = int(state.get("transient_retries_judge_verify") or 0) + 1
+            return {"transient_error": True, "transient_retries_judge_verify": transient,
+                    "error_message": f"transient provider error: {str(exc)[:200]}"}
+        cause = "judge_parse_error" if isinstance(exc, JudgeParseError) else type(exc).__name__
+        judge_record.note_ruling({"pass": pass_no, "mode": "correct", "ruling": "human_review", "score": None,
+                                  "reason": cause, "fixes": [], "retry_fields": [], "wrong_fields": [],
+                                  "model": correcting_judge.judge_model(correcting_judge._doc_class(state))})
+        return {"judge_verdict": "judge_error", "transient_error": False,
+                "escalation_reason": f"correcting judge failed ({cause}) — routing to human review"}
+    judge_record.note_ruling(entry)
+    verdict = _RULING_VERDICT[entry["ruling"]]
+    score, findings = entry["score"], [entry["reason"]] if entry["reason"] else []
+    update: dict[str, Any] = {"judge_verdict": verdict, "judge_score": score, "judge_findings": findings,
+                              "judge_source_verified": verdict == "complete", "judge_pass_count": pass_no,
+                              "transient_error": False}
+    if entry["ruling"] in correcting_judge.APPLIES_FIXES:
+        fixes = [check for check in entry["fixes"] if check["verified"]]
+        if fixes:
+            fixed = apply_fixes(state.get("extracted_data") or {}, fixes)
+            update["extracted_data"] = fixed
+            judge_record.note_corrected()
+            # The vendored conflict check ran on the extraction before the fixes: run it again on
+            # the fixed one, so a fixed value that contradicts the matter's archive is never archived
+            # unadjudicated (after_judge parks it for a person).
+            if not state.get("conflict_detected"):
+                conflict, details = module._detect_conflict({**dict(state), "extracted_data": fixed}, fixed)
+                if conflict:
+                    update["conflict_detected"], update["conflict_details"] = True, list(details or [])
+                    judge_record.note_conflict()
+    history = module.attempt_history.record_verdict(state, verdict=verdict, score=score, findings=findings,
+                                                    source_verified=verdict == "complete")
+    if history is not None:
+        update[module.attempt_history.HISTORY_KEY] = history
+    return update
+
+
+def _install_arbiter_passthrough(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-026: in ``judge: mode: correct`` the judge's ruling is final; the arbiter makes no call.
+
+    The ruling the judge just recorded is mapped onto the arbiter's state keys, so the vendored
+    ``after_arbiter`` routes it: a retry ruling becomes ``retry_extraction`` with the named fields,
+    an accept ``accept_with_caveats``, anything else (or no ruling) a person with the judge's
+    reason. Verify mode, and no judge section, run the vendored arbiter.
+    """
+
+    @functools.wraps(original)
+    def arbiter_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        if not correcting_judge.correcting():
+            return original(state)
+        last = correcting_judge.last_ruling() or {}
+        reason = str(last.get("reason") or "no correcting-judge ruling recorded")
+        update: dict[str, Any] = {"arbiter_reasoning": reason, "arbiter_handoff": reason, "transient_error": False}
+        if last.get("ruling") == "retry_fields" and last.get("retry_fields"):
+            fields = list(last["retry_fields"])
+            return {**update, "arbiter_decision": "retry_extraction", "arbiter_fields_to_fix": fields,
+                    "arbiter_retry_count": int(state.get("arbiter_retry_count") or 0) + 1,
+                    "escalation_reason": f"judge ordered re-extraction of {', '.join(fields)}: {reason[:300]}"}
+        if last.get("ruling") == "accept":
+            return {**update, "arbiter_decision": "accept_with_caveats",
+                    "escalation_reason": f"judge accepted: {reason[:400]}"}
+        return {**update, "arbiter_decision": "human_review",
+                "escalation_reason": f"judge sent the document to human review: {reason[:400]}"}
+
+    return arbiter_node
+
+
+#: The HF-027 route rule on ``retry_extract``.
+JUDGE_RETRY_RULE = "HF-027:judge_retry_rejudges"
+#: The fields the judge-ordered re-extraction now running replaces (None: not a field-only retry).
+_FIELD_RETRY: contextvars.ContextVar[tuple[dict, frozenset[str]] | None] = contextvars.ContextVar(
+    "sandbox_field_retry", default=None)
+
+
+def _judge_retry_rule(state: Mapping[str, Any], proposed: str) -> str | None:
+    """``retry_extract``: a judge-ordered re-read gets its second ruling, or a person.
+
+    Only a transient self-loop and a matter conflict for the Boss keep the router's answer. Any
+    other proposal (archive, review, the band gate's ``judge_verify``, a further retry) becomes the
+    judge's second, final ruling when the re-read can be reviewed, and a person when it cannot (the
+    vendored ``_judge_can_review`` limits: empty, a guardrail failure, a lost chunk; plus a
+    specialist failure, an unsupported or schema-invalid extraction). So a failed re-read is never
+    archived, never ruled on again and never retried past the one field retry.
+    """
+    from graph import routing
+
+    from mailroom_sandbox import correcting_judge
+
+    if proposed == "boss_escalation" or state.get("transient_error"):
+        return None
+    if not correcting_judge.retry_owed(state):
+        return None
+    extracted = state.get("extracted_data")
+    if (not isinstance(extracted, Mapping) or extracted.get("_parse_error") or not routing._judge_can_review(state)
+            or routing._extraction_is_unsupported(state)
+            or routing.validate_extraction(state.get("doc_type"), extracted).get("schema_valid") is False):
+        return "human_review"
+    return "judge_verify"
+
+
+def _register_judge_retry_rule(_module: Any) -> None:
+    """(Re)register the HF-027 route rule last on ``retry_extract``; idempotent."""
+    from graph import route_spec
+
+    if any(rule.name == JUDGE_RETRY_RULE for rule in route_spec.route_rules("retry_extract")):
+        return
+    route_spec.add_route_rule("retry_extract", route_spec.RouteRule(JUDGE_RETRY_RULE, _judge_retry_rule))
+
+
+def _has_layer(fn: Any, fix_id: str) -> bool:
+    """Whether a wrapper ``fix_id`` installed is anywhere in ``fn``'s ``__wrapped__`` chain.
+
+    Each layer's own mark is read (``functools.wraps`` copies the one below it, and
+    :func:`apply_hotfixes` then overwrites it), so a layer under another hotfix's still counts.
+    """
+    seen = 0
+    while fn is not None and seen < 64:
+        if getattr(fn, "__dict__", {}).get(_MARK) == fix_id:
+            return True
+        fn, seen = getattr(fn, "__wrapped__", None), seen + 1
+    return False
+
+
+def _carried_drops(result: Any, previous: Mapping[str, Any], names: frozenset[str]) -> Any:
+    """A field-only retry's result with the previous extraction's drop record for the fields it carries."""
+    record = previous.get("_evidence_dropped")
+    if not isinstance(result, Mapping) or not isinstance(record, Mapping):
+        return result
+    carried = {f: v for f, v in record.items() if f not in names}
+    if not carried:
+        return result
+    fresh = result.get("_evidence_dropped")
+    return {**result, "_evidence_dropped": {**carried, **(fresh if isinstance(fresh, Mapping) else {})}}
+
+
+def _install_evidence_check(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-029: with ``job.evidence_check``, a one-call read's unquotable list items are dropped.
+
+    ``_enrich_contract_result`` is the call right after the specialist's in both ``extract_node``
+    and ``retry_extract_node``, so the filtered extraction is what the guard, the conflict check,
+    the attempt history and the judge see. Installed after HF-027, this layer runs first: on a
+    judge-ordered field-only retry it filters the fresh fields, and the fields HF-027 carries over
+    from the previous (already filtered) extraction count for the emptiness rule and keep their
+    part of its ``_evidence_dropped`` record. A read that was also given page images
+    (``state["doc_pages"]``) is left alone and marked ``_evidence_skipped: "pages"``: a clause read
+    from an image has no quote in ``doc_text``.
+    """
+    from langchain_agents import specialist_agents
+
+    from mailroom_sandbox import evidence_check
+
+    # The check is only meaningful while the vendored test still has the shape it was written for.
+    if not evidence_check.fields():
+        raise HotfixDrift("the vendored evidence fields no longer include cuad_clauses or claim_checklist")
+    if getattr(specialist_agents, "_MIN_SPAN_CHARS", None) != 12:
+        raise HotfixDrift("the vendored _MIN_SPAN_CHARS is no longer 12")
+
+    @functools.wraps(original)
+    def _enrich_contract_result(result: Any, state: Any) -> Any:
+        if evidence_check.active() and isinstance(state, Mapping) and state.get("doc_pages"):
+            if isinstance(result, Mapping) and "_n_chunks" not in result and not result.get("_parse_error"):
+                result = {**result, "_evidence_skipped": "pages"}
+        elif evidence_check.active():
+            pending = _FIELD_RETRY.get()
+            keeps = None
+            if pending is not None:
+                previous, names = pending
+                keeps = {k: v for k, v in previous.items() if k not in names and not str(k).startswith("_")}
+            doc_text = state.get("doc_text") if isinstance(state, Mapping) else None
+            try:
+                result = evidence_check.filter_one_read(result, doc_text, keeps=keeps)
+                if pending is not None:
+                    result = _carried_drops(result, pending[0], pending[1])
+            except Exception:  # noqa: BLE001 - an opt-in filter must never turn a good read into a parse error
+                _log.warning("HF-029 evidence check failed; the extraction passes through unfiltered", exc_info=True)
+        return original(result, state)
+
+    return _enrich_contract_result
+
+
+def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-027: a judge-ordered re-extraction asks only for the named fields and replaces only them.
+
+    The specialist is sent the chosen schema restricted to the named fields (``fields_only``); its
+    answer is merged into the previous extraction before the vendored guard, conflict check and
+    attempt history see it (through ``_enrich_contract_result``, the call right after the
+    specialist's), so every other field keeps its value. Any other retry is the vendored node.
+    """
+    from mailroom_sandbox import subclass_extraction as sx
+
+    enrich = module._enrich_contract_result
+    # Checked down the chain: HF-029 wraps this layer, so a re-install of the node (after a reload
+    # or a test put the vendored node back) must not wrap the merge a second time.
+    if not _has_layer(enrich, "HF-027"):
+        @functools.wraps(enrich)
+        def _enrich_contract_result(result: Any, state: Any) -> Any:
+            pending = _FIELD_RETRY.get()
+            if pending is not None and isinstance(result, Mapping):
+                previous, names = pending
+                fresh = {k: v for k, v in result.items() if k in names or k in sx._KEEP_META or str(k).startswith("_")}
+                result = {**{k: v for k, v in previous.items() if not str(k).startswith("_")}, **fresh}
+            return enrich(result, state)
+
+        setattr(_enrich_contract_result, _MARK, "HF-027")
+        module._enrich_contract_result = _enrich_contract_result
+    _register_judge_retry_rule(module)
+
+    @functools.wraps(original)
+    def retry_extract_node(state: Any) -> dict[str, Any]:
+        from mailroom_sandbox import correcting_judge
+
+        last = correcting_judge.last_ruling() if correcting_judge.correcting() else None
+        if not last or last.get("ruling") != "retry_fields" or not last.get("retry_fields"):
+            return original(state)
+        names = frozenset(str(n) for n in last["retry_fields"])
+        token = _FIELD_RETRY.set((dict(state.get("extracted_data") or {}), names))
+        try:
+            with sx.fields_only(names):
+                return original(state)
+        finally:
+            _FIELD_RETRY.reset(token)
+
+    return retry_extract_node
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(id="HF-020", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
            source_sha256="7dee5e0929633efe57f7b115c4129ab33ed62a19656b986711987f304c99df86",
@@ -1606,6 +1912,68 @@ HOTFIXES: tuple[Hotfix, ...] = (
               ("_retry_handoff_summary", "b55d8b530a3ef4610af94e21c4d1c2caf9260173121747aad6b116eeae32cce7"),
               ("agents.judge:CompletenessJudge._field_list",
                "fcb6f8f6c946c86f61ffc878988e0f352530fb9d7f15d29ecaa074596a54ba98")),
+    ),
+    Hotfix(
+        id="HF-025",
+        module="graph.build_graph",
+        attr="judge_verify_node",
+        source_sha256="47ffddc38ccd9db993718beaff30ee99572c7fdbd686267100ffc4b694a3d57e",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with a judge: section, every judge pass is recorded (pass, ruling, score, reason, model) with "
+                "the extraction the judge first saw; mode verify leaves the vendored judge unchanged",
+        install=_install_judge_node,
+        also=(("graph.routing:after_judge", "f56bf75e06bfef996de395dc06cc1dfe8b23c8cdd681451b0e2f0c1f333f0a66"),
+              ("agents.judge:CompletenessJudge.judge_completeness",
+               "880f296bc037e17376a34cf8964568bcf7a35ede7a0d1648d990b434ade5fbb9")),
+    ),
+    Hotfix(
+        id="HF-026",
+        module="graph.build_graph",
+        attr="arbiter_node",
+        source_sha256="16755ef96c46505540bb921ce6a7b5eddc3c10819b300743868b92fdc51afc6f",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, the arbiter makes no model call: the judge's ruling is mapped onto "
+                "the arbiter's decision (retry the named fields, accept, or a person with the judge's reason)",
+        install=_install_arbiter_passthrough,
+        also=(("graph.routing:after_arbiter", "6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529"),),
+    ),
+    Hotfix(
+        id="HF-027",
+        module="graph.build_graph",
+        attr="retry_extract_node",
+        source_sha256="1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52",
+        upstream="sandbox-only (phase 4 correcting judge; upstream issue to be filed with the pilot's results)",
+        summary="with judge: mode correct, a judge-ordered re-extraction asks only for the named fields, "
+                "replaces only them in the previous extraction, and returns to the judge for a second, "
+                "final ruling",
+        install=_install_field_retry,
+        refresh=_register_judge_retry_rule,
+        also=(("_enrich_contract_result", "03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2"),
+              ("graph.routing:after_retry_extraction_gated", "1dfa11277467523d6b9bcde376f100bb047d369d04ed8be32259bcf3416fbebe")),
+    ),
+    Hotfix(
+        id="HF-029",
+        module="graph.build_graph",
+        attr="_enrich_contract_result",
+        source_sha256="03afc1269a3a7b68f7dbe420ff57372657a32c37b598a15e6fc8a4baa56f3bf2",
+        upstream="sandbox-only (phase 5 evidence check; upstream issue to be filed with the replay's results)",
+        summary="with job.evidence_check, a cuad_clauses or claim_checklist item from a one-call read "
+                "that has a checkable quote not found in the document is "
+                "dropped and recorded under _evidence_dropped; a drop that would empty the extraction is skipped",
+        install=_install_evidence_check,
+        # Installed after HF-027 (both wrap _enrich_contract_result): this layer runs first.
+        also=(("extract_node", "612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5"),
+              ("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52"),
+              ("langchain_agents.specialist_agents:_item_support",
+               "3ce628784c5f74b073dbdb91b02f900f195855f9741055efea66eb2c7df2a1da"),
+              ("langchain_agents.specialist_agents:_evidence_fragments",
+               "830794c4d2c28ef6c738edd29e673ac19bff07c4ec48627c084cf1394efeb88f"),
+              ("langchain_agents.specialist_agents:_fold",
+               "99927a58b944d0627665db8f884639225dc5e5cf1de28eba1ad6540adf47263e"),
+              ("langchain_agents.specialist_agents:_contains_evidence",
+               "bef5c22ffa332bcc66d6e00f1ed0a39c84259f75524e0331ff256eaf4adbb1cd"),
+              ("pipeline.guards:_has_substantive_content",
+               "f2c330e491e66e415b6f2fd8dc17b7532350b6c729202b1ad675c6e16298978f")),
     ),
 )
 

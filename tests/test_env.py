@@ -1,12 +1,12 @@
-"""Env template defaults to the Modal vLLM path; cloud keys stay opt-in."""
+"""Env template selects OpenRouter while leaving credentials unset."""
 
 from mailroom_sandbox.paths import config_dir
 
 
-def test_env_example_defaults_to_modal_vllm():
+def test_env_example_defaults_to_openrouter():
     text = (config_dir() / ".env.example").read_text(encoding="utf-8")
-    assert "SANDBOX_PROFILE=modal-vllm" in text
-    assert "DEFAULT_PROVIDER=vllm" in text
+    assert "SANDBOX_PROFILE=openrouter" in text
+    assert "DEFAULT_PROVIDER=openrouter" in text
     assert "OBSERVABILITY_PROVIDER=langfuse" in text
     assert "LANGFUSE_INIT_ORG_ID=" in text
     assert "MAILROOM_TRACE_NAMES=document-pipeline" in text
