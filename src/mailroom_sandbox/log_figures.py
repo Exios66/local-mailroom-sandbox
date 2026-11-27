@@ -28,8 +28,23 @@ def task_label(task: str | None) -> str:
     return TASK_LABELS.get(task or "", fs.humanize(task) if task else "No task")
 
 
+def _count(value: Any) -> int | None:
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def scored_n(record: dict[str, Any]) -> int | None:
+    """Documents behind ``exact_match``: ``n_scored`` when recorded (rows without truth are left
+    out, SHF-006), else the interval's or the scores' ``n``, else the run's row count."""
+    scores = record.get("scores") or {}
+    ci = scores.get(f"{METRIC}_ci") if isinstance(scores.get(f"{METRIC}_ci"), dict) else {}
+    for value in (scores.get("n_scored"), ci.get("n"), scores.get("n"), record.get("n")):
+        if _count(value) is not None:
+            return _count(value)
+    return None
+
+
 def flatten_record(record: dict[str, Any]) -> dict[str, Any]:
-    """One log record as a flat row: identity fields, run size and exact match."""
+    """One log record as a flat row: identity fields, run size, scored size and exact match."""
     scores = record.get("scores") or {}
     git = record.get("git") or {}
     value = scores.get(METRIC)
@@ -43,21 +58,42 @@ def flatten_record(record: dict[str, Any]) -> dict[str, Any]:
         "model": record.get("model"),
         "prompt": record.get("prompt_version"),
         "mock": bool(record.get("mock")),
-        "n": int(n) if isinstance(n, (int, float)) else None,
+        "n": _count(n),
+        "n_scored": scored_n(record),
         "fingerprint": record.get("dataset_fingerprint"),
         "git": (git.get("sha") or git.get("commit") or "")[:10] if isinstance(git, dict) else "",
         METRIC: float(value) if isinstance(value, (int, float)) else None,
     }
 
 
-def setup_label(row: dict[str, Any]) -> str:
-    model = fs.short_model(row["model"]) if row.get("model") else "Default model"
+def setup_key(row: dict[str, Any]) -> tuple[str, str]:
+    """What defines a setup: the full model id and the prompt version (labels may shorten them)."""
+    return str(row.get("model") or ""), str(row.get("prompt") or "")
+
+
+def setup_label(row: dict[str, Any], full_model: bool = False) -> str:
+    model = row.get("model")
+    model = (model if full_model else fs.short_model(model)) if model else "Default model"
     prompt = row.get("prompt") or "default prompt"
     return f"{model} · {prompt.replace('_', ' ')}"
 
 
 def _scored(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [r for r in rows if r.get(METRIC) is not None and r.get("n")]
+    return [r for r in rows if r.get(METRIC) is not None and r.get("n_scored")]
+
+
+def _correct(row: dict[str, Any]) -> int:
+    return round(row[METRIC] * row["n_scored"])
+
+
+def _subtitle(required: Sequence[str], optional: Sequence[str] = ()) -> str:
+    """Join with `` · ``, dropping optional parts from the end until it fits the house limit."""
+    optional = list(optional)
+    while True:
+        text = " · ".join([*required, *optional])
+        if len(text) <= fs.SUBTITLE_MAX or not optional:
+            return text
+        optional.pop()
 
 
 def _pct(x: float) -> str:
@@ -83,7 +119,7 @@ def cohorts(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     for r in _scored(rows):
         groups.setdefault((r["task"], r["fingerprint"]), []).append(r)
     out = [{"task": t, "fingerprint": fp, "runs": len(g), "real_runs": sum(not r["mock"] for r in g),
-            "documents": sum(r["n"] for r in g), "setups": len({setup_label(r) for r in g})}
+            "documents": sum(r["n_scored"] for r in g), "setups": len({setup_key(r) for r in g})}
            for (t, fp), g in groups.items()]
     return sorted(out, key=lambda c: (-c["real_runs"], -c["runs"], str(c["task"]), str(c["fingerprint"])))
 
@@ -155,12 +191,17 @@ def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
     """Pooled exact match per model and prompt setup within one cohort, with 95% Wilson intervals."""
     picked = _cohort_rows(rows, task, fingerprint)
     mock = bool(picked) and all(r["mock"] for r in picked)
-    pooled: dict[str, dict[str, Any]] = {}
+    pooled: dict[tuple[str, str], dict[str, Any]] = {}
     for r in picked:
-        p = pooled.setdefault(setup_label(r), {"setup": setup_label(r), "runs": 0, "correct": 0, "documents": 0})
+        p = pooled.setdefault(setup_key(r), {"setup": setup_label(r), "model": r.get("model"),
+                                             "prompt": r.get("prompt"), "runs": 0, "correct": 0, "documents": 0})
         p["runs"] += 1
-        p["correct"] += round(r[METRIC] * r["n"])
-        p["documents"] += r["n"]
+        p["correct"] += _correct(r)
+        p["documents"] += r["n_scored"]
+    labels = [p["setup"] for p in pooled.values()]
+    for p in pooled.values():  # two org/model ids with one short name: show the full ids
+        if labels.count(p["setup"]) > 1:
+            p["setup"] = setup_label(p, full_model=True)
     data = []
     for p in pooled.values():
         lo, hi = fs.wilson(p["correct"], p["documents"])
@@ -184,8 +225,7 @@ def setups_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
         else:
             title = _fit(f"Setup {best['setup']} leads at {_pct(best['rate'])} exact match",
                          f"One setup leads at {_pct(best['rate'])} exact match")
-    subtitle = (f"Exact match pooled over runs · {name} · 95% Wilson interval"
-                + (f" · {MOCK_NOTE}" if mock else ""))
+    subtitle = _subtitle(["Exact match pooled over runs", name, "95% Wilson interval"], [MOCK_NOTE] if mock else [])
 
     colour = fs.SYSTEM_COLOURS[fs.system_of_task(task)]
     with fs.Fig(salt="log-setups") as f:
@@ -219,10 +259,10 @@ def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
     mock = bool(picked) and all(r["mock"] for r in picked)
     data = []
     for i, r in enumerate(picked, 1):
-        k = round(r[METRIC] * r["n"])
-        lo, hi = fs.wilson(k, r["n"])
+        k, n = _correct(r), r["n_scored"]
+        lo, hi = fs.wilson(k, n)
         data.append({"run": i, "experiment": r["experiment"], "timestamp": str(r["timestamp"]),
-                     "setup": setup_label(r), "correct": k, "documents": r["n"], "rate": r[METRIC],
+                     "setup": setup_label(r), "correct": k, "documents": n, "rate": k / n,
                      "low": lo, "high": hi})
 
     if not data:
@@ -245,10 +285,8 @@ def trend_svg(rows: Iterable[dict[str, Any]], task: Any, fingerprint: Any,
                          f"Exact match {level} over {len(data)} runs")
     dates = sorted(d["timestamp"][:10] for d in data)
     when = (dates[0] if dates[0] == dates[-1] else f"{dates[0]} to {dates[-1]}") if dates else "no dates"
-    subtitle = (f"Exact match per run · {_cohort_name(task, fingerprint)} · {when} · 95% Wilson interval"
-                + (f" · {MOCK_NOTE}" if mock else ""))
-    if len(subtitle) > fs.SUBTITLE_MAX:
-        subtitle = f"Exact match per run · {_cohort_name(task, fingerprint)} · 95% Wilson interval"
+    subtitle = _subtitle(["Exact match per run", _cohort_name(task, fingerprint), "95% Wilson interval"],
+                         ([MOCK_NOTE] if mock else []) + [when])
 
     colour = fs.SYSTEM_COLOURS[fs.system_of_task(task)]
     with fs.Fig(salt="log-trend") as f:

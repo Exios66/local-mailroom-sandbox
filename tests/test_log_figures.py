@@ -103,3 +103,38 @@ def test_figures_are_deterministic_and_handle_empty_input(build):
     assert fn(rows)[0] == fn(rows)[0]
     svg, data = fn([])
     assert data == [] and lint_svg(svg) == []
+
+
+def test_scored_n_prefers_n_scored_then_interval_then_scores_n():
+    base = _record(n=3)
+    assert lf.scored_n(base) == 3
+    assert lf.scored_n({**base, "scores": {"exact_match": 1.0, "n": 2}}) == 2
+    assert lf.scored_n({**base, "scores": {"exact_match": 1.0, "n": 3, "exact_match_ci": {"n": 2}}}) == 2
+    assert lf.scored_n({**base, "scores": {"exact_match": 1.0, "n": 3, "n_scored": 1}}) == 1
+
+
+def test_intervals_use_the_scored_documents_not_the_run_rows():
+    """SHF-006 leaves rows without truth out of exact_match; counts must use n_scored."""
+    record = {**_record(n=10), "scores": {"exact_match": 0.5, "n": 10, "n_scored": 4}}
+    _, setups = lf.setups_svg(_rows(record), "sorter", "fp1")
+    _, trend = lf.trend_svg(_rows(record), "sorter", "fp1")
+    for row in (setups[0], trend[0]):
+        assert (row["correct"], row["documents"]) == (2, 4)
+        assert row["low"] <= row["rate"] <= row["high"]
+
+
+def test_setups_keep_models_with_one_short_name_apart():
+    rows = _rows(_record(model="org-a/model", exact=1.0, n=10), _record(model="org-b/model", exact=0.0, n=10))
+    svg, data = lf.setups_svg(rows, "sorter", "fp1")
+    assert sorted(d["setup"] for d in data) == ["org-a/model · v1", "org-b/model · v1"]
+    assert [d["documents"] for d in data] == [10, 10]
+    assert lf.cohorts(rows)[0]["setups"] == 2
+    assert lint_svg(svg) == []
+
+
+@pytest.mark.parametrize("build", ["setups", "trend"])
+def test_long_cohort_subtitles_stay_within_the_house_limit(build):
+    rows = _rows(_record(task="correspondence_specialist", fp="abcdef1234567890", mock=True))
+    fn = lf.setups_svg if build == "setups" else lf.trend_svg
+    svg, _ = fn(rows, "correspondence_specialist", "abcdef1234567890")
+    assert lint_svg(svg) == []
