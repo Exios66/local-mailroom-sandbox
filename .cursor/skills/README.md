@@ -6,6 +6,8 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | --- | --- |
 | [sandbox-tool-router](sandbox-tool-router/SKILL.md) | **Start here** — pick the right tool |
 | [docs-audit-tool-router](docs-audit-tool-router/SKILL.md) | Full docs/README staleness sweep — links, paths, CLI/defaults, pins, versions, generated artifacts |
+| [sand-board-lifecycle](sand-board-lifecycle/SKILL.md) | SAND card cycle: allocate → in_progress → review → done/cancelled |
+| [sand-board-hygiene](sand-board-hygiene/SKILL.md) | Board triage: stale open cards, lane drift vs issues/PRs, Next ID |
 | [ollama](ollama/SKILL.md) | Offline/CPU fallback LLM (`--profile ollama`) |
 | [modal](modal/SKILL.md) | **Default** serving: Modal vLLM |
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |

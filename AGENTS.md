@@ -118,6 +118,8 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
 | `docs-audit-tool-router` | Full README/docs staleness sweeps: links, paths, CLI/defaults, pins, versions, counts and generated artifacts |
+| `sand-board-lifecycle` | SAND card cycle: allocate → in_progress → review → done/cancelled on `governance/TASKS.md` |
+| `sand-board-hygiene` | Board triage: stale open cards, lane drift vs issues/PRs, Next ID hygiene |
 | `modal` | **Default** serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
 | `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
@@ -265,7 +267,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
   rules, and the repo layout index at `docs/setting-up/LAYOUT.md`. Every docs page is indexed in
   [`docs/README.md`](docs/README.md).
-- Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
+- Agent skills: `.cursor/skills/` (router + docs audit + SAND board lifecycle/hygiene + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Reduced agent profile (HUB-015)
 
