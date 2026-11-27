@@ -88,8 +88,10 @@ MIN_LABEL_QUOTE_TOKENS = 3
 
 #: Unlabelled scored fields to label, per class, in priority order. Tier 1 is mission-critical:
 #: who sent what to whom and when, how urgent it is, money demanded, who signed and when it
-#: binds. Tier 2 is captured when the evidence supports it. Merger agreements are excluded
-#: (length); their easy wins are deterministic, not labeled here.
+#: binds. Tier 2 is captured when the evidence supports it. Merger agreements label their 16
+#: entity fields (tier 1) and the consideration (tier 2); their MAUD clauses are Dojo-labelled
+#: and never relabelled here. The entity labels feed ``job.merger_entities``, reported next to
+#: MAUD accuracy, never in the headline (Phase 5 part 2 design, part 7).
 TARGET_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     "correspondence": {
         "tier1": ("sender", "recipient", "communication_date", "urgency", "demand_amount", "action_items"),
@@ -103,6 +105,13 @@ TARGET_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
         "tier1": ("agreement_date", "expiration_date", "signatories", "party_roles",
                   "termination_notice_period", "contract_value"),
         "tier2": ("dispute_forum", "payment_terms", "territory"),
+    },
+    "merger_agreement": {
+        "tier1": ("document_name", "parties", "acquirer", "target", "merger_sub", "signatories",
+                  "effective_date", "effective_time", "governing_law", "per_share_cash_amount",
+                  "exchange_ratio", "target_termination_fee", "parent_termination_fee", "outside_date",
+                  "financial_advisors", "legal_counsel"),
+        "tier2": ("merger_consideration",),
     },
 }
 
