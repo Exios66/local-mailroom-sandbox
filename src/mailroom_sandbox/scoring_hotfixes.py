@@ -222,9 +222,14 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:corrected_subclass_truth", "27cf68dd20c665c87e7f56948570a3748c7b345435a99de0d60e7114c0dc6cfc"),
                  ("mailroom_sandbox.eval.scoring:subclass_correct", "630d2adcfe049b3b9004dc69854298bfb2415d7a2b4eeedbec21339f40bfbcd5"),
                  ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
+                 # extraction scoring takes the corrected subclass for its subclass-specific fields
+                 ("mailroom_sandbox.eval.scoring:score_extraction_row",
+                  "2116e192cf4c3b1b0626299becff5e6c3a22b6e80d826b2c08b3d2547c03f591"),
+                 ("mailroom_sandbox.job.gate_causes:_field_scores",
+                  "f572ea93d4f8f14b7705229b9570da1fd549223a2aa3d9af722d0933d9a8e892"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
-                  "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3")),
+                  "c42b2f4939597e3408c949cc08bdd62d1ffc6b7371766fb2196c2adac0378e5b")),
         upstream="sandbox (isolated sorter / sorter_reviewer runs scored doc_type only; reviewed "
                  "subclass corrections in data/labels/review/subclass_corrections.jsonl)",
         summary="isolated sorter and sorter_reviewer runs score the subclass joint with the class on the "
@@ -232,7 +237,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                 "subclass correction replaces the Hub truth for subclass and unit scoring, and for the "
                 "pipeline's per-item subclass_correct and run-level subclass scores (SHF-012 side), the "
                 "Hub-truth figures stay under raw_dojo and the corrected documents are counted "
-                "(subclass_corrections_applied)",
+                "(subclass_corrections_applied); extraction scoring and the gate's lowest-field diagnosis "
+                "score a corrected document on its reviewed subclass (subclass_corrected), the raw side on "
+                "the Hub subclass",
     ),
     ScoringHotfix(
         id="SHF-015",
@@ -240,7 +247,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "71d73e914c9fd31ec17a82313c6819b4b4290df7d0d27dcd64ff00961c2f517f"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "2116e192cf4c3b1b0626299becff5e6c3a22b6e80d826b2c08b3d2547c03f591"),
             # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
             # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
             # changes one of them makes the fix stale). A live monkeypatch of a function is not source

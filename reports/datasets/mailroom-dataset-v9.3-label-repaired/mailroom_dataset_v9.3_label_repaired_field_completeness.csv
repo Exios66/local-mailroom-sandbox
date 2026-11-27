@@ -64,7 +64,7 @@ merger_agreement,financial_advisors,152,0,30,30,0,122,0,0.0,0.1974,0,0,generated
 merger_agreement,governing_law,152,0,98,98,0,54,0,0.0,0.6447,2,0,generated_rule
 merger_agreement,legal_counsel,152,0,131,131,0,21,0,0.0,0.8618,1,0,generated_rule
 merger_agreement,maud_clauses,152,0,152,152,0,0,0,0.0,1.0,0,0,generated_derived
-merger_agreement,merger_consideration,152,0,96,96,0,56,0,0.0,0.6316,1,0,generated_derived
+merger_agreement,merger_consideration,152,0,97,97,0,55,0,0.0,0.6382,1,0,generated_derived
 merger_agreement,merger_sub,152,0,17,17,0,135,0,0.0,0.1118,0,0,generated_rule
 merger_agreement,outside_date,152,0,51,51,0,101,0,0.0,0.3355,0,0,generated_rule
 merger_agreement,parent_termination_fee,152,0,17,17,0,135,0,0.0,0.1118,0,0,generated_rule

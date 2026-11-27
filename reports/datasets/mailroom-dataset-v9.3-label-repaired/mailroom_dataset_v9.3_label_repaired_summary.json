@@ -12,18 +12,18 @@
   },
   "label_cells_targeted": 48686,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 43407,
-  "label_cells_unlabeled": 5201,
+  "label_cells_labeled_repaired": 43408,
+  "label_cells_unlabeled": 5200,
   "label_cells_disputed_unresolved": 78,
   "conflicts_resolved": 2106,
   "needs_human": 78,
-  "subclass_changed": 2,
+  "subclass_changed": 66,
   "nan_placeholders_dropped": 2100,
   "duplicate_rows_flagged": 13,
   "stale_overlay_records_skipped": {},
   "chosen_source_counts": {
     "hub_v9.3": 24713,
-    "generated_derived": 5828,
+    "generated_derived": 5829,
     "near_gold_two_pass": 4050,
     "near_gold_reviewed": 3832,
     "interim_reviewed": 1894,
@@ -33,9 +33,9 @@
     "interim_gate": 346,
     "cuad_span": 223,
     "gold_disputed": 82,
+    "subclass_review": 66,
     "interim_correction": 45,
-    "owner_review": 8,
-    "subclass_review": 2
+    "owner_review": 8
   },
   "source_weights": {
     "owner_review": {
@@ -115,13 +115,13 @@
     "data/labels/interim/insurance_claim.jsonl": "5396ceb39cd72f110184212adbecf28167d0e868a9d1b189741a164377230c97",
     "data/labels/interim/merger_agreement.jsonl": "033732dc412f2fc4594283e909d42c3e9a55e27dd623ba7d1ea5862c41be1753",
     "data/labels/review/human_reviews.jsonl": "05244782961983ceb741946ee25aa89ce45b5726dc0de9c2dbfe3b50b7624a1b",
-    "data/labels/review/subclass_corrections.jsonl": "266304cedebadb469c1c212f0328da9c5852d9558705114f4a0a8a06210baaa3",
+    "data/labels/review/subclass_corrections.jsonl": "c42b2f4939597e3408c949cc08bdd62d1ffc6b7371766fb2196c2adac0378e5b",
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/test/test-00000-of-00001.parquet": "769334cf81c2dc6dc9c64dc30f8676794adc48b2b8df19f013d19d337116f75a",
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/train/train-00000-of-00001.parquet": "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
   },
   "outputs_sha256": {
-    "mailroom_dataset_v9.3_label_repaired.csv": "4bed83276ba717d3cdb391e6615f2d17ade915755dde659efc58a85d7acf341d",
-    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "60d40c94195d3bdf7bb8e61ce323ca0c25b8f64133c12f512e9671ab33873506",
-    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "d55156770d431257f0198e8c9c19e7b2b719bbae9464ffe05b1dbe5c92469673"
+    "mailroom_dataset_v9.3_label_repaired.csv": "9fd23731d61266e9ed3295f62b9698d005bf6ccddd3c7ddfcd2362f13f87853f",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "73cc8e400525cfdacb3af6e754c0fc114ca0511863b525cfb4aa7f0f07c0dc4a",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "c4c1449b1474d4e1e175cae850ccb1b0689562a03b2c7f5aa8919eb90cb6892a"
   }
 }
