@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=./profile.schema.json
 name: openrouter
-description: Opt-in cloud API. Never the sandbox default.
+description: Default experimental and deployment provider. Live runs require an API key and spend approval.
 provider: openrouter
 default_model: qwen/qwen3.5-9b
 judge_model: deepseek/deepseek-v4-flash

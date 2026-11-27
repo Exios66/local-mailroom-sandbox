@@ -1,4 +1,4 @@
-"""The sandbox serves through Modal vLLM unless the operator opts out."""
+"""New configuration uses OpenRouter; explicit provider selections stay fixed."""
 
 from __future__ import annotations
 
@@ -20,14 +20,14 @@ def _no_dotenv(monkeypatch):
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [])
 
 
-def test_default_profile_constant_is_modal_vllm():
-    assert DEFAULT_PROFILE == "modal-vllm"
-    assert load_profile(DEFAULT_PROFILE)["provider"] == "vllm"
+def test_default_profile_constant_is_openrouter():
+    assert DEFAULT_PROFILE == "openrouter"
+    assert load_profile(DEFAULT_PROFILE)["provider"] == "openrouter"
 
 
 def test_default_profile_honors_env_opt_out(monkeypatch):
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
-    assert default_profile() == "modal-vllm"
+    assert default_profile() == "openrouter"
 
     monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
     assert default_profile() == "ollama"
@@ -36,7 +36,7 @@ def test_default_profile_honors_env_opt_out(monkeypatch):
 def test_cli_parser_uses_the_default_profile(monkeypatch):
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
     parser = build_parser()
-    assert parser.parse_args(["health"]).profile == "modal-vllm"
+    assert parser.parse_args(["health"]).profile == "openrouter"
     assert parser.parse_args(["health", "--profile", "ollama"]).profile == "ollama"
 
 
@@ -82,13 +82,13 @@ def test_dotenv_profile_opt_out_survives_the_default_flip(monkeypatch, tmp_path)
     assert build_parser().parse_args(["health", "--profile", "ollama"]).profile == "ollama"
 
 
-def test_dotenv_without_a_profile_falls_back_to_modal(monkeypatch, tmp_path):
+def test_dotenv_without_a_profile_falls_back_to_openrouter(monkeypatch, tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("OBSERVABILITY_PROVIDER=langfuse\nSANDBOX_PROFILE=\n", encoding="utf-8")
     monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
-    assert default_profile() == "modal-vllm"
+    assert default_profile() == "openrouter"
 
 
 def _isolated_environ(monkeypatch):
@@ -139,9 +139,9 @@ def test_trace_tags_name_the_profile_that_is_actually_the_default(monkeypatch):
     from mailroom_sandbox.eval.tracing import default_tags
 
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
-    assert "modal-vllm" in default_tags() and "ollama" not in default_tags()
+    assert "openrouter" in default_tags() and "ollama" not in default_tags()
     monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
-    assert "ollama" in default_tags() and "modal-vllm" not in default_tags()
+    assert "ollama" in default_tags() and "openrouter" not in default_tags()
 
 
 def test_lock_without_a_profile_falls_back_to_the_default_profile(monkeypatch):
@@ -149,8 +149,8 @@ def test_lock_without_a_profile_falls_back_to_the_default_profile(monkeypatch):
     from mailroom_sandbox.job.runner import _lock_profile
 
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
-    assert _lock_profile(SimpleNamespace(read_lock=lambda: None)) == "modal-vllm"
-    assert _lock_profile(SimpleNamespace(read_lock=lambda: {})) == "modal-vllm"
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: None)) == "openrouter"
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: {})) == "openrouter"
     assert _lock_profile(SimpleNamespace(read_lock=lambda: {"profile": "ollama"})) == "ollama"
     monkeypatch.setenv("SANDBOX_PROFILE", "vllm-local")
     assert _lock_profile(SimpleNamespace(read_lock=lambda: {})) == "vllm-local"
@@ -205,7 +205,7 @@ def test_profiles_marks_exactly_the_active_default(monkeypatch, capsys):
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
     assert cli.main(["profiles"]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert [ln for ln in lines if "(default)" in ln] == ["modal-vllm  (default)"]
+    assert [ln for ln in lines if "(default)" in ln] == ["openrouter  (default)"]
     assert "ollama" in lines
 
     monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
@@ -245,7 +245,7 @@ def test_health_without_a_modal_endpoint_hints_and_exits_one(monkeypatch, capsys
     _stub_probes(monkeypatch, ok=True)  # even a reachable localhost must not count as the Modal endpoint
     for name in ("VLLM_BASE_URL", "MODAL_WORKSPACE", "SANDBOX_PROFILE"):
         monkeypatch.delenv(name, raising=False)
-    assert cli.main(["health"]) == 1
+    assert cli.main(["health", "--profile", "modal-vllm"]) == 1
     out = capsys.readouterr()
     assert "hint: modal-vllm has no VLLM_BASE_URL" in out.err
     assert json.loads(out.out)["ok"] is False
@@ -257,9 +257,6 @@ def test_health_exit_code_ignores_langfuse_and_phoenix(monkeypatch, capsys):
     from mailroom_sandbox.health import ProbeResult
 
     monkeypatch.setattr("mailroom_sandbox.runtime.load_env_file", lambda: None)
-    # A sibling test can leave SANDBOX_PROFILE=openrouter in the worker process.
-    # This case is the modal provider, so pin it instead of inheriting that.
-    monkeypatch.setenv("SANDBOX_PROFILE", "modal-vllm")
     monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
     monkeypatch.delenv("VLLM_BASE_URL", raising=False)
 
@@ -269,7 +266,7 @@ def test_health_exit_code_ignores_langfuse_and_phoenix(monkeypatch, capsys):
 
     monkeypatch.setattr("mailroom_sandbox.health.probe_models", probe)
     monkeypatch.setattr("mailroom_sandbox.health.probe_chat", probe)
-    assert cli.main(["health"]) == 0
+    assert cli.main(["health", "--profile", "modal-vllm"]) == 0
     out = capsys.readouterr()
     report = json.loads(out.out)
     assert report["ok"] is True and report["langfuse"]["ok"] is False and report["phoenix"]["ok"] is False

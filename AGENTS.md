@@ -118,15 +118,17 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
 | `docs-audit-tool-router` | Full README/docs staleness sweeps: links, paths, CLI/defaults, pins, versions, counts and generated artifacts |
-| `modal` | **Default** serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
+| `openrouter` | **Default** experimental/deployment provider, API routes and spend preflight |
+| `modal` | Explicit GPU serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
 | `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
 | `apache-phoenix` | Optional Arize Phoenix OTEL sidecar only |
 | `braintrust` | Opt-in hosted Braintrust (never default offline) |
 | `huggingface` | Pinned Hub pulls / weights, offline draws, named datasets, subset identity and floor replay provenance |
 
-Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
-unless explicitly opted in.
+Do not use Phoenix or Braintrust as the The-Mailroom sink. OpenRouter is the
+default experimental/deployment provider. Live calls retain credentials and human
+spend gates; existing run specs and locks retain their provider.
 
 ## Dataset and review evidence
 
@@ -186,11 +188,11 @@ pip install -e ".[dev]"
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list
-sandbox runbook show serve          # DEFAULT: Modal vLLM deploy → point → verify → teardown
+sandbox runbook show serve          # explicit Modal vLLM deploy → point → verify → teardown
 sandbox cutover --profile modal-vllm
 sandbox up                          # langfuse only (the Modal endpoint is external)
 sandbox pull-models --profile ollama  # offline fallback: ollama pull qwen3:8b (on modal-vllm it only prints the prewarm command)
-sandbox health                      # probes the deployed modal-vllm endpoint
+sandbox health                      # probes the selected provider (OpenRouter by default)
 sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone commit/release refs otherwise)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
@@ -260,7 +262,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - Never calibrate the reviewer on a chat model: preflight refuses a paid `task: sorter_reviewer` run without a `reviewer:` block, and `backend: api` needs `allow_chat_model: true`. The chat-model Luna runs (`openai/gpt-6-luna`: their configs, now under `config/runs/legacy/`, and the `sorter_reviewer_decision_v*.txt` prompts) were a mistake and are superseded.
 - Start a paid run with `sandbox run preflight --config <file>`, then `sandbox run start --config <file> --initials <XX>` (the spend gate; initials are 2–6 capital letters and belong to a human). If a long `task: pipeline` process dies, the checkpoint stays `running` and `sandbox run resume` continues it. A draft 4.2.0 question set also locks `reviewer.routing_sha256`; resume returns `drift_refused` when those routing helpers change, and `--force` archives the generation and re-locks ([design](docs/decision-model-input-design.md)).
 - Paid runs (SAND-089): every paid run needs `job.max_wall_seconds`; a run that warms a Modal GPU, or has no API model, also needs `job.cost_cap_usd`; a run that sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a token price for every API model: `config/api_prices.yaml` (full OpenRouter price sheets; a tier applies to a whole call whose prompt reaches its `min_prompt_tokens`), with the built-in `SANDBOX_MODEL_PRICES` table in `src/mailroom_sandbox/job/metrics.py` as the fallback. The run ceiling uses each model's dearest tier. The GPU cap does not limit OpenRouter spend. `sandbox experiment create` recommends all three from the design.
-- Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
+- Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is the default experimental provider.
 - Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`. Every Compose port binds `127.0.0.1`; Langfuse web and worker are pinned to `3.225.15`.
 - Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap

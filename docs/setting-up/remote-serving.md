@@ -4,7 +4,8 @@ The sandbox is local-first, but its eval surfaces are provider-agnostic:
 anything that speaks OpenAI `/v1` can back a profile. Four supported paths,
 one env contract (`VLLM_BASE_URL` / `VLLM_API_KEY` everywhere).
 
-> **Default path:** `modal-vllm`. The canonical lifecycle script is
+> **Explicit GPU path:** `modal-vllm`. OpenRouter is the default experimental
+> provider; see [providers](providers.md). The canonical GPU lifecycle script is
 > [`sandbox runbook show serve`](../runbooks/serving/modal-vllm.md) — generated
 > from `config/runbooks/catalog.yaml`. This page is the overview of all four
 > serving paths; the runbook is the one to execute.
@@ -121,7 +122,7 @@ export SANDBOX_TUNNEL_USER=jdoe
 sandbox tunnel --profile vllm-remote plan    # print the exact ssh command
 sandbox tunnel --profile vllm-remote up      # detached forward → localhost:18000
 sandbox health  --profile vllm-remote
-sandbox eval sorter --local                  # evals hit the tunneled engine
+sandbox eval sorter --local --profile vllm-remote  # evals hit the tunneled engine
 sandbox tunnel  --profile vllm-remote down
 ```
 

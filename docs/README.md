@@ -19,7 +19,7 @@ Generated pages are never edited by hand: [`cli-reference.md`](cli-reference.md)
 | [Quickstart](setting-up/QUICKSTART.md) | Install, first mock and live run, the canonical workflows |
 | [Sandbox guide](SANDBOX-GUIDE.md) | Long-form walkthrough of the offline sandbox |
 | [Layout contract](setting-up/LAYOUT.md) | Which folder owns what, frozen surfaces, junk policy |
-| [Providers](setting-up/providers.md) | Modal vLLM (default), Ollama, local vLLM, llama.cpp, LM Studio, OpenRouter |
+| [Providers](setting-up/providers.md) | OpenRouter (default), Modal vLLM, Ollama, local vLLM, llama.cpp, LM Studio |
 | [Remote serving](setting-up/remote-serving.md) | Modal, SSH-tunnelled vLLM, CHTC, conda |
 | [Docker offline](setting-up/docker-offline.md) | Dockerfile, Compose profiles, prep notebooks |
 | [Sister repos](setting-up/sister-repos.md) | The Mailroom family map |

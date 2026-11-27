@@ -8,7 +8,7 @@ have their own guides: [`conda/`](conda/) (environment spec),
 ## Compose
 
 ```bash
-sandbox up                       # langfuse only (default modal-vllm: the GPU endpoint is on Modal)
+sandbox up                       # langfuse only (default openrouter: inference is external)
 sandbox up --compose-profile langfuse --compose-profile ollama   # offline fallback: langfuse + ollama
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox up --compose-profile jupyter   # builds deploy/Dockerfile → Lab :8888
@@ -110,10 +110,11 @@ curl -sS -H "Authorization: Bearer $VLLM_API_KEY" "$VLLM_BASE_URL/models"
 modal run deploy/modal_vllm.py --check
 ```
 
-`modal-vllm` is the default (`SANDBOX_PROFILE=modal-vllm` +
-`DEFAULT_PROVIDER=vllm` in `config/.env.example`), so
-`sandbox pilot --local` uses the deployed endpoint. The offline opt-out is
-`--profile ollama`.
+`openrouter` is the default experimental provider. Use
+`sandbox pilot --local --profile modal-vllm` for the deployed Modal endpoint,
+or set `SANDBOX_PROFILE=modal-vllm` for this shell. A `--profile` flag applies
+only to that invocation; the preceding health check does not change the next
+command's provider. Use `--profile ollama` for the offline fallback.
 
 ### Knobs
 
