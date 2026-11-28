@@ -271,3 +271,41 @@ def test_a_subclass_keeps_the_event_counts_without_a_corpus_cache():
     assert all(isinstance(v, int) for v in counts.values())
     assert {k: with_sub.get(k) for k in counts} == counts
     assert with_sub["overall_extraction_score"] == without["overall_extraction_score"]
+
+
+@pytest.mark.parametrize("prediction,counts", [
+    # zero true positives: the F1 (0.0) cannot tell a recount on another pair from the suite's own
+    ({"intent": "entity_formation", "subject_matter": "Merger plan"}, (0, 0, 2)),
+    ({"intent": "governance_rules", "subject_matter": "Merger plan"}, (1, 0, 1)),
+])
+def test_detailed_event_counts_are_the_suites_own(prediction, counts):
+    """The counts come from the pair the suite scored, so a field it drops is never a false negative.
+
+    ``certifying_officer`` holds a value but is ``pending_annotation``: alignment drops it from both
+    sides. A recount on the sandbox pair counted it as a third miss on the first row (F1 0.0 on
+    both, so an F1 check could not catch it) and lost the counts on the second.
+    """
+    expected = {"intent": "governance_rules", "subject_matter": "Bylaws", "certifying_officer": "Bob",
+                "gt_presence": json.dumps({"certifying_officer": "pending_annotation"})}
+    result = score_extraction_row("corporate_record", dict(prediction), dict(expected), expected_subclass="bylaws")
+    assert (result["tp"], result["fp"], result["fn"]) == counts
+    assert "certifying_officer" in result["unlabeled_fields"]
+
+
+def test_count_capture_is_a_passthrough_outside_a_scoring_call():
+    from llm_dojo_scoring.scoring import extraction_metrics as em
+
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    with sh.suite_event_counts() as bundles:
+        pass
+    assert bundles == []
+    prf = {"extraction_precision": 1.0, "extraction_recall": 0.5, "extraction_f1": 0.6667, "tp": 1, "fp": 0, "fn": 1}
+    assert em.prf_bundle_keys(prf) == {k: prf.get(k) for k in ("extraction_precision", "extraction_recall",
+                                                                  "extraction_f1", "extraction_f2", "entity_list_f1")}
+    assert sh.captured_event_counts([prf], {"extraction_precision": 1.0, "extraction_recall": 0.5,
+                                            "extraction_f1": 0.6667}) == {"tp": 1, "fp": 0, "fn": 1}
+    # a bundle whose rates differ from the result's is not the one the result carries
+    assert sh.captured_event_counts([prf], {"extraction_precision": 1.0, "extraction_recall": 0.5,
+                                            "extraction_f1": 0.5}) == {}
+    assert sh.captured_event_counts([prf], {"tp": 2, "extraction_f1": 0.6667}) == {}
