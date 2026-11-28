@@ -19,10 +19,24 @@
    "rejected": 28,
    "left_out": 13,
    "withheld_checks": 4,
-   "via_add_missing_fields_documents": 28
+   "via_add_missing_fields_documents": 28,
+   "prepromotion_audit": {
+    "findings": 82,
+    "withdrawn": 33,
+    "corrected": 48,
+    "kept_after_tie_break": 1,
+    "fable_tie_breaks": 5,
+    "net_labels": 985,
+    "net_populated": 591,
+    "net_documented_absence": 394
+   }
   }
  },
  "files": {
+  "README.md": {
+   "sha256": "006202d758079015b040033fd2008f9974dda8bbebfbc9e28b02707131dbb047",
+   "admission_input": false
+  },
   "submissions/rc13-p3-disputes-w1.jsonl": {
    "sha256": "cca99249e12d921242e5cbac8a0b13bc0c18633c559f4e2fad02e878ec871e09",
    "admission_input": false
@@ -223,6 +237,14 @@
    "sha256": "3d60c1c3b3d51201f2deba34a76a867e1c5b74393bdaf55693f3638717389cc0",
    "admission_input": false
   },
+  "submissions/rc13-p3-prepromotion-audit-corrections.jsonl": {
+   "sha256": "fa92c1d2a31f3588e6f6436d938c2e2219ae0ad82cc6ad8bc498ac5f73a9ac86",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-prepromotion-audit-withdrawals.jsonl": {
+   "sha256": "71ee4caf8c3331932256f0b7f6d950cae73bd78f49a368050618382c7f1d96e8",
+   "admission_input": false
+  },
   "submissions/rc13-p3-queue.jsonl": {
    "sha256": "fc65269903bddc89d447ec91c4686b9c1ff3c12525e15962d36e14ce6f15c0f7",
    "admission_input": false
@@ -259,8 +281,8 @@
    "sha256": "d3705b6fbdc4ab45c80d2fba16d4f16c325a2f5fc35890846f2518ecc6cbd47c",
    "admission_input": false
   },
-  "README.md": {
-   "sha256": "66a065df943beac2d4eed26407931fb836de2a92afcdd80f97e145c34abf8dc9",
+  "withdrawn-gold-contract.jsonl": {
+   "sha256": "d3af39f625d345e87e65a038148e6f66292e03c2cf29d9d26f0c48633ac4488a",
    "admission_input": false
   }
  },
@@ -278,6 +300,20 @@
     "correct": 1
    },
    "read_by": "gold_labels.py review"
+  },
+  {
+   "file": "submissions/rc13-p3-prepromotion-audit-corrections.jsonl",
+   "verdicts": {
+    "correct": 48
+   },
+   "read_by": "gold_labels.py review"
+  },
+  {
+   "file": "submissions/rc13-p3-prepromotion-audit-withdrawals.jsonl",
+   "verdicts": {
+    "reject": 33
+   },
+   "read_by": "withdrawal script (gold_labels.apply_review; see README)"
   }
  ]
 }

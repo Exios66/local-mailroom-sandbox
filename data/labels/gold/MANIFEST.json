@@ -1268,36 +1268,36 @@
       },
       "contract_value": {
         "candidate": 96,
-        "near_gold": 324
+        "near_gold": 316
       },
       "dispute_forum": {
         "candidate": 96,
-        "near_gold": 333
+        "near_gold": 332
       },
       "expiration_date": {
         "candidate": 96,
-        "near_gold": 312
+        "near_gold": 311
       },
       "party_roles": {
         "candidate": 57,
         "disputed": 1,
-        "near_gold": 361
+        "near_gold": 354
       },
       "payment_terms": {
         "candidate": 95,
-        "near_gold": 342
+        "near_gold": 338
       },
       "signatories": {
         "candidate": 96,
-        "near_gold": 326
+        "near_gold": 321
       },
       "termination_notice_period": {
         "candidate": 96,
-        "near_gold": 279
+        "near_gold": 274
       },
       "territory": {
         "candidate": 96,
-        "near_gold": 339
+        "near_gold": 337
       }
     },
     "corporate_record": {
@@ -1470,12 +1470,12 @@
     }
   },
   "files": {
-    "contract.jsonl": "84bc55c2cb5baa91a8f6b52648ffbe9095b564e8e1c8cbcff53f97868d382b4b",
+    "contract.jsonl": "5584459e0b6e664920d6239a600d81f0c60639abce87fc14774262a45cc0cf5b",
     "corporate_record.jsonl": "e395114974e627add3443a2581691d9a208f66c7cf1de6e70146409fc4d01d13",
     "correspondence.jsonl": "73ea4b0a458840293958e6e6388af2f10678755d8dc97bc91836fe53f0e93d24",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
-  "reviewed_at": "2026-11-28T16:57:04Z",
+  "reviewed_at": "2026-11-28T20:21:51Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -1817,6 +1817,8 @@
       "rc13-p3-mf-review.jsonl",
       "rc13-p3-new-review.jsonl",
       "rc13-p3-pr478-review-corrections.jsonl",
+      "rc13-p3-prepromotion-audit-corrections.jsonl",
+      "rc13-p3-prepromotion-audit-withdrawals.jsonl",
       "rc13-p3-stage-review-corrections.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
@@ -1975,6 +1977,48 @@
           }
         }
       ]
+    },
+    {
+      "archive": "data/labels/repair-artifacts/v93-20261128-rc13-contract-full-slice",
+      "cells": [
+        "DOC-1266801f2faad19f.contract_value",
+        "DOC-1a8aa868227dbd45.termination_notice_period",
+        "DOC-2b56dc54d52da61b.party_roles",
+        "DOC-2f88403fb6616a82.termination_notice_period",
+        "DOC-39aa396025b48de0.party_roles",
+        "DOC-43a8c8be1ebfb00f.party_roles",
+        "DOC-52daf47a1de2bcc1.contract_value",
+        "DOC-52daf47a1de2bcc1.party_roles",
+        "DOC-561364d531fca179.dispute_forum",
+        "DOC-695b0f6b7052fcb2.party_roles",
+        "DOC-74aed0a1174945ec.payment_terms",
+        "DOC-79c78825d5767dc4.signatories",
+        "DOC-7ec4c4ce46677363.payment_terms",
+        "DOC-812192e392d8d410.party_roles",
+        "DOC-8d9f10edd73904b1.termination_notice_period",
+        "DOC-8deb5edc6d5cd41b.signatories",
+        "DOC-999cb02b62653e04.contract_value",
+        "DOC-a419adc4a0232ea7.contract_value",
+        "DOC-a7ea445212692b88.signatories",
+        "DOC-b90a72cd70752da5.expiration_date",
+        "DOC-c311561c7af3cbe0.contract_value",
+        "DOC-d6b6b418dd211b76.contract_value",
+        "DOC-d6b6b418dd211b76.payment_terms",
+        "DOC-d88df91b9999b660.contract_value",
+        "DOC-dbfa4f9eb3f16433.signatories",
+        "DOC-ddf429892b0d1563.party_roles",
+        "DOC-dfd20f94bb76b6e4.payment_terms",
+        "DOC-e01e99acd2a96918.contract_value",
+        "DOC-e01e99acd2a96918.termination_notice_period",
+        "DOC-e998c563b82122b9.territory",
+        "DOC-e9d0a5cfff56fa37.territory",
+        "DOC-f469ffa1b2763bde.termination_notice_period",
+        "DOC-f76f6e3e45039acb.signatories"
+      ],
+      "reason": "pre-promotion audit: not clean truth (review reject)",
+      "review": "rc13-p3-prepromotion-audit-withdrawals.jsonl",
+      "scope": "33 contract cells admitted in the rc.13 Phase 3 round only",
+      "withdrawn_at": "2026-11-28T20:21:51Z"
     }
   ]
 }

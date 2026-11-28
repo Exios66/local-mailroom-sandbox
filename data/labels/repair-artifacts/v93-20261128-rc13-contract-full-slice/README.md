@@ -169,6 +169,84 @@ clause that states it: termination "on the later of the first business day follo
 (7th) day after the sending of a termination notice to Agent". Only the release's provenance
 changes.
 
+## Pre-promotion audit
+
+Before the merge, 20 independent auditors re-read all 1,018 admitted labels against the document
+text and the field definitions. Each auditor reported every label it judged wrong, unsupported or
+not clean truth. A deterministic pass first confirmed that every evidence span matches the text at
+its offsets. The reviewer adjudicated all 82 findings against the text, and Fable broke five close
+calls. Four of those are withdrawals, and one keeps a label: `DOC-e29140d2e8e989be`'s "franchisor"
+rests on the signature block's "FRANCHISOR:", and the franchisee in that form is a blank.
+
+**33 withdrawn**
+([`submissions/rc13-p3-prepromotion-audit-withdrawals.jsonl`](submissions/rc13-p3-prepromotion-audit-withdrawals.jsonl)).
+Each record leaves the catalog and becomes a `review_rejected` row in the supplementary store,
+which is the shape `build` gives a rejected record. The review it replaced is kept under
+`review.supersedes`. The gold manifest lists the cells under `withdrawals`, and
+[`withdrawn-gold-contract.jsonl`](withdrawn-gold-contract.jsonl) keeps the rows as they were.
+Each cell is unlabeled again.
+
+- **`contract_value` (8):**
+  - one tier or instalment of a schedule (four documents);
+  - one component of a purchase price (a credit bid);
+  - the consultant's own share purchase;
+  - a support fee beside product purchases (Fable);
+  - a one-way minimum-purchase floor (Fable).
+- **`party_roles` (7):**
+  - a role word used only in passing or bound to another entity (five documents);
+  - a recital that calls both parties "supplier" (Fable);
+  - a preamble role word left as `other`.
+- **`signatories` (5):** names printed under blank lines in unsigned copies.
+- **`termination_notice_period` (5):**
+  - redacted periods (two documents);
+  - a store-level vacate notice;
+  - a false absence (an immediate termination is stated);
+  - a period printed without a unit (Fable).
+- **`payment_terms` (4):**
+  - a redacted term;
+  - registered-capital contributions;
+  - a performance deposit;
+  - an expense-only sentence.
+- **`territory` (2):** a recital about another venture, and a single blank location.
+- **`dispute_forum` (1):** a forum named only in an exhibit undertaking.
+- **`expiration_date` (1):** a false absence, where the term states an OCR-garbled end date.
+
+**48 corrected**
+([`submissions/rc13-p3-prepromotion-audit-corrections.jsonl`](submissions/rc13-p3-prepromotion-audit-corrections.jsonl),
+applied with `gold_labels.py review`). Every correction passed the same gate as an admission.
+
+- **`termination_notice_period` (17):** stated kinds that were left out, renewal-option notices
+  that are not termination notices, and dropped operators ("at least", "minimum").
+- **`payment_terms` (17):** wording and evidence. Two drop redaction placeholders stated as
+  amounts.
+- **`party_roles` (7):**
+  - `other` where the preamble prints no role word (five documents);
+  - a placeholder party dropped;
+  - preamble evidence added.
+- **`dispute_forum` (3):** a broken splice, a fallback court, and an appointing office that is not
+  a seat.
+- **`signatories` (2):** evidence and an absence reason.
+- **`expiration_date` (1):** an absence reason.
+- **`territory` (1):** a false absence, now "the United States of America".
+
+**Rebuild.** The release changes exactly the 81 audited cells and no other cell:
+
+- 33 are unlabeled;
+- 31 change value;
+- 15 change evidence only;
+- 2 change only their source.
+
+**Net for the round:**
+
+- 985 labels (591 populated, 394 documented absences);
+- 74 queue cells open;
+- overlay 12,109 labels;
+- contract coverage 8,108 of 10,200 cells (79.49%);
+- release 45,820 labeled cells.
+
+The judge pool keeps 94 contract documents. The figures in [After the round](#after-the-round)
+are from before this audit.
+
 ## Files
 
 `INDEX.json` lists every file with its sha256 and whether `gold_labels.py add` read it.
@@ -194,7 +272,15 @@ scripts/gold_labels.py check
 scripts/gold_labels.py overlay
 scripts/gold_labels.py review --corpus <dir> --review rc13-p3-stage-review-corrections.jsonl
 scripts/gold_labels.py review --corpus <dir> --review rc13-p3-pr478-review-corrections.jsonl
+scripts/gold_labels.py review --corpus <dir> --review rc13-p3-prepromotion-audit-corrections.jsonl
 ```
+
+`gold_labels.py review` takes only accept and correct lines, so the 33 withdrawals were applied by
+a one-off script. For each reject line it checks that `supersedes` names the record's current
+review, then moves the record to the supplementary store through `gold_labels.apply_review`. It
+rewrites both manifests' files and counts, and adds the withdrawal file to `sources.review`. Both
+catalogs passed `verify_catalog` before and after. A full `build` given every review file
+reaches the same state, because `build` applies reject lines and honours `supersedes`.
 
 These are machine near-gold labels, not human gold. Reviews name their reviewer
 (`claude-opus`, role `review`). A Fable tie-break says so in its note.

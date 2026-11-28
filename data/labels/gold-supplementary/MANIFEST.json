@@ -1269,31 +1269,31 @@
         "gate_reject": 13
       },
       "contract_value": {
-        "rejected": 13
+        "rejected": 21
       },
       "dispute_forum": {
-        "rejected": 1
+        "rejected": 2
       },
       "expiration_date": {
         "gate_reject": 2,
-        "rejected": 2
+        "rejected": 3
       },
       "party_roles": {
         "gate_reject": 58,
-        "rejected": 1
+        "rejected": 8
       },
       "payment_terms": {
         "gate_reject": 2,
-        "rejected": 3
+        "rejected": 7
       },
       "signatories": {
-        "rejected": 3
+        "rejected": 8
       },
       "termination_notice_period": {
-        "rejected": 5
+        "rejected": 10
       },
       "territory": {
-        "rejected": 6
+        "rejected": 8
       }
     },
     "corporate_record": {
@@ -1340,12 +1340,13 @@
     }
   },
   "files": {
-    "contract.jsonl": "8eabfd596ad192ce6b87fb0a7aa9173e4bbe3606d137d9afef926300a20882a3",
+    "contract.jsonl": "e3ef0ae361a51028e4a2d3d3d35360b4ff513661e1ce3657a6e7c166629a429b",
     "corporate_record.jsonl": "675b875972a17dff2db9f25cc812f1e1835d5d188897e79a56f47e5920ef10f0",
     "correspondence.jsonl": "c79902db6732e0e881490fc8037dbd8c082d443f4e6bec81ec5167caa126cf16",
     "merger_agreement.jsonl": "56fc7812961db59a63206994b672acf7698e039f77d05adb9cdeff6d614edea6"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
+  "reviewed_at": "2026-11-28T20:21:51Z",
   "schema": "mailroom-gold-supplementary/v1",
   "source_path_metadata": "Repository-relative export; original private bytes retained; no label payload or evidence change.",
   "sources": {
@@ -1682,6 +1683,7 @@
       "rc12-p2-new-review.jsonl",
       "rc13-p3-mf-review.jsonl",
       "rc13-p3-new-review.jsonl",
+      "rc13-p3-prepromotion-audit-withdrawals.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e40.jsonl",
       "review-corp-1.jsonl",
