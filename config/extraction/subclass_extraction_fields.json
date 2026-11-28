@@ -881,6 +881,6 @@
       }
     }
   },
-  "registry_sha256": "9e096d889967757fdb5a349c26a828e36d69b46fefb116227b584f321f781baa",
+  "registry_sha256": "71a48cf782c1cca91becbf7cccc08f532690adb367c4db124b76fae61af1044c",
   "schema": "mailroom.subclass_extraction_fields/v1"
 }

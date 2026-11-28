@@ -27020,7 +27020,7 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "32933eedb2e830c18d72e313c412b06c1d5242d9b51ad2a2e93bf3206f79c749",
+  "labeling_guide_sha256": "815251a6c6ce35af2cd05b97ad49a61a23ad1ce1b2721a9f1ac826b873a14ad4",
   "min_dev": 20,
   "near_gold_overlay_sha256": "720f0e2f8c1943a776180bb139e80db8bbed95cdcdab2462af43392df8734020",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
