@@ -84,7 +84,30 @@ def _load_corpus(corpus: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
     gt = pd.concat([pd.read_parquet(p) for p in sorted(corpus.glob("ground_truth_*.parquet"))])
     docs = pd.concat([pd.read_parquet(p) for p in sorted(corpus.glob("default_*.parquet"))])
     texts = dict(zip(docs["filename"], docs["doc_text"]))
-    return gt.to_dict("records"), texts
+    return apply_subclass_corrections(gt.to_dict("records")), texts
+
+
+def apply_subclass_corrections(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Label against the reviewed subclass (SHF-013), keeping the Hub's under ``hub_subclass``.
+
+    A corrected document's Hub subclass names the wrong schema, so its salient fields, and the
+    check that a label belongs to the document's schema, follow the reviewed correction, as
+    production truth does. Catalog records written before a correction carry the Hub value, so the
+    identity checks accept either.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    for row in rows:
+        fixed = sh.corrected_subclass(row.get("document_id"), row.get("expected"), row.get("expected_subclass"))
+        if fixed:
+            row["hub_subclass"] = row.get("expected_subclass")
+            row["expected_subclass"] = fixed
+    return rows
+
+
+def _subclass_names(subclass: Any, hub_subclass: Any) -> set[Any]:
+    """The subclass a document's catalog records may carry: the reviewed one, or the Hub's before it."""
+    return {v for v in (subclass, hub_subclass) if v is not None}
 
 
 def _rows_by_doc(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -170,6 +193,8 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
                     raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
                    "subclass": row.get("expected_subclass"), "content_sha256": measured}
+            if row.get("hub_subclass") is not None:
+                doc["hub_subclass"] = row["hub_subclass"]
             out.append((doc, sub, gl.validate_submission(sub, text, row["expected"], doc["subclass"]), text))
     return out
 
@@ -712,7 +737,8 @@ def _missing_field_source_problems(labelled: list, checked: list,
         if cls in ("corporate_record", "merger_agreement"):
             subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
             missing = cls == "merger_agreement" and any(r.get("subclass") is None for r in held[doc_id])
-            if missing or len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+            allowed = _subclass_names(doc.get("subclass"), doc.get("hub_subclass"))
+            if missing or (subclasses and not subclasses <= allowed) or (len(subclasses) > 1 and len(allowed) < 2):
                 problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
         if cls != doc["doc_class"]:
             problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
@@ -886,7 +912,7 @@ def cmd_review(args: argparse.Namespace) -> int:
             except KeyError as exc:
                 problems.append(f"{key[0]}.{key[1]}: {exc}")
                 continue
-            if rec.get("subclass") != subclass:
+            if rec.get("subclass") not in _subclass_names(subclass, row.get("hub_subclass")):
                 problems.append(f"{key[0]}.{key[1]}: corpus subclass differs from the label's")
                 continue
         earlier = rec.get("review")

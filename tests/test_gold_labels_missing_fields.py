@@ -410,3 +410,42 @@ def test_missing_merger_subclass_drift_refuses_atomically(cli, monkeypatch, caps
         assert _add(cli, [_s('DOC-1', 'label', label_fields)], [_s('DOC-1', 'check', check_fields)]) == 1
         assert 'subclass differs' in capsys.readouterr().err
     assert _store_bytes(tmp) == before
+
+
+def test_corpus_rows_take_the_reviewed_subclass_and_keep_the_hub_one(cli):
+    """SHF-013: a corrected document is labelled against its reviewed subclass's schema."""
+    mod, _, _, _ = cli
+    rows = [{"document_id": "DOC-59d072355f2c3b14", "expected": "corporate_record",
+             "expected_subclass": "board_resolution"},
+            {"document_id": "DOC-59d072355f2c3b14", "expected": "corporate_record", "expected_subclass": "bylaws"},
+            {"document_id": "DOC-not-corrected", "expected": "corporate_record", "expected_subclass": "bylaws"}]
+    out = mod.apply_subclass_corrections([dict(r) for r in rows])
+    assert out[0]["expected_subclass"] == "charter_amendment" and out[0]["hub_subclass"] == "board_resolution"
+    # a correction applies only against the Hub value it was reviewed against
+    assert out[1] == rows[1] and out[2] == rows[2]
+
+
+@pytest.mark.parametrize("hub_subclass, expected", [("board_resolution", 0), ("bylaws", 1)])
+def test_missing_fields_accept_records_written_under_the_hub_subclass(cli, monkeypatch, capsys, hub_subclass,
+                                                                       expected):
+    """Records written before a correction carry the Hub subclass; new fields follow the reviewed one."""
+    mod, write, build, tmp = cli
+    text = "CERTIFICATE OF AMENDMENT of Acme Inc. Article 4 is amended to read as follows."
+    row = {"document_id": "DOC-1", "filename": "corp.txt", "expected": "corporate_record",
+           "expected_subclass": "board_resolution", "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+    monkeypatch.setattr(mod, "_load_corpus", lambda _: ([row], {"corp.txt": text}))
+    label = write("corp-lab.jsonl", [_s("DOC-1", "label", {"entity_name": {"value": "Acme Inc", "evidence": ["Acme Inc"]}})])
+    check = write("corp-chk.jsonl", [_s("DOC-1", "check", {"entity_name": {"value": "Acme Inc", "evidence": ["of Acme Inc"]}})])
+    assert build("--label", label, "--check", check) == 0
+    before = _store_bytes(tmp)
+    row.update(expected_subclass="charter_amendment", hub_subclass=hub_subclass)
+    fields = {"amended_provisions": {"value": ["Article 4"], "evidence": ["Article 4 is amended"]}}
+    check_fields = {"amended_provisions": {"value": ["Article 4"], "evidence": ["Article 4 is amended to read"]}}
+    assert _add(cli, [_s("DOC-1", "label", fields)], [_s("DOC-1", "check", check_fields)]) == expected
+    records = gl.read_jsonl(tmp / "gold" / "corporate_record.jsonl")
+    if expected:
+        assert "subclass differs" in capsys.readouterr().err
+        assert _store_bytes(tmp) == before
+    else:
+        by_field = {r["field"]: r["subclass"] for r in records}
+        assert by_field == {"entity_name": "board_resolution", "amended_provisions": "charter_amendment"}
