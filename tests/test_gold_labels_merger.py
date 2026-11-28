@@ -71,6 +71,8 @@ def test_per_member_evidence_absence_and_excluded_fields():
     ('$50', ['USD 50'], True), ('$50', ['pay 50 USD'], True),
     ('$5,000,000', ['USD 5 million'], True),
     ('$50', ['$50 and €40'], True),
+    ('$1', ['$.001'], False), ('$0.001', ['$.001'], True),  # the figure keeps its dollar sign
+    ('$1', ['.001 USD'], False),
 ])
 def test_merger_money_needs_same_figure_dollar_evidence(value, quotes, expected):
     name = 'per_share_cash_amount'
