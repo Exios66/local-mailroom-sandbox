@@ -201,3 +201,32 @@ def test_the_offline_check_lists_each_keys_headings_for_review_and_counts_conten
 def test_a_document_with_only_the_wrong_section_is_a_miss_not_a_wrong_excerpt(key, title):
     doc = f"Section 3.4 {title}. " + _FILL + "Section 3.5 Other Matters. " + _FILL
     assert key not in merger_sections.locate(doc)
+
+
+def test_a_short_body_section_is_kept():
+    # Under the old 400-character gap this heading was dropped with the table of contents.
+    short = (
+        "Section 9.9 Governing Law. This Agreement is governed by the laws of the State of Delaware. "
+        "Section 9.10 Notices. Notices go to the addresses set out below."
+    )
+    found = merger_sections.locate(short)["governing_law"]
+    assert found.heading == "Section 9.9 Governing Law"
+    assert "governed by the laws" in found.text
+
+
+def test_a_citation_sentence_does_not_claim_the_section_number():
+    cited = (
+        "Section 6.2. No party shall solicit any Acquisition Proposal or otherwise initiate discussions. "
+        + BODY
+        + "Section 6.2 No Solicitation. The Company shall not solicit. "
+        + BODY
+    )
+    assert merger_sections.locate(cited)["no_solicitation"].heading == "Section 6.2 No Solicitation"
+
+
+def test_termination_of_employee_plans_does_not_take_the_termination_section():
+    doc = (
+        "Section 6.5 Termination of Employee Plans. The plans end at closing. " + BODY
+        + "Section 8.1 Termination. This Agreement may be terminated before the Outside Date. " + BODY
+    )
+    assert merger_sections.locate(doc)["termination"].heading == "Section 8.1 Termination"

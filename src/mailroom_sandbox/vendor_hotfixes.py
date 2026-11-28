@@ -980,6 +980,65 @@ def _install_transient_budget(module: Any, original: Callable[..., Any]) -> Call
     return _transient_decision
 
 
+def _install_corporate_native(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def extract(self: Any, doc_text: str, pages: Any = None, handoff_context: str | None = None) -> dict:
+        import copy
+        from mailroom_sandbox.corporate_extraction import handoff_with_guidance, request_schema, subclass_from_handoff, validate_response
+
+        subclass = subclass_from_handoff(handoff_context)
+        from mailroom_sandbox.subclass_extraction import composed_schema
+
+        agent = copy.copy(self)
+        call = self._call_structured
+        def structured(message: str, **kwargs: Any) -> dict:
+            schema = composed_schema(module.CORPORATE_RECORDS_SCHEMA,
+                                     request_schema(subclass, module.CORPORATE_RECORDS_SCHEMA))
+            kwargs["json_schema"] = schema
+            result = call(message, **kwargs)
+            if result.get("_parse_error") or validate_response(result, schema):
+                return result
+            return {"_parse_error": True, "_schema_error": True}
+        agent._call_structured = structured
+        return original(agent, doc_text, pages=pages, handoff_context=handoff_with_guidance(handoff_context, subclass))
+    return extract
+
+
+def _install_corporate_langchain(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(original)
+    def extract(self: Any, *args: Any, **kwargs: Any) -> dict:
+        import copy
+        from mailroom_sandbox.corporate_extraction import handoff_with_guidance, request_schema, subclass_from_handoff, validate_response
+
+        # The one-window chunked path calls extract on the same per-call copy.
+        if getattr(self, "_corporate_schema_active", False):
+            return original(self, *args, **kwargs)
+        agent = copy.copy(self)
+        agent._corporate_schema_active = True
+        handoff = getattr(self, "handoff_context", None)
+        subclass = subclass_from_handoff(handoff)
+        from mailroom_sandbox.subclass_extraction import composed_schema
+
+        agent.schema = composed_schema(self.schema, request_schema(subclass, self.schema))
+        agent.handoff_context = handoff_with_guidance(handoff, subclass)
+        call = agent._call_structured
+        if getattr(call, "__self__", None) is self:
+            call = call.__func__.__get__(agent, type(agent))
+        def structured(message: str, **call_kwargs: Any) -> dict:
+            result = call(message, **call_kwargs)
+            if result.get("_parse_error") or validate_response(result, agent.schema, allow_missing_confidence=True):
+                return result
+            return {"_parse_error": True, "_schema_error": True}
+        agent._call_structured = structured
+        try:
+            return original(agent, *args, **kwargs)
+        finally:
+            for key, value in vars(agent).items():
+                if key.startswith("_last_"):
+                    setattr(self, key, value)
+    return extract
+
+
 #: Run ``confidence`` key that turns on HF-014 and HF-015 (overlay default ``true``). Both stay inert
 #: unless context fit widened the arbiter's source window, so Modal/vLLM and local routes are unchanged.
 FULL_SOURCE_KEY = "arbiter_full_source"
@@ -1672,6 +1731,15 @@ def _install_intake_head(_module: Any, original: Callable[..., Any]) -> Callable
 
 
 HOTFIXES: tuple[Hotfix, ...] = (
+    Hotfix(id="HF-020", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
+           source_sha256="7dee5e0929633efe57f7b115c4129ab33ed62a19656b986711987f304c99df86",
+           upstream="Exios66/llm-mailroom#322", summary="Select corporate schema from observed subclass", install=_install_corporate_native),
+    Hotfix(id="HF-021", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract",
+           source_sha256="6485a75a43f73b60a04180a88438246563d646dd90d549a2df5ee5e02361bd3d",
+           upstream="Exios66/llm-mailroom#322", summary="Select corporate schema for LangChain extraction", install=_install_corporate_langchain),
+    Hotfix(id="HF-022", module="langchain_agents.specialist_agents", attr="CorporateRecordsSpecialist.extract_chunked",
+           source_sha256="6e7ac75666a140570b6b6f8308b3a914494fcbddc3538597f53d58c08ae0a349",
+           upstream="Exios66/llm-mailroom#322", summary="Select corporate schema for chunked extraction", install=_install_corporate_langchain),
     Hotfix(
         id="HF-001",
         module="langchain_agents.doc_inventories",
@@ -2053,6 +2121,11 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
     installed) or ``unavailable`` (the vendored module cannot be imported here).
     """
     for fix in hotfixes:
+        if fix.id in {"HF-020", "HF-021", "HF-022"}:
+            from mailroom_sandbox.corporate_extraction import registry_matches
+            if not registry_matches():
+                _STATUS[fix.id] = "stale"
+                continue
         try:
             module = importlib.import_module(fix.module)
         except Exception as exc:  # noqa: BLE001 — optional (pipeline extra)
@@ -2107,8 +2180,12 @@ def _also_sha(module: Any, attr: str) -> str | None:
 
 def describe() -> dict[str, Any]:
     """Portable hotfix identity for run locks: module sha and each fix's target fingerprint."""
+    from mailroom_sandbox.corporate_extraction import registry_fingerprints
+
     return {
         "module_sha256": module_sha256(),
+        "corporate_registry_sha256": registry_fingerprints(),
+        "corporate_extraction_sha256": hashlib.sha256(Path(__file__).with_name("corporate_extraction.py").read_bytes()).hexdigest(),
         "fixes": [{"id": f.id, "target": f"{f.module}.{f.attr}", "source_sha256": f.source_sha256}
                   for f in HOTFIXES],
     }

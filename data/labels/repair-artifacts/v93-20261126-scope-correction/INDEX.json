@@ -1,0 +1,206 @@
+{
+  "artifacts": [
+    {
+      "bytes": 24830,
+      "path": "submissions/label--contract-001.jsonl",
+      "role": "label",
+      "sha256": "bcab814bda1ec1bf7e77532a8ba890cbce2f402ace698fc9c00d5a8b4c428c5a",
+      "source_sha256": "bcab814bda1ec1bf7e77532a8ba890cbce2f402ace698fc9c00d5a8b4c428c5a"
+    },
+    {
+      "bytes": 14421,
+      "path": "submissions/label--focus-corporate-efficient001-label.jsonl",
+      "role": "label",
+      "sha256": "565fd8cea48119c3afcc790187139273eeb7d0076e523b32ff40b1605fcec28e",
+      "source_sha256": "565fd8cea48119c3afcc790187139273eeb7d0076e523b32ff40b1605fcec28e"
+    },
+    {
+      "bytes": 18240,
+      "path": "submissions/label--focus-corporate-efficient002-label.jsonl",
+      "role": "label",
+      "sha256": "37d1dbf534ea77a94bd75c79ea5fef18737699c7a2af7f763ea136828baece57",
+      "source_sha256": "37d1dbf534ea77a94bd75c79ea5fef18737699c7a2af7f763ea136828baece57"
+    },
+    {
+      "bytes": 13705,
+      "path": "submissions/label--focus-corporate-efficient003-label.jsonl",
+      "role": "label",
+      "sha256": "7faf904c3422a148f2fa7c4c183ae051843385fe3b096fad32617137cf51502a",
+      "source_sha256": "7faf904c3422a148f2fa7c4c183ae051843385fe3b096fad32617137cf51502a"
+    },
+    {
+      "bytes": 7066,
+      "path": "submissions/label--focus-corporate-tail001-label.jsonl",
+      "role": "label",
+      "sha256": "a31e923d2306e8e14c6ff3ea68d6ce9de179f5d0c561f158594197a4f21671d8",
+      "source_sha256": "64a774dc30752c2d86f69d1eca6288a72b7a076ab6dc1ac79b9c8ab8cbdf38a5"
+    },
+    {
+      "bytes": 4904,
+      "path": "submissions/label--focus-correspondence-001-label.jsonl",
+      "role": "label",
+      "sha256": "0aeb0b79ecfcf80b95f6f9ff2207ebe128709228e44a022da67519a2f29f3f87",
+      "source_sha256": "0aeb0b79ecfcf80b95f6f9ff2207ebe128709228e44a022da67519a2f29f3f87"
+    },
+    {
+      "bytes": 2999,
+      "path": "submissions/label--focus-correspondence-001-ready4-label.jsonl",
+      "role": "label",
+      "sha256": "58877d1508053badcbf9e10f84f4038fd52744c7fbe63b1a5a739ba3b74ba9dd",
+      "source_sha256": "58877d1508053badcbf9e10f84f4038fd52744c7fbe63b1a5a739ba3b74ba9dd"
+    },
+    {
+      "bytes": 6239,
+      "path": "submissions/label--tail-001-label.jsonl",
+      "role": "label",
+      "sha256": "134a880c108860d978c975f356ad15155f35182f82177105b9e66ae9b043964c",
+      "source_sha256": "134a880c108860d978c975f356ad15155f35182f82177105b9e66ae9b043964c"
+    },
+    {
+      "bytes": 8301,
+      "path": "submissions/label--tail-002-label.jsonl",
+      "role": "label",
+      "sha256": "ae8e764aefd9122313acec522d48db64a2bd9954aa55cf34d799c4ed2ed56978",
+      "source_sha256": "ae8e764aefd9122313acec522d48db64a2bd9954aa55cf34d799c4ed2ed56978"
+    },
+    {
+      "bytes": 8046,
+      "path": "submissions/label--tail-003-label.jsonl",
+      "role": "label",
+      "sha256": "09e4f043f771bafeadfff2c8dc644174d64108b9da663dd3451faa94c3b5ed6b",
+      "source_sha256": "09e4f043f771bafeadfff2c8dc644174d64108b9da663dd3451faa94c3b5ed6b"
+    },
+    {
+      "bytes": 6627,
+      "path": "submissions/label--tail-004-label.jsonl",
+      "role": "label",
+      "sha256": "e84a3ef6b22c66519d9b84ff9613a0f1192b3a6e015fb2bb3be4e8e98ea8ab2e",
+      "source_sha256": "e84a3ef6b22c66519d9b84ff9613a0f1192b3a6e015fb2bb3be4e8e98ea8ab2e"
+    },
+    {
+      "bytes": 24534,
+      "path": "submissions/check--contract-001.jsonl",
+      "role": "check",
+      "sha256": "da3adad67d63adab6437d5e824bcae333888ae5f8219f7a361fd1574c976748c",
+      "source_sha256": "da3adad67d63adab6437d5e824bcae333888ae5f8219f7a361fd1574c976748c"
+    },
+    {
+      "bytes": 16837,
+      "path": "submissions/check--focus-corporate-efficient001-check.jsonl",
+      "role": "check",
+      "sha256": "bb388f9eed51513b3e0f5fd40e2d082d1497672433a5922d2c305346f0bb430d",
+      "source_sha256": "bb388f9eed51513b3e0f5fd40e2d082d1497672433a5922d2c305346f0bb430d"
+    },
+    {
+      "bytes": 9082,
+      "path": "submissions/check--focus-corporate-efficient002-check.jsonl",
+      "role": "check",
+      "sha256": "3e661e1e3b42686812e84f0d42e48296a749cd641a198a492ade5d0dd83d29f8",
+      "source_sha256": "3e661e1e3b42686812e84f0d42e48296a749cd641a198a492ade5d0dd83d29f8"
+    },
+    {
+      "bytes": 15519,
+      "path": "submissions/check--focus-corporate-efficient003-check.jsonl",
+      "role": "check",
+      "sha256": "a918f182e66979e8e1bafe836ebd88035bdb581d10df7cb88c0a88978d9ebef2",
+      "source_sha256": "a918f182e66979e8e1bafe836ebd88035bdb581d10df7cb88c0a88978d9ebef2"
+    },
+    {
+      "bytes": 6554,
+      "path": "submissions/check--focus-corporate-tail001-check.jsonl",
+      "role": "check",
+      "sha256": "fa022b7ae205633ec53b3647be01b08725f3aedfccd49584a52ea6b332048ee3",
+      "source_sha256": "fa022b7ae205633ec53b3647be01b08725f3aedfccd49584a52ea6b332048ee3"
+    },
+    {
+      "bytes": 5036,
+      "path": "submissions/check--focus-correspondence-001-check.jsonl",
+      "role": "check",
+      "sha256": "9be1a5267e823a71a03504de59ab5639e1e120f90d530a68790ddb7cae155ae4",
+      "source_sha256": "9be1a5267e823a71a03504de59ab5639e1e120f90d530a68790ddb7cae155ae4"
+    },
+    {
+      "bytes": 3076,
+      "path": "submissions/check--focus-correspondence-001-ready4-check.jsonl",
+      "role": "check",
+      "sha256": "e4ed1e5e7ed6647301b9ae4a5b27b23642661bde2e1694c6c4ae582133d77c11",
+      "source_sha256": "e4ed1e5e7ed6647301b9ae4a5b27b23642661bde2e1694c6c4ae582133d77c11"
+    },
+    {
+      "bytes": 5373,
+      "path": "submissions/check--tail-001-check.jsonl",
+      "role": "check",
+      "sha256": "8a471502a9b5a354c0a223077b5a4955ca22c691554cd24f46e39f66bb7a467f",
+      "source_sha256": "8a471502a9b5a354c0a223077b5a4955ca22c691554cd24f46e39f66bb7a467f"
+    },
+    {
+      "bytes": 8567,
+      "path": "submissions/check--tail-002-check.jsonl",
+      "role": "check",
+      "sha256": "a503d898c79e400e06493e7cce235992876bd487bc6bd6cc618ec89f1a77fa9f",
+      "source_sha256": "a503d898c79e400e06493e7cce235992876bd487bc6bd6cc618ec89f1a77fa9f"
+    },
+    {
+      "bytes": 10089,
+      "path": "submissions/check--tail-003-check.jsonl",
+      "role": "check",
+      "sha256": "9b90069269d5ed9856dfcf62976efb5f985a5cac1ae20a892dbfe7a1dc5480e7",
+      "source_sha256": "9b90069269d5ed9856dfcf62976efb5f985a5cac1ae20a892dbfe7a1dc5480e7"
+    },
+    {
+      "bytes": 1007,
+      "path": "submissions/review--focus-correspondence-ready4-parent-review.jsonl",
+      "role": "review",
+      "sha256": "d591c4290f75e1410a8417e460eed0f31440eddcfcfccd63f130e5d91dbbd1a1",
+      "source_sha256": "d591c4290f75e1410a8417e460eed0f31440eddcfcfccd63f130e5d91dbbd1a1"
+    },
+    {
+      "bytes": 9207,
+      "path": "submissions/review--tail-001-review.jsonl",
+      "role": "review",
+      "sha256": "7d54e8cb231d27b7448e96c4551e1751eb044fc219f71f8da30674e8e7cb29c3",
+      "source_sha256": "7d54e8cb231d27b7448e96c4551e1751eb044fc219f71f8da30674e8e7cb29c3"
+    },
+    {
+      "bytes": 11011,
+      "path": "submissions/review--tail-002-review-r2.jsonl",
+      "role": "review",
+      "sha256": "dfe7d82658a0bdc10bea788bb712a6f10b61a5fdcb961fff35076592f50d5686",
+      "source_sha256": "dfe7d82658a0bdc10bea788bb712a6f10b61a5fdcb961fff35076592f50d5686"
+    },
+    {
+      "bytes": 8416,
+      "path": "submissions/review--tail-002-review.jsonl",
+      "role": "review",
+      "sha256": "a4efd8b23a8e7a57c94709c8f4bd7cc4ce94ed650eaf9777fb478c2d47bb43bd",
+      "source_sha256": "a4efd8b23a8e7a57c94709c8f4bd7cc4ce94ed650eaf9777fb478c2d47bb43bd"
+    },
+    {
+      "bytes": 12605,
+      "path": "submissions/review--tail-003-review.jsonl",
+      "role": "review",
+      "sha256": "e0ed59fbb613a137b0793571ea8a72eda65dd760245c664f2db063fd1a12165f",
+      "source_sha256": "e0ed59fbb613a137b0793571ea8a72eda65dd760245c664f2db063fd1a12165f"
+    }
+  ],
+  "disposition": {
+    "archive": "data/labels/repair-artifacts/v93-20261126-scope-correction",
+    "reason": "Recent fields are outside the document subclass applicable core schema; source submissions remain recoverable.",
+    "retained_correspondence_absences": 4,
+    "unchanged_preexisting_corporate_rows": {
+      "gold": 1207,
+      "gold-supplementary": 420
+    },
+    "withdrawn_corporate_annotations": 38
+  },
+  "export_note": "Submissions preserve field values and evidence; local checkout prefixes are replaced with <checkout>. Exact originals and private progress remain in the durable local repair workspace; source_sha256 binds those originals.",
+  "public_source_path_normalization": {
+    "effect": "Public exports normalize source paths only; unchanged field payloads, evidence and role attribution.",
+    "original_private_bytes_retained": true,
+    "proof": "../../../../reports/datasets/mailroom-dataset-v9.3-label-repaired/source_path_metadata_export_audit.json"
+  },
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "superseded_checkpoint": "4d1b863ca2a6f7a6d1fadeb3d337a9db8d2e03cc",
+  "warning": "Raw submissions are not admitted truth. Non-applicable fields must not count toward scored-label coverage."
+}

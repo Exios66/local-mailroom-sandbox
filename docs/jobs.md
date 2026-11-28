@@ -798,7 +798,7 @@ job:
   The locator takes a numbered heading's first occurrence, skips table-of-contents lines, and tries each key's
   titles in their listed order; `tests/test_merger_tables.py` locks the rules file's digest, and the run's spec
   hash carries it (`merger_section_rules_sha256`). `python scripts/check_merger_sections.py` reports, offline,
-  how many drawn mergers each key is found in and under which headings.
+  how many calibration-set mergers each key is found in and under which headings. It does not read a run's drawn set.
 - `gap_retry`: one targeted retry per document, from sections only, for missing or invalid MAUD items and empty
   required entity fields: the subclass's own amount field or fields (none for an unknown or `other` subclass), or
   the dropped consideration field after a subclass disagreement. A re-extraction repeats the group reads but

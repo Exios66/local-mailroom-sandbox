@@ -33,6 +33,27 @@ so some of their instructions name fields a subclass schema no longer requests.
 The strict schema stops a model from writing a dropped field. It does not stop the model from moving that
 field's content into a field it can still write, which is the merger risk.
 
+## Re-audit after the scoring and label changes (2026-11-28)
+
+The production frontrunners (`prompt_lineage.frontrunners()`) were checked again after the subclass
+corrections (#451) and the SHF-015 and SHF-019 truth policies.
+
+- **Field conflicts:** unchanged from the table above. `scripts/build_subclass_fields.py --check`
+  reports the field lists current.
+- **Truth policies:** no conflicts. The correspondence prompt fills `sender`, `recipient` and
+  `communication_date` from the visible text only, which is SHF-019's basis. The corporate and
+  correspondence prompts ask for a grounded `subject_matter` and copied `keywords`, which is what
+  SHF-015 scores once it drops the Hub templates.
+- **Subclass corrections:** the corporate prompt's subclass mapping is the Hub's own
+  `(record_type, intent)` pair per subclass. On 40 of the corrected corporate documents, however,
+  the truth kept the Hub subclass's pair, so a correct answer scored as two misses. Contract
+  `cuad_family` and merger `merger_consideration` had the same gap. SHF-013 now moves that derived
+  truth with the correction ([scoring hotfixes](../../scoring-hotfixes.md)).
+- **Still open, owner-launched:** the note A/B below (it covers the merger `maud_clauses` risk) and
+  the insurance `condensed_v5` A/B (`claim_type` as a line of business, runnable since #280 is
+  vendored). The corporate subclass extension fields of #425 come with that PR's own schema composer
+  (HF-020 to HF-022), which keeps its schema and gets no note.
+
 ## Decision
 
 - **Do not edit the frozen prompts.** A new prompt version needs its own lineage entry and a paid A/B,

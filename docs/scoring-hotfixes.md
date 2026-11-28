@@ -31,11 +31,11 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
   repository's scoring code.
 
 Outside a `hotfixed()` block every per-row scoring-call fix (SHF-001 to SHF-004, SHF-010's raw
-revert, SHF-015) is off, so a scorer that does not opt in gets the Dojo pin's behaviour unchanged.
+revert, SHF-015, SHF-019) is off, so a scorer that does not opt in gets the Dojo pin's behaviour unchanged.
 The other fixes act outside a `hotfixed()` block and are on whenever they are current: the run
 aggregation fixes (SHF-005, SHF-006, SHF-007, SHF-008, SHF-011), SHF-010 during truth preparation
 (`gold_labels.apply_near_gold`), SHF-009 in the Decisions routing contract (`decision_backends`),
-SHF-012 in subclass scoring, SHF-015's label count in the gate (`job/gate.labelled_count`), and SHF-013 in the isolated sorter and
+SHF-012 in subclass scoring, SHF-015's and SHF-019's label count in the gate (`job/gate.labelled_count`), and SHF-013 in the isolated sorter and
 `sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`), in pipeline subclass scoring and in
 `sorter_arms`. SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
@@ -58,15 +58,46 @@ answer from the same question-set response, not a second request.
 | SHF-010 | sandbox | A near-gold label supersedes a conflicting interim gate gap fill (not an `original_header` fill); the replaced value is kept under `truth_overrides` and scored as raw. Precedence reads the interim overlay the row was prepared with; when that snapshot is not passed and the current overlay's fingerprint differs from the row's, nothing is superseded. | sandbox (owner decision, `data/labels/review/INTERIM_AUDIT.md` step 2) |
 | SHF-011 | sandbox | A paired A/B report scores a failed document 0 instead of crediting its partial extraction, and counts failed documents per arm. | sandbox |
 | SHF-012 | sandbox | Pipeline items record the final sorter or reviewer subclass and score it jointly with the class on the canonical subclass token, not the Dojo's class-blind raw-string match. | sandbox; Dojo D-5 ([#192](https://github.com/Exios66/llm-dojo-scoring/issues/192)) |
-| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `subclass_raw_dojo` on a pipeline run's `score_subclass` figures, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. | sandbox |
+| SHF-013 | sandbox | Isolated `sorter` (`task: isolated`) and `sorter_reviewer` runs score the subclass jointly with the class on the canonical subclass token (`subclass_scored`, `subclass_match`, `subclass_by_class`); an abstention or a failed row is a wrong subclass. A reviewed correction in `data/labels/review/subclass_corrections.jsonl` (`verdict: correct`, matching class and Hub value) replaces the Hub subclass for subclass scoring here, for pipeline subclass scoring (the per-item `subclass_correct`, flagged `subclass_corrected`, and the run's `score_subclass`), for the pain-point subclass outcome, and for subclass and unit scoring in `sorter_arms` (H5); the Hub-truth figures stay under `raw_dojo` (`raw_dojo_subclass_correct` per pipeline item, `subclass_raw_dojo` on a pipeline run's `score_subclass` figures, `hub_truth` in `sorter_arms`) and `subclass_corrections_applied` counts the corrected documents. Extraction scoring and the gate's lowest-field diagnosis score a corrected document against its reviewed subclass (the subclass-specific field alignment and schema), named under `subclass_corrected`; the raw side keeps the Hub `expected_subclass`. The truth fields derived from the subclass (corporate `record_type` and `intent`, contract `cuad_family`, merger `merger_consideration`) follow the correction while they still hold the Hub subclass's value, named under `subclass_derived_truth`. | sandbox |
 | SHF-014 | retired | Served the pain-point composites from a byte-identical copy of the Dojo's `pipeline/pain_points.py` until the vendored pin shipped it. Retired at the Dojo `7d69bbd` vendor refresh, after `tests/test_pain_points.py` found the vendored module byte-identical to the copy; the copy is deleted and the composites come from the Dojo ([guide](pain-point-composites.md#where-the-scoring-comes-from)). | llm-dojo-scoring #185 (shipped) |
 | SHF-015 | sandbox | Hub labels the Dojo's label policy calls stale (`llm_dojo_scoring.schemas.label_policy.stale_hub_labels`: a heuristic `intent`; templated correspondence `subject_matter` and metadata `keywords`; templated corporate ones) are not truth on the headline: they are dropped from both the truth and the prediction, their presence becomes `pending_annotation`, and the row names them under `stale_hub_labels`. An overlay listing keeps a field only when the stale reason is `intent_heuristic`, because a reviewed intent leaves `intent_source` as `heuristic`. Any other stale value is dropped even when the overlay lists the field: on production slice 0100 the staged overlay lists `keywords` after stripping a mailbox path, and 28 of 30 correspondence values are still a topic tag plus a type token (`keywords_metadata`). A corporate subject that is exactly those two keywords joined by "of" (optional trailing period, either order) is dropped as well (`subject_matter_record_title`, `keywords_record_title`); the Dojo's exhibit-note mark does not catch it. On that same slice the corporate headline moves from 0.712 to 0.897 (14 of 14 rows) and correspondence from 0.484 to 0.544. Merger stays 0.246: its headline is MAUD accuracy, and the suite field score on the same answers is 0.835. A caller that passes no overlay provenance (`overlay_fields=None`) gets no drop. The gate does not count a dropped label toward `min_labelled`. | sandbox (the sandbox's scope seam strips `intent_source`, so the Dojo's own `drop_stale_hub_labels`, llm-dojo-scoring #164 / #171 / #94, never ran here) |
 | SHF-016 | sandbox | A contract row whose `cuad_clause_labels` map names no category (an empty CUAD universe, so `cuad_presence_f1` is `None`) keeps the suite field headline instead of the `None` that left the row unscoreable: the reviewed interim / near-gold field labels merged at truth prep stand in where the Hub supplied none. The row is marked `cuad_unlabeled` and `scoring_hotfixes` names `SHF-016`; the raw side keeps the Dojo pin's `None`, so `overall_extraction_score` shows under `scoring_hotfixes_changed` for exactly these rows. A contract row with labeled CUAD categories is unchanged, and the merger MAUD replacement is untouched (a merger's suite F1 is 0 by construction, so the suite basis is not a stand-in there). | sandbox |
+| SHF-019 | sandbox | A correspondence `sender`, `recipient`, `additional_recipients` or `communication_date` whose truth is still the reviewed `original_header` label (`data/labels/review/interim_reviews.jsonl`), and that the document text does not show, is not truth on the headline: it is dropped from both the truth and the prediction, its presence becomes `pending_annotation`, and the row names it under `header_unseen`. The cleaned corpus text dropped the Enron email header that the interim overlay restored as truth, so the model cannot read these values. The text shows a field when any of its quoted header lines, the value after a header line's colon, or any item of the label value appears in `doc_text` (case, whitespace, periods and commas folded), so a value quoted in a reply or a signature stays scored. A near-gold or staged label that replaced the header value, an empty label, another class, and a caller that passes no `doc_id` or no (or empty) text get no drop. On the cached Hub v9.3 corpus with staged overlay `9.3.1-rc.9` it drops 1,470 cells on 709 of the 1,000 correspondence documents (of 1,795 header cells; [design](design/specs/2026-11-27-correspondence-header-truth-design.md)). The gate does not count a dropped label toward `min_labelled`, score a fix to it, or name it the lowest field. Retires when the pinned corpus revision writes the header lines back into `doc_text`, which already makes it a no-op document by document. | sandbox (corpus text without the email header; the restored-header release is the upstream fix) |
 
 ## Where the new and extended fixes apply
 
 Each entry gives what the fix changes, the code paths that apply it, and how a run records it.
 
+- **SHF-019** (new). Changes the correspondence extraction headline as described in the table.
+  - Paths: `eval/scoring.score_extraction_row`, through every caller that passes the row's
+    `doc_id` and `doc_text` (pipeline runs, `sandbox rescore`, `job/pair_report`, the gate's
+    document score, `run_extract_eval` and the isolated `extract` scorer). Also
+    `job/gate.labelled_count`, `job/gate._fix_accuracy` and `job/gate_causes._field_scores`, and
+    through `_field_scores` the gold audit's candidate frame (`gold_audit.specialist_disagreements`).
+  - Not applied, as for SHF-015: `scripts/extraction_gate.py` `_field_truth`, and the R02 scorer
+    hand-check, whose replay (`agents._score_extract(stale_labels=False)` passes
+    `drop_unseen_headers=False`) and case pool (`labelled_count(..., drop_unseen_headers=False)`)
+    keep every field the truth names. `scripts/sand032/rescore.py` passes no `doc_id`, so SHF-019
+    is off there too.
+  - What its fingerprint covers: those four functions and the reviews file
+    (`file:data/labels/review/interim_reviews.jsonl`). The file is read once, and its sha256 must
+    equal the pin: an edited file raises instead of scoring new truth under the old fingerprint.
+  - Recorded as: the row's `header_unseen` lists the dropped fields; `scoring_hotfixes` lists
+    `SHF-019`, and `scoring_hotfixes_changed` names the keys it moved. The raw side (`raw_dojo`)
+    still scores every header label, so a campaign that compares runs across this change compares
+    raw to raw.
+  - Gate verdicts can move, as with SHF-015. On the cached Hub rows with staged overlay
+    `9.3.1-rc.9`, 709 correspondence documents have a lower `labelled` and none crosses below
+    `min_labelled` 2. With the interim and near-gold overlays instead, 1,477 cells drop on the same
+    709 documents and 6 documents (2 dev, 1 calibration, 3 held-out) cross below it. Each such
+    status carries `labelled_raw` and `labelled_header_unseen` (the labels SHF-019 alone dropped),
+    and the gate report counts the archived documents SHF-019 took below the bar under
+    `unscorable_by_shf019` (per class and pooled; `gate.md` names it when not zero), apart from
+    `unscorable_by_shf015`, which now counts before SHF-019's drop.
+  - The Modal job worker bundles `interim_reviews.jsonl` (`deploy/modal_job.py`), as it bundles
+    SHF-013's corrections; a test checks that every `file:` target is bundled.
+  - Not changed: a perfect answer still scores 1.0 (the fix only removes cells), the other
+    classes, and every correspondence field that is not one of the four header fields.
 - **SHF-016** (new). Changes the extraction headline for the empty-universe contract rows.
   - Paths: every caller of `eval/scoring._score_extraction_row_once` — pipeline runs, rescore,
     pair reports, the gate's document score, `run_extract_eval` and the isolated `extract`
@@ -191,6 +222,37 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
        [rescore](rescore.md)), and a `run_extract_eval` headline from before this change carries
        no `raw_dojo`. Their pre-SHF-015 extraction headlines are not comparable with later ones:
        rerun them instead.
+- **SHF-013** (extended a third time). The truth fields derived from the subclass follow a reviewed
+  correction on the headline. Before this, a corrected document kept its Hub subclass's derived
+  values, so a specialist that read the record right was scored wrong on them. A field moves only
+  while it still holds the Hub subclass's value (an overlay or review that set another value is kept):
+  - corporate record: `record_type` and `intent`, by `scoring_hotfixes.CORPORATE_SUBCLASS_TRUTH`,
+    the pair every Hub v9.3 corporate row carries for its subclass and the production prompt teaches
+    (a test checks both);
+  - contract: `cuad_family`, the corrected canonical token (`IP` to `Consulting Agreements` moves
+    `ip` to `consulting`);
+  - merger agreement: `merger_consideration`, the corrected token when it names a consideration,
+    also filled when empty (as the label-repaired release does).
+  - Paths: `eval/scoring.score_extraction_row` (`scoring_hotfixes.corrected_derived_truth`) and
+    `job/gate_causes._field_scores`, with the same fingerprints as the subclass choice.
+  - Recorded as: `subclass_derived_truth` on the row, `{field: [hub_value, corrected_value]}`. The
+    raw side keeps the Hub values.
+  - Measured on the cached Hub rows with staged overlay `9.3.1-rc.9`: 40 corporate `record_type`
+    and 42 `intent` values move (an `intent` that SHF-015 drops as heuristic is not scored either
+    way), 9 contract `cuad_family` values and 1 merger `merger_consideration`. An answer that reads
+    the corrected record right scores 1.000 on the 42 corporate documents' headline, against 0.753
+    on the raw side.
+- **SHF-013** (extended again). The reviewed subclass corrections also choose the subclass an
+  extraction is scored on:
+  - Paths: `eval/scoring.score_extraction_row` (with `doc_id`; the isolated extract, pipeline and
+    agent scorers pass the row's `id`) and `job/gate_causes._field_scores`. A caller's
+    `doc_subclass` still takes precedence. Any subclass-scoped extraction scoring that reads
+    `expected_subclass` downstream of `score_extraction_row` sees the corrected value on the
+    headline only.
+  - What its fingerprint covers: both seams are SHF-013 targets, beside the corrections file.
+  - Recorded as: `subclass_corrected` on the row, and `scoring_hotfixes` lists `SHF-013` when a
+    correction bound. The raw side scores the Hub subclass, so a moved headline shows under
+    `scoring_hotfixes_changed`.
 - **SHF-013** (extended). The reviewed subclass corrections also bind in pipeline scoring:
   - Paths: `eval/scoring.subclass_correct` and `score_subclass` (with `doc_ids`), called from
     `pipeline_item_score`, `run_pipeline_eval` and the pain-point subclass outcome.
@@ -364,8 +426,10 @@ near-gold wins (SHF-010); 1,763 reviewed `original_header` fills differ and win.
 near-gold read the field as absent, because the corpus text lost the email header the fill quotes;
 in the other 71 it read a sign-off or the person a reply addresses. The header value is right, but
 the model sees only the text, so those correspondence `sender` / `recipient` /
-`additional_recipients` / `communication_date` fields are scored against values not in its input
-until the dataset restores the headers. No precedence violation.
+`additional_recipients` / `communication_date` fields are scored in `raw_dojo` against values not
+in its input. On the headline, SHF-019 leaves a field whose header the text does not show out of
+truth and prediction and names it under `header_unseen`, until the dataset restores the headers.
+No precedence violation.
 
 Hub labels are not all right, so a conflict with one is evaluated, and the clear winner is the
 truth. An overlay replaces a Hub value only as an interim `correction`: a reviewed read of the

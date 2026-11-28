@@ -4,12 +4,11 @@ Group reads and the gap retry send only the sections a question or field needs, 
 agreement (HF-030). The locator finds:
 
 * **section anchors**: a numbered section title followed by a period (``Section 6.2 No Solicitation.``,
-  ``6.2 No Solicitation.``), anywhere in the text. An anchor counts only when at least
-  ``_MIN_BODY`` characters of body follow it before the next candidate, which skips a table of
-  contents (titles packed together) and keeps cross references (``Section 6.2 of the …``) out,
-  because a reference has no capitalised title and period. A title holding an article heading,
-  another section number or a page number is a contents line, never an anchor, and a repeated
-  section number keeps its longest-bodied occurrence (the body, not its contents entry);
+  ``6.2 No Solicitation.``), anywhere in the text. A packed table of contents (a heading with only a
+  page number before the next heading) is skipped, and a short body section is kept. A sentence that
+  cites a number (``Section 6.2. No party shall …``) is not a heading. A title holding an article
+  heading, another section number or a page number is a contents line, never an anchor, and a repeated
+  section number keeps its first eligible occurrence (the body, not a later citation);
 * **defined terms**: ``"<Term>" means`` (straight or curly quotes), running to the next defined
   term or section anchor;
 * **the preamble**: the opening of the agreement.
@@ -85,6 +84,23 @@ def _contents_like(title: str) -> bool:
     return bool(_CONTENTS_TITLE.search(title))
 
 
+def _sentence_title(title: str) -> bool:
+    """A citation sentence, not a heading: ``Section 6.2. No party shall …``."""
+    if len(title.split()) > 8:
+        return True
+    return bool(re.search(r"\b(?:shall|will|agrees|may not)\b", title, re.I))
+
+
+def _contents_gap(text: str, start: int, end: int) -> bool:
+    """True when the span to the next heading is a contents line, not a short body section.
+
+    A real clause, however short, has a sentence. A contents entry has the title and a page number.
+    """
+    if end - start >= _MIN_BODY:
+        return False
+    return len(re.findall(r"[A-Za-z]{3,}", text[start:end])) < 8
+
+
 def _anchors(text: str) -> list[tuple[int, str, str]]:
     """Body section anchors ``(position, number, title)``, in order, first occurrence per number.
 
@@ -98,7 +114,8 @@ def _anchors(text: str) -> list[tuple[int, str, str]]:
     seen: set[str] = set()
     for index, (pos, number, title) in enumerate(candidates):
         nxt = candidates[index + 1][0] if index + 1 < len(candidates) else len(text)
-        if nxt - pos < _MIN_BODY or number in seen or _contents_like(title):
+        if (number in seen or _contents_like(title) or _sentence_title(title)
+                or _contents_gap(text, pos, nxt)):
             continue
         seen.add(number)
         kept.append((pos, number, title))

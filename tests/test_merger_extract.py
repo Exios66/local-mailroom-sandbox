@@ -92,3 +92,31 @@ def test_a_fallback_schema_requires_no_amount_field_and_drops_nothing():
     t = merger_extract.gap_targets({"merger_consideration": "all_stock"}, None, "all_cash", [])
     assert not {"per_share_cash_amount", "exchange_ratio"} & set(t.fields)
     assert "governing_law" in t.fields
+
+
+def test_a_missed_question_in_a_group_reply_does_not_replace_the_main_read(monkeypatch):
+    excerpt = merger_sections.Excerpt(
+        key="no_solicitation", heading="Section 6.2 No Solicitation", start=0, end=20,
+        text="The Company shall not solicit.", cut=False)
+
+    def excerpts(_text, _questions):
+        return [excerpt], ["Type of Consideration"]
+
+    monkeypatch.setattr(merger_extract.merger_sections, "question_excerpts", excerpts)
+    monkeypatch.setattr(merger_tables, "group_questions", lambda _groups: {"deal": ["No-Shop", "Type of Consideration"]})
+
+    class _Agent:
+        handoff_context = ""
+
+        def _call_structured(self, message, json_schema=None, temperature=0.1, pages=None):
+            return {"maud_clauses": [_ok("No-Shop", 1), _ok("Type of Consideration", 1), "not a clause"]}
+
+    out = {"maud_clauses": [_ok("No-Shop", 0), _ok("Type of Consideration", 0)]}
+    merger_extract._group_reads(_Agent(), out, "doc", {"groups": 3}, None, {"group_calls": 0, "group_chars": 0})
+    assert _ok("No-Shop", 1) in out["maud_clauses"]
+    assert _ok("Type of Consideration", 0) in out["maud_clauses"]
+    assert _ok("Type of Consideration", 1) not in out["maud_clauses"]
+
+
+def test_an_invalid_clause_line_is_matched_with_the_parser_folding():
+    assert merger_extract._question_of('  - "no-shop: not a class"') == "No-Shop"

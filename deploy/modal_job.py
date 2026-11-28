@@ -87,6 +87,11 @@ image = (
         _PKG_ROOT / "data" / "labels" / "review" / "subclass_corrections.jsonl",
         remote_path=f"{SANDBOX_ROOT}/data/labels/review/subclass_corrections.jsonl",
     )
+    # SHF-019 fingerprints and reads the reviewed original_header labels, for the same reason.
+    .add_local_file(
+        _PKG_ROOT / "data" / "labels" / "review" / "interim_reviews.jsonl",
+        remote_path=f"{SANDBOX_ROOT}/data/labels/review/interim_reviews.jsonl",
+    )
     # DMR-057: the tracked family snapshots are bundled instead of pip-pinned
     # git installs — the sandbox __init__ puts them on sys.path at import.
     .add_local_dir(

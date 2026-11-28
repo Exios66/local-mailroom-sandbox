@@ -82,11 +82,18 @@ def _by_length() -> tuple[str, ...]:
 
 
 def _question_of(line: Any) -> str | None:
-    """The MAUD question a line names, valid or not (longest name first: names can hold a colon)."""
+    """The MAUD question a line names, valid or not (longest name first: names can hold a colon).
+
+    The same bullet, quote and case folding as the Dojo parser, so an invalid line is still
+    attributed to the question it names.
+    """
     if not isinstance(line, str):
         return None
-    text = line.strip()
-    return next((name for name in _by_length() if text.startswith(f"{name}:")), None)
+    text = re.sub(r"^\s*(?:[-*•]+|\d+[.)])\s+", "", line).strip().strip("`").strip()
+    if len(text) > 1 and text[0] in "\"'“”" and text[-1] == text[0]:
+        text = text[1:-1].strip()
+    folded = " ".join(text.translate({ord("“"): '"', ord("”"): '"', ord("‘"): "'", ord("’"): "'"}).split()).casefold()
+    return next((name for name in _by_length() if folded.startswith(f"{name.casefold()}:")), None)
 
 
 def _parse(lines: Any) -> tuple[dict[str, list[str]], set[str], dict[str, list[str]]]:
@@ -284,7 +291,10 @@ def _group_reads(agent: Any, out: dict[str, Any], doc_text: str, cfg: Mapping[st
             failed.append(key)
             _log.warning("merger group read %s failed (%s); the main read's answers stand", key, failure)
             continue
-        answers[key] = reply.get("maud_clauses") or []
+        # A missed question stays out of ``asked``. The unconstrained fallback can still
+        # emit a line for it; that line must not replace the main read's answer.
+        answers[key] = [line for line in reply.get("maud_clauses") or []
+                        if isinstance(line, str) and _question_of(line) in asked]
     out["maud_clauses"], invalid = combine(out, answers, groups)
     if missed_all:
         out["_maud_section_missed"] = missed_all

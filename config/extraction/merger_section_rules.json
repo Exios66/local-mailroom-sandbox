@@ -130,7 +130,7 @@
     },
     "termination": {
       "titles": [
-        "termination(?! fee)"
+        "termination(?! fee)(?! of employ)"
       ],
       "terms": [
         "Outside Date",

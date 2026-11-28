@@ -400,8 +400,8 @@ the report reads them in the same file format.
   plus the three merger switches, `long_document_head`, and the merger judge settings, nothing else. A
   test pins that, as for `p5-s1-evidence-on`. Running all four together needs one paid pipeline run.
 - **Classification check for the head reads, `config/runs/p5-s2-head-sorter-{off,on}.yaml`.** A paired
-  `task: sorter` run on the long documents (over 150k characters) of the dev split, switch off versus
-  on. It is cheap: one head read per document.
+  `task: isolated` run on the long documents (over 150k characters) of the dev split, switch off versus
+  on (`agent: sorter`). It is cheap: one head read per document.
 
 **Adoption bars** (on the paired documents):
 

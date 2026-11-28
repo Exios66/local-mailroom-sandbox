@@ -1,0 +1,116 @@
+{
+  "schema": "mailroom.legacy-applicability-hold/v1",
+  "scope": "Existing annotations only; no new label, deletion, value change or subtype correction. Strict prototype detection exposed these records; that incomplete notebook change was reverted without relaxing its regression test. Current EDA applicability views expose schema incompatibility separately from quote support.",
+  "records": [
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-08dc603ab13952d4",
+      "subclass": "board_resolution",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "0ae4b1105b2e5b6b82c71f787c705f2cd403870389aace14bb561ec37e4c1aca",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-36df577431fb1032",
+      "subclass": "officer_certificate",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "81b7cbb35b48c82a1cb1f3d76f3e04ca1e373b45ad8245dc5cfed56920de7b4b",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-54d5c7b5b9e789c0",
+      "subclass": "board_resolution",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "065557fbdd88845fb5bc36255ae4c0838056ec726d6953d80b356e5c9caed1a6",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-606242f2919653a4",
+      "subclass": "officer_certificate",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "a1ea731296fc1131b8f91ab6c3e9797d3864d4c68e83c4497cf5b81e208c3797",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-7bdb47df06bbea34",
+      "subclass": "board_resolution",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "60e66b210e0691fa77b266dbb9777092da159d01d29289584fc8d54a5865c07c",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-7da1948cb71d4784",
+      "subclass": "officer_certificate",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "39e28f8baf0df147632f15dfd0634da7bd4b07b3d14a9f908adfb588ffbe67f0",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-7eb0c4c573a4595d",
+      "subclass": "board_resolution",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "1f015a2a1e083444d9f4bfb7314ab8bdff205e5390cd66a74dde8b8dc1becf0f",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-9d896c6d04b31716",
+      "subclass": "bylaws",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "3a0ca3899b4863d77ab98f812020d5b868ba2c838cbb2119381c32e9faac6ce5",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-b1ac5af672c390d4",
+      "subclass": "officer_certificate",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "ff0e63ad9ffa96be73b2f4703d558f8fe0a1155d65ed54d9b63aaef9622d2337",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-cf1a64851f2f4273",
+      "subclass": "powers_of_attorney",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "be8a6add3301d80ed130a0d232ee72250795ce53e04f81f234ff1d75e075211f",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-d564c7cabec90e84",
+      "subclass": "officer_certificate",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "62f81d22c8d4b129af76cf9e72e2c7c30fa2b2d97f0ffaefcc99402245fd362b",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    },
+    {
+      "overlay": "interim",
+      "doc_id": "DOC-fcd365f5de4378ef",
+      "subclass": "powers_of_attorney",
+      "field": "filing_number",
+      "basis": "gate_accepted_grounded",
+      "label_payload_sha256": "be8a6add3301d80ed130a0d232ee72250795ce53e04f81f234ff1d75e075211f",
+      "reason": "Populated legacy core annotation is inapplicable to its known current corporate subclass; preserve annotation pending owner adjudication."
+    }
+  ],
+  "known_records": 12,
+  "next_action": "Owner adjudication or a separately verified compatibility policy before extending the legacy notebook core-field applicability check."
+}

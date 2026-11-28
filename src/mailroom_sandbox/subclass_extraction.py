@@ -219,6 +219,26 @@ def _restrict(schema: Mapping[str, Any], names: frozenset[str]) -> dict[str, Any
     return out
 
 
+def composed_schema(base: Mapping[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """Record a dedicated composer's factual fields and honor a field-only retry.
+
+    Corporate schemas retain empty-only core slots for transport compatibility. They
+    cannot carry extracted facts, so the judge must not request or correct them.
+    Review the complete extraction even when this call re-reads only a few fields.
+    """
+    factual = copy.deepcopy(schema)
+    factual["properties"] = {
+        name: spec for name, spec in schema.get("properties", {}).items()
+        if not (spec.get("type") == "null"
+                or ("enum" in spec and all(v in (None, "", [], {}) for v in spec["enum"]))
+                or ("array" in ([spec.get("type")] if isinstance(spec.get("type"), str) else spec.get("type", []))
+                    and spec.get("maxItems") == 0))
+    }
+    _record_review(base, factual)
+    only = _ONLY.get()
+    return schema if only is None else _restrict(schema, only)
+
+
 def record_choice(state: Mapping[str, Any]) -> None:
     """HF-023: pick the schema for the extraction ``extract_node`` is about to run."""
     from mailroom_sandbox import merger_extract, merger_reads

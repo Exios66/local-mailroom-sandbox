@@ -6,22 +6,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.165,
+      "share": 0.164,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: The \"dated as of\" or signature date.",
      "in_output_schema": true,
-     "labeled": 164,
+     "labeled": 165,
      "labeled_by_set": {
-      "calibration": 25,
+      "calibration": 26,
       "dev": 70,
       "heldout": 69,
       "pool": 0
      },
      "subclasses_with_truth": 24,
      "truth": {
-      "near_gold": 164
+      "near_gold": 165
      },
      "verdict": "iterate"
     },
@@ -29,22 +29,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.669,
+      "share": 0.671,
       "value": null
      },
      "effective_status": "scored",
      "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
      "in_output_schema": true,
-     "labeled": 169,
+     "labeled": 170,
      "labeled_by_set": {
-      "calibration": 24,
+      "calibration": 25,
       "dev": 73,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 24,
      "truth": {
-      "near_gold": 169
+      "near_gold": 170
      },
      "verdict": "iterate"
     },
@@ -82,22 +82,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.713,
+      "share": 0.708,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
      "in_output_schema": true,
-     "labeled": 167,
+     "labeled": 168,
      "labeled_by_set": {
-      "calibration": 24,
+      "calibration": 25,
       "dev": 72,
       "heldout": 71,
       "pool": 0
      },
      "subclasses_with_truth": 23,
      "truth": {
-      "near_gold": 167
+      "near_gold": 168
      },
      "verdict": "iterate"
     },
@@ -137,22 +137,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.863,
+      "share": 0.864,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: End of the initial term when the text states it as a date; else null.",
      "in_output_schema": true,
-     "labeled": 168,
+     "labeled": 169,
      "labeled_by_set": {
-      "calibration": 24,
+      "calibration": 25,
       "dev": 73,
       "heldout": 71,
       "pool": 0
      },
      "subclasses_with_truth": 24,
      "truth": {
-      "near_gold": 168
+      "near_gold": 169
      },
      "verdict": "iterate"
     },
@@ -230,22 +230,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "role",
-      "share": 0.897,
+      "share": 0.898,
       "value": "other"
      },
      "effective_status": "scored",
      "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
      "in_output_schema": true,
-     "labeled": 144,
+     "labeled": 145,
      "labeled_by_set": {
-      "calibration": 21,
+      "calibration": 22,
       "dev": 61,
       "heldout": 62,
       "pool": 0
      },
      "subclasses_with_truth": 22,
      "truth": {
-      "near_gold": 144
+      "near_gold": 145
      },
      "verdict": "iterate"
     },
@@ -253,22 +253,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.456,
+      "share": 0.453,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: How and when the consideration is paid, as stated.",
      "in_output_schema": true,
-     "labeled": 136,
+     "labeled": 137,
      "labeled_by_set": {
-      "calibration": 18,
+      "calibration": 19,
       "dev": 59,
       "heldout": 59,
       "pool": 0
      },
      "subclasses_with_truth": 23,
      "truth": {
-      "near_gold": 136
+      "near_gold": 137
      },
      "verdict": "iterate"
     },
@@ -291,22 +291,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.195,
+      "share": 0.194,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list of names: Persons who sign the contract, as printed.",
      "in_output_schema": true,
-     "labeled": 169,
+     "labeled": 170,
      "labeled_by_set": {
-      "calibration": 24,
+      "calibration": 25,
       "dev": 73,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 24,
      "truth": {
-      "near_gold": 169
+      "near_gold": 170
      },
      "verdict": "iterate"
     },
@@ -329,22 +329,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.707,
+      "share": 0.703,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
      "in_output_schema": true,
-     "labeled": 157,
+     "labeled": 158,
      "labeled_by_set": {
-      "calibration": 21,
+      "calibration": 22,
       "dev": 67,
       "heldout": 69,
       "pool": 0
      },
      "subclasses_with_truth": 23,
      "truth": {
-      "near_gold": 157
+      "near_gold": 158
      },
      "verdict": "iterate"
     },
@@ -352,22 +352,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.875,
+      "share": 0.87,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: The stated territory of the grant, distribution or service.",
      "in_output_schema": true,
-     "labeled": 168,
+     "labeled": 169,
      "labeled_by_set": {
-      "calibration": 24,
+      "calibration": 25,
       "dev": 72,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 23,
      "truth": {
-      "near_gold": 168
+      "near_gold": 169
      },
      "verdict": "iterate"
     }
@@ -8192,19 +8192,19 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "date",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -8216,15 +8216,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "money",
        "valued_by_set": {
@@ -8282,19 +8282,19 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -8348,15 +8348,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "date",
        "valued_by_set": {
@@ -8458,19 +8458,19 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
@@ -8482,19 +8482,19 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -8527,19 +8527,19 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -8572,19 +8572,19 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -8596,19 +8596,19 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -11893,38 +11893,42 @@
    "fields": {
     "acting_body": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "action_approved": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "addressee": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -11938,83 +11942,93 @@
     },
     "amended_provisions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 2,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "approval_date": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 1,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "attorneys_in_fact": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "authority_scope": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "authorized_capital": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 6,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 2,
+      "heldout": 3,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 6
+     },
+     "verdict": "thin"
     },
     "certified_matter": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12029,7 +12043,7 @@
     "certifying_officer": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12092,23 +12106,25 @@
     },
     "exercise_price": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "expiration_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12128,6 +12144,7 @@
       "value": null
      },
      "effective_status": "scored",
+     "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
      "in_output_schema": true,
      "labeled": 44,
      "labeled_by_set": {
@@ -12146,7 +12163,7 @@
     "guarantors": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12160,48 +12177,54 @@
     },
     "holder": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "incorporators": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 3,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "instrument_kind": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "intent": {
      "dojo_status": "scored",
@@ -12278,7 +12301,7 @@
     "last_amended_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12293,7 +12316,7 @@
     "maturity_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12308,7 +12331,7 @@
     "officer_title": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12323,7 +12346,7 @@
     "organizers": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12337,23 +12360,25 @@
     },
     "principal": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "principal_amount": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12367,18 +12392,20 @@
     },
     "prior_entity_name": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 2,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "record_type": {
      "dojo_status": "derived",
@@ -12404,38 +12431,42 @@
     },
     "registered_agent": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 6,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 2,
+      "heldout": 3,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 6
+     },
+     "verdict": "thin"
     },
     "resolutions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "rights_agent": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
-     "in_output_schema": false,
+     "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
       "calibration": 0,
@@ -12449,33 +12480,37 @@
     },
     "securities_covered": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "securities_series": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "signatories": {
      "dojo_status": "pending_annotation",
@@ -12526,48 +12561,66 @@
     },
     "subsidiaries": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "dominant": {
+      "kind": "value",
+      "share": 0.05,
+      "value": [
+       "PlanVista Solutions, Inc."
+      ]
+     },
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 20,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 4,
+      "dev": 8,
+      "heldout": 8,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 20
+     },
+     "verdict": "thin"
     },
     "subsidiary_jurisdictions": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "dominant": {
+      "kind": "value",
+      "share": 0.095,
+      "value": []
+     },
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 21,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 5,
+      "dev": 8,
+      "heldout": 8,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 21
+     },
+     "verdict": "thin"
     },
     "trustee": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
-     "in_output_schema": false,
-     "labeled": 0,
+     "effective_status": "scored",
+     "in_output_schema": true,
+     "labeled": 2,
      "labeled_by_set": {
-      "calibration": 0,
+      "calibration": 1,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     }
    },
    "output_schema_fields": [
@@ -12579,36 +12632,69 @@
     "filing_number",
     "intent",
     "subject_matter",
-    "keywords"
+    "keywords",
+    "certifying_officer",
+    "last_amended_date",
+    "incorporators",
+    "registered_agent",
+    "authorized_capital",
+    "organizers",
+    "amended_provisions",
+    "approval_date",
+    "prior_entity_name",
+    "principal",
+    "attorneys_in_fact",
+    "authority_scope",
+    "expiration_date",
+    "subsidiaries",
+    "subsidiary_jurisdictions",
+    "instrument_kind",
+    "holder",
+    "rights_agent",
+    "securities_covered",
+    "exercise_price",
+    "trustee",
+    "guarantors",
+    "securities_series",
+    "principal_amount",
+    "maturity_date",
+    "acting_body",
+    "action_approved",
+    "resolutions",
+    "officer_title",
+    "certified_matter",
+    "addressee"
    ],
    "subclasses": {
     "articles_of_incorporation": {
      "fields": {
       "authorized_capital": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Authorized share classes and counts, as written.",
         "required": false,
         "where": "Capital stock article"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 2,
+        "heldout": 3,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 6
+       },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 2,
+        "heldout": 3,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -12679,6 +12765,7 @@
         "value": null
        },
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 20,
        "labeled_by_set": {
@@ -12701,21 +12788,23 @@
       },
       "incorporators": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Persons who signed to form the corporation.",
         "required": false,
         "where": "Signature block / 'Incorporator' line"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 3,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
@@ -12723,7 +12812,7 @@
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "intent": {
        "dojo_status": "scored",
@@ -12844,29 +12933,31 @@
       },
       "registered_agent": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Registered agent for service of process.",
         "required": true,
         "where": "'Registered Agent' / 'Resident Agent' article"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 2,
+        "heldout": 3,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 6
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 1,
+        "dev": 2,
+        "heldout": 2,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -12929,6 +13020,20 @@
      },
      "intent": "entity_formation",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "incorporators",
+      "registered_agent",
+      "authorized_capital"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 54,
      "rows_by_set": {
@@ -12945,62 +13050,66 @@
      "verdicts": {
       "constant": 3,
       "iterate": 6,
-      "no_truth": 3
+      "thin": 3
      }
     },
     "board_resolution": {
      "fields": {
       "acting_body": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Body that acted: board of directors / committee / stockholders.",
         "required": true,
         "where": "Heading / first recital"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "action_approved": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "What was resolved, one grounded sentence.",
         "required": true,
         "where": "'RESOLVED' clauses"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -13065,6 +13174,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 32,
        "labeled_by_set": {
@@ -13205,29 +13315,31 @@
       },
       "resolutions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Each separate resolution.",
         "required": false,
         "where": "'RESOLVED' clauses"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 2,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -13293,6 +13405,20 @@
      },
      "intent": "corporate_action_approval",
      "notes": "signatories are the directors/stockholders who signed or the secretary who certifies.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "acting_body",
+      "action_approved",
+      "resolutions"
+     ],
      "record_type": "other",
      "rows": 32,
      "rows_by_set": {
@@ -13308,9 +13434,8 @@
      ],
      "verdicts": {
       "constant": 2,
-      "no_truth": 3,
       "not_applicable": 1,
-      "thin": 6
+      "thin": 9
      }
     },
     "bylaws": {
@@ -13323,7 +13448,7 @@
         "required": false,
         "where": "Secretary's certificate or closing attestation"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -13405,6 +13530,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 36,
        "labeled_by_set": {
@@ -13523,7 +13649,7 @@
         "required": false,
         "where": "Title block, 'Amended and Restated as of', or adoption legend"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -13630,6 +13756,19 @@
      },
      "intent": "governance_rules",
      "notes": "No filing_number: bylaws are not filed with a state office.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "certifying_officer",
+      "last_amended_date"
+     ],
      "record_type": "bylaws",
      "rows": 36,
      "rows_by_set": {
@@ -13698,6 +13837,7 @@
       "filing_number": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -13788,7 +13928,7 @@
         "required": false,
         "where": "Signature block / 'Organizer' line"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -13835,7 +13975,7 @@
         "required": true,
         "where": "'Registered Agent' article"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -13899,6 +14039,19 @@
      },
      "intent": "entity_formation",
      "notes": "Hub inventory has no rows for this subclass; kept as an alias of articles_of_incorporation. An LLC certificate has no capital-article share schedule, so the prompt forbids emitting authorized_capital even as null.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "organizers",
+      "registered_agent"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 0,
      "rows_by_set": {
@@ -13920,55 +14073,59 @@
      "fields": {
       "amended_provisions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Each charter article/section amended and what changes (one item per provision).",
         "required": true,
         "where": "'Article X is hereby amended to read'"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 2,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 2,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "approval_date": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Date the board/stockholders adopted the amendment.",
         "required": false,
         "where": "Adoption recital"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "date",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -14038,6 +14195,7 @@
         "value": null
        },
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 22,
        "labeled_by_set": {
@@ -14149,29 +14307,31 @@
       },
       "prior_entity_name": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Former legal name when the amendment changes the name.",
         "required": false,
         "where": "Name-change article"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 2,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 3
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -14262,6 +14422,20 @@
      },
      "intent": "entity_formation",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "amended_provisions",
+      "approval_date",
+      "prior_entity_name"
+     ],
      "record_type": "articles_of_incorporation",
      "rows": 80,
      "rows_by_set": {
@@ -14278,8 +14452,7 @@
      "verdicts": {
       "constant": 3,
       "iterate": 3,
-      "no_truth": 3,
-      "thin": 3
+      "thin": 6
      }
     },
     "indenture": {
@@ -14347,6 +14520,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 57,
        "labeled_by_set": {
@@ -14376,7 +14550,7 @@
         "required": false,
         "where": "Guarantor signature pages"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14491,7 +14665,7 @@
         "required": false,
         "where": "Terms of the securities"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14517,7 +14691,7 @@
         "required": false,
         "where": "Terms of the securities"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14565,29 +14739,31 @@
       },
       "securities_series": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Designation of the notes, e.g. '5.25% Senior Notes due 2030'.",
         "required": true,
         "where": "Title and Section 2.01"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -14649,33 +14825,51 @@
       },
       "trustee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Indenture trustee.",
         "required": true,
         "where": "Preamble, 'as Trustee'"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "intent": "investor_rights",
      "notes": "entity_name is the issuer. jurisdiction is the governing-law state.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "trustee",
+      "guarantors",
+      "securities_series",
+      "principal_amount",
+      "maturity_date"
+     ],
      "record_type": "other",
      "rows": 57,
      "rows_by_set": {
@@ -14694,8 +14888,9 @@
      "verdicts": {
       "constant": 2,
       "iterate": 6,
-      "no_truth": 5,
-      "not_applicable": 1
+      "no_truth": 3,
+      "not_applicable": 1,
+      "thin": 2
      }
     },
     "officer_certificate": {
@@ -14708,7 +14903,7 @@
         "required": false,
         "where": "'delivered pursuant to' recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14734,7 +14929,7 @@
         "required": true,
         "where": "Certification recital"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14760,7 +14955,7 @@
         "required": true,
         "where": "Signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -14841,6 +15036,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 61,
        "labeled_by_set": {
@@ -14959,7 +15155,7 @@
         "required": true,
         "where": "Signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -15066,6 +15262,21 @@
      },
      "intent": "governance_rules",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "certifying_officer",
+      "officer_title",
+      "certified_matter",
+      "addressee"
+     ],
      "record_type": "other",
      "rows": 61,
      "rows_by_set": {
@@ -15140,6 +15351,7 @@
       "filing_number": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
@@ -15304,6 +15516,17 @@
      },
      "intent": "other",
      "notes": "Extract only the core fields actually present.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords"
+     ],
      "record_type": "other",
      "rows": 2,
      "rows_by_set": {
@@ -15320,55 +15543,59 @@
      "fields": {
       "attorneys_in_fact": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Persons empowered to act.",
         "required": true,
         "where": "'hereby constitutes and appoints'"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "authority_scope": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "What the attorney-in-fact may do.",
         "required": false,
         "where": "Grant clause"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "effective_date": {
        "dojo_status": "pending_annotation",
@@ -15438,7 +15665,7 @@
         "required": false,
         "where": "Term clause"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -15459,6 +15686,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 26,
        "labeled_by_set": {
@@ -15571,29 +15799,31 @@
       },
       "principal": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Person or entity granting the authority.",
         "required": true,
         "where": "'The undersigned' / signature block"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "record_type": {
        "dojo_status": "derived",
@@ -15690,6 +15920,21 @@
      },
      "intent": "authority_delegation",
      "notes": "entity_name is the registrant the POA relates to; the principal may be an individual director/officer.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "principal",
+      "attorneys_in_fact",
+      "authority_scope",
+      "expiration_date"
+     ],
      "record_type": "powers_of_attorney",
      "rows": 26,
      "rows_by_set": {
@@ -15706,9 +15951,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "no_truth": 4,
+      "no_truth": 1,
       "not_applicable": 1,
-      "thin": 6
+      "thin": 9
      }
     },
     "rights_instrument": {
@@ -15776,33 +16021,36 @@
       },
       "exercise_price": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Exercise/strike price, as written.",
         "required": false,
         "where": "Exercise clause"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 49,
        "labeled_by_set": {
@@ -15826,55 +16074,59 @@
       },
       "holder": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Registered holder or beneficiary, when a named party.",
         "required": false,
         "where": "Face of warrant / schedule"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "instrument_kind": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Kind of instrument: warrant / rights plan / preferred stock / registration rights / specimen stock.",
         "required": true,
         "where": "Title and first recital"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 2
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "dev": 1,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "intent": {
        "dojo_status": "scored",
@@ -16001,7 +16253,7 @@
         "required": false,
         "where": "Agent signature block"
        },
-       "in_output_schema": false,
+       "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
         "calibration": 0,
@@ -16021,29 +16273,31 @@
       },
       "securities_covered": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
        "entity": {
         "description": "Class and number of securities, as written.",
         "required": false,
         "where": "Operative grant"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -16106,6 +16360,22 @@
      },
      "intent": "investor_rights",
      "notes": "",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "instrument_kind",
+      "holder",
+      "rights_agent",
+      "securities_covered",
+      "exercise_price"
+     ],
      "record_type": "rights_instrument",
      "rows": 49,
      "rows_by_set": {
@@ -16124,9 +16394,9 @@
      "verdicts": {
       "constant": 2,
       "iterate": 3,
-      "no_truth": 5,
+      "no_truth": 1,
       "not_applicable": 1,
-      "thin": 3
+      "thin": 7
      }
     },
     "subsidiary_list": {
@@ -16194,6 +16464,7 @@
       "filing_number": {
        "dojo_status": "not_applicable",
        "effective_status": "not_applicable",
+       "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
        "labeled": 53,
        "labeled_by_set": {
@@ -16382,59 +16653,88 @@
       },
       "subsidiaries": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "dominant": {
+        "kind": "value",
+        "share": 0.05,
+        "value": [
+         "PlanVista Solutions, Inc."
+        ]
+       },
+       "effective_status": "scored",
        "entity": {
         "description": "Each listed subsidiary, legal name as written.",
         "required": true,
         "where": "Subsidiary table, first column"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 4,
+        "dev": 8,
+        "heldout": 8,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 20
+       },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 4,
+        "dev": 8,
+        "heldout": 8,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "subsidiary_jurisdictions": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "dominant": {
+        "kind": "value",
+        "share": 0.095,
+        "value": []
+       },
+       "effective_status": "scored",
        "entity": {
         "description": "Distinct jurisdictions of organization listed for subsidiaries.",
         "required": false,
         "where": "Subsidiary table, jurisdiction column"
        },
-       "in_output_schema": false,
-       "labeled": 0,
+       "in_output_schema": true,
+       "labeled": 21,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 5,
+        "dev": 8,
+        "heldout": 8,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 21
+       },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
+        "calibration": 4,
+        "dev": 7,
+        "heldout": 8,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "intent": "other",
      "notes": "entity_name is the parent/registrant. No signatories, filing_number or governing jurisdiction: a schedule is not executed or filed on its own.",
+     "output_schema_fields": [
+      "entity_name",
+      "record_type",
+      "effective_date",
+      "signatories",
+      "jurisdiction",
+      "filing_number",
+      "intent",
+      "subject_matter",
+      "keywords",
+      "subsidiaries",
+      "subsidiary_jurisdictions"
+     ],
      "record_type": "other",
      "rows": 53,
      "rows_by_set": {
@@ -16450,8 +16750,8 @@
      "verdicts": {
       "constant": 3,
       "iterate": 3,
-      "no_truth": 2,
-      "not_applicable": 3
+      "not_applicable": 3,
+      "thin": 2
      }
     }
    }
@@ -16468,16 +16768,16 @@
      "effective_status": "scored",
      "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 999,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 355,
+      "calibration": 356,
       "dev": 201,
       "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
-      "near_gold": 999
+      "near_gold": 1000
      },
      "verdict": "iterate"
     },
@@ -16485,23 +16785,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.572,
+      "share": 0.573,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
      "in_output_schema": true,
-     "labeled": 998,
+     "labeled": 1000,
      "labeled_by_set": {
-      "calibration": 355,
+      "calibration": 356,
       "dev": 201,
-      "heldout": 248,
+      "heldout": 249,
       "pool": 194
      },
      "subclasses_with_truth": 8,
      "truth": {
       "interim": 350,
-      "near_gold": 648
+      "near_gold": 650
      },
      "verdict": "iterate"
     },
@@ -16670,15 +16970,15 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.023,
+      "share": 0.024,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
      "in_output_schema": true,
-     "labeled": 998,
+     "labeled": 999,
      "labeled_by_set": {
-      "calibration": 354,
+      "calibration": 355,
       "dev": 201,
       "heldout": 249,
       "pool": 194
@@ -16686,7 +16986,7 @@
      "subclasses_with_truth": 8,
      "truth": {
       "interim": 437,
-      "near_gold": 561
+      "near_gold": 562
      },
      "verdict": "iterate"
     },
@@ -17514,22 +17814,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.596,
+        "share": 0.598,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: Further To, cc'd or copied parties as written. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 555,
+       "labeled": 557,
        "labeled_by_set": {
-        "calibration": 248,
+        "calibration": 249,
         "dev": 72,
-        "heldout": 103,
+        "heldout": 104,
         "pool": 132
        },
        "truth": {
         "interim": 188,
-        "near_gold": 367
+        "near_gold": 369
        },
        "type": "entity_list",
        "valued_by_set": {
@@ -17747,22 +18047,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.023,
+        "share": 0.025,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named.",
        "in_output_schema": true,
-       "labeled": 555,
+       "labeled": 556,
        "labeled_by_set": {
-        "calibration": 247,
+        "calibration": 248,
         "dev": 72,
         "heldout": 104,
         "pool": 132
        },
        "truth": {
         "interim": 237,
-        "near_gold": 318
+        "near_gold": 319
        },
        "type": "name",
        "valued_by_set": {
@@ -19726,21 +20026,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.792,
+        "share": 0.795,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list: At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`.",
        "in_output_schema": true,
-       "labeled": 77,
+       "labeled": 78,
        "labeled_by_set": {
-        "calibration": 19,
+        "calibration": 20,
         "dev": 20,
         "heldout": 28,
         "pool": 10
        },
        "truth": {
-        "near_gold": 77
+        "near_gold": 78
        },
        "type": "entity_list",
        "valued_by_set": {
@@ -23623,38 +23923,43 @@
    "fields": {
     "acquirer": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "name: Parent acquiring the target, not its merger subsidiary.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 5,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 2,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 5,
+     "truth": {
+      "near_gold": 5
+     },
+     "verdict": "thin"
     },
     "document_name": {
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.933,
+      "share": 0.903,
       "value": "Agreement and Plan of Merger"
      },
      "effective_status": "scored",
+     "guide": "name: Agreement title as stated.",
      "in_output_schema": true,
-     "labeled": 30,
+     "labeled": 31,
      "labeled_by_set": {
       "calibration": 4,
-      "dev": 17,
+      "dev": 18,
       "heldout": 9,
       "pool": 0
      },
      "subclasses_with_truth": 5,
      "truth": {
-      "interim": 30
+      "interim": 30,
+      "near_gold": 1
      },
      "verdict": "thin"
     },
@@ -23666,6 +23971,7 @@
       "value": null
      },
      "effective_status": "scored",
+     "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
      "in_output_schema": true,
      "labeled": 25,
      "labeled_by_set": {
@@ -23683,6 +23989,7 @@
     "effective_time": {
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
+     "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
      "in_output_schema": true,
      "labeled": 9,
      "labeled_by_set": {
@@ -23699,53 +24006,61 @@
     },
     "exchange_ratio": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "free text: Stated parent shares per target share.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
       "dev": 0,
-      "heldout": 0,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "financial_advisors": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "governing_law": {
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.793,
+      "share": 0.767,
       "value": "State of Delaware"
      },
      "effective_status": "scored",
+     "guide": "name: Governing-law sentence, distinct from dispute forum.",
      "in_output_schema": true,
-     "labeled": 29,
+     "labeled": 30,
      "labeled_by_set": {
       "calibration": 4,
-      "dev": 16,
+      "dev": 17,
       "heldout": 9,
       "pool": 0
      },
      "subclasses_with_truth": 5,
      "truth": {
-      "interim": 29
+      "interim": 29,
+      "near_gold": 1
      },
      "verdict": "thin"
     },
@@ -23783,18 +24098,21 @@
     },
     "legal_counsel": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "maud_clauses": {
      "dojo_status": "derived",
@@ -23828,22 +24146,26 @@
     },
     "merger_sub": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "list of names: Merger subsidiary or subsidiaries as written.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
+      "calibration": 1,
+      "dev": 2,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 3,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "outside_date": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
+     "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
      "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
@@ -23859,6 +24181,7 @@
     "parent_termination_fee": {
      "dojo_status": "pending_annotation",
      "effective_status": "no_truth",
+     "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
      "in_output_schema": true,
      "labeled": 0,
      "labeled_by_set": {
@@ -23873,48 +24196,57 @@
     },
     "parties": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "list of names: All contracting entities as written.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 1,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
+      "dev": 1,
       "heldout": 0,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 1,
+     "truth": {
+      "near_gold": 1
+     },
+     "verdict": "thin"
     },
     "per_share_cash_amount": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 3,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 3,
+     "truth": {
+      "near_gold": 3
+     },
+     "verdict": "thin"
     },
     "signatories": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     },
     "subject_matter": {
      "dojo_status": "not_applicable",
@@ -23934,33 +24266,39 @@
     },
     "target": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "name: Target company, not the parent or merger subsidiary.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 5,
      "labeled_by_set": {
-      "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "calibration": 1,
+      "dev": 2,
+      "heldout": 2,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 5,
+     "truth": {
+      "near_gold": 5
+     },
+     "verdict": "thin"
     },
     "target_termination_fee": {
      "dojo_status": "pending_annotation",
-     "effective_status": "no_truth",
+     "effective_status": "scored",
+     "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
      "in_output_schema": true,
-     "labeled": 0,
+     "labeled": 2,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 0,
-      "heldout": 0,
+      "dev": 1,
+      "heldout": 1,
       "pool": 0
      },
-     "subclasses_with_truth": 0,
-     "truth": {},
-     "verdict": "no_truth"
+     "subclasses_with_truth": 2,
+     "truth": {
+      "near_gold": 2
+     },
+     "verdict": "thin"
     }
    },
    "output_schema_fields": [
@@ -23991,28 +24329,32 @@
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Agreement title as stated.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -24036,6 +24378,7 @@
       "effective_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -24059,6 +24402,7 @@
       "effective_time": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 2,
        "labeled_by_set": {
@@ -24082,6 +24426,7 @@
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24103,6 +24448,7 @@
       "financial_advisors": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24124,6 +24470,7 @@
       "governing_law": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Governing-law sentence, distinct from dispute forum.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -24193,6 +24540,7 @@
       "legal_counsel": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24255,28 +24603,32 @@
       },
       "merger_sub": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "outside_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24298,6 +24650,7 @@
       "parent_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24319,6 +24672,7 @@
       "parties": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: All contracting entities as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24339,28 +24693,32 @@
       },
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24404,28 +24762,32 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24461,37 +24823,41 @@
      ],
      "verdicts": {
       "iterate": 2,
-      "no_truth": 12,
+      "no_truth": 8,
       "not_applicable": 3,
-      "thin": 4
+      "thin": 8
      }
     },
     "all_stock": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Agreement title as stated.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -24515,6 +24881,7 @@
       "effective_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
        "in_output_schema": true,
        "labeled": 6,
        "labeled_by_set": {
@@ -24538,6 +24905,7 @@
       "effective_time": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
@@ -24560,49 +24928,56 @@
       },
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "financial_advisors": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "governing_law": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Governing-law sentence, distinct from dispute forum.",
        "in_output_schema": true,
        "labeled": 7,
        "labeled_by_set": {
@@ -24671,24 +25046,27 @@
       },
       "legal_counsel": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "maud_clauses": {
        "dojo_status": "derived",
@@ -24735,6 +25113,7 @@
       "merger_sub": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24756,6 +25135,7 @@
       "outside_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24777,6 +25157,7 @@
       "parent_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24798,6 +25179,7 @@
       "parties": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: All contracting entities as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24819,6 +25201,7 @@
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24840,6 +25223,7 @@
       "signatories": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -24883,45 +25267,51 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "rows": 24,
@@ -24937,37 +25327,41 @@
       "Accuracy of Target R&W Closing Condition"
      ],
      "verdicts": {
-      "no_truth": 12,
+      "no_truth": 6,
       "not_applicable": 3,
-      "thin": 6
+      "thin": 12
      }
     },
     "mixed_cash_stock": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Agreement title as stated.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -24991,6 +25385,7 @@
       "effective_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
        "in_output_schema": true,
        "labeled": 7,
        "labeled_by_set": {
@@ -25014,6 +25409,7 @@
       "effective_time": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
@@ -25037,6 +25433,7 @@
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25057,28 +25454,32 @@
       },
       "financial_advisors": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "governing_law": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Governing-law sentence, distinct from dispute forum.",
        "in_output_schema": true,
        "labeled": 8,
        "labeled_by_set": {
@@ -25147,24 +25548,27 @@
       },
       "legal_counsel": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "maud_clauses": {
        "dojo_status": "derived",
@@ -25210,28 +25614,32 @@
       },
       "merger_sub": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "outside_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25253,6 +25661,7 @@
       "parent_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25274,6 +25683,7 @@
       "parties": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: All contracting entities as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25295,6 +25705,7 @@
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25316,6 +25727,7 @@
       "signatories": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25359,45 +25771,51 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       }
      },
      "rows": 13,
@@ -25413,37 +25831,41 @@
       "Compliance with Covenant Closing Condition"
      ],
      "verdicts": {
-      "no_truth": 12,
+      "no_truth": 6,
       "not_applicable": 3,
-      "thin": 6
+      "thin": 12
      }
     },
     "mixed_cash_stock_election": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "document_name": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Agreement title as stated.",
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
@@ -25467,6 +25889,7 @@
       "effective_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
@@ -25490,6 +25913,7 @@
       "effective_time": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25510,28 +25934,32 @@
       },
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "financial_advisors": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25553,6 +25981,7 @@
       "governing_law": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Governing-law sentence, distinct from dispute forum.",
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
@@ -25622,6 +26051,7 @@
       "legal_counsel": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25685,6 +26115,7 @@
       "merger_sub": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25706,6 +26137,7 @@
       "outside_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25727,6 +26159,7 @@
       "parent_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25748,6 +26181,7 @@
       "parties": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: All contracting entities as written.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25768,45 +26202,51 @@
       },
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "subject_matter": {
        "dojo_status": "not_applicable",
@@ -25833,28 +26273,32 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
         "dev": 0,
-        "heldout": 0,
+        "heldout": 1,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -25888,52 +26332,57 @@
       "Tail Period & Acquisition Proposal Details"
      ],
      "verdicts": {
-      "no_truth": 13,
+      "no_truth": 8,
       "not_applicable": 3,
-      "thin": 5
+      "thin": 10
      }
     },
     "other": {
      "fields": {
       "acquirer": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
-       "in_output_schema": true,
-       "labeled": 0,
-       "labeled_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
-        "pool": 0
-       },
-       "truth": {},
-       "type": "name",
-       "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
-        "heldout": 0,
-        "pool": 0
-       },
-       "verdict": "no_truth"
-      },
-      "document_name": {
-       "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Parent acquiring the target, not its merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 1,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 5
+        "near_gold": 1
+       },
+       "type": "name",
+       "valued_by_set": {
+        "calibration": 0,
+        "dev": 1,
+        "heldout": 0,
+        "pool": 0
+       },
+       "verdict": "thin"
+      },
+      "document_name": {
+       "dojo_status": "pending_annotation",
+       "effective_status": "scored",
+       "guide": "name: Agreement title as stated.",
+       "in_output_schema": true,
+       "labeled": 6,
+       "labeled_by_set": {
+        "calibration": 2,
+        "dev": 4,
+        "heldout": 0,
+        "pool": 0
+       },
+       "truth": {
+        "interim": 5,
+        "near_gold": 1
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 3,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -25942,6 +26391,7 @@
       "effective_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "date: Actual merger Effective Date only, not execution or dated-as-of date.",
        "in_output_schema": true,
        "labeled": 3,
        "labeled_by_set": {
@@ -25965,6 +26415,7 @@
       "effective_time": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "free text: Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 1,
        "labeled_by_set": {
@@ -25988,6 +26439,7 @@
       "exchange_ratio": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "free text: Stated parent shares per target share.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26009,6 +26461,7 @@
       "financial_advisors": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Financial advisors in brokers and fairness opinion provisions.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26030,21 +26483,23 @@
       "governing_law": {
        "dojo_status": "pending_annotation",
        "effective_status": "scored",
+       "guide": "name: Governing-law sentence, distinct from dispute forum.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 6,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 3,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "interim": 5
+        "interim": 5,
+        "near_gold": 1
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 3,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -26099,6 +26554,7 @@
       "legal_counsel": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "list of names: Law firms named on notice copy-recipient lines, not financial advisors.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26161,28 +26617,32 @@
       },
       "merger_sub": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Merger subsidiary or subsidiaries as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "outside_date": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "date: Actual Outside or End Date, distinct from execution and Effective Date.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26204,6 +26664,7 @@
       "parent_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated reverse termination fee payable by parent, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26224,66 +26685,75 @@
       },
       "parties": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: All contracting entities as written.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "per_share_cash_amount": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "money (text): Stated cash per target share, not aggregate equity or debt value.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "list of names: Persons who actually sign for the parties; do not invent names from blank signature lines.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "subject_matter": {
        "dojo_status": "not_applicable",
@@ -26310,28 +26780,32 @@
       },
       "target": {
        "dojo_status": "pending_annotation",
-       "effective_status": "no_truth",
+       "effective_status": "scored",
+       "guide": "name: Target company, not the parent or merger subsidiary.",
        "in_output_schema": true,
-       "labeled": 0,
+       "labeled": 1,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "truth": {},
+       "truth": {
+        "near_gold": 1
+       },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "no_truth"
+       "verdict": "thin"
       },
       "target_termination_fee": {
        "dojo_status": "pending_annotation",
        "effective_status": "no_truth",
+       "guide": "money (text): Stated fee payable by target, distinguishing conditions and caps.",
        "in_output_schema": true,
        "labeled": 0,
        "labeled_by_set": {
@@ -26360,9 +26834,9 @@
      },
      "verdicts": {
       "iterate": 2,
-      "no_truth": 12,
+      "no_truth": 6,
       "not_applicable": 3,
-      "thin": 4
+      "thin": 10
      }
     }
    }
@@ -26372,9 +26846,9 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "9e61b0eb5a8badf77906c3d4012912970ccd8c5fc8c6ed4e844b08400ef7b542",
+  "labeling_guide_sha256": "4c2d2b1b6f3ecc79bf576b0107055700bfcc19f2ca12e5bda693c39e5f5d20b5",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "b64d6c9c680a94a819c7e22a5bb2c29aa6f8d1581fa1d35d0b5fff6069cb164f",
+  "near_gold_overlay_sha256": "fc4d71356c15b67af22d880368617cb8b12cf4f37dafa79bc66ca0488f5436d3",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
@@ -26470,7 +26944,73 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "acting_body"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "action_approved"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "amended_provisions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "approval_date"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "attorneys_in_fact"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "authority_scope"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "authorized_capital"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "effective_date"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "exercise_price"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "holder"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "incorporators"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "instrument_kind"
   },
   {
    "class": "corporate_record",
@@ -26482,7 +27022,61 @@
    "class": "corporate_record",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "principal"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "prior_entity_name"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "registered_agent"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "resolutions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "securities_covered"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "securities_series"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "signatories"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "subsidiaries"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "subsidiary_jurisdictions"
+  },
+  {
+   "class": "corporate_record",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "trustee"
   },
   {
    "class": "correspondence",
@@ -26530,6 +27124,12 @@
    "class": "merger_agreement",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "acquirer"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "document_name"
   },
   {
@@ -26548,7 +27148,61 @@
    "class": "merger_agreement",
    "dojo_status": "pending_annotation",
    "effective_status": "scored",
+   "field": "exchange_ratio"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "financial_advisors"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
    "field": "governing_law"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "legal_counsel"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "merger_sub"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "parties"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "per_share_cash_amount"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "signatories"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "target"
+  },
+  {
+   "class": "merger_agreement",
+   "dojo_status": "pending_annotation",
+   "effective_status": "scored",
+   "field": "target_termination_fee"
   }
  ],
  "untruthed_output_fields": {
@@ -26556,24 +27210,26 @@
    "merger_consideration",
    "maud_clauses"
   ],
-  "corporate_record": [],
+  "corporate_record": [
+   "certifying_officer",
+   "last_amended_date",
+   "organizers",
+   "expiration_date",
+   "rights_agent",
+   "guarantors",
+   "principal_amount",
+   "maturity_date",
+   "officer_title",
+   "certified_matter",
+   "addressee"
+  ],
   "correspondence": [],
   "insurance_claim": [
    "claim_checklist"
   ],
   "merger_agreement": [
-   "parties",
-   "acquirer",
-   "target",
-   "merger_sub",
-   "signatories",
-   "per_share_cash_amount",
-   "exchange_ratio",
-   "target_termination_fee",
    "parent_termination_fee",
-   "outside_date",
-   "financial_advisors",
-   "legal_counsel"
+   "outside_date"
   ]
  }
 }

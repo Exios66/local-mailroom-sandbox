@@ -150,8 +150,10 @@ def test_threshold_calibration_runs_production_on_the_calibration_split_and_judg
     by_class = spec.confidence["by_class"]
     assert set(by_class) == set(counts) and all(b["judge_band_high"] == 1.01 for b in by_class.values())
     assert all("low" not in b for b in by_class.values())  # low also gates the sorter
-    # Everything else is the production gate's adopted configuration.
+    # Routing and serving still match the adopted production configuration.
     assert (spec.prompt, spec.engine, spec.agent_routes, spec.agent_knobs, spec.reviewer) == (
         prod.prompt, prod.engine, prod.agent_routes, prod.agent_knobs, prod.reviewer)
-    assert spec.dataset.staged_overlay == prod.dataset.staged_overlay and spec.job.blind_routing
+    # Calibration truth is frozen even when new production preparations advance.
+    assert spec.dataset.staged_overlay == "9.3.1-rc.9"
+    assert spec.job.blind_routing
     assert spec.job.api_cost_cap_usd and spec.job.max_wall_seconds

@@ -72,6 +72,25 @@ def test_merger_target_fields_are_the_sixteen_entities_and_the_consideration():
     assert "maud_clauses" not in fields
 
 
+def test_a_later_stronger_label_supplies_the_document_hash(tmp_path):
+    stale = "a" * 64
+    current = interim_labels.doc_sha(DOC)
+    interim = tmp_path / "interim.jsonl"
+    gold = tmp_path / "gold.jsonl"
+    interim.write_text(json.dumps({
+        "doc_class": "merger_agreement", "doc_id": "d1", "doc_sha256": stale,
+        "labels": {"governing_law": {"value": "State of Delaware", "use_as_truth": True}},
+    }) + "\n")
+    gold.write_text(json.dumps({
+        "doc_class": "merger_agreement", "doc_id": "d1", "doc_sha256": current,
+        "labels": {"acquirer": {"value": "Parent Inc.", "basis": "gold"}},
+    }) + "\n")
+    docs, _files = me.load_labels([interim, gold])
+    assert docs["d1"]["sha"] == current
+    assert docs["d1"]["fields"]["governing_law"]["source"] == "interim"
+    assert docs["d1"]["fields"]["acquirer"]["source"] == "gold"
+
+
 def test_a_field_with_no_labels_reads_unlabelled_not_zero(tmp_path):
     result = me.check(_store(tmp_path, "r1", [_item("d1"), _item("d2")]), _labels(tmp_path, LABELS))
     fields = result["fields"]

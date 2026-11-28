@@ -93,7 +93,8 @@ def load_labels(paths: Path | str | Sequence[Path | str]) -> tuple[dict[str, dic
         for rec in records:
             if rec.get("doc_class") != DOC_CLASS:
                 continue
-            doc = docs.setdefault(str(rec.get("doc_id")), {"sha": rec.get("doc_sha256"), "fields": {}})
+            doc = docs.setdefault(str(rec.get("doc_id")), {"sha": None, "fields": {}})
+            accepted = False
             for name, label in (rec.get("labels") or {}).items():
                 if name not in FIELDS or not isinstance(label, Mapping):
                     continue
@@ -103,6 +104,11 @@ def load_labels(paths: Path | str | Sequence[Path | str]) -> tuple[dict[str, dic
                     continue
                 doc["fields"][name] = {"value": label.get("value"), "source": source, "file": key,
                                        "evidence": label.get("evidence") or label.get("support")}
+                accepted = True
+            # The text check follows the record that supplied the winning fields, not the first
+            # file that mentioned the document.
+            if accepted:
+                doc["sha"] = rec.get("doc_sha256")
     return docs, files
 
 

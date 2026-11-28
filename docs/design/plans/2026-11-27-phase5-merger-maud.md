@@ -258,8 +258,8 @@ Near-universal and the remaining tables:
 - Create: `src/mailroom_sandbox/merger_sections.py`
 - Create: `scripts/check_merger_sections.py`
 - Create (committed rules): `config/extraction/merger_section_rules.json`
-- Test: `tests/test_merger_sections.py` (fixture: `tests/fixtures/merger_sections/agreement.txt`, a synthetic
-  agreement with a table of contents and articles)
+- Test: `tests/test_merger_sections.py` (the synthetic agreement is the `FIXTURE` string in that file:
+  a table of contents and articles, not a separate fixture file)
 
 **Interfaces:**
 

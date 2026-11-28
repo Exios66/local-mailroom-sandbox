@@ -1,0 +1,133 @@
+{
+  "documented_absences": 0,
+  "documents": 2,
+  "existing_catalog_rows_preserved": {
+    "gold": 10660,
+    "gold-supplementary": 1899
+  },
+  "existing_overlay_fields_preserved": 9755,
+  "fields": 13,
+  "measurement": "Static truth/schema/scoring eligibility; no model performance claim; MAUD headline unchanged.",
+  "overlay_fields_after": 9768,
+  "populated_scoring_events": 13,
+  "records": [
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "acquirer",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "exchange_ratio",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "per_share_cash_amount",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "signatories",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "target",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "acquirer",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "document_name",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "governing_law",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "merger_sub",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "parties",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "per_share_cash_amount",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "signatories",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "target",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "truth_matches": true
+    }
+  ],
+  "schema": "mailroom.merger-missing-admission-audit/v1"
+}

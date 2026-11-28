@@ -170,12 +170,14 @@ def test_work_queue_skips_fields_the_hub_labels():
         "content_sha256": "x",
         "gt_fields": json.dumps({"entity_name": "Acme Inc.",
                                  "gt_presence": json.dumps({"signatories": "not_applicable"})}),
-    }, {"document_id": "DOC-8", "filename": "g", "expected": "merger_agreement", "gt_fields": "{}"}]
+    }, {"document_id": "DOC-8", "filename": "g", "expected": "merger_agreement",
+        "expected_subclass": "all_cash", "gt_fields": "{}"}]
     queue = gl.work_queue(rows)
     assert [q["doc_id"] for q in queue] == ["DOC-9", "DOC-8"]
-    assert queue[0]["fields"] == ["effective_date", "jurisdiction"]
+    assert queue[0]["fields"] == ["effective_date", "jurisdiction", "certifying_officer", "last_amended_date"]
     # Phase 5 part 2: mergers are queued for their entity fields and consideration, never maud_clauses
-    assert queue[1]["fields"] == list(gl.target_fields("merger_agreement")) and "maud_clauses" not in queue[1]["fields"]
+    merger_fields = list(gl.target_fields("merger_agreement", doc_subclass="all_cash"))
+    assert queue[1]["fields"] == merger_fields and "maud_clauses" not in queue[1]["fields"]
 
 
 def test_cuad_dates_need_exactly_one_calendar_date():
@@ -215,7 +217,7 @@ def test_overlay_exports_only_near_gold_never_truth():
     recs = [
         {**base, "doc_id": "D1", "field": "recipient", "value": "John Doe", "status": "near_gold"},
         {**base, "doc_id": "D1", "field": "sender", "value": "Jane", "status": "near_gold",
-         "review": {"verdict": "correct"}},
+         "review": {"verdict": "correct", "reviewer": OPUS}},
         {**base, "doc_id": "D1", "field": "urgency", "value": "routine", "status": "candidate"},
         {**base, "doc_id": "D2", "field": "recipient", "value": "X", "status": "disputed"},
         {**base, "doc_id": "D3", "field": "recipient", "value": "Y", "status": "rejected"},
@@ -228,7 +230,22 @@ def test_overlay_exports_only_near_gold_never_truth():
     assert out[0]["doc_sha256"] == "ab" * 8 and out[0]["source"]["gate_run"] == "gold-labels-x"
     assert labels["recipient"]["basis"] == "near_gold:two_pass_agree"
     assert labels["sender"]["basis"] == "near_gold:opus_reviewed_correct"
+    assert labels["sender"]["reviewer"] == OPUS
     assert all(v["status"] == "gap_fill" and v["use_as_truth"] is False for v in labels.values())
+
+
+@pytest.mark.parametrize("model", ["opencode-go/deepseek-v4.1-flash", "gpt-6.1-sol", "human"])
+def test_overlay_attributes_review_to_the_actual_reviewer(model):
+    reviewer = {"model": model, "role": "review"}
+    record = {"doc_id": "D1", "doc_class": "contract", "field": "signatories", "value": ["Jane Roe"],
+              "status": "near_gold", "review": {"verdict": "accept", "reviewer": reviewer},
+              "labeler": {"model": "label-model", "role": "label"}}
+    label = gl.overlay_records([record], gate_run="review-attribution")[0]["labels"]["signatories"]
+    assert label["basis"] == "near_gold:reviewed_accept"
+    assert label["reviewer"] == reviewer
+    assert label["labeler"] == record["labeler"]
+    assert label["use_as_truth"] is False
+    assert record["review"]["reviewer"] == reviewer
 
 
 def test_near_empty_documents_are_tagged():

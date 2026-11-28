@@ -21,7 +21,7 @@ All slices keep r3's (`config/runs/pipeline-qwen-flash-25-fit-r3.yaml`) agent ro
 
 The settings the slices run with:
 
-- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.9`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.9`, see [the staged overlay guide](../staged-label-overlay.md); production stays on rc.9 although rc.10 is registered, for the reason that guide gives);
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.10`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.10`, see [the staged overlay guide](../staged-label-overlay.md); new preparations use the verified, landed rc.10 cut; existing run locks retain their approved version);
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;
