@@ -1,0 +1,1 @@
+{"doc_id": "DOC-732b812b7d9d9653", "field": "exercise_price", "verdict": "accept", "reviewer": {"model": "claude-opus", "role": "review"}, "note": "Read the warrant: 'at the purchase price of $.001 per Share (the \"Exercise Price\")' is the only stated price; $.001 is $0.001. The check pass was byte-identical and is withheld; this review is the second reading."}

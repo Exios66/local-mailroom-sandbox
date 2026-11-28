@@ -1,0 +1,216 @@
+{
+ "admitted": {
+  "documented_absence": 56,
+  "documents": 58,
+  "fields": 119,
+  "independent_agreements": 100,
+  "missing_field_documents": 58,
+  "new_documents": 0,
+  "populated_scored_fields": 63,
+  "reviewed": {
+   "accept": 19
+  }
+ },
+ "annotation_base_revision": "fb466ae0ab478cf200c62d1652288c77f23785c2",
+ "artifacts": [
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gA-raw-label.jsonl",
+   "role": "label",
+   "sha256": "f3ce642ee3f9b7f5239d3a9f47dcb0299b8364ba9ebcb21090fe25fa0643d419"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gA-raw-check.jsonl",
+   "role": "check",
+   "sha256": "2e6451a3e0e98191543161a4e985223fe37805f9c5143c37dda5f1e6611d6120"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gB-raw-label.jsonl",
+   "role": "label",
+   "sha256": "a752d4e8a0486c4603ce59f33f995cd73a25d2fcd82ae70170bccfca959298cf"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gB-raw-check.jsonl",
+   "role": "check",
+   "sha256": "6e54ffe46f99c51274ab90be26932be7b2ceeed0196e7da184ed4523946260fa"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gC-raw-label.jsonl",
+   "role": "label",
+   "sha256": "44fcbdc6d7060d1e9b069522269be10f0d0c3035d637ebcaa12538e6c3aa1e40"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gC-raw-check.jsonl",
+   "role": "check",
+   "sha256": "46fc917def7f1250fb4d4500bf6c618102b5eb3bbed808ea2c707e8069118d23"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gD-raw-label.jsonl",
+   "role": "label",
+   "sha256": "4f58067c9e1f1b87af93b0ad4c88a19f13c020e7dd24fbf66a51721a459dd903"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gD-raw-check.jsonl",
+   "role": "check",
+   "sha256": "159424e4cc7b06a6d653dfbb3da7e11e2cb9c983b4973c49f81ebabf848d8a9c"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gA-label.jsonl",
+   "role": "label",
+   "sha256": "f3ce642ee3f9b7f5239d3a9f47dcb0299b8364ba9ebcb21090fe25fa0643d419"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gA-check.jsonl",
+   "role": "check",
+   "sha256": "9536b08e86533dd25ff7885551080290cefb5a57e00b283e804f8264b8b711fb"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gB-label.jsonl",
+   "role": "label",
+   "sha256": "a752d4e8a0486c4603ce59f33f995cd73a25d2fcd82ae70170bccfca959298cf"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gB-check.jsonl",
+   "role": "check",
+   "sha256": "53fa371a655014b4f70d8188584dc6a7ad36b7f8df99387bdc5792c68776a643"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gC-label.jsonl",
+   "role": "label",
+   "sha256": "3e03589d99b1f4c88bc9612ac6e082d4fa3a00846358966225515e63a027a7fb"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gC-check.jsonl",
+   "role": "check",
+   "sha256": "8c1ff4600150c20956728a21088a89701d33e33f1792498c767b75d35934ec7f"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gD-label.jsonl",
+   "role": "label",
+   "sha256": "4f58067c9e1f1b87af93b0ad4c88a19f13c020e7dd24fbf66a51721a459dd903"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gD-check.jsonl",
+   "role": "check",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-review.jsonl",
+   "role": "review",
+   "sha256": "3b2a6ea11244d96011cf497b06dc80d4ffc7272d12922bff0aada099537771ec"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-withheld-check.jsonl",
+   "role": "check",
+   "sha256": "e5b00f7b02639e9e4b00df7b091077a686b875d735b0b755fe7ea9a0feb465d0"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-disputes.jsonl",
+   "role": "disputes",
+   "sha256": "785dd14e3e53e3eef49a3c7c9db82234a362fbd5afebafbfd5e98abb4c07cf54"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-queue.jsonl",
+   "role": "queue",
+   "sha256": "7ed608475ffa3f45b79ee450e4e848835f7ea7edc6a0171c3b30d79f4159a2ad"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-pass-brief.md",
+   "role": "brief",
+   "sha256": "9fc562ce24d010d3ae0d8836bdaf817c11d709054fe99ea8c66b69f646e6b407"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gE-raw-label.jsonl",
+   "role": "label",
+   "sha256": "dda4f739a1766958b38ec2ea84e215083c7f895ccd11a3df1403fbabe3fe2da9"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gE-raw-check.jsonl",
+   "role": "check",
+   "sha256": "ac7ea4a1e19852ca0c1f861961293208d966f3f3ed01378de896a6a19073cbd1"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gE-label.jsonl",
+   "role": "label",
+   "sha256": "8e47656ffd1ad10ed5b851a3931aaaba2bda581a0d5668962444485051d50fc9"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gE-check.jsonl",
+   "role": "check",
+   "sha256": "dd3371aa6b95658bf3f71369dafdac3c2109644077650b8a3b59fc0896ac6574"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-dev-gE-review.jsonl",
+   "role": "review",
+   "sha256": "26a3de6688c619321dd9e97d1411fbfa7bcfd5456649bbb2bd1fbbc8267b918c"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-dev-gE-withheld-check.jsonl",
+   "role": "check",
+   "sha256": "5a5defcb40d32e1a483518d120de06b6187225131d83754a8a684c10536ca84c"
+  }
+ ],
+ "doc_class": "corporate_record",
+ "held": {
+  "left_out_by_both_passes": {
+   "DOC-51092450a52e256c": "principal_amount (every amount in the form is a bracketed placeholder)"
+  }
+ },
+ "labelers": {
+  "check": "claude-sonnet",
+  "label": "claude-sonnet",
+  "review": "claude-opus"
+ },
+ "schema": "mailroom.label-repair-artifacts/v1",
+ "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "split": "dev",
+ "withheld_checks": {
+  "identical_to_label": [
+   "DOC-1fe073843dcc9442",
+   "DOC-5b1eea04e582267d",
+   "DOC-732b812b7d9d9653",
+   "DOC-866139125545b36a",
+   "DOC-97026ccc70122f7d",
+   "DOC-9cd96711a8928ec5",
+   "DOC-a080b8e1385861cc",
+   "DOC-a3bfd04e2912c3c9",
+   "DOC-b152fb9e1eedb88f",
+   "DOC-b865a8f75657643a",
+   "DOC-bfff7510c78d4d98"
+  ],
+  "label_left_out": [
+   "DOC-51092450a52e256c"
+  ],
+  "no_fields": [
+   "DOC-38299719f1d12a37",
+   "DOC-8141c160f2a4e857",
+   "DOC-b66115ae2d9d928e"
+  ]
+ }
+}
