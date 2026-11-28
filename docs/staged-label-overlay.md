@@ -53,8 +53,9 @@ edited in place.
 instructions** (2026-11-28). It is cut from the label-repaired
 release at sandbox `84360786` (#474): the rc.12 near-gold rounds (the contract target fields of
 slices 100, 250 and 500, and the corporate gate fields of 100 calibration documents) and the
-corrected Motor Cargo span. Its cache PR is mailroom-issues #255, and the pinned commit is
-`715c98e5`. Against rc.11 it removes no cell and adds 888, and one reviewed value changes on
+corrected Motor Cargo span. Its cache PR, mailroom-issues #255, merged with a merge commit
+(`957864c1`), so the pinned commit `715c98e5` is reachable from mailroom-issues main, and a fresh
+pull verifies against the pin. Against rc.11 it removes no cell and adds 888, and one reviewed value changes on
 purpose (`DOC-971bbacf86cd7a94` `jurisdiction`, a documented absence before). It releases 74
 contract and 1 corporate cell that rc.11 held as `disputed_unresolved`. It holds back two
 corporate `authorized_capital` cells instead, on documents with the same text whose labels word
