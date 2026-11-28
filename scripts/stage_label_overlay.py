@@ -187,13 +187,19 @@ def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[
     """Admissible extra notice phrases from ``assist`` and the reasons the rest were refused."""
     # A term is the same when magnitude, unit and qualifier (business/calendar) agree. The same period
     # under another operator ("not less than" vs exact) is refused for review, never dropped silently.
-    # A builder value can state one period more than once ("at least 30 days' notice ... uncured 30
-    # days"), so every operator it states for that period counts.
-    terms = [notice_term(m.group()) for m in PERIOD_RX.finditer(builder)]
-    held = {(t[1], t[2], t[3]) for t in terms}
+    # A builder value can state one period more than once ("at least 30 days' notice; uncured 30
+    # days"), so every operator it states for that period counts, except that a cure or breach
+    # clause's operator counts only when no other clause states the period. A cure period must not
+    # vouch for a notice term under its operator.
     ops: dict[tuple[str, str, str], set[str]] = {}
-    for t in terms:
-        ops.setdefault((t[1], t[2], t[3]), set()).add(t[0])
+    cure_ops: dict[tuple[str, str, str], set[str]] = {}
+    for clause in builder.split(";"):
+        for m in PERIOD_RX.finditer(clause):
+            t = notice_term(m.group())
+            (cure_ops if _CURE.search(clause) else ops).setdefault((t[1], t[2], t[3]), set()).add(t[0])
+    for key, found in cure_ops.items():
+        ops.setdefault(key, found)
+    held = set(ops)
     text = _norm(doc_text)
     out, refused = [], []
     for segment in assist.split(";"):

@@ -502,3 +502,13 @@ def test_assist_terms_match_any_operator_the_builder_states_for_a_period(mod):
     # A builder value that states the period only as exact still refuses the minimum.
     assert mod.assist_notice_terms("at least 30 days", "uncured 30 days after notice", text) == (
         [], ["same period, other operator: at least 30 days"])
+
+
+def test_a_cure_period_does_not_vouch_for_a_notice_term_under_its_operator(mod):
+    # 30 days is an exact cure period and a minimum notice. The assist's exact 30-day notice
+    # matches only the cure clause's operator, so it goes to review instead of passing as held.
+    text = ("the breaching party has 30 days to cure; either party may terminate on at least 30 days' "
+            "notice; either party may terminate on 30 days' notice")
+    builder = "30 days to cure a breach; at least 30 days' notice of termination"
+    assert mod.assist_notice_terms("30 days' notice", builder, text) == (
+        [], ["same period, other operator: 30 days"])
