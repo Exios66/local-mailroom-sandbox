@@ -42,10 +42,12 @@ instructions** (owner, 2026-11-28). It is cut from the label-repaired release at
 merge commit (`21854c61`), so the pinned commit `2873354a` is reachable from mailroom-issues main,
 and a fresh pull verifies against the pin. Every slice (100, 250, 500 and full) draws the same
 documents, in the same order, under rc.10 and rc.11; only the truth they are scored against
-changes. Existing run locks keep rc.10. One known label defect is in this immutable cut: the
-`subsidiaries` value of `DOC-91af5bdd6f0ad4bb` lists `Motor Cargo` next to `Motor Cargo
-Industries, Inc.`, a truncated copy of the same mention. Its correction belongs in the sandbox
-near-gold catalog and ships in a later `rc.N`; the cut is never edited in place.
+changes. Existing run locks keep rc.10. A review bot flagged the `subsidiaries` value of
+`DOC-91af5bdd6f0ad4bb` as listing `Motor Cargo` twice. It does not: the exhibit lists `Motor Cargo,
+a Utah corporation` as its own entry, beside `Motor Cargo Industries, Inc.`, so the ten values are
+right. Only that entry's evidence span was wrong (it pointed into the longer name); scoring reads
+values, not spans. The span is corrected in the catalog and ships in a later `rc.N`; the cut is
+never edited in place.
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
