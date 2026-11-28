@@ -295,3 +295,17 @@ def test_trace_reads_knob():
     for bad in ("false", "no", 0, 1, None):
         with pytest.raises(ValidationError):
             _spec(job={"trace_reads": bad})
+
+
+def test_field_label_fallback_needs_task_gt_and_is_hashed_only_when_set():
+    with pytest.raises(ValueError, match="requires require_task_gt"):
+        DatasetSpec(task_gt_min_field_labels=2)
+    with pytest.raises(ValueError, match=">= 1"):
+        DatasetSpec(require_task_gt=True, task_gt_min_field_labels=0)
+    plain = DatasetSpec(require_task_gt=True)
+    widened = DatasetSpec(require_task_gt=True, task_gt_min_field_labels=2)
+    assert "task_gt_min_field_labels" not in plain.request_core()
+    assert widened.request_core()["task_gt_min_field_labels"] == 2
+    assert _spec(dataset=plain).spec_hash() != _spec(dataset=widened).spec_hash()
+    assert _spec(dataset=widened).spec_hash() != _spec(
+        dataset=DatasetSpec(require_task_gt=True, task_gt_min_field_labels=3)).spec_hash()

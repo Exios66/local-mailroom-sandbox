@@ -76,6 +76,8 @@ def test_slices_validate_and_share_settings():
         assert spec.dataset.staged_overlay == "9.3.1-rc.10"
         assert spec.dataset.interim_labels is False and spec.dataset.near_gold_labels is False
         assert spec.dataset.require_task_gt is True
+        # Contracts without CUAD truth qualify on the gate's min_labelled field labels (SHF-016 scores them).
+        assert spec.dataset.task_gt_min_field_labels == 2
         # Slices draw from the current family pin; r3 (the tuning source) stays on the
         # revision it was measured against, so the slices no longer share its revision.
         assert spec.dataset.revision == FAMILY_HF_REVISION
