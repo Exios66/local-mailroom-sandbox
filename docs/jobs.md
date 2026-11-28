@@ -17,6 +17,7 @@ data/runtime/runs/<run_id>/
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
 ├── reads.jsonl          # pipeline runs: one offsets-only record per LLM call (job.trace_reads)
+├── prompts.jsonl        # pipeline runs: each distinct prompt text once, then one row per call (job.trace_reads)
 ├── doc_texts/           # pipeline runs: each document's working text + index.jsonl (run store; see Read ranges)
 └── run.lock             # advisory local-filesystem writer flock
 ```
@@ -899,6 +900,15 @@ the lock keeps. To apply the new value, re-lock with `preflight --force`, which
 archives the whole generation (finished items, `reads.jsonl` and `doc_texts/`
 included). A lock written before the key existed counts as `true`.
 
+- `prompts.jsonl` records what each request sent, under the same switch. Each distinct text
+  (system prompt, output schema with its `job.schema_guide` descriptions, Decisions questions,
+  the handoff, a user message) gets one `{"kind": "text", sha256, role, chars, text}` row the
+  first time it is seen; every request then gets a `{"kind": "call", doc, node, agent, model,
+  call_path, parts}` row whose parts name those texts by hash. A user message is kept as its
+  first and last 3,000 characters, because it carries the document. A Decisions request records
+  its questions and closed-field handoff, never its document. A resume reads the hashes already
+  in the file and does not write a text twice. The floor's node card lists these prompts
+  ([floor](floor.md)).
 - `reads.jsonl` gets one line per call:
   `{doc, call, agent, node, ts, basis, ranges, request_chars, matched_chars, doc_chars}`
   plus `unplaced_pieces`, `skipped` when matching was skipped, `ranges_approx` when more

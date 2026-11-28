@@ -925,3 +925,24 @@ def test_run_job_keeps_the_served_ledger_in_the_run_store():
     from mailroom_sandbox.job import runner
 
     assert 'log_path=store.dir / "served.jsonl"' in inspect.getsource(runner.run_job)
+
+
+def test_a_prompt_is_captured_once_per_call_and_never_for_a_refused_one(vendored, monkeypatch, armed_budget):
+    """job.prompt_capture records what was sent: the guard admits first, and retries add no rows."""
+    from mailroom_sandbox.job import prompt_capture
+
+    rows: list[dict] = []
+    prompt_capture.activate(rows.append)
+    try:
+        call = _install(monkeypatch, _loop())
+        client = _SdkClient("https://openrouter.ai/api/v1",
+                            [_ServerError("bad gateway"), _Resp("qwen/qwen3.7-flash", "Alibaba")])
+        call(client, **_REQUEST)
+        assert [r["kind"] for r in rows].count("call") == 1  # two attempts, one logical call
+        rows.clear()
+        armed_budget.reserve(0.999999)  # the rest of the cap is held by requests in flight
+        with pytest.raises(Exception, match="call refused"):
+            call(_SdkClient("https://openrouter.ai/api/v1", [_Resp("qwen/qwen3.7-flash", "Alibaba")]), **_REQUEST)
+        assert rows == []
+    finally:
+        prompt_capture.deactivate()

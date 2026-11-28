@@ -201,8 +201,8 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
                 upload = Path(tmp) / store.run_id
                 upload.mkdir()
                 for name in ("spec.lock.json", "prompt.lock.json", "dataset.jsonl", "checkpoint.json",
-                             "items.jsonl", "nodes.jsonl", "reads.jsonl", "events.jsonl", "cold_boot.json",
-                             "experiment_log.jsonl", "served.jsonl"):
+                             "items.jsonl", "nodes.jsonl", "reads.jsonl", "prompts.jsonl", "events.jsonl",
+                             "cold_boot.json", "experiment_log.jsonl", "served.jsonl"):
                     source = store.dir / name
                     if source.is_file():
                         shutil.copy2(source, upload / name)
@@ -434,8 +434,8 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                 checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
                 checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
                 (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
-                for name in ("items.jsonl", "nodes.jsonl", "reads.jsonl", "events.jsonl", "cold_boot.json",
-                             "experiment_log.jsonl", "served.jsonl", "doc_texts", "checkpoint.json"):
+                for name in ("items.jsonl", "nodes.jsonl", "reads.jsonl", "prompts.jsonl", "events.jsonl",
+                             "cold_boot.json", "experiment_log.jsonl", "served.jsonl", "doc_texts", "checkpoint.json"):
                     item = source / name
                     if name == "doc_texts":
                         # The pulled index replaces the cached one (checkpoint.py clears it for
