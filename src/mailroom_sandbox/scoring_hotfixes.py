@@ -284,7 +284,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
@@ -305,13 +305,20 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
             ("llm_dojo_scoring.pipeline.sandbox_scoring:score_cuad", "8c30a637efbf0139bd12bf6283dff62507223ce7e8d90183692854d16a07f106"),
+            # the gate counts such a row's field labels toward min_labelled and diagnoses its misses on
+            # fields, as the headline scores it
+            ("mailroom_sandbox.job.gate:cuad_unlabeled", "60e0455a4d18a7acb3d5d90dc202aa924671f31dfb96db7e9986a2b2c3f5f433"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
+            ("mailroom_sandbox.job.gate_causes:extraction_miss", "73aa082f96c1bdaade40d85f2bb7685b018e7432bae495a1f06608f0f35258c7"),
+            ("mailroom_sandbox.job.gate_causes:primary_cause", "430aac78f5b550c4b87e350d2cef626b4b7d543d8f54f93cca427ce30e9dda74"),
         ),
         upstream="sandbox",
         summary="a contract row whose CUAD label map names no category keeps the suite field "
                 "headline (the reviewed interim / near-gold field labels merged at truth prep "
                 "stand in where the Hub supplied none) instead of the empty-universe CUAD F1 "
                 "that left the row unscoreable; the row is marked cuad_unlabeled and the "
-                "raw side keeps the Dojo pin's None",
+                "raw side keeps the Dojo pin's None; the gate counts such a row's field labels "
+                "toward min_labelled and diagnoses its misses on fields",
     ),
     ScoringHotfix(
         id="SHF-017",
@@ -350,7 +357,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             ("mailroom_sandbox.eval.scoring:score_extraction_row", "84867f1b6d6b17d238c32955d3103c6f9ddb29e898ee9cc6834fe716c716828a"),
             # the gate counts toward min_labelled, and scores fixes against, only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
             ("mailroom_sandbox.job.gate:_fix_accuracy", "fbc36bf451f3019473f247a14dee57ebce751ca79ba6ead0fe2f032b30fe4756"),
             # the lowest-field diagnosis skips what the headline leaves out
             ("mailroom_sandbox.job.gate_causes:_field_scores", "ba939d617e53950434a0ff6f99f6662677fee7c5d304d26a4068f6daa29c7859"),

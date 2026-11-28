@@ -739,3 +739,61 @@ def test_renormalizing_a_locked_bundle_keeps_its_placeholders():
     (again,) = normalize_rows([locked])  # a locked dataset reused as local JSONL input
     assert again["expected_doc_class"] is None and again["expected_subclass"] is None
     assert (again["placeholder_doc_class"], again["placeholder_subclass"]) == ("contract", "x")
+
+
+def _contract(i: int, cuad: dict, **fields) -> dict:
+    return {"id": f"k{i}", "filename": f"k{i}.txt", "doc_text": f"contract {i}", "expected": "contract",
+            "expected_subclass": "service", "expected_fields": {"cuad_clause_labels": cuad, **fields}}
+
+
+def test_field_label_fallback_draws_contracts_without_cuad_truth(tmp_path, monkeypatch):
+    """task_gt_min_field_labels: an empty-CUAD contract qualifies on the labels its overlay gives it."""
+    import mailroom_sandbox.corpus as corpus
+
+    gold = {"Agreement Date": ["May 1, 2005"]}
+    rows = [_contract(0, gold), _contract(1, {}),
+            _contract(2, {}, parties=["Acme Corp"]),
+            _contract(3, {}, parties=["Acme Corp"], agreement_date="2005-05-01")]
+    src = _rows_fixture(tmp_path, rows)
+
+    def drawn(**kw):
+        dest = tmp_path / "d.jsonl"
+        prov = prepare_subset(DatasetSpec(local_path=src, require_task_gt=True, **kw), dest)
+        return {json.loads(line)["id"] for line in dest.read_text().splitlines() if line}, prov
+
+    ids, prov = drawn()
+    assert ids == {"k0"} and "task_gt_field_label_rows" not in prov  # the strict rule is unchanged
+    ids, prov = drawn(task_gt_min_field_labels=2)
+    assert ids == {"k0", "k3"}
+    assert prov["task_gt_field_label_rows"] == {"eligible": 1, "drawn": 1}
+    assert drawn(task_gt_min_field_labels=1)[0] == {"k0", "k2", "k3"}
+
+    # The count reads the spec's own label overlay, applied to copies: k1 qualifies only through it,
+    # and the drawn row takes the overlay once, after the draw.
+    real = corpus.apply_label_overlays
+    calls = []
+
+    def overlay(chosen, meta, **kw):
+        calls.append([r["id"] for r in chosen])
+        for r in chosen:
+            if r["id"] == "k1":
+                r["expected_fields"] = {**r["expected_fields"], "parties": ["B"], "governing_law": "New York"}
+        return real(chosen, meta, **kw)
+
+    monkeypatch.setattr(corpus, "apply_label_overlays", overlay)
+    ids, prov = drawn(task_gt_min_field_labels=2)
+    assert ids == {"k0", "k1", "k3"} and prov["task_gt_field_label_rows"] == {"eligible": 2, "drawn": 2}
+    assert calls[0] == ["k1", "k2", "k3"]  # only the empty-CUAD contracts, before the draw
+
+
+def test_field_label_fallback_refuses_without_shf016(monkeypatch):
+    """Without SHF-016 a CUAD-empty contract scores on CUAD only: the draw refuses, never falls back."""
+    import pytest
+
+    import mailroom_sandbox.corpus as corpus
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    real = sh.enabled
+    monkeypatch.setattr(sh, "enabled", lambda fid: False if fid == "SHF-016" else real(fid))
+    with pytest.raises(ValueError, match="SHF-016"):
+        corpus.field_labelled_ids([_contract(1, {})], {}, object(), 2)

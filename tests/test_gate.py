@@ -269,7 +269,10 @@ def test_labelled_count_scopes_and_drops_templated():
     assert gate.labelled_count(claim, "insurance_claim") == 1
     assert gate.labelled_count({"expected_fields": ""}, "contract") == 0
     evidence = {"expected_fields": json.dumps({"document_name": "x", "label_evidence": "CUAD-annotated clauses: ..."})}
-    assert gate.labelled_count(evidence, "contract") == 0  # the Dojo scores contracts on CUAD only
+    # No CUAD map: SHF-016 scores the row on its field labels, so the gate counts them (the evidence
+    # column is not a label). The raw count (hotfixed=False) only undoes SHF-015/019 drops.
+    assert gate.labelled_count(evidence, "contract") == 1
+    assert gate.labelled_count(evidence, "contract", hotfixed=False) == 1  # SHF-016 is not a raw/hotfixed split
 
 
 def test_labelled_corporate_subclass_fields_count_as_the_dojo_scores_them():
@@ -614,3 +617,18 @@ def test_evidence_check_drops_are_counted(tmp_path):
 
 def test_a_run_without_the_evidence_check_keeps_its_report_shape(tmp_path):
     assert "evidence_check" not in gate.gate_report(_run(tmp_path, _docs(3)), Bars())
+
+
+def test_contract_without_a_cuad_universe_counts_its_field_labels():
+    """SHF-016: an empty CUAD map leaves the row scored on its field labels, so the gate counts those."""
+    fields = {"cuad_clause_labels": {}, "parties": ["Acme Corp", "Beta LLC"], "agreement_date": "2005-01-04",
+              "governing_law": "", "label_evidence": "x"}
+    row = {"expected_doc_class": "contract", "expected_fields": json.dumps(fields)}
+    assert gate.cuad_unlabeled(row, "contract") is True
+    assert gate.labelled_count(row, "contract") == 2  # parties, agreement_date; blank and evidence are not labels
+    assert gate.labelled_count(row, "contract", hotfixed=False) == 2  # labelled_raw attributes SHF-015/019 only
+    labelled = {**fields, "cuad_clause_labels": cuad(gold=1)["cuad_clause_labels"]}
+    with_cuad = {"expected_doc_class": "contract", "expected_fields": json.dumps(labelled)}
+    assert gate.cuad_unlabeled(with_cuad, "contract") is False
+    assert gate.labelled_count(with_cuad, "contract") == len(CATEGORIES)  # a CUAD universe still scores on CUAD
+    assert gate.cuad_unlabeled({"expected_fields": json.dumps({"maud_clause_labels": {}})}, "merger_agreement") is False

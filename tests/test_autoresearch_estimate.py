@@ -104,7 +104,9 @@ def test_production_base_differs_from_slice_0100_only_where_documented():
     # their frozen bases keep the labels they were scored with.
     # dataset.revision: production moved to Hub tag v9.3; the frozen v1/v2 bases keep the v9.1 pin
     # they were measured on (scores compare only on the same label revision).
-    allowed_prefix = ("reviewer.", "dataset.strata", "dataset.near_gold_labels", "dataset.interim_labels", "dataset.staged_overlay", "dataset.revision", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
+    # dataset.task_gt_min_field_labels: production slices also draw contracts with no CUAD map but
+    # enough field labels (SHF-016); the frozen v1/v2 bases keep the strict CUAD draw rule.
+    allowed_prefix = ("reviewer.", "dataset.strata", "dataset.near_gold_labels", "dataset.interim_labels", "dataset.staged_overlay", "dataset.revision", "dataset.task_gt_min_field_labels", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
     stray = {p for p in differs if not p.startswith(allowed_prefix)}
     assert not stray, f"undocumented differences from production-slice-0100: {sorted(stray)}"
     # production comparability wins over determinism: no agent_knobs difference, in particular no temperature override
