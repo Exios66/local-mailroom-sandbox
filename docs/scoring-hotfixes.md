@@ -115,6 +115,12 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     SHF-015 and SHF-019 re-pin `labelled_count` with no change to their drops. A vendor refresh or
     `SANDBOX_DOJO_SNAPSHOT` that changes one of them makes SHF-016 `stale` (not applied,
     preflight fails) instead of moving headlines while it reads `current`.
+  - The seam also keeps the suite's own event counts. On the detailed suite path (a row with a
+    subclass), the Dojo returns P/R/F1 without `tp`/`fp`/`fn`. `scoring_hotfixes.suite_event_counts`
+    captures the count bundle the suite passed to `prf_bundle_keys` on the pair it scored, and
+    `captured_event_counts` keeps it only when its P/R/F1 equal the result's. No score moves, and
+    run-level `extraction_f1_micro` is no longer withheld for those rows. The capture is inside
+    `_score_extraction_row_once`, so editing it re-pins SHF-016.
   - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;
     `scoring_hotfixes` lists `SHF-016`, and `scoring_hotfixes_changed` includes
     `overall_extraction_score` for exactly the rows it moves. The row's own `raw_dojo` keeps
