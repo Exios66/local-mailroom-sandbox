@@ -79,3 +79,12 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.10
     manifest_sha256: b7dc80a16037b7f2bce8c75f226fed8ac447bf6f6f8c03ce166d3dcd83ea65e5
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.11: rebuilt from the label-repaired release at sandbox 0e083b71 (#453): the near-gold
+  # corporate subclass fields (trustee, registered_agent, certifying_officer, ...) reach the
+  # corporate overlay, with the reviewed subclass corrections since rc.10.
+  9.3.1-rc.11:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: 2873354af3e8bae31f327ef03729e52c69e6466b
+    path: v9.3.0/pre-release/v9.3.1-rc.11
+    manifest_sha256: 0221334254c3504aeffb61ba5efa6bf24d541de02379725c1dd5fe0222c94815
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04

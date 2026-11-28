@@ -334,7 +334,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("mailroom_sandbox.job.gate_causes:_field_scores",
              "ba939d617e53950434a0ff6f99f6662677fee7c5d304d26a4068f6daa29c7859"),
             ("file:config/extraction/subclass_extraction_fields.json",
-             "91ffa7cd9aded8907fd6a4aabf33b2d1960c8cab52e9ce0fee7dea003ac396cc"),
+             "20bb52ff9cf8582ae0d1f145454fc30a31ab8a9a5f1eff40bbbb7adf8abc7627"),
         ),
         upstream="sandbox",
         summary="scoring uses the subclass's extraction schema: a field the schema drops is "
