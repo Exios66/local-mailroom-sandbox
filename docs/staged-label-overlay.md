@@ -78,6 +78,31 @@ once the cache PR lands on mailroom-issues main with that commit kept reachable.
   (many Hub rows needed repair) and are applied. They also wait in
   `queues/gold_override_signoff.csv` for a person's initials before the v10 release.
 
+## Keeping a copy in another checkout
+
+The cache under `data/cache/mailroom_cache/` is gitignored, so a fresh clone has no cut. Either
+pull it there (GitHub access to mailroom-issues), or carry a bundle from a checkout that has it:
+
+```bash
+python scripts/pull_staged_overlay.py --list                           # pinned versions, cached or not
+python scripts/pull_staged_overlay.py --latest --export rc-latest.tar.gz   # pull if needed, then bundle
+python scripts/pull_staged_overlay.py --import rc-latest.tar.gz            # in the other checkout
+```
+
+- **`--latest`** is the most recent version pinned in `config/staged_overlays.yaml` (highest
+  `X.Y.P-rc.N`). It never reaches past the pins, and it does not change which cut a run selects:
+  a run still names its `dataset.staged_overlay` version. Production slices select `9.3.1-rc.10`
+  while the latest pin is `9.3.1-rc.11`, so a checkout that runs them needs `--version 9.3.1-rc.10`
+  too.
+- **`--export FILE`** writes the verified cut's `MANIFEST.json` and exactly the files it pins as a
+  deterministic `.tar.gz`, laid out relative to the cache root (about 7 MB per cut). It refuses a
+  cache that does not match the pin.
+- **`--import FILE`** accepts only regular files under one pinned cut's path, and nothing the
+  manifest does not pin. It unpacks beside the final place and renames only after every file
+  matches the pin, so trust still comes from `config/staged_overlays.yaml`, not from the bundle.
+  An already cached, verified cut is left alone.
+- `--root DIR` or `$SANDBOX_LABEL_CACHE` picks another cache root for every mode.
+
 ## Deployments and remote job workers
 
 Run `scripts/pull_staged_overlay.py` at image build time, with `$SANDBOX_LABEL_CACHE` pointing
