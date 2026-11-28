@@ -303,3 +303,61 @@ def test_with_fail_fast_every_failed_document_is_recorded_once_with_its_usage(mo
     assert getattr(caught.value, "sandbox_failed_usage", None) is None  # the rows carry it: no double count
     assert sum(u.get("prompt_tokens", 0) for u in budget.added) == 100 * len(items)
     assert len(items) < 8
+
+
+def _served(model: str, calls: int = 1) -> list[dict]:
+    return [{"requested_model": model, "served_model": model, "served_provider": "P", "status": "pinned",
+             "call_path": "retry_chat_completion", "calls": calls}]
+
+
+def test_an_error_row_and_a_retried_answer_keep_the_served_calls_of_failed_attempts(monkeypatch):
+    """Bugbot: the served model of a failed document's billed calls was lost with its exception."""
+    monkeypatch.setattr(runners, "_RETRY_PAUSE_SECONDS", 0)
+    left = {"0": 9, "1": 1}
+
+    def fake_doc(row, **_kw):
+        if left.get(row["id"]):
+            left[row["id"]] -= 1
+            exc = RuntimeError(f"lost {row['id']}")
+            exc.sandbox_served_calls = _served("m")
+            raise exc
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {},
+                "served_calls": _served("m")}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    items: list[dict] = []
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(3), mock=False, connected=False, row_cb=items.append,
+                              max_retries=1, fail_fast=False, record_failures=True)
+    by_id = {item["id"]: item["pred"] for item in items}
+    assert by_id["0"]["served_calls"] == _served("m", 2)  # both failed attempts
+    assert by_id["1"]["served_calls"] == _served("m", 2)  # the failed attempt and the answer
+    assert by_id["2"]["served_calls"] == _served("m", 1)
+
+
+def test_a_document_that_raises_carries_the_served_calls_its_scope_counted(monkeypatch):
+    from mailroom_sandbox import provider_pins
+    from mailroom_sandbox.job.call_guard import GuardStop
+
+    entry = {"requested_model": "m", "served_model": "m", "served_provider": "P", "status": "pinned",
+             "call_path": "retry_chat_completion"}
+
+    def raising(row, **_kw):
+        provider_pins._note_on_document(entry)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", raising)
+    with pytest.raises(RuntimeError, match="boom") as caught:
+        runners._run_pipeline_doc({"id": "d0"})
+    assert caught.value.sandbox_served_calls == _served("m")
+
+    def refused(row, **_kw):
+        from mailroom_sandbox.job import call_guard
+
+        provider_pins._note_on_document(entry)
+        call_guard.scope()["refused"] = "cap"
+        return {"id": "d0"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", refused)
+    with pytest.raises(GuardStop) as stopped:
+        runners._run_pipeline_doc({"id": "d0"})
+    assert stopped.value.sandbox_served_calls == _served("m")

@@ -1126,6 +1126,7 @@ def test_a_resumed_pipeline_run_bills_only_unfinished_documents(tmp_path, monkey
     first = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
     assert first["state"] == "failed" and calls == ["d0", "d1", "d2"]
     assert [(i["item_id"], i["ok"]) for i in store.load_items()] == [("d0", True), ("d1", True), ("d2", False)]
+    assert (first["ok"], first["errors"]) == (2, 1)  # d2's error row is counted once (Bugbot)
     calls.clear()
     second = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
     assert calls == ["d2", "d3"]  # d0 and d1 are replayed from items.jsonl, not run (or billed) again

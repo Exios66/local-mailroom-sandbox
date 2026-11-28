@@ -1478,6 +1478,7 @@ def run_pipeline_eval(
         all its attempts (``sandbox_failed_usage``) and their count (``sandbox_attempts``).
         """
         failed: dict[str, int] = {}
+        served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
         first_ns, before = time.time_ns(), time.monotonic()
         attempt = 0
         while True:
@@ -1488,9 +1489,11 @@ def run_pipeline_eval(
                 for key, value in (getattr(exc, "sandbox_failed_usage", None) or {}).items():
                     if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
                         failed[key] = failed.get(key, 0) + value
+                served = _merge_served_calls(served, getattr(exc, "sandbox_served_calls", None))
                 if attempt > max_retries or not _may_retry(exc):
                     try:
                         exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed} if failed else None
+                        exc.sandbox_served_calls = served or None
                         exc.sandbox_attempts = attempt
                         exc.sandbox_latency_ms = (time.monotonic() - before) * 1000
                         exc.sandbox_window = (first_ns, time.time_ns())
@@ -1504,6 +1507,8 @@ def run_pipeline_eval(
                 continue
             if failed:
                 usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in failed.items()}}
+            if served:
+                result = {**result, "served_calls": _merge_served_calls(served, result.get("served_calls"))}
             if attempt > 1:
                 return result, usage, (time.monotonic() - before) * 1000, (first_ns, window[1])
             return result, usage, _latency, window
@@ -1592,11 +1597,14 @@ def run_pipeline_eval(
         error = f"{type(exc).__name__}: {str(exc)[:512]}"
         result = {"id": rows[index].get("id"), "doc_type": None, "stage": "failed", "extracted_data": None,
                   "error": error, "attempts": int(getattr(exc, "sandbox_attempts", 1) or 1)}
+        if served := getattr(exc, "sandbox_served_calls", None):
+            result["served_calls"] = served
         window = getattr(exc, "sandbox_window", None)
         _record(index, result, billed, float(getattr(exc, "sandbox_latency_ms", 0.0) or 0.0),
                 window if isinstance(window, tuple) else None)
         try:
             exc.sandbox_failed_usage = None
+            exc.sandbox_recorded = True  # the job runner counts this document's error row, not one more
         except (AttributeError, TypeError):
             pass
 
@@ -1859,6 +1867,30 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     return queued
 
 
+def _merge_served_calls(into: list[dict[str, Any]], more: Any) -> list[dict[str, Any]]:
+    """``served_calls`` rows of two attempts, one row per route and outcome with the calls summed."""
+    merged = [dict(row) for row in into]
+    for row in more if isinstance(more, list) else []:
+        if not isinstance(row, Mapping):
+            continue
+        key = {k: v for k, v in row.items() if k != "calls"}
+        same = next((m for m in merged if {k: v for k, v in m.items() if k != "calls"} == key), None)
+        if same is None:
+            merged.append(dict(row))
+        else:
+            same["calls"] = int(same.get("calls") or 0) + int(row.get("calls") or 0)
+    return merged
+
+
+def _carry_served_calls(exc: BaseException, scope: Mapping[str, Any]) -> None:
+    """Attach a raising document's served calls (its call-guard scope) to the exception."""
+    if scope.get("served_calls"):
+        try:
+            exc.sandbox_served_calls = [dict(row) for row in scope["served_calls"]]
+        except (AttributeError, TypeError):
+            pass
+
+
 def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     """:func:`_run_pipeline_doc_once` inside one document scope of the API call guard.
 
@@ -1870,9 +1902,15 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
 
     with call_guard.document() as scope:
         scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
-        result = _run_pipeline_doc_once(row, **kwargs)
+        try:
+            result = _run_pipeline_doc_once(row, **kwargs)
+        except Exception as exc:
+            _carry_served_calls(exc, scope)  # the billed calls' served models stay with the error row
+            raise
     if scope["refused"]:
-        raise call_guard.GuardStop(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+        stop = call_guard.GuardStop(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+        _carry_served_calls(stop, scope)
+        raise stop
     if scope.get("judge_reasks"):
         # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
         # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.

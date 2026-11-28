@@ -500,8 +500,11 @@ def _run_whole_run(
             from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT
 
             store.append_event(FAILED_USAGE_EVENT, "warning", **failed_usage)
+        # The document that raised counts once: as its error row when it has one (pipeline
+        # record_failures), else as one more than the error rows.
+        unrecorded = 0 if getattr(exc, "sandbox_recorded", False) else 1
         return {"state": "failed", "task": task, "error": str(exc)[:512], "cursor": saved,
-                "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + 1}
+                "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + unrecorded}
 
     _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted,
                             rebilled=rebilled, failed=failed_rows)
