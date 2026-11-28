@@ -263,16 +263,20 @@ def _score_extraction_row_once(
         expected = sh.restore_documented_absences(doc_type, raw_expected, expected)
     sub_kwargs = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_type == "corporate_record")
+    bundles: list[dict[str, Any]] = []
     if suite is not None:
         try:
-            if detailed:
-                # Corporate alignment is authoritative even without a subclass.
-                # Consume the suite's metrics and unlabeled fields directly.
-                result = suite.score(
-                    expected, predicted, doc_text=doc_text, detailed=True, **sub_kwargs
-                )
-            else:
-                result = suite.score(expected, predicted, doc_text=doc_text)
+            # A suite payload dict drops the event counts its P/R/F1 came from; keep the
+            # suite's own count bundle (on the pair it scored) for the payload.
+            with sh.suite_event_counts() as bundles:
+                if detailed:
+                    # Corporate alignment is authoritative even without a subclass.
+                    # Consume the suite's metrics and unlabeled fields directly.
+                    result = suite.score(
+                        expected, predicted, doc_text=doc_text, detailed=True, **sub_kwargs
+                    )
+                else:
+                    result = suite.score(expected, predicted, doc_text=doc_text)
         except Exception as exc:
             scoring_method = "suite-fallback-generic"
             _warn_once(
@@ -352,6 +356,7 @@ def _score_extraction_row_once(
         for key in _EXTRACT_PRF_KEYS + ("tp", "fp", "fn"):
             if key in result:
                 payload[key] = result[key]
+        payload.update(sh.captured_event_counts(bundles, result))
     if isinstance(result, dict) and result.get("unlabeled_fields") is not None:
         # The dojo's per-row presence contract, verbatim: the unlabeled
         # key-entity fields this row scored (or none).
