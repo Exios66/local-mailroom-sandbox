@@ -6,9 +6,10 @@ label.
 
 ## Ground rules
 
-1. **The pipeline's schema comes first.** Each field means exactly what the pipeline's extraction
-   schema and specialist prompt say it means (the definitions below are copied from them).
-   A label that would not validate against `schemas.documents.EXTRACTION_SCHEMAS` is useless.
+1. **The document's extraction schema comes first.** Each field means exactly what the
+   applicable extraction schema and specialist prompt say it means. Corporate records use
+   their registered subclass core and entity fields, not the flat core model alone. A label
+   must validate against that schema and have a defined scoring role.
 2. **Only label from the text.** Never use the filename, general knowledge or a guess. If the
    document does not state it, the label is the empty value plus an `absent` reason.
 3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
@@ -41,7 +42,9 @@ Write one JSON object per document, one per line (JSONL):
   exception is a field you could not decide after reading the whole document: leave it out and
   say why in `supplementary.notes`.
 - `value`: the label. Dates are `YYYY-MM-DD`. Money is a number unless the field is a currency
-  phrase (contract `contract_value`). Lists are JSON arrays of strings.
+  phrase (contract `contract_value`, corporate `principal_amount` and `exercise_price`).
+  Currency phrases use the plain dollar representation described below when supported by
+  the source; never convert another currency. Lists are JSON arrays of strings.
 - `evidence`: a list of verbatim quotes, each at most 400 characters (1,500 for list fields). Required for every
   non-empty value, except a closed label at its default (correspondence `urgency: routine`),
   which needs a `basis` sentence instead. A closed label that is **not** its default (`urgency`
@@ -66,13 +69,19 @@ Write one JSON object per document, one per line (JSONL):
   amount, pay, payment, sum, fee, price, owe, balance or total in the same quote. `$218,440.00`,
   `USD 218,440` and `$2.5 million` support 218440 or 2500000, never a part of the digits;
   "Dated May 14, 2020" supports neither 2020 nor 14. `0` needs a written 0.
-  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) is a
+  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value` and merger currency fields) is a
   plain dollar figure the Dojo money scorer parses: `$` and the digits, with commas and cents as
   written ("$250,000", "$400,000.00"). Repeat the phrase as written when it already has that form.
   Otherwise write the same amount in that form: write a scale word out ("$5 million" becomes
   "$5,000,000"), drop a currency code ("US$400,000.00" and "$55,000USD" become "$400,000.00" and
   "$55,000"), and drop a rate ("$40 per month" becomes "$40"). Never compute a total. The quote
-  stays the passage as written, and the gate checks that it shows the same amount as money.
+  stays the passage as written. For merger fields, the same figure must have a source dollar
+  marker (`$`, `US$` or `USD`); a payment word alone is insufficient. Hold a non-US or
+  ambiguously qualified dollar amount, an explicit non-dollar amount, or an amount with unknown
+  currency: omit the field and explain why in `supplementary.notes`, rather than mark it absent
+  or change its currency symbol. Preserve all source qualifiers in the quote and notes. The
+  automated check cannot identify every currency qualifier, especially one away from the figure;
+  review the surrounding source for currency and hold the field when it is ambiguous.
   `scripts/gold_labels.py check` rejects a `near_gold` phrase that Dojo cannot parse.
 - **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
   ("Supplier", "Licensee", plural or defined-term forms are fine); `other` is the only role
@@ -80,8 +89,9 @@ Write one JSON object per document, one per line (JSONL):
 
 ## Independent passes
 
-A label becomes `near_gold` when a second, independent agent pass agrees, or when Opus reviews
-it. Independent means the check labeler works from the document alone and never sees the label
+A label becomes `near_gold` when a second, independent agent pass agrees, or when a reviewing
+model accepts or corrects it. Record the actual reviewing model; machine review is not human
+gold. Independent means the check labeler works from the document alone and never sees the label
 pass; the same model family may write both. `build` refuses to run when a file is given as both
 `--label` and `--check`, when a submission's `labeler.role` is not `label` (label and override
 files) or `check` (check files), or when one document appears twice among the label files,
@@ -96,7 +106,7 @@ store.
 
 ## Review decisions
 
-Opus settles a disputed (or single-pass) field with one JSON object per line in a review file (wrapped here for reading):
+A reviewing model settles a disputed (or single-pass) field with one JSON object per line in a review file (wrapped here for reading):
 
 ```json
 {"doc_id": "DOC-…", "field": "urgency", "verdict": "correct",
@@ -114,7 +124,7 @@ The reviewer needs a non-empty `model` and `role`; a missing verdict, a `correct
 | `accept` | the label stands and becomes `near_gold`. On a field an `--override` relabel replaced, the line must also give `value`, equal to the current label (`{"doc_id": "DOC-…", "field": "sender", "verdict": "accept", "value": "Jane Roe", "reviewer": {…}}`); a stale accept stops the build |
 | `reject` | the label is dropped to the supplementary store |
 | `correct` | `entry` (`value` and `evidence`, as in a submission) replaces the label; it must pass the gate. `value_source` is `review_correction` by the reviewer |
-| `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check` and the overlay basis is `near_gold:opus_reviewed_accept_check` |
+| `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check`. The overlay records the actual `reviewer` and uses `near_gold:reviewed_accept_check` (`near_gold:opus_reviewed_accept_check` for an Opus reviewer). |
 
 A corrected or adopted record keeps the label it replaced under `review.original`. The
 catalog check (`gold_labels.py check`) requires every `near_gold` record to rest on an agreeing
@@ -137,8 +147,8 @@ a document outside the corpus, an unresolved review, or extended stores that fai
 `verify_catalog`) writes nothing. A single field that fails the gate is not fatal: the
 document's valid fields are committed and the failed one is kept in the supplementary store as
 a `gate_reject` row. That document then has a catalog record, so a second `add` for it is
-refused and `review` cannot fill the field (it settles existing records only); land a corrected
-pass with a full `build` given every source. Only one `build`, `add` or `review` writes the
+refused and `review` cannot fill the field (it settles existing records only); use
+`add --missing-fields` for a corrected independent pass, or a full `build` given every source. Only one `build`, `add` or `review` writes the
 stores at a time: a second one is refused untouched and can simply be run again. It also
 refuses a document that already has a catalog record (settle those with `review`), a file name
 already listed in `sources`, a review line for a document the add does not carry, and a
@@ -151,6 +161,30 @@ original build.
 
 `add` only appends. A later full `build` must be given every earlier file and the added ones,
 or it rebuilds a catalog without the added documents.
+
+### Adding fields a later guide supports
+
+A later pass often fills fields the original target list did not carry (for example corporate
+`filing_number`). `add --missing-fields` accepts documents the catalog already holds, but only
+for `(doc_id, field)` keys it does not hold:
+
+```bash
+python scripts/gold_labels.py add --corpus DIR --revision SHA --missing-fields \
+    --label gap-label.jsonl --check gap-check.jsonl
+```
+
+Every supplied label, check and review line is checked against the catalog before anything is
+written. A key that already has a record refuses the whole add: even when the supplied value
+equals the stored one, even when only the check pass carries it, and even when a review rejects
+it. Settle an existing record with `review`; never re-add it. The document's class,
+`content_sha256`, `doc_sha` and source filename must still match the records already in the
+catalog, so fields are never mixed across source texts or classes under one `doc_id`. Schema
+revision bindings may differ when that source identity is unchanged. The known corporate or merger subclass must also agree with the current corpus; legacy records without
+a subclass binding retain their existing metadata. The add still needs both independent passes for each document.
+
+Existing records and their schema bindings are not rewritten. New rows carry the `--revision`
+given to this add, and the manifest's `additions` entry records the opt-in mode and refreshes
+`target_fields` to the guide's current list.
 
 ## Correspondence fields
 
@@ -206,10 +240,47 @@ message's sender or date in `supplementary.alternatives`.
 
 Source: the pipeline's corporate records specialist prompt and the Dojo corporate schema.
 
+The authoritative subclass definitions are `SUBCLASS_SCHEMAS` and
+`corporate_record_json_schema` in the pinned Dojo's `schemas/corporate_record_schema.py`.
+The batch includes each assigned entity field's exact description, type and where to look.
+Use only its assigned, still-missing fields. Existing near-gold values are protected.
+Never replace a subclass fact with a generic summary, a guessed entity or an empty filler.
+If evidence is ambiguous or the representation cannot express it, omit the field and retain
+the passage and issue in `supplementary`.
+
+| Subclass | Dedicated entity fields | Evidence scope |
+| --- | --- | --- |
+| `bylaws` | `certifying_officer`, `last_amended_date` | The certifying officer and latest stated amendment/restatement date. |
+| `articles_of_incorporation` | `incorporators`, `registered_agent`, `authorized_capital` | Formation signers, service agent and capital article, exactly as written. |
+| `certificate_of_formation` | `organizers`, `registered_agent` | Formation signers and service agent; omit `authorized_capital` entirely. |
+| `charter_amendment` | `amended_provisions`, `approval_date`, `prior_entity_name` | Each amended provision and actual approval/name-change recitals. |
+| `powers_of_attorney` | `principal`, `attorneys_in_fact`, `authority_scope`, `expiration_date` | Grantor, appointed persons, grant clause and stated expiration. |
+| `subsidiary_list` | `subsidiaries`, `subsidiary_jurisdictions` | Every listed legal name and distinct jurisdictions as printed; do not substitute one subsidiary's jurisdiction for the parent. |
+| `rights_instrument` | `instrument_kind`, `holder`, `rights_agent`, `securities_covered`, `exercise_price` | Instrument title, actual named parties, operative grant and stated price. |
+| `indenture` | `trustee`, `guarantors`, `securities_series`, `principal_amount`, `maturity_date` | Actual trustee/guarantors and operative securities terms; distinguish specimen forms. |
+| `board_resolution` | `acting_body`, `action_approved`, `resolutions` | Acting body and each actual resolution, preserving conditions and negation. |
+| `officer_certificate` | `certifying_officer`, `officer_title`, `certified_matter`, `addressee` | Signing officer, title, certified facts and actual relying party. |
+| `other` | Applicable core only | No invented extension fields. |
+
+The shared core fields below apply only where the registered subclass permits them.
+In particular, `subsidiary_list` excludes core `signatories`, `jurisdiction` and
+`filing_number`; `indenture` excludes `filing_number`. Do not spend label/check work
+documenting absence on these inapplicable fields. For an indenture, a permitted core
+`jurisdiction` follows the registry's governing-law guidance.
+
+Every populated scalar and every list member needs a short verbatim source quote. Lists
+must cover the relevant document content, rather than an arbitrary first row. Keep source
+spelling and qualifications; do not calculate new dates, totals or inferred relationships.
+The currency-phrase rule above permits formatting the same stated amount as a plain dollar
+figure (including expanding a scale word), while preserving the original quote.
+An absent applicable field requires a documented source read, and is reported separately
+from populated field-level scoring coverage.
+
 | Field | Type | Definition |
 |---|---|---|
 | `entity_name` | name | The corporation or entity the record is about, full legal name as written. |
 | `effective_date` | date | The date the record takes effect, or its adoption or filing date when no effective date is stated. |
+| `filing_number` | id | The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label ("Form 10-K"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing. |
 | `signatories` | list of names | People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block. |
 | `jurisdiction` | name | The state or country under whose law the entity is organised (for example "Delaware"). |
 
@@ -241,12 +312,57 @@ pipeline's `ContractExtraction` v2 fields.
 | `payment_terms` | free text | How and when the consideration is paid, as stated. |
 | `territory` | free text | The stated territory of the grant, distribution or service. |
 
+## Merger agreement fields
+
+The pinned Dojo `MergerAgreementExtraction` v2 and runtime model define these 16 direct
+fields. Use only the assigned missing fields and the corpus's observed subclass; never infer
+or change the subclass from consideration answers or a submission. An unknown subclass is
+held. Do not label derived `merger_consideration` or `maud_clauses`, or inapplicable
+`intent`, `subject_matter` or `keywords`. Each populated list member needs its own
+supporting quote. Use `[]` or null only after a documented search for an applicable field.
+
+| Field | Type | Definition |
+|---|---|---|
+| `document_name` | name | Agreement title as stated. |
+| `parties` | list of names | All contracting entities as written. |
+| `acquirer` | name | Parent acquiring the target, not its merger subsidiary. |
+| `target` | name | Target company, not the parent or merger subsidiary. |
+| `merger_sub` | list of names | Merger subsidiary or subsidiaries as written. |
+| `signatories` | list of names | Persons who actually sign for the parties; do not invent names from blank signature lines. |
+| `effective_date` | date | Actual merger Effective Date only, not execution or dated-as-of date. |
+| `effective_time` | free text | Stated Effective Time, clock, zone or defined term; distinct from execution and Effective Date. |
+| `governing_law` | name | Governing-law sentence, distinct from dispute forum. |
+| `per_share_cash_amount` | money (text) | Stated cash per target share, not aggregate equity or debt value. |
+| `exchange_ratio` | free text | Stated parent shares per target share. |
+| `target_termination_fee` | money (text) | Stated fee payable by target, distinguishing conditions and caps. |
+| `parent_termination_fee` | money (text) | Stated reverse termination fee payable by parent, distinguishing conditions and caps. |
+| `outside_date` | date | Actual Outside or End Date, distinct from execution and Effective Date. |
+| `financial_advisors` | list of names | Financial advisors in brokers and fairness opinion provisions. |
+| `legal_counsel` | list of names | Law firms named on notice copy-recipient lines, not financial advisors. |
+
+For money use the plain dollar figure only for a source-supported dollar amount, as in the currency
+rule above; never infer a figure, convert currency, calculate a total or choose among ambiguous
+conditional fees. Record conditions and caps in supplementary notes and hold a field if one
+scalar cannot faithfully represent it. Dates require a complete source calendar date in ISO
+form. Although the registry permits relative `outside_date` strings, hold relative or
+conditional dates in this pilot. Do not use the agreement's execution or dated-as-of date as
+the actual Effective Date without explicit source support. Never fill placeholder people.
+
+For `all_cash`, examine per-share cash; for `all_stock`, the exchange ratio; for
+`mixed_cash_stock`, both; for `mixed_cash_stock_election`, the election and both forms; for
+`other`, examine the stated terms. These are search priorities, never proof that a blank field
+is absent. For long agreements, read the first and last 15,000 characters and conduct an
+exhaustive per-field anchor search across the rest, including definitions, consideration,
+closing, effective time, termination, fees, advisors and notices. Read surrounding passages,
+record ranges searched, and hold ambiguous source evidence in supplementary notes.
+
 ## Long documents
 
 Short documents (under about 40,000 characters) are read in full. For a longer one, read the
 first 15,000 and the last 15,000 characters in full, then search the rest (Grep on the file)
 for each missing field's anchors: execution blocks ("IN WITNESS WHEREOF", "By:", "/s/",
-"Name:"), dates ("dated as of", "effective", "as of the", "day of"), organisation ("organized
+"Name:"), official identifiers ("File No.", "File Number", "Document No.", "charter number"),
+dates ("dated as of", "effective", "as of the", "day of"), organisation ("organized
 under", "incorporated under", "a Delaware", "State of"), and for contracts "terminate", "notice",
 "term", "territory", "fee", "payment", "arbitration", "courts of". Read the passages around each
 hit. Declare a field absent only when the full read or this search finds nothing, and say in the

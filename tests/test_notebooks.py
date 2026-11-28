@@ -18,6 +18,7 @@ EXPECTED = [
     "02_load_clean_prepare_data.ipynb",
     "03_offline_sandbox_smoke.ipynb",
     "04_experiment_log_explorer.ipynb",
+    "05_label_coverage_eda.ipynb",
 ]
 
 

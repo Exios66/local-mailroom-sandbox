@@ -378,3 +378,13 @@ def test_items_jsonl_roundtrip_json_string():
     out = assess_extraction_payload(dumped, "correspondence")
     assert out["parse_error"] is False
     assert out["schema_valid"] is True
+
+
+@pytest.mark.parametrize("doc_type", ["corporate_record", "corporate_record_specialist", "corporate_records_specialist"])
+def test_corporate_alias_enforces_subclass_keys_and_types(doc_type):
+    valid = assess_extraction_payload({"subsidiaries": ["Acme Inc"]}, doc_type, "subsidiary_list")
+    wrong_type = assess_extraction_payload({"subsidiaries": "Acme Inc"}, doc_type, "subsidiary_list")
+    wrong_subclass = assess_extraction_payload({"trustee": "Trust Co"}, doc_type, "subsidiary_list")
+    assert valid["schema_valid"] and valid["extra_schema_keys"] == []
+    assert not wrong_type["schema_valid"]
+    assert not wrong_subclass["schema_valid"] and wrong_subclass["extra_schema_keys"] == ["trustee"]

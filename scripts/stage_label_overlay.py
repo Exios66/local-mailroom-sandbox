@@ -77,6 +77,10 @@ META_COLUMNS = {"fields_targeted", "fields_labeled", "label_completeness", "fiel
 LABELED = ("populated", "documented_absence")
 ASSIST_SOURCE = "assist_upload"
 HUB = "hub_v9.3"
+#: the builder's source for a reviewed subclass correction (data/labels/review/subclass_corrections.jsonl)
+SUBCLASS_REVIEW = "subclass_review"
+#: columns a reviewed subclass correction decides: the subclass, its flag, and fields derived from it
+SUBCLASS_DECIDED = ("subclass", "subclass_changed", "cuad_family")
 QUEUE_COLUMNS = ("document_id", "doc_class", "field", "reason", "builder_value", "assist_value")
 SIGNOFF_COLUMNS = ("document_id", "doc_class", "field", "hub_v9_3_value", "staged_value", "chosen_source",
                    "evidence", "decided_by", "decided_utc")
@@ -266,6 +270,20 @@ def completeness_table(prov: list[dict[str, str]], base: list[dict[str, str]]) -
     return out
 
 
+def _subclass_reviewed(row: dict[str, str], pindex: dict[tuple[str, str], dict[str, str]], col: str) -> bool:
+    """True when the builder's ``col`` follows from a reviewed subclass correction: the subclass
+    cell was chosen by ``subclass_review`` and, for a derived field, was derived from that subclass."""
+    doc_id = row["document_id"]
+    sub = pindex.get((doc_id, "subclass"))
+    if row.get("subclass_changed") != "True" or not sub or sub["chosen_source"] != SUBCLASS_REVIEW:
+        return False
+    if col in ("subclass", "subclass_changed"):
+        return True
+    cell = pindex.get((doc_id, col))
+    evidence = json.loads(cell["evidence"] or "[]") if cell else []
+    return any(isinstance(e, dict) and e.get("derived_from_subclass") == row["subclass"] for e in evidence)
+
+
 def join(builder: dict[str, Any], assist_rows: list[dict[str, str]], texts: dict[str, str]) -> dict[str, Any]:
     """Join the assist CSV into the builder output. Pure: returns new tables and the counts."""
     columns, rows = builder["labels"]
@@ -292,6 +310,10 @@ def join(builder: dict[str, Any], assist_rows: list[dict[str, str]], texts: dict
                 continue
             if col == "duplicate_of":
                 counts["kept_builder_duplicate_keeper"] += 1  # the builder's keepers are reviewed
+                continue
+            if col in SUBCLASS_DECIDED and _subclass_reviewed(row, pindex, col):
+                # an assist older than a reviewed subclass correction disagrees by construction
+                counts["kept_builder_subclass_review"] += 1
                 continue
             if col != NOTICE:
                 counts["queued_other_field"] += 1

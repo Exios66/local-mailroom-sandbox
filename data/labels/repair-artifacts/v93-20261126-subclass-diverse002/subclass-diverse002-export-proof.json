@@ -1,0 +1,80 @@
+[
+  {
+    "field_payloads_unchanged": true,
+    "labeler_metadata_unchanged": true,
+    "path_metadata_transformed_documents": [
+      {
+        "doc_id": "DOC-b68ca8a66c41650f",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-01ccf3f1ee5f4163",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-e478fa89043a29e3",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-e12651c80e736fb8",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-6aed2864c5ee6706",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-076807b2c574e2c1",
+        "key": "supplementary.source_read.path"
+      },
+      {
+        "doc_id": "DOC-30ce0f05432fc57f",
+        "key": "supplementary.source_read.path"
+      }
+    ],
+    "public_export_name": "subclass-diverse002-ready15-label.jsonl",
+    "public_export_sha256": "9b0c38b5c9239f674864e741c8bc17cfe668381f0b3d084a6e2e56e044d5dba8",
+    "raw_private_sha256": "74fb3b37c6c1050aae81c7514e7559f0a7dbbb4c714936b6fbe1d0351b2e088b",
+    "role": "label",
+    "transformation": "supplementary.source_read.path/text_path only: absolute checkout path to repository-relative path; JSON serialization canonicalized"
+  },
+  {
+    "field_payloads_unchanged": true,
+    "labeler_metadata_unchanged": true,
+    "path_metadata_transformed_documents": [
+      {
+        "doc_id": "DOC-b68ca8a66c41650f",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-01ccf3f1ee5f4163",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-e478fa89043a29e3",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-e12651c80e736fb8",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-6aed2864c5ee6706",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-076807b2c574e2c1",
+        "key": "supplementary.source_read.text_path"
+      },
+      {
+        "doc_id": "DOC-30ce0f05432fc57f",
+        "key": "supplementary.source_read.text_path"
+      }
+    ],
+    "public_export_name": "subclass-diverse002-ready15-check.jsonl",
+    "public_export_sha256": "85326ca77dec18e74a82dd9a3d004ad7f0d04e0106140f1d33fba478a2db0851",
+    "raw_private_sha256": "37430f44295551863d03f11873d6a56b581f7247497d643e5b5cb999286473dc",
+    "role": "check",
+    "transformation": "supplementary.source_read.path/text_path only: absolute checkout path to repository-relative path; JSON serialization canonicalized"
+  }
+]

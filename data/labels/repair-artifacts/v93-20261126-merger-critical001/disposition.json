@@ -1,0 +1,304 @@
+{
+  "admitted": [
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "doc_class": "merger_agreement",
+      "subclass": "all_cash",
+      "chars": 105682,
+      "content_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-f546c7d6cf2e77e2.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "merger_sub",
+        "per_share_cash_amount"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        }
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "doc_class": "merger_agreement",
+      "subclass": "all_stock",
+      "chars": 219666,
+      "content_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-1b1b4b7f3f2d714a.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "target_termination_fee",
+        "financial_advisors",
+        "legal_counsel",
+        "exchange_ratio"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "doc_class": "merger_agreement",
+      "subclass": "mixed_cash_stock",
+      "chars": 260560,
+      "content_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-0a29136832720e65.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "merger_sub",
+        "target_termination_fee",
+        "financial_advisors",
+        "legal_counsel"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    }
+  ],
+  "unadmitted": [
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "target_termination_fee",
+      "status": "held_not_admitted",
+      "label_reason": "Source terminates at page 30, section 3.15, before the listed operative sections 3.22\u20133.23, 4.7, 7.1\u20137.3 and 8.4; the relevant context is not available in this source. Table of contents: Section 7.1 Termination 66 Section 7.2 Effect of Termination 68 Section 7.3 Termination Fees; Expense Reimbursements 68     ARTICLE VIII     MISCELLANEOUS   Section 8.1 Amendment and Modification 70 Section 8.2 Extension; Waiver 71 Section 8.3 No Other Representations or Warranties; No Survival of Representations and Warranties 71 Section 8.4 Notices 72 ",
+      "check_reason": "Table of contents identifies Sections 3.22, 3.23, 4.7, 7.1\u20137.3 and 8.4; the supplied source ends at page 30 in Section 3.15, before those operative sections. Full-source anchor searches cannot establish their contents or absence.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "parent_termination_fee",
+      "status": "held_not_admitted",
+      "label_reason": "Source terminates at page 30, section 3.15, before the listed operative sections 3.22\u20133.23, 4.7, 7.1\u20137.3 and 8.4; the relevant context is not available in this source. Table of contents: Section 7.1 Termination 66 Section 7.2 Effect of Termination 68 Section 7.3 Termination Fees; Expense Reimbursements 68     ARTICLE VIII     MISCELLANEOUS   Section 8.1 Amendment and Modification 70 Section 8.2 Extension; Waiver 71 Section 8.3 No Other Representations or Warranties; No Survival of Representations and Warranties 71 Section 8.4 Notices 72 ",
+      "check_reason": "Table of contents identifies Sections 3.22, 3.23, 4.7, 7.1\u20137.3 and 8.4; the supplied source ends at page 30 in Section 3.15, before those operative sections. Full-source anchor searches cannot establish their contents or absence.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "outside_date",
+      "status": "held_not_admitted",
+      "label_reason": "Source terminates at page 30, section 3.15, before the listed operative sections 3.22\u20133.23, 4.7, 7.1\u20137.3 and 8.4; the relevant context is not available in this source. Table of contents: Section 7.1 Termination 66 Section 7.2 Effect of Termination 68 Section 7.3 Termination Fees; Expense Reimbursements 68     ARTICLE VIII     MISCELLANEOUS   Section 8.1 Amendment and Modification 70 Section 8.2 Extension; Waiver 71 Section 8.3 No Other Representations or Warranties; No Survival of Representations and Warranties 71 Section 8.4 Notices 72 ",
+      "check_reason": "Table of contents identifies Sections 3.22, 3.23, 4.7, 7.1\u20137.3 and 8.4; the supplied source ends at page 30 in Section 3.15, before those operative sections. Full-source anchor searches cannot establish their contents or absence.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "financial_advisors",
+      "status": "held_not_admitted",
+      "label_reason": "Source terminates at page 30, section 3.15, before the listed operative sections 3.22\u20133.23, 4.7, 7.1\u20137.3 and 8.4; the relevant context is not available in this source. Table of contents: Section 7.1 Termination 66 Section 7.2 Effect of Termination 68 Section 7.3 Termination Fees; Expense Reimbursements 68     ARTICLE VIII     MISCELLANEOUS   Section 8.1 Amendment and Modification 70 Section 8.2 Extension; Waiver 71 Section 8.3 No Other Representations or Warranties; No Survival of Representations and Warranties 71 Section 8.4 Notices 72 ",
+      "check_reason": "Table of contents identifies Sections 3.22, 3.23, 4.7, 7.1\u20137.3 and 8.4; the supplied source ends at page 30 in Section 3.15, before those operative sections. Full-source anchor searches cannot establish their contents or absence.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "legal_counsel",
+      "status": "held_not_admitted",
+      "label_reason": "Source terminates at page 30, section 3.15, before the listed operative sections 3.22\u20133.23, 4.7, 7.1\u20137.3 and 8.4; the relevant context is not available in this source. Table of contents: Section 7.1 Termination 66 Section 7.2 Effect of Termination 68 Section 7.3 Termination Fees; Expense Reimbursements 68     ARTICLE VIII     MISCELLANEOUS   Section 8.1 Amendment and Modification 70 Section 8.2 Extension; Waiver 71 Section 8.3 No Other Representations or Warranties; No Survival of Representations and Warranties 71 Section 8.4 Notices 72 ",
+      "check_reason": "Table of contents identifies Sections 3.22, 3.23, 4.7, 7.1\u20137.3 and 8.4; the supplied source ends at page 30 in Section 3.15, before those operative sections. Full-source anchor searches cannot establish their contents or absence.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "merger_sub",
+      "status": "held_not_admitted",
+      "label_reason": "Direct holding-company merger and subsequent bank merger, but incomplete exhaustive consideration of all relevant search hits; hold rather than assert absence.",
+      "check_reason": null,
+      "check_only_answer": {
+        "value": [],
+        "absent": "Full-source searches for merger subsidiary, merger sub and party terms find direct merger of AB into GBCI and subsequent bank merger, not a merger subsidiary."
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "parent_termination_fee",
+      "status": "held_not_admitted",
+      "label_reason": "Section 7.5 imposes a fee on AB; incomplete exhaustive review of possible parent obligations.",
+      "check_reason": null,
+      "check_only_answer": {
+        "value": null,
+        "absent": "Full-source searches for termination, fee, break-up and payment terms and review of Article 7 find only the AB Break-Up Fee; section 7.6 allocates own costs subject to breach."
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "outside_date",
+      "status": "held_not_admitted",
+      "label_reason": "Section 7.1: February 28, 2022, extendable to April 30, 2022 upon notice if section 5.1 condition unsatisfied. A single date would omit the stated condition.",
+      "check_reason": "Section 7.1 states February 28, 2022, extended to April 30, 2022 if regulatory closing condition 5.1 remains unsatisfied and either party elects by written notice. A single date would omit the conditional extension.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "parent_termination_fee",
+      "status": "held_not_admitted",
+      "label_reason": "Section 11.04 provides Company payment and Parent reimbursement for financing cooperation is not a reverse termination fee; incomplete exhaustive contextual review, so no absence claim.",
+      "check_reason": null,
+      "check_only_answer": {
+        "value": null,
+        "absent": "Full-source searches for termination, fee, break-up and payment terms and review of sections 10.01\u201310.02 and 11.04 find a Company termination fee and Company expense reimbursement, but no Parent reverse termination fee."
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "outside_date",
+      "status": "held_not_admitted",
+      "label_reason": "Section 10.01(b)(i) specifies September 30, 2021 automatically extended to December 31, 2021 if specified regulatory conditions remain unmet or a CFIUS Filing Request is received; a single date misrepresents conditions.",
+      "check_reason": "Section 10.01(b)(i) states September 30, 2021 with automatic extension to December 31, 2021 if enumerated regulatory conditions or CFIUS filing request apply. A single date would misrepresent the conditional extension.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "per_share_cash_amount",
+      "status": "held_not_admitted",
+      "label_reason": "Source-fit conflict: section 2.02(a) states each Company Stock share converts to $44.50 cash, while assigned corpus subclass is mixed_cash_stock; hold affected consideration fields.",
+      "check_reason": "Source-fit conflict with mixed_cash_stock metadata: Section 2.02(a) states each share of Company Stock outstanding immediately prior to the Effective Time shall be converted into the right to receive $44.50 in cash, without interest (the \u201cCommon Merger Consideration\u201d); Section 2.02(e) states cash for Series D, not a stock component. Hold consideration fields for review.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "exchange_ratio",
+      "status": "held_not_admitted",
+      "label_reason": "Source-fit conflict: section 2.02(a) states $44.50 cash per Company Stock share, while assigned corpus subclass is mixed_cash_stock. Section 2.02(f) addresses Merger Subsidiary stock, not target stock. Do not infer a stock component or its absence.",
+      "check_reason": "Source-fit conflict with mixed_cash_stock metadata; Section 2.02 specifies cash conversion, so do not infer an exchange ratio or absence from the subclass.",
+      "check_only_answer": null
+    }
+  ],
+  "rule": "No one-sided absence admitted. No source/subclass correction inferred."
+}

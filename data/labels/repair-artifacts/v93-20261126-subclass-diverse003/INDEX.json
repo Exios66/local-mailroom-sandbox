@@ -1,0 +1,204 @@
+{
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "annotation_code_revision": "5da46a35c6a7474348c6a1a1323220e2c08d5ca1",
+  "admission_code_revision": "eed5df8fd82d53acddaff5fa86cd8fd03b1f5d34",
+  "admitted": {
+    "fields": 12,
+    "documents": 4,
+    "populated_scored_fields": 7,
+    "documented_absence": 5,
+    "independent_agreement": 9,
+    "source_reviewed_accept": 2,
+    "source_reviewed_accept_check": 1
+  },
+  "held_fields": 15,
+  "artifacts": [
+    {
+      "path": "submissions/subclass-diverse003-raw-label.jsonl",
+      "sha256": "8da57bfd516ea78a061faa7ed057921524b0c8a8b4dcd699446679f0ceed247b",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": false,
+      "role": "label"
+    },
+    {
+      "path": "submissions/subclass-diverse003-existing9-label.jsonl",
+      "sha256": "2bf30b83a373e686e54308721b5ae4d40918d53c6a86ec2be2148a1b56a87f3b",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "label"
+    },
+    {
+      "path": "submissions/subclass-diverse003-new3-label.jsonl",
+      "sha256": "d4f02a4b8177640f0623336be1b13e4557f56b117c90a7ac6a14f6fc2ee16136",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "label"
+    },
+    {
+      "path": "submissions/subclass-diverse003-raw-check.jsonl",
+      "sha256": "9f690f35ad14432173f36c35719d7f57d84b3bd4a1bd130378b2604da86ad04e",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": false,
+      "role": "check"
+    },
+    {
+      "path": "submissions/subclass-diverse003-existing9-check.jsonl",
+      "sha256": "2d602897b8236fd57482c20b5823ad840d79ef73afd8421f2f2b0e85bb8dbf31",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "check"
+    },
+    {
+      "path": "submissions/subclass-diverse003-new3-check.jsonl",
+      "sha256": "ff496389994464ed1fde7a0a5c0e06619c1bc584214de712d1068057b0fc5202",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "check"
+    },
+    {
+      "path": "submissions/subclass-diverse003-parent-review.jsonl",
+      "sha256": "8d3e0efb3b25c2c856936bcb084eba38fef57759d55534bafb582803d970e2f4",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "review"
+    },
+    {
+      "path": "submissions/subclass-diverse003-capital-review.jsonl",
+      "sha256": "d17e98129c25de23fe0b8f95f87d28c57e490cb560685816ff95b8fef92b26a2",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true,
+      "role": "review"
+    }
+  ],
+  "sources": [
+    {
+      "doc_id": "DOC-76f31813e8ca987f",
+      "doc_class": "corporate_record",
+      "subclass": "board_resolution",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "chars": 989,
+      "content_sha256": "a3fb0ed8e8ab8fb1b25dd48ba7c484980e2c92b642977ef96f63d6c65922ec51"
+    },
+    {
+      "doc_id": "DOC-b201671b783495ef",
+      "doc_class": "corporate_record",
+      "subclass": "board_resolution",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "chars": 1052,
+      "content_sha256": "ed5716fde10bc6c525bfd4583e497ad52042e4f0a4efea4e4b6a8e660338f8b0"
+    },
+    {
+      "doc_id": "DOC-d0aebe650be3e512",
+      "doc_class": "corporate_record",
+      "subclass": "board_resolution",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "chars": 1086,
+      "content_sha256": "1501edc26fe074c6735868be50f83453b1617115ef527bac56a6bb61ae6616cc"
+    },
+    {
+      "doc_id": "DOC-81ae205a3b0bf16f",
+      "doc_class": "corporate_record",
+      "subclass": "charter_amendment",
+      "fields": [
+        "amended_provisions",
+        "approval_date",
+        "prior_entity_name"
+      ],
+      "chars": 2024,
+      "content_sha256": "b460a96a1253bff52bc389dd73fad33208d1e7572d6457ac9c3e37bd295f6460"
+    },
+    {
+      "doc_id": "DOC-27bbad54b6fd107e",
+      "doc_class": "corporate_record",
+      "subclass": "charter_amendment",
+      "fields": [
+        "amended_provisions",
+        "approval_date",
+        "prior_entity_name"
+      ],
+      "chars": 2160,
+      "content_sha256": "ba31a736338d7cd97e8f48558ce0e7811a358cf606fa0ceca295e30a65aa72a9"
+    },
+    {
+      "doc_id": "DOC-0c7cda9021fbd910",
+      "doc_class": "corporate_record",
+      "subclass": "charter_amendment",
+      "fields": [
+        "amended_provisions",
+        "approval_date",
+        "prior_entity_name"
+      ],
+      "chars": 2813,
+      "content_sha256": "b5654f69442491c6cd2d8fc5d9ea8ac20c6c81afc4630a0367d8e53ac72cdee7"
+    },
+    {
+      "doc_id": "DOC-474a0002b4c03be1",
+      "doc_class": "corporate_record",
+      "subclass": "articles_of_incorporation",
+      "fields": [
+        "incorporators",
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "chars": 3502,
+      "content_sha256": "9b49e06285583bc0d22ad8009aa88b5c13fb37bf30fa52d1e8c252fb5032fade"
+    },
+    {
+      "doc_id": "DOC-ceb3f2b773c75bcd",
+      "doc_class": "corporate_record",
+      "subclass": "articles_of_incorporation",
+      "fields": [
+        "incorporators",
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "chars": 3580,
+      "content_sha256": "58a1bc2421d9965ffaf4a59dd0ba5e4bdf6bd385e4135cf8c594aac640f0477c"
+    },
+    {
+      "doc_id": "DOC-ec57149494f0c9a0",
+      "doc_class": "corporate_record",
+      "subclass": "articles_of_incorporation",
+      "fields": [
+        "incorporators",
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "chars": 4905,
+      "content_sha256": "d255050ba1436ef0df451f8080e60cd91458efbbc2934cf3eb6dee65850460a2"
+    }
+  ],
+  "lifecycle": [
+    {
+      "taskId": "node:delegated-task:command%3Amcp%3A1f2203ce-9384-43e0-800e-dda2e5277bd0%3Adelegate-task%3Av93-subclass-diverse003-label-20261126-r1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A1f2203ce-9384-43e0-800e-dda2e5277bd0%3Adelegate-task%3Av93-subclass-diverse003-label-20261126-r1",
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A1f2203ce-9384-43e0-800e-dda2e5277bd0%253Adelegate-task%253Av93-subclass-diverse003-label-20261126-r1:ordinal:1",
+      "status": "completed",
+      "providerInstanceId": "codex",
+      "model": "gpt-6.1-terra"
+    },
+    {
+      "taskId": "node:delegated-task:command%3Amcp%3A1f2203ce-9384-43e0-800e-dda2e5277bd0%3Adelegate-task%3Av93-subclass-diverse003-check-20261126-r1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A1f2203ce-9384-43e0-800e-dda2e5277bd0%3Adelegate-task%3Av93-subclass-diverse003-check-20261126-r1",
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A1f2203ce-9384-43e0-800e-dda2e5277bd0%253Adelegate-task%253Av93-subclass-diverse003-check-20261126-r1:ordinal:1",
+      "status": "completed",
+      "providerInstanceId": "codex",
+      "model": "gpt-6.1-terra"
+    }
+  ],
+  "export": "Raw files copied byte-for-byte; projections select documents only. Values, evidence and actual roles are unchanged. Five source-type mismatches remain held. Two accepted labels and one adopted check answer have explicit full-source reviews.",
+  "warning": "Machine near-gold, not human gold. Static scoring eligibility is not model-performance evidence."
+}

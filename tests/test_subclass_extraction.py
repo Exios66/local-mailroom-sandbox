@@ -243,16 +243,27 @@ def test_an_extraction_requests_the_subclass_schema(cls, captured, schemas, list
     assert captured, cls
     expected, reason = sx.choose_schema(cls, sub, 0.99, schemas[cls], lists, low=sx.low_band(cls), guide=False)
     assert reason == "subclass"
+    if cls == "corporate_record":
+        from mailroom_sandbox.corporate_extraction import request_schema
+        from agents.corporate_records_specialist import CORPORATE_RECORDS_SCHEMA
+        expected = request_schema(sub, CORPORATE_RECORDS_SCHEMA)
     for _, sent in captured:
         assert sent is not schemas[cls]
         assert sent == expected
-        assert not set(lists["classes"][cls][sub]["drop"]) & set(sent["properties"])
+        if cls != "corporate_record":
+            assert not set(lists["classes"][cls][sub]["drop"]) & set(sent["properties"])
 
 
 @pytest.mark.parametrize("cls", sorted(_EXTRACTORS))
 def test_off_sends_the_class_schema_unchanged(cls, captured, schemas, switch_off):
     _extract(cls, _EXTRACTORS[cls][1])
-    assert captured and all(sent is schemas[cls] for _, sent in captured)
+    if cls == "corporate_record":
+        from mailroom_sandbox.corporate_extraction import request_schema
+        from agents.corporate_records_specialist import CORPORATE_RECORDS_SCHEMA
+        expected = request_schema(_EXTRACTORS[cls][1], CORPORATE_RECORDS_SCHEMA)
+        assert captured and all(sent == expected for _, sent in captured)
+    else:
+        assert captured and all(sent is schemas[cls] for _, sent in captured)
 
 
 def test_a_low_confidence_extraction_sends_the_class_schema(captured, schemas, lists, switch_off):
@@ -317,7 +328,10 @@ def test_a_corporate_extract_another_hotfix_composes_is_left_to_it(captured, sch
     monkeypatch.setattr(CorporateRecordsSpecialist, "extract", composed)
     sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False)
     _extract("corporate_record", "subsidiary_list")
-    assert captured and all(sent is schemas["corporate_record"] for _, sent in captured)
+    from mailroom_sandbox.corporate_extraction import request_schema
+    from agents.corporate_records_specialist import CORPORATE_RECORDS_SCHEMA
+    expected = request_schema("subsidiary_list", CORPORATE_RECORDS_SCHEMA)
+    assert captured and all(sent == expected for _, sent in captured)
     captured.clear()
     _extract("merger_agreement", "all_cash")  # the other classes still get their subclass schema
     assert captured and all("intent" not in sent["properties"] for _, sent in captured)
@@ -508,9 +522,14 @@ def test_every_listed_subclass_sends_its_own_schema(cls, sub, captured, schemas,
     _extract(cls, sub)
     expected, reason = sx.choose_schema(cls, sub, 0.99, schemas[cls], lists, low=sx.low_band(cls), guide=False)
     assert reason == "subclass" and captured
+    if cls == "corporate_record":
+        from mailroom_sandbox.corporate_extraction import request_schema
+        from agents.corporate_records_specialist import CORPORATE_RECORDS_SCHEMA
+        expected = request_schema(sub, CORPORATE_RECORDS_SCHEMA)
     for _, sent in captured:
         assert sent == expected
-        assert not set(lists["classes"][cls][sub]["drop"]) & set(sent["properties"])
+        if cls != "corporate_record":
+            assert not set(lists["classes"][cls][sub]["drop"]) & set(sent["properties"])
         assert set(lists["classes"][cls][sub]["add"]) <= set(sent["properties"])
 
 
@@ -686,7 +705,8 @@ def test_every_specialist_family_gets_the_note_on_its_own_default_prompt(cls, pr
     sx.activate(lists, sha256=sf.field_lists_sha256(), guide=False, note=True)
     _extract(cls, sub)
     schema, _ = _choose(schemas, lists, cls, sub)
-    note = sx.field_note(cls, sub, schemas[cls], schema)
+    # Dedicated corporate composition carries its own Dojo guidance; HF-023 leaves it alone.
+    note = None if cls == "corporate_record" else sx.field_note(cls, sub, schemas[cls], schema)
     for _, _, system in prompts_sent:
         if note is None:
             assert "SUBCLASS FIELDS" not in system

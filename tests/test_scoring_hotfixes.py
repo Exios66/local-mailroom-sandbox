@@ -126,8 +126,9 @@ def test_fixes_are_off_outside_a_hotfixed_block_and_per_thread():
 def test_dual_row_names_the_fixes_and_the_moved_keys():
     row = score_extraction_row("correspondence", {"sender": "Jane Doe", "recipient": "Bob"},
                                {"sender": "Jane Doe", "recipient": None, "gt_presence": _presence(recipient=ABSENT)})
-    # SHF-010 needs truth_overrides and SHF-015 the row's overlay provenance; this call passes neither.
-    assert row["scoring_hotfixes"] == sorted(sh.EXTRACTION_FIXES - {"SHF-010", "SHF-015"})
+    # SHF-010 needs truth_overrides, SHF-015 the row's overlay provenance and SHF-019 the document id
+    # and text; this call passes none of them.
+    assert row["scoring_hotfixes"] == sorted(sh.EXTRACTION_FIXES - {"SHF-010", "SHF-015", "SHF-019"})
     assert "extraction_precision" in row["scoring_hotfixes_changed"]
     assert row["raw_dojo"]["extraction_precision"] == 1.0
     assert sh.headline_basis()["headline"] == "hotfixed"

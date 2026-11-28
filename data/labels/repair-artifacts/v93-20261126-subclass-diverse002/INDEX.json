@@ -1,0 +1,153 @@
+{
+  "admitted": {
+    "documented_absence": 0,
+    "documents": 7,
+    "existing_document_fields": 13,
+    "fields": 15,
+    "independent_agreement": 14,
+    "new_catalog_document_fields": 2,
+    "populated_scored_fields": 15,
+    "source_reviewed_accept": 1
+  },
+  "annotation_code_revision": "fd3cd03f3419cfe72f8677d01f392be891abeb16",
+  "artifacts": [
+    {
+      "admission_input": false,
+      "path": "submissions/subclass-diverse002-ready15-label.jsonl",
+      "role": "label",
+      "sha256": "9b0c38b5c9239f674864e741c8bc17cfe668381f0b3d084a6e2e56e044d5dba8"
+    },
+    {
+      "admission_input": false,
+      "path": "submissions/subclass-diverse002-ready15-check.jsonl",
+      "role": "check",
+      "sha256": "85326ca77dec18e74a82dd9a3d004ad7f0d04e0106140f1d33fba478a2db0851"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse002-existing13-label.jsonl",
+      "role": "label",
+      "sha256": "501504513242ee9454a7c12159d3a7ade80c4019c062df56fbeaf54d3f3e628e"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse002-existing13-check.jsonl",
+      "role": "check",
+      "sha256": "d90e8e2243da1baf0d39134589c4ae9860f19eefbccf87c5ad4cc51d2658fb78"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse002-new2-label.jsonl",
+      "role": "label",
+      "sha256": "d0ef51011467d26d5b59cc96e79d2e54146dd0c2b655efc9e43d68ab48b94603"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse002-new2-check.jsonl",
+      "role": "check",
+      "sha256": "3683800929283f0a1f6499bdf308082bb8a346ce890b104acec3c3235928f991"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse002-parent-review.jsonl",
+      "role": "review",
+      "sha256": "f72c1432dcb8d5d38bee42e4322ef535327d287105268319a0369d355d2dc913"
+    }
+  ],
+  "export": "Original raw bytes remain privately checkpointed. Public ready15 files preserve all field payloads and role metadata, normalize source_read.path/text_path to repository-relative paths, and canonicalize JSON. Admission existing13/new2 files are exact document subsets of those exports. Original/export hashes and transformations are recorded in export proof.",
+  "lifecycle": [
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-diverse002-label-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse002-label-20261126-r1",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "providerInstanceId": "opencode",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse002-label-20261126-r1"
+    },
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-diverse002-check-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse002-check-20261126-r1",
+      "model": "gpt-6.1-terra",
+      "providerInstanceId": "codex",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse002-check-20261126-r1"
+    }
+  ],
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_review": "Exercise price is the literal $11.50 amount; complete per-whole-share, half-share-quantity and adjustment wording remains in evidence/supplementary. No arithmetic or unit-sensitive scoring claim.",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "sources": [
+    {
+      "chars": 3339,
+      "content_sha256": "886b0ee61d115da14f540c98a0d763319ad29d3ac2740eb586f9e6aac948011e",
+      "doc_id": "DOC-b68ca8a66c41650f",
+      "fields": [
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "subclass": "articles_of_incorporation"
+    },
+    {
+      "chars": 3418,
+      "content_sha256": "aa4d10aa3e8f059b7385c07cff8bf5eb821391877d60d02ec881562209ac3bd5",
+      "doc_id": "DOC-01ccf3f1ee5f4163",
+      "fields": [
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "subclass": "articles_of_incorporation"
+    },
+    {
+      "chars": 3475,
+      "content_sha256": "b55f563a1698209c58d372dc45bd7b4a06e7a745e82c49d0acd3c180893ccee0",
+      "doc_id": "DOC-e478fa89043a29e3",
+      "fields": [
+        "registered_agent",
+        "authorized_capital"
+      ],
+      "subclass": "articles_of_incorporation"
+    },
+    {
+      "chars": 2710,
+      "content_sha256": "3c9c089bd8f693c56f59a2ee49de6bcff2d3c826c8e0bd10983897cfef139cde",
+      "doc_id": "DOC-e12651c80e736fb8",
+      "fields": [
+        "trustee",
+        "securities_series"
+      ],
+      "subclass": "indenture"
+    },
+    {
+      "chars": 4898,
+      "content_sha256": "e6a5a4daaa672b936c54b6da0198f5d3343c998e4d81882e91c0b99d61d600ef",
+      "doc_id": "DOC-6aed2864c5ee6706",
+      "fields": [
+        "trustee",
+        "securities_series"
+      ],
+      "subclass": "indenture"
+    },
+    {
+      "chars": 5985,
+      "content_sha256": "8f4a9839688d1d2bcf881903f828931d5a4147a636f9928458d1e7050543c000",
+      "doc_id": "DOC-076807b2c574e2c1",
+      "fields": [
+        "instrument_kind",
+        "securities_covered",
+        "exercise_price"
+      ],
+      "subclass": "rights_instrument"
+    },
+    {
+      "chars": 2395,
+      "content_sha256": "e0b1bb6011d9aa62335726782d380dd57e8eac99039180f9e8214580161d9d1d",
+      "doc_id": "DOC-30ce0f05432fc57f",
+      "fields": [
+        "instrument_kind",
+        "holder"
+      ],
+      "subclass": "rights_instrument"
+    }
+  ],
+  "warning": "Machine near-gold is not human gold. Static scoring events show eligibility, not extraction performance. No independent-pass or admission gate was loosened."
+}

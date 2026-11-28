@@ -1,0 +1,665 @@
+{
+  "review_type": "source adequacy review of common populated fields only",
+  "reviewer": "gpt-6.1-terra",
+  "checkout_head": "e4226b54975f9dcf6a63ff2d0a3206738c88f32d",
+  "date": "2026-11-26",
+  "coordinate_system": "zero-based half-open Unicode code point offsets in raw bytes decoded UTF-8, with BOM and CRLF preserved; hashes cover raw bytes",
+  "scope": "No absence claims or previously held fields adjudicated; no admission. All recommendations require the independent label and check gate and preservation of stated qualifications. Not model performance or a MAUD headline claim.",
+  "documents": [
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "path": "data/runtime/full-label-repair/documents/DOC-f546c7d6cf2e77e2.txt",
+      "source_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "chars": 105682,
+      "bom": false,
+      "actual_context_ranges_read": [
+        [
+          4200,
+          5300
+        ],
+        [
+          9400,
+          11200
+        ]
+      ],
+      "fields": [
+        {
+          "field": "acquirer",
+          "value": "Centene Corporation",
+          "recommendation": "accept",
+          "reason": "Preamble names parent and recitals establish acquisition and merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4395,
+                4449
+              ],
+              "quote": "Centene Corporation, a Delaware corporation (“Parent”)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                4395,
+                4622
+              ],
+              "quote": "Centene Corporation, a Delaware corporation (“Parent”), Mayflower Merger Sub, Inc., a Delaware corporation and a wholly owned Subsidiary of Parent (“Merger Sub”), and Magellan Health, Inc., a Delaware corporation (the “Company”"
+            }
+          ]
+        },
+        {
+          "field": "target",
+          "value": "Magellan Health, Inc.",
+          "recommendation": "accept",
+          "reason": "Preamble names company and recitals establish merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4562,
+                4622
+              ],
+              "quote": "Magellan Health, Inc., a Delaware corporation (the “Company”"
+            },
+            {
+              "pass": "check",
+              "range": [
+                4395,
+                4622
+              ],
+              "quote": "Centene Corporation, a Delaware corporation (“Parent”), Mayflower Merger Sub, Inc., a Delaware corporation and a wholly owned Subsidiary of Parent (“Merger Sub”), and Magellan Health, Inc., a Delaware corporation (the “Company”"
+            }
+          ]
+        },
+        {
+          "field": "merger_sub",
+          "value": [
+            "Mayflower Merger Sub, Inc."
+          ],
+          "recommendation": "accept",
+          "reason": "Preamble identifies the named subsidiary and recitals establish its role.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4451,
+                4556
+              ],
+              "quote": "Mayflower Merger Sub, Inc., a Delaware corporation and a wholly owned Subsidiary of Parent (“Merger Sub”)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                4395,
+                4622
+              ],
+              "quote": "Centene Corporation, a Delaware corporation (“Parent”), Mayflower Merger Sub, Inc., a Delaware corporation and a wholly owned Subsidiary of Parent (“Merger Sub”), and Magellan Health, Inc., a Delaware corporation (the “Company”"
+            }
+          ]
+        },
+        {
+          "field": "per_share_cash_amount",
+          "value": "$95.00",
+          "recommendation": "accept_with_conditions",
+          "reason": "Section 2.1(a)(ii) applies $95 cash to each converted Company common share; treasury, appraisal and specified restricted shares are excepted.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                10390,
+                10628
+              ],
+              "quote": "each share of Company Common Stock issued and outstanding immediately prior to the Effective Time (except for shares of Company Common Stock to be canceled under Section 2.1(a)(i), Appraisal Shares, Company RSAs and Company Director RSAs)"
+            },
+            {
+              "pass": "label",
+              "range": [
+                10718,
+                10795
+              ],
+              "quote": "shall be converted into the right to receive $95.00 in cash, without interest"
+            },
+            {
+              "pass": "check",
+              "range": [
+                10630,
+                10795
+              ],
+              "quote": "each, a “Converted Share”) shall be automatically canceled and shall cease to exist and shall be converted into the right to receive $95.00 in cash, without interest"
+            }
+          ]
+        }
+      ],
+      "preserved_holds": [
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel"
+      ],
+      "source_limitation": "Source ends in section 3.15; listed later operative sections unavailable."
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "path": "data/runtime/full-label-repair/documents/DOC-1b1b4b7f3f2d714a.txt",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "chars": 219666,
+      "bom": true,
+      "actual_context_ranges_read": [
+        [
+          1300,
+          3900
+        ],
+        [
+          4600,
+          5600
+        ],
+        [
+          20300,
+          20800
+        ],
+        [
+          27000,
+          28500
+        ],
+        [
+          33000,
+          36500
+        ],
+        [
+          110700,
+          112800
+        ],
+        [
+          143400,
+          145000
+        ],
+        [
+          170900,
+          173700
+        ],
+        [
+          193400,
+          201600
+        ],
+        [
+          202000,
+          206200
+        ],
+        [
+          206200,
+          209500
+        ]
+      ],
+      "fields": [
+        {
+          "field": "acquirer",
+          "value": "GLACIER BANCORP, INC.",
+          "recommendation": "accept",
+          "reason": "Preamble names parent and recitals establish acquisition and merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                3269,
+                3478
+              ],
+              "quote": "This Plan and Agreement of Merger (the “Agreement”), dated as of May 18, 2021, is made by and among GLACIER BANCORP, INC. (“GBCI”), GLACIER BANK (“Glacier Bank”), ALTABANCORP (“AB”), and ALTABANK (the “Bank”)."
+            },
+            {
+              "pass": "label",
+              "range": [
+                5097,
+                5202
+              ],
+              "quote": "On the Effective Date, AB will merge with and into GBCI, with GBCI as the surviving entity (the “Merger”)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                3269,
+                3478
+              ],
+              "quote": "This Plan and Agreement of Merger (the “Agreement”), dated as of May 18, 2021, is made by and among GLACIER BANCORP, INC. (“GBCI”), GLACIER BANK (“Glacier Bank”), ALTABANCORP (“AB”), and ALTABANK (the “Bank”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                5076,
+                5426
+              ],
+              "quote": "B. The Transactions. On the Effective Date, AB will merge with and into GBCI, with GBCI as the surviving entity (the “Merger”), and immediately thereafter and on the same day, the Bank will merge with and into Glacier Bank, with Glacier Bank surviving as a wholly owned subsidiary of GBCI (the “Bank Merger,” and with the Merger, the “Transactions”)."
+            }
+          ]
+        },
+        {
+          "field": "target",
+          "value": "ALTABANCORP",
+          "recommendation": "accept",
+          "reason": "Preamble names company and recitals establish merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                3269,
+                3478
+              ],
+              "quote": "This Plan and Agreement of Merger (the “Agreement”), dated as of May 18, 2021, is made by and among GLACIER BANCORP, INC. (“GBCI”), GLACIER BANK (“Glacier Bank”), ALTABANCORP (“AB”), and ALTABANK (the “Bank”)."
+            },
+            {
+              "pass": "label",
+              "range": [
+                5097,
+                5202
+              ],
+              "quote": "On the Effective Date, AB will merge with and into GBCI, with GBCI as the surviving entity (the “Merger”)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                3269,
+                3478
+              ],
+              "quote": "This Plan and Agreement of Merger (the “Agreement”), dated as of May 18, 2021, is made by and among GLACIER BANCORP, INC. (“GBCI”), GLACIER BANK (“Glacier Bank”), ALTABANCORP (“AB”), and ALTABANK (the “Bank”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                5076,
+                5426
+              ],
+              "quote": "B. The Transactions. On the Effective Date, AB will merge with and into GBCI, with GBCI as the surviving entity (the “Merger”), and immediately thereafter and on the same day, the Bank will merge with and into Glacier Bank, with Glacier Bank surviving as a wholly owned subsidiary of GBCI (the “Bank Merger,” and with the Merger, the “Transactions”)."
+            }
+          ]
+        },
+        {
+          "field": "target_termination_fee",
+          "value": "$35,000,000",
+          "recommendation": "accept_with_conditions",
+          "reason": "AB pays GBCI $35 million under 7.5 on specified 7.4.5(a), 7.4.6 and 7.4.7 terminations, or after specified other terminations followed by acquisition events within 18 months; no more than once. Preserve these triggers.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                203576,
+                203741
+              ],
+              "quote": "If this Agreement is terminated pursuant to Section 7.4.5(a), Section 7.4.6, or Section 7.4.7, then AB will immediately pay to GBCI $35,000,000 (the “Break-Up Fee”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                203558,
+                203741
+              ],
+              "quote": "7.5 Break-Up Fee. If this Agreement is terminated pursuant to Section 7.4.5(a), Section 7.4.6, or Section 7.4.7, then AB will immediately pay to GBCI $35,000,000 (the “Break-Up Fee”)."
+            }
+          ]
+        },
+        {
+          "field": "financial_advisors",
+          "value": [
+            "Keefe, Bruyette & Woods, Inc."
+          ],
+          "recommendation": "accept",
+          "reason": "KBW is defined by full name and named in AB fairness and broker provisions; no other named firm found in searched advisor/fairness/broker provisions.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                20482,
+                20523
+              ],
+              "quote": "“KBW” means Keefe, Bruyette & Woods, Inc."
+            },
+            {
+              "pass": "label",
+              "range": [
+                111550,
+                111662
+              ],
+              "quote": "Except for the fees of KBW to obtain the Fairness Opinion and for advisory services relating to the Transactions"
+            },
+            {
+              "pass": "check",
+              "range": [
+                20482,
+                20523
+              ],
+              "quote": "“KBW” means Keefe, Bruyette & Woods, Inc."
+            },
+            {
+              "pass": "check",
+              "range": [
+                111516,
+                111720
+              ],
+              "quote": "3.1.19 Broker’s or Finder’s Fees. Except for the fees of KBW to obtain the Fairness Opinion and for advisory services relating to the Transactions pursuant to an agreement that has been disclosed to GBCI,"
+            }
+          ]
+        },
+        {
+          "field": "legal_counsel",
+          "value": [
+            "Miller Nash Graham & Dunn LLP",
+            "Jones Day"
+          ],
+          "recommendation": "accept",
+          "reason": "Both listed law firms are the only firms named on notice copy lines, for GBCI and AB/Bank respectively.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                206685,
+                206745
+              ],
+              "quote": "with a copy to: \r\n\r\n\r\n   \r\n\r\n\r\nMiller Nash Graham & Dunn LLP"
+            },
+            {
+              "pass": "label",
+              "range": [
+                207097,
+                207137
+              ],
+              "quote": "with copies to: \r\n\r\n\r\n   \r\n\r\n\r\nJones Day"
+            },
+            {
+              "pass": "check",
+              "range": [
+                206685,
+                206745
+              ],
+              "quote": "with a copy to: \r\n\r\n\r\n   \r\n\r\n\r\nMiller Nash Graham & Dunn LLP"
+            },
+            {
+              "pass": "check",
+              "range": [
+                207097,
+                207137
+              ],
+              "quote": "with copies to: \r\n\r\n\r\n   \r\n\r\n\r\nJones Day"
+            }
+          ]
+        },
+        {
+          "field": "exchange_ratio",
+          "value": "0.7971",
+          "recommendation": "accept_with_conditions",
+          "reason": "0.7971 is the stated base GBCI shares per AB share, not a guaranteed final ratio. Sections 7.2.2 and 7.3.2 allow price-triggered elections to adjust it; 4.15.2 reduces it for a negative closing capital differential; specified GBCI corporate actions adjust it. Admission requires these conditions preserved with value and supporting definition quote.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                27764,
+                27836
+              ],
+              "quote": "“Per Share Stock Consideration” means 0.7971 shares of GBCI Common Stock"
+            },
+            {
+              "pass": "label",
+              "range": [
+                36216,
+                36423
+              ],
+              "quote": "Each share of AB Stock issued and outstanding as of the Effective Time will be converted into and represent the right to receive from GBCI in accordance with Section 1.6 (a) the Per Share Stock Consideration"
+            },
+            {
+              "pass": "check",
+              "range": [
+                27764,
+                27906
+              ],
+              "quote": "“Per Share Stock Consideration” means 0.7971 shares of GBCI Common Stock, which is subject to adjustment pursuant to Sections 7.2.2 and 7.3.2,"
+            },
+            {
+              "pass": "check",
+              "range": [
+                36188,
+                36423
+              ],
+              "quote": "1.2.2 Outstanding AB Stock. Each share of AB Stock issued and outstanding as of the Effective Time will be converted into and represent the right to receive from GBCI in accordance with Section 1.6 (a) the Per Share Stock Consideration"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "path": "data/runtime/full-label-repair/documents/DOC-0a29136832720e65.txt",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "chars": 260560,
+      "bom": true,
+      "actual_context_ranges_read": [
+        [
+          4500,
+          5600
+        ],
+        [
+          48400,
+          51000
+        ],
+        [
+          124000,
+          126800
+        ],
+        [
+          133600,
+          135000
+        ],
+        [
+          215000,
+          220300
+        ],
+        [
+          220250,
+          222400
+        ],
+        [
+          223700,
+          230000
+        ]
+      ],
+      "fields": [
+        {
+          "field": "acquirer",
+          "value": "TRATON SE",
+          "recommendation": "accept",
+          "reason": "Preamble names parent and recitals establish acquisition and merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            }
+          ]
+        },
+        {
+          "field": "target",
+          "value": "Navistar International Corporation",
+          "recommendation": "accept",
+          "reason": "Preamble names company and recitals establish merger direction.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            }
+          ]
+        },
+        {
+          "field": "merger_sub",
+          "value": [
+            "Dusk Inc."
+          ],
+          "recommendation": "accept",
+          "reason": "Preamble identifies the named subsidiary and recitals establish its role.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            },
+            {
+              "pass": "check",
+              "range": [
+                4576,
+                4892
+              ],
+              "quote": "This AGREEMENT AND PLAN OF MERGER (this “Agreement”) dated as of November 7, 2020 among Navistar International Corporation, a Delaware corporation (the “Company”), TRATON SE, a Societas Europaea (“Parent”), and Dusk Inc., a Delaware corporation and a wholly owned indirect Subsidiary of Parent (“Merger Subsidiary”)."
+            }
+          ]
+        },
+        {
+          "field": "target_termination_fee",
+          "value": "$125,000,000",
+          "recommendation": "accept_with_conditions",
+          "reason": "Company pays Parent $125 million upon the specified 11.04(b) triggers: recommendation change or qualifying intentional breach, qualifying acquisition after specified termination within 12 months, or superior proposal termination. The $25 million is a distinct expense reimbursement cap credited against the fee; neither is payable more than once. Preserve triggers and credit.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                224757,
+                224861
+              ],
+              "quote": "then the Company shall pay to Parent in immediately available funds $125,000,000 (the “Termination Fee”)"
+            },
+            {
+              "pass": "label",
+              "range": [
+                224455,
+                224552
+              ],
+              "quote": "If this Agreement is terminated by Parent pursuant to Section 10.01(c)(i) or Section 10.01(c)(ii)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                224757,
+                224861
+              ],
+              "quote": "then the Company shall pay to Parent in immediately available funds $125,000,000 (the “Termination Fee”)"
+            }
+          ]
+        },
+        {
+          "field": "financial_advisors",
+          "value": [
+            "J.P. Morgan Securities LLC",
+            "PJT Partners LP",
+            "Bank of America Merrill Lynch International DAC",
+            "Goldman Sachs Bank Europe SE"
+          ],
+          "recommendation": "accept",
+          "reason": "Sections 4.20–4.21 identify J.P. Morgan and PJT as Company fairness/broker firms; 5.09 identifies Bank of America Merrill Lynch International DAC and Goldman Sachs Bank Europe SE as Parent broker/finder exceptions. Full printed names retained.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                124648,
+                124774
+              ],
+              "quote": "The Company Board has received the opinions of J.P. Morgan Securities LLC (“J.P. Morgan”) and PJT Partners LP (“PJT Partners”)"
+            },
+            {
+              "pass": "label",
+              "range": [
+                134080,
+                134269
+              ],
+              "quote": "Except for Bank of America Merrill Lynch International DAC and Goldman Sachs Bank Europe SE, neither Parent nor any of its directors, officers or employees has employed any broker or finder"
+            },
+            {
+              "pass": "check",
+              "range": [
+                124648,
+                124774
+              ],
+              "quote": "The Company Board has received the opinions of J.P. Morgan Securities LLC (“J.P. Morgan”) and PJT Partners LP (“PJT Partners”)"
+            },
+            {
+              "pass": "check",
+              "range": [
+                134080,
+                134416
+              ],
+              "quote": "Except for Bank of America Merrill Lynch International DAC and Goldman Sachs Bank Europe SE, neither Parent nor any of its directors, officers or employees has employed any broker or finder or incurred any liability for any brokerage fees, commissions or finders’ fees in connection with the transactions contemplated by this Agreement."
+            }
+          ]
+        },
+        {
+          "field": "legal_counsel",
+          "value": [
+            "Davis Polk & Wardwell LLP",
+            "Sullivan & Cromwell LLP"
+          ],
+          "recommendation": "accept",
+          "reason": "The two named firms appear as copy recipients in the operative notice section for Parent/Merger Subsidiary and Company, respectively.",
+          "quotes": [
+            {
+              "pass": "label",
+              "range": [
+                221410,
+                221451
+              ],
+              "quote": "with a copy to: Davis Polk & Wardwell LLP"
+            },
+            {
+              "pass": "label",
+              "range": [
+                221835,
+                221874
+              ],
+              "quote": "with a copy to: Sullivan & Cromwell LLP"
+            },
+            {
+              "pass": "check",
+              "range": [
+                221410,
+                221451
+              ],
+              "quote": "with a copy to: Davis Polk & Wardwell LLP"
+            },
+            {
+              "pass": "check",
+              "range": [
+                221835,
+                221874
+              ],
+              "quote": "with a copy to: Sullivan & Cromwell LLP"
+            }
+          ]
+        }
+      ],
+      "preserved_holds": [
+        "per_share_cash_amount",
+        "exchange_ratio"
+      ],
+      "source_limitation": "Assigned mixed_cash_stock conflicts with section 2.02 cash consideration; no subclass change inferred."
+    }
+  ]
+}
