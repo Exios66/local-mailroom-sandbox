@@ -1477,12 +1477,7 @@ def run_pipeline_eval(
         latency and window cover every attempt. A document that still raises carries the summed usage of
         all its attempts (``sandbox_failed_usage``) and their count (``sandbox_attempts``).
         """
-        failed: dict[str, int] = {}
-        served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
-        # Per-call rows of the failed attempts. ``call_usage`` is priced call by call instead of the totals,
-        # so it must cover every attempt; one billed attempt without rows makes it None (priced on totals).
-        failed_calls: list[Any] | None = []
-        failed_agents: dict[str, dict[str, Any]] = {}
+        failed = _FailedAttempts()
         first_ns, before = time.time_ns(), time.monotonic()
         attempt = 0
         while True:
@@ -1490,13 +1485,7 @@ def run_pipeline_eval(
             try:
                 result, usage, _latency, window = _process_once(row)
             except Exception as exc:
-                attempt_usage = getattr(exc, "sandbox_failed_usage", None) or {}
-                for key, value in attempt_usage.items():
-                    if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
-                        failed[key] = failed.get(key, 0) + value
-                failed_calls = _extend_call_usage(failed_calls, attempt_usage)
-                failed_agents = _merge_usage_by_agent(failed_agents, attempt_usage.get("usage_by_agent"))
-                served = _merge_served_calls(served, getattr(exc, "sandbox_served_calls", None))
+                failed.add(exc)
                 give_up = attempt > max_retries or not _may_retry(exc)
                 if not give_up:
                     _log.warning("document %s raised on attempt %d of %d, retrying: %s: %s", row.get("id"), attempt,
@@ -1505,31 +1494,11 @@ def run_pipeline_eval(
                         time.sleep(_RETRY_PAUSE_SECONDS)
                     give_up = not _may_retry(exc)  # the pause may have reached the wall cap
                 if give_up:
-                    billed: dict[str, Any] = dict(failed)
-                    if failed and failed_calls:
-                        billed["call_usage"] = failed_calls
-                    if failed_agents:
-                        billed["usage_by_agent"] = failed_agents
-                    try:
-                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **billed} if failed else None
-                        exc.sandbox_served_calls = served or None
-                        exc.sandbox_attempts = attempt
-                        exc.sandbox_latency_ms = (time.monotonic() - before) * 1000
-                        exc.sandbox_window = (first_ns, time.time_ns())
-                    except (AttributeError, TypeError):
-                        pass
+                    failed.stamp(exc, row.get("id"), attempt, (time.monotonic() - before) * 1000,
+                                 (first_ns, time.time_ns()))
                     raise
                 continue
-            if failed:
-                usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in failed.items()}}
-                calls = _extend_call_usage(failed_calls, usage)
-                usage = {k: v for k, v in usage.items() if k != "call_usage"}
-                if calls:
-                    usage["call_usage"] = calls
-            if failed_agents:
-                usage = {**usage, "usage_by_agent": _merge_usage_by_agent(failed_agents, usage.get("usage_by_agent"))}
-            if served:
-                result = {**result, "served_calls": _merge_served_calls(served, result.get("served_calls"))}
+            result, usage = failed.fold_into(result, usage)
             if attempt > 1:
                 return result, usage, (time.monotonic() - before) * 1000, (first_ns, window[1])
             return result, usage, _latency, window
@@ -1943,6 +1912,61 @@ def _carry_served_calls(exc: BaseException, scope: Mapping[str, Any]) -> None:
             exc.sandbox_served_calls = [dict(row) for row in scope["served_calls"]]
         except (AttributeError, TypeError):
             pass
+
+
+class _FailedAttempts:
+    """What a document's failed attempts billed and served, kept across its retries.
+
+    ``call_usage`` is priced call by call instead of the totals, so it must cover every attempt; one
+    billed attempt without per-call rows makes it None, and the item is then priced on its totals.
+    """
+
+    def __init__(self) -> None:
+        self.totals: dict[str, int] = {}
+        self.calls: list[Any] | None = []
+        self.agents: dict[str, dict[str, Any]] = {}
+        self.served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
+
+    def add(self, exc: BaseException) -> None:
+        """Fold one failed attempt's ``sandbox_failed_usage`` and ``sandbox_served_calls`` in."""
+        usage = getattr(exc, "sandbox_failed_usage", None) or {}
+        for key, value in usage.items():
+            if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                self.totals[key] = self.totals.get(key, 0) + value
+        self.calls = _extend_call_usage(self.calls, usage)
+        self.agents = _merge_usage_by_agent(self.agents, usage.get("usage_by_agent"))
+        self.served = _merge_served_calls(self.served, getattr(exc, "sandbox_served_calls", None))
+
+    def stamp(self, exc: BaseException, item_id: Any, attempts: int, latency_ms: float,
+              window: tuple[int, int]) -> None:
+        """Put every attempt's usage, served calls, count, latency and window on the final exception."""
+        billed: dict[str, Any] = dict(self.totals)
+        if self.totals and self.calls:
+            billed["call_usage"] = self.calls
+        if self.agents:
+            billed["usage_by_agent"] = self.agents
+        try:
+            exc.sandbox_failed_usage = {"item_id": item_id, **billed} if self.totals else None
+            exc.sandbox_served_calls = self.served or None
+            exc.sandbox_attempts = attempts
+            exc.sandbox_latency_ms = latency_ms
+            exc.sandbox_window = window
+        except (AttributeError, TypeError):
+            pass
+
+    def fold_into(self, result: dict[str, Any], usage: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """A successful attempt's result and usage with the failed attempts' added."""
+        if self.totals:
+            usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in self.totals.items()}}
+            calls = _extend_call_usage(self.calls, usage)
+            usage = {k: v for k, v in usage.items() if k != "call_usage"}
+            if calls:
+                usage["call_usage"] = calls
+        if self.agents:
+            usage = {**usage, "usage_by_agent": _merge_usage_by_agent(self.agents, usage.get("usage_by_agent"))}
+        if self.served:
+            result = {**result, "served_calls": _merge_served_calls(self.served, result.get("served_calls"))}
+        return result, usage
 
 
 def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
