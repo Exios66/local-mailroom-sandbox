@@ -89,7 +89,8 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     score) and `job/gate_causes._field_scores` (the lowest-field diagnosis). On only inside
     `hotfixed()`.
   - What its fingerprint covers: the two seams and the committed field lists
-    (`config/extraction/subclass_extraction_fields.json#classes`). A rebuild that changes a
+    (`config/extraction/subclass_extraction_fields.json#classes`). The row seam is the same one
+    SHF-016 pins, so the event-count capture re-pins both. A rebuild that changes a
     subclass's fields makes SHF-018 `stale`. A label rebuild that moves only `registry_sha256`
     keeps it current.
   - Recorded as: `subclass_unscored` names each field the scope changed and why. The raw side
@@ -139,6 +140,12 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     SHF-015 and SHF-019 re-pin `labelled_count` with no change to their drops. A vendor refresh or
     `SANDBOX_DOJO_SNAPSHOT` that changes one of them makes SHF-016 `stale` (not applied,
     preflight fails) instead of moving headlines while it reads `current`.
+  - The seam also keeps the suite's own event counts. On the detailed suite path (a row with a
+    subclass), the Dojo returns P/R/F1 without `tp`/`fp`/`fn`. `scoring_hotfixes.suite_event_counts`
+    captures the count bundle the suite passed to `prf_bundle_keys` on the pair it scored, and
+    `captured_event_counts` keeps it only when its P/R/F1 equal the result's. No score moves, and
+    run-level `extraction_f1_micro` is no longer withheld for those rows. The capture is inside
+    `_score_extraction_row_once`, so editing it re-pins SHF-016.
   - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;
     `scoring_hotfixes` lists `SHF-016`, and `scoring_hotfixes_changed` includes
     `overall_extraction_score` for exactly the rows it moves. The row's own `raw_dojo` keeps

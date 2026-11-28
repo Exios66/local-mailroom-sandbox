@@ -301,7 +301,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-016",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "104f656351c957044be84880dfe8b10c8b219c26ab28dac39315f2b75dab6fff"),
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "61bd65f766e7010c3e076e836f38cd81e5d6e0a6baaf7f9f7b8f0cdf99e48782"),
             # the Dojo reader decides the row's labeled universe; a refresh that changes it
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
@@ -338,7 +338,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         layer="sandbox",
         targets=(
             ("mailroom_sandbox.eval.scoring:_score_extraction_row_once",
-             "104f656351c957044be84880dfe8b10c8b219c26ab28dac39315f2b75dab6fff"),
+             "61bd65f766e7010c3e076e836f38cd81e5d6e0a6baaf7f9f7b8f0cdf99e48782"),
             ("mailroom_sandbox.job.gate_causes:_field_scores",
              "ba939d617e53950434a0ff6f99f6662677fee7c5d304d26a4068f6daa29c7859"),
             # only the field lists it reads: a registry rebuild that moves registry_sha256 alone keeps the pin
@@ -1001,6 +1001,72 @@ def apply_subclass_score_scope(
     return scoped_expected, scoped_predicted, notes
 
 
+# --- suite event counts (no score changes) -----------------------------------------------------
+
+# The Dojo's detailed suite payload builds its P/R/F1 from a full count bundle (``tp``/``fp``/``fn``)
+# on the pair it actually scored (after alignment, peel and the blank-label drop), then keeps only
+# the rates (``prf_bundle_keys``). A capture of that bundle returns the suite's own counts, never a
+# recount on a different pair. The wrapper is a passthrough: it records only inside
+# :func:`suite_event_counts`, and the rates it returns are the Dojo's.
+_PRF_CAPTURE: contextvars.ContextVar[list[dict[str, Any]] | None] = contextvars.ContextVar(
+    "sandbox_suite_prf_capture", default=None)
+_PRF_MARK = "_sandbox_prf_capture"
+_COUNT_KEYS = ("tp", "fp", "fn")
+
+
+def _install_prf_capture() -> None:
+    try:
+        from llm_dojo_scoring.scoring import extraction_metrics as em
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("extraction metrics unavailable: %s", exc)
+        return
+    with _INSTALL_LOCK:
+        original = em.prf_bundle_keys
+        if getattr(original, _PRF_MARK, False):
+            return
+
+        @functools.wraps(original)
+        def prf_bundle_keys(prf: Mapping[str, Any]) -> dict[str, Any]:
+            sink = _PRF_CAPTURE.get()
+            if sink is not None:
+                sink.append(dict(prf))
+            return original(prf)
+
+        setattr(prf_bundle_keys, _PRF_MARK, True)
+        em.prf_bundle_keys = prf_bundle_keys
+
+
+@contextlib.contextmanager
+def suite_event_counts() -> Iterator[list[dict[str, Any]]]:
+    """Collect the count bundles the Dojo suite builds its P/R/F1 from, for one scoring call."""
+    _install_prf_capture()
+    sink: list[dict[str, Any]] = []
+    token = _PRF_CAPTURE.set(sink)
+    try:
+        yield sink
+    finally:
+        _PRF_CAPTURE.reset(token)
+
+
+def captured_event_counts(sink: Sequence[Mapping[str, Any]], result: Any) -> dict[str, int]:
+    """``tp``/``fp``/``fn`` of the bundle a detailed suite ``result`` carries, else ``{}``.
+
+    The payload is built from the suite's last bundle, so that one must carry the result's own
+    precision, recall and F1. A result that already has counts, a bundle without integer counts or
+    one whose rates differ from the result's yields nothing.
+    """
+    if not sink or not isinstance(result, Mapping) or any(k in result for k in _COUNT_KEYS):
+        return {}
+    bundle = sink[-1]
+    counts = {k: bundle.get(k) for k in _COUNT_KEYS}
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in counts.values()):
+        return {}
+    for key in ("extraction_precision", "extraction_recall", "extraction_f1"):
+        if bundle.get(key) != result.get(key):
+            return {}
+    return counts
+
+
 # --- SHF-001: documented absences and hallucination -------------------------------------------
 
 def presence_map(expected: Mapping[str, Any] | None) -> dict[str, str]:
@@ -1466,9 +1532,8 @@ def aggregate_extraction(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, 
         fn = sum(int(r["fn"]) for r in counted)
         out["extraction_tp"], out["extraction_fp"], out["extraction_fn"] = tp, fp, fn
         out["extraction_counts_n"] = len(counted)
-        # The Dojo's suite scorers (insurance_claim, contract, ...) return P/R/F1 without event
-        # counts, so a micro F1 over the rows that do carry counts would silently cover only some
-        # documents. It is reported only when every scored row is counted; the per-document mean
+        # Contract rows (CUAD headline) carry no event counts, so a micro F1 over the rows that do
+        # carry counts would silently cover only some documents. It is reported only when every scored row is counted; the per-document mean
         # (extraction_f1_mean) is the headline otherwise.
         if len(counted) == len(scored):
             p = tp / (tp + fp) if tp + fp else 0.0
@@ -1506,9 +1571,9 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
 
 __all__ = [
     "HOTFIXES", "HEADLINE_KEYS", "SUBCLASS_CORRECTIONS", "ScoringHotfix", "aggregate_extraction",
-    "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
+    "captured_event_counts", "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
     "drop_stale_hub_truth", "dual", "enabled", "hallucination_counts", "headline_basis",
     "subclass_corrections", "hotfixed", "install", "is_active", "merge_dual", "module_sha256",
     "overlay_fields", "raw", "raw_rows", "restore_documented_absences", "revert_truth_overrides",
-    "source_sha", "stale", "status",
+    "source_sha", "stale", "status", "suite_event_counts",
 ]
