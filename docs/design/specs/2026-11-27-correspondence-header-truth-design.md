@@ -84,19 +84,23 @@ quoted reply or a signature) or another label replaced the header value. A perfe
 1.0 on every affected document, and writing each document's quoted header lines back into its text
 drops nothing (the retirement check, also a test).
 
-### Still to do: the stored-answer rescore
+### The stored-answer rescore (waived)
 
-No committed report has per-field correspondence scores, and no stored run answers are in this
-checkout, so the answer-side check is still open:
+The owner waived this check on 2026-11-28 (see Decisions). It stays the way to confirm the fix on
+real answers: no committed report has per-field correspondence scores, and no stored run answers
+are in this checkout.
 
 1. Rescore stored correspondence answers offline, with no new model call, with and without A. The
    owner names the runs (for example the slice-0100 production run).
 2. Report per field: the share of misses that are header-only, and the headline before and after.
-3. Merge SHF-019 only if the dropped cells account for the misses this design predicts. A field that
+3. Check that the dropped cells account for the misses this design predicts. A field that
    the model gets right from a quoted reply despite the stripped header stays scored, because the
    text shows it.
 
 ## Decisions
 
 - 2026-11-27: the owner approved A as an interim scoring hotfix until B ships.
-- Open: which stored runs to rescore for the answer-side evidence.
+- 2026-11-28: the owner waived the stored-answer rescore as a merge condition and asked for SHF-019
+  to merge on the truth-side measurement above. The slice-0100 answers were not reachable from the
+  implementing session. Any later rescore that shows the dropped cells do not match the misses is a
+  reason to revisit A.
