@@ -18,7 +18,9 @@ then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
 staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`. For
 SAND board card work (start, review, done) use
 `.cursor/skills/sand-board-lifecycle/SKILL.md`; for stale open-card triage use
-`.cursor/skills/sand-board-hygiene/SKILL.md`.
+`.cursor/skills/sand-board-hygiene/SKILL.md`. For any label expansion, repair or coverage
+task, use `.cursor/skills/near-gold-labels/SKILL.md` and
+[`docs/gold-labels/NEAR_GOLD_PLAYBOOK.md`](docs/gold-labels/NEAR_GOLD_PLAYBOOK.md).
 
 Bulk work (many files, labels, traces, logs) follows
 [`.claude/rules/code-mode.md`](.claude/rules/code-mode.md): one script that prints a
@@ -145,3 +147,6 @@ read its file in `.opencode/agents/`.
 - `experiment-figures` (`.claude/skills/experiment-figures/`) — how every experiment figure is
   made: colour roles, type scale, finding-as-title text rules, the figure catalog (per-run,
   sorter vs decision model, calibration) and `python -m mailroom_sandbox.figure_style lint`.
+- `near-gold-labels` (`.claude/skills/near-gold-labels/`, a thin wrapper over
+  `.cursor/skills/near-gold-labels/`) — label coverage EDA, picking the next targets, two-pass
+  labeling rounds, review, admission, release rebuild and staged cuts.

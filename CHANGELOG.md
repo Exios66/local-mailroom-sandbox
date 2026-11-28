@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **Near-gold label playbook and skill.** `docs/gold-labels/NEAR_GOLD_PLAYBOOK.md` is the orientation page for label work: the truth policy, the lifecycle from target selection to a staged cut, quick commands to inspect the data, how to rank the next targets, and a pre-PR verification checklist. `docs/gold-labels/PASS_BRIEF_TEMPLATE.md` is the brief for each independent label and check pass. The `near-gold-labels` skill (`.cursor/skills/`, with a thin `.claude/skills/` wrapper) is the checklist version; the router, `AGENTS.md`, `CLAUDE.md` and the docs index point to it. Docs only; no label, score or pin changes.
 - **Label EDA command line.** `scripts/label_eda.py`, backed by `src/mailroom_sandbox/label_eda.py`, inspects the merged label truth offline. It has eight commands:
   - `summary`: coverage by class and tier, and which source won the labelled cells;
   - `coverage`: completeness grouped by class, subclass, field, split, tier or source;
