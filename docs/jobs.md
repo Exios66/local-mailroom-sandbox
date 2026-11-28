@@ -4,8 +4,8 @@ The `sandbox run` system runs **pipeline evals as locked jobs**: every input —
 prompt version(s) for any pipeline agent, the HF dataset (full mailroom-dataset
 or a subset), the vLLM/Modal engine spec, and the OTEL trace sink — is
 resolved, validated, prepared, and pinned at **preflight**; the job then runs
-per item with crash-safe checkpoints, resumes after pause/failure, and can be
-polled. Serving metrics from local, Modal, and API runs are captured and
+per item with crash-safe checkpoints, resumes after a pause or crash (a `failed`
+or `done` run is final; start a new run id), and can be polled. Serving metrics from local, Modal, and API runs are captured and
 compared.
 
 ```text
@@ -352,8 +352,11 @@ from its stored answer, with no model call and no new spend, so run scores still
 cover every locked document and only the rest run and are billed (S1,
 `docs/design/specs/2026-11-26-correcting-judge-design.md`). A document whose
 stored item has no answer (`pred` not an object) or failed (`error` set: a
-timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it;
-its first row stays the evidence in `items.jsonl`. An answer that failed to parse
+timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it.
+The new row replaces the error row in `items.jsonl` (`RunStore.replace_item`), and
+the error row's billed usage is kept as an `api_usage_of_failed_document` event. Only a
+crashed or paused run resumes this way; a `failed` or `done` run returns its stored
+summary. An answer that failed to parse
 is a billed answer and is replayed.
 `extract`, `chained`, `local_vs_api` and `sorter_vs_modernbert` persist nothing
 mid-run, so they still run whole.
