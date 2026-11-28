@@ -187,9 +187,13 @@ def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[
     """Admissible extra notice phrases from ``assist`` and the reasons the rest were refused."""
     # A term is the same when magnitude, unit and qualifier (business/calendar) agree. The same period
     # under another operator ("not less than" vs exact) is refused for review, never dropped silently.
+    # A builder value can state one period more than once ("at least 30 days' notice ... uncured 30
+    # days"), so every operator it states for that period counts.
     terms = [notice_term(m.group()) for m in PERIOD_RX.finditer(builder)]
     held = {(t[1], t[2], t[3]) for t in terms}
-    ops = {(t[1], t[2], t[3]): t[0] for t in terms}
+    ops: dict[tuple[str, str, str], set[str]] = {}
+    for t in terms:
+        ops.setdefault((t[1], t[2], t[3]), set()).add(t[0])
     text = _norm(doc_text)
     out, refused = [], []
     for segment in assist.split(";"):
@@ -198,7 +202,7 @@ def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[
             term = notice_term(phrase)
             key = term[1:]
             if key in held:
-                if ops.get(key, term[0]) != term[0]:
+                if term[0] not in ops.get(key, {term[0]}):
                     refused.append(f"same period, other operator: {phrase}")
                 continue
             after, before = segment[m.end():m.end() + 30], segment[max(0, m.start() - 25):m.start()]
@@ -212,7 +216,7 @@ def assist_notice_terms(assist: str, builder: str, doc_text: str) -> tuple[list[
                 refused.append(f"not in document text: {phrase}")
             else:
                 held.add(key)
-                ops[key] = term[0]
+                ops.setdefault(key, set()).add(term[0])
                 out.append(phrase)
     return out, refused
 
