@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-28T14:39:36Z",
+  "added_at": "2026-11-28T16:37:30Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -1028,6 +1028,226 @@
           "rc12-p2-mf-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-28T16:37:16Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0de76b97986b57b3",
+        "DOC-1081f3198aa9e61f",
+        "DOC-1d81d79a6d7c2e61",
+        "DOC-1f6e86d837280146",
+        "DOC-1f762a82627371b8",
+        "DOC-219c1cd4cdca809e",
+        "DOC-21c479f4d2ec5ec7",
+        "DOC-29f09728179ec9b8",
+        "DOC-2a7032717e79f5ad",
+        "DOC-2b510409d3b9a4a6",
+        "DOC-2b56dc54d52da61b",
+        "DOC-2e2102242479c523",
+        "DOC-30a89f90efd8bde7",
+        "DOC-34904aee099a62c7",
+        "DOC-39aa396025b48de0",
+        "DOC-3b36959f06827fc6",
+        "DOC-3cb6bbf0e3237620",
+        "DOC-400b428fa66f4f69",
+        "DOC-43a8c8be1ebfb00f",
+        "DOC-454a67dca46d8d77",
+        "DOC-4608c4df8a97db33",
+        "DOC-46288536cdb50f9c",
+        "DOC-4df3ec0469a627b0",
+        "DOC-5b466b039341b660",
+        "DOC-9fa2c2f7ae770470",
+        "DOC-b1aba7df0380a1b2",
+        "DOC-b90a72cd70752da5",
+        "DOC-e63259fddf5b43a5",
+        "DOC-e69313c4bb90489c"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "rc13-p3-mf-check.jsonl"
+        ],
+        "label": [
+          "rc13-p3-mf-label.jsonl"
+        ],
+        "review": [
+          "rc13-p3-mf-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T16:37:30Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0752e0811f5f5eb7",
+        "DOC-07bcf4c71de616ac",
+        "DOC-1266801f2faad19f",
+        "DOC-13000a5067f49a46",
+        "DOC-15b500b194a995f3",
+        "DOC-1614d773eaa683b0",
+        "DOC-164966e0a256b391",
+        "DOC-1a8aa868227dbd45",
+        "DOC-1c35ce7b9256a378",
+        "DOC-202288d54af09ad2",
+        "DOC-24eb5cef87ad9e5a",
+        "DOC-25f822c661011bfe",
+        "DOC-279dc2953674597e",
+        "DOC-2f88403fb6616a82",
+        "DOC-2fc0ce4204e741a4",
+        "DOC-30c38dd3a2964c8e",
+        "DOC-3ce2fb9a704b18e6",
+        "DOC-401dc6109de6340a",
+        "DOC-40d794da84bdccc8",
+        "DOC-435146b4f6666afa",
+        "DOC-439f04af8582d79c",
+        "DOC-46041078786dff15",
+        "DOC-4ab8d1d37d3af05c",
+        "DOC-52daf47a1de2bcc1",
+        "DOC-561364d531fca179",
+        "DOC-58bcc4d2400a10eb",
+        "DOC-58c59a894905ef97",
+        "DOC-593f2c6de770b84c",
+        "DOC-5a81b8611e5a352c",
+        "DOC-5f6a15c5c52d5328",
+        "DOC-618c0ce36a158ef6",
+        "DOC-62b300182901e850",
+        "DOC-669050a7d8fddf0e",
+        "DOC-66fce8123fe0cfcb",
+        "DOC-67050576826b131b",
+        "DOC-67a58cedb39a4e4f",
+        "DOC-695b0f6b7052fcb2",
+        "DOC-6b78312856c4dc91",
+        "DOC-6c55617151b6c336",
+        "DOC-7251775bb4a97b4b",
+        "DOC-74aed0a1174945ec",
+        "DOC-74b615c580516b09",
+        "DOC-79c78825d5767dc4",
+        "DOC-7a46f2451bb004f0",
+        "DOC-7b34d394d89f659e",
+        "DOC-7ec4c4ce46677363",
+        "DOC-812192e392d8d410",
+        "DOC-81c4ce12d907380c",
+        "DOC-83eee4dfa2cd7955",
+        "DOC-851d0346d9596814",
+        "DOC-86e4d7c492c0caca",
+        "DOC-879a49ec79c0acb2",
+        "DOC-8986630412dbd7bb",
+        "DOC-8a776dec500b074c",
+        "DOC-8bddad65a7d50ad4",
+        "DOC-8cae10ecec1f5866",
+        "DOC-8d9f10edd73904b1",
+        "DOC-8deb5edc6d5cd41b",
+        "DOC-8ebd51204ef4dafd",
+        "DOC-8ee6bc6fa2c96ce6",
+        "DOC-8f737e9fec8f24f0",
+        "DOC-9012611f4dd5b7b0",
+        "DOC-94e46c57bfde0b4e",
+        "DOC-999cb02b62653e04",
+        "DOC-9af76b3fef33b81f",
+        "DOC-9c716f372d196795",
+        "DOC-9d7663e5a05ba1b9",
+        "DOC-a2ce7adbf6f5cb8d",
+        "DOC-a3560867019f38c8",
+        "DOC-a3ffde1db281c462",
+        "DOC-a419adc4a0232ea7",
+        "DOC-a56e38e855378380",
+        "DOC-a7ea445212692b88",
+        "DOC-a7fb75beb6598e6f",
+        "DOC-a80e8829e78ceae6",
+        "DOC-a81d2badffc32bac",
+        "DOC-a83cc1f1ab0c757e",
+        "DOC-a8ce22abf9192227",
+        "DOC-a937a4b1b32c1c28",
+        "DOC-a9b6d938448397ba",
+        "DOC-adad5ef793c0e409",
+        "DOC-b010dd550151e1dd",
+        "DOC-b1f4f7eaa602b6a9",
+        "DOC-b4bbaac53bfe03d8",
+        "DOC-b830544e6b1bc115",
+        "DOC-b85fe3af8a9c6b41",
+        "DOC-bbebd1d1dbc591ce",
+        "DOC-be1eccde5bae9c82",
+        "DOC-c311561c7af3cbe0",
+        "DOC-c43f58d93eac3a4d",
+        "DOC-c6761beeb32fb09c",
+        "DOC-c8a4fc816a9437d5",
+        "DOC-c9d4c4f8ff433527",
+        "DOC-d1c45d175a8abeb5",
+        "DOC-d3fcd30a9c156197",
+        "DOC-d625d746244e067a",
+        "DOC-d6b6b418dd211b76",
+        "DOC-d752cdcdcbe803e8",
+        "DOC-d88df91b9999b660",
+        "DOC-d96559c6d045fcb2",
+        "DOC-d9ed2885226fee7d",
+        "DOC-da32dbf12bb01d1e",
+        "DOC-db887463646a0f58",
+        "DOC-dbe52fd78e44b0ef",
+        "DOC-dbfa4f9eb3f16433",
+        "DOC-ddf429892b0d1563",
+        "DOC-ddff38aba2042a90",
+        "DOC-de8b3ad35e4b9060",
+        "DOC-dfb4e69a3ab10dc9",
+        "DOC-dfd20f94bb76b6e4",
+        "DOC-e01e99acd2a96918",
+        "DOC-e0d31c39359cb803",
+        "DOC-e235bc9735f96335",
+        "DOC-e29140d2e8e989be",
+        "DOC-e3afd3d853d33152",
+        "DOC-e492894fbfa36087",
+        "DOC-e53347b00c241321",
+        "DOC-e8f60affcfa17936",
+        "DOC-e998c563b82122b9",
+        "DOC-e99c507e5be85fe2",
+        "DOC-e9d0a5cfff56fa37",
+        "DOC-ebb7fd616e84c91e",
+        "DOC-ec6a4c5a7a586256",
+        "DOC-ef38c95085745809",
+        "DOC-f1741cf6a05b754d",
+        "DOC-f1fc920e8cd8cf22",
+        "DOC-f469ffa1b2763bde",
+        "DOC-f534c57765437e18",
+        "DOC-f6591319ae1e4f5a",
+        "DOC-f717fb61aa615da0",
+        "DOC-f76f6e3e45039acb",
+        "DOC-f8abde7ee48e0c94",
+        "DOC-fa0782d2f5c0b92b",
+        "DOC-fb12cef8c4fce111",
+        "DOC-fb3499cb5a3d33c9",
+        "DOC-fcb3cd45baed43c9",
+        "DOC-fe06800cc62e5e19",
+        "DOC-ffb6a13b365fe37f"
+      ],
+      "sources": {
+        "check": [
+          "rc13-p3-new-check.jsonl"
+        ],
+        "label": [
+          "rc13-p3-new-label.jsonl"
+        ],
+        "review": [
+          "rc13-p3-new-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -1043,31 +1263,37 @@
   "counts": {
     "contract": {
       "-": {
-        "notes": 303
+        "notes": 470
       },
       "agreement_date": {
         "gate_reject": 13
       },
       "contract_value": {
-        "rejected": 3
+        "rejected": 21
+      },
+      "dispute_forum": {
+        "rejected": 2
       },
       "expiration_date": {
         "gate_reject": 2,
-        "rejected": 1
+        "rejected": 3
       },
       "party_roles": {
         "gate_reject": 58,
-        "rejected": 1
+        "rejected": 8
       },
       "payment_terms": {
         "gate_reject": 2,
-        "rejected": 1
+        "rejected": 7
+      },
+      "signatories": {
+        "rejected": 8
       },
       "termination_notice_period": {
-        "rejected": 1
+        "rejected": 10
       },
       "territory": {
-        "rejected": 1
+        "rejected": 8
       }
     },
     "corporate_record": {
@@ -1114,12 +1340,13 @@
     }
   },
   "files": {
-    "contract.jsonl": "cb20811fab7b541588f29d58ba34f7cc3607913fb6a3a8d78d3bbcb98dde000b",
+    "contract.jsonl": "e3ef0ae361a51028e4a2d3d3d35360b4ff513661e1ce3657a6e7c166629a429b",
     "corporate_record.jsonl": "675b875972a17dff2db9f25cc812f1e1835d5d188897e79a56f47e5920ef10f0",
     "correspondence.jsonl": "c79902db6732e0e881490fc8037dbd8c082d443f4e6bec81ec5167caa126cf16",
     "merger_agreement.jsonl": "56fc7812961db59a63206994b672acf7698e039f77d05adb9cdeff6d614edea6"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
+  "reviewed_at": "2026-11-28T20:21:51Z",
   "schema": "mailroom-gold-supplementary/v1",
   "source_path_metadata": "Repository-relative export; original private bytes retained; no label payload or evidence change.",
   "sources": {
@@ -1191,6 +1418,8 @@
       "rc12-p1-new-check.jsonl",
       "rc12-p2-mf-check.jsonl",
       "rc12-p2-new-check.jsonl",
+      "rc13-p3-mf-check.jsonl",
+      "rc13-p3-new-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
@@ -1425,6 +1654,8 @@
       "rc12-p1-new-label.jsonl",
       "rc12-p2-mf-label.jsonl",
       "rc12-p2-new-label.jsonl",
+      "rc13-p3-mf-label.jsonl",
+      "rc13-p3-new-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
@@ -1450,6 +1681,9 @@
       "rc12-p1-new-review.jsonl",
       "rc12-p2-mf-review.jsonl",
       "rc12-p2-new-review.jsonl",
+      "rc13-p3-mf-review.jsonl",
+      "rc13-p3-new-review.jsonl",
+      "rc13-p3-prepromotion-audit-withdrawals.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e40.jsonl",
       "review-corp-1.jsonl",

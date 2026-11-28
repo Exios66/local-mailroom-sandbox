@@ -178,7 +178,7 @@ def test_the_committed_pool_is_current():
 def test_the_label_counts_match_the_spec_table():
     rows = [json.loads(line) for line in jr.POOL_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
     counts = collections.Counter(row["doc_class"] for row in rows)
-    assert counts == {"contract": 44, "corporate_record": 122, "correspondence": 550, "insurance_claim": 322,
+    assert counts == {"contract": 94, "corporate_record": 122, "correspondence": 550, "insurance_claim": 322,
                       "merger_agreement": 5}
     assert {row["set"] for row in rows} == {"calibration", "pool"}
 

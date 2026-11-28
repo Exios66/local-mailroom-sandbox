@@ -311,7 +311,7 @@ def test_verify_mode_is_not_price_or_route_checked(): ...              # a verif
   - `test_examples_match_type_and_subtype_and_are_capped_at_two`
   - `test_a_drawn_document_sharing_a_component_with_the_pool_is_refused`: through preflight.
   - `test_the_committed_pool_is_current`
-  - `test_the_label_counts_match_the_spec_table`: contract 44, corporate 122, correspondence 550, insurance 322, merger 5 (rebuilt after the 2026-11-28 rc.12 label rounds; contract 33 and corporate 120 after the corporate calibration gate-gap round, 32/118/4 for contract/corporate/merger before the 2026-11-27 corporate label integration, and corporate 119 after it).
+  - `test_the_label_counts_match_the_spec_table`: contract 94, corporate 122, correspondence 550, insurance 322, merger 5 (rebuilt after the 2026-11-28 rc.13 full-slice contract round; contract 44 after the rc.12 label rounds, 33 and corporate 120 after the corporate calibration gate-gap round, 32/118/4 for contract/corporate/merger before the 2026-11-27 corporate label integration, and corporate 119 after it).
   - `test_without_examples_the_prompt_has_none`
 - [ ] **Step 2: Run to verify they fail.** Expected: FAIL.
 - [ ] **Step 3: Implement, then generate the pool** with `.venv/bin/python scripts/build_judge_reference_pool.py`.

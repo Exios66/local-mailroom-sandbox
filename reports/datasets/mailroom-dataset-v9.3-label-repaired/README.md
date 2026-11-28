@@ -314,6 +314,20 @@ The `authorized_capital` of `DOC-18f682a3054d35c5` drops the article's lead-in a
 `near_gold_reviewed`. The rebuild changes only that cell. The `9.3.1-rc.12` stager held back both
 cells, because documents with the same text disagreed; a later cut carries them.
 
+The rc.13 Phase 3 round
+([`rc13-contract-full-slice`](../../../data/labels/repair-artifacts/v93-20261128-rc13-contract-full-slice/README.md))
+fills 1,018 of the 1,059 open contract target cells in the full slice: 621 populated and 397
+documented absences, on 166 dev and calibration documents. 821 labels rest on two agreeing passes,
+and 197 on review. The other 41 cells are left unlabeled rather than guessed (28 rejected by
+review, 13 with no admissible value). The rebuild fills exactly those 1,018 cells, and no existing
+value changes; `values_moved_by_reviewed_precedence` is unchanged.
+
+A pre-promotion audit then re-read all 1,018 labels and withdrew 33 that are not clean truth, so
+those cells are unlabeled again. It corrected 48 more: 31 change value, 15 change evidence only,
+and 2 change only an absence reason. The round's net is 985 labels (591 populated, 394
+documented absences). The audit changes no cell outside those 81. Labeled cells go from 44,835 to
+45,820 of 50,233 (91.2%), and contract cells from 7,123 to 8,108 of 10,200 (79.5%).
+
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
 The scoped guard covers both submission and stored-evidence checks and preserves legacy
