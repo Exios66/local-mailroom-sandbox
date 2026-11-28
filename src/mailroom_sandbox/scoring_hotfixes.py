@@ -6,7 +6,8 @@ id (``SHF-001`` ...), and never silently:
 
 - **Bound to the code it corrects.** Each fix lists its targets (``module:qualname``) with the
   sha256 of the target's source (``inspect.getsource``) it was validated against,
-  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads, or
+  ``file:<repo path>`` with the sha256 of a reviewed data file the fix reads
+  (``file:<repo path>#<key>`` hashes only that top-level JSON key, canonically serialised), or
   ``value:<module>:<name>`` with the sha256 of a module constant's value (a regex, a set of
   tokens, a dispatch table: it has no source text to hash). When a vendor
   refresh or an edit changes a target, the fix is ``stale``: it is not applied, and
@@ -340,8 +341,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
              "104f656351c957044be84880dfe8b10c8b219c26ab28dac39315f2b75dab6fff"),
             ("mailroom_sandbox.job.gate_causes:_field_scores",
              "ba939d617e53950434a0ff6f99f6662677fee7c5d304d26a4068f6daa29c7859"),
-            ("file:config/extraction/subclass_extraction_fields.json",
-             "a1e1e3706ee79d742ef2a069360edcd32d7d41dd956c7fa0d2ef3d88d522974e"),
+            # only the field lists it reads: a registry rebuild that moves registry_sha256 alone keeps the pin
+            ("file:config/extraction/subclass_extraction_fields.json#classes",
+             "96dfcbec89f59e008cc97e7cd02870e1c1bd81343b4fcac035316c6590d8abe0"),
         ),
         upstream="sandbox",
         summary="scoring uses the subclass's extraction schema: a field the schema drops is "
@@ -486,10 +488,17 @@ def target_sha(target: str) -> str:
         # another module's data (``frozenset(CORRESPONDENCE_TOPICS)``), so its value is what decides.
         return value_sha(_resolve(target[len(VALUE_TARGET):]))
     if target.startswith(FILE_TARGET):
-        path = data_path(target[len(FILE_TARGET):])
+        rel, _, key = target[len(FILE_TARGET):].partition("#")
+        path = data_path(rel)
         if path is None:
             raise FileNotFoundError(target)
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        if not key:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        # One top-level JSON key, canonically serialised: a rebuild that only moves provenance
+        # beside it (a registry hash, key order, indentation) keeps the pin.
+        value = json.loads(path.read_text(encoding="utf-8"))[key]
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                         ensure_ascii=False).encode("utf-8")).hexdigest()
     source = _file_source(target)
     if source is not None:
         return hashlib.sha256(source.encode("utf-8")).hexdigest()

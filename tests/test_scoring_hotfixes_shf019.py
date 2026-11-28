@@ -250,7 +250,8 @@ def test_every_scoring_hotfix_data_file_is_bundled_in_the_modal_worker():
     from pathlib import Path
 
     source = (Path(__file__).resolve().parents[1] / "deploy" / "modal_job.py").read_text(encoding="utf-8")
-    files = {t[len(sh.FILE_TARGET):] for fix in sh.HOTFIXES for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)}
+    files = {t[len(sh.FILE_TARGET):].partition("#")[0]
+             for fix in sh.HOTFIXES for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)}
     assert files
 
     def bundled(rel: str) -> bool:

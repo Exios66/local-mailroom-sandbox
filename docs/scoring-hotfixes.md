@@ -8,7 +8,8 @@ sandbox code that calls it. Each correction has an id (`SHF-NNN`) and is never s
 
 - **Bound to the code it corrects.** Each fix lists its targets (`module:qualname`) with the
   sha256 of the target's source as written in its module file, a reviewed data file it reads
-  (`file:<repo path>` with the file's sha256), or a module constant that has no source text of its
+  (`file:<repo path>` with the file's sha256, or `file:<repo path>#<key>` with the sha256 of one
+  top-level JSON key, canonically serialised), or a module constant that has no source text of its
   own, such as a regex or a token set (`value:<module>:<name>` with the sha256 of its value: sets
   and mappings sorted, a regex as pattern and flags, a function named, never printed). When a vendor
   refresh or an edit changes a target, the fix is `stale`: it is not applied, and `sandbox run preflight`
@@ -87,8 +88,10 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
   - Paths: `eval/scoring._score_extraction_row_once` (pipeline, rescore, the gate's document
     score) and `job/gate_causes._field_scores` (the lowest-field diagnosis). On only inside
     `hotfixed()`.
-  - What its fingerprint covers: the two seams and the committed field list. A rebuild of
-    `config/extraction/subclass_extraction_fields.json` makes SHF-018 `stale`.
+  - What its fingerprint covers: the two seams and the committed field lists
+    (`config/extraction/subclass_extraction_fields.json#classes`). A rebuild that changes a
+    subclass's fields makes SHF-018 `stale`. A label rebuild that moves only `registry_sha256`
+    keeps it current.
   - Recorded as: `subclass_unscored` names each field the scope changed and why. The raw side
     keeps the class-schema score, so a moved headline is under `scoring_hotfixes_changed`.
 - **SHF-019** (new). Changes the correspondence extraction headline as described in the table.
