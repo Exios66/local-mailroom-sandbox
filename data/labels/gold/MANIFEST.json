@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-28T05:55:24Z",
+  "added_at": "2026-11-28T14:39:36Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -788,6 +788,246 @@
           "corp-gate-cal-mf-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-28T14:39:08Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-10f81daa49ecf8ad",
+        "DOC-f7af031d61f7d7f5"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "rc12-p1-mf-check.jsonl"
+        ],
+        "label": [
+          "rc12-p1-mf-label.jsonl"
+        ],
+        "review": []
+      }
+    },
+    {
+      "added_at": "2026-11-28T14:39:15Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0dd2325ee3846713",
+        "DOC-112212654d75ade2",
+        "DOC-13348ef7d312c0d3",
+        "DOC-1e0e6ca042300b31",
+        "DOC-2c8bbcb1a7ca7668",
+        "DOC-37c7e0804e25d5ae",
+        "DOC-39aa396025b48de0",
+        "DOC-48e49ba8ba0dabc5",
+        "DOC-61cbaaf5354960c2",
+        "DOC-6dd99f331bcd903b",
+        "DOC-712c3f92a0a56b77",
+        "DOC-72f83537d5aa2b5f",
+        "DOC-78e5dbaae50afc77",
+        "DOC-84f09002a69dc376",
+        "DOC-8993ad1085e08bd0",
+        "DOC-905a242f568732ff",
+        "DOC-9458a1486b686af6",
+        "DOC-95e6370b97f1ab3e",
+        "DOC-9baab4e28bbe8197",
+        "DOC-9fa2c2f7ae770470",
+        "DOC-a3ec1a93f53ef59f",
+        "DOC-a41ac47e80ec56c9",
+        "DOC-abb08b291a6095e8",
+        "DOC-adcc48b2879a9cd7",
+        "DOC-b83763aeff114369",
+        "DOC-b90a72cd70752da5",
+        "DOC-d9372c268e93e88d",
+        "DOC-dd40cd96e3f10f1e",
+        "DOC-e4272758b561f8cd",
+        "DOC-e63259fddf5b43a5",
+        "DOC-e69313c4bb90489c",
+        "DOC-ec437ce8c4b5cdee",
+        "DOC-f5896eb268079643",
+        "DOC-f5a54932794ef16e"
+      ],
+      "sources": {
+        "check": [
+          "rc12-p1-new-check.jsonl"
+        ],
+        "label": [
+          "rc12-p1-new-label.jsonl"
+        ],
+        "review": [
+          "rc12-p1-new-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T14:39:20Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-00193d0c070747e6",
+        "DOC-5498b6ab0034bc9e",
+        "DOC-6e8402c4355d30f8",
+        "DOC-dfbc341fd86f60a8",
+        "DOC-e54512dab9fa64a4",
+        "DOC-e6906e59f9bd74ca",
+        "DOC-e7464da01e818b59"
+      ],
+      "sources": {
+        "check": [
+          "rc12-p2-new-check.jsonl"
+        ],
+        "label": [
+          "rc12-p2-new-label.jsonl"
+        ],
+        "review": [
+          "rc12-p2-new-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T14:39:36Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-02e5fa5277396f39",
+        "DOC-02f9b46e54b0ee5a",
+        "DOC-064eb91826ef5b98",
+        "DOC-07daaea9303cd80b",
+        "DOC-08634c55c8252ba8",
+        "DOC-0c7cda9021fbd910",
+        "DOC-12a6d4cd092cf66d",
+        "DOC-152016a62cdf4812",
+        "DOC-19866f91da21f20d",
+        "DOC-1b024f18a5882a8e",
+        "DOC-2079b4747fff3720",
+        "DOC-2819b889b134ea01",
+        "DOC-2f4b15bfb68a601b",
+        "DOC-307b02b3286494a7",
+        "DOC-30c3cf17730c8a5e",
+        "DOC-30f3b15779206966",
+        "DOC-31dbead1bf0fdc8d",
+        "DOC-345450f6677c2a8a",
+        "DOC-35205bb0f90b784e",
+        "DOC-3c8bbbc8a8800cb4",
+        "DOC-3e20fef7d0be1ab6",
+        "DOC-4837db9a00f3d381",
+        "DOC-499f93fb342a3904",
+        "DOC-4a77d0b316e1cc01",
+        "DOC-4ba98030f80db985",
+        "DOC-4c0c7ee8ce424215",
+        "DOC-57849f79638a8f79",
+        "DOC-5dc965bfd05b8bf5",
+        "DOC-609286b3f64347b8",
+        "DOC-611d6e3dfba95a7e",
+        "DOC-63fffca0c0a261ec",
+        "DOC-648c8242263e1722",
+        "DOC-67d62b13fc45946d",
+        "DOC-682c23dbd8bbf541",
+        "DOC-6993b10b8f79da64",
+        "DOC-69a70aad5c9fa382",
+        "DOC-69ffaec3ba2b2cde",
+        "DOC-6a67fef1b86d2f30",
+        "DOC-6aed2864c5ee6706",
+        "DOC-6d17fda455311945",
+        "DOC-72cf9c06c1d2a4f9",
+        "DOC-7593cad0a956d743",
+        "DOC-7c506652172178ce",
+        "DOC-7da1948cb71d4784",
+        "DOC-81ae205a3b0bf16f",
+        "DOC-81b12b7e99ab8b77",
+        "DOC-85c7b49cdac19586",
+        "DOC-8b2aaa4b6ea655be",
+        "DOC-8d57a41d7e3dd5d7",
+        "DOC-9376c6bfa6779d5e",
+        "DOC-941756edf917e090",
+        "DOC-9467462d9bb34f8e",
+        "DOC-97fbc0c8cbca695d",
+        "DOC-9c0ab2e7a867753e",
+        "DOC-a14783cfd27c88c1",
+        "DOC-a195b29d1b417e2f",
+        "DOC-a1bf2ddf032e38ea",
+        "DOC-a307ac159716fc6d",
+        "DOC-a780df9fabefd2a7",
+        "DOC-a973ebf005e0e785",
+        "DOC-aa52e45f9efe7380",
+        "DOC-b68ca8a66c41650f",
+        "DOC-b73c5e5708c43511",
+        "DOC-b856ca94d75a431a",
+        "DOC-b91c7731575d2a6a",
+        "DOC-be78107a9bedc16e",
+        "DOC-c023c4df26c4f6a8",
+        "DOC-c40a11ac7f2c7b5b",
+        "DOC-c5abb43df465dbbb",
+        "DOC-c75a93dfe634e3cd",
+        "DOC-c7d50d16b2069850",
+        "DOC-cdc3f9c110996846",
+        "DOC-cde69e0ba4db2419",
+        "DOC-cf1a64851f2f4273",
+        "DOC-d267c99237fe2aad",
+        "DOC-d4dfbfe8049d41f9",
+        "DOC-d564c7cabec90e84",
+        "DOC-d8a8d7c000ae6495",
+        "DOC-dae485695eb01169",
+        "DOC-e077f1f7e80e1e04",
+        "DOC-e0d24bc007101fba",
+        "DOC-e3c40449f930c4e6",
+        "DOC-e545bbd5f5ea61b6",
+        "DOC-ef2f0660ed8b6f24",
+        "DOC-f134b9491efc5c57",
+        "DOC-f6290c30b4790653",
+        "DOC-f64aff8d3c9dee13",
+        "DOC-f771de63665bff3a",
+        "DOC-f7811cfcb5ceca4b",
+        "DOC-f9c803a02a5745fe",
+        "DOC-fcd365f5de4378ef",
+        "DOC-fd3fa5fb08fe0c23",
+        "DOC-ff5ae81f25794ea3"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "rc12-p2-mf-check.jsonl"
+        ],
+        "label": [
+          "rc12-p2-mf-label.jsonl"
+        ],
+        "review": [
+          "rc12-p2-mf-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -804,40 +1044,40 @@
     "contract": {
       "agreement_date": {
         "candidate": 93,
-        "near_gold": 167
+        "near_gold": 169
       },
       "contract_value": {
         "candidate": 96,
-        "near_gold": 172
+        "near_gold": 202
       },
       "dispute_forum": {
         "candidate": 96,
-        "near_gold": 172
+        "near_gold": 204
       },
       "expiration_date": {
         "candidate": 96,
-        "near_gold": 171
+        "near_gold": 197
       },
       "party_roles": {
         "candidate": 57,
         "disputed": 1,
-        "near_gold": 165
+        "near_gold": 199
       },
       "payment_terms": {
         "candidate": 95,
-        "near_gold": 171
+        "near_gold": 204
       },
       "signatories": {
         "candidate": 96,
-        "near_gold": 172
+        "near_gold": 204
       },
       "termination_notice_period": {
         "candidate": 96,
-        "near_gold": 172
+        "near_gold": 195
       },
       "territory": {
         "candidate": 96,
-        "near_gold": 172
+        "near_gold": 205
       }
     },
     "corporate_record": {
@@ -848,103 +1088,103 @@
         "near_gold": 3
       },
       "addressee": {
-        "near_gold": 22
+        "near_gold": 39
       },
       "amended_provisions": {
-        "near_gold": 38
+        "near_gold": 66
       },
       "approval_date": {
-        "near_gold": 37
+        "near_gold": 66
       },
       "attorneys_in_fact": {
-        "near_gold": 13
+        "near_gold": 17
       },
       "authority_scope": {
-        "near_gold": 13
+        "near_gold": 17
       },
       "authorized_capital": {
-        "near_gold": 30
+        "near_gold": 46
       },
       "certified_matter": {
-        "near_gold": 22
+        "near_gold": 39
       },
       "certifying_officer": {
-        "near_gold": 42
+        "near_gold": 60
       },
       "effective_date": {
-        "near_gold": 432
+        "near_gold": 438
       },
       "entity_name": {
         "near_gold": 38
       },
       "exercise_price": {
-        "near_gold": 20
+        "near_gold": 29
       },
       "expiration_date": {
-        "near_gold": 12
+        "near_gold": 16
       },
       "filing_number": {
-        "near_gold": 40
+        "near_gold": 65
       },
       "guarantors": {
-        "near_gold": 23
+        "near_gold": 37
       },
       "holder": {
-        "near_gold": 21
+        "near_gold": 30
       },
       "incorporators": {
-        "near_gold": 28
+        "near_gold": 46
       },
       "instrument_kind": {
-        "near_gold": 21
+        "near_gold": 30
       },
       "jurisdiction": {
-        "near_gold": 376
+        "near_gold": 378
       },
       "last_amended_date": {
-        "near_gold": 20
+        "near_gold": 21
       },
       "maturity_date": {
-        "near_gold": 23
+        "near_gold": 36
       },
       "officer_title": {
-        "near_gold": 22
+        "near_gold": 39
       },
       "principal": {
-        "near_gold": 12
+        "near_gold": 16
       },
       "principal_amount": {
-        "near_gold": 22
+        "near_gold": 32
       },
       "prior_entity_name": {
-        "near_gold": 38
+        "near_gold": 66
       },
       "registered_agent": {
-        "near_gold": 30
+        "near_gold": 47
       },
       "resolutions": {
         "near_gold": 3
       },
       "rights_agent": {
-        "near_gold": 20
+        "near_gold": 29
       },
       "securities_covered": {
-        "near_gold": 20
+        "near_gold": 29
       },
       "securities_series": {
-        "near_gold": 25
+        "near_gold": 37
       },
       "signatories": {
-        "near_gold": 376
+        "near_gold": 379
       },
       "subsidiaries": {
-        "near_gold": 34
+        "near_gold": 41
       },
       "subsidiary_jurisdictions": {
-        "near_gold": 35
+        "near_gold": 41
       },
       "trustee": {
-        "near_gold": 25
+        "near_gold": 38
       }
     },
     "correspondence": {
@@ -964,7 +1204,7 @@
         "near_gold": 1000
       },
       "sender": {
-        "near_gold": 999
+        "near_gold": 1000
       },
       "urgency": {
         "near_gold": 1000
@@ -1010,12 +1250,12 @@
     }
   },
   "files": {
-    "contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
-    "corporate_record.jsonl": "0a3652230807b5d301c9ba8e34abe6653baaad4c2caf483719bdb4e70ec7cb09",
-    "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
+    "contract.jsonl": "aea89ecd55a334628334ffd63369d313f2b2057cac37bf211c21555fd175d168",
+    "corporate_record.jsonl": "03fe37c37c174c6c53ee8c5313bfb91357d010127ca76012233fd78a226e2567",
+    "correspondence.jsonl": "73ea4b0a458840293958e6e6388af2f10678755d8dc97bc91836fe53f0e93d24",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
-  "reviewed_at": "2026-11-28T03:45:52Z",
+  "reviewed_at": "2026-11-28T14:54:16Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -1082,6 +1322,10 @@
       "focus-correspondence-001-ready4-check.jsonl",
       "merger-critical001-ready16-check.jsonl",
       "merger-critical002-ready13-check.jsonl",
+      "rc12-p1-mf-check.jsonl",
+      "rc12-p1-new-check.jsonl",
+      "rc12-p2-mf-check.jsonl",
+      "rc12-p2-new-check.jsonl",
       "subclass-diverse001-ready15-check.jsonl",
       "subclass-diverse002-existing13-check.jsonl",
       "subclass-diverse002-new2-check.jsonl",
@@ -1312,6 +1556,10 @@
       "label-new.jsonl",
       "merger-critical001-ready16-label.jsonl",
       "merger-critical002-ready13-label.jsonl",
+      "rc12-p1-mf-label.jsonl",
+      "rc12-p1-new-label.jsonl",
+      "rc12-p2-mf-label.jsonl",
+      "rc12-p2-new-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
       "subclass-diverse002-existing13-label.jsonl",
       "subclass-diverse002-new2-label.jsonl",
@@ -1337,6 +1585,10 @@
       "focus-correspondence-ready4-parent-review.jsonl",
       "merger-critical001-source-decisions-terra.jsonl",
       "merger-critical002-source-decisions-terra.jsonl",
+      "rc12-p1-new-review.jsonl",
+      "rc12-p2-mf-review.jsonl",
+      "rc12-p2-new-review.jsonl",
+      "rc12-pr474-review-corrections.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
       "review-contract-e40.jsonl",

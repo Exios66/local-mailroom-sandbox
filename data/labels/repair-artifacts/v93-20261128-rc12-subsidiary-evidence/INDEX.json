@@ -1,0 +1,25 @@
+{
+ "campaign": "v93-20261128-rc12-subsidiary-evidence",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "command": "scripts/gold_labels.py review --corpus <pinned corpus dir> --review review.jsonl",
+ "admitted": {
+  "records": 1,
+  "verdicts": {
+   "correct": 1
+  },
+  "fields": {
+   "subsidiaries": 1
+  },
+  "values_changed": 0
+ },
+ "files": {
+  "README.md": {
+   "sha256": "2bdce9c41b342bc9e77f5e87f95909a955036c4565690bc1152322d21ec5eee4",
+   "read_by_review": false
+  },
+  "review.jsonl": {
+   "sha256": "df1ae908af2a5483a46d9c3ab257a766f53961483441559dd14d8f7fbcfbda82",
+   "read_by_review": true
+  }
+ }
+}
