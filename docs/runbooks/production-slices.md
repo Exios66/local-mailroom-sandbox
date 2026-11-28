@@ -22,7 +22,7 @@ All slices keep r3's (`config/runs/pipeline-qwen-flash-25-fit-r3.yaml`) agent ro
 
 The settings the slices run with:
 
-- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.11`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.11`, see [the staged overlay guide](../staged-label-overlay.md); new preparations use the verified rc.11 cut, which carries the corporate subclass fields; existing run locks retain their approved version);
+- blind routing and the pinned staged label overlay (`dataset.staged_overlay: 9.3.1-rc.12`, which replaces r3's `interim_labels: true`; pull it first with `python scripts/pull_staged_overlay.py --version 9.3.1-rc.12`, see [the staged overlay guide](../staged-label-overlay.md); new preparations use the verified rc.12 cut, which carries the corporate subclass fields and the rc.12 contract and corporate label rounds; existing run locks retain their approved version);
 - the adopted condensed specialist prompts;
 - the Luna Decisions reviewer;
 - `qwen/qwen3.7-flash` on OpenRouter;
@@ -36,7 +36,7 @@ Contracts are drawn on either kind of truth (`dataset.task_gt_min_field_labels: 
 CUAD labels qualifies as before. A contract whose CUAD map is empty qualifies when the pinned staged
 cut gives it at least 2 field labels, the gate's `min_labelled`. SHF-016 scores such a contract on
 those field labels, and the gate counts them. So the contract labels from the label repair and
-expansion campaign are measured, not left out of every slice. With `9.3.1-rc.10` and `9.3.1-rc.11` alike (the same draw), all 91 CUAD-empty
+expansion campaign are measured, not left out of every slice. With `9.3.1-rc.10`, `9.3.1-rc.11` and `9.3.1-rc.12` alike (the same draw), all 91 CUAD-empty
 contracts qualify, with 3 to 9 field labels each. They take 3 of the 18 contract places in slice 100,
 7 of 45 in slice 250 and 14 of 91 in slice 500, and slice-full gains all 91. No other class changes,
 and the slices still nest. The set follows the pinned cut, so a run locked before this change, or on
@@ -84,11 +84,11 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
    - **Install** `pip install -e ".[dev,observability]"`. The run mirrors every span to `data/traces/<run_id>.spans.jsonl.gz`, and the gate audit fails without it; the mirror needs the OpenTelemetry SDK from `[observability]`. Preflight refuses a run without it (`trace_sink`), and `sandbox doctor` reports it as `span-mirror`.
    - **Key.** `OPENROUTER_API_KEY` in the launching shell. Leave `OPENROUTER_BASE_URL` unset: a value that is not OpenRouter turns off the provider pins and the per-call spend guard.
-   - **Label cut.** The slices select `9.3.1-rc.11`. Pull it (GitHub access to mailroom-issues), or import a bundle exported from a checkout that has it, then verify:
+   - **Label cut.** The slices select `9.3.1-rc.12`. Pull it (GitHub access to mailroom-issues), or import a bundle exported from a checkout that has it, then verify:
 
      ```bash
-     python scripts/pull_staged_overlay.py --version 9.3.1-rc.11            # or: --import <bundle>.tar.gz
-     python scripts/pull_staged_overlay.py --version 9.3.1-rc.11 --check    # ok: ... manifest 0221334254c3
+     python scripts/pull_staged_overlay.py --version 9.3.1-rc.12            # or: --import <bundle>.tar.gz
+     python scripts/pull_staged_overlay.py --version 9.3.1-rc.12 --check    # ok: ... manifest cd3788c8c69f
      ```
 
    - **Doctor and hotfixes.** `sandbox doctor` with no `FAIL`, and `python scripts/check_hotfixes.py`.

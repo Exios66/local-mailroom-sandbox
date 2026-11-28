@@ -11,17 +11,17 @@ central cache, so every deployment scores against the same labels.
 ```yaml
 dataset:
   name: family-corpus            # Hub v9.3 (ff4ca546); the overlay is a delta against it
-  staged_overlay: 9.3.1-rc.11    # a version pinned in config/staged_overlays.yaml
+  staged_overlay: 9.3.1-rc.12    # a version pinned in config/staged_overlays.yaml
 ```
 
 Pull the pinned cut before preparing the dataset. This needs GitHub network access but involves
 no spend:
 
 ```bash
-python scripts/pull_staged_overlay.py --version 9.3.1-rc.11
+python scripts/pull_staged_overlay.py --version 9.3.1-rc.12
 ```
 
-**New production slice preparations select `9.3.1-rc.11`** (owner, 2026-11-28). Its history follows.
+**New production slice preparations select `9.3.1-rc.12`** (2026-11-28). Its history follows.
 
 **`9.3.1-rc.10` was selected first.** The cache PR
 [mailroom-issues #253](https://github.com/LLM-Mailroom-Services/mailroom-issues/pull/253)
@@ -36,7 +36,7 @@ Existing run locks retain their approved cut. Resume must refuse a changed confi
 start a deliberately new preparation generation to use rc.10 rather than editing a frozen lock.
 The later corporate repair and notebook in sandbox #425 are outside this immutable cut.
 
-**`9.3.1-rc.11` is selected by the seven production slice configs, their test and these
+**`9.3.1-rc.11` was selected next by the seven production slice configs, their test and these
 instructions** (owner, 2026-11-28). It is cut from the label-repaired release at sandbox `0e083b71`
 (#453) and carries the corporate subclass fields. Its cache PR, mailroom-issues #254, merged with a
 merge commit (`21854c61`), so the pinned commit `2873354a` is reachable from mailroom-issues main,
@@ -49,7 +49,8 @@ right. Only that entry's evidence span was wrong (it pointed into the longer nam
 values, not spans. The span is corrected in the catalog and ships in `rc.12`; the cut is never
 edited in place.
 
-**`9.3.1-rc.12` is pinned, not yet selected** (2026-11-28). It is cut from the label-repaired
+**`9.3.1-rc.12` is selected by the seven production slice configs, their test and these
+instructions** (2026-11-28). It is cut from the label-repaired
 release at sandbox `84360786` (#474): the rc.12 near-gold rounds (the contract target fields of
 slices 100, 250 and 500, and the corporate gate fields of 100 calibration documents) and the
 corrected Motor Cargo span. Its cache PR, mailroom-issues #255, merged with a merge commit
@@ -58,8 +59,9 @@ pull verifies against the pin. Against rc.11 it removes no cell and adds 888, an
 purpose (`DOC-971bbacf86cd7a94` `jurisdiction`, a documented absence before). It releases 74
 contract and 1 corporate cell that rc.11 held as `disputed_unresolved`. It holds back two
 corporate `authorized_capital` cells instead, on documents with the same text whose labels word
-the value differently. Coverage is 44,770 of 50,299 cells (43,882 in rc.11). The production
-slices keep `9.3.1-rc.11` until a separate change moves them.
+the value differently. Coverage is 44,770 of 50,299 cells (43,882 in rc.11). Every slice (100,
+250, 500 and full) draws the same documents, in the same order, under rc.11 and rc.12; only the
+truth they are scored against changes. Existing run locks keep their cut.
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
@@ -112,8 +114,8 @@ python scripts/pull_staged_overlay.py --import rc-latest.tar.gz            # in 
 
 - **`--latest`** is the most recent version pinned in `config/staged_overlays.yaml` (highest
   `X.Y.P-rc.N`). It never reaches past the pins, and it does not change which cut a run selects:
-  a run still names its `dataset.staged_overlay` version. Production slices select `9.3.1-rc.11`;
-  the latest pin is `9.3.1-rc.12`, and pinning it did not move them.
+  a run still names its `dataset.staged_overlay` version. Production slices select `9.3.1-rc.12`,
+  which is also the latest pin; a later pin would not move them.
 - **`--export FILE`** writes the verified cut's `MANIFEST.json` and exactly the files it pins as a
   deterministic `.tar.gz`, laid out relative to the cache root (about 7 MB per cut). It refuses a
   cache that does not match the pin.
