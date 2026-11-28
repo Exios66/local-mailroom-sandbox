@@ -77,6 +77,19 @@ document was labelled.
   - `values_moved_by_reviewed_precedence` is empty, and `label_cells_disputed_unresolved` is
     unchanged.
 
+## Corrections from PR review
+
+After admission, PR #474 review found two labels worth correcting from the source
+([`submissions/rc12-pr474-review-corrections.jsonl`](submissions/rc12-pr474-review-corrections.jsonl),
+applied with `gold_labels.py review`):
+
+- `DOC-9baab4e28bbe8197` `payment_terms`: the accepted wording dropped the second trigger. It now
+  reads "within fifteen (15) Days of the invoice date or resolution of any dispute, if applicable".
+- `DOC-064eb91826ef5b98` `instrument_kind`: `unit purchase option`, as the title names it. Both
+  passes had chosen `warrant`, the nearest listed kind.
+
+The admitted totals stay 624; these two are now `near_gold_reviewed`.
+
 ## Files
 
 `INDEX.json` lists every file with its sha256 and whether `gold_labels.py add` read it.

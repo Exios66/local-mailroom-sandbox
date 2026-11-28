@@ -1,12 +1,12 @@
 {
   "builder": "scripts/gold_labels.py overlay",
-  "built_at": "2026-11-28T14:40:01Z",
-  "catalog_manifest_sha256": "9e754e7d5063654601f4dbcfe3b11846a89b876596a9a39f1d9693a8e03c4596",
+  "built_at": "2026-11-28T14:54:28Z",
+  "catalog_manifest_sha256": "e15d58155315534af430892d6aded6a3b40c8bd5072aeb7c838415aa7e15912a",
   "counts": {
     "contract": {
-      "near_gold:opus_reviewed_accept": 274,
+      "near_gold:opus_reviewed_accept": 273,
       "near_gold:opus_reviewed_accept_check": 16,
-      "near_gold:opus_reviewed_correct": 14,
+      "near_gold:opus_reviewed_correct": 15,
       "near_gold:reviewed_accept": 71,
       "near_gold:reviewed_correct": 21,
       "near_gold:two_pass_agree": 1383
@@ -14,11 +14,11 @@
     "corporate_record": {
       "near_gold:opus_reviewed_accept": 1170,
       "near_gold:opus_reviewed_accept_check": 12,
-      "near_gold:opus_reviewed_correct": 18,
+      "near_gold:opus_reviewed_correct": 19,
       "near_gold:reviewed_accept": 4,
       "near_gold:reviewed_accept_check": 3,
       "near_gold:reviewed_correct": 5,
-      "near_gold:two_pass_agree": 1105
+      "near_gold:two_pass_agree": 1104
     },
     "correspondence": {
       "near_gold:opus_reviewed_accept": 2055,
@@ -34,12 +34,12 @@
     }
   },
   "files": {
-    "contract.jsonl": "cdb60d8ee869624665d5362779c3e22ddccc647bb95178427941587ec8ffe212",
-    "corporate_record.jsonl": "0c8d81efcc97bd4decba3a31467def0f06dd7657db22287831f325442038a3b5",
-    "correspondence.jsonl": "cd723453d8f7f8a10d610e557d994e8abf2aac80caa1a36e6a18354b703f0c74",
-    "merger_agreement.jsonl": "ff28b78a416cecb3f02ecc74502a77e2499c5420ade8d0183d07501375fe29a6"
+    "contract.jsonl": "eb5195b8fa46c4c6281b12d1900dc2c0ff403928a16e06f09b81b645776d8005",
+    "corporate_record.jsonl": "3281cdf89d2d5b589c25d32baa1044cf2c5044ea992f7a1a52187c3c2407fd8c",
+    "correspondence.jsonl": "ccb9eff81233b63ffa5ca0f137f27e54fead5a9a0f1cf267e13d1cba5755e9b2",
+    "merger_agreement.jsonl": "d013cc22cced88dd3576eab54cec89130f659f8ad0946285ab4b1ae7cf2f857c"
   },
-  "gate_run": "gold-labels-9e754e7d5063",
+  "gate_run": "gold-labels-e15d58155315",
   "rules": {
     "exported_statuses": [
       "near_gold"

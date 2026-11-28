@@ -299,8 +299,13 @@ documents that slices 100, 250 and 500 score. Phase 2 fills 378 corporate gate c
 calibration documents in the full slice. 547 rest on two agreeing passes, and a source-reading review
 settled the other 77; 13 disputes are left unlabeled, as neither reading was clean truth. In slices
 100–500, the only open labelable cells off `heldout` documents are those 9 contract rejects. The
-overlay has **11,124 labels**. The rebuild changes exactly the 624 cells, all previously unlabeled:
-44,835 of 50,233 cells labeled (89.3%). No other cell changes value, presence, source or rule.
+overlay has **11,124 labels**. The rebuild fills exactly the 624 cells, all previously unlabeled:
+44,835 of 50,233 cells labeled (89.3%). PR review then corrected two of them from the source: the
+MPLX `payment_terms` keeps its dispute-resolution trigger, and the `instrument_kind` of
+`DOC-064eb91826ef5b98` is `unit purchase option`, as its title names it. One earlier cell changes
+source only: `DOC-91af5bdd6f0ad4bb` `subsidiaries` moves from `near_gold_two_pass` to
+`near_gold_reviewed`, because its evidence span was corrected; its ten values are unchanged. No
+other cell changes value, presence, source or rule.
 
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.

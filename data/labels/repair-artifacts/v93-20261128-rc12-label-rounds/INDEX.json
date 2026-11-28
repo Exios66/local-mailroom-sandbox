@@ -174,8 +174,19 @@
    "admission_input": false
   },
   "README.md": {
-   "sha256": "53f545274db36d0eae973f3426fe1065b4ccfffef50e5004fd8d67f46312bb5a",
+   "sha256": "334c3a7f3478d7910e894fc7f5fee08f1075a85df9e5b3f14d255052e4785045",
+   "admission_input": false
+  },
+  "submissions/rc12-pr474-review-corrections.jsonl": {
+   "sha256": "52f5adaff839642767dc04e15e464c7beec0ffa3948fd4c749f74d23c766b607",
    "admission_input": false
   }
+ },
+ "post_admission_review": {
+  "file": "submissions/rc12-pr474-review-corrections.jsonl",
+  "verdicts": {
+   "correct": 2
+  },
+  "read_by": "gold_labels.py review"
  }
 }
