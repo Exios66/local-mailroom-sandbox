@@ -1742,6 +1742,9 @@ def run_pipeline_eval(
         "extraction_overall": extraction["extraction_overall"],
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
+        # Error rows are scored as misses (class "unknown", stage "failed"); this says how many of the
+        # n are, as the isolated runner's scores do, so a reader outside the gate sees the denominator.
+        "error_count": sum(1 for result in results if result.get("error")),
         **{k: v for k, v in extraction.items() if k != "extraction_overall"},
         **subclass_scores,
     }
