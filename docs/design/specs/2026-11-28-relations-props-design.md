@@ -115,7 +115,7 @@ data/props/
       cluster.yaml              the shared world: matter, parties, numbers, dates, split
       <member_id>.yaml          one spec per member (same schema as prop.yaml)
       <member_id>.txt           its body
-  build/                        generated, committed, verified by --check
+  build/<version>/              generated, committed, verified by --check
     props_default.jsonl         filename, id, doc_text, content_sha256
     props_ground_truth.jsonl    labels and link fields, keyed by filename
     props_needles.jsonl         one row per expected (or forbidden) link
@@ -155,9 +155,13 @@ notes: why this needle exists and what it tests
   `reply_to`, `attachment_of`, `references`, `cover_letter_for`, `supersedes`, and
   `unrelated` for decoys. They are stored in the props files, never mapped onto the
   clerk's types.
-- **Expected signals** use the clerk's types (`same_matter`, `topic_overlap`,
-  `party_overlap`, `semantic_similarity`, `temporal_proximity`, `llm_asserted`). They
-  say how the clerk *can* find the link today, so a miss is diagnosable.
+- **Expected signals** use the clerk's types (`topic_overlap`, `party_overlap`,
+  `semantic_similarity`, `temporal_proximity`, `llm_asserted`). They say how the clerk
+  *can* find the link today, so a miss is diagnosable. `same_matter` is refused: the
+  sandbox ingests every row under its own run-scoped catalog matter
+  (`sandbox_matter_id`, `src/mailroom_sandbox/eval/runners.py:40`), and props keep that,
+  so needles must be found from content alone. The derived `matter_id` / `group_id` are
+  ground truth only and are never passed to the pipeline (designer's call).
 - **Negative props (decoys)** share surface details with an anchor (same insurer, a
   nearby date, the same form letter) but belong to a different matter (a different
   claim or policy number). Polarity `negative`: the expected result is *no* edge. The
@@ -218,17 +222,20 @@ dataset:
   set. The lock records the props version, the MANIFEST sha256, the included prop ids
   and each skipped anchored prop with its reason ("anchor not in draw").
 - **Anchors-first smoke.** For a run that should hit every anchored needle, a committed
-  smoke config draws exactly `build/anchor_ids.txt` through the existing id-list
-  selection, so every anchored prop rides along.
+  smoke config draws exactly `anchor_ids.txt`. No include-by-id draw exists today
+  (`DatasetSpec` has only `exclude_ids_file`), so this adds `dataset.include_ids_file`,
+  hashed only when set, like `interim_labels`.
 - **Hashing.** `props` enters the request hash only when set (the `interim_labels`
   pattern), so existing locks and their hashes don't change.
 - **Scoring separation.** Prop rows are classified and extracted like any other document,
   but their results go to their own `props` bucket. By default they are excluded from
   per-class and aggregate metrics, the experiment log's aggregates and the reports hub.
   A report may show the props bucket next to them, labeled as such.
-- **Mock mode.** `sandbox pilot --mock` can include props. Party and keyword signals
-  then depend on mock extraction, so the checker reports which signals were even
-  possible (see below) instead of calling them misses.
+- **Mock mode.** `sandbox pilot --mock` takes no `DatasetSpec` (it runs the fixture
+  manifest), so it gets its own `--props <version>` flag that appends the cluster
+  members to the fixture rows. Party and keyword signals then depend on mock extraction,
+  so the checker reports which signals were even possible (see below) instead of
+  calling them misses.
 
 ### 6. The needle checker
 
@@ -281,11 +288,13 @@ Clusters (fully synthetic):
 - **"Bridgeway flood"**: a property claim, the carrier's acknowledgment, a 30-day status
   reminder, an exhibit (damage inventory with photos listed), a coverage-position letter
   and counsel's demand. It tests chains and temporal proximity.
-- **"Northwind / HarborPoint MSA"**: extends the existing fixture world. The fixture
-  demand letter's text becomes a cluster member, followed by HarborPoint's response, a
-  payment-plan memo quoting invoices 100241, 100287 and 100341, and a final notice of
-  termination. It's the local smoke favorite because the world already appears in
-  `data/fixtures/`.
+- **"Northwind / HarborPoint MSA"**: extends the existing fixture world without copying
+  it. The cluster has its own earlier first-notice letter (a new text, never a byte copy
+  of `data/fixtures/correspondence/sample_demand_letter.txt`, so no two documents share
+  a `content_sha256`), then HarborPoint's response, a payment-plan memo quoting invoices
+  100241, 100287 and 100341, and a final notice of termination. In a `--mock` pilot the
+  fixture demand letter is also present and will likely link to the cluster. The
+  checker lists such edges as "incidental" and doesn't score them.
 - **"Quiet attachment"**: a two-line transmittal email plus an attached invoice ledger
   that shares only invoice numbers and a party name, and a decoy ledger from a different
   vendor. It is the hardest needle in the set.
@@ -295,7 +304,11 @@ Clusters (fully synthetic):
 - The set version lives in `props.yaml`: adding props or editing a body is a minor bump
   (`1.0` → `1.1`); removing a prop or changing an anchor is a major bump. A `prop_id` is
   never reused. The README changelog records every bump.
-- Run locks pin the version and MANIFEST sha256, so a frozen experiment keeps its props.
+- Each released version keeps its own build directory, `data/props/build/<version>/`,
+  and `config/props.yaml` pins every version to its MANIFEST sha256, mirroring
+  `config/staged_overlays.yaml`. Run locks pin the version and sha256; a mismatch
+  refuses to run. Runs always read the committed build, before and after v10; the Hub
+  configs are a publication of it, not a second source (designer's call).
 - Adding a prop: create a directory, write the spec and body, run
   `build_relations_props.py`, run `--verify-anchors` if it anchors to Hub rows, commit
   the spec, body and rebuilt `build/`. CI's `--check` refuses anything else.
