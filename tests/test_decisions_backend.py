@@ -257,6 +257,19 @@ def test_zero_output_tokens_are_still_recorded():
     assert summary["prompt_tokens"] == 1234 and summary["calls"] == 1
 
 
+@pytest.mark.parametrize("bad", [float("inf"), float("nan"), "text"], ids=["inf", "nan", "text"])
+def test_an_unreadable_decisions_token_count_is_recorded_as_zero_not_raised(bad):
+    """``after_call`` has already priced this reply (at least its reservation) by the time it is recorded.
+
+    Raising here would fail a document whose answer arrived, and its retry would bill the call again."""
+    from pipeline.limits import reset_run_usage, usage_summary
+
+    reset_run_usage()
+    db._record_usage(DECISIONS, {"input_tokens": bad, "output_tokens": 7})
+    summary = usage_summary()
+    assert summary["prompt_tokens"] == 0 and summary["completion_tokens"] == 7 and summary["calls"] == 1
+
+
 def test_marker_subclass_takes_the_first_marker_in_order():
     block = db.load_question_set("reviewer_decisions_v2")["subclass"]["correspondence"]
     answers = {"marker__correspondence__notice": {"noul": 0.9}, "marker__correspondence__demand": {"noul": 0.7},

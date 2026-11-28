@@ -773,7 +773,7 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         pass
 
 
-def _priced_decision_reply(resp: Any, held: float) -> Any:
+def _priced_decision_reply(resp: Any, held: float, model: Any = None) -> Any:
     """A Decisions 200's body, priced once: held on the cap until ``after_call`` prices its usage.
 
     A 200 whose body cannot be read was still answered, so it is charged at its reservation. It is not
@@ -788,11 +788,12 @@ def _priced_decision_reply(resp: Any, held: float) -> Any:
         call_guard.settle(held, billed=True)
         raise
     # The reply stays on the cap until after_call prices it, on this thread, next.
-    hold = call_guard.settle(held, billed=False, await_price=True)
+    hold = call_guard.settle(held, billed=False, await_price=True, model=model)
     # The single live charge for this HTTP response. HF-004 also prices ``record_usage``;
     # ``_record_usage`` uses the unwrapped accumulator so the same response is not charged
     # again. A payload with no usage keys still takes one ceiling slot.
-    call_guard.after_call(usage, hold=hold)  # this reply's own hold, not a concurrent call's
+    # Priced at the request's own model (an unpriced one falls back to the run's dearest).
+    call_guard.after_call(usage, model, hold=hold)  # this reply's own hold, not a concurrent call's
     return data
 
 
@@ -862,7 +863,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             raise
         else:
             if resp.status_code == 200:
-                return _priced_decision_reply(resp, held)
+                return _priced_decision_reply(resp, held, body.get("model"))
             # A 5xx is charged as the reservation drops; a 4xx is released.
             call_guard.settle(held, billed=resp.status_code >= 500)
             call_guard.note_failed_attempt()
@@ -1216,11 +1217,14 @@ def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_
     # The unwrapped accumulator does not see HF-004, so the provider cost is noted here.
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
+    from mailroom_sandbox.job.call_guard import token_count
     from mailroom_sandbox.job.usage_capture import note_provider_call
 
+    # An unreadable count (inf, nan, text) reads as 0, as on the cap: ``after_call`` has already charged
+    # this reply, and raising here would fail a document whose answer arrived, so a retry billed it twice.
     counted: dict[str, Any] = {
-        "prompt_tokens": int(usage.get("input_tokens") or 0),
-        "completion_tokens": int(usage.get("output_tokens") or 0),
+        "prompt_tokens": token_count(usage.get("input_tokens")),
+        "completion_tokens": token_count(usage.get("output_tokens")),
         "cost": usage.get("cost"),
     }
     # The accumulator only wants prompt and completion. Cache fields stay on the note so a
