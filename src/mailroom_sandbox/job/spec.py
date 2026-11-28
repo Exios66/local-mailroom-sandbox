@@ -1243,9 +1243,11 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes", "trans
 # keep_best_attempt (llm-mailroom #254, ships false): the report and review handoff use the
 # best-judged extraction attempt instead of the latest; routing never reads it (Phase 5 part 1,
 # docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md).
+# caveat_acceptance_parks (HF-034): an arbiter accept_with_caveats parks for human review instead
+# of archiving, for a class whose self-reported confidence does not separate good from bad.
 _THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
                    "judge_clears_low_confidence", "judge_exhausted_to_arbiter", "arbiter_full_source",
-                   "keep_best_attempt")
+                   "keep_best_attempt", "caveat_acceptance_parks")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:

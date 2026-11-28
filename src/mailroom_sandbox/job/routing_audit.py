@@ -69,7 +69,7 @@ def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> di
 # hotfixes inert).
 OVERLAY_RETRY_KEYS = ("retry_max", "arbiter_retry_max", "judge_max_passes",
                       "transient_retry_max", "judge_exhausted_to_arbiter", "arbiter_full_source",
-                      "arbiter_full_source_min_confidence")
+                      "arbiter_full_source_min_confidence", "caveat_acceptance_parks")
 
 
 def legacy_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -93,7 +93,25 @@ def legacy_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> dict[
             block[key] = before[key]
         else:
             block.pop(key, None)
+    # HF-034 is set per class. A later overlay must not park an old lock's caveat acceptances.
+    # Top-level ``explicit`` already kept the key above.
+    _restore_class_key(block, explicit, before, "caveat_acceptance_parks")
     return block
+
+
+def _restore_class_key(block: dict[str, Any], explicit: Mapping[str, Any],
+                       before: Mapping[str, Any], key: str) -> None:
+    """Drop ``key`` from each class the run did not set, unless the pre-overlay config had it."""
+    explicit_by = explicit.get("by_class") or {}
+    before_by = before.get("by_class") or {}
+    for cls, vals in (block.get("by_class") or {}).items():
+        if not isinstance(vals, dict) or key in (explicit_by.get(cls) or {}):
+            continue
+        prior = before_by.get(cls) or {}
+        if isinstance(prior, Mapping) and key in prior:
+            vals[key] = prior[key]
+        else:
+            vals.pop(key, None)
 
 
 def _unknown_unless_explicit(block: Mapping[str, Any], explicit: Mapping[str, Any], key: str) -> dict[str, Any]:
@@ -356,7 +374,7 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
                                                      "judge_max_passes", "judge_rejudge_retry", "retry_max",
                                                      "transient_retry_max", "judge_exhausted_to_arbiter",
                                                      "arbiter_full_source", "arbiter_full_source_min_confidence",
-                                                     "keep_best_attempt")},
+                                                     "keep_best_attempt", "caveat_acceptance_parks")},
         "fires": {k: nodes.get(k, 0) for k in ("retry_classify", "judge_verify", "arbiter", "retry_extract")},
         "judged_docs": len(judged),
         "review_docs": sum(1 for d in docs if d["stage"] == "review"),
