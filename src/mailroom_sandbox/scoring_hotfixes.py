@@ -1108,6 +1108,23 @@ def _token(value: Any) -> str:
     return str(value or "").strip().casefold()
 
 
+def _derived_moves(cls: str, hub: str, new: str, truth: Mapping[str, Any]) -> dict[str, list[Any]]:
+    """SHF-013: ``{field: [hub_value, corrected_value]}`` for one class's derived truth fields."""
+    moved: dict[str, list[Any]] = {}
+    if cls == "corporate_record":
+        before, after = CORPORATE_SUBCLASS_TRUTH.get(hub), CORPORATE_SUBCLASS_TRUTH.get(new)
+        pairs = zip(("record_type", "intent"), before, after, strict=True) if before and after else ()
+        for field, old, value in pairs:
+            if old != value and _token(truth.get(field)) == old:
+                moved[field] = [truth.get(field), value]
+    elif cls == "contract" and "cuad_family" in truth and _token(truth.get("cuad_family")) == hub:
+        moved["cuad_family"] = [truth.get("cuad_family"), new]
+    elif cls == "merger_agreement" and new in MERGER_CONSIDERATION_SUBCLASSES \
+            and _token(truth.get("merger_consideration")) in ("", hub):
+        moved["merger_consideration"] = [truth.get("merger_consideration"), new]
+    return moved
+
+
 def corrected_derived_truth(doc_class: Any, hub_subclass: Any, corrected: Any,
                             expected: Mapping[str, Any] | None) -> tuple[dict[str, Any], dict[str, list[Any]]]:
     """SHF-013: ``(expected, moved)`` with the subclass-derived truth following a reviewed correction.
@@ -1130,22 +1147,9 @@ def corrected_derived_truth(doc_class: Any, hub_subclass: Any, corrected: Any,
     out = dict(expected or {})
     cls = str(doc_class or "")
     hub, new = _subclass_token(cls, hub_subclass), _subclass_token(cls, corrected)
-    moved: dict[str, list[Any]] = {}
     if not new or hub == new:
-        return out, moved
-    if cls == "corporate_record":
-        before, after = CORPORATE_SUBCLASS_TRUTH.get(hub), CORPORATE_SUBCLASS_TRUTH.get(new)
-        if before and after:
-            for field, old, value in zip(("record_type", "intent"), before, after, strict=True):
-                if old != value and _token(out.get(field)) == old:
-                    moved[field] = [out.get(field), value]
-    elif cls == "contract":
-        if "cuad_family" in out and _token(out.get("cuad_family")) == hub:
-            moved["cuad_family"] = [out.get("cuad_family"), new]
-    elif cls == "merger_agreement" and new in MERGER_CONSIDERATION_SUBCLASSES:
-        current = _token(out.get("merger_consideration"))
-        if current in ("", hub):
-            moved["merger_consideration"] = [out.get("merger_consideration"), new]
+        return out, {}
+    moved = _derived_moves(cls, hub, new, out)
     for field, (_, value) in moved.items():
         out[field] = value
     if moved and "gt_presence" in out:

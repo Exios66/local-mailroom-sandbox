@@ -1238,6 +1238,24 @@ def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> d
     )
 
 
+def _truth_policy_record(scored: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The headline truth changes of one scored row, for its ``items.jsonl`` record.
+
+    SHF-015 ``stale_hub_labels`` (dropped Hub labels, by field and reason), SHF-019 ``header_unseen``
+    (correspondence header fields left off the headline) and SHF-013 ``subclass_derived_truth``
+    (derived truth that followed a reviewed subclass correction). A key is absent when nothing moved.
+    """
+    scored = scored or {}
+    out: dict[str, Any] = {}
+    if scored.get("stale_hub_labels"):
+        out["stale_hub_labels"] = dict(scored["stale_hub_labels"])
+    if scored.get("header_unseen"):
+        out["header_unseen"] = list(scored["header_unseen"])
+    if scored.get("subclass_derived_truth"):
+        out["subclass_derived_truth"] = {k: list(v) for k, v in scored["subclass_derived_truth"].items()}
+    return out
+
+
 def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
                         scored: Mapping[str, Any] | None) -> dict[str, Any]:
     """The per-document ``score`` a pipeline run persists in ``items.jsonl``.
@@ -1271,9 +1289,7 @@ def pipeline_item_score(row: Mapping[str, Any], result: Mapping[str, Any],
     # and the fixes that moved this document's scores, so a report can show both sides per item.
     # SHF-015: the Hub labels dropped as stale, by field and reason, so items.jsonl says which
     # fields the headline did not score (absent when none were dropped).
-    stale = (scored or {}).get("stale_hub_labels")
-    if stale:
-        score["stale_hub_labels"] = dict(stale)
+    score.update(_truth_policy_record(scored))
     raw_side = {k: v for k, v in ((scored or {}).get("raw_dojo") or {}).items()
                 if isinstance(v, (int, float)) and not isinstance(v, bool)}
     if raw_side:

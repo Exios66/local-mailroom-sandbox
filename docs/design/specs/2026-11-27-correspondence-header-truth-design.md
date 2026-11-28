@@ -13,8 +13,10 @@ contain, until the dataset restores those headers. Keep the full truth visible n
 The cleaned corpus text dropped the Enron email header from many messages. The interim overlay then
 restored the header values as truth from the original CMU maildir (`basis: original_header`,
 [interim README](../../../data/labels/interim/README.md)). The truth is correct about the message,
-but the model reads only `doc_text`, so it cannot produce those values. Every such field is a
-predictable miss that says nothing about the model.
+but the model reads only `doc_text`, so where the text does not show a header value (no quoted
+reply, signature or body mention) the model cannot produce it. Every such field is a predictable
+miss that says nothing about the model; the [measurement](#measurement) counts how many of the
+header-only cells that is.
 
 | Field | Header-only truth cells | dev | calibration | heldout | pool |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -45,7 +47,7 @@ salutation as the recipient, and no date.
 | **A. Scoring hotfix (proposed)** | On the hotfixed headline, a correspondence field whose only truth is an `original_header` label, and whose quoted header lines are not in `doc_text`, is left out of truth and prediction and named under `header_unseen`. The raw score (`raw_dojo`) keeps it. | Small sandbox change, dual-reported, retires itself (below). | Recommended until B ships |
 | B. Restore the headers in the corpus | The next dataset release writes the header lines back into `doc_text` (already planned in the rc.10 manifest). | Upstream release; nothing to do here. | The real fix; A retires on it |
 | C. Relabel from the visible text | Replace the header values with what the top message shows. | Throws away correct truth that B makes scoreable again. | Rejected |
-| D. Do nothing | Keep scoring the 1,795 unseeable cells. | Correspondence entity scores stay depressed by a dataset defect. | Rejected |
+| D. Do nothing | Keep scoring the 1,795 header-only truth cells, including the 1,470 the text does not show (rc.9). | Correspondence entity scores stay depressed by a dataset defect. | Rejected |
 
 ## Option A in detail
 

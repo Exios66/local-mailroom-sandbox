@@ -352,6 +352,18 @@ def test_shf013_derived_corporate_truth_follows_the_reviewed_subclass():
     assert "SHF-013" in out["scoring_hotfixes"]
 
 
+def test_shf013_a_pipeline_item_records_the_derived_truth_that_moved():
+    from mailroom_sandbox.eval import runners
+
+    scored = {"overall_extraction_score": 1.0,
+              "subclass_derived_truth": {"record_type": ["other", "articles_of_incorporation"]}}
+    item = runners.pipeline_item_score({"id": CORP, "expected_doc_class": "corporate_record"},
+                                       {"doc_type": "corporate_record", "stage": "archived"}, scored)
+    assert item["subclass_derived_truth"] == {"record_type": ["other", "articles_of_incorporation"]}
+    assert "subclass_derived_truth" not in runners.pipeline_item_score(
+        {"id": CORP, "expected_doc_class": "corporate_record"}, {"doc_type": "corporate_record"}, None)
+
+
 def test_shf013_keeps_a_derived_value_an_overlay_or_review_set():
     fixed, moved = sh.corrected_derived_truth("corporate_record", "board_resolution", "charter_amendment",
                                               _corp_truth(record_type="bylaws"))

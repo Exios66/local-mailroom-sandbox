@@ -75,6 +75,19 @@ def test_shf019_unseen_header_truth_leaves_the_headline_and_stays_raw():
     assert "overall_extraction_score" in scored["scoring_hotfixes_changed"]
 
 
+def test_shf019_a_pipeline_item_records_the_header_fields_it_left_off():
+    """items.jsonl (and ``sandbox rescore``) names the dropped fields; a clean row carries no key."""
+    row, result = _row(), {"doc_type": "correspondence", "stage": "archived",
+                           "extracted_data": {"intent": "information_sharing"}}
+    item = runners.pipeline_item_score(row, result, runners._score_pipeline_extraction(row, result))
+    assert item["header_unseen"] == sorted(HEADER)
+    shown = _row(text=BODY + "\nFrom: Jeff Dasovich\nTo: Joseph Alamo\nDate: 2000-11-03\n"
+                 "Cc: Sandra McCubbin, James D Steffes, Mary Hain, Paul Kaufman, Karen Denne")
+    clean = runners.pipeline_item_score(shown, result, runners._score_pipeline_extraction(shown, result))
+    assert "header_unseen" not in clean
+    assert "header_unseen" not in runners.pipeline_item_score(row, result, None)
+
+
 def test_shf019_drops_the_prediction_of_an_unseen_field_too():
     # A guessed value for a dropped field is no scoring event: never a false positive or a hit.
     scored = _score(_row(), {"intent": "information_sharing", "sender": "Someone Else"})

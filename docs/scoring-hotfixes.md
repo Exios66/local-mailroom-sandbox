@@ -426,8 +426,10 @@ near-gold wins (SHF-010); 1,763 reviewed `original_header` fills differ and win.
 near-gold read the field as absent, because the corpus text lost the email header the fill quotes;
 in the other 71 it read a sign-off or the person a reply addresses. The header value is right, but
 the model sees only the text, so those correspondence `sender` / `recipient` /
-`additional_recipients` / `communication_date` fields are scored against values not in its input
-until the dataset restores the headers. No precedence violation.
+`additional_recipients` / `communication_date` fields are scored in `raw_dojo` against values not
+in its input. On the headline, SHF-019 leaves a field whose header the text does not show out of
+truth and prediction and names it under `header_unseen`, until the dataset restores the headers.
+No precedence violation.
 
 Hub labels are not all right, so a conflict with one is evaluated, and the clear winner is the
 truth. An overlay replaces a Hub value only as an interim `correction`: a reviewed read of the
