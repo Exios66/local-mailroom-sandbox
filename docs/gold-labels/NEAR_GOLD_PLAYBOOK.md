@@ -219,6 +219,22 @@ and the sources computed from it count for nothing; `cuad_span`, `interim_gate` 
 `generated_rule` still count. A reviewed absence over a populated value, and independent evidence
 that beats a reviewed label, go to `needs_human.csv` instead of being settled silently.
 
+### Rebuild the subclass registry
+
+The subclass registry records the sha256 of the near-gold overlay and of `LABELING_GUIDE.md`.
+After any catalog admission or any edit to the guide, rebuild both registry files and commit them
+with the change, or hosted `test_subclass_schemas.py` fails:
+
+```bash
+.venv/bin/sandbox schemas build                       # config/extraction/subclass_schemas.json
+.venv/bin/python scripts/build_subclass_fields.py     # config/extraction/subclass_extraction_fields.json
+.venv/bin/sandbox schemas build --check && .venv/bin/python scripts/build_subclass_fields.py --check
+```
+
+A rebuild changes `subclass_fields_sha256`, so run locks written against the old registry refuse
+to resume. Say so in the PR (Critical regressions row 9). When two open branches both touch the
+catalog or the guide, the one that lands second rebuilds the registry again after merging.
+
 ### Stage and pin a cut
 
 `scripts/stage_label_overlay.py` writes the next `9.3.1-rc.N` into a mailroom-issues checkout from
@@ -249,6 +265,8 @@ runbook together. Existing run locks keep their cut, and a resume over a changed
       release's own outputs.
 - [ ] The release rebuild reproduces the committed outputs, and no protected value moved
       without a reason in the PR.
+- [ ] The subclass registry is rebuilt (`sandbox schemas build --check` and
+      `build_subclass_fields.py --check` pass) after any catalog or `LABELING_GUIDE.md` change.
 - [ ] Focused tests pass with `-n 0 --no-cov`: `tests/test_gold_labels*.py`,
       `tests/test_label_eda.py`, the release-builder and staged-overlay tests your change
       touches.

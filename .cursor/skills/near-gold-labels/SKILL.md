@@ -79,16 +79,20 @@ Pull the exact open cells:
    `.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py --out <new dir>`.
    Replace the committed outputs. `summary.json` `values_moved_by_reviewed_precedence` must be
    empty or explained.
-2. **Re-measure:** `label_eda.py summary` and `focus` on the new release; quote the gain in the
+2. **Rebuild the subclass registry** after any catalog admission or `LABELING_GUIDE.md` edit:
+   `.venv/bin/sandbox schemas build` and `.venv/bin/python scripts/build_subclass_fields.py`.
+   Both record the overlay and guide sha256; a stale registry fails hosted
+   `test_subclass_schemas.py`.
+3. **Re-measure:** `label_eda.py summary` and `focus` on the new release; quote the gain in the
    PR.
-3. **PR** with the template, Critical regressions filled, and focused tests
+4. **PR** with the template, Critical regressions filled, and focused tests
    (`-n 0 --no-cov` on `tests/test_gold_labels*.py`, `tests/test_label_eda.py` and the
    release-builder and staging tests touched). Hosted CircleCI must be green.
-4. **Stage a cut** only when the owner asks: `scripts/stage_label_overlay.py` into a
+5. **Stage a cut** only when the owner asks: `scripts/stage_label_overlay.py` into a
    mailroom-issues checkout, a new pin entry in `config/staged_overlays.yaml` (never edit an
    existing one), then `scripts/pull_staged_overlay.py --version 9.3.1-rc.N --root <scratch>` to
    verify.
-5. **Advance slices** in a separate PR, only after the cut's commit is on mailroom-issues main
+6. **Advance slices** in a separate PR, only after the cut's commit is on mailroom-issues main
    by a merge commit.
 
 ## Rules that bite
