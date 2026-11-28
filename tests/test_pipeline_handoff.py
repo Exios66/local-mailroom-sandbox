@@ -128,6 +128,30 @@ class _AttributeRecorder:
         return {"parties": ["A", "B"]}
 
 
+class _ChunkedAttributeRecorder(_AttributeRecorder):
+    """LangChain extract_chunked: no handoff keyword, the attribute set before the call."""
+
+    def extract_chunked(self, doc_text, chunk_chars, overlap_chars):
+        _ChunkedAttributeRecorder.seen.append(self.handoff_context)
+        return {"parties": ["A", "B"], "windows": chunk_chars}
+
+
+def test_a_chunked_langchain_specialist_reads_the_handoff_from_its_attribute(monkeypatch):
+    """extract_chunked used to get the keyword and raise, before the attribute was set."""
+    import sys
+    import types
+
+    module = types.ModuleType("fake_chunked_specialist")
+    module.Fake = _ChunkedAttributeRecorder
+    monkeypatch.setitem(sys.modules, "fake_chunked_specialist", module)
+    monkeypatch.setitem(agents.LIVE_CLASS_MAP, "contracts_specialist", ("fake_chunked_specialist", "Fake"))
+    monkeypatch.setattr(runtime, "agent_knobs_for", lambda agent: {"chunk_chars": 4_000})
+    _ChunkedAttributeRecorder.seen = []
+    assert agents._extract_live("contracts_specialist", {"id": "d0", "doc_text": "LICENSE AGREEMENT"},
+                                "Sorter classification: doc_type=contract")["parties"] == ["A", "B"]
+    assert _ChunkedAttributeRecorder.seen == ["Sorter classification: doc_type=contract"]
+
+
 def test_a_langchain_specialist_reads_the_handoff_from_its_attribute(monkeypatch):
     """ab-contracts-condensed-rc11 failed all 30 rows: extract() got an unexpected 'handoff_context'."""
     import sys

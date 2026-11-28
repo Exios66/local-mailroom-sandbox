@@ -301,6 +301,24 @@ def _api_whole_document(specialist: Any, text: str, knobs: Mapping[str, Any]) ->
     return True
 
 
+def _handoff_kwargs(specialist: Any, method: Any, handoff_context: str | None) -> dict[str, Any]:
+    """How ``method`` receives a pipeline handoff.
+
+    Native specialists take ``handoff_context`` as a keyword. The LangChain specialists (contracts,
+    merger) reject it and read ``specialist.handoff_context``, which the graph sets before either
+    ``extract`` or ``extract_chunked``. Passing the keyword to a method that does not declare it
+    raises ``TypeError`` before any model call.
+    """
+    if not handoff_context:
+        return {}
+    import inspect
+
+    if "handoff_context" in inspect.signature(method).parameters:
+        return {"handoff_context": handoff_context}
+    specialist.handoff_context = handoff_context
+    return {}
+
+
 def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) -> dict[str, Any]:
     module_name, cls_name = LIVE_CLASS_MAP[agent]
     import importlib
@@ -318,17 +336,11 @@ def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) 
     if knobs.get("chunk_chars") and not whole and hasattr(specialist, "extract_chunked"):
         budget = int(knobs.get("max_input_chars") or getattr(specialist, "_max_input_chars", 90_000))
         window, overlap = chunk_window(budget, int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000))
-        return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap,
-                                          **({"handoff_context": handoff_context} if handoff_context else {}))
-    if handoff_context:
-        import inspect
-
-        if "handoff_context" in inspect.signature(specialist.extract).parameters:
-            return specialist.extract(_doc_text(row), handoff_context=handoff_context)
-        # The LangChain specialists (contracts, merger) read the handoff from an attribute, as the
-        # graph's _instantiate_specialist sets it.
-        specialist.handoff_context = handoff_context
-    return specialist.extract(_doc_text(row))
+        # LangChain extract_chunked (contracts, merger) rejects the keyword and reads the attribute.
+        return specialist.extract_chunked(
+            _doc_text(row), chunk_chars=window, overlap_chars=overlap,
+            **_handoff_kwargs(specialist, specialist.extract_chunked, handoff_context))
+    return specialist.extract(_doc_text(row), **_handoff_kwargs(specialist, specialist.extract, handoff_context))
 
 
 def _live_judge(row: dict[str, Any]) -> dict[str, Any]:
