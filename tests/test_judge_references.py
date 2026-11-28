@@ -72,6 +72,33 @@ def test_the_pool_follows_the_scorers_truth_precedence():
     assert fields["term_length"]["source"] == "interim"  # a field only interim labels gives a value
 
 
+def test_a_reviewed_subclass_correction_replaces_the_hub_subclass():
+    """A pool row carries the scorer's subclass: SHF-013's reviewed correction, else the Hub one."""
+    def corrected(doc_id, doc_class, subclass):
+        return "Lease" if (doc_id, doc_class, subclass) == ("C-1", "contract", "Service") else subclass
+
+    near_gold = [_overlay("C-1", {"governing_law": _ng("Delaware")}), _overlay("C-2", {"parties": _ng(["A Ltd"])})]
+    pool = {r["doc_id"]: r for r in jr.build_pool(ASSIGN, [], near_gold, subclass_of=corrected)}
+    assert pool["C-1"]["subclass"] == "Lease" and pool["C-2"]["subclass"] == "Service"
+    assert [e["doc_id"] for e in jr.examples(list(pool.values()), "contract", "Lease", k=2, max_chars=3000)] == ["C-1"]
+
+
+def test_the_committed_pool_uses_the_reviewed_subclass_corrections():
+    """Every pool row with an applicable SHF-013 correction carries the corrected subclass."""
+    from mailroom_sandbox.scoring_hotfixes import corrected_subclass, subclass_corrections
+
+    assignments = {row["id"]: row for row in jr._jsonl(jr.ASSIGNMENTS)}
+    corrections = subclass_corrections()
+    checked = 0
+    for row in jr.load_pool():
+        if row["doc_id"] not in corrections:
+            continue
+        hub = assignments[row["doc_id"]].get("subclass")
+        assert row["subclass"] == (corrected_subclass(row["doc_id"], row["doc_class"], hub) or hub)
+        checked += 1
+    assert checked >= 10
+
+
 def test_disputed_labels_are_left_out():
     c2 = next(r for r in _pool() if r["doc_id"] == "C-2")
     assert set(c2["fields"]) == {"parties"}  # the disputed interim label and a non-near-gold basis are not truth
