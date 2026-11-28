@@ -3,16 +3,16 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,408 labeled,
-5,200 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **87.5%** of per-class target fields (43,942 labeled,
+6,213 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
-The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,408 (89.2%)**. Each added or changed label was chosen by a consensus vote over
+The published v9.3 ground truth labels 24,812 of the 50,233 per-class target fields (49.4%). This
+release labels **43,942 (87.5%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
-These flat per-class counters are not scored-field coverage. They omit corporate subclass
-extension entities and include documented absences. The 2026-11-26 scope correction withdraws
+These flat per-class counters are not scored-field coverage. They include documented absences,
+and since 2026-11-28 each corporate document's subclass fields (below). The 2026-11-26 scope correction withdraws
 38 recent corporate annotations outside their subclass's applicable fields; four correspondence
 absences remain for hallucination checks and are not new populated extraction targets. Raw
 submissions and the preservation audit remain in
@@ -24,8 +24,8 @@ New corporate collection must follow the registered subclass schema and source e
 | File | Rows | Contents |
 | --- | ---: | --- |
 | `mailroom_dataset_v9.3_label_repaired.csv` | 3,302 | One row per document: identifiers, metadata, text statistics, a 280-character text preview, every label field, and per-row completeness counters. **The main analysis file.** |
-| `mailroom_dataset_v9.3_label_repaired_label_provenance.csv` | 48,752 | One row per document and target field (plus the 66 subclass changes): the chosen value, its presence code, the winning source, every source's vote, the agreement and the evidence quote. |
-| `mailroom_dataset_v9.3_label_repaired_field_completeness.csv` | 74 | Per class and field: how many documents are labeled in v9.3 and here, populated or documented absent, still unlabeled, disputed, and conflicts resolved. |
+| `mailroom_dataset_v9.3_label_repaired_label_provenance.csv` | 50,299 | One row per document and target field (plus the 66 subclass changes): the chosen value, its presence code, the winning source, every source's vote, the agreement and the evidence quote. |
+| `mailroom_dataset_v9.3_label_repaired_field_completeness.csv` | 104 | Per class and field: how many documents are labeled in v9.3 and here, populated or documented absent, still unlabeled, disputed, and conflicts resolved. |
 | `mailroom_dataset_v9.3_label_repaired_summary.json` | N/A | Totals, source weights, and the sha256 of every input file. |
 | `build_label_repaired.py` | N/A | The deterministic builder that wrote all of the above. |
 | `mailroom_dataset_v9.3_label_repaired_text.csv.gz` | 3,302 | Full document text (`document_id`, `doc_text`), about 26 MB. **Not committed.** Run the builder with `--with-text` to create it. |
@@ -55,13 +55,21 @@ df = df.merge(text, on="document_id", how="left")
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
 | `contract` | 600 | 17 | 0.0% | 66.7% |
-| `corporate_record` | 450 | 9 | 54.6% | 91.1% |
-| `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
+| `corporate_record` | 450 | 9 + subclass | 39.5% | 75.5% |
+| `merger_agreement` | 152 | 18 | 0.0% | 44.6% |
 
 The target fields of each class are the fields of the class's extraction schema in the vendored
 `llm-dojo-scoring`, leaving out the fields the schema marks `not_applicable`. Insurance
 `claim_checklist` is left out as well: it is not used in the experiments or in production, and no
 source labels it. Corporate `filing_number` is kept as an extra field. A field that belongs to another class is left blank.
+
+A corporate document is also targeted on the salient fields of its subclass in the label registry
+(`config/extraction/subclass_schemas.json`): an indenture on `trustee`, `guarantors`,
+`securities_series`, `principal_amount` and `maturity_date`, a bylaws document on
+`certifying_officer` and `last_amended_date`, and so on. The subclass is the Hub's, or a reviewed
+correction's. The Hub labels none of these fields; the near-gold catalog does, and without a target
+cell its labels never reached this release or the staged overlay production scores against (rc.10
+carried none). The 1,013 subclass cells no source labels yet are counted as unlabeled.
 
 ## Label sources and the consensus vote
 
@@ -88,12 +96,26 @@ review stands behind it:
 Values are compared field by field: tokens are normalized, lists are compared as unordered sets,
 dates in ISO form, "State of Ohio" equals "Ohio", and defined terms such as `("Seller")` are ignored
 in names. Every empty value counts as one candidate, "documented absence". The candidate with the
-most total weight wins, and a tie goes to the better-reviewed source. A short `cuad_span` phrase
+most total weight wins, and a tie goes to the better-reviewed source. A reviewed or near-gold
+label (`interim_reviewed`, `subclass_review`, `interim_correction`, `near_gold_reviewed`,
+`near_gold_two_pass`) is truth over the Hub: when one votes, the Hub and the sources computed from
+it (`hub_v9.3`, `interim_derived`, `generated_derived`) count for nothing (`rule:
+reviewed_over_hub`). An echo of the Hub never outvotes a label read and checked against the
+document, nor tips a contest between reviewed labels. Independent evidence (`cuad_span`,
+`generated_rule`, `interim_gate`) still counts. The summary's `values_moved_by_reviewed_precedence`
+counts the cells where the plain weighted vote would have chosen another value; on this build it is
+empty (every such conflict was already won by the reviewed label), and the rule marks 2,047 cells. A short `cuad_span` phrase
 that a longer label contains (the same numbers and most of the same words) counts as a vote for
 that label, and the label keeps its fuller wording. `agreement` records
 `unanimous`, `single_source` or `k-of-n`, and `weight_share` records the winner's share of the
-weight. A vote with three or more competing values whose winner holds under half of the weight is
-flagged `needs_human`; none occurred.
+weight. Two kinds of vote are flagged `needs_human`, which queues them for review without
+changing the value:
+
+- three or more competing values whose winner holds under half of the weight (none occurred);
+- under `reviewed_over_hub`, a reviewed absence that overrides a populated value, or independent
+  evidence that beats a reviewed label (23 cells, all reviewed absences).
+
+With the 78 disputed cells, 101 cells need a human.
 
 **Check against production truth (unverified in this README).** A prior local rebuild reported that
 the repository's scoring merge (`interim_labels.apply_overlay` then `gold_labels.apply_near_gold`)
@@ -233,6 +255,14 @@ Rebuilding those labels together with the 64 reviewed subclass corrections gives
 flat coverage of **43,408 / 48,686 (89.2%)**, while the direct merger inventory still
 has **2,310 missing opportunities on 152 documents**. Subclass representation does not imply
 complete field coverage. Neither batch changes the MAUD headline or constitutes rc.11.
+
+The 2026-11-28 corporate subclass admission adds **457 near-gold labels on 131 dev-split
+documents** (253 populated, 204 documented absences; 409 two-pass agreements and 48 reviewed
+disputes), see
+[`corporate-subclass-dev`](../../../data/labels/repair-artifacts/v93-20261128-corporate-subclass-dev/README.md).
+The overlay has **10,225 labels**. With the subclass target cells above, 534 of the catalog's 540
+corporate subclass labels reach this release (the other six belong to two documents whose reviewed
+subclass is no longer `board_resolution`). No previously targeted cell changes value or presence.
 
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.

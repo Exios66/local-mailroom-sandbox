@@ -133,3 +133,85 @@ def test_jsonl_split_keeps_unicode_line_separators_inside_records():
     body = src.split("def jsonl", 1)[1].split("\ndef ", 1)[0]
     assert '.split("\\n")' in body
     assert "decode(\"utf-8\").splitlines()" not in body
+
+
+def test_a_near_gold_label_beats_the_hub_and_its_derived_votes():
+    # The Hub value echoed by a Hub-derived and a generated source weighs 6.0 against 2.0, but
+    # a label read and checked against the document is truth over the Hub.
+    ballots = [
+        {"source": "hub_v9.3", "value": "Acme Corp"},
+        {"source": "interim_derived", "value": "Acme Corp"},
+        {"source": "generated_derived", "value": "Acme Corp"},
+        {"source": "near_gold_two_pass", "value": "Acme Holdings, Inc."},
+    ]
+    out = blr.vote("trustee", ballots)
+    assert out["value"] == "Acme Holdings, Inc."
+    assert out["chosen_source"] == "near_gold_two_pass"
+    assert out["rule"] == "reviewed_over_hub"
+    assert out["votes"]["hub_v9.3"] == "Acme Corp"  # the replaced Hub value stays on record
+    assert out["needs_human"] is False
+    assert out["moved_by_precedence"] is True
+
+
+def test_reviewed_labels_still_rank_among_themselves():
+    # The reviewed original header outranks a near-gold reading of the stripped text.
+    ballots = [
+        {"source": "interim_reviewed", "value": "Jeff Dasovich"},
+        {"source": "near_gold_two_pass", "value": "jd"},
+        {"source": "hub_v9.3", "value": "jd"},
+    ]
+    assert blr.vote("sender", ballots)["chosen_source"] == "interim_reviewed"
+
+
+def test_independent_evidence_still_counts_against_a_reviewed_label():
+    # A CUAD annotator's span and a verbatim rule match are not Hub echoes; only the Hub's own
+    # weight is set aside. Losing a reviewed label that way is queued for a human.
+    ballots = [
+        {"source": "hub_v9.3", "value": "2005-12-21"},
+        {"source": "cuad_span", "value": "2005-12-21"},
+        {"source": "generated_rule", "value": "2005-12-21"},
+        {"source": "near_gold_two_pass", "value": "2006-01-04"},
+    ]
+    out = blr.vote("agreement_date", ballots)
+    assert out["value"] == "2005-12-21"
+    assert out["needs_human"] is True
+    assert out["moved_by_precedence"] is False
+
+
+def test_a_reviewed_absence_over_a_populated_value_is_queued_for_a_human():
+    ballots = [{"source": "hub_v9.3", "value": "ACME INC"}, {"source": "interim_reviewed", "value": None}]
+    out = blr.vote("entity_name", ballots)
+    assert (out["value"], out["presence"]) == (None, "documented_absence")
+    assert out["needs_human"] is True
+
+
+def test_the_committed_summary_records_what_the_precedence_moved():
+    summary = json.loads((_BUILDER.parent / "mailroom_dataset_v9.3_label_repaired_summary.json").read_text(encoding="utf-8"))
+    assert summary["values_moved_by_reviewed_precedence"] == {}
+
+
+def test_without_a_reviewed_label_the_weighted_vote_is_unchanged():
+    ballots = [{"source": "hub_v9.3", "value": "A"}, {"source": "generated_rule", "value": "B"}]
+    out = blr.vote("trustee", ballots)
+    assert (out["value"], out["rule"]) == ("A", "weighted_vote")
+
+
+def test_corporate_subclasses_target_their_salient_fields():
+    # Without a target cell a near-gold subclass label never reaches the release, nor the staged
+    # overlay production scores against (rc.10 carried none of them).
+    fields = blr.subclass_fields(blr.InputSnapshot())
+    reg = json.loads(blr.SUBCLASS_REGISTRY.read_text(encoding="utf-8"))["classes"]["corporate_record"]["subclasses"]
+    assert set(fields) == {"corporate_record"}
+    assert fields["corporate_record"]["indenture"] == reg["indenture"]["salient"]
+    assert "trustee" in fields["corporate_record"]["indenture"]
+    assert all(fields["corporate_record"].values())
+
+
+def test_the_committed_release_holds_the_subclass_labels():
+    import csv
+
+    path = _BUILDER.parent / "mailroom_dataset_v9.3_label_repaired_label_provenance.csv"
+    with path.open(encoding="utf-8", newline="") as fh:
+        sources = {(r["field"], r["chosen_source"]) for r in csv.DictReader(fh) if r["doc_class"] == "corporate_record"}
+    assert ("trustee", "near_gold_two_pass") in sources
+    assert ("authorized_capital", "near_gold_two_pass") in sources

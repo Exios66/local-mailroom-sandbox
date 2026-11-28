@@ -47,7 +47,7 @@ Generated pages are never edited by hand: [`cli-reference.md`](cli-reference.md)
 | --- | --- |
 | [Named datasets](datasets/named-datasets.md) | Registry schema, paths, subset hashes, lock migration |
 | [Datasets](datasets/README.md) and [dataset card](datasets/mailroom-dataset.card.md) | The mailroom-dataset corpus |
-| [Staged label overlay](staged-label-overlay.md) | Production label overlay (rc.9 for slices; rc.10 near-gold staged) |
+| [Staged label overlay](staged-label-overlay.md) | Production label overlay (rc.10 for slices; rc.11 with corporate subclass fields staged) |
 | [Labeling guide](gold-labels/LABELING_GUIDE.md) | How gold labels are written |
 | [Pain-point composites](pain-point-composites.md) | Per-document and per-experiment pain-point scores |
 | [Decision model inputs](decision-model-inputs.md) | Decisions API reference, request formats, calibration splits |

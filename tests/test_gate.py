@@ -272,6 +272,18 @@ def test_labelled_count_scopes_and_drops_templated():
     assert gate.labelled_count(evidence, "contract") == 0  # the Dojo scores contracts on CUAD only
 
 
+def test_labelled_corporate_subclass_fields_count_as_the_dojo_scores_them():
+    # A subsidiary list with one core label and a labelled subsidiaries list is scored on both,
+    # so it is scorable; before, the count saw one label and called it unscorable.
+    fields = {"entity_name": "Acme", "subsidiaries": ["Acme Ltd", "Acme GmbH"], "trustee": "",
+              "registered_agent": None}
+    row = {"expected_doc_class": "corporate_record", "expected_fields": json.dumps(fields)}
+    assert gate.labelled_count(row, "corporate_record") == 2
+    assert gate.labelled_count(row, "corporate_record", hotfixed=False) == 2
+    assert {"trustee", "subsidiaries", "entity_name"} <= gate.scored_fields("corporate_record")
+    assert "trustee" not in gate.scored_fields("correspondence")
+
+
 def test_corpus_annotations_the_dojo_never_scores_are_not_labels(tmp_path):
     """A correspondence row whose only scored field is intent is unscorable, not a 4-label row."""
     annotated = {"intent": "update", "content_topic": "general_business", "sentiment_label": "neutral",
