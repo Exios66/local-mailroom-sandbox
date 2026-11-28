@@ -73,7 +73,7 @@ def test_slices_validate_and_share_settings():
         assert spec.job.mock is False
         # Production scores against the pinned staged v10 overlay (docs/staged-label-overlay.md),
         # which already merges the interim and near-gold layers.
-        assert spec.dataset.staged_overlay == "9.3.1-rc.10"
+        assert spec.dataset.staged_overlay == "9.3.1-rc.11"
         assert spec.dataset.interim_labels is False and spec.dataset.near_gold_labels is False
         assert spec.dataset.require_task_gt is True
         # Contracts without CUAD truth qualify on the gate's min_labelled field labels (SHF-016 scores them).
