@@ -8,6 +8,7 @@ Subcommands (all take the shared filters below; see docs/label-eda.md for recipe
   gaps       open (unlabeled or disputed) cells by class, subclass and field, most first
   focus      ranked work list: unscorable documents, gate gaps, suite gaps, the human queue
   rows       the cells themselves, with --evidence and --votes
+  queue      a gold_labels.py batch queue for exactly the open cells (--queue, --out)
   doc        everything about one document: cells, votes, near-gold and interim records
   catalog    raw near-gold catalog records (data/labels/gold)
   interim    raw interim overlay records (data/labels/interim)
@@ -18,7 +19,7 @@ production slice: slice-0100, slice-0250, slice-0500, slice-full; needs the cach
 --rule, --needs-human, --conflict.
 
 Output: --format table (default), json or csv; --limit caps the rows printed; --out writes the
-full result to a file instead of stdout.
+full result to a file instead of stdout, creating its directory.
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ from typing import Any, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mailroom_sandbox import label_eda as eda  # noqa: E402
+from mailroom_sandbox.staged_overlay import StagedOverlayError  # noqa: E402
 
 PRESENCE = ("populated", "documented_absence", "unlabeled", "disputed_unresolved")
 
@@ -80,6 +82,12 @@ def _short(v: Any, n: int = 70) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def _write(path: str, text: str) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+
+
 def _emit(result: Any, args: argparse.Namespace) -> None:
     limit = None if args.out else args.limit  # --out writes the full result
     if args.format == "json" or not isinstance(result, list):
@@ -97,7 +105,7 @@ def _emit(result: Any, args: argparse.Namespace) -> None:
     else:
         text = _table(result, limit)
     if args.out:
-        Path(args.out).write_text(text + "\n", encoding="utf-8")
+        _write(args.out, text + "\n")
         print(f"wrote {args.out}")
     else:
         print(text)
@@ -140,13 +148,23 @@ def cmd_focus(args, labels, flt):
     if args.ids_out:
         ids = sorted({d["doc_id"] for d in result["1_unscorable_docs"]}
                      | {c.doc_id for c in eda.select(labels, flt) if not c.labeled and c.tier == "gate"})
-        Path(args.ids_out).write_text("\n".join(ids) + "\n", encoding="utf-8")
+        _write(args.ids_out, "\n".join(ids) + "\n")
         result["ids_out"] = f"{len(ids)} document ids with open gate work written to {args.ids_out}"
     return result
 
 
 def cmd_rows(args, labels, flt):
     return [c.as_dict(evidence=args.evidence, votes=args.votes) for c in eda.select(labels, flt)]
+
+
+def cmd_queue(args, labels, flt):
+    """Narrow a full ``gold_labels.py queue`` to the open cells and write it as JSONL to ``--out``."""
+    full = [json.loads(line) for line in Path(args.queue).read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines, info = eda.narrow_queue(full, eda.select(labels, flt))
+    _write(args.out, "".join(json.dumps(q, ensure_ascii=False, sort_keys=True) + "\n" for q in lines))
+    print(f"wrote {info['docs']} queue lines ({info['fields']} open fields) to {args.out}", file=sys.stderr)
+    args.out = None  # the queue is written; print the summary instead of overwriting it
+    return info
 
 
 def cmd_doc(args, labels, flt):
@@ -172,10 +190,12 @@ def cmd_interim(args, labels, flt):
 # Filters that describe a merged release cell; a raw store record has none of them.
 _CELL_ONLY = (("tier", "--tier"), ("presence", "--presence"), ("source", "--source"), ("rule", "--rule"),
               ("needs_human", "--needs-human"), ("conflict", "--conflict"))
-_DICT_COMMANDS = frozenset({"summary", "focus", "doc"})
+_DICT_COMMANDS = frozenset({"summary", "focus", "doc", "queue"})
 
 
 def _usage_error(args) -> str | None:
+    if args.cmd == "queue" and not args.out:
+        return "queue writes JSONL: pass --out (for example data/runtime/gold/focus-queue.jsonl)"
     if args.format == "csv" and args.cmd in _DICT_COMMANDS:
         return f"{args.cmd} returns sections, not rows: use --format table or json"
     if args.cmd in ("catalog", "interim"):
@@ -223,6 +243,8 @@ def parser() -> argparse.ArgumentParser:
     r = sub.add_parser("rows", parents=[shared], help="the matching cells")
     r.add_argument("--evidence", action="store_true", help="include the winning evidence quotes")
     r.add_argument("--votes", action="store_true", help="include every source's vote")
+    q = sub.add_parser("queue", parents=[shared], help="a batch queue for exactly the open cells")
+    q.add_argument("--queue", required=True, help="full queue from scripts/gold_labels.py queue")
     d = sub.add_parser("doc", parents=[shared], help="one document's card")
     d.add_argument("doc_id")
     k = sub.add_parser("catalog", parents=[shared], help="near-gold catalog records")
@@ -232,7 +254,8 @@ def parser() -> argparse.ArgumentParser:
 
 
 COMMANDS = {"summary": cmd_summary, "coverage": cmd_coverage, "gaps": cmd_gaps, "focus": cmd_focus,
-            "rows": cmd_rows, "doc": cmd_doc, "catalog": cmd_catalog, "interim": cmd_interim}
+            "rows": cmd_rows, "queue": cmd_queue, "doc": cmd_doc, "catalog": cmd_catalog,
+            "interim": cmd_interim}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -245,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     labels = eda.load(release=args.release)
     try:
         flt = _filter(args)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, StagedOverlayError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:

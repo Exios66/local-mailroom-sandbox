@@ -1,0 +1,90 @@
+{
+ "campaign": "v93-20261128-contract-dispute-fable-votes",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "command": "scripts/gold_labels.py review --corpus <pinned corpus dir> --review review.jsonl",
+ "reviewer": {
+  "model": "claude-fable",
+  "role": "review"
+ },
+ "disputes": 84,
+ "raw_verdicts": {
+  "correct": 21,
+  "accept": 63
+ },
+ "admitted": {
+  "records": 83,
+  "verdicts": {
+   "accept": 65,
+   "correct": 18
+  },
+  "documented_absence": 0,
+  "fields": {
+   "party_roles": 20,
+   "territory": 3,
+   "payment_terms": 34,
+   "termination_notice_period": 14,
+   "expiration_date": 2,
+   "contract_value": 2,
+   "dispute_forum": 4,
+   "signatories": 2,
+   "agreement_date": 2
+  }
+ },
+ "gate_fallbacks": [
+  "DOC-3f4003eb02433292.party_roles",
+  "DOC-4fb6419e37bff201.party_roles"
+ ],
+ "held": [
+  "DOC-d87ca3f1c374b83a.party_roles"
+ ],
+ "artifacts": [
+  {
+   "path": "brief.md",
+   "role": "brief",
+   "admission_input": false,
+   "sha256": "5a7be32c1ecaca7bd3fec00d470968e57483c6c6c34502e0461a486cd26f0e95"
+  },
+  {
+   "path": "disputes.jsonl",
+   "role": "disputes",
+   "admission_input": false,
+   "sha256": "e8ad74c97f808a5a2a7dc75b388752fde5af4484914c5a2d258281a65446943d"
+  },
+  {
+   "path": "raw/vote-A-review.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "8bd71779c1308d86a3d0cc0a461ae918e39082d44246fed20e8177c859a96ba9"
+  },
+  {
+   "path": "raw/vote-B-review.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "ade02689710816a238247951ea1ea31faff8a28598e8d378a79307c401865c4f"
+  },
+  {
+   "path": "raw/vote-C-review.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "0eba64cf2127e74a843f2f66c3f261bd7b7c9bc5001504a75e51c815f6d7d53d"
+  },
+  {
+   "path": "raw/vote-D-review.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "0df9f9d94ca1a6400707c21892256b6ba1255172c245be96fa050b96e84ed292"
+  },
+  {
+   "path": "review.jsonl",
+   "role": "review",
+   "admission_input": true,
+   "sha256": "a7718a7fc78ce4f25a97341c2f7671f4df38982e0110e0908ad8e323d02973ef"
+  },
+  {
+   "path": "held_for_owner.jsonl",
+   "role": "held",
+   "admission_input": false,
+   "sha256": "11ff74575e5c18087328411946d559b9a566eb013334e292c7fd34a89215780c"
+  }
+ ]
+}

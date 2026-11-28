@@ -1350,6 +1350,207 @@ def _install_duplicate_link(module: Any, original: Callable[..., Any]) -> Callab
     return _detect_conflict
 
 
+#: The sentence the vendored handoff uses to tell a specialist to follow the sorter.
+_HANDOFF_FOLLOW = ("Extract this document's fields accordingly, ensuring every expected item of "
+                   "this document class is captured.")
+#: Replaces that sentence. The sorter line stays, as unverified context the specialist may correct.
+_HANDOFF_CORRECTION = (
+    "The sorter classification above is unverified. If this document is not that doc_type, do not "
+    "extract it: set confidence to 0, leave this class's fields null, and set reasoning to "
+    "\"specialist_handoff_refusal\". A confidence of 0 without that reasoning means no fields were "
+    "found, and it is not a refusal. If the subclass, type token, or clause family disagrees with "
+    "the document, extract the document's own values and do not copy the sorter's label."
+)
+#: The contract inventory still says the CUAD family matches the sorter. The check replaces that clause.
+_FAMILY_FOLLOW = "matching the sorter subtype."
+_FAMILY_CHECK = "read from the document; do not copy the sorter subtype when it disagrees."
+#: On ``extraction_guardrail`` when a specialist answers 0. Routing reads it and does not call again.
+HANDOFF_REFUSAL = "specialist_handoff_refusal"
+_HANDOFF_RULE = "hf028_specialist_handoff_refusal"
+# Type tokens a specialist left empty. Enrichment must not fill these from the sorter subclass.
+_TYPE_FIELDS = ("record_type", "communication_type", "claim_type", "cuad_family")
+
+
+def _explicit_zero(value: Any) -> bool:
+    """True for a numeric 0 the specialist stated. ``False`` and ``None`` are not that number."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
+
+
+def _reasoning_has_refusal(reasoning: Any) -> bool:
+    """True when the specialist named the handoff refusal in ``reasoning``."""
+    if isinstance(reasoning, str):
+        return HANDOFF_REFUSAL in reasoning
+    if isinstance(reasoning, Mapping):
+        return any(_reasoning_has_refusal(value) for value in reasoning.values())
+    if isinstance(reasoning, (list, tuple)):
+        return any(_reasoning_has_refusal(value) for value in reasoning)
+    return False
+
+
+def _mark_handoff_refusal(out: Any) -> Any:
+    """Mark an explicit wrong-class refusal. A confidence of 0 with no such mark is unchanged.
+
+    Production prompts use 0 for "no fields found". That answer keeps the retry and the judge.
+    A parse exception and a missing specialist also store 0, and they keep their own route.
+    Only a specialist that set ``reasoning`` to the refusal token is not called again.
+    """
+    if not isinstance(out, dict) or out.get("transient_error") or not _explicit_zero(out.get("extraction_confidence")):
+        return out
+    data = out.get("extracted_data")
+    if not isinstance(data, dict) or data.get("_parse_error") or data.get("_exception") or data.get("_unsupported"):
+        return out
+    if not _reasoning_has_refusal(data.get("reasoning")):
+        return out
+    issues = [str(item) for item in (out.get("extraction_guardrail") or [])]
+    if HANDOFF_REFUSAL not in issues:
+        issues.append(HANDOFF_REFUSAL)
+    note = "specialist refused the sorter handoff (confidence 0) and is not called again"
+    reason = str(out.get("escalation_reason") or "")
+    if note not in reason:
+        reason = f"{reason}; {note}" if reason else note
+    return {**out, "extraction_guardrail": issues, "escalation_reason": reason}
+
+
+def _register_handoff_refusal_rules() -> None:
+    """An explicit handoff refusal goes to a person, not back to the same specialist.
+
+    Registered first. It returns a destination only for that refusal, so every other proposed
+    route, including HF-011 and HF-014, is unchanged. Idempotent: a rule already first on its
+    node is left there.
+    """
+    from graph import route_spec
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "retry_extract" or state.get("transient_error"):
+            return None
+        issues = state.get("extraction_guardrail") or ()
+        return "human_review" if HANDOFF_REFUSAL in issues else None
+
+    for node in ("extract", "retry_extract"):
+        current = route_spec.route_rules(node)
+        mine = next((rule for rule in current if rule.name == _HANDOFF_RULE), None)
+        if mine is not None and current and current[0] is mine:
+            continue
+        if mine is not None:
+            route_spec.remove_route_rule(node, _HANDOFF_RULE)
+        route_spec.add_route_rule(node, route_spec.RouteRule(_HANDOFF_RULE, decide), position="first")
+
+
+def _wrap_handoff(module: Any) -> None:
+    """The sorter line stays. The instruction to follow it becomes an instruction to check it."""
+    current = module._build_handoff_context
+    if getattr(current, "_hf021_handoff", None):
+        return
+
+    @functools.wraps(current)
+    def _build_handoff_context(state: Any) -> Any:
+        context = current(state)
+        if not isinstance(context, str):
+            return context
+        if _HANDOFF_FOLLOW in context:
+            context = context.replace(_HANDOFF_FOLLOW, _HANDOFF_CORRECTION, 1)
+        elif _HANDOFF_CORRECTION not in context:
+            context = f"{context} {_HANDOFF_CORRECTION}"
+        if _FAMILY_FOLLOW in context:
+            context = context.replace(_FAMILY_FOLLOW, _FAMILY_CHECK, 1)
+        return context
+
+    _build_handoff_context._hf021_handoff = True  # type: ignore[attr-defined]
+    module._build_handoff_context = _build_handoff_context
+
+
+def _gold_subclass_derivation() -> bool:
+    """True when an isolated specialist run asked derived fields to copy the labeled subclass.
+
+    ``job.specialist_subclass: gold`` is that request. A pipeline run and a saved sorter pass
+    are not: their subclass is the sorter's, and an empty type field must not copy it.
+    """
+    try:
+        from mailroom_sandbox.runtime import specialist_subclass_source
+    except Exception:  # noqa: BLE001 — enrichment must not fail closed on an import
+        return False
+    return specialist_subclass_source()[0] == "gold"
+
+
+def _wrap_refusal_enrich() -> None:
+    """A type field the specialist left empty does not gain the sorter subclass.
+
+    HF-001 still fills a null corporate ``record_type`` underneath this wrapper. This layer
+    removes that fill, and the same fill for ``communication_type``, ``claim_type`` and
+    ``cuad_family``, whenever the specialist did not set the field, at every confidence.
+    An isolated run with ``specialist_subclass: gold`` keeps the fill: that setting asks
+    derived fields to copy the labeled subclass. An explicit refusal still drops them.
+    A value the specialist set keeps enrichment's canonical form (a ``pde`` claim line stays
+    ``health``). ``cms_source_table`` stays derived, except on an explicit refusal, where an
+    empty one is dropped too.
+    """
+    from langchain_agents import doc_inventories
+
+    current = doc_inventories.enrich_extraction
+    if getattr(current, "_hf021_enrich", None):
+        return
+
+    @functools.wraps(current)
+    def enrich_extraction(extracted: dict | None = None, *, doc_type: str | None = None,
+                          extract_class: str | None = None, subtype: str | None = None) -> dict:
+        incoming = dict(extracted or {})
+        out = current(extracted, doc_type=doc_type, extract_class=extract_class, subtype=subtype)
+        refused = (_reasoning_has_refusal(incoming.get("reasoning"))
+                   and _explicit_zero(incoming.get("confidence")))
+        if _gold_subclass_derivation() and not refused:
+            return out
+        keys = _TYPE_FIELDS
+        if refused:
+            keys = (*keys, "cms_source_table")
+        for key in keys:
+            if not incoming.get(key):
+                out.pop(key, None)
+        return out
+
+    # HF-001's mark stays on the function tests and the lock identity read.
+    mark = getattr(current, "_sandbox_hotfix", None)
+    if mark is not None:
+        enrich_extraction._sandbox_hotfix = mark  # type: ignore[attr-defined]
+    enrich_extraction._hf021_enrich = True  # type: ignore[attr-defined]
+    doc_inventories.enrich_extraction = enrich_extraction
+
+
+def _wrap_retry_extract(module: Any) -> None:
+    current = module.retry_extract_node
+    if getattr(current, "_hf021_retry", None):
+        return
+
+    @functools.wraps(current)
+    def retry_extract_node(state: Any) -> Any:
+        return _mark_handoff_refusal(current(state))
+
+    retry_extract_node._hf021_retry = True  # type: ignore[attr-defined]
+    # wraps copies the inner function's mark. This layer is not that hotfix, and leaving the
+    # copy makes a re-apply count HF-027 twice after the node under it is put back.
+    retry_extract_node.__dict__.pop("_sandbox_hotfix", None)
+    module.retry_extract_node = retry_extract_node
+
+
+def _install_specialist_handoff(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-028: a specialist checks the sorter handoff and is not called again after a refusal."""
+    _wrap_handoff(module)
+    _wrap_retry_extract(module)
+    _wrap_refusal_enrich()
+    _register_handoff_refusal_rules()
+
+    @functools.wraps(original)
+    def extract_node(state: Any) -> Any:
+        return _mark_handoff_refusal(original(state))
+
+    return extract_node
+
+
+def _refresh_specialist_handoff(module: Any) -> None:
+    _wrap_handoff(module)
+    _wrap_retry_extract(module)
+    _wrap_refusal_enrich()
+    _register_handoff_refusal_rules()
+
 def _judge_model_name() -> str:
     """The model the vendored judge agent is routed to (its ``get_llm`` answer), or ``""``."""
     try:
@@ -1860,10 +2061,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="decide_route",
         source_sha256="8237ef5be5e6b88376931695301b42eceaf6beac507b0830611d837d5fa7b821",
         upstream="sandbox-only (phase 2 loop governor; upstream issue to be filed with the pilot's results)",
-        summary="with job.governor set, a route that would add a round (a retry, an arbiter call, a "
-                "boss entry) past the document's retry, call or spend budget goes to human review, or "
-                "to the archive when the current extraction passed the judge; L2 sends a sorter retry "
-                "at the measured sorter ceiling to the second opinion instead",
+        summary="with job.governor set, a route that would add a counted round (a retry or a boss "
+                "entry; an arbiter ruling only once the judge has already passed, except in "
+                "judge mode correct) past the document's "
+                "retry, call or spend budget goes to human review, or to the archive when the current "
+                "extraction passed the judge; an arbiter ruling on an extraction the judge has not "
+                "passed is not a counted round, and call and spend budgets still stop that ruling "
+                "except in judge mode correct, where the pass-through arbiter makes no model call "
+                "and returns before those checks; "
+                "L2 sends a sorter retry at the measured sorter ceiling "
+                "to the second opinion instead",
         install=_install_governor,
     ),
     Hotfix(
@@ -1952,6 +2159,24 @@ HOTFIXES: tuple[Hotfix, ...] = (
               ("graph.routing:after_retry_extraction_gated", "1dfa11277467523d6b9bcde376f100bb047d369d04ed8be32259bcf3416fbebe")),
     ),
     Hotfix(
+        id="HF-028",
+        module="graph.build_graph",
+        attr="extract_node",
+        source_sha256="612c1be6914e5cff628f8ec95742c4a7b08e07b94cced573543ffe3fe95a24c5",
+        upstream="upstream issue to be filed (a specialist follows a wrong sorter handoff and is called again)",
+        summary="the sorter classification in the specialist handoff is unverified. A specialist that "
+                "sets reasoning to specialist_handoff_refusal and confidence to 0 is not called again; "
+                "a confidence of 0 without that reasoning means no fields were found and still retries, "
+                "then reaches the judge. A type field the specialist left empty is not filled from the "
+                "sorter subclass, including a null corporate record_type. An isolated run with "
+                "specialist_subclass gold keeps that labeled derivation. A value the specialist set "
+                "keeps its canonical form",
+        install=_install_specialist_handoff,
+        refresh=_refresh_specialist_handoff,
+        also=(("retry_extract_node", "1006d95b2db8d156ee55bd784721e82baa7b7adf186b9140dd405d02a0c9ed52"),
+              ("_build_handoff_context", "92d686345bb9ed5344fa77518f873e646e286a5e043ce119b5b8e6a222485fde")),
+    ),
+    Hotfix(
         id="HF-029",
         module="graph.build_graph",
         attr="_enrich_contract_result",
@@ -2012,7 +2237,7 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
         for part in owner_path.split(".") if owner_path else ():
             owner = getattr(owner, part)
         current = getattr(owner, name)
-        if getattr(current, _MARK, None) == fix.id:
+        if getattr(current, _MARK, None) == fix.id or _has_layer(current, fix.id):
             if fix.refresh is not None:
                 fix.refresh(module)
             _STATUS[fix.id] = "applied"

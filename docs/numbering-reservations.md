@@ -25,7 +25,7 @@ collides takes the one assigned here.
 | `HF-020`–`HF-022` | #425 (and #439, which carries it): corporate schema composition | landed on this branch |
 | `HF-023`–`HF-024` | Phase 3 subclass schemas (#438) | landed |
 | `HF-025`–`HF-027` | Phase 4 correcting judge (`judge:`) | landed with the Phase 4 PR |
-| `HF-028` | #437 specialist handoff check (registered there as `HF-021`; renumber on rebase) | open |
+| `HF-028` | #437 specialist handoff check | landed |
 | `HF-029` | Phase 5 part 1 evidence check (`job.evidence_check`) | landed with the Phase 5 part 1 PR |
 | `SHF-017`–`SHF-018` | #450 (registered there) | open |
 | `SHF-019` | correspondence header truth the text does not show ([design](design/specs/2026-11-27-correspondence-header-truth-design.md)) | landed with its PR |
@@ -42,15 +42,15 @@ reserved in advance. Phase 4 adds no row (it names its guards on existing rows).
 | Row | Landed with | Topic |
 | --- | --- | --- |
 | 23 | #436 | an overlay field list keeps a label the policy still calls stale |
+| 24 | #445 | registered floor history is lost, misidentified or mutates source logs |
 
-The current integrated branch retains main's rows 23 (stale overlays) and 24 (floor history),
-and appends the corporate repair guards as rows 25–27. The merger follow-up #439 appends its
-currency-evidence guard as row 28. Other open work takes the next free rows after its base:
+This branch keeps main's rows 23–28 and appends the specialist-handoff guards as rows 29 and 30.
+Other open work takes the next free rows after its base:
 
 | Open PR | Rows in the integrated stack | Topic |
 | --- | --- | --- |
 | #425 | 25, 26, 27 | corporate repair (reviewer identity, missing-field admission, applicability) |
 | #439 | 26 (inherited), 28 | merger admission and merger money evidence |
-| #437 | next free rows on its merge base | specialist handoff refusal; the mock echoing labels |
+| #437 | 29, 30 | specialist handoff refusal; the mock echoing labels |
 
 When another branch lands first, renumber only the unmerged rows and update their citations.

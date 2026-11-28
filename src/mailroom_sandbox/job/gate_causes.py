@@ -42,7 +42,7 @@ import re
 from typing import Any, Mapping
 
 from mailroom_sandbox.eval.extraction_scope import scope_extraction_pair
-from mailroom_sandbox.job.gate import _NOT_LABELS, _UNIT_FIELD, _blank, _unit_labels, is_wrong_class
+from mailroom_sandbox.job.gate import _NOT_LABELS, _UNIT_FIELD, _blank, _unit_labels, cuad_unlabeled, is_wrong_class
 from mailroom_sandbox.job.pair_report import TEMPLATED_FIELDS, _fields
 
 _MECHANISM = {"judge_error": "judge_error", "transient_exhausted": "transient"}
@@ -148,6 +148,11 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     try:
         suite = suite_for_doc_type(doc_class)
         with sh.hotfixed():
+            if sh.is_active("SHF-018"):
+                expected, predicted, _notes = sh.apply_subclass_score_scope(
+                    doc_class, sub or None, expected, predicted, row.get("doc_text"))
+                if not expected:
+                    return {}
             result = (suite.score(expected, predicted, doc_text=row.get("doc_text"), detailed=True, **kwargs)
                       if detailed else suite.score(expected, predicted, doc_text=row.get("doc_text")))
     except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error, never as an extraction type
@@ -177,12 +182,14 @@ def extraction_miss(row: Mapping[str, Any], pred: Mapping[str, Any]) -> str:
     Per-field classes use the lowest-scoring labelled field. Contracts and mergers are scored on one
     label field, so there is no lowest field: a contract is ``cuad_missed`` when the gold CUAD
     categories it missed are at least as many as the categories it predicted without gold, else
-    ``cuad_false``; a merger is ``maud_wrong``. Raises ``ScorerError`` when the Dojo scorer fails.
+    ``cuad_false``; a merger is ``maud_wrong``. A contract whose CUAD map names no category is
+    scored on its field labels (SHF-016), so it takes the per-field path. Raises ``ScorerError``
+    when the Dojo scorer fails.
     """
     doc_class = str(row.get("expected_doc_class"))
     if doc_class == "merger_agreement":
         return "maud_wrong"
-    if doc_class == "contract":
+    if doc_class == "contract" and not cuad_unlabeled(row, doc_class):  # SHF-016 rows score on fields
         from mailroom_sandbox.eval.cuad_scoring import score_cuad
 
         labels = _unit_labels(_fields(row).get(_UNIT_FIELD["contract"]))
@@ -318,7 +325,8 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         return "judge:judge_rejected"
     if outcome == "wrong_archive" or have & _EXTRACTION:
         try:
-            field = None if doc_class in _UNIT_FIELD else lowest_field(row, pred)[0]
+            unit_scored = doc_class in _UNIT_FIELD and not cuad_unlabeled(row, doc_class)
+            field = None if unit_scored else lowest_field(row, pred)[0]
             if label_suspect(row, pred, field):
                 return "label_suspect"
             return f"extraction:{extraction_miss(row, pred)}"

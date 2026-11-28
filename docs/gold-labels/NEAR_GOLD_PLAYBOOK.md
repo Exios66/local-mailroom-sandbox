@@ -31,7 +31,7 @@ Detailed rules live elsewhere, and this page links to them instead of repeating 
 
 ```text
  1 orient      label_eda.py summary / focus            where production truth is thin
- 2 target      label_eda.py rows --tier gate ...       the exact open cells, as a queue
+ 2 target      label_eda.py queue --tier gate ...      the exact open cells, as a queue
  3 batch       gold_labels.py batch                    document text + target fields
  4 two passes  label pass + check pass (independent)   submission JSONL, never committed raw
  5 validate    gold_labels.py validate                 quote, date and money gate
@@ -106,9 +106,11 @@ Then rank within the tier:
 
 Known traps:
 
-- A contract with an empty CUAD map is unscorable, and production slices draw with
-  `require_task_gt`, which leaves it out. Entity labels on it change no production number; only
-  CUAD labels, or an owner change to the draw rule, would.
+- A contract with an empty CUAD map is scored on its field labels (SHF-016). Production slices
+  draw it once it has at least `dataset.task_gt_min_field_labels` field labels after the slice's
+  label overlay (#459), so entity labels on it can bring it into production. `focus` counts it
+  that way. The EDA still tiers contract fields `unit`, so look for them under
+  `3_suite_and_reported_gaps`.
 - The reviewed subclass (SHF-013, `data/labels/review/subclass_corrections.jsonl`) decides which
   fields a corporate document has. `label_eda.py --subclass` and `gold_labels.py` both use it.
 - `gate_labelled` in the EDA output is computed before the SHF-015 and SHF-019 drops, which can
@@ -118,18 +120,21 @@ Known traps:
 
 ### Build the queue and batches
 
-`focus --ids-out` writes the document ids with open gate work. For a precise queue, turn the
-open cells into one queue line per document carrying exactly its open fields:
+`focus --ids-out` writes the document ids with open gate work. For a precise queue, write the
+full queue for the corpus, then narrow it to one line per document carrying exactly its open
+(unlabeled or disputed) fields. `--out` creates `data/runtime/gold/` if it is missing.
 
 ```bash
-.venv/bin/python scripts/label_eda.py rows --split dev --tier gate \
-    --presence unlabeled,disputed_unresolved --format json --out data/runtime/gold/open.json
+.venv/bin/python scripts/gold_labels.py queue --corpus <pinned corpus dir> --revision <revision> \
+    --out data/runtime/gold/queue.jsonl
+.venv/bin/python scripts/label_eda.py queue --queue data/runtime/gold/queue.jsonl --split dev \
+    --class corporate_record --tier gate --out data/runtime/gold/focus-queue.jsonl
 ```
 
 A queue line is
-`{"content_sha256", "doc_class", "doc_id", "fields": [...], "filename", "revision", "subclass"}`;
-`gold_labels.py queue` writes the full queue for a corpus, and the open cells say which fields to
-keep. Then cut batches:
+`{"content_sha256", "doc_class", "doc_id", "fields": [...], "filename", "revision", "subclass"}`.
+`label_eda.py queue` keeps each document's other keys from the full queue, and names any
+document with open cells that the full queue lacks. Then cut batches:
 
 ```bash
 .venv/bin/python scripts/gold_labels.py batch --queue data/runtime/gold/focus-queue.jsonl \
@@ -187,7 +192,11 @@ review.
 
 `add` never rewrites an existing record; one collision refuses the whole call. Split the passes
 into a new-document set and a missing-field set when a round has both. To fix an existing label,
-use a `review` line with `supersedes`, not a second `add`.
+use a `review` line with `supersedes`, not a second `add`. If the record was settled by
+`data/labels/review/decisions.jsonl`, append the same line to
+`data/labels/review/decisions_supersede.jsonl` too, and update that directory's README count. A
+full catalog rebuild replays both files, and `tests/test_label_review_decisions.py` fails
+otherwise.
 
 ### Archive the round
 

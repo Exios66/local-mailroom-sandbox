@@ -101,7 +101,10 @@ files) or `check` (check files), or when one document appears twice among the la
 the check files or the override files. It also refuses a check submission whose `fields` are
 byte-identical (sorted JSON) to the label submission's for the same document, and a label and a
 check that carry the same `labeler.batch` out of files with the same content: a copy is not a
-second reading. Two free-text readings agree only when both or neither are negated ("not",
+second reading. When a check is such a copy (common on a record with one fact, such as a single
+filing-number stamp), withhold it and have a reviewer read the source for each field: `add`
+takes a document without a check pass only when an `accept` or `correct` review settles every
+field its label pass holds. Two free-text readings agree only when both or neither are negated ("not",
 "no", "never", "without"). Review decisions (below) need a reviewer, and each one must
 match a catalog record. A relabel (`--override`) field replaces the earlier label only when it
 passes the gate; if it fails, the earlier label stays and the reject goes to the supplementary
@@ -155,7 +158,10 @@ refused and `review` cannot fill the field (it settles existing records only); u
 stores at a time: a second one is refused untouched and can simply be run again. It also
 refuses a document that already has a catalog record (settle those with `review`), a file name
 already listed in `sources`, a review line for a document the add does not carry, and a
-document with a label pass but no check pass, because a second add could never complete it.
+document with a label pass but no check pass, because a second add could never complete it. The
+one exception is a document whose every labelled field a review given to the same `add` settles:
+a `correct`, or an `accept` that names the labelled value. The reviewer's source reading is then
+the second reading (use it when the check pass was a copy of the label, and withhold the copy).
 Existing records are not rewritten. The new records are appended to the catalog and the
 supplementary store, which are swapped in together, and the manifest gains the file names under
 `sources`, the new hashes and counts, `added_at` and an `additions` entry. The added records

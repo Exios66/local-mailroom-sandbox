@@ -41,22 +41,26 @@ In a git worktree whose `.venv` links to another checkout, run Python as
 - Within `gate`: the unscorable documents in `focus`'s `1_unscorable_docs` first, then
   `--slice slice-0100` before larger slices, then dev before calibration. Never label `heldout`
   for tuning.
-- A contract with an empty CUAD map changes no production number (slices draw with
-  `require_task_gt`), so its entity labels wait.
+- A contract with an empty CUAD map is scored on its field labels (SHF-016). Slices draw it
+  once it has `dataset.task_gt_min_field_labels` field labels after the overlay (#459), so its
+  entity labels count. The EDA tiers them `unit`.
 
-Pull the exact open cells:
+Narrow the full queue to the exact open cells (`--out` creates the directory):
 
 ```bash
-.venv/bin/python scripts/label_eda.py rows --split dev --tier gate \
-    --presence unlabeled,disputed_unresolved --format json --out data/runtime/gold/open.json
+.venv/bin/python scripts/gold_labels.py queue --corpus <pinned corpus dir> --revision <revision> \
+    --out data/runtime/gold/queue.jsonl
+.venv/bin/python scripts/label_eda.py queue --queue data/runtime/gold/queue.jsonl --split dev \
+    --tier gate --out data/runtime/gold/focus-queue.jsonl
 ```
 
 ## 3. Run a round
 
 1. **Branch.** One feature branch per round (`claude/<round-name>`), never on another round's
    branch.
-2. **Queue and batches.** One queue line per document with exactly its open fields, then
-   `gold_labels.py batch … --out data/runtime/gold/batches`. Batches hold document text: never
+2. **Queue and batches.** The narrowed `focus-queue.jsonl` above (one line per document with
+   exactly its open fields), then `gold_labels.py batch --queue data/runtime/gold/focus-queue.jsonl
+   … --out data/runtime/gold/batches`. Batches hold document text: never
    commit them. Put long documents (over about 40,000 characters) in their own batches.
 3. **Two independent passes per batch.** Fill in
    [`PASS_BRIEF_TEMPLATE.md`](../../../docs/gold-labels/PASS_BRIEF_TEMPLATE.md) once, then
@@ -113,7 +117,8 @@ early pins stale bytes (hosted tests catch each case).
   in `src/mailroom_sandbox/scoring_hotfixes.py`, with a row in `docs/scoring-hotfixes.md`.
 - Never launch paid or live work to measure a round. Rescores of finished runs are offline.
 - `add` never rewrites a record. Fix an existing label with a `review` line that names what it
-  `supersedes`.
+  `supersedes`. When `data/labels/review/decisions.jsonl` settled that record, append the line to
+  `decisions_supersede.jsonl` too (`tests/test_label_review_decisions.py`).
 - No `claude.ai` links, session trailers or "Generated with Claude Code" footers in commits or PR
   text.
 - Report what each round admitted, held out and left unresolved, with the commands that showed it.
