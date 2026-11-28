@@ -322,8 +322,10 @@ def _date_supported(value: str, evidence: str) -> bool:
     return _spelled_date_supported(d, ev)
 
 
-_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\d]|,\d)(\s*(?:million|billion|thousand)\b)?"
-                     r"(?!\s*%)", re.I)
+#: A dollar figure may drop its leading zero ("$.001" is $0.001): the integer part may then be empty,
+#: right after "$" only, so ".001" never reads as the figure 1.
+_FIGURE = re.compile(r"(?<![\d,])(?:(\d{1,3}(?:,\d{3})+|\d+)|(?<=\$)(?=\.\d))(?:\.(\d+))?(?![\d]|,\d)"
+                     r"(\s*(?:million|billion|thousand)\b)?(?!\s*%)", re.I)
 #: A written date ("May 14, 2020", "14 May 2020", "5/14/2020", "2020-05-14"): its numbers are never
 #: money by a payment word alone ("Please pay by May 14, 2020" shows no amount of 2020 or 14).
 _DATE_SPAN = re.compile(
@@ -355,7 +357,7 @@ def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
         if as_money and not (marked or (worded and not in_date)):
             continue
         try:
-            num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
+            num = Decimal((m.group(1) or "0").replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
         except InvalidOperation:  # pragma: no cover - the pattern only admits digits
             continue
         scale = (m.group(3) or "").strip().casefold()

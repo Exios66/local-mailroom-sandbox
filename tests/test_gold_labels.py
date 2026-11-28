@@ -1353,3 +1353,14 @@ def test_a_second_store_writer_is_refused_and_writes_nothing(cli, capsys, comman
         after = {p.name: p.read_bytes() for d in (tmp / "gold", tmp / "supp") for p in sorted(d.iterdir())}
         assert after == before
     assert _add(cli) == 0  # the lock is released with its holder
+
+
+@pytest.mark.parametrize("value, evidence, ok", [
+    ("$0.001", "The Exercise Price shall be $.001 per Share", True),   # a dollar figure without its 0
+    ("$0.50", "a price of $.50 per share", True),
+    ("$0.002", "The Exercise Price shall be $.001 per Share", False),  # still the exact figure
+    ("$1.00", "The Exercise Price shall be $.001 per Share", False),   # never the digits after the point
+    ("$0.001", "rounded to .001 of a share", False),                   # no dollar marker on the figure
+])
+def test_money_reads_a_dollar_figure_written_without_its_leading_zero(value, evidence, ok):
+    assert gl._money_text_supported(value, evidence) is ok
