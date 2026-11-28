@@ -10,8 +10,9 @@ launches paid or remote work, and none needs a model server.
 | 02 | [`02_load_clean_prepare_data`](02_load_clean_prepare_data.ipynb) | Load, clean and validate the fixture catalog, HF slice and agent gold; check gold grounding; overview charts | `data/runtime/prepared/` | ~5 s |
 | 03 | [`03_offline_sandbox_smoke`](03_offline_sandbox_smoke.ipynb) | Dry-run plans, mock sorter eval, mock pipeline pilot through the vendored graph | `data/` run store, `data/runtime/notebooks/experiment_log.jsonl` | ~10 s |
 | 04 | [`04_experiment_log_explorer`](04_experiment_log_explorer.ipynb) | Read-only table, summary and charts of experiment-log records | nothing | ~2 s |
+| 05 | [`05_label_coverage_eda`](05_label_coverage_eda.ipynb) | Current interim and near-gold inventory, optional pinned corpus coverage, evidence and schema gaps | nothing | depends on cached corpus |
 
-Run them in order. 02 and 03 each recreate what they need if an earlier notebook was
+Notebooks 01–04 form a tour; 05 is independent and read-only. 02 and 03 each recreate what they need if an earlier notebook was
 skipped, but 01 is where setup problems are explained.
 
 ## Run them
@@ -59,7 +60,7 @@ open the demos when you want a worked example of each cell's display.
 
 ## What every notebook does first
 
-The first code cell calls `mailroom_sandbox.notebook.bootstrap()`, which:
+The first code cell calls `mailroom_sandbox.notebook.bootstrap()`. Notebook 05 explicitly selects the current checkout and disables dotenv creation and profile activation. For the tour, bootstrap:
 
 - finds the checkout from the kernel's working directory and sets `SANDBOX_ROOT`.
 - makes `MAILROOM_BASE_DIR` **absolute**. The `./data` from `.env` is relative, so left
@@ -111,3 +112,5 @@ Ollama running. Paid work (Modal GPUs, OpenRouter) goes only through
   `tests/test_notebook.py`), not in cells.
 - `ruff check notebooks` lints them with the repo's correctness rules.
 - Keep the file names: `tests/test_prep.py` and the docs refer to them.
+
+Notebook 05 reads the current overlay manifests and label files at execution. For Hub comparisons it requires the complete pinned train/test default and ground-truth shards already cached; without them it still reports repository label inventory and explains the prerequisite. It never downloads. Coverage is annotation availability, not model performance or human-gold certification.

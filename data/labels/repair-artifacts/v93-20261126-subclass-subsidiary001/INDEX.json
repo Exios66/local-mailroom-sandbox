@@ -1,0 +1,186 @@
+{
+  "admitted": {
+    "documented_absence": 1,
+    "documents": 4,
+    "fields": 8,
+    "populated_scored_fields": 7
+  },
+  "artifacts": [
+    {
+      "admission_input": false,
+      "bytes": 10240,
+      "path": "submissions/subclass-subsidiary001-label.jsonl",
+      "role": "label",
+      "sha256": "2339bc8d0a575920d04c50d07f8aa88711cfc5126a8bf9c04b4ff924c0784464"
+    },
+    {
+      "admission_input": true,
+      "bytes": 4318,
+      "path": "submissions/subclass-subsidiary001-ready8-label.jsonl",
+      "role": "label",
+      "sha256": "d3fefb4bf1a7693810585556f7a40c74988727891461c8a6536dde6cb6affdc3"
+    },
+    {
+      "admission_input": false,
+      "bytes": 7655,
+      "path": "submissions/subclass-subsidiary001-check.jsonl",
+      "role": "check",
+      "sha256": "e3287f31aa6e9b5b4d6972a275f384f6a6eb8df6218dca7038536cb291346038"
+    },
+    {
+      "admission_input": true,
+      "bytes": 3462,
+      "path": "submissions/subclass-subsidiary001-ready8-check.jsonl",
+      "role": "check",
+      "sha256": "e3134889e8a0f1139f32e0ad337283a5f258dd97b8a7f635fd6a355319c18879"
+    }
+  ],
+  "audit_export": "Local checkout prefix removed from reconcile artifact paths; raw submissions preserved byte-for-byte.",
+  "code_revision": "0ade6fc55e9504cdfd62603f8234d1fa51d9e81c",
+  "held": [
+    {
+      "disposition": "not_admitted",
+      "doc_id": "DOC-cd6381ad5f90af53",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "reason": "identical-field-map independence heuristic; raw passes preserved"
+    },
+    {
+      "disposition": "not_admitted",
+      "doc_id": "DOC-9376c6bfa6779d5e",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "reason": "subsidiary name ambiguity at Brightmial GmbH A.I.Germany; isolated jurisdiction projection also hits identical-map heuristic"
+    },
+    {
+      "disposition": "not_admitted",
+      "doc_id": "DOC-a3bfd04e2912c3c9",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "reason": "identical-field-map independence heuristic; raw passes preserved"
+    },
+    {
+      "disposition": "not_admitted",
+      "doc_id": "DOC-a040ac19abb88fec",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "reason": "identical-field-map independence heuristic; raw passes preserved"
+    }
+  ],
+  "lifecycle": [
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-subsidiary001-label-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-subsidiary001-label-20261126-r1",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "providerInstanceId": "opencode",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-subsidiary001-label-20261126-r1"
+    },
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-subsidiary001-check-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-subsidiary001-check-20261126-r1",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "providerInstanceId": "opencode",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-subsidiary001-check-20261126-r1"
+    }
+  ],
+  "projection": "Exact whole-document subset of raw passes; no submitted value, evidence or role metadata changed.",
+  "raw_submissions": {
+    "documents": 8,
+    "fields": 16
+  },
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "sources": [
+    {
+      "chars": 300,
+      "content_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d",
+      "doc_id": "DOC-2eebbd30518e8a25",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 303,
+      "content_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103",
+      "doc_id": "DOC-a2ca7491896daf9f",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 315,
+      "content_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f",
+      "doc_id": "DOC-9e22e8cf0d496d7c",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 324,
+      "content_sha256": "25e10176c5b8adfef7d18225b8d5d8498ffc4dda5081d3ddf2016d24203c2cfb",
+      "doc_id": "DOC-cd6381ad5f90af53",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 325,
+      "content_sha256": "84fc152d72444948dba85737d49c9effc0f0311339bbd3eba46ff366c8adc9b7",
+      "doc_id": "DOC-9376c6bfa6779d5e",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 348,
+      "content_sha256": "104eb2383e1ed526ba6022c61151b32a4ac990b17b4d88f35a4690e9877dd219",
+      "doc_id": "DOC-a3bfd04e2912c3c9",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 349,
+      "content_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40",
+      "doc_id": "DOC-e331ae8f76ff3efc",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    },
+    {
+      "chars": 350,
+      "content_sha256": "378254a64846a0154143292392cb14d507d43c502640e9a01a4f42b91165812d",
+      "doc_id": "DOC-a040ac19abb88fec",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "subclass": "subsidiary_list"
+    }
+  ],
+  "warning": "Raw and held submissions are not admitted truth. Lifecycle exports record observed app status; they do not prove filesystem non-access. Existing independence checks were not bypassed."
+}

@@ -1,0 +1,137 @@
+{
+  "admitted": 15,
+  "documented_absence": 0,
+  "documents": 6,
+  "existing_catalog_rows_preserved": {
+    "gold": 10569,
+    "gold-supplementary": 1862
+  },
+  "existing_overlay_fields_preserved": 9664,
+  "measurement": "Static source/truth/scoring eligibility checks; no model inference or performance claim",
+  "overlay_fields_after": 9679,
+  "populated": 15,
+  "populated_scoring_events": 15,
+  "records": [
+    {
+      "doc_id": "DOC-0b61fce5b8a05518",
+      "effective_truth_matches": true,
+      "field": "attorneys_in_fact",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f004064e593dc6a57cbc588294f61137ee27586f7c065292237af05f6d0c87b7"
+    },
+    {
+      "doc_id": "DOC-0b61fce5b8a05518",
+      "effective_truth_matches": true,
+      "field": "authority_scope",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f004064e593dc6a57cbc588294f61137ee27586f7c065292237af05f6d0c87b7"
+    },
+    {
+      "doc_id": "DOC-1fe073843dcc9442",
+      "effective_truth_matches": true,
+      "field": "amended_provisions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "6aa8466664a70aab7ad12fdf06e689e97ac1c6550c5df3a358e2c3948c881c6f"
+    },
+    {
+      "doc_id": "DOC-1fe073843dcc9442",
+      "effective_truth_matches": true,
+      "field": "prior_entity_name",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "6aa8466664a70aab7ad12fdf06e689e97ac1c6550c5df3a358e2c3948c881c6f"
+    },
+    {
+      "doc_id": "DOC-443542beadaf2839",
+      "effective_truth_matches": true,
+      "field": "acting_body",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "7f0fac73292b890567e71bbf1b92d47c2786202dfa88fc06bbdeac0e9e7e5870"
+    },
+    {
+      "doc_id": "DOC-443542beadaf2839",
+      "effective_truth_matches": true,
+      "field": "action_approved",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "7f0fac73292b890567e71bbf1b92d47c2786202dfa88fc06bbdeac0e9e7e5870"
+    },
+    {
+      "doc_id": "DOC-443542beadaf2839",
+      "effective_truth_matches": true,
+      "field": "resolutions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "7f0fac73292b890567e71bbf1b92d47c2786202dfa88fc06bbdeac0e9e7e5870"
+    },
+    {
+      "doc_id": "DOC-78f2456f571403a9",
+      "effective_truth_matches": true,
+      "field": "acting_body",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "24cc86afe63a54e11df5e58d24b813747896e80c8e3a8fa675da1006f218b5ec"
+    },
+    {
+      "doc_id": "DOC-78f2456f571403a9",
+      "effective_truth_matches": true,
+      "field": "action_approved",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "24cc86afe63a54e11df5e58d24b813747896e80c8e3a8fa675da1006f218b5ec"
+    },
+    {
+      "doc_id": "DOC-78f2456f571403a9",
+      "effective_truth_matches": true,
+      "field": "resolutions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "24cc86afe63a54e11df5e58d24b813747896e80c8e3a8fa675da1006f218b5ec"
+    },
+    {
+      "doc_id": "DOC-dae485695eb01169",
+      "effective_truth_matches": true,
+      "field": "amended_provisions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "ee8611e5942a54441552b379165e4ab1cfabeed4bb33736accbf0d26c75b5d59"
+    },
+    {
+      "doc_id": "DOC-dae485695eb01169",
+      "effective_truth_matches": true,
+      "field": "prior_entity_name",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "ee8611e5942a54441552b379165e4ab1cfabeed4bb33736accbf0d26c75b5d59"
+    },
+    {
+      "doc_id": "DOC-eee7c0d4e99e5be4",
+      "effective_truth_matches": true,
+      "field": "attorneys_in_fact",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e78cd3c318cacf23c0d37e22c155635a40bdb97d41fca1494b33acf1a116ec8c"
+    },
+    {
+      "doc_id": "DOC-eee7c0d4e99e5be4",
+      "effective_truth_matches": true,
+      "field": "authority_scope",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e78cd3c318cacf23c0d37e22c155635a40bdb97d41fca1494b33acf1a116ec8c"
+    },
+    {
+      "doc_id": "DOC-eee7c0d4e99e5be4",
+      "effective_truth_matches": true,
+      "field": "principal",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "e78cd3c318cacf23c0d37e22c155635a40bdb97d41fca1494b33acf1a116ec8c"
+    }
+  ],
+  "schema": "mailroom.missing-subclass-admission-audit/v1"
+}

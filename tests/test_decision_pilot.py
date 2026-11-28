@@ -98,7 +98,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
 
     # Same model seams as the sandbox mock runner; graph and routing stay real.
     expect = {"doc_type": row["sorter_type"], "conf": sorter_confidence, "expected_fields": {
-        "entity_name": "Cedar Sample Ltd", "record_type": "minutes",
+        "entity_name": "Cedar Sample Ltd", "record_type": "other",
         "claim_number": "C-17", "insured_party": "Cedar Sample Ltd",
     }}
     stack = ExitStack()
@@ -296,3 +296,25 @@ def test_correspondence_disagreement_parks_through_the_in_house_reviewer(run, pi
         assert "extract" not in result["visited"]
     finally:
         result["stack"].close()
+
+
+@pytest.mark.parametrize("subclass", [None, "subsidiary_list"])
+def test_fake_corporate_transport_obeys_requested_schema(subclass):
+    from langchain_agents.specialist_agents import CORPORATE_RECORDS_SCHEMA
+    from mailroom_sandbox.corporate_extraction import request_schema, validate_response
+    from mailroom_sandbox.mock_llm import fake_client
+
+    schema = request_schema(subclass, CORPORATE_RECORDS_SCHEMA)
+    expect = {"doc_type": "insurance_claim", "conf": 0.0, "expected_fields": {
+        "entity_name": "Cedar Sample Ltd", "claim_number": "C-17", "record_type": "other",
+        "subsidiaries": ["Example Ltd"],
+    }}
+    prompt = "Extract structured data from this corporate record:\n\ntext\n\nJSON schema:\n" + json.dumps(schema)
+    response = fake_client(expect).chat.completions.create(messages=[{"role": "user", "content": prompt}])
+    payload = json.loads(response.choices[0].message.content)
+    assert validate_response(payload, schema)
+    assert payload["entity_name"] == "Cedar Sample Ltd"
+    assert payload["confidence"] == 0.0
+    if subclass == "subsidiary_list":
+        assert payload["subsidiaries"] == ["Example Ltd"]
+    assert "claim_number" not in payload and "mock_extraction" not in payload

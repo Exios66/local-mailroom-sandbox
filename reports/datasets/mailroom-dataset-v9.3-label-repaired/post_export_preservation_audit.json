@@ -1,0 +1,15 @@
+{
+  "schema": "mailroom.post-export-preservation/v1",
+  "base_commit": "eed5df8fd82d53acddaff5fa86cd8fd03b1f5d34",
+  "existing_rows_preserved": {
+    "gold": 10632,
+    "gold-supplementary": 1892
+  },
+  "supplementary_path_only_records_changed": 6,
+  "old_overlay_field_payloads_preserved": 9727,
+  "new_overlay_fields": 12,
+  "overlay_fields_after": 9739,
+  "gold_values_evidence_status_and_attribution_unchanged": true,
+  "privacy_proof": "source_path_metadata_export_audit.json",
+  "new_fields_scoring_audit": "data/labels/repair-artifacts/v93-20261126-subclass-diverse003/admission-audit.json"
+}

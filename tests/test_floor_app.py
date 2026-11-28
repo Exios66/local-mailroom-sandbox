@@ -207,9 +207,10 @@ def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
     assert [event["at"] for event in events] == sorted(event["at"] for event in events), "chronological timeline"
     final = [event["checkpoint"] for event in events if "checkpoint" in event][-1]
     assert final == {"state": "done", "cursor": 120, "total": 120}
-    from mailroom_sandbox.vendor_hotfixes import HOTFIXES
-
-    assert lock["vendor_hotfixes"]["applies"] == [fix.id for fix in HOTFIXES]
+    # This is a historical scripted fixture, not a run with today's wrappers.
+    # Pin the entire lock instead of restamping its provenance after each new hotfix.
+    assert hashlib.sha256((REPLAY_RUN / "spec.lock.json").read_bytes()).hexdigest() == (
+        "acc88769e5eed17c0b39cf86759a00abe222a50c038a625a5a317b467833d776")  # fixture as committed on main 36689bda
     trace = (REPLAY_RUN / "replay.jsonl").read_text(encoding="utf-8")
     assert "LengthFinishReasonError" not in trace and "human_review" not in trace
     assert "review_causes" not in trace

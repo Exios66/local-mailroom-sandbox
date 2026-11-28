@@ -755,7 +755,8 @@ def cached_doc_rows(path: Any = None) -> dict[str, dict[str, Any]]:
 
 
 def _reviewed_label_status(
-    doc_class: str, name: str, label: Mapping[str, Any], quotes: list[str]
+    doc_class: str, name: str, label: Mapping[str, Any], quotes: list[str],
+    doc_subclass: str | None = None,
 ) -> tuple[str, str]:
     """A reviewed label, by the review file's rule (``interim_labels``), then its quote if any.
 
@@ -766,6 +767,9 @@ def _reviewed_label_status(
     from mailroom_sandbox import interim_labels as il
 
     value, basis = label.get("value"), str(label.get("basis") or "")
+    if doc_class == "corporate_record" and doc_subclass is not None:
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes, doc_subclass)
+        return (GROUNDED, "") if ok else (UNGROUNDED, reason)
     problem = il._review_value_problem(name, value)
     if not problem and basis == "original_header":
         problem = il._header_problem(name, value, label.get("evidence"))
@@ -776,7 +780,7 @@ def _reviewed_label_status(
     if basis == "review_read_message":
         return IN_VOCABULARY, ""  # a reviewed intent: the vocabulary rule; quotes are optional
     if basis != "original_header" and quotes:
-        ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes, doc_subclass)
         return (GROUNDED, "") if ok else (UNGROUNDED, reason)
     return (GROUNDED, "") if quotes else (IN_VOCABULARY, "")
 
@@ -825,28 +829,91 @@ def _check_label(
 
     value = label.get("value")
     status = label.get("status")
+    sub = record.get("doc_subclass")
+    row = rows.get(str(record.get("doc_id") or ""))
+    if doc_class == "corporate_record":
+        if "doc_subclass" in record and sub is None:
+            return UNGROUNDED, "invalid corporate record subclass None"
+        if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
+            row_class, row_sub = row.get("expected_doc_class"), row.get("expected_subclass")
+            if (row_class and row_class != doc_class) or (sub is not None and row_sub is not None and sub != row_sub):
+                return UNGROUNDED, "record identity differs from bound corpus row"
+            if sub is None:
+                sub = row_sub
+        if sub is not None:
+            try:
+                gl._corporate_subclass(sub)
+            except KeyError as exc:
+                return UNGROUNDED, str(exc)
     if status == "derived":
-        sub = str(record.get("doc_subclass") or "")
+        if doc_class == "corporate_record" and name != "record_type":
+            return UNGROUNDED, f"{name} is not a derived corporate field"
+        sub = str(sub or "")
         want = sub if label.get("basis") == "cms_subclass" else il.derived_value(doc_class, sub)
         return (
             (GROUNDED, "")
             if value == want
             else (UNGROUNDED, f"{doc_class} subclass {sub!r} derives {want!r}")
         )
+    if doc_class == "merger_agreement":
+        if "doc_subclass" in record and sub is None:
+            return UNGROUNDED, "invalid merger agreement subclass None"
+        if row is not None:
+            if il.row_doc_sha(row) != record.get("doc_sha256"):
+                return NO_EVIDENCE, "document text changed since the label was read"
+            row_class, row_sub = row.get("expected_doc_class"), row.get("expected_subclass")
+            if row_class != doc_class or (sub is not None and sub != row_sub):
+                return UNGROUNDED, "record identity differs from bound corpus row"
+            sub = row_sub
+        try:
+            gl._merger_subclass(sub)
+        except KeyError as exc:
+            return UNGROUNDED, str(exc)
+        if name in gl.target_fields(doc_class, doc_subclass=sub):
+            quotes = _evidence_quotes(label)
+            types, _, _, _, model = gl._schema_bits(doc_class, sub)
+            problem = gl._merger_value_error(model, name, value, str(types[name]))
+            if problem:
+                return UNGROUNDED, problem
+            if not quotes:
+                return NO_EVIDENCE, "no evidence quote"
+            ok, reason = gl.evidence_support(doc_class, name, value, quotes, sub)
+            return (GROUNDED, "") if ok else (UNGROUNDED, reason)
     quotes = _evidence_quotes(label)
+    if doc_class == "corporate_record":
+        # Entity fields must always pass the admission gate, including reviewed labels.
+        from llm_dojo_scoring.schemas.corporate_record_schema import SUBCLASS_SCHEMAS
+
+        entities = {entity.key for schema in SUBCLASS_SCHEMAS.values() for entity in schema.entities}
+        if name in entities:
+            if sub is None or name not in gl.target_fields(doc_class, doc_subclass=sub):
+                return UNGROUNDED, f"not a target field of {doc_class}/{sub}"
+            types, _, _, _, model = gl._schema_bits(doc_class, sub)
+            problem = gl._corporate_value_error(model, name, value, str(types[name]), sub)
+            if problem:
+                return UNGROUNDED, problem
+            if not quotes:
+                return NO_EVIDENCE, "no evidence quote"
+            if label.get("review"):
+                return _reviewed_label_status(doc_class, name, label, quotes, sub)
+            ok, reason = gl.evidence_support(doc_class, name, value, quotes, sub)
+            return (GROUNDED, "") if ok else (UNGROUNDED, reason)
+        elif name not in gl._schema_bits(doc_class)[0]:
+            return UNGROUNDED, f"not a target field of {doc_class}/{sub}"
     if label.get("review"):
-        return _reviewed_label_status(doc_class, name, label, quotes)
+        return _reviewed_label_status(doc_class, name, label, quotes,
+                                      sub if doc_class == "merger_agreement" else None)
     if quotes:
-        ok, reason = gl.evidence_support(doc_class, name, value, quotes)
+        ok, reason = gl.evidence_support(doc_class, name, value, quotes,
+                                         sub if doc_class == "merger_agreement" else None)
         return (GROUNDED, "") if ok else (UNGROUNDED, reason)
-    allowed = gl._schema_bits(doc_class)[1].get(name)
+    allowed = gl._schema_bits(doc_class, sub)[1].get(name)
     if allowed is not None:
         ok = value in allowed
         return (IN_VOCABULARY, "") if ok else (UNGROUNDED, f"out_of_vocabulary: {value!r}")
     support = label.get("support")
     if status == "gap_fill" and isinstance(support, (int, float)) and support < il.SUPPORT_MIN:
         return UNGROUNDED, f"support {support} is under the admission threshold {il.SUPPORT_MIN}"
-    row = rows.get(str(record.get("doc_id") or ""))
     if row is not None and il.row_doc_sha(row) == record.get("doc_sha256"):
         return _hub_row_label_status(row, name, label)
     if row is not None:
@@ -1026,7 +1093,10 @@ def _hub_conflicts(row: Mapping[str, Any], ilabels: Mapping[str, Any]) -> list[H
 
     doc_id, cls = il.row_id(row), str(row.get("expected_doc_class") or "")
     text = str(row.get("doc_text") or "")
-    closed = gl._schema_bits(cls)[1] if cls else {}
+    try:
+        closed = gl._schema_bits(cls, row.get("expected_subclass"))[1] if cls else {}
+    except KeyError:
+        closed = {}  # unknown corporate subtype supplies no reliable vocabulary
     out = []
     for name, lab in sorted(ilabels.items()):
         if lab.get("status") != "disputed":

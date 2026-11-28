@@ -3,13 +3,21 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **89.1%** of per-class target fields (43,381 labeled,
-5,227 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **89.2%** of per-class target fields (43,408 labeled,
+5,200 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 48,686 per-class target fields (51.0%). This
-release labels **43,381 (89.1%)**. Each added or changed label was chosen by a consensus vote over
+release labels **43,408 (89.2%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
+
+These flat per-class counters are not scored-field coverage. They omit corporate subclass
+extension entities and include documented absences. The 2026-11-26 scope correction withdraws
+38 recent corporate annotations outside their subclass's applicable fields; four correspondence
+absences remain for hallucination checks and are not new populated extraction targets. Raw
+submissions and the preservation audit remain in
+[`repair-artifacts`](../../../data/labels/repair-artifacts/v93-20261126-scope-correction/README.md).
+New corporate collection must follow the registered subclass schema and source evidence.
 
 ## Files
 
@@ -46,7 +54,7 @@ df = df.merge(text, on="document_id", how="left")
 | --- | ---: | ---: | ---: | ---: |
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
-| `contract` | 600 | 17 | 0.0% | 66.6% |
+| `contract` | 600 | 17 | 0.0% | 66.7% |
 | `corporate_record` | 450 | 9 | 54.6% | 91.1% |
 | `merger_agreement` | 152 | 18 | 0.0% | 43.9% |
 
@@ -100,22 +108,167 @@ agreement on 169 of 171 `expiration_date` cells, 43 of 46 `termination_notice_pe
 does not annotate party roles, so `party_roles` is not mapped from it. Treat these counts as
 unverified until a dated rebuild records them in `summary.json` / provenance.
 
-**Changes in this regeneration.** Two independent changes moved 644 provenance cells against
-the previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
+**Earlier rc.10 regeneration** (builder commit `736fe3ee`). Two independent changes moved
+651 provenance cells against its previous committed outputs; no cell won by a reviewed, near-gold, interim-reviewed, owner or
 Hub source changed value or presence:
 
-- **Near-gold contract labels** (542 cells, all in 61 of the 91 empty-CUAD contracts: those that
-  had no near-gold record. `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91, including
-  the 30 already covered, so it is not the changed subset): 324 previously unlabeled cells, 182 unreviewed
+- **Near-gold contract labels** (542 cells, all in the 61 empty-CUAD contracts that had no
+  near-gold record; `tests/fixtures/empty_cuad_contract_ids.txt` lists all 91 empty-CUAD rows): 324 previously unlabeled cells, 182 unreviewed
   gold candidates promoted to `near_gold_reviewed`, and 36 `generated_rule` cells replaced by
   near-gold.
-- **Event-defined dates are no longer absences** (102 cells in 84 other contracts): the builder
+- **Event-defined dates are no longer absences** (109 cells in 91 other contracts): the builder
   fix that skips a ballot for a CUAD date span with no calendar date ("the date of the last
   signature") was committed without regenerating these files. 93 `effective_date` /
-  `agreement_date` cells move from a generated documented absence to unlabeled, 8 more
-  `agreement_date` cells take the next source's value (5 `gold_candidate`, 3 `generated_rule`),
-  and one `expiration_date` cell (`DOC-e4272758b561f8cd`) gains its CUAD-span value.
-  With the 324 cells above, that is 325 cells gaining a label and 93 losing one: the net +232.
+  `agreement_date` cells move from a generated documented absence to unlabeled, and the other 16
+  take the next source's value.
+
+**Reverse completion checkpoint (2026-11-26).** The next pass starts with the longest remaining
+contracts to preserve the interrupted pass's starting portion. `DOC-29c516a4775b07d9` now has nine
+near-gold fields from independent label/check passes and source-based machine review: six accepted
+and three corrected. Seven previously unlabeled cells are filled; an unreviewed signature rule
+and a CUAD-derived notice mapping are replaced by the reviewed bundle-specific readings. All
+34,848 previously protected cells retain their values and presence. These are machine labels,
+not human gold, and keep `use_as_truth: false`. The Hub revision and production overlay pin are
+unchanged; this checkpoint is not a newly staged or published overlay.
+
+**Corporate subclass checkpoint (2026-11-26).** Corporate records and correspondence are the
+priority. The earlier 38 corporate absence annotations were withdrawn because those generic
+fields do not apply to the source subclasses; their original submissions remain recoverable in
+`data/labels/repair-artifacts/v93-20261126-scope-correction/`. Four correspondence absences remain
+for hallucination checks and do not count as populated extraction coverage.
+
+Dedicated runtime schemas now compose all eleven corporate subclasses from the pinned Dojo
+registry. Independent source-only label/check passes add eight previously missing registered
+entity fields on four subsidiary schedules: seven populated facts and one documented jurisdiction
+absence. All seven populated additions are present in prepared truth and produce field-scoring
+events. All 10,561 preceding catalog rows, 1,858 supplementary rows and 9,656 overlay field
+payloads are preserved. The first subsidiary admission brought the overlay to 9,664 labels. Eight further pilot fields remain
+held for identical-map independence checks or an ambiguous table token; raw submissions and
+exact admission projections are committed under
+`data/labels/repair-artifacts/v93-20261126-subclass-subsidiary001/`.
+
+A further 15 populated entity facts on six board-resolution, power-of-attorney and charter-amendment
+documents pass source, missing-only and scoring checks: 14 independent agreements and one
+source-reviewed wording dispute. A multiple-grantor `principal` remains held because its
+single-name schema does not represent both grantors cleanly. Their raw passes and exact
+admission projections are in `data/labels/repair-artifacts/v93-20261126-subclass-diverse001/`.
+A third admission adds 15 populated facts on seven incorporation, indenture and rights-instrument
+documents (14 independent agreements and one source-reviewed exercise-price representation).
+Those three admissions total 38 registered entity fields on 17 documents. The third batch
+preserves original raw bytes in private checkpoints; its public exports normalize only source-path
+metadata, preserving every field payload and labeler identity. Its archive is
+`data/labels/repair-artifacts/v93-20261126-subclass-diverse002/`. The notebook evidence
+checker now uses the corporate subclass and retains strict per-member/type/identity checks.
+
+A fourth admission adds **33 fields on 17 subsidiary schedules: 32 populated scoring targets
+and one documented jurisdiction absence**. Thirty-one independent agreements and two source
+reviews support these additions. The reviews adopt the check pass's legal names, keeping
+ownership and trade-name qualifications in evidence. Seven fields remain held for identical
+maps or ambiguous source interpretation; neither evidence nor independence guards were changed.
+Byte-identical raw passes, exact field projections and the preservation/scoring audit are in
+`data/labels/repair-artifacts/v93-20261126-subclass-subsidiary002/`.
+
+A fifth admission adds **12 fields on four charter/incorporation documents: seven populated
+scoring targets and five documented absences**. Nine independent agreements and three explicit
+full-source reviews support the additions. Fifteen fields on five other instruments remain
+held because both source passes question their assigned subtype. Raw passes, exact projections,
+review decisions and the preservation/scoring audit are in
+`data/labels/repair-artifacts/v93-20261126-subclass-diverse003/`.
+
+The five admissions total **83 registered entity fields on 38 documents: 76 populated scoring
+targets and seven documented absences**. The overlay now has **9,739 labels**. Thirty-one
+corporate fields remain held across these admissions.
+
+At the corporate checkpoint, the missing-only inventory was 1,471 registered entity fields on 422 documents (see
+`corporate_subclass_missing_coverage.json`). The flat CSV excludes those extension entities:
+its three CSV outputs remain byte-identical, at 43,391 / 48,686 labeled cells (89.1%). These
+counts describe static annotation coverage, not extraction performance. Machine near-gold labels
+retain `use_as_truth: false`; these additions are not a release cut. Two correspondence
+fields remain held for parser or independence-evidence handling. New production preparations
+select the separately verified, landed rc.10 cut; frozen locks retain their earlier selection.
+See [`rc10_selection_verification.json`](rc10_selection_verification.json).
+
+**Merger critical-field checkpoint (2026-11-26).** Independent source-only label and check
+passes, followed by a separate source review, add **16 previously missing populated fields
+on three merger agreements**. The records cover parent/target roles, merger subsidiaries,
+per-share cash or base stock exchange ratio, target termination fees and named financial/legal
+advisors. Four reviews preserve the consideration exceptions, fee triggers and adjustment
+conditions; the stock ratio adopts the check pass's explicit adjustment quote. All 16 additions
+are present in prepared truth and produce field-scoring events. The separate MAUD headline is
+unchanged. These are static eligibility checks, not extraction-performance measurements.
+
+All 10,644 preceding catalog rows, 1,896 supplementary rows and 9,739 overlay field payloads
+are preserved; the overlay now has **9,755 labels**. Twelve assigned fields remain unadmitted:
+five depend on sections absent from a truncated source, two outside dates have conditional
+extensions, two consideration fields conflict with the assigned mixed subclass, and three
+absence answers have only a check pass. No absence or subclass correction is inferred.
+Byte-identical raw submissions, exact admission projections, source ranges, four review
+decisions and the preservation/scoring audit are in
+[`merger-critical001`](../../../data/labels/repair-artifacts/v93-20261126-merger-critical001/README.md).
+
+The flat consensus export changes only those 16 field cells: ten become labeled and six
+replace earlier unreviewed readings. All 34,515 cells previously selected from Hub, owner,
+reviewed interim, near-gold or subclass-review sources keep their values and presence. See
+[`merger_critical001_csv_preservation.json`](merger_critical001_csv_preservation.json).
+The [direct-field merger inventory](merger_direct_missing_coverage.json) still has 2,323 missing opportunities on 152 documents;
+the pilot does not complete the class. Source-type holds, machine `use_as_truth: false`,
+production rc.10 selection and frozen experiment locks remain in effect. This is not rc.11
+or a newly staged release.
+
+**Election and other merger subclasses (2026-11-26).** A second independent label/check
+batch and scoped source adjudication add **13 populated fields on two agreements**. Three
+reviews preserve share exclusions and election/proration/adjustment terms. All 13 produce
+field-scoring events and preserve the preceding 10,660 catalog rows and 9,755 overlay field
+payloads. Three assignments remain unadmitted: an unfinished exchange-ratio search and two
+party/subsidiary fields whose preamble names conflict with the execution blocks. Exact passes,
+projections, source ranges and audits are in
+[`merger-critical002`](../../../data/labels/repair-artifacts/v93-20261126-merger-critical002/README.md).
+
+The two merger batches total **29 populated fields on five agreements**, spanning all five
+corpus merger subclasses, with **15 assignments unadmitted**. The overlay has
+**9,768 labels**. That batch changed 13 admitted field cells (six populated, seven replacing
+unreviewed readings) and kept 34,531 previously protected cells; see
+[`merger_critical002_csv_preservation.json`](merger_critical002_csv_preservation.json).
+Rebuilding those labels together with the 64 reviewed subclass corrections gives current
+flat coverage of **43,408 / 48,686 (89.2%)**, while the direct merger inventory still
+has **2,310 missing opportunities on 152 documents**. Subclass representation does not imply
+complete field coverage. Neither batch changes the MAUD headline or constitutes rc.11.
+
+Merger money admission now requires a source dollar marker attached to the same exact figure
+in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
+The scoped guard covers both submission and stored-evidence checks and preserves legacy
+contract/corporate matching. Non-adjacent or unrecognized currency qualifiers require source
+review; the automated check does not certify every currency context.
+
+**Source-type hold.** A bounded audit of the 61 records currently typed `officer_certificate`
+found headings suggesting 53 designation/amendment instruments, seven incorporation/charter
+instruments and one board resolution with an embedded designation. These are heuristic groups,
+not corrected subtypes: only three sources were read fully. All 61 source hashes match the pin.
+The four officer fields (244 opportunities) remain unassigned until corpus owners adjudicate
+instrument type and compound-document boundaries. An officer's filing attestation does not by
+itself turn a designation into a standalone officer certificate. See the source excerpts,
+inspection ranges and acceptance limits in
+[`corporate_source_fit_officer_certificate.json`](corporate_source_fit_officer_certificate.json).
+
+Five additional full-read source-type holds cover three bylaw instruments currently typed as
+board resolutions, a correction instrument and a trust amendment. Their fifteen fields are
+included in the held count above; no subtype is changed and no absence label is admitted.
+
+Public source-path metadata is normalized to repository-relative paths in six files. The
+original bytes remain in private checkpoints. Values, evidence, role attribution and all gold
+overlay field payloads are unchanged; six supplementary records have path metadata changes.
+See [`source_path_metadata_export_audit.json`](source_path_metadata_export_audit.json).
+
+Twelve pre-existing populated core annotations conflict with their current subclass
+applicability. They remain unchanged and are outside the missing-only admissions. The proposed
+legacy notebook check was reverted after its existing overlay regression failed; no test was
+excluded or relaxed. See
+[`legacy_corporate_core_applicability_hold.json`](legacy_corporate_core_applicability_hold.json).
+
+[`05_label_coverage_eda.ipynb`](../../../notebooks/05_label_coverage_eda.ipynb) inspects current
+interim and near-gold snapshots at execution, with optional pinned cached-corpus comparisons,
+subclass applicability, runtime field support and evidence drill-down. It reports populated
+values and documented absences separately and makes no model-performance claim.
 
 ## Presence codes (provenance file)
 
@@ -159,10 +312,10 @@ blank in a row is absence versus unlabeled.
   is labeled on 537 of all 600 contracts). A missing CUAD ballot is not a missing label: check
   `presence` before discarding a field. Their
   nine scored contract fields come from the near-gold overlay instead (agent label and check
-  passes plus a reviewing model, not human gold). `expiration_date` is labeled on 314 contracts,
-  `termination_notice_period` on 380 and `dispute_forum` on 281. `contract_value`,
+  passes plus a reviewing model, not human gold). `expiration_date` is labeled on 315 contracts,
+  `termination_notice_period` on 380 and `dispute_forum` on 282. `contract_value`,
   `payment_terms`, `territory` and `party_roles` have no CUAD category, so they are labeled only on
-  the roughly 265 contracts in the gold catalog.
+  the 268 contracts in the gold catalog.
 - **Merger agreements:** several fields are found only where the agreement states them in a
   standard form (exchange ratio, termination fees, advisors, signatories). Signature pages are
   usually missing from the text. `merger_consideration` is never labeled for the `other` subclass.

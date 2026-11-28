@@ -1,0 +1,857 @@
+{
+  "schema": "mailroom.batch-reconcile/v1",
+  "counts": {
+    "near_gold": 8
+  },
+  "documents": 4,
+  "expected_fields": 8,
+  "input_sha256": {
+    "data/runtime/full-label-repair/admission/subclass-subsidiary001-ready8/batch.json": "6763ca748775eaf869709a8eb543f37f152f095ea9ad367102065e091f1a625f",
+    "data/runtime/full-label-repair/admission/subclass-subsidiary001-ready8/subclass-subsidiary001-ready8-label.jsonl": "d3fefb4bf1a7693810585556f7a40c74988727891461c8a6536dde6cb6affdc3",
+    "data/runtime/full-label-repair/admission/subclass-subsidiary001-ready8/subclass-subsidiary001-ready8-check.jsonl": "e3134889e8a0f1139f32e0ad337283a5f258dd97b8a7f635fd6a355319c18879"
+  },
+  "rows": [
+    {
+      "doc_id": "DOC-2eebbd30518e8a25",
+      "field": "subsidiaries",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "Madera Quarry LLC",
+        "Shimmick-Baker LLC",
+        "Shimmick-Obayashi Joint Venture",
+        "Shimmick-Myers & Sons Joint Venture",
+        "Shimmick-FCC-Impregilo Joint Venture",
+        "Shimmick-Nicholson Joint Venture"
+      ],
+      "check_value": [
+        "Madera Quarry LLC",
+        "Shimmick-Baker LLC",
+        "Shimmick-Obayashi Joint Venture",
+        "Shimmick-Myers & Sons Joint Venture",
+        "Shimmick-FCC-Impregilo Joint Venture",
+        "Shimmick-Nicholson Joint Venture"
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.97,
+          "subsidiary_jurisdictions": 0.95
+        },
+        "notes": "Two-column table printed with the name and jurisdiction concatenated on each row line; the first row is the column header, not a subsidiary. All six data rows carry the jurisdiction California.",
+        "source_read": {
+          "chars": 300,
+          "content_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d",
+          "full_read": true,
+          "range": [
+            0,
+            300
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (300 chars). Merged header '**Name****Jurisdiction of Incorporation or Organization**'; no parent/registrant named in the document, so the six rows are the whole name list and each row states California."
+      },
+      "reconciled": {
+        "label_id": "03842093b0d58b691d6d",
+        "doc_id": "DOC-2eebbd30518e8a25",
+        "filename": "0001213900-15-009308_fs12015a3ex21i_shimmick.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d",
+        "doc_sha": "99e5423c41f6b7e2",
+        "field": "subsidiaries",
+        "value": [
+          "Madera Quarry LLC",
+          "Shimmick-Baker LLC",
+          "Shimmick-Obayashi Joint Venture",
+          "Shimmick-Myers & Sons Joint Venture",
+          "Shimmick-FCC-Impregilo Joint Venture",
+          "Shimmick-Nicholson Joint Venture"
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 59,
+            "end": 87,
+            "text": "Madera Quarry LLC California"
+          },
+          {
+            "start": 88,
+            "end": 117,
+            "text": "Shimmick-Baker LLC California"
+          },
+          {
+            "start": 118,
+            "end": 160,
+            "text": "Shimmick-Obayashi Joint Venture California"
+          },
+          {
+            "start": 161,
+            "end": 207,
+            "text": "Shimmick-Myers & Sons Joint Venture California"
+          },
+          {
+            "start": 208,
+            "end": 255,
+            "text": "Shimmick-FCC-Impregilo Joint Venture California"
+          },
+          {
+            "start": 256,
+            "end": 299,
+            "text": "Shimmick-Nicholson Joint Venture California"
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "Madera Quarry LLC",
+            "Shimmick-Baker LLC",
+            "Shimmick-Obayashi Joint Venture",
+            "Shimmick-Myers & Sons Joint Venture",
+            "Shimmick-FCC-Impregilo Joint Venture",
+            "Shimmick-Nicholson Joint Venture"
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-2eebbd30518e8a25",
+      "field": "subsidiary_jurisdictions",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "California"
+      ],
+      "check_value": [
+        "California"
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.97,
+          "subsidiary_jurisdictions": 0.95
+        },
+        "notes": "Two-column table printed with the name and jurisdiction concatenated on each row line; the first row is the column header, not a subsidiary. All six data rows carry the jurisdiction California.",
+        "source_read": {
+          "chars": 300,
+          "content_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d",
+          "full_read": true,
+          "range": [
+            0,
+            300
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (300 chars). Merged header '**Name****Jurisdiction of Incorporation or Organization**'; no parent/registrant named in the document, so the six rows are the whole name list and each row states California."
+      },
+      "reconciled": {
+        "label_id": "e24c7f406fa285fd3755",
+        "doc_id": "DOC-2eebbd30518e8a25",
+        "filename": "0001213900-15-009308_fs12015a3ex21i_shimmick.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d",
+        "doc_sha": "99e5423c41f6b7e2",
+        "field": "subsidiary_jurisdictions",
+        "value": [
+          "California"
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 1,
+            "end": 58,
+            "text": "**Name****Jurisdiction of Incorporation or Organization**"
+          },
+          {
+            "start": 59,
+            "end": 87,
+            "text": "Madera Quarry LLC California"
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "California"
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-a2ca7491896daf9f",
+      "field": "subsidiaries",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "PlanVista Solutions, Inc."
+      ],
+      "check_value": [
+        "PlanVista Solutions, Inc."
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.95,
+          "subsidiary_jurisdictions": 0.9
+        },
+        "notes": "The exhibit names one subsidiary and prints no jurisdiction of incorporation, so subsidiary_jurisdictions is a documented absence rather than a populated label.",
+        "source_read": {
+          "chars": 303,
+          "content_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103",
+          "full_read": true,
+          "range": [
+            0,
+            303
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (303 chars). Exhibit 21.1 'Subsidiaries of the Registrant' lists one entity and no jurisdiction of organization."
+      },
+      "reconciled": {
+        "label_id": "eb0c09ac5323983d6da6",
+        "doc_id": "DOC-a2ca7491896daf9f",
+        "filename": "0000950168-02-001563_dex211.txt",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103",
+        "doc_sha": "99dcf14e1ba6dbd8",
+        "field": "subsidiaries",
+        "value": [
+          "PlanVista Solutions, Inc."
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 256,
+            "end": 281,
+            "text": "PlanVista Solutions, Inc."
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "PlanVista Solutions, Inc."
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-a2ca7491896daf9f",
+      "field": "subsidiary_jurisdictions",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [],
+      "check_value": [],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.95,
+          "subsidiary_jurisdictions": 0.9
+        },
+        "notes": "The exhibit names one subsidiary and prints no jurisdiction of incorporation, so subsidiary_jurisdictions is a documented absence rather than a populated label.",
+        "source_read": {
+          "chars": 303,
+          "content_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103",
+          "full_read": true,
+          "range": [
+            0,
+            303
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (303 chars). Exhibit 21.1 'Subsidiaries of the Registrant' lists one entity and no jurisdiction of organization."
+      },
+      "reconciled": {
+        "label_id": "78f0f77da11c13f9b5c4",
+        "doc_id": "DOC-a2ca7491896daf9f",
+        "filename": "0000950168-02-001563_dex211.txt",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103",
+        "doc_sha": "99dcf14e1ba6dbd8",
+        "field": "subsidiary_jurisdictions",
+        "value": [],
+        "presence": "schema_documented_absence",
+        "evidence": [],
+        "absent_reason": "no jurisdiction column or jurisdiction statement is printed; the exhibit gives only the subsidiary name",
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {},
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-9e22e8cf0d496d7c",
+      "field": "subsidiaries",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "SunAmerica Asset Management, LLC",
+        "Corebridge Capital Services, Inc."
+      ],
+      "check_value": [
+        "SunAmerica Asset Management, LLC",
+        "Corebridge Capital Services, Inc."
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.96,
+          "subsidiary_jurisdictions": 0.93
+        },
+        "notes": "Header names American General Life Insurance Company as the parent; it is not itself a row, so it is not labelled. Both data rows print Delaware in the jurisdiction cells; the jurisdiction list is distinct.",
+        "source_read": {
+          "chars": 315,
+          "content_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f",
+          "full_read": true,
+          "range": [
+            0,
+            315
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (315 chars). Header 'SUBSIDIARIES OF AMERICAN GENERAL LIFE INSURANCE COMPANY'; table columns 'Legal Name' and 'Jurisdiction of Incorporation or Organization'; both rows state Delaware."
+      },
+      "reconciled": {
+        "label_id": "9fc06e64cf9fd8022688",
+        "doc_id": "DOC-9e22e8cf0d496d7c",
+        "filename": "0001193125-24-221320_d829976dex21.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f",
+        "doc_sha": "0b45428952f9513e",
+        "field": "subsidiaries",
+        "value": [
+          "SunAmerica Asset Management, LLC",
+          "Corebridge Capital Services, Inc."
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 217,
+            "end": 249,
+            "text": "SunAmerica Asset Management, LLC"
+          },
+          {
+            "start": 268,
+            "end": 301,
+            "text": "Corebridge Capital Services, Inc."
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "SunAmerica Asset Management, LLC",
+            "Corebridge Capital Services, Inc."
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-9e22e8cf0d496d7c",
+      "field": "subsidiary_jurisdictions",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "Delaware"
+      ],
+      "check_value": [
+        "Delaware"
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.96,
+          "subsidiary_jurisdictions": 0.93
+        },
+        "notes": "Header names American General Life Insurance Company as the parent; it is not itself a row, so it is not labelled. Both data rows print Delaware in the jurisdiction cells; the jurisdiction list is distinct.",
+        "source_read": {
+          "chars": 315,
+          "content_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f",
+          "full_read": true,
+          "range": [
+            0,
+            315
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (315 chars). Header 'SUBSIDIARIES OF AMERICAN GENERAL LIFE INSURANCE COMPANY'; table columns 'Legal Name' and 'Jurisdiction of Incorporation or Organization'; both rows state Delaware."
+      },
+      "reconciled": {
+        "label_id": "6dffaa1f6bef700abfc3",
+        "doc_id": "DOC-9e22e8cf0d496d7c",
+        "filename": "0001193125-24-221320_d829976dex21.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f",
+        "doc_sha": "0b45428952f9513e",
+        "field": "subsidiary_jurisdictions",
+        "value": [
+          "Delaware"
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 167,
+            "end": 212,
+            "text": "Jurisdiction of Incorporation or Organization"
+          },
+          {
+            "start": 255,
+            "end": 263,
+            "text": "Delaware"
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "Delaware"
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-e331ae8f76ff3efc",
+      "field": "subsidiaries",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "Primerica Life Insurance Company",
+        "National Benefit Life Insurance Company",
+        "Primerica Life Insurance Company of Canada",
+        "PFS Investments Inc."
+      ],
+      "check_value": [
+        "Primerica Life Insurance Company",
+        "National Benefit Life Insurance Company",
+        "Primerica Life Insurance Company of Canada",
+        "PFS Investments Inc."
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.97,
+          "subsidiary_jurisdictions": 0.94
+        },
+        "notes": "Two-column table; name and jurisdiction sit in separate cells on the same row. Jurisdictions are transcribed as printed, including the country 'Canada'.",
+        "source_read": {
+          "chars": 349,
+          "content_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40",
+          "full_read": true,
+          "range": [
+            0,
+            349
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (349 chars). Columns 'Name' and 'Jurisdiction of Incorporation or Organization'; each jurisdiction is printed on its row."
+      },
+      "reconciled": {
+        "label_id": "a6021be49f7bbbe2ce33",
+        "doc_id": "DOC-e331ae8f76ff3efc",
+        "filename": "0001193125-10-059057_dex211.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40",
+        "doc_sha": "f0c81b5421ece2fa",
+        "field": "subsidiaries",
+        "value": [
+          "Primerica Life Insurance Company",
+          "National Benefit Life Insurance Company",
+          "Primerica Life Insurance Company of Canada",
+          "PFS Investments Inc."
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 167,
+            "end": 199,
+            "text": "Primerica Life Insurance Company"
+          },
+          {
+            "start": 216,
+            "end": 255,
+            "text": "National Benefit Life Insurance Company"
+          },
+          {
+            "start": 267,
+            "end": 309,
+            "text": "Primerica Life Insurance Company of Canada"
+          },
+          {
+            "start": 319,
+            "end": 339,
+            "text": "PFS Investments Inc."
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "Primerica Life Insurance Company",
+            "National Benefit Life Insurance Company",
+            "Primerica Life Insurance Company of Canada",
+            "PFS Investments Inc."
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    },
+    {
+      "doc_id": "DOC-e331ae8f76ff3efc",
+      "field": "subsidiary_jurisdictions",
+      "status": "near_gold",
+      "label_present": true,
+      "label_ok": true,
+      "check_present": true,
+      "check_ok": true,
+      "label_value": [
+        "Massachusetts",
+        "New York",
+        "Canada",
+        "Georgia"
+      ],
+      "check_value": [
+        "Massachusetts",
+        "New York",
+        "Canada",
+        "Georgia"
+      ],
+      "label_supplementary": {
+        "alternatives": {},
+        "confidence": {
+          "subsidiaries": 0.97,
+          "subsidiary_jurisdictions": 0.94
+        },
+        "notes": "Two-column table; name and jurisdiction sit in separate cells on the same row. Jurisdictions are transcribed as printed, including the country 'Canada'.",
+        "source_read": {
+          "chars": 349,
+          "content_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40",
+          "full_read": true,
+          "range": [
+            0,
+            349
+          ]
+        }
+      },
+      "check_supplementary": {
+        "notes": "Full read (349 chars). Columns 'Name' and 'Jurisdiction of Incorporation or Organization'; each jurisdiction is printed on its row."
+      },
+      "reconciled": {
+        "label_id": "4a5d725bcb80ff73e08a",
+        "doc_id": "DOC-e331ae8f76ff3efc",
+        "filename": "0001193125-10-059057_dex211.htm",
+        "doc_class": "corporate_record",
+        "subclass": "subsidiary_list",
+        "content_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40",
+        "doc_sha": "f0c81b5421ece2fa",
+        "field": "subsidiary_jurisdictions",
+        "value": [
+          "Massachusetts",
+          "New York",
+          "Canada",
+          "Georgia"
+        ],
+        "presence": "populated",
+        "evidence": [
+          {
+            "start": 119,
+            "end": 164,
+            "text": "Jurisdiction of Incorporation or Organization"
+          },
+          {
+            "start": 202,
+            "end": 215,
+            "text": "Massachusetts"
+          },
+          {
+            "start": 258,
+            "end": 266,
+            "text": "New York"
+          },
+          {
+            "start": 303,
+            "end": 309,
+            "text": "Canada"
+          },
+          {
+            "start": 342,
+            "end": 349,
+            "text": "Georgia"
+          }
+        ],
+        "absent_reason": null,
+        "status": "near_gold",
+        "use_as_truth": false,
+        "near_empty": false,
+        "labeler": {
+          "batch": "v93-subclass-subsidiary001-label-20261126-r1",
+          "model": "opencode-go/deepseek-v4.1-flash",
+          "role": "label"
+        },
+        "checks": {
+          "evidence_verbatim": true,
+          "value_supported": true
+        },
+        "schema": {
+          "dataset": "Lucius-Morningstar/mailroom-dataset",
+          "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+          "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+          "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+          "dojo_version": "0.30.1",
+          "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+          "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+        },
+        "check": {
+          "labeler": {
+            "batch": "v93-subclass-subsidiary001-check-20261126-r1",
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "check"
+          },
+          "value": [
+            "Massachusetts",
+            "New York",
+            "Canada",
+            "Georgia"
+          ],
+          "gate_ok": true,
+          "reason": null,
+          "agrees": true
+        }
+      },
+      "gate_rejects": []
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-26T04:15:12Z",
+  "added_at": "2026-11-27T01:34:05Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -81,6 +81,338 @@
           "review-contract-e40.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-26T06:29:48Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-29c516a4775b07d9"
+      ],
+      "sources": {
+        "check": [
+          "tail-001-check.jsonl"
+        ],
+        "label": [
+          "tail-001-label.jsonl"
+        ],
+        "review": [
+          "tail-001-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T07:14:24Z",
+      "binding": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-19d102a0612cdf87",
+        "DOC-6f036492d91cc9c4",
+        "DOC-8c6bc94bd90baa29",
+        "DOC-998bd08aa3861cb3"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "focus-correspondence-001-ready4-check.jsonl"
+        ],
+        "label": [
+          "focus-correspondence-001-ready4-label.jsonl"
+        ],
+        "review": [
+          "focus-correspondence-ready4-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T17:10:33Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-2eebbd30518e8a25",
+        "DOC-9e22e8cf0d496d7c",
+        "DOC-a2ca7491896daf9f",
+        "DOC-e331ae8f76ff3efc"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-subsidiary001-ready8-check.jsonl"
+        ],
+        "label": [
+          "subclass-subsidiary001-ready8-label.jsonl"
+        ],
+        "review": []
+      }
+    },
+    {
+      "added_at": "2026-11-26T17:23:32Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0b61fce5b8a05518",
+        "DOC-1fe073843dcc9442",
+        "DOC-443542beadaf2839",
+        "DOC-78f2456f571403a9",
+        "DOC-dae485695eb01169",
+        "DOC-eee7c0d4e99e5be4"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse001-ready15-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse001-ready15-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse001-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T17:37:43Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-01ccf3f1ee5f4163",
+        "DOC-076807b2c574e2c1",
+        "DOC-30ce0f05432fc57f",
+        "DOC-b68ca8a66c41650f",
+        "DOC-e12651c80e736fb8",
+        "DOC-e478fa89043a29e3"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse002-existing13-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse002-existing13-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse002-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T17:37:44Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-6aed2864c5ee6706"
+      ],
+      "sources": {
+        "check": [
+          "subclass-diverse002-new2-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse002-new2-label.jsonl"
+        ],
+        "review": []
+      }
+    },
+    {
+      "added_at": "2026-11-26T22:56:05Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-02e5b3d7ea700ab0",
+        "DOC-0636dbc980a43715",
+        "DOC-204c3c7c0ba021cd",
+        "DOC-210d34e7c0e3f65d",
+        "DOC-417996c5cc3d91f5",
+        "DOC-4a2d6dad6cf09052",
+        "DOC-4fd55e720ac8b708",
+        "DOC-729ea9a3c924614e",
+        "DOC-74b0b6beecc8c0ad",
+        "DOC-a1bf2ddf032e38ea",
+        "DOC-a2be49cc07e80dd8",
+        "DOC-abd090f0f36ec76d",
+        "DOC-b07d6254886c7038",
+        "DOC-c4c08df19a3d9526",
+        "DOC-c80ef83120793a69",
+        "DOC-cdf8ee802f599662",
+        "DOC-e3af62d905e5bc55"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-subsidiary002-ready33-check.jsonl"
+        ],
+        "label": [
+          "subclass-subsidiary002-ready33-label.jsonl"
+        ],
+        "review": [
+          "subclass-subsidiary002-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T23:33:14Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0c7cda9021fbd910",
+        "DOC-474a0002b4c03be1",
+        "DOC-ceb3f2b773c75bcd"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "subclass-diverse003-existing9-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse003-existing9-label.jsonl"
+        ],
+        "review": [
+          "subclass-diverse003-parent-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-26T23:33:15Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-ec57149494f0c9a0"
+      ],
+      "sources": {
+        "check": [
+          "subclass-diverse003-new3-check.jsonl"
+        ],
+        "label": [
+          "subclass-diverse003-new3-label.jsonl"
+        ],
+        "review": []
+      }
+    },
+    {
+      "added_at": "2026-11-27T00:54:43Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0a29136832720e65",
+        "DOC-1b1b4b7f3f2d714a",
+        "DOC-f546c7d6cf2e77e2"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical001-ready16-check.jsonl"
+        ],
+        "label": [
+          "merger-critical001-ready16-label.jsonl"
+        ],
+        "review": [
+          "merger-critical001-source-decisions-terra.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-27T01:34:05Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-681bc6115b882191",
+        "DOC-eac7882cff200545"
+      ],
+      "sources": {
+        "check": [
+          "merger-critical002-ready13-check.jsonl"
+        ],
+        "label": [
+          "merger-critical002-ready13-label.jsonl"
+        ],
+        "review": [
+          "merger-critical002-source-decisions-terra.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -96,7 +428,7 @@
   "counts": {
     "contract": {
       "-": {
-        "notes": 267
+        "notes": 268
       },
       "agreement_date": {
         "gate_reject": 13
@@ -113,12 +445,12 @@
     },
     "corporate_record": {
       "-": {
-        "notes": 420
+        "notes": 458
       }
     },
     "correspondence": {
       "-": {
-        "notes": 1080
+        "notes": 1084
       },
       "action_items": {
         "rejected": 1
@@ -135,15 +467,22 @@
       "urgency": {
         "gate_reject": 2
       }
+    },
+    "merger_agreement": {
+      "-": {
+        "notes": 5
+      }
     }
   },
   "files": {
-    "contract.jsonl": "5b98ad9fdae6873b40b34fbbd2ed77cd95f540f15c73e16696206a80117728a8",
-    "corporate_record.jsonl": "e72a8a0451e0490db2d561dfe3af33e71c9f0fe5816196be43845f4ceed4cae4",
-    "correspondence.jsonl": "64f472cc3fff363fa13ca858bf85de094a9281d92ccb43c8358d12691ea877b7"
+    "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
+    "corporate_record.jsonl": "232845aa2a22b4fcd894d29e3d601e6fc9e86e87e9742bacb4682224b0f5aa25",
+    "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22",
+    "merger_agreement.jsonl": "56fc7812961db59a63206994b672acf7698e039f77d05adb9cdeff6d614edea6"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
   "schema": "mailroom-gold-supplementary/v1",
+  "source_path_metadata": "Repository-relative export; original private bytes retained; no label payload or evidence change.",
   "sources": {
     "check": [
       "check-contract-000.jsonl",
@@ -195,9 +534,21 @@
       "check-correspondence-031.jsonl",
       "check-correspondence-038.jsonl",
       "check-correspondence-039.jsonl",
-      "check-correspondence-040.jsonl"
+      "check-correspondence-040.jsonl",
+      "focus-correspondence-001-ready4-check.jsonl",
+      "merger-critical001-ready16-check.jsonl",
+      "merger-critical002-ready13-check.jsonl",
+      "subclass-diverse001-ready15-check.jsonl",
+      "subclass-diverse002-existing13-check.jsonl",
+      "subclass-diverse002-new2-check.jsonl",
+      "subclass-diverse003-existing9-check.jsonl",
+      "subclass-diverse003-new3-check.jsonl",
+      "subclass-subsidiary001-ready8-check.jsonl",
+      "subclass-subsidiary002-ready33-check.jsonl",
+      "tail-001-check.jsonl"
     ],
     "label": [
+      "focus-correspondence-001-ready4-label.jsonl",
       "label-contract-000.jsonl",
       "label-contract-001.jsonl",
       "label-contract-002.jsonl",
@@ -404,7 +755,17 @@
       "label-correspondence-040.jsonl",
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
-      "label-correspondence-043.jsonl"
+      "label-correspondence-043.jsonl",
+      "merger-critical001-ready16-label.jsonl",
+      "merger-critical002-ready13-label.jsonl",
+      "subclass-diverse001-ready15-label.jsonl",
+      "subclass-diverse002-existing13-label.jsonl",
+      "subclass-diverse002-new2-label.jsonl",
+      "subclass-diverse003-existing9-label.jsonl",
+      "subclass-diverse003-new3-label.jsonl",
+      "subclass-subsidiary001-ready8-label.jsonl",
+      "subclass-subsidiary002-ready33-label.jsonl",
+      "tail-001-label.jsonl"
     ],
     "override": [
       "fwd-label-correspondence-000.jsonl",
@@ -412,6 +773,9 @@
       "fwd-label-correspondence-002.jsonl"
     ],
     "review": [
+      "focus-correspondence-ready4-parent-review.jsonl",
+      "merger-critical001-source-decisions-terra.jsonl",
+      "merger-critical002-source-decisions-terra.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e40.jsonl",
       "review-corp-1.jsonl",
@@ -421,7 +785,12 @@
       "review-fwd.jsonl",
       "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
-      "review-promo-urgency.jsonl"
+      "review-promo-urgency.jsonl",
+      "subclass-diverse001-parent-review.jsonl",
+      "subclass-diverse002-parent-review.jsonl",
+      "subclass-diverse003-parent-review.jsonl",
+      "subclass-subsidiary002-parent-review.jsonl",
+      "tail-001-review.jsonl"
     ]
   },
   "target_fields": {
@@ -447,7 +816,9 @@
         "jurisdiction",
         "entity_name"
       ],
-      "tier2": []
+      "tier2": [
+        "filing_number"
+      ]
     },
     "correspondence": {
       "tier1": [
@@ -461,7 +832,100 @@
       "tier2": [
         "additional_recipients"
       ]
+    },
+    "merger_agreement": {
+      "tier1": [
+        "document_name",
+        "parties",
+        "acquirer",
+        "target",
+        "merger_sub",
+        "signatories",
+        "effective_date",
+        "effective_time",
+        "governing_law",
+        "per_share_cash_amount",
+        "exchange_ratio",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel"
+      ],
+      "tier2": []
     }
   },
-  "truth_statuses": []
+  "truth_statuses": [],
+  "withdrawals": [
+    {
+      "archive": "data/labels/repair-artifacts/v93-20261126-scope-correction",
+      "reason": "outside registered subclass applicability",
+      "scope": "38 corporate fields added in 4d1b863c only",
+      "superseded_additions": [
+        {
+          "added_at": "2026-11-26T07:14:43Z",
+          "binding": {
+            "dataset": "Lucius-Morningstar/mailroom-dataset",
+            "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+            "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+            "dojo_version": "0.30.1",
+            "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+            "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+          },
+          "builder": "scripts/gold_labels.py add",
+          "documents": [
+            "DOC-12a6d4cd092cf66d",
+            "DOC-82dd8227e24e692e",
+            "DOC-a14783cfd27c88c1"
+          ],
+          "missing_fields": true,
+          "sources": {
+            "check": [
+              "focus-corporate-tail001-check.jsonl"
+            ],
+            "label": [
+              "focus-corporate-tail001-label.jsonl"
+            ],
+            "review": []
+          }
+        },
+        {
+          "added_at": "2026-11-26T07:16:53Z",
+          "binding": {
+            "dataset": "Lucius-Morningstar/mailroom-dataset",
+            "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+            "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+            "dojo_version": "0.30.1",
+            "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+            "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+          },
+          "builder": "scripts/gold_labels.py add",
+          "documents": [
+            "DOC-2eebbd30518e8a25",
+            "DOC-417996c5cc3d91f5",
+            "DOC-4a2d6dad6cf09052",
+            "DOC-9e22e8cf0d496d7c",
+            "DOC-a1bf2ddf032e38ea",
+            "DOC-a2be49cc07e80dd8",
+            "DOC-abd090f0f36ec76d",
+            "DOC-cdf8ee802f599662",
+            "DOC-e331ae8f76ff3efc",
+            "DOC-e3af62d905e5bc55",
+            "DOC-e42fbaa25765ec5f",
+            "DOC-f2a8c5dab035b0ed"
+          ],
+          "missing_fields": true,
+          "sources": {
+            "check": [
+              "focus-corporate-efficient001-check.jsonl"
+            ],
+            "label": [
+              "focus-corporate-efficient001-label.jsonl"
+            ],
+            "review": []
+          }
+        }
+      ]
+    }
+  ]
 }

@@ -25,7 +25,7 @@ agent sessions that read the batch files and write submission JSONL.
     #                 "entry" is written, build takes it from the check submission and gates it.
     #                 The record keeps verdict "accept_check" and value_source.kind "check_pass"
     #                 (a correct verdict gives value_source.kind "review_correction"); the
-    #                 overlay basis is near_gold:opus_reviewed_accept_check.
+    #                 overlay records the actual reviewer and review verdict.
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…] [--override O.jsonl…]
     # apply accept/correct review lines to the committed catalog in place (no label or check
@@ -44,6 +44,13 @@ agent sessions that read the batch files and write submission JSONL.
     # add only appends: a later full build must be given every source, the added files too.
     python scripts/gold_labels.py add --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…]
+    # --missing-fields opts into appending only fields the catalog does not hold yet on documents
+    # it already holds (for example a target field added to the guide after the build). Every
+    # supplied label, check and review key is checked against the catalog first: one collision
+    # refuses the whole add. The document's class, hashes and source filename must still match
+    # its catalog records; existing records and their bindings are not rewritten.
+    python scripts/gold_labels.py add --corpus … --revision … --missing-fields \
+        --label L.jsonl… --check C.jsonl… [--review R.jsonl…]
     # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
     # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
     python scripts/gold_labels.py check
@@ -64,7 +71,7 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -156,9 +163,14 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
             if row.get("content_sha256") and row["content_sha256"] != measured:
                 raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
                                  "refusing to label a document whose text is not the published one")
+            if row["expected"] in ("corporate_record", "merger_agreement"):
+                try:
+                    (gl._corporate_subclass if row["expected"] == "corporate_record" else gl._merger_subclass)(row.get("expected_subclass"))
+                except KeyError as exc:
+                    raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
                    "subclass": row.get("expected_subclass"), "content_sha256": measured}
-            out.append((doc, sub, gl.validate_submission(sub, text, row["expected"]), text))
+            out.append((doc, sub, gl.validate_submission(sub, text, row["expected"], doc["subclass"]), text))
     return out
 
 
@@ -195,6 +207,7 @@ def _schema_binding(revision: str) -> dict[str, Any]:
     from schemas import documents
 
     import llm_dojo_scoring
+    from llm_dojo_scoring.schemas.corporate_record_schema import SUBCLASS_SCHEMAS, corporate_record_json_schema
 
     def _vendor_commit(name: str) -> str | None:
         text = (gl.repo_root() / "vendor" / name / "VENDOR.md").read_text(encoding="utf-8")
@@ -204,6 +217,7 @@ def _schema_binding(revision: str) -> dict[str, Any]:
         return None
 
     schema_json = {k: v.model_json_schema() for k, v in documents.EXTRACTION_SCHEMAS.items()}
+    corporate_json = {s: corporate_record_json_schema(s) for s in SUBCLASS_SCHEMAS}
     return {
         "dataset": "Lucius-Morningstar/mailroom-dataset",
         "dataset_revision": revision,
@@ -212,6 +226,8 @@ def _schema_binding(revision: str) -> dict[str, Any]:
         "dojo_version": getattr(llm_dojo_scoring, "__version__", None),
         "extraction_schemas_sha256": hashlib.sha256(
             json.dumps(schema_json, sort_keys=True).encode("utf-8")).hexdigest(),
+        "corporate_subclass_schemas_sha256": hashlib.sha256(
+            json.dumps(corporate_json, sort_keys=True).encode("utf-8")).hexdigest(),
     }
 
 
@@ -358,7 +374,7 @@ def _resolve_decision(rec: dict, decision: dict, chk: Any, doc: dict, text: str,
     if decision["verdict"] in ("correct", "accept_check"):
         fixed = gl.validate_submission(
             {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
-            doc["doc_class"])
+            doc["doc_class"], doc.get("subclass"))
         fr = fixed.fields[rec["field"]]
         if not fr.ok:
             raise _BuildError(f"review correction for {rec['doc_id']}.{rec['field']} fails the gate: "
@@ -604,11 +620,15 @@ def _rewrite_drift(stage: Path, manifest: dict[str, Any], data: dict[str, list[d
 
 
 def _added_manifest(old: dict[str, Any], data: dict[str, list[dict]], files: dict[str, str],
-                    args: argparse.Namespace, binding: dict[str, Any], now: str, doc_ids: list[str]) -> dict[str, Any]:
+                    args: argparse.Namespace, binding: dict[str, Any], now: str, doc_ids: list[str],
+                    *, missing_fields: bool = False) -> dict[str, Any]:
     """``old`` with the new files, counts and sources, and one ``additions`` entry.
 
     ``binding`` and ``built_at`` stay the original build's: they describe the records already
     there. The added records carry their own schema binding (and ``additions[].binding`` repeats it).
+    ``target_fields`` is refreshed to the guide's current list so a field supported after the build
+    is recorded; no existing record or binding is rewritten. A ``--missing-fields`` add is marked
+    in its ``additions`` entry.
     """
     given = {"label": sorted(Path(p).name for p in args.label),
              "check": sorted(Path(p).name for p in args.check),
@@ -616,22 +636,98 @@ def _added_manifest(old: dict[str, Any], data: dict[str, list[dict]], files: dic
     sources = {role: list(names) for role, names in old.get("sources", {}).items()}
     for role, names in given.items():
         sources[role] = sorted({*sources.get(role, []), *names})
+    entry = {"added_at": now, "builder": "scripts/gold_labels.py add", "binding": binding,
+             "documents": doc_ids, "sources": given}
+    if missing_fields:
+        entry["missing_fields"] = True
     return {**old, "files": files, "counts": _class_counts(data), "sources": sources, "added_at": now,
-            "additions": [*old.get("additions", []),
-                          {"added_at": now, "builder": "scripts/gold_labels.py add", "binding": binding,
-                           "documents": doc_ids, "sources": given}]}
+            "target_fields": gl.TARGET_FIELDS, "additions": [*old.get("additions", []), entry]}
+
+
+def _pass_keys(paths: list[str]) -> set[tuple[str, str]]:
+    """Every ``(doc_id, field)`` a label/check pass supplies, including a field the gate rejects."""
+    keys: set[tuple[str, str]] = set()
+    for path in paths:
+        for sub in gl.read_jsonl(Path(path)):
+            fields = sub.get("fields")
+            if isinstance(fields, Mapping):
+                keys |= {(str(sub.get("doc_id")), str(name)) for name in fields}
+    return keys
 
 
 def _add_problems(args: argparse.Namespace, reviews: dict[tuple[str, str], dict], gdata: dict[str, list[dict]],
-                  manifests: list[dict[str, Any]]) -> list[str]:
-    """Documents and file names the committed catalog already holds."""
+                  manifests: list[dict[str, Any]], *, missing_fields: bool = False) -> list[str]:
+    """Documents, fields and file names the committed catalog already holds."""
     held = {r["doc_id"] for recs in gdata.values() for r in recs}
-    given = {*_pass_doc_ids(args.label), *_pass_doc_ids(args.check), *(d for d, _ in reviews)}
-    problems = [f"{d}: already has a catalog record (settle it with `review`, or rebuild with every source)"
-                for d in sorted(given & held)]
+    supplied_docs = _pass_doc_ids(args.label) | _pass_doc_ids(args.check)
+    if missing_fields:
+        held_keys = {(r["doc_id"], r["field"]) for recs in gdata.values() for r in recs}
+        supplied_keys = _pass_keys([*args.label, *args.check]) | set(reviews)
+        problems = [f"{d}: not in the catalog (add new documents without --missing-fields)"
+                    for d in sorted(supplied_docs - held)]
+        problems += [f"{d}.{f}: already has a catalog record (settle it with `review`; "
+                     "--missing-fields adds only new fields)"
+                     for d, f in sorted(supplied_keys & held_keys)]
+    else:
+        given = {*supplied_docs, *(d for d, _ in reviews)}
+        problems = [f"{d}: already has a catalog record (settle it with `review`, or rebuild with every source)"
+                    for d in sorted(given & held)]
     taken = {n for m in manifests for names in m.get("sources", {}).values() for n in names}
     problems += [f"{Path(p).name}: already a source of the catalog (rename the new file)"
                  for p in [*args.label, *args.check, *(args.review or [])] if Path(p).name in taken]
+    return problems
+
+
+def _missing_field_source_problems(labelled: list, checked: list,
+                                   gdata: dict[str, list[dict]]) -> list[str]:
+    """Why an existing document's source identity differs from its catalog records (empty = fine).
+
+    A missing-field add writes new rows under a ``doc_id`` whose records the catalog already
+    holds, so the text, document class and source filename must be the ones those records were
+    built from. Comparing every existing record keeps a catalog whose own rows disagree from
+    admitting a revision or another class under the same id.
+    """
+    docs = {doc["doc_id"]: (doc, text) for doc, _sub, _res, text in [*labelled, *checked]}
+    problems = []
+    for doc, sub, res, _text in [*labelled, *checked]:
+        if res.payload_error and not res.fields:
+            problems.append(f"{doc['doc_id']}: {res.payload_error}")
+        elif isinstance(sub.get("fields"), Mapping) and not sub["fields"]:
+            problems.append(f"{doc['doc_id']}: submission has no fields to add")
+    if problems:
+        return problems
+    held: dict[str, list[dict]] = collections.defaultdict(list)
+    for recs in gdata.values():
+        for rec in recs:
+            held[rec["doc_id"]].append(rec)
+    for doc_id in sorted(set(docs) & set(held)):
+        doc, text = docs[doc_id]
+        identities = {(r.get("doc_class"), r.get("content_sha256"), r.get("doc_sha"), r.get("filename"))
+                      for r in held[doc_id]}
+        if len(identities) != 1:
+            problems.append(f"{doc_id}: its catalog records disagree on the source identity; "
+                            "rebuild the catalog before adding fields")
+            continue
+        cls, content_sha, doc_sha, filename = next(iter(identities))
+        if cls in ("corporate_record", "merger_agreement"):
+            subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
+            missing = cls == "merger_agreement" and any(r.get("subclass") is None for r in held[doc_id])
+            if missing or len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+                problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
+        if cls != doc["doc_class"]:
+            problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
+                            f"record's {cls!r}")
+        if not content_sha:
+            problems.append(f"{doc_id}: the document record has no content_sha256; cannot verify the source")
+        elif content_sha != doc["content_sha256"]:
+            problems.append(f"{doc_id}: corpus text does not match the document record's content_sha256")
+        if not doc_sha:
+            problems.append(f"{doc_id}: the document record has no doc_sha; cannot verify the source")
+        elif doc_sha != gl.doc_sha(text):
+            problems.append(f"{doc_id}: corpus text does not match the document record's doc_sha")
+        if filename != doc.get("filename"):
+            problems.append(f"{doc_id}: source filename {doc.get('filename')!r} differs from the "
+                            f"document record's {filename!r}")
     return problems
 
 
@@ -644,7 +740,12 @@ def cmd_add(args: argparse.Namespace) -> int:
     source file and replaces both stores, which does not suit passes landing one batch at a time.
     Existing records are not rewritten. The manifest gains the new file names under ``sources`` and
     one ``additions`` entry; a later full ``build`` must be given the added files too.
+
+    With ``--missing-fields`` the documents must already be in the catalog and every supplied
+    ``(doc_id, field)`` key must be new; one collision refuses the whole add. The records' source
+    identity (class, hashes, filename) must match, and only the new rows carry this add's binding.
     """
+    missing_fields = bool(getattr(args, "missing_fields", False))
     corpus = Path(args.corpus)
     missing = [p for p in [*args.label, *args.check, *(args.review or [])] if not Path(p).is_file()]
     if missing:
@@ -663,7 +764,7 @@ def cmd_add(args: argparse.Namespace) -> int:
             raise _BuildError("add refused: the committed stores already fail their check:\n  " + "\n  ".join(broken))
         gmanifest, gdata = _load_store(gold, gl.SCHEMA, "catalog")
         smanifest, sdata = _load_store(supp, gl.SUPPLEMENTARY_SCHEMA, "supplementary store")
-        problems = _add_problems(args, reviews, gdata, [gmanifest, smanifest])
+        problems = _add_problems(args, reviews, gdata, [gmanifest, smanifest], missing_fields=missing_fields)
         if problems:
             raise _BuildError("add refused:\n  " + "\n  ".join(problems))
         labelled = _validate_all(corpus, args.label)
@@ -672,6 +773,10 @@ def cmd_add(args: argparse.Namespace) -> int:
         unknown = sorted((_pass_doc_ids(args.label) | _pass_doc_ids(args.check)) - known)
         if unknown:
             raise _BuildError("add refused:\n  " + "\n  ".join(f"{d}: not in the corpus" for d in unknown))
+        if missing_fields:
+            problems = _missing_field_source_problems(labelled, checked, gdata)
+            if problems:
+                raise _BuildError("add refused:\n  " + "\n  ".join(problems))
         checks = {d["doc_id"]: (sub, res) for d, sub, res, _ in checked}
         binding = _schema_binding(args.revision)
         catalog, supplementary = _build_rows(labelled, checks, reviews, binding)
@@ -685,14 +790,22 @@ def cmd_add(args: argparse.Namespace) -> int:
     for old, new in ((gdata, catalog), (sdata, supplementary)):
         merged.append({cls: [*old.get(cls, []), *new.get(cls, [])] for cls in sorted({*old, *new})})
     with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
-        drift = _rewrite_drift(gold_stage, gmanifest, gdata) + _rewrite_drift(supp_stage, smanifest, sdata)
+        drift = _rewrite_drift(gold_stage, gmanifest, {c: gdata[c] for c in catalog if c in gdata})
+        drift += _rewrite_drift(supp_stage, smanifest, {c: sdata[c] for c in supplementary if c in sdata})
         if drift:
             print("add refused: " + "\n  ".join(drift), file=sys.stderr)
             return 1
         left = []
-        for stage, old, data in ((gold_stage, gmanifest, merged[0]), (supp_stage, smanifest, merged[1])):
-            files = _write_class_files(stage, data)
-            manifest = _added_manifest(old, data, files, args, binding, now, doc_ids)
+        for stage, source, old, data, new in ((gold_stage, gold, gmanifest, merged[0], catalog),
+                                              (supp_stage, supp, smanifest, merged[1], supplementary)):
+            files = {}
+            for name, sha in old["files"].items():
+                if Path(name).stem not in new:
+                    (stage / name).write_bytes((source / name).read_bytes())
+                    files[name] = sha
+            files.update(_write_class_files(stage, {cls: data[cls] for cls in new}))
+            manifest = _added_manifest(old, data, files, args, binding, now, doc_ids,
+                                       missing_fields=missing_fields)
             (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
                                                  encoding="utf-8")
             left += gl.verify_catalog(stage)
@@ -701,8 +814,13 @@ def cmd_add(args: argparse.Namespace) -> int:
                   + "\n  ".join(left), file=sys.stderr)
             return 1
         _swap_in_both(gold_stage, gold, supp_stage, supp)
-    print(f"added {len(doc_ids)} documents: {sum(len(v) for v in catalog.values())} labels; "
-          f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
+    added = sum(len(v) for v in catalog.values())
+    supp_rows = sum(len(v) for v in supplementary.values())
+    if missing_fields:
+        print(f"added {added} missing-field labels on {len(doc_ids)} documents; "
+              f"supplementary: {supp_rows} rows")
+    else:
+        print(f"added {len(doc_ids)} documents: {added} labels; supplementary: {supp_rows} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
     return 0
 
@@ -749,13 +867,28 @@ def cmd_review(args: argparse.Namespace) -> int:
     manifest = json.loads((gold / "MANIFEST.json").read_text(encoding="utf-8"))
     data = {Path(name).stem: gl.read_jsonl(gold / name) for name in sorted(manifest["files"])}
     index = {(r["doc_id"], r["field"]): (cls, i) for cls, recs in data.items() for i, r in enumerate(recs)}
-    _, texts = _load_corpus(Path(args.corpus))
+    rows, texts = _load_corpus(Path(args.corpus))
+    by_doc = _rows_by_doc(rows)
     for key, decision in sorted(reviews.items()):
         if key not in index:
             problems.append(f"{key[0]}.{key[1]}: no catalog record")
             continue
         cls, i = index[key]
         rec = data[cls][i]
+        row = by_doc.get(rec["doc_id"])
+        if not row or row.get("expected") != cls or row.get("filename") != rec.get("filename"):
+            problems.append(f"{key[0]}.{key[1]}: corpus identity differs from the label's")
+            continue
+        subclass = row.get("expected_subclass")
+        if cls in ("corporate_record", "merger_agreement"):
+            try:
+                (gl._corporate_subclass if cls == "corporate_record" else gl._merger_subclass)(subclass)
+            except KeyError as exc:
+                problems.append(f"{key[0]}.{key[1]}: {exc}")
+                continue
+            if rec.get("subclass") != subclass:
+                problems.append(f"{key[0]}.{key[1]}: corpus subclass differs from the label's")
+                continue
         earlier = rec.get("review")
         why = _supersedes_problem(rec, decision)
         if why:
@@ -768,7 +901,8 @@ def cmd_review(args: argparse.Namespace) -> int:
         try:
             # relabel=True: the catalog does not mark a field an --override pass relabelled, so an
             # in-place accept always names the value it reviewed (the build replays it either way).
-            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text,
+            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls,
+                                                               "subclass": subclass}, text,
                                          relabel=True)
         except _BuildError as exc:
             problems.append(str(exc))
@@ -941,13 +1075,15 @@ def main(argv: list[str] | None = None) -> int:
     bd.add_argument("--override", nargs="*", help="relabel passes whose fields replace earlier label passes")
     bd.set_defaults(fn=cmd_build)
 
-    ad = sub.add_parser("add", help="append passes for documents the catalog does not hold yet")
+    ad = sub.add_parser("add", help="append passes for new documents, or new fields on existing ones")
     ad.add_argument("--corpus", required=True)
     ad.add_argument("--revision", required=True, help="dataset revision the added records are bound to")
     ad.add_argument("--label", nargs="+", required=True)
     ad.add_argument("--check", nargs="+", required=True)
     ad.add_argument("--review", nargs="*")
-    ad.set_defaults(fn=cmd_add, override=None)
+    ad.add_argument("--missing-fields", action="store_true",
+                    help="add only fields the catalog does not hold yet on documents it already holds")
+    ad.set_defaults(fn=cmd_add, override=None, missing_fields=False)
 
     rv = sub.add_parser("review", help="apply accept/correct review files to the committed catalog in place")
     rv.add_argument("--corpus", required=True)

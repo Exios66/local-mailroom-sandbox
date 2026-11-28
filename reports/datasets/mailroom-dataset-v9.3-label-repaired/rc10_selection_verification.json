@@ -1,0 +1,26 @@
+{
+  "pinned_source_commit": "cfc351f6561d22581a65fb5b13b81832e8a67787",
+  "manifest_sha256": "b7dc80a16037b7f2bce8c75f226fed8ac447bf6f6f8c03ce166d3dcd83ea65e5",
+  "keys": 48688,
+  "value_or_presence_changes": 449,
+  "protected_changes": 0,
+  "changes_by_old_source": {
+    "generated_derived": 97,
+    "": 325,
+    "generated_rule": 20,
+    "gold_candidate": 7
+  },
+  "unchanged_files": {
+    "overlay/corporate_record.jsonl": "173f3658ddc09223b71bc332ce284e48a3c12b766909a0ff6552a212bdbf3a45",
+    "overlay/correspondence.jsonl": "4d969198ac32d4d68b679bccbc3be34d3ed0d554dcd5aa115fbe4cd63f9c2b91",
+    "overlay/insurance_claim.jsonl": "8c3fc2129c7d1c5ce35f3d8f39795ca0223d8931dedf190773385e25a54b515d",
+    "overlay/merger_agreement.jsonl": "1547a57ee104064e6f06e68ddbc597596c02a928f79507543d139b2b5b320b3f",
+    "queues/gold_override_signoff.csv": "54f4c784fe5079eeb12c8b8ca0f74ea47397ad38b67bf7696316150eb92abed4",
+    "queues/header_restoration.csv": "385994a2783bb514d9307fae7148dca2d1953067c48900671999c1d318779509"
+  },
+  "checked_date": "2026-11-26",
+  "merge_commit": "acd2133ae615e77b521422b8fdba3fa097e87762",
+  "pinned_source_is_ancestor_of_main": true,
+  "required_ci_head": "502f79a0867dcb8f8969fb28a5de2f8c1e636390",
+  "selection": "New preparation configs only; existing experiment locks unchanged; no deployment or live run."
+}
