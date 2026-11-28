@@ -58,6 +58,10 @@ dataset:
       - {doc_class: merger_agreement, count: 23}
   sample_seed: 3302          # one seed for every slice, so the draws nest
   require_task_gt: true     # every document can be scored
+  # A contract with no CUAD labels still qualifies on 2 field labels from the staged overlay (the
+  # gate's min_labelled): SHF-016 scores it on those fields, so the repair campaign's contract labels
+  # are measured. Which contracts qualify follows the pinned cut, so a new cut is a new draw.
+  task_gt_min_field_labels: 2
   # Staged v10 label repairs from mailroom-issues mailroom_cache (pinned in config/staged_overlays.yaml):
   # the merged Hub + interim + near-gold + reviewed master, so it replaces interim_labels / near_gold_labels.
   # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.10 (docs/staged-label-overlay.md).

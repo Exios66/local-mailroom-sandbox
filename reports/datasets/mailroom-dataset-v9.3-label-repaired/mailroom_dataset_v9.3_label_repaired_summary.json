@@ -10,22 +10,23 @@
     "correspondence": 1000,
     "merger_agreement": 152
   },
-  "label_cells_targeted": 48686,
+  "label_cells_targeted": 50233,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 43408,
-  "label_cells_unlabeled": 5200,
+  "label_cells_labeled_repaired": 43942,
+  "label_cells_unlabeled": 6213,
   "label_cells_disputed_unresolved": 78,
   "conflicts_resolved": 2106,
-  "needs_human": 78,
+  "needs_human": 101,
   "subclass_changed": 66,
   "nan_placeholders_dropped": 2100,
   "duplicate_rows_flagged": 13,
   "stale_overlay_records_skipped": {},
+  "values_moved_by_reviewed_precedence": {},
   "chosen_source_counts": {
     "hub_v9.3": 24713,
     "generated_derived": 5829,
-    "near_gold_two_pass": 4050,
-    "near_gold_reviewed": 3832,
+    "near_gold_two_pass": 4530,
+    "near_gold_reviewed": 3886,
     "interim_reviewed": 1894,
     "generated_rule": 925,
     "interim_derived": 836,
@@ -100,13 +101,14 @@
     }
   },
   "inputs_sha256": {
+    "config/extraction/subclass_schemas.json": "b545bd91ef235f45e5eb8fa0e6b148318854f5447218ddfd7e59d8ffd757ff73",
     "data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f",
-    "data/labels/gold-overlay/contract.jsonl": "cc760ee735786b763ee2f7ab4f51428b7036528f8a21a2729b1262b680ac4993",
-    "data/labels/gold-overlay/corporate_record.jsonl": "12d594fafb5109e7885392cd5de2f27742e57505d96f1a74b81df0fc12785633",
-    "data/labels/gold-overlay/correspondence.jsonl": "ebed99ecb91f41491ee89981d972ea7e4a3440ed8b08cbfe7c84ec26ed21853d",
-    "data/labels/gold-overlay/merger_agreement.jsonl": "bde014f85c12f20e10e9a6db7f99b2e1f6b1db9bfd99f57375573f5b8d5594b4",
+    "data/labels/gold-overlay/contract.jsonl": "df895087138ab73aaf6e09501284e29c954f1f81d4d60024aef68f1e2d4a60fd",
+    "data/labels/gold-overlay/corporate_record.jsonl": "851b3f553e7c5a9219b690d113c1a2e11744f5ba7b47e3ede2a62a3be2da74cf",
+    "data/labels/gold-overlay/correspondence.jsonl": "6df4ba50cc84c1a9cbf8ed0aa1984934f13ec796da1a0b25f2a05eee503944c0",
+    "data/labels/gold-overlay/merger_agreement.jsonl": "e4c4bb796ec371f3f0ebcaa3433861ee5a57c5b56e584e6dd52d0ffac066bc7d",
     "data/labels/gold/contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
-    "data/labels/gold/corporate_record.jsonl": "693b0d9e27e1b373898782fc206fa62821f16a609e21b633a24c80e6b662aacb",
+    "data/labels/gold/corporate_record.jsonl": "578b4463b850dd5608547a08775a9d0a88339dcce8893ba5650d5e10871f016f",
     "data/labels/gold/correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "data/labels/gold/merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124",
     "data/labels/interim/contract.jsonl": "17802d8b410cf32efffe6bd758365ef13ce2e6353c40079bcde088538c0aff44",
@@ -120,8 +122,8 @@
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/train/train-00000-of-00001.parquet": "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
   },
   "outputs_sha256": {
-    "mailroom_dataset_v9.3_label_repaired.csv": "9fd23731d61266e9ed3295f62b9698d005bf6ccddd3c7ddfcd2362f13f87853f",
-    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "73cc8e400525cfdacb3af6e754c0fc114ca0511863b525cfb4aa7f0f07c0dc4a",
-    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "c4c1449b1474d4e1e175cae850ccb1b0689562a03b2c7f5aa8919eb90cb6892a"
+    "mailroom_dataset_v9.3_label_repaired.csv": "f3693bd16786b7176dede29afb5c63e0a107544b3097d49f91b3b2de4331008a",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "12927838c9813eac23f8e7befd22318e4cd668b5f6fb5c98a339bda7a3958f63",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "d10cf5f121a34be36dfe8f047d298bcedd5b58e24a8a5f5f63d6e4241929daee"
   }
 }
