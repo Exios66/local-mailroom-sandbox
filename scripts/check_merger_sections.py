@@ -39,7 +39,8 @@ def _calibration_texts() -> list[tuple[str, str]]:
         if not wanted:
             continue
         docs = pq.read_table(default / split / f"{split}-00000-of-00001.parquet",
-                             columns=["filename", "doc_text"]).to_pydict()
+                             columns=["filename", "doc_text"],
+                             filters=[("filename", "in", list(wanted))]).to_pydict()
         out += [(wanted[f], t or "") for f, t in zip(docs["filename"], docs["doc_text"]) if f in wanted]
     return out
 

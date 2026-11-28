@@ -14,7 +14,9 @@ the pinned corpus (``corpus.load_hf_rows``: the same default + ground_truth join
     python scripts/build_long_dev_ids.py --check    # exit 1 on drift
 
 LOCAL ONLY: it reads the pinned parquet from the Hugging Face cache (offline; ``HF_HUB_OFFLINE=1`` is
-set unless already set), which CI does not hold. Only dev documents are read; the held-out set never is.
+set unless already set), which CI does not hold. The loader reads every split, held-out included, so
+the id universe can be checked. Only dev documents over the threshold are listed; held-out ids are
+written only into the exclude file.
 """
 
 from __future__ import annotations

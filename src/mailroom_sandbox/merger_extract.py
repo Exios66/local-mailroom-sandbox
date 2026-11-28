@@ -14,8 +14,11 @@ With ``job.merger`` set, the merger specialist's one-call read is followed by (i
 No extra read ever sends the whole document: a question or field whose section the locator cannot
 find keeps the main read's answer and is recorded. A failed extra read never fails the document.
 Every call goes through the instance's ``_call_structured`` (HF-023's schema swap, the call guard,
-the governor and the usage accumulator see it). A multi-window (chunked) read never reaches
-``extract``; a field-only retry (HF-027) and a parse error are passed through untouched.
+the governor and the usage accumulator see it). A constrained schema that the provider rejects is
+asked once more without the enum, so one retry operation can be two calls. A multi-window (chunked)
+read never reaches ``extract``, and a parse error is passed through untouched. A field-only retry
+(HF-027) is passed through too, except when it names ``maud_clauses``: that retry re-asks the named
+MAUD questions from their sections and keeps every other line.
 
 Design: docs/design/specs/2026-11-27-phase5-merger-maud-design.md (parts 1 to 3).
 """

@@ -363,6 +363,7 @@ stays in the docs, marked retired.
 | [Pipeline floor](docs/floor.md) | Live history, simulated replay, digest figures and troubleshooting |
 | [Rescore](docs/rescore.md) | Re-score a finished run against new truth, no model calls |
 | [Staged label overlay](docs/staged-label-overlay.md) | The production label overlay and its pinned versions |
+| [Merger reads](docs/jobs.md) | Section reads for merger extraction, and the offline entity check beside MAUD (`scripts/merger_entity_check.py`; the 16 entity fields plus consideration; never the headline) |
 | [Critical regressions](docs/critical-regressions.md) | The silent-failure classes every PR is checked against |
 | [Extraction rules](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems) | Frozen specialist extraction rules and the registered communication types |
 | [Extraction gate](docs/EXTRACTION_GATE_VETTING.md) | The Decisions-API extraction reviewer (`task: extraction_gate`) and its vetting |

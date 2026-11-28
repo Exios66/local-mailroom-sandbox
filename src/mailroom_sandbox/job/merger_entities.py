@@ -7,8 +7,8 @@ against interim, near-gold or gold labels through the suite scorer itself
 is reported next to MAUD accuracy and is never the headline score.
 
 * A field with no labels reads ``unlabelled``, never 0.
-* A label is bound to the text it was read from (``doc_sha256``): a document whose text changed since
-  labelling is not scored (``counts.stale_labels``).
+* A label is bound to the text it was read from (``doc_sha256``). When that text has changed, the
+  entity fields are left unscored (``counts.stale_labels``). The document's MAUD score is still computed.
 * Near-gold numbers are ``verified: false`` until a human spot check of that label file is recorded
   in its directory's ``MANIFEST.json`` (:func:`spot_sample`, :func:`record_spot_check`). A spot check
   under :data:`CITE_FLOOR` agreement sets ``cite_blocked``: do not cite those numbers.

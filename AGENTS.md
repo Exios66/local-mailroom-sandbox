@@ -331,6 +331,11 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   Reports go to `reports/extraction-gate/`; the vetting note is
   [`docs/EXTRACTION_GATE_VETTING.md`](docs/EXTRACTION_GATE_VETTING.md).
 
+- Merger near-gold targets are the 16 entity fields plus `merger_consideration`.
+  `scripts/merger_entity_check.py` scores a finished run's entities against those
+  labels offline, beside MAUD, and that score is never the headline. A stale
+  document hash drops the entity fields only.
+
 Keep extraction guidance aligned with these frozen rules; see
 [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
 for source links and registered communication types.
