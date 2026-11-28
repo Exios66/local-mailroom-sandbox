@@ -118,7 +118,7 @@ def test_held_out_labels_do_not_change_the_lists(registry):
 
 def _with_extension(registry: dict, by_set: dict[str, int]) -> dict:
     out = copy.deepcopy(registry)
-    out["classes"]["corporate_record"]["subclasses"]["bylaws"]["fields"]["certifying_officer"] = {
+    out["classes"]["corporate_record"]["subclasses"]["bylaws"]["fields"]["extension_probe_field"] = {
         "type": "name",
         "dojo_status": "scored",
         "in_output_schema": False,
@@ -129,12 +129,12 @@ def _with_extension(registry: dict, by_set: dict[str, int]) -> dict:
 
 def test_a_labeled_extension_field_is_added(registry):
     lists = sf.build_field_lists(_with_extension(registry, {"dev": 3}))
-    assert _entry(lists, "corporate_record", "bylaws")["add"] == {"certifying_officer": {"type": "name"}}
+    assert _entry(lists, "corporate_record", "bylaws")["add"] == {"extension_probe_field": {"type": "name"}}
 
 
 def test_a_held_out_only_extension_field_is_not_added(registry):
     lists = sf.build_field_lists(_with_extension(registry, {"heldout": 5}))
-    assert "certifying_officer" not in _entry(lists, "corporate_record", "bylaws")["add"]
+    assert "extension_probe_field" not in _entry(lists, "corporate_record", "bylaws")["add"]
 
 
 def test_label_task_fields_are_never_added(registry):

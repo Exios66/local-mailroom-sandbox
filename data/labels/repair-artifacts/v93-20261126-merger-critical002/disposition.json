@@ -1,0 +1,170 @@
+{
+  "admitted": [
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "doc_class": "merger_agreement",
+      "subclass": "other",
+      "chars": 207539,
+      "content_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-eac7882cff200545.txt",
+      "fields": [
+        "document_name",
+        "parties",
+        "acquirer",
+        "target",
+        "merger_sub",
+        "signatories",
+        "governing_law",
+        "per_share_cash_amount"
+      ],
+      "field_definitions": {
+        "document_name": {
+          "type": "name",
+          "empty": null,
+          "description": "Agreement title as stated."
+        },
+        "parties": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Parent, Merger Sub, Target and any other contracting entity, as written."
+        },
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "signatories": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Persons signing for each party, as printed."
+        },
+        "governing_law": {
+          "type": "name",
+          "empty": null,
+          "description": "Governing-law sentence; no forum/venue."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "doc_class": "merger_agreement",
+      "subclass": "mixed_cash_stock_election",
+      "chars": 456659,
+      "content_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-681bc6115b882191.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "signatories",
+        "per_share_cash_amount",
+        "exchange_ratio"
+      ],
+      "field_definitions": {
+        "parties": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Parent, Merger Sub, Target and any other contracting entity, as written."
+        },
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "signatories": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Persons signing for each party, as printed."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    }
+  ],
+  "unadmitted": [
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "exchange_ratio",
+      "status": "held_not_admitted",
+      "label_reason": "No exchange ratio named; full-source anchor searches performed, but complete review of all potentially relevant stock/exchange contexts remains unfinished; do not assert absence.",
+      "check_reason": "No exchange ratio anchor found; hold pending review of all pertinent stock conversion and amendment/exhibit contexts. Section 2.02(c) provides a subsidiary-holder exception in surviving corporation stock, not a stated Parent-share exchange ratio.",
+      "check_only_answer": null
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "parties",
+      "status": "held_not_admitted",
+      "label_reason": "Preamble names Oyster Merger Sub I, Inc. and Oyster Merger Sub II, LLC, but execution pages name OYSTER MERGER SUB, INC. and OYSTER MERGER SUB LLC without I or II; exact legal identity conflict requires review.",
+      "check_reason": null,
+      "check_only_answer": {
+        "value": [
+          "Bioventus Inc.",
+          "Oyster Merger Sub I, Inc.",
+          "Oyster Merger Sub II, LLC",
+          "Misonix, Inc."
+        ],
+        "evidence": [
+          "Bioventus Inc., a Delaware corporation (\u201cParent\u201d)",
+          "Oyster Merger Sub I, Inc., a Delaware corporation and a wholly owned subsidiary of Parent (\u201cAcquisition Sub I\u201d)",
+          "Oyster Merger Sub II, LLC, a Delaware limited liability company and a wholly owned subsidiary of Parent (\u201cAcquisition Sub II,\u201d",
+          "Misonix, Inc., a Delaware corporation (the \u201cCompany\u201d)"
+        ]
+      }
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "merger_sub",
+      "status": "held_not_admitted",
+      "label_reason": "Preamble names Oyster Merger Sub I, Inc. and Oyster Merger Sub II, LLC, but execution pages name OYSTER MERGER SUB, INC. and OYSTER MERGER SUB LLC without I or II; cannot resolve legal names.",
+      "check_reason": null,
+      "check_only_answer": {
+        "value": [
+          "Oyster Merger Sub I, Inc.",
+          "Oyster Merger Sub II, LLC"
+        ],
+        "evidence": [
+          "Oyster Merger Sub I, Inc., a Delaware corporation and a wholly owned subsidiary of Parent (\u201cAcquisition Sub I\u201d)",
+          "Oyster Merger Sub II, LLC, a Delaware limited liability company and a wholly owned subsidiary of Parent (\u201cAcquisition Sub II,\u201d"
+        ]
+      }
+    }
+  ],
+  "rule": "No one-sided absence admitted. No source/subclass correction inferred."
+}

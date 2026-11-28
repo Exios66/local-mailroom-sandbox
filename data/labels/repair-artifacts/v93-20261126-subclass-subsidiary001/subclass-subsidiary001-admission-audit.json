@@ -1,0 +1,81 @@
+{
+  "admitted": 8,
+  "documented_absence": 1,
+  "documents": 4,
+  "existing_catalog_rows_preserved": {
+    "gold": 10561,
+    "gold-supplementary": 1858
+  },
+  "existing_overlay_fields_preserved": 9656,
+  "measurement": "Static source/truth/scoring eligibility checks; no model inference or performance claim",
+  "overlay_fields_after": 9664,
+  "populated": 7,
+  "populated_scoring_events": 7,
+  "records": [
+    {
+      "doc_id": "DOC-2eebbd30518e8a25",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d"
+    },
+    {
+      "doc_id": "DOC-2eebbd30518e8a25",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "99e5423c41f6b7e2eec154ff88de2d5492b5f15802c87007fa94b3eb6cf80b7d"
+    },
+    {
+      "doc_id": "DOC-9e22e8cf0d496d7c",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f"
+    },
+    {
+      "doc_id": "DOC-9e22e8cf0d496d7c",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "0b45428952f9513e17ae8b90f73c79350e7e94e41fbadf62fd33a731d4883d1f"
+    },
+    {
+      "doc_id": "DOC-a2ca7491896daf9f",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103"
+    },
+    {
+      "doc_id": "DOC-a2ca7491896daf9f",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "99dcf14e1ba6dbd859247f5b08ac0697835cfb9894f3e7d1465567c51006d103"
+    },
+    {
+      "doc_id": "DOC-e331ae8f76ff3efc",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40"
+    },
+    {
+      "doc_id": "DOC-e331ae8f76ff3efc",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f0c81b5421ece2fa7536a29127880f4fda7cfcfbcbb8db87d5ecb855800bbd40"
+    }
+  ],
+  "schema": "mailroom.missing-subclass-admission-audit/v1"
+}

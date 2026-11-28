@@ -1,0 +1,160 @@
+{
+  "documented_absences": 0,
+  "documents": 3,
+  "existing_catalog_rows_preserved": {
+    "gold": 10644,
+    "gold-supplementary": 1896
+  },
+  "existing_overlay_fields_preserved": 9739,
+  "fields": 16,
+  "measurement": "Static truth/schema/scoring eligibility; no model performance claim; MAUD headline unchanged.",
+  "overlay_fields_after": 9755,
+  "populated_scoring_events": 16,
+  "records": [
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "acquirer",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "financial_advisors",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "legal_counsel",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "merger_sub",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "target",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "field": "target_termination_fee",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "acquirer",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "exchange_ratio",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "financial_advisors",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "legal_counsel",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "target",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "field": "target_termination_fee",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "acquirer",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "merger_sub",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "per_share_cash_amount",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "truth_matches": true
+    },
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "field": "target",
+      "field_scoring_event": true,
+      "maud_headline_unchanged": true,
+      "presence": "populated",
+      "source_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "truth_matches": true
+    }
+  ],
+  "schema": "mailroom.merger-missing-admission-audit/v1"
+}

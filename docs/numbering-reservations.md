@@ -22,7 +22,7 @@ collides takes the one assigned here.
 
 | Range | Owner | Status |
 | --- | --- | --- |
-| `HF-020`–`HF-022` | #425 (and #439, which carries it): corporate schema composition | open |
+| `HF-020`–`HF-022` | #425 (and #439, which carries it): corporate schema composition | landed on this branch |
 | `HF-023`–`HF-024` | Phase 3 subclass schemas (#438) | landed |
 | `HF-025`–`HF-027` | Phase 4 correcting judge (`judge:`) | landed with the Phase 4 PR |
 | `HF-028` | #437 specialist handoff check (registered there as `HF-021`; renumber on rebase) | open |
@@ -41,16 +41,14 @@ reserved in advance. Phase 4 adds no row (it names its guards on existing rows).
 | --- | --- | --- |
 | 23 | #436 | an overlay field list keeps a label the policy still calls stale |
 
-On `main` the last row is 23. The open claims that collide today:
+The current integrated branch retains main's rows 23 (stale overlays) and 24 (floor history),
+and appends the corporate repair guards as rows 25–27. The merger follow-up #439 appends its
+currency-evidence guard as row 28. Other open work takes the next free rows after its base:
 
-| Open PR | Rows it adds today | Renumber to | Topic |
-| --- | --- | --- | --- |
-| #425 | 23, 24, 25 | 24, 25, 26 | corporate repair (reviewer identity, missing-field admission, applicability) |
-| #439 | 24 (same text as #425's), 26 | 25, 27 | merger admission, merger money evidence |
-| #437 | 23, 24 | 28, 29 if it lands after #425 and #439, else the next free numbers | specialist handoff refusal; the mock echoing labels |
+| Open PR | Rows in the integrated stack | Topic |
+| --- | --- | --- |
+| #425 | 25, 26, 27 | corporate repair (reviewer identity, missing-field admission, applicability) |
+| #439 | 26 (inherited), 28 | merger admission and merger money evidence |
+| #437 | next free rows on its merge base | specialist handoff refusal; the mock echoing labels |
 
-The "Renumber to" column assumes #425 lands, then #439, then #437. A PR that lands in another order
-takes the next free numbers instead, and updates the rows it cites in its PR description and in any
-test or doc that names them.
-
-When a PR lands, mark its range landed here in the same change.
+When another branch lands first, renumber only the unmerged rows and update their citations.

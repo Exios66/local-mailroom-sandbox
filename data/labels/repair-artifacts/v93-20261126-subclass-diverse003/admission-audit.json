@@ -1,0 +1,113 @@
+{
+  "admitted": 12,
+  "documented_absence": 5,
+  "documents": 4,
+  "existing_catalog_rows_preserved": {
+    "gold": 10632,
+    "gold-supplementary": 1892
+  },
+  "existing_overlay_fields_preserved": 9727,
+  "measurement": "Static source/truth/scoring eligibility checks; no model inference or performance claim",
+  "overlay_fields_after": 9739,
+  "populated": 7,
+  "populated_scoring_events": 7,
+  "records": [
+    {
+      "doc_id": "DOC-0c7cda9021fbd910",
+      "effective_truth_matches": true,
+      "field": "amended_provisions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b5654f69442491c6cd2d8fc5d9ea8ac20c6c81afc4630a0367d8e53ac72cdee7"
+    },
+    {
+      "doc_id": "DOC-0c7cda9021fbd910",
+      "effective_truth_matches": true,
+      "field": "approval_date",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b5654f69442491c6cd2d8fc5d9ea8ac20c6c81afc4630a0367d8e53ac72cdee7"
+    },
+    {
+      "doc_id": "DOC-0c7cda9021fbd910",
+      "effective_truth_matches": true,
+      "field": "prior_entity_name",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "b5654f69442491c6cd2d8fc5d9ea8ac20c6c81afc4630a0367d8e53ac72cdee7"
+    },
+    {
+      "doc_id": "DOC-474a0002b4c03be1",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "9b49e06285583bc0d22ad8009aa88b5c13fb37bf30fa52d1e8c252fb5032fade"
+    },
+    {
+      "doc_id": "DOC-474a0002b4c03be1",
+      "effective_truth_matches": true,
+      "field": "incorporators",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "9b49e06285583bc0d22ad8009aa88b5c13fb37bf30fa52d1e8c252fb5032fade"
+    },
+    {
+      "doc_id": "DOC-474a0002b4c03be1",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "9b49e06285583bc0d22ad8009aa88b5c13fb37bf30fa52d1e8c252fb5032fade"
+    },
+    {
+      "doc_id": "DOC-ceb3f2b773c75bcd",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "58a1bc2421d9965ffaf4a59dd0ba5e4bdf6bd385e4135cf8c594aac640f0477c"
+    },
+    {
+      "doc_id": "DOC-ceb3f2b773c75bcd",
+      "effective_truth_matches": true,
+      "field": "incorporators",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "58a1bc2421d9965ffaf4a59dd0ba5e4bdf6bd385e4135cf8c594aac640f0477c"
+    },
+    {
+      "doc_id": "DOC-ceb3f2b773c75bcd",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "58a1bc2421d9965ffaf4a59dd0ba5e4bdf6bd385e4135cf8c594aac640f0477c"
+    },
+    {
+      "doc_id": "DOC-ec57149494f0c9a0",
+      "effective_truth_matches": true,
+      "field": "authorized_capital",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "d255050ba1436ef0df451f8080e60cd91458efbbc2934cf3eb6dee65850460a2"
+    },
+    {
+      "doc_id": "DOC-ec57149494f0c9a0",
+      "effective_truth_matches": true,
+      "field": "incorporators",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "d255050ba1436ef0df451f8080e60cd91458efbbc2934cf3eb6dee65850460a2"
+    },
+    {
+      "doc_id": "DOC-ec57149494f0c9a0",
+      "effective_truth_matches": true,
+      "field": "registered_agent",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "d255050ba1436ef0df451f8080e60cd91458efbbc2934cf3eb6dee65850460a2"
+    }
+  ],
+  "schema": "mailroom.missing-subclass-admission-audit/v1"
+}

@@ -1,0 +1,3001 @@
+{
+  "schema": "mailroom.subsidiary-disposition/v1",
+  "documents": 17,
+  "fields": 33,
+  "populated": 32,
+  "independent_agreement": 31,
+  "source_reviewed_accept_check": 2,
+  "held_fields": 7,
+  "held": {
+    "DOC-7c506652172178ce": {
+      "subsidiaries": "Identical whole field map refused by the existing independence guard; raw outputs preserved.",
+      "subsidiary_jurisdictions": "Identical whole field map refused by the existing independence guard; raw outputs preserved."
+    },
+    "DOC-bfff7510c78d4d98": {
+      "subsidiaries": "Identical whole field map refused by the existing independence guard; raw outputs preserved.",
+      "subsidiary_jurisdictions": "Identical whole field map refused by the existing independence guard; raw outputs preserved."
+    },
+    "DOC-a1bf2ddf032e38ea": {
+      "subsidiaries": "Holding-company row lacks a stated subsidiary relationship; checker held the complete name list. No inference that the listed holding company is a subsidiary."
+    },
+    "DOC-f9cd742cd800ea5d": {
+      "subsidiary_jurisdictions": "Codes appear without a jurisdiction-column definition; checker held interpretation as organization jurisdiction.",
+      "subsidiaries": "Name-only admission projection would make the two field maps identical. Preserve independence refusal rather than cosmetically altering evidence."
+    }
+  },
+  "records": [
+    {
+      "label_id": "ca3ab6ab0fdac9a05a35",
+      "doc_id": "DOC-b07d6254886c7038",
+      "filename": "0001213900-21-001799_fs12020a1ex21-1_agrify.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "4f356bbc4b577e7b380929fa54a18c0844b9c62c0c34101e31ec9b655135bca6",
+      "doc_sha": "4f356bbc4b577e7b",
+      "field": "subsidiaries",
+      "value": [
+        "TriGrow Systems, LLC",
+        "AGM Service Company LLC",
+        "Ariafy Finance, LLC",
+        "Agxiom, LLC",
+        "Harbor Mountain Holdings, LLC",
+        "Agrify Brands, LLC",
+        "Agrify-Valiant, LLC"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 152,
+          "end": 172,
+          "text": "TriGrow Systems, LLC"
+        },
+        {
+          "start": 174,
+          "end": 197,
+          "text": "AGM Service Company LLC"
+        },
+        {
+          "start": 199,
+          "end": 218,
+          "text": "Ariafy Finance, LLC"
+        },
+        {
+          "start": 220,
+          "end": 231,
+          "text": "Agxiom, LLC"
+        },
+        {
+          "start": 233,
+          "end": 262,
+          "text": "Harbor Mountain Holdings, LLC"
+        },
+        {
+          "start": 287,
+          "end": 305,
+          "text": "Agrify Brands, LLC"
+        },
+        {
+          "start": 330,
+          "end": 349,
+          "text": "Agrify-Valiant, LLC"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "TriGrow Systems, LLC",
+          "AGM Service Company LLC",
+          "Ariafy Finance, LLC",
+          "Agxiom, LLC",
+          "Harbor Mountain Holdings, LLC",
+          "Agrify Brands, LLC",
+          "Agrify-Valiant, LLC"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "4a87d096b09d0ca87000",
+      "doc_id": "DOC-b07d6254886c7038",
+      "filename": "0001213900-21-001799_fs12020a1ex21-1_agrify.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "4f356bbc4b577e7b380929fa54a18c0844b9c62c0c34101e31ec9b655135bca6",
+      "doc_sha": "4f356bbc4b577e7b",
+      "field": "subsidiary_jurisdictions",
+      "value": [],
+      "presence": "schema_documented_absence",
+      "evidence": [],
+      "absent_reason": "no jurisdiction column or jurisdiction statement is printed anywhere in the complete 350-character document",
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {},
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "4881f6ffa1d5fb3441bc",
+      "doc_id": "DOC-204c3c7c0ba021cd",
+      "filename": "0001193125-11-194821_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "d8b1a84a36c58987ad33d3047bfe1a67563c19c94c1e1558105f5c8a63d0c104",
+      "doc_sha": "d8b1a84a36c58987",
+      "field": "subsidiaries",
+      "value": [
+        "Corsair Memory, Inc.",
+        "Corsair (Hong Kong) Limited",
+        "Corsair Memory Company Ltd.",
+        "Corsair Components Limited",
+        "Corsair GmbH",
+        "Corsair Memory B.V."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 158,
+          "end": 190,
+          "text": "Corsair Memory, Inc.\t  \tDelaware"
+        },
+        {
+          "start": 191,
+          "end": 231,
+          "text": "Corsair (Hong Kong) Limited\t  \tHong Kong"
+        },
+        {
+          "start": 232,
+          "end": 269,
+          "text": "Corsair Memory Company Ltd.\t  \tTaiwan"
+        },
+        {
+          "start": 270,
+          "end": 314,
+          "text": "Corsair Components Limited\t  \tUnited Kingdom"
+        },
+        {
+          "start": 315,
+          "end": 338,
+          "text": "Corsair GmbH\t  \tGermany"
+        },
+        {
+          "start": 339,
+          "end": 373,
+          "text": "Corsair Memory B.V.\t  \tNetherlands"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Corsair Memory, Inc.",
+          "Corsair (Hong Kong) Limited",
+          "Corsair Memory Company Ltd.",
+          "Corsair Components Limited",
+          "Corsair GmbH",
+          "Corsair Memory B.V."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "1eee11f354508685f3f6",
+      "doc_id": "DOC-204c3c7c0ba021cd",
+      "filename": "0001193125-11-194821_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "d8b1a84a36c58987ad33d3047bfe1a67563c19c94c1e1558105f5c8a63d0c104",
+      "doc_sha": "d8b1a84a36c58987",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware",
+        "Hong Kong",
+        "Taiwan",
+        "United Kingdom",
+        "Germany",
+        "Netherlands"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 158,
+          "end": 190,
+          "text": "Corsair Memory, Inc.\t  \tDelaware"
+        },
+        {
+          "start": 191,
+          "end": 231,
+          "text": "Corsair (Hong Kong) Limited\t  \tHong Kong"
+        },
+        {
+          "start": 232,
+          "end": 269,
+          "text": "Corsair Memory Company Ltd.\t  \tTaiwan"
+        },
+        {
+          "start": 270,
+          "end": 314,
+          "text": "Corsair Components Limited\t  \tUnited Kingdom"
+        },
+        {
+          "start": 315,
+          "end": 338,
+          "text": "Corsair GmbH\t  \tGermany"
+        },
+        {
+          "start": 339,
+          "end": 373,
+          "text": "Corsair Memory B.V.\t  \tNetherlands"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Delaware",
+          "Hong Kong",
+          "Taiwan",
+          "United Kingdom",
+          "Germany",
+          "Netherlands"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "95232b29834ddd40cd6c",
+      "doc_id": "DOC-a2be49cc07e80dd8",
+      "filename": "0001193125-11-095556_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "9a6a856efcd79ec5a6f5d2cd27e7a59e7376c80988b5f021a389204c2c2db113",
+      "doc_sha": "9a6a856efcd79ec5",
+      "field": "subsidiaries",
+      "value": [
+        "Solazyme Brasil Óleos Renováveis e Bioprodutos Ltda.",
+        "Solazyme Brazil LLC",
+        "Solazyme Manufacturing 1,LLC"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 247,
+          "end": 305,
+          "text": "Solazyme Brasil Óleos Renováveis e Bioprodutos Ltda.Brazil"
+        },
+        {
+          "start": 306,
+          "end": 334,
+          "text": "Solazyme Brazil LLC Delaware"
+        },
+        {
+          "start": 335,
+          "end": 372,
+          "text": "Solazyme Manufacturing 1,LLC Delaware"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Solazyme Brasil Óleos Renováveis e Bioprodutos Ltda.",
+          "Solazyme Brazil LLC",
+          "Solazyme Manufacturing 1,LLC"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "58efc0c8c63f558bc24d",
+      "doc_id": "DOC-a2be49cc07e80dd8",
+      "filename": "0001193125-11-095556_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "9a6a856efcd79ec5a6f5d2cd27e7a59e7376c80988b5f021a389204c2c2db113",
+      "doc_sha": "9a6a856efcd79ec5",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Brazil",
+        "Delaware"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 247,
+          "end": 305,
+          "text": "Solazyme Brasil Óleos Renováveis e Bioprodutos Ltda.Brazil"
+        },
+        {
+          "start": 306,
+          "end": 334,
+          "text": "Solazyme Brazil LLC Delaware"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Brazil",
+          "Delaware"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "0e8722647f6a0777171f",
+      "doc_id": "DOC-4fd55e720ac8b708",
+      "filename": "0001047469-08-007283_a2185697zex-21_01.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "b36dfc3d5e91a85dea60ed04a8d9d34172a5a99715ba5ffd4b516e7e213cfdab",
+      "doc_sha": "b36dfc3d5e91a85d",
+      "field": "subsidiaries",
+      "value": [
+        "Omneon Video Networks K.K.",
+        "Omneon Singapore Pte. Limited",
+        "Omneon U.K. Ltd",
+        "Omneon Asia Pacific, Limited",
+        "Castify Holdings Limited"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 210,
+          "end": 244,
+          "text": "Omneon Video Networks K.K.\t \tJapan"
+        },
+        {
+          "start": 245,
+          "end": 286,
+          "text": "Omneon Singapore Pte. Limited\t \tSingapore"
+        },
+        {
+          "start": 287,
+          "end": 319,
+          "text": "Omneon U.K. Ltd\t \tUnited Kingdom"
+        },
+        {
+          "start": 320,
+          "end": 360,
+          "text": "Omneon Asia Pacific, Limited\t \tHong Kong"
+        },
+        {
+          "start": 361,
+          "end": 402,
+          "text": "Castify Holdings Limited\t \tUnited Kingdom"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Omneon Video Networks K.K.",
+          "Omneon Singapore Pte. Limited",
+          "Omneon U.K. Ltd",
+          "Omneon Asia Pacific, Limited",
+          "Castify Holdings Limited"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "a8647a42381c465a0ec5",
+      "doc_id": "DOC-4fd55e720ac8b708",
+      "filename": "0001047469-08-007283_a2185697zex-21_01.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "b36dfc3d5e91a85dea60ed04a8d9d34172a5a99715ba5ffd4b516e7e213cfdab",
+      "doc_sha": "b36dfc3d5e91a85d",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Japan",
+        "Singapore",
+        "United Kingdom",
+        "Hong Kong"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 210,
+          "end": 244,
+          "text": "Omneon Video Networks K.K.\t \tJapan"
+        },
+        {
+          "start": 245,
+          "end": 286,
+          "text": "Omneon Singapore Pte. Limited\t \tSingapore"
+        },
+        {
+          "start": 287,
+          "end": 319,
+          "text": "Omneon U.K. Ltd\t \tUnited Kingdom"
+        },
+        {
+          "start": 320,
+          "end": 360,
+          "text": "Omneon Asia Pacific, Limited\t \tHong Kong"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Japan",
+          "Singapore",
+          "United Kingdom",
+          "Hong Kong"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "f52a8bfe5a02636dcadf",
+      "doc_id": "DOC-210d34e7c0e3f65d",
+      "filename": "0001078782-21-000493_s1a3052421_ex21z1.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "c0aaabd4b4a78043d503ef8fde8f424d25986e0a6729dbbc7d59556d1831f7d7",
+      "doc_sha": "c0aaabd4b4a78043",
+      "field": "subsidiaries",
+      "value": [
+        "Health Enhancement Corporation",
+        "HEPI Pharmaceuticals, Inc.",
+        "Wellmetrix, LLC",
+        "Wellmetris, LLC",
+        "Zivo Biologic, Inc.",
+        "Zivo Bioscience, LLC",
+        "Zivo Zoologic, Inc."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 151,
+          "end": 200,
+          "text": "Health Enhancement Corporation Nevada Corporation"
+        },
+        {
+          "start": 202,
+          "end": 246,
+          "text": "HEPI Pharmaceuticals, Inc.Nevada Corporation"
+        },
+        {
+          "start": 248,
+          "end": 298,
+          "text": "Wellmetrix, LLC Delaware limited liability company"
+        },
+        {
+          "start": 300,
+          "end": 350,
+          "text": "Wellmetris, LLC Delaware limited liability company"
+        },
+        {
+          "start": 352,
+          "end": 391,
+          "text": "Zivo Biologic, Inc.Delaware corporation"
+        },
+        {
+          "start": 393,
+          "end": 447,
+          "text": "Zivo Bioscience, LLC Florida limited liability company"
+        },
+        {
+          "start": 449,
+          "end": 488,
+          "text": "Zivo Zoologic, Inc.Delaware corporation"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Health Enhancement Corporation",
+          "HEPI Pharmaceuticals, Inc.",
+          "Wellmetrix, LLC",
+          "Wellmetris, LLC",
+          "Zivo Biologic, Inc.",
+          "Zivo Bioscience, LLC",
+          "Zivo Zoologic, Inc."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "9097722e52c06519d391",
+      "doc_id": "DOC-210d34e7c0e3f65d",
+      "filename": "0001078782-21-000493_s1a3052421_ex21z1.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "c0aaabd4b4a78043d503ef8fde8f424d25986e0a6729dbbc7d59556d1831f7d7",
+      "doc_sha": "c0aaabd4b4a78043",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Nevada",
+        "Delaware",
+        "Florida"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 151,
+          "end": 200,
+          "text": "Health Enhancement Corporation Nevada Corporation"
+        },
+        {
+          "start": 248,
+          "end": 298,
+          "text": "Wellmetrix, LLC Delaware limited liability company"
+        },
+        {
+          "start": 393,
+          "end": 447,
+          "text": "Zivo Bioscience, LLC Florida limited liability company"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Nevada",
+          "Delaware",
+          "Florida"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "4676acb4ab18ed99f9d7",
+      "doc_id": "DOC-4a2d6dad6cf09052",
+      "filename": "0001193125-07-014347_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "01189f6538e57b59055621462a152b80d23f546e2a1cc0c71593a219f1cdf710",
+      "doc_sha": "01189f6538e57b59",
+      "field": "subsidiaries",
+      "value": [
+        "BigBand Networks BAS, Inc.",
+        "BigBand Deutschland GmbH",
+        "BigBand Networks International, Inc.",
+        "BigBand Networks Ltd.",
+        "BigBand Networks UK Limited",
+        "BigBand Networks (Shenzen) Co., Ltd."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 194,
+          "end": 228,
+          "text": "BigBand Networks BAS, Inc.Delaware"
+        },
+        {
+          "start": 229,
+          "end": 313,
+          "text": "BigBand Deutschland GmbH (subsidiary of BigBand Networks International, Inc.)Germany"
+        },
+        {
+          "start": 314,
+          "end": 358,
+          "text": "BigBand Networks International, Inc.Delaware"
+        },
+        {
+          "start": 359,
+          "end": 386,
+          "text": "BigBand Networks Ltd.Israel"
+        },
+        {
+          "start": 387,
+          "end": 481,
+          "text": "BigBand Networks UK Limited (subsidiary of BigBand Networks International, Inc.)United Kingdom"
+        },
+        {
+          "start": 482,
+          "end": 523,
+          "text": "BigBand Networks (Shenzen) Co., Ltd.China"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "BigBand Networks BAS, Inc.",
+          "BigBand Deutschland GmbH",
+          "BigBand Networks International, Inc.",
+          "BigBand Networks Ltd.",
+          "BigBand Networks UK Limited",
+          "BigBand Networks (Shenzen) Co., Ltd."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      },
+      "value_source": {
+        "kind": "check_pass",
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        }
+      },
+      "review": {
+        "verdict": "accept_check",
+        "reviewer": {
+          "model": "gpt-6.1-sol",
+          "role": "review"
+        },
+        "note": "Full 524-character source read and SHA256 verified. The parentheticals explicitly describe an ownership relationship, rather than part of either subsidiary legal name. Adopt the check pass legal names; preserve both full printed relationship qualifications in the check evidence and original label in review.original. No relationship inferred.",
+        "presence": "populated",
+        "original": {
+          "value": [
+            "BigBand Networks BAS, Inc.",
+            "BigBand Deutschland GmbH (subsidiary of BigBand Networks International, Inc.)",
+            "BigBand Networks International, Inc.",
+            "BigBand Networks Ltd.",
+            "BigBand Networks UK Limited (subsidiary of BigBand Networks International, Inc.)",
+            "BigBand Networks (Shenzen) Co., Ltd."
+          ],
+          "evidence": [
+            {
+              "start": 194,
+              "end": 228,
+              "text": "BigBand Networks BAS, Inc.Delaware"
+            },
+            {
+              "start": 229,
+              "end": 313,
+              "text": "BigBand Deutschland GmbH (subsidiary of BigBand Networks International, Inc.)Germany"
+            },
+            {
+              "start": 314,
+              "end": 358,
+              "text": "BigBand Networks International, Inc.Delaware"
+            },
+            {
+              "start": 359,
+              "end": 386,
+              "text": "BigBand Networks Ltd.Israel"
+            },
+            {
+              "start": 387,
+              "end": 481,
+              "text": "BigBand Networks UK Limited (subsidiary of BigBand Networks International, Inc.)United Kingdom"
+            },
+            {
+              "start": 482,
+              "end": 523,
+              "text": "BigBand Networks (Shenzen) Co., Ltd.China"
+            }
+          ],
+          "presence": "populated",
+          "absent_reason": null,
+          "labeler": {
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "label",
+            "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+          }
+        }
+      }
+    },
+    {
+      "label_id": "5e94bf033d8516ff41ec",
+      "doc_id": "DOC-4a2d6dad6cf09052",
+      "filename": "0001193125-07-014347_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "01189f6538e57b59055621462a152b80d23f546e2a1cc0c71593a219f1cdf710",
+      "doc_sha": "01189f6538e57b59",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware",
+        "Germany",
+        "Israel",
+        "United Kingdom",
+        "China"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 194,
+          "end": 228,
+          "text": "BigBand Networks BAS, Inc.Delaware"
+        },
+        {
+          "start": 229,
+          "end": 313,
+          "text": "BigBand Deutschland GmbH (subsidiary of BigBand Networks International, Inc.)Germany"
+        },
+        {
+          "start": 359,
+          "end": 386,
+          "text": "BigBand Networks Ltd.Israel"
+        },
+        {
+          "start": 387,
+          "end": 481,
+          "text": "BigBand Networks UK Limited (subsidiary of BigBand Networks International, Inc.)United Kingdom"
+        },
+        {
+          "start": 482,
+          "end": 523,
+          "text": "BigBand Networks (Shenzen) Co., Ltd.China"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Delaware",
+          "Germany",
+          "Israel",
+          "United Kingdom",
+          "China"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "f1509157e972aa02d48c",
+      "doc_id": "DOC-a1bf2ddf032e38ea",
+      "filename": "0000898430-02-003224_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "7d7eb2003aa05d053c035dba0e696b8840d18c50adea44dd65f210bcc4624884",
+      "doc_sha": "7d7eb2003aa05d05",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware",
+        "California"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 175,
+          "end": 252,
+          "text": "1.Accredited Home Lenders Holding Co., a Delaware corporation (“Holding Co.”)"
+        },
+        {
+          "start": 254,
+          "end": 360,
+          "text": "2.Accredited Home Lenders, Inc., a California corporation (“AHL”) = wholly owned subsidiary of Holding Co."
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "California",
+          "Delaware"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "1fecc11ee4ceffe5b006",
+      "doc_id": "DOC-02e5b3d7ea700ab0",
+      "filename": "0001193125-07-225925_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "ccfbc9916f33bbdd0fa8079958370d7d326bd7c2bdc80423db6bbe1ab21b3ffe",
+      "doc_sha": "ccfbc9916f33bbdd",
+      "field": "subsidiaries",
+      "value": [
+        "Och-Ziff Holding Corporation",
+        "Och-Ziff Holding LLC",
+        "Och-Ziff GP LLC",
+        "OZ Management LP",
+        "OZ Advisors LP",
+        "OZ Advisors II LP",
+        "OZ Global Special Investments, L.P.",
+        "OZ Domestic Partners, L.P."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 324,
+          "end": 361,
+          "text": "Och-Ziff Holding Corporation Delaware"
+        },
+        {
+          "start": 362,
+          "end": 391,
+          "text": "Och-Ziff Holding LLC Delaware"
+        },
+        {
+          "start": 392,
+          "end": 416,
+          "text": "Och-Ziff GP LLC Delaware"
+        },
+        {
+          "start": 417,
+          "end": 442,
+          "text": "OZ Management LP Delaware"
+        },
+        {
+          "start": 443,
+          "end": 466,
+          "text": "OZ Advisors LP Delaware"
+        },
+        {
+          "start": 467,
+          "end": 493,
+          "text": "OZ Advisors II LP Delaware"
+        },
+        {
+          "start": 494,
+          "end": 537,
+          "text": "OZ Global Special Investments, L.P.Delaware"
+        },
+        {
+          "start": 538,
+          "end": 572,
+          "text": "OZ Domestic Partners, L.P.Delaware"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Och-Ziff Holding Corporation",
+          "Och-Ziff Holding LLC",
+          "Och-Ziff GP LLC",
+          "OZ Management LP",
+          "OZ Advisors LP",
+          "OZ Advisors II LP",
+          "OZ Global Special Investments, L.P.",
+          "OZ Domestic Partners, L.P."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "79921c8224268cfffdeb",
+      "doc_id": "DOC-02e5b3d7ea700ab0",
+      "filename": "0001193125-07-225925_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "ccfbc9916f33bbdd0fa8079958370d7d326bd7c2bdc80423db6bbe1ab21b3ffe",
+      "doc_sha": "ccfbc9916f33bbdd",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 324,
+          "end": 361,
+          "text": "Och-Ziff Holding Corporation Delaware"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Delaware"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "3156717567551dd0576d",
+      "doc_id": "DOC-cdf8ee802f599662",
+      "filename": "0001193125-11-277426_d207460dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "c6f6b60d4dcdc88994f8400078f22cfc2aaaaf00995d32820dd21b07c1cf6a7f",
+      "doc_sha": "c6f6b60d4dcdc889",
+      "field": "subsidiaries",
+      "value": [
+        "M/A-COM Auto Solutions Inc.",
+        "M/A-COM Tech (Nevada), Inc.",
+        "M/A-COM Tech Asia, Inc.",
+        "M/ACOM Technology Solutions (Bangalore) Private Limited",
+        "M/ACOM Technology Solutions (Cork) Limited",
+        "M/A-COM Technology Solutions (Holding) Company Limited",
+        "M/A-COM Technology Solutions (UK) Limited",
+        "M/A-COM Technology Solutions HKG, Limited",
+        "M/A-COM Technology Solutions Inc.",
+        "Mimix Broadband Pty Limited",
+        "Optomai, Inc."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 96,
+          "end": 131,
+          "text": "M/A-COM Auto Solutions Inc.Delaware"
+        },
+        {
+          "start": 132,
+          "end": 165,
+          "text": "M/A-COM Tech (Nevada), Inc.Nevada"
+        },
+        {
+          "start": 166,
+          "end": 195,
+          "text": "M/A-COM Tech Asia, Inc.Taiwan"
+        },
+        {
+          "start": 196,
+          "end": 257,
+          "text": "M/ACOM Technology Solutions (Bangalore) Private Limited India"
+        },
+        {
+          "start": 258,
+          "end": 308,
+          "text": "M/ACOM Technology Solutions (Cork) Limited Ireland"
+        },
+        {
+          "start": 309,
+          "end": 371,
+          "text": "M/A-COM Technology Solutions (Holding) Company Limited Ireland"
+        },
+        {
+          "start": 372,
+          "end": 430,
+          "text": "M/A-COM Technology Solutions (UK) Limited Northern Ireland"
+        },
+        {
+          "start": 431,
+          "end": 482,
+          "text": "M/A-COM Technology Solutions HKG, Limited Hong Kong"
+        },
+        {
+          "start": 483,
+          "end": 524,
+          "text": "M/A-COM Technology Solutions Inc.Delaware"
+        },
+        {
+          "start": 525,
+          "end": 562,
+          "text": "Mimix Broadband Pty Limited Australia"
+        },
+        {
+          "start": 563,
+          "end": 584,
+          "text": "Optomai, Inc.Delaware"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "M/A-COM Auto Solutions Inc.",
+          "M/A-COM Tech (Nevada), Inc.",
+          "M/A-COM Tech Asia, Inc.",
+          "M/ACOM Technology Solutions (Bangalore) Private Limited",
+          "M/ACOM Technology Solutions (Cork) Limited",
+          "M/A-COM Technology Solutions (Holding) Company Limited",
+          "M/A-COM Technology Solutions (UK) Limited",
+          "M/A-COM Technology Solutions HKG, Limited",
+          "M/A-COM Technology Solutions Inc.",
+          "Mimix Broadband Pty Limited",
+          "Optomai, Inc."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "4b1c1e73e1a95105dcef",
+      "doc_id": "DOC-cdf8ee802f599662",
+      "filename": "0001193125-11-277426_d207460dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "c6f6b60d4dcdc88994f8400078f22cfc2aaaaf00995d32820dd21b07c1cf6a7f",
+      "doc_sha": "c6f6b60d4dcdc889",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware",
+        "Nevada",
+        "Taiwan",
+        "India",
+        "Ireland",
+        "Northern Ireland",
+        "Hong Kong",
+        "Australia"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 96,
+          "end": 131,
+          "text": "M/A-COM Auto Solutions Inc.Delaware"
+        },
+        {
+          "start": 132,
+          "end": 165,
+          "text": "M/A-COM Tech (Nevada), Inc.Nevada"
+        },
+        {
+          "start": 166,
+          "end": 195,
+          "text": "M/A-COM Tech Asia, Inc.Taiwan"
+        },
+        {
+          "start": 196,
+          "end": 257,
+          "text": "M/ACOM Technology Solutions (Bangalore) Private Limited India"
+        },
+        {
+          "start": 258,
+          "end": 308,
+          "text": "M/ACOM Technology Solutions (Cork) Limited Ireland"
+        },
+        {
+          "start": 372,
+          "end": 430,
+          "text": "M/A-COM Technology Solutions (UK) Limited Northern Ireland"
+        },
+        {
+          "start": 431,
+          "end": 482,
+          "text": "M/A-COM Technology Solutions HKG, Limited Hong Kong"
+        },
+        {
+          "start": 525,
+          "end": 562,
+          "text": "Mimix Broadband Pty Limited Australia"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Delaware",
+          "Nevada",
+          "Taiwan",
+          "India",
+          "Ireland",
+          "Northern Ireland",
+          "Hong Kong",
+          "Australia"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "158c19b07b8b5279c9a1",
+      "doc_id": "DOC-729ea9a3c924614e",
+      "filename": "0001193125-04-096445_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "d2bbc33d9ebbdd510efd42f17efa55d42464f8b0524d890aed66be8b26eaac98",
+      "doc_sha": "d2bbc33d9ebbdd51",
+      "field": "subsidiaries",
+      "value": [
+        "Placer Sierra Bank",
+        "Placer Statutory Trust II",
+        "Bank of Orange County",
+        "Southland Trust I",
+        "Central Square Company, Inc."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 206,
+          "end": 253,
+          "text": "1.Placer Sierra Bank, a California corporation."
+        },
+        {
+          "start": 255,
+          "end": 323,
+          "text": "2.Placer Statutory Trust II, a Connecticut statutory business trust."
+        },
+        {
+          "start": 325,
+          "end": 375,
+          "text": "3.Bank of Orange County, a California corporation."
+        },
+        {
+          "start": 377,
+          "end": 437,
+          "text": "4.Southland Trust I, a Connecticut statutory business trust."
+        },
+        {
+          "start": 530,
+          "end": 587,
+          "text": "1.Central Square Company, Inc., a California corporation."
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Placer Sierra Bank",
+          "Placer Statutory Trust II",
+          "Bank of Orange County",
+          "Southland Trust I",
+          "Central Square Company, Inc."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "ffbb530f18b13b7fd98f",
+      "doc_id": "DOC-729ea9a3c924614e",
+      "filename": "0001193125-04-096445_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "d2bbc33d9ebbdd510efd42f17efa55d42464f8b0524d890aed66be8b26eaac98",
+      "doc_sha": "d2bbc33d9ebbdd51",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "California",
+        "Connecticut"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 206,
+          "end": 253,
+          "text": "1.Placer Sierra Bank, a California corporation."
+        },
+        {
+          "start": 255,
+          "end": 323,
+          "text": "2.Placer Statutory Trust II, a Connecticut statutory business trust."
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "California",
+          "Connecticut"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "4c049a2a1e71452660e9",
+      "doc_id": "DOC-0636dbc980a43715",
+      "filename": "0001477932-21-003447_grove_ex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "f9da92e689fd603224dc089a2af77cfab832e19aa0391a98864753c87df7994e",
+      "doc_sha": "f9da92e689fd6032",
+      "field": "subsidiaries",
+      "value": [
+        "Steam Distribution, LLC",
+        "One Hit Wonder, Inc.",
+        "Havz, LLC",
+        "One Hit Wonder Holdings, LLC",
+        "SWCH LLC",
+        "Trunano Labs, Inc.",
+        "Infusionz, LLC",
+        "Cresco Management, LLC"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 128,
+          "end": 191,
+          "text": "Steam Distribution, LLC, a California limited liability company"
+        },
+        {
+          "start": 193,
+          "end": 239,
+          "text": "One Hit Wonder, Inc., a California corporation"
+        },
+        {
+          "start": 241,
+          "end": 313,
+          "text": "Havz, LLC, d/b/a Steam Wholesale, a California limited liability company"
+        },
+        {
+          "start": 315,
+          "end": 383,
+          "text": "One Hit Wonder Holdings, LLC, a California limited liability company"
+        },
+        {
+          "start": 385,
+          "end": 430,
+          "text": "SWCH LLC a Delaware limited liability company"
+        },
+        {
+          "start": 432,
+          "end": 472,
+          "text": "Trunano Labs, Inc., a Nevada corporation"
+        },
+        {
+          "start": 474,
+          "end": 525,
+          "text": "Infusionz, LLC a Colorado limited liability company"
+        },
+        {
+          "start": 527,
+          "end": 589,
+          "text": "Cresco Management, LLC, a California limited liability company"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Steam Distribution, LLC",
+          "One Hit Wonder, Inc.",
+          "Havz, LLC",
+          "One Hit Wonder Holdings, LLC",
+          "SWCH LLC",
+          "Trunano Labs, Inc.",
+          "Infusionz, LLC",
+          "Cresco Management, LLC"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      },
+      "value_source": {
+        "kind": "check_pass",
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        }
+      },
+      "review": {
+        "verdict": "accept_check",
+        "reviewer": {
+          "model": "gpt-6.1-sol",
+          "role": "review"
+        },
+        "note": "Full 590-character source read and SHA256 verified. The legal entity is Havz, LLC; d/b/a Steam Wholesale is a trade-name qualification. Adopt the check pass legal names, preserving the complete d/b/a phrase in its source evidence and the original label in review.original.",
+        "presence": "populated",
+        "original": {
+          "value": [
+            "Steam Distribution, LLC",
+            "One Hit Wonder, Inc.",
+            "Havz, LLC, d/b/a Steam Wholesale",
+            "One Hit Wonder Holdings, LLC",
+            "SWCH LLC",
+            "Trunano Labs, Inc.",
+            "Infusionz, LLC",
+            "Cresco Management, LLC"
+          ],
+          "evidence": [
+            {
+              "start": 128,
+              "end": 191,
+              "text": "Steam Distribution, LLC, a California limited liability company"
+            },
+            {
+              "start": 193,
+              "end": 239,
+              "text": "One Hit Wonder, Inc., a California corporation"
+            },
+            {
+              "start": 241,
+              "end": 313,
+              "text": "Havz, LLC, d/b/a Steam Wholesale, a California limited liability company"
+            },
+            {
+              "start": 315,
+              "end": 383,
+              "text": "One Hit Wonder Holdings, LLC, a California limited liability company"
+            },
+            {
+              "start": 385,
+              "end": 430,
+              "text": "SWCH LLC a Delaware limited liability company"
+            },
+            {
+              "start": 432,
+              "end": 472,
+              "text": "Trunano Labs, Inc., a Nevada corporation"
+            },
+            {
+              "start": 474,
+              "end": 525,
+              "text": "Infusionz, LLC a Colorado limited liability company"
+            },
+            {
+              "start": 527,
+              "end": 589,
+              "text": "Cresco Management, LLC, a California limited liability company"
+            }
+          ],
+          "presence": "populated",
+          "absent_reason": null,
+          "labeler": {
+            "model": "opencode-go/deepseek-v4.1-flash",
+            "role": "label",
+            "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+          }
+        }
+      }
+    },
+    {
+      "label_id": "588f6f69e47dfd9db73d",
+      "doc_id": "DOC-0636dbc980a43715",
+      "filename": "0001477932-21-003447_grove_ex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "f9da92e689fd603224dc089a2af77cfab832e19aa0391a98864753c87df7994e",
+      "doc_sha": "f9da92e689fd6032",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "California",
+        "Delaware",
+        "Nevada",
+        "Colorado"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 128,
+          "end": 191,
+          "text": "Steam Distribution, LLC, a California limited liability company"
+        },
+        {
+          "start": 385,
+          "end": 430,
+          "text": "SWCH LLC a Delaware limited liability company"
+        },
+        {
+          "start": 432,
+          "end": 472,
+          "text": "Trunano Labs, Inc., a Nevada corporation"
+        },
+        {
+          "start": 474,
+          "end": 525,
+          "text": "Infusionz, LLC a Colorado limited liability company"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "California",
+          "Delaware",
+          "Nevada",
+          "Colorado"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "638fbea02ecb1ecd743a",
+      "doc_id": "DOC-c80ef83120793a69",
+      "filename": "0001193125-06-216680_dex21.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "6fe61edeb26eab4b190aeef5b63faf6b1db1138bb60ea0cd1b3298e85f48c22b",
+      "doc_sha": "6fe61edeb26eab4b",
+      "field": "subsidiaries",
+      "value": [
+        "Oritani Savings Bank",
+        "Hampshire Financial LLC",
+        "Oritani, LLC",
+        "Oritani Financial Services, Inc.",
+        "Ormon LLC",
+        "Oritani Holding Company",
+        "Oritani Asset Corporation"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 266,
+          "end": 297,
+          "text": "Oritani Savings Bank New Jersey"
+        },
+        {
+          "start": 299,
+          "end": 333,
+          "text": "Hampshire Financial LLC New Jersey"
+        },
+        {
+          "start": 335,
+          "end": 358,
+          "text": "Oritani, LLC New Jersey"
+        },
+        {
+          "start": 360,
+          "end": 404,
+          "text": "Oritani Financial Services, Inc.New Jersey *"
+        },
+        {
+          "start": 406,
+          "end": 428,
+          "text": "Ormon LLC New Jersey *"
+        },
+        {
+          "start": 430,
+          "end": 466,
+          "text": "Oritani Holding Company New Jersey *"
+        },
+        {
+          "start": 468,
+          "end": 507,
+          "text": "Oritani Asset Corporation New Jersey **"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Oritani Savings Bank",
+          "Hampshire Financial LLC",
+          "Oritani, LLC",
+          "Oritani Financial Services, Inc.",
+          "Ormon LLC",
+          "Oritani Holding Company",
+          "Oritani Asset Corporation"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "a2726e2f3aec55186be7",
+      "doc_id": "DOC-c80ef83120793a69",
+      "filename": "0001193125-06-216680_dex21.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "6fe61edeb26eab4b190aeef5b63faf6b1db1138bb60ea0cd1b3298e85f48c22b",
+      "doc_sha": "6fe61edeb26eab4b",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "New Jersey"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 266,
+          "end": 297,
+          "text": "Oritani Savings Bank New Jersey"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "New Jersey"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "8fe86b73e378a622da3f",
+      "doc_id": "DOC-74b0b6beecc8c0ad",
+      "filename": "0001193125-07-186142_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "905730fd40e8e8d9f12bfacebb571c8d1c817f8aa81985f9f2986add34818def",
+      "doc_sha": "905730fd40e8e8d9",
+      "field": "subsidiaries",
+      "value": [
+        "Imperium Grays Harbor, LLC",
+        "Imperium Renewables Hawaii LLC",
+        "Imperium Services LLC",
+        "Seattle Biodiesel LLC",
+        "Imperium Process Technologies LLC",
+        "Imperium Logistics, LLC",
+        "Imperium Renewables Tri-State, LLC"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 135,
+          "end": 201,
+          "text": "Imperium Grays Harbor, LLC, a Washington limited liability company"
+        },
+        {
+          "start": 203,
+          "end": 269,
+          "text": "Imperium Renewables Hawaii LLC, a Hawaii limited liability company"
+        },
+        {
+          "start": 271,
+          "end": 332,
+          "text": "Imperium Services LLC, a Washington limited liability company"
+        },
+        {
+          "start": 334,
+          "end": 395,
+          "text": "Seattle Biodiesel LLC, a Washington limited liability company"
+        },
+        {
+          "start": 397,
+          "end": 466,
+          "text": "Imperium Process Technologies LLC, a Nevada limited liability company"
+        },
+        {
+          "start": 468,
+          "end": 528,
+          "text": "Imperium Logistics, LLC, an Oregon limited liability company"
+        },
+        {
+          "start": 530,
+          "end": 606,
+          "text": "Imperium Renewables Tri-State, LLC, a Pennsylvania limited liability company"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Imperium Grays Harbor, LLC",
+          "Imperium Renewables Hawaii LLC",
+          "Imperium Services LLC",
+          "Seattle Biodiesel LLC",
+          "Imperium Process Technologies LLC",
+          "Imperium Logistics, LLC",
+          "Imperium Renewables Tri-State, LLC"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "40d876097d77271c2e89",
+      "doc_id": "DOC-74b0b6beecc8c0ad",
+      "filename": "0001193125-07-186142_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "905730fd40e8e8d9f12bfacebb571c8d1c817f8aa81985f9f2986add34818def",
+      "doc_sha": "905730fd40e8e8d9",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Washington",
+        "Hawaii",
+        "Nevada",
+        "Oregon",
+        "Pennsylvania"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 135,
+          "end": 201,
+          "text": "Imperium Grays Harbor, LLC, a Washington limited liability company"
+        },
+        {
+          "start": 203,
+          "end": 269,
+          "text": "Imperium Renewables Hawaii LLC, a Hawaii limited liability company"
+        },
+        {
+          "start": 397,
+          "end": 466,
+          "text": "Imperium Process Technologies LLC, a Nevada limited liability company"
+        },
+        {
+          "start": 468,
+          "end": 528,
+          "text": "Imperium Logistics, LLC, an Oregon limited liability company"
+        },
+        {
+          "start": 530,
+          "end": 606,
+          "text": "Imperium Renewables Tri-State, LLC, a Pennsylvania limited liability company"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Washington",
+          "Hawaii",
+          "Nevada",
+          "Oregon",
+          "Pennsylvania"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "cacd930587e009b440a1",
+      "doc_id": "DOC-c4c08df19a3d9526",
+      "filename": "0001062993-22-012448_exhibit21-1.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "b5858868af4ea38740b790752b04a2c299ea161a6806f74d73fc40558af62b9c",
+      "doc_sha": "b5858868af4ea387",
+      "field": "subsidiaries",
+      "value": [
+        "SusGlobal Energy Canada Corp.",
+        "SusGlobal Energy Canada I Ltd.",
+        "SusGlobal Energy Belleville Ltd.",
+        "1684567 Ontario Inc.",
+        "SusGlobal Energy Hamilton Ltd."
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 392,
+          "end": 436,
+          "text": "SusGlobal Energy Canada Corp.Federal, Canada"
+        },
+        {
+          "start": 437,
+          "end": 482,
+          "text": "SusGlobal Energy Canada I Ltd.Ontario, Canada"
+        },
+        {
+          "start": 483,
+          "end": 530,
+          "text": "SusGlobal Energy Belleville Ltd.Ontario, Canada"
+        },
+        {
+          "start": 531,
+          "end": 566,
+          "text": "1684567 Ontario Inc.Ontario, Canada"
+        },
+        {
+          "start": 567,
+          "end": 612,
+          "text": "SusGlobal Energy Hamilton Ltd.Ontario, Canada"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "SusGlobal Energy Canada Corp.",
+          "SusGlobal Energy Canada I Ltd.",
+          "SusGlobal Energy Belleville Ltd.",
+          "1684567 Ontario Inc.",
+          "SusGlobal Energy Hamilton Ltd."
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "a6cdacee730155f8615f",
+      "doc_id": "DOC-c4c08df19a3d9526",
+      "filename": "0001062993-22-012448_exhibit21-1.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "b5858868af4ea38740b790752b04a2c299ea161a6806f74d73fc40558af62b9c",
+      "doc_sha": "b5858868af4ea387",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Federal, Canada",
+        "Ontario, Canada"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 392,
+          "end": 436,
+          "text": "SusGlobal Energy Canada Corp.Federal, Canada"
+        },
+        {
+          "start": 437,
+          "end": 482,
+          "text": "SusGlobal Energy Canada I Ltd.Ontario, Canada"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Federal, Canada",
+          "Ontario, Canada"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "2b76ff9600655e20d140",
+      "doc_id": "DOC-417996c5cc3d91f5",
+      "filename": "0001193125-08-071040_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "5a270227b349d14e100c8ab310ea9954ce938ddfd0fdee538fb1fff41ca0033b",
+      "doc_sha": "5a270227b349d14e",
+      "field": "subsidiaries",
+      "value": [
+        "MagnaChip Semiconductor LLC",
+        "MagnaChip Semiconductor S.A.",
+        "MagnaChip Semiconductor B.V.",
+        "MagnaChip Semiconductor, Ltd.",
+        "MagnaChip Semiconductor, Inc.",
+        "MagnaChip Semiconductor SA Holdings LLC",
+        "MagnaChip Semiconductor Finance Company",
+        "MagnaChip Semiconductor Limited",
+        "MagnaChip Semiconductor Limited",
+        "MagnaChip Semiconductor Limited",
+        "MagnaChip Semiconductor Inc.",
+        "MagnaChip Semiconductor Holding Company Limited",
+        "MagnaChip Semiconductor (Shanghai) Company Limited"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 54,
+          "end": 90,
+          "text": "MagnaChip Semiconductor LLC Delaware"
+        },
+        {
+          "start": 91,
+          "end": 129,
+          "text": "MagnaChip Semiconductor S.A.Luxembourg"
+        },
+        {
+          "start": 130,
+          "end": 173,
+          "text": "MagnaChip Semiconductor B.V.The Netherlands"
+        },
+        {
+          "start": 174,
+          "end": 208,
+          "text": "MagnaChip Semiconductor, Ltd.Korea"
+        },
+        {
+          "start": 209,
+          "end": 248,
+          "text": "MagnaChip Semiconductor, Inc.California"
+        },
+        {
+          "start": 249,
+          "end": 297,
+          "text": "MagnaChip Semiconductor SA Holdings LLC Delaware"
+        },
+        {
+          "start": 298,
+          "end": 346,
+          "text": "MagnaChip Semiconductor Finance Company Delaware"
+        },
+        {
+          "start": 347,
+          "end": 393,
+          "text": "MagnaChip Semiconductor Limited United Kingdom"
+        },
+        {
+          "start": 394,
+          "end": 432,
+          "text": "MagnaChip Semiconductor Limited Taiwan"
+        },
+        {
+          "start": 433,
+          "end": 474,
+          "text": "MagnaChip Semiconductor Limited Hong Kong"
+        },
+        {
+          "start": 475,
+          "end": 508,
+          "text": "MagnaChip Semiconductor Inc.Japan"
+        },
+        {
+          "start": 509,
+          "end": 579,
+          "text": "MagnaChip Semiconductor Holding Company Limited British Virgin Islands"
+        },
+        {
+          "start": 580,
+          "end": 636,
+          "text": "MagnaChip Semiconductor (Shanghai) Company Limited China"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "MagnaChip Semiconductor LLC",
+          "MagnaChip Semiconductor S.A.",
+          "MagnaChip Semiconductor B.V.",
+          "MagnaChip Semiconductor, Ltd.",
+          "MagnaChip Semiconductor, Inc.",
+          "MagnaChip Semiconductor SA Holdings LLC",
+          "MagnaChip Semiconductor Finance Company",
+          "MagnaChip Semiconductor Limited",
+          "MagnaChip Semiconductor Limited",
+          "MagnaChip Semiconductor Limited",
+          "MagnaChip Semiconductor Inc.",
+          "MagnaChip Semiconductor Holding Company Limited",
+          "MagnaChip Semiconductor (Shanghai) Company Limited"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "d9833ef93e77ec50a648",
+      "doc_id": "DOC-417996c5cc3d91f5",
+      "filename": "0001193125-08-071040_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "5a270227b349d14e100c8ab310ea9954ce938ddfd0fdee538fb1fff41ca0033b",
+      "doc_sha": "5a270227b349d14e",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Delaware",
+        "Luxembourg",
+        "The Netherlands",
+        "Korea",
+        "California",
+        "United Kingdom",
+        "Taiwan",
+        "Hong Kong",
+        "Japan",
+        "British Virgin Islands",
+        "China"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 54,
+          "end": 90,
+          "text": "MagnaChip Semiconductor LLC Delaware"
+        },
+        {
+          "start": 91,
+          "end": 129,
+          "text": "MagnaChip Semiconductor S.A.Luxembourg"
+        },
+        {
+          "start": 130,
+          "end": 173,
+          "text": "MagnaChip Semiconductor B.V.The Netherlands"
+        },
+        {
+          "start": 174,
+          "end": 208,
+          "text": "MagnaChip Semiconductor, Ltd.Korea"
+        },
+        {
+          "start": 209,
+          "end": 248,
+          "text": "MagnaChip Semiconductor, Inc.California"
+        },
+        {
+          "start": 347,
+          "end": 393,
+          "text": "MagnaChip Semiconductor Limited United Kingdom"
+        },
+        {
+          "start": 394,
+          "end": 432,
+          "text": "MagnaChip Semiconductor Limited Taiwan"
+        },
+        {
+          "start": 433,
+          "end": 474,
+          "text": "MagnaChip Semiconductor Limited Hong Kong"
+        },
+        {
+          "start": 475,
+          "end": 508,
+          "text": "MagnaChip Semiconductor Inc.Japan"
+        },
+        {
+          "start": 509,
+          "end": 579,
+          "text": "MagnaChip Semiconductor Holding Company Limited British Virgin Islands"
+        },
+        {
+          "start": 580,
+          "end": 636,
+          "text": "MagnaChip Semiconductor (Shanghai) Company Limited China"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Delaware",
+          "Luxembourg",
+          "The Netherlands",
+          "Korea",
+          "California",
+          "United Kingdom",
+          "Taiwan",
+          "Hong Kong",
+          "Japan",
+          "British Virgin Islands",
+          "China"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "b3949d171701933954a9",
+      "doc_id": "DOC-e3af62d905e5bc55",
+      "filename": "0001193125-08-050359_dex21.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "991ababb1b0d65c88b6e2e8cffd8c92197b2835ede8a56f710f6260d0ed46eca",
+      "doc_sha": "991ababb1b0d65c8",
+      "field": "subsidiaries",
+      "value": [
+        "Allied VGH Inc.",
+        "Allied VNC Inc.",
+        "Mineral Ridge Resources Inc.",
+        "Victory Gold Inc.",
+        "Victory Exploration Inc.",
+        "Hycroft Resources & Development, Inc.",
+        "Hycroft Lewis Mine, Inc.",
+        "Allied Nevada Gold Holdings LLC"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 189,
+          "end": 213,
+          "text": "Allied VGH Inc.(1)Nevada"
+        },
+        {
+          "start": 214,
+          "end": 238,
+          "text": "Allied VNC Inc.(2)Nevada"
+        },
+        {
+          "start": 239,
+          "end": 280,
+          "text": "Mineral Ridge Resources Inc.(2) (3)Nevada"
+        },
+        {
+          "start": 281,
+          "end": 307,
+          "text": "Victory Gold Inc.(2)Nevada"
+        },
+        {
+          "start": 308,
+          "end": 341,
+          "text": "Victory Exploration Inc.(4)Nevada"
+        },
+        {
+          "start": 342,
+          "end": 388,
+          "text": "Hycroft Resources & Development, Inc.(2)Nevada"
+        },
+        {
+          "start": 389,
+          "end": 422,
+          "text": "Hycroft Lewis Mine, Inc.(5)Nevada"
+        },
+        {
+          "start": 423,
+          "end": 463,
+          "text": "Allied Nevada Gold Holdings LLC(1)Nevada"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Allied VGH Inc.",
+          "Allied VNC Inc.",
+          "Mineral Ridge Resources Inc.",
+          "Victory Gold Inc.",
+          "Victory Exploration Inc.",
+          "Hycroft Resources & Development, Inc.",
+          "Hycroft Lewis Mine, Inc.",
+          "Allied Nevada Gold Holdings LLC"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "a145986a807f9ea1a5e0",
+      "doc_id": "DOC-e3af62d905e5bc55",
+      "filename": "0001193125-08-050359_dex21.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "991ababb1b0d65c88b6e2e8cffd8c92197b2835ede8a56f710f6260d0ed46eca",
+      "doc_sha": "991ababb1b0d65c8",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Nevada"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 189,
+          "end": 213,
+          "text": "Allied VGH Inc.(1)Nevada"
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Nevada"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "7671c45d071eee7c11d0",
+      "doc_id": "DOC-abd090f0f36ec76d",
+      "filename": "0001193125-05-143837_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "1a741f46a8a4fa1da61290ee8d3609776f42170f06b6274fa068c689fdabfa14",
+      "doc_sha": "1a741f46a8a4fa1d",
+      "field": "subsidiaries",
+      "value": [
+        "Advanced Analogic Technologies Ltd.",
+        "Advanced Analogic Technologies Corporation",
+        "Advanced Analogic Technologies Holdings, Inc.",
+        "Advanced Analogic Technologies Japan, Incorporated",
+        "Advanced Analogic Technologies (EMEA) AB",
+        "Advanced Analogic Technologies Macau Commercial Offshore Limited"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 179,
+          "end": 259,
+          "text": "Advanced Analogic Technologies Ltd., incorporated in Hong Kong on June 23, 1999."
+        },
+        {
+          "start": 261,
+          "end": 370,
+          "text": "Advanced Analogic Technologies Corporation, incorporated in the British Virgin Islands on September 21, 1999."
+        },
+        {
+          "start": 372,
+          "end": 479,
+          "text": "Advanced Analogic Technologies Holdings, Inc., incorporated in the British Virgin Islands on July 24, 2001."
+        },
+        {
+          "start": 481,
+          "end": 573,
+          "text": "Advanced Analogic Technologies Japan, Incorporated, incorporated in Japan on August 5, 2003."
+        },
+        {
+          "start": 575,
+          "end": 661,
+          "text": "Advanced Analogic Technologies (EMEA) AB, incorporated in Sweden on February 28, 2005."
+        },
+        {
+          "start": 663,
+          "end": 769,
+          "text": "Advanced Analogic Technologies Macau Commercial Offshore Limited, incorporated in Macau on March 14, 2005."
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Advanced Analogic Technologies Ltd.",
+          "Advanced Analogic Technologies Corporation",
+          "Advanced Analogic Technologies Holdings, Inc.",
+          "Advanced Analogic Technologies Japan, Incorporated",
+          "Advanced Analogic Technologies (EMEA) AB",
+          "Advanced Analogic Technologies Macau Commercial Offshore Limited"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    },
+    {
+      "label_id": "c0deab5c057543639e70",
+      "doc_id": "DOC-abd090f0f36ec76d",
+      "filename": "0001193125-05-143837_dex211.htm",
+      "doc_class": "corporate_record",
+      "subclass": "subsidiary_list",
+      "content_sha256": "1a741f46a8a4fa1da61290ee8d3609776f42170f06b6274fa068c689fdabfa14",
+      "doc_sha": "1a741f46a8a4fa1d",
+      "field": "subsidiary_jurisdictions",
+      "value": [
+        "Hong Kong",
+        "British Virgin Islands",
+        "Japan",
+        "Sweden",
+        "Macau"
+      ],
+      "presence": "populated",
+      "evidence": [
+        {
+          "start": 179,
+          "end": 259,
+          "text": "Advanced Analogic Technologies Ltd., incorporated in Hong Kong on June 23, 1999."
+        },
+        {
+          "start": 261,
+          "end": 370,
+          "text": "Advanced Analogic Technologies Corporation, incorporated in the British Virgin Islands on September 21, 1999."
+        },
+        {
+          "start": 481,
+          "end": 573,
+          "text": "Advanced Analogic Technologies Japan, Incorporated, incorporated in Japan on August 5, 2003."
+        },
+        {
+          "start": 575,
+          "end": 661,
+          "text": "Advanced Analogic Technologies (EMEA) AB, incorporated in Sweden on February 28, 2005."
+        },
+        {
+          "start": 663,
+          "end": 769,
+          "text": "Advanced Analogic Technologies Macau Commercial Offshore Limited, incorporated in Macau on March 14, 2005."
+        }
+      ],
+      "absent_reason": null,
+      "status": "near_gold",
+      "use_as_truth": false,
+      "near_empty": false,
+      "labeler": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "role": "label",
+        "batch": "v93-subclass-subsidiary002-label-20261126-r1"
+      },
+      "checks": {
+        "evidence_verbatim": true,
+        "value_supported": true
+      },
+      "schema": {
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c"
+      },
+      "check": {
+        "labeler": {
+          "batch": "v93-subclass-subsidiary002-check-20261126-r2",
+          "model": "gpt-6.1-terra",
+          "role": "check"
+        },
+        "value": [
+          "Hong Kong",
+          "British Virgin Islands",
+          "Japan",
+          "Sweden",
+          "Macau"
+        ],
+        "gate_ok": true,
+        "reason": null,
+        "agrees": true
+      }
+    }
+  ]
+}
