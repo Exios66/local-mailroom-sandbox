@@ -938,11 +938,11 @@
   },
   "files": {
     "contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
-    "corporate_record.jsonl": "bfc32ac398ae8f1bd4640c5f1441582e6d84df455de8285b6d77c5e8d103273a",
+    "corporate_record.jsonl": "91e74a9366c0785fbd595b1834a4e90da4a44f222aab0ddb50709b97b2cb56fb",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
-  "reviewed_at": "2026-11-28T02:59:59Z",
+  "reviewed_at": "2026-11-28T03:45:52Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
