@@ -287,6 +287,14 @@ def test_without_fail_fast_a_failed_document_is_an_error_row_and_the_run_goes_on
     assert failed["prompt_tokens"] == 300  # every attempt billed a call
     assert sum(u.get("prompt_tokens", 0) for u in budget.added) == 300 + 5 * 100
     assert out["docs"][0]["error"] and out["docs"][0]["stage"] == "failed"
+    # The error row is a scored miss; the scores say how many of the n are error rows.
+    assert out["scores"]["error_count"] == 1
+
+
+def test_a_clean_run_reports_no_error_rows(monkeypatch):
+    _flaky(monkeypatch, {})
+    out = runners.run_pipeline_eval(profile="ollama", rows=_rows(3), mock=False, connected=False)
+    assert out["scores"]["error_count"] == 0
 
 
 def test_with_fail_fast_every_failed_document_is_recorded_once_with_its_usage(monkeypatch):

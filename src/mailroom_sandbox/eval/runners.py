@@ -5,9 +5,10 @@ from __future__ import annotations
 import contextvars
 import logging
 import os
-from contextlib import ExitStack
-from pathlib import Path
-from typing import Any, Collection, Mapping, Sequence
+import re
+from contextlib import ExitStack, contextmanager
+from pathlib import Path, PurePosixPath
+from typing import Any, Collection, Iterator, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -133,15 +134,25 @@ def isolated_call_scope(task: str, *, mock: bool):
     Pipeline documents already enter ``call_guard.document`` (the R01 ceiling).
     An isolated chat specialist can legitimately exceed the default ceiling
     while it chunks a long document, so only ``sorter_reviewer`` and
-    ``extraction_gate`` take the scope. Mock rows do not.
+    ``extraction_gate`` take the scope. Mock rows do not. A chat specialist row still gets a
+    ``price_holds`` scope, so a LangChain structured call's success stays on the cap until the agent
+    prices it (the request goes out on a worker thread).
     """
     from contextlib import nullcontext
 
-    if mock or task not in ("sorter_reviewer", "extraction_gate"):
+    if mock:
         return nullcontext({"calls": 0, "refused": None})
     from mailroom_sandbox.job import call_guard
 
+    if task not in ("sorter_reviewer", "extraction_gate"):
+        return _price_holds_only(call_guard)
     return call_guard.document()
+
+
+@contextmanager
+def _price_holds_only(call_guard: Any) -> Iterator[dict[str, Any]]:
+    with call_guard.price_holds():
+        yield {"calls": 0, "refused": None}
 
 
 #: Pause before a document that raised runs again (``job.max_retries``); tests set it to 0.
@@ -1732,6 +1743,9 @@ def run_pipeline_eval(
         "extraction_overall": extraction["extraction_overall"],
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
+        # Error rows are scored as misses (class "unknown", stage "failed"); this says how many of the
+        # n are, as the isolated runner's scores do, so a reader outside the gate sees the denominator.
+        "error_count": sum(1 for result in results if result.get("error")),
         **{k: v for k, v in extraction.items() if k != "extraction_overall"},
         **subclass_scores,
     }
@@ -1826,6 +1840,36 @@ def _doc_source_name(row: dict[str, Any]) -> str:
     return f"{ident}.txt"
 
 
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+def _inbox_name(row: dict[str, Any]) -> str:
+    """The shared-inbox filename of a pipeline document: its basename made unique per document.
+
+    Every pipeline document goes into the one shared inbox, and the vendored claim registry and
+    trace seed key on this name, so two rows with the same basename in flight at once (Enron
+    maildir messages such as ``crandell-s/inbox/30.`` and ``lay-k/sent/30.``) would overwrite each
+    other's text or be archived from each other's claimed file. The row id, reduced to
+    ``[A-Za-z0-9_-]`` so it can never leave the inbox, makes the name unique. A name with no suffix
+    (a maildir message) loses its trailing dot and becomes ``.txt`` here, so ``30.`` is
+    ``30__<id>.txt`` rather than ``30..txt``. No folder names are added.
+
+    The LLM intake agent reads this name as its ``File:`` label (``intake_run(filename=...)``), so
+    the label gains the id: a content hash that carries no label information. The family API keeps
+    :func:`_doc_source_name` (it stages each upload alone).
+    """
+    ident = _UNSAFE_NAME_CHARS.sub("_", str(row.get("id") or "")).strip("_")
+    filename = str(row.get("filename") or "").strip()
+    if not filename:
+        return f"{ident or 'doc'}.txt"
+    name = PurePosixPath(filename.replace("\\", "/")).name.strip(". ") or ident or "doc"
+    suffix = Path(name).suffix
+    stem = name[: -len(suffix)] if suffix else name
+    # A suffix-less message is text; giving it .txt here keeps _materialize_row's with_suffix off it.
+    suffix = suffix or ".txt"
+    return f"{stem}__{ident}{suffix}" if ident else f"{stem}{suffix}"
+
+
 def _wait_for_inbox_room(target: Path, name: str) -> None:
     """Backpressure: hold a write into the pipeline's own inbox while that inbox is full.
 
@@ -1850,16 +1894,17 @@ def _wait_for_inbox_room(target: Path, name: str) -> None:
                                        what=f"pipeline intake of {name}")
 
 
-def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
+def _materialize_row(row: dict[str, Any], inbox: Path, *, unique: bool = False) -> Path:
     """Place the row's document in the inbox and return the queued path.
 
     Fixture rows resolve to their file on disk (copied in); prepared corpus
     rows carry ``doc_text`` inline and are written as a text document. A row
-    with neither raises — a live run never scores a missing document.
+    with neither raises — a live run never scores a missing document. ``unique`` (the
+    pipeline's shared inbox) names the file with :func:`_inbox_name`.
     """
     import shutil
 
-    queued = inbox / _doc_source_name(row)
+    queued = inbox / (_inbox_name(row) if unique else _doc_source_name(row))
     _wait_for_inbox_room(inbox, queued.name)
     doc_text = row.get("doc_text") or row.get("text")
     if doc_text:
@@ -2288,7 +2333,7 @@ def _run_pipeline_doc_once(
         return near_empty
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
-    queued = _materialize_row(row, inbox)
+    queued = _materialize_row(row, inbox, unique=True)
     matter_id = sandbox_matter_id(row, run_id or experiment_name)
     # Labels for an oracle-routing run only (job.blind_routing: false); a blind run passes none.
     gt = {**public_gt, "expected_doc_class": str(row.get("expected_doc_class") or "")}

@@ -592,6 +592,7 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
     legacy = legacy_thresholds({})
     assert "transient_retry_max" not in legacy and "judge_exhausted_to_arbiter" not in legacy
     assert "arbiter_full_source" not in legacy and "arbiter_full_source_min_confidence" not in legacy
+    assert "caveat_acceptance_parks" not in legacy
     assert (legacy["retry_max"], legacy["arbiter_retry_max"], legacy["judge_max_passes"]) == (1, 2, 3)
     assert legacy_thresholds({"judge_max_passes": 4})["judge_max_passes"] == 4
     lock = {"profile": "modal-vllm", "job": {}, "confidence": {"arbiter_retry_max": 1}}
@@ -606,6 +607,28 @@ def test_an_older_lock_keeps_its_retry_budgets_on_resume(monkeypatch):
     finally:
         runtime.activate("modal-vllm", load_env_file=False)
     assert get_confidence_thresholds("contract")["transient_retry_max"] == 1
+
+
+def test_an_old_lock_does_not_inherit_a_later_caveat_park(monkeypatch):
+    """HF-034 stays off on a lock that never froze it, even if a later overlay sets the class."""
+    from mailroom_sandbox.job import routing_audit
+
+    real = routing_audit.effective_thresholds
+
+    def with_a_later_park(lock_confidence=None):
+        block = real(lock_confidence)
+        block["caveat_acceptance_parks"] = True
+        by = dict(block.get("by_class") or {})
+        by["contract"] = {**dict(by.get("contract") or {}), "caveat_acceptance_parks": True}
+        block["by_class"] = by
+        return block
+
+    monkeypatch.setattr(routing_audit, "effective_thresholds", with_a_later_park)
+    legacy = routing_audit.legacy_thresholds({})
+    assert "caveat_acceptance_parks" not in legacy
+    assert "caveat_acceptance_parks" not in (legacy.get("by_class") or {}).get("contract", {})
+    kept = routing_audit.legacy_thresholds({"by_class": {"contract": {"caveat_acceptance_parks": True}}})
+    assert kept["by_class"]["contract"]["caveat_acceptance_parks"] is True
 
 
 def test_the_hf014_floor_is_frozen_only_when_a_run_sets_it(monkeypatch):

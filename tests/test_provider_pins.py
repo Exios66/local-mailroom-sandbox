@@ -619,6 +619,87 @@ def test_langchain_reservation_is_settled_on_success_and_on_failure(lc_pins, arm
     assert armed_budget.reserved_usd == 0.0 and armed_budget.unreported_usd > 0
 
 
+class _UsageResp(_Resp):
+    def __init__(self, model, provider, usage):
+        super().__init__(model, provider)
+        self.usage = usage
+
+
+def test_a_chat_completion_success_holds_the_cap_until_record_usage_prices_it(vendored, monkeypatch, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    call = _install(monkeypatch, _loop(attempts=1))
+    usage = types.SimpleNamespace(prompt_tokens=3, completion_tokens=2)
+    client = _SdkClient("https://openrouter.ai/api/v1", [_UsageResp("qwen/qwen3.7-flash", "Alibaba", usage)])
+    with call_guard.document():
+        response = call(client, **_REQUEST)
+        assert armed_budget.reserved_usd == 0.0 and armed_budget.settling_usd > 0
+        call_guard.after_call(response.usage, model=_REQUEST["model"])  # HF-004, as agents.base records it
+        assert armed_budget.settling_usd == 0.0
+    assert armed_budget.live_total_usd() == pytest.approx(armed_budget.estimate_call_usd(3, 2, _REQUEST["model"]))
+
+
+def test_a_chat_completion_without_usage_is_released_not_held(vendored, monkeypatch, armed_budget):
+    """HF-004 prices a reply only when it carries usage, so a 200 without a usage block is never priced:
+    holding it would leak. It is released, as before the hold existed."""
+    call = _install(monkeypatch, _loop(attempts=1))
+    client = _SdkClient("https://openrouter.ai/api/v1", [_UsageResp("qwen/qwen3.7-flash", "Alibaba", None)])
+    call(client, **_REQUEST)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.settling_usd == 0.0 and armed_budget.unreported_usd == 0.0
+
+
+_SCHEMA = {"title": "out", "type": "object", "properties": {"doc_type": {"type": "string"}},
+           "required": ["doc_type"], "additionalProperties": False}
+
+
+@pytest.mark.parametrize("structured", [False, True], ids=["invoke", "structured"])
+def test_a_langchain_success_holds_the_cap_until_the_agent_prices_it(lc_pins, armed_budget, structured):
+    """with_structured_output sends from a RunnableParallel worker thread; the agent prices the reply on
+    its own thread afterwards. In a document the hold survives that hop and the agent's price clears it."""
+    import threading
+
+    from mailroom_sandbox.job import call_guard
+
+    content = json.dumps({"doc_type": "contract"})
+    llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba", content)], [],
+                       max_tokens=50)
+    threads = []
+    real_settle = call_guard.settle
+
+    def spy(*args, **kwargs):
+        threads.append(threading.current_thread())
+        return real_settle(*args, **kwargs)
+
+    runnable = llm.with_structured_output(_SCHEMA, method="json_schema", include_raw=True) if structured else llm
+    with call_guard.document():
+        call_guard.settle = spy
+        try:
+            out = runnable.invoke("x" * 400)
+        finally:
+            call_guard.settle = real_settle
+        message = out["raw"] if structured else out
+        assert (threads[0] is threading.current_thread()) is not structured  # the hop is real
+        assert armed_budget.reserved_usd == 0.0 and armed_budget.settling_usd > 0  # still on the cap
+        call_guard.after_call(message.usage_metadata, model="qwen/qwen3.7-flash")  # what HF-004 does
+        assert armed_budget.settling_usd == 0.0
+    assert armed_budget.live_total_usd() == pytest.approx(armed_budget.estimate_call_usd(3, 2, "qwen/qwen3.7-flash"))
+
+
+def test_a_langchain_success_outside_a_scope_is_released_not_held(lc_pins, armed_budget):
+    """Outside a document nothing is shared between the sending worker thread and the agent's: a hold
+    would leak, so the reply is released at once (the earlier behaviour) and the agent's price adds it."""
+    from mailroom_sandbox.job import call_guard
+
+    content = json.dumps({"doc_type": "contract"})
+    llm = _chat_openai("https://openrouter.ai/api/v1", [_completion("qwen/qwen3.7-flash", "Alibaba", content)], [],
+                       max_tokens=50)
+    out = llm.with_structured_output(_SCHEMA, method="json_schema", include_raw=True).invoke("x" * 400)
+    assert armed_budget.reserved_usd == 0.0 and armed_budget.settling_usd == 0.0
+    call_guard.after_call(out["raw"].usage_metadata, model="qwen/qwen3.7-flash")
+    assert armed_budget.settling_usd == 0.0
+    assert armed_budget.live_total_usd() == pytest.approx(armed_budget.estimate_call_usd(3, 2, "qwen/qwen3.7-flash"))
+
+
 def test_a_failed_langchain_attempt_counts_toward_the_document(lc_pins):
     import httpx
     from langchain_openai import ChatOpenAI
