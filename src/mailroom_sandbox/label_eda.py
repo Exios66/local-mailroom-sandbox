@@ -371,7 +371,9 @@ def focus(labels: Labels, flt: Filter, *, top: int = 25) -> dict[str, Any]:
         "1_unscorable_docs": unscorable(labels, flt) + (units or []),
         "unit_class_count": ("skipped: gated contract documents are counted on their CUAD labels, which "
                              "need the cached corpus (sandbox datasets pull)") if units is None
-                            else "contract documents counted on their CUAD labels in the cached corpus",
+                            else ("contract documents counted on their CUAD labels in the cached corpus; "
+                                  "production slices (require_task_gt) never draw a contract with no CUAD "
+                                  "labels, so only CUAD labels, not field labels, bring one into production"),
         "2_gate_gaps": gaps([c for c in open_ if c.tier == "gate"], top=top),
         "3_suite_and_reported_gaps": gaps([c for c in open_ if c.tier in ("unit", "reported")], top=top),
         "4_human_queue": {"disputed": sum(c.presence == "disputed_unresolved" for c in cells),

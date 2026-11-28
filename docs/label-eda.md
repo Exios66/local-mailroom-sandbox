@@ -97,7 +97,9 @@ scripts/label_eda.py focus --split dev --class corporate_record --ids-out /tmp/d
 The gate drops each of them, so a label there adds a scored document. A contract counts its CUAD
 clause labels, which the release does not carry. `focus` counts those with the production
 `gate.labelled_count` on the cached corpus row, and says so under `unit_class_count`, or that it
-skipped them without the cache.
+skipped them without the cache. Production slices draw with `require_task_gt`, which leaves out
+a contract with no CUAD labels, so field labels on such a contract do not move a production
+number. Only CUAD labels, or an owner change to the draw rule, would.
 
 `--ids-out` writes the document ids with open gate work. To label exactly those documents, keep
 only their lines of a `gold_labels.py queue` file, then cut batches from it (see the
