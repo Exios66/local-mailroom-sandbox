@@ -9,6 +9,7 @@ per-stratum sub-seeded draws, union, global re-sort, then ``limit``.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
@@ -716,6 +717,33 @@ def _has_task_gt(row: dict[str, Any]) -> bool:
     return bool(value)
 
 
+def field_labelled_ids(rows: list[dict[str, Any]], source_meta: dict[str, Any], spec: Any,
+                       minimum: int) -> set[str]:
+    """Contracts without CUAD truth whose field labels, after the spec's label overlay, reach ``minimum``.
+
+    The overlay is applied to copies (the draw itself still sees the unmerged rows, and the drawn
+    rows take the overlay once, after the draw). The count is ``gate.labelled_count``: SHF-016
+    scores such a contract on its field labels, so a drawn one is scorable on what was counted.
+    The pinned overlay makes the set deterministic; a new cut can widen it, which is a new spec.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.job.gate import labelled_count
+
+    if not sh.enabled("SHF-016"):
+        # Without SHF-016 such a contract scores on CUAD only, so it would be drawn unscorable;
+        # refuse rather than silently fall back to the strict draw under the same spec hash.
+        raise ValueError("dataset.task_gt_min_field_labels needs SHF-016 current (scripts/check_hotfixes.py)")
+    candidates = [copy.deepcopy(r) for r in rows
+                  if str(r.get("expected_doc_class") or "") == "contract" and not _has_task_gt(r)]
+    if not candidates:
+        return set()
+    merged, _ = apply_label_overlays(candidates, dict(source_meta),
+                                     interim=bool(getattr(spec, "interim_labels", False)),
+                                     near_gold=bool(getattr(spec, "near_gold_labels", False)),
+                                     staged=getattr(spec, "staged_overlay", None))
+    return {str(r.get("id")) for r in merged if labelled_count(r, "contract") >= minimum}
+
+
 def select_rows(
     rows: list[dict[str, Any]],
     *,
@@ -725,11 +753,14 @@ def select_rows(
     require_task_gt: bool = False,
     exclude_ids: set[str] | None = None,
     draw: str = "shuffle",
+    task_gt_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit.
 
     Rows whose ``id`` is in ``exclude_ids`` are dropped before any draw, so the draw
     behaves exactly as if they were not in the corpus (and nested draws stay nested).
+    With ``require_task_gt``, rows whose ``id`` is in ``task_gt_ids`` also qualify
+    (``dataset.task_gt_min_field_labels``: contracts with enough field labels).
     """
     rows = _drop_excluded(rows, exclude_ids)
     # Opt-in (``dataset.require_task_gt``): a document whose class's task-native metric has
@@ -737,7 +768,8 @@ def select_rows(
     # the paired n without adding information. The strata guard below still hard-fails if a
     # requested stratum cannot be filled from what remains.
     if require_task_gt:
-        rows = [r for r in rows if _has_task_gt(r)]
+        also = task_gt_ids or set()
+        rows = [r for r in rows if _has_task_gt(r) or str(r.get("id") or "") in also]
     rows = sorted(rows, key=_stable_key)
     strata = strata or {}
     if "buckets" in strata:
@@ -919,6 +951,9 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     for r in rows:
         r.setdefault("source_revision", source_meta.get("revision", ""))
         r["expected_fields"] = r.get("expected_fields") or _derive_expected_fields(r)
+    field_min = getattr(spec, "task_gt_min_field_labels", None)
+    task_gt_ids = (field_labelled_ids(rows, source_meta, spec, field_min)
+                   if field_min is not None and getattr(spec, "require_task_gt", False) else None)
     chosen = select_rows(
         rows,
         strata=spec.strata,
@@ -927,6 +962,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         require_task_gt=bool(getattr(spec, "require_task_gt", False)),
         exclude_ids=exclude_ids,
         draw=getattr(spec, "draw", "shuffle"),
+        task_gt_ids=task_gt_ids,
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
@@ -949,6 +985,9 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         "revision_requested": spec.revision or FAMILY_HF_REVISION,
         "revision_resolved": source_meta.get("revision_resolved"),
         **({"excluded": excluded_meta} if excluded_meta is not None else {}),
+        **({"task_gt_field_label_rows": {"eligible": len(task_gt_ids),
+                                         "drawn": sum(1 for r in chosen if r.get("id") in task_gt_ids)}}
+           if task_gt_ids is not None else {}),
     }
 
 

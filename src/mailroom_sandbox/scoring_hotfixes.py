@@ -284,7 +284,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
             ("value:llm_dojo_scoring.schemas.label_policy:_CLASS_STALE", "12804f1a0436320192b191eb25de0fdb78f9618c2fc3a9345702ce46b428a8a9"),
             ("llm_dojo_scoring.schemas.label_policy:drop_stale_hub_labels", "b6a53e1612a658f6a9a1d25f0a386a02a968f9aed304aaeb841a0cb4f963211c"),
             # the gate counts toward min_labelled only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
         ),
         upstream="sandbox (the sandbox seam bypasses the Dojo label policy, llm-dojo-scoring #164 / #171 / "
                  "#94, shipped in the pin as label_policy.drop_stale_hub_labels)",
@@ -300,18 +300,25 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-016",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "58a46935f75805f9b6da6475982e169e1efd01e5fa8ced2e32acf0aa6c660165"),
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "4532cf60f8021bc6f1e816ac34d502a36d35f51daef7d3f6a5b4f67877934ccc"),
             # the Dojo reader decides the row's labeled universe; a refresh that changes it
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
             ("llm_dojo_scoring.pipeline.sandbox_scoring:score_cuad", "8c30a637efbf0139bd12bf6283dff62507223ce7e8d90183692854d16a07f106"),
+            # the gate counts such a row's field labels toward min_labelled and diagnoses its misses on
+            # fields, as the headline scores it
+            ("mailroom_sandbox.job.gate:cuad_unlabeled", "60e0455a4d18a7acb3d5d90dc202aa924671f31dfb96db7e9986a2b2c3f5f433"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
+            ("mailroom_sandbox.job.gate_causes:extraction_miss", "73aa082f96c1bdaade40d85f2bb7685b018e7432bae495a1f06608f0f35258c7"),
+            ("mailroom_sandbox.job.gate_causes:primary_cause", "430aac78f5b550c4b87e350d2cef626b4b7d543d8f54f93cca427ce30e9dda74"),
         ),
         upstream="sandbox",
         summary="a contract row whose CUAD label map names no category keeps the suite field "
                 "headline (the reviewed interim / near-gold field labels merged at truth prep "
                 "stand in where the Hub supplied none) instead of the empty-universe CUAD F1 "
                 "that left the row unscoreable; the row is marked cuad_unlabeled and the "
-                "raw side keeps the Dojo pin's None",
+                "raw side keeps the Dojo pin's None; the gate counts such a row's field labels "
+                "toward min_labelled and diagnoses its misses on fields",
     ),
     ScoringHotfix(
         id="SHF-019",
@@ -319,7 +326,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             ("mailroom_sandbox.eval.scoring:score_extraction_row", "84867f1b6d6b17d238c32955d3103c6f9ddb29e898ee9cc6834fe716c716828a"),
             # the gate counts toward min_labelled, and scores fixes against, only the labels the headline scores
-            ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
+            ("mailroom_sandbox.job.gate:labelled_count", "375f7eb8d1a45d7dd67a3a29b6a7a32abf177cd8981d2b2b1c009aafdd33b715"),
             ("mailroom_sandbox.job.gate:_fix_accuracy", "fbc36bf451f3019473f247a14dee57ebce751ca79ba6ead0fe2f032b30fe4756"),
             # the lowest-field diagnosis skips what the headline leaves out
             ("mailroom_sandbox.job.gate_causes:_field_scores", "dc99fa8731715c99ff6cb82841047a54f6cbd5d774d0e9c37cb49996e4329669"),
@@ -723,6 +730,72 @@ def _install_field_fixes(fs: Any) -> None:
         for key, value in list(fs.FIELD_SCORERS.items()):
             if value is original:
                 fs.FIELD_SCORERS[key] = wrapper
+
+
+# --- suite event counts (no score changes) -----------------------------------------------------
+
+# The Dojo's detailed suite payload builds its P/R/F1 from a full count bundle (``tp``/``fp``/``fn``)
+# on the pair it actually scored (after alignment, peel and the blank-label drop), then keeps only
+# the rates (``prf_bundle_keys``). A capture of that bundle returns the suite's own counts, never a
+# recount on a different pair. The wrapper is a passthrough: it records only inside
+# :func:`suite_event_counts`, and the rates it returns are the Dojo's.
+_PRF_CAPTURE: contextvars.ContextVar[list[dict[str, Any]] | None] = contextvars.ContextVar(
+    "sandbox_suite_prf_capture", default=None)
+_PRF_MARK = "_sandbox_prf_capture"
+_COUNT_KEYS = ("tp", "fp", "fn")
+
+
+def _install_prf_capture() -> None:
+    try:
+        from llm_dojo_scoring.scoring import extraction_metrics as em
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("extraction metrics unavailable: %s", exc)
+        return
+    with _INSTALL_LOCK:
+        original = em.prf_bundle_keys
+        if getattr(original, _PRF_MARK, False):
+            return
+
+        @functools.wraps(original)
+        def prf_bundle_keys(prf: Mapping[str, Any]) -> dict[str, Any]:
+            sink = _PRF_CAPTURE.get()
+            if sink is not None:
+                sink.append(dict(prf))
+            return original(prf)
+
+        setattr(prf_bundle_keys, _PRF_MARK, True)
+        em.prf_bundle_keys = prf_bundle_keys
+
+
+@contextlib.contextmanager
+def suite_event_counts() -> Iterator[list[dict[str, Any]]]:
+    """Collect the count bundles the Dojo suite builds its P/R/F1 from, for one scoring call."""
+    _install_prf_capture()
+    sink: list[dict[str, Any]] = []
+    token = _PRF_CAPTURE.set(sink)
+    try:
+        yield sink
+    finally:
+        _PRF_CAPTURE.reset(token)
+
+
+def captured_event_counts(sink: Sequence[Mapping[str, Any]], result: Any) -> dict[str, int]:
+    """``tp``/``fp``/``fn`` of the bundle a detailed suite ``result`` carries, else ``{}``.
+
+    The payload is built from the suite's last bundle, so that one must carry the result's own
+    precision, recall and F1. A result that already has counts, a bundle without integer counts or
+    one whose rates differ from the result's yields nothing.
+    """
+    if not sink or not isinstance(result, Mapping) or any(k in result for k in _COUNT_KEYS):
+        return {}
+    bundle = sink[-1]
+    counts = {k: bundle.get(k) for k in _COUNT_KEYS}
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in counts.values()):
+        return {}
+    for key in ("extraction_precision", "extraction_recall", "extraction_f1"):
+        if bundle.get(key) != result.get(key):
+            return {}
+    return counts
 
 
 # --- SHF-001: documented absences and hallucination -------------------------------------------
@@ -1190,9 +1263,8 @@ def aggregate_extraction(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, 
         fn = sum(int(r["fn"]) for r in counted)
         out["extraction_tp"], out["extraction_fp"], out["extraction_fn"] = tp, fp, fn
         out["extraction_counts_n"] = len(counted)
-        # The Dojo's suite scorers (insurance_claim, contract, ...) return P/R/F1 without event
-        # counts, so a micro F1 over the rows that do carry counts would silently cover only some
-        # documents. It is reported only when every scored row is counted; the per-document mean
+        # Contract rows (CUAD headline) carry no event counts, so a micro F1 over the rows that do
+        # carry counts would silently cover only some documents. It is reported only when every scored row is counted; the per-document mean
         # (extraction_f1_mean) is the headline otherwise.
         if len(counted) == len(scored):
             p = tp / (tp + fp) if tp + fp else 0.0
@@ -1230,9 +1302,9 @@ def raw_rows(rows: Sequence[Mapping[str, Any] | None]) -> list[dict[str, Any] | 
 
 __all__ = [
     "HOTFIXES", "HEADLINE_KEYS", "SUBCLASS_CORRECTIONS", "ScoringHotfix", "aggregate_extraction",
-    "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
+    "captured_event_counts", "corrected_subclass", "current_ids", "currencies", "data_path", "describe", "documented_absent_fields",
     "drop_stale_hub_truth", "dual", "enabled", "hallucination_counts", "headline_basis",
     "subclass_corrections", "hotfixed", "install", "is_active", "merge_dual", "module_sha256",
     "overlay_fields", "raw", "raw_rows", "restore_documented_absences", "revert_truth_overrides",
-    "source_sha", "stale", "status",
+    "source_sha", "stale", "status", "suite_event_counts",
 ]

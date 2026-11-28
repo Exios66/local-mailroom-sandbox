@@ -215,3 +215,21 @@ def test_the_committed_release_holds_the_subclass_labels():
         sources = {(r["field"], r["chosen_source"]) for r in csv.DictReader(fh) if r["doc_class"] == "corporate_record"}
     assert ("trustee", "near_gold_two_pass") in sources
     assert ("authorized_capital", "near_gold_two_pass") in sources
+
+
+def test_the_committed_summary_hashes_the_committed_inputs():
+    """Every repository file the committed release records hashes to its committed bytes.
+
+    The release reads the subclass registry, so rebuilding the registry after the release leaves
+    the release pinned to bytes no commit holds. Rebuild order: overlay, registry, then release.
+    """
+    import hashlib
+
+    summary = json.loads((_BUILDER.parent / "mailroom_dataset_v9.3_label_repaired_summary.json").read_text(encoding="utf-8"))
+    root = repo_root()
+    stale = {
+        rel: digest
+        for rel, digest in summary["inputs_sha256"].items()
+        if (root / rel).is_file() and hashlib.sha256((root / rel).read_bytes()).hexdigest() != digest
+    }
+    assert not stale, f"release summary pins stale input bytes (rebuild the release last): {sorted(stale)}"
