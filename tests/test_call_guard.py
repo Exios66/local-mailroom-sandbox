@@ -331,14 +331,17 @@ def test_a_named_hold_is_priced_by_its_own_reply_only():
 
 @pytest.mark.parametrize("bad", [float("inf"), float("nan"), "lots"], ids=["inf", "nan", "text"])
 def test_a_held_success_with_unreadable_usage_is_still_priced_and_cleared(bad):
-    """after_call takes the hold before it reads the counts, so a count it cannot read must not raise."""
+    """after_call takes the hold before it reads the counts, so a count it cannot read must not raise,
+    and the billed reply keeps at least its reservation rather than being priced at nothing."""
     budget = _armed(cap=1.0)
     with call_guard.document():
         held = call_guard.before_call(prompt_tokens=1_000, completion_tokens=10)
         call_guard.settle(held, billed=False, await_price=True)
-        assert budget.settling_usd > 0
+        reserved = budget.settling_usd
+        assert reserved > 0
         call_guard.after_call({"prompt_tokens": bad, "completion_tokens": 1})
         assert budget.settling_usd == 0.0 and budget.reserved_usd == 0.0
+        assert budget.live_usd == pytest.approx(reserved)
 
 
 def test_a_success_never_priced_is_released_when_its_document_ends(caplog):

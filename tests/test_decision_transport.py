@@ -349,16 +349,17 @@ def test_a_decisions_200_is_priced_at_its_own_model_not_the_runs_dearest(monkeyp
     from mailroom_sandbox.job import api_budget, call_guard
     from mailroom_sandbox.job.metrics import call_cost
 
-    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, ["qwen/qwen3.7-flash", "qwen/qwen3.7-plus"])
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.25, ["openai/gpt-6-luna-decisions", "qwen/qwen3.7-plus"])
     call_guard.arm(budget, None)
     try:
         monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(
             200, json={"usage": {"prompt_tokens": 5_000, "completion_tokens": 1_000}}))
         with call_guard.document():
-            db._post_decision({"model": "qwen/qwen3.7-flash", "messages": [{"content": "x"}]}, timeout=120, attempts=1)
+            db._post_decision({"model": "openai/gpt-6-luna-decisions", "messages": [{"content": "x"}]},
+                              timeout=120, attempts=1)
         assert budget.settling_usd == 0.0 and budget.reserved_usd == 0.0
-        assert budget.live_total_usd() == pytest.approx(call_cost("qwen/qwen3.7-flash", 5_000, 1_000))
-        assert call_cost("qwen/qwen3.7-flash", 5_000, 1_000) < call_cost("qwen/qwen3.7-plus", 5_000, 1_000)
+        assert budget.live_total_usd() == pytest.approx(call_cost("openai/gpt-6-luna-decisions", 5_000, 1_000))
+        assert call_cost("openai/gpt-6-luna-decisions", 5_000, 1_000) < call_cost("qwen/qwen3.7-plus", 5_000, 1_000)
     finally:
         call_guard.disarm()
 
