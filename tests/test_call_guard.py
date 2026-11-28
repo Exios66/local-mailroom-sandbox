@@ -255,9 +255,242 @@ def test_a_settled_success_releases_and_after_call_prices_the_real_usage():
     budget = _armed(cap=1.0)
     held = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
     call_guard.settle(held, billed=False)
-    assert budget.reserved_usd == 0.0 and budget.unreported_usd == 0.0
+    assert budget.reserved_usd == 0.0 and budget.unreported_usd == 0.0 and budget.settling_usd == 0.0
     call_guard.after_call({"prompt_tokens": 100_000, "completion_tokens": 0})
     assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(100_000, 0))
+
+
+def test_a_success_holds_the_cap_until_its_usage_is_priced():
+    """The reply is back before record_usage prices it. Dropping the reservation there lets the next
+    request through, and the real bill lands after it has already gone out."""
+    budget = _armed(cap=0.05)
+    held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)  # about $0.03
+    call_guard.settle(held, billed=False, await_price=True)
+    assert budget.reserved_usd == 0.0 and budget.settling_usd == pytest.approx(held)
+    with pytest.raises(Exception, match="awaiting price"):
+        call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+    call_guard.after_call({"prompt_tokens": 1, "completion_tokens": 0})
+    assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(1, 0))
+    call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)  # the real bill left room
+
+
+def test_a_rejected_request_frees_the_cap():
+    budget = _armed(cap=0.05)
+    held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+    call_guard.settle(held, billed=False)  # HTTP 4xx or never connected: not billed
+    assert budget.reserved_usd == 0.0 and budget.settling_usd == 0.0 and budget.unreported_usd == 0.0
+    call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+
+
+# A held success is released by whoever prices it. These pin where that happens, and what a miss costs.
+
+
+def _held_success(prompt_tokens=300_000):
+    held = call_guard.before_call(prompt_tokens=prompt_tokens, completion_tokens=0)
+    call_guard.settle(held, billed=False, await_price=True)
+    return held
+
+
+def test_a_price_clears_only_a_hold_of_its_own_model():
+    """A concurrent call of another model in the same document, or one that reserved nothing, used to
+    clear the oldest hold in the shared queue and briefly reopen that call's gap on the cap."""
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(held, billed=False, await_price=True, model="qwen/qwen3.5-9b")
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, model="local/other-model")
+        assert budget.settling_usd == pytest.approx(held)  # still held: that price was another model's
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, model="OpenRouter/Qwen/Qwen3.5-9B")
+        assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(2 * budget.estimate_call_usd(10, 0))
+
+
+def test_a_price_without_a_model_still_clears_the_oldest_hold():
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(held, billed=False, await_price=True, model="qwen/qwen3.5-9b")
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0
+
+
+def test_a_named_hold_is_priced_by_its_own_reply_only():
+    """The Decisions transport prices its own reply by hold id, never a concurrent call's hold."""
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        other = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(other, billed=False, await_price=True)  # a LangChain reply priced later
+        mine = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
+        hold = call_guard.settle(mine, billed=False, await_price=True)
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, hold=hold)
+        assert budget.settling_usd == pytest.approx(other)
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0
+
+
+def test_a_success_never_priced_is_released_when_its_document_ends(caplog):
+    """A path that settles with await_price and never reaches after_call holds the cap for the rest of
+    its document only. The next document prices its own replies as usual."""
+    budget = _armed(cap=0.05)
+    with call_guard.document():
+        held = _held_success()
+        assert budget.settling_usd == pytest.approx(held)
+        with pytest.raises(Exception, match="awaiting price"):  # fails closed while the document runs
+            call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+    assert budget.settling_usd == 0.0 and budget.reserved_usd == 0.0 and budget.live_total_usd() == 0.0
+    assert "never priced" in caplog.text
+    with call_guard.document() as scope:
+        _held_success()
+        call_guard.after_call({"prompt_tokens": 1_000, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0  # priced by its own after_call, before the document ends
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(1_000, 0))
+    assert scope["spend_usd"] == pytest.approx(budget.estimate_call_usd(1_000, 0))
+
+
+def test_outside_a_document_a_missed_price_is_released_by_the_next_success_on_that_thread(caplog):
+    """No scope: the hold is this thread's, and a same-thread transport prices one reply before its next
+    request settles. A miss is therefore bounded at one hold per thread."""
+    budget = _armed(cap=1.0)
+    first = _held_success()
+    assert budget.settling_usd == pytest.approx(first)
+    second = _held_success(prompt_tokens=200_000)  # the first was never priced
+    assert budget.settling_usd == pytest.approx(second)
+    assert "never priced" in caplog.text
+    call_guard.after_call({"prompt_tokens": 1_000, "completion_tokens": 0})
+    assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(1_000, 0))
+
+
+def test_a_new_arm_drops_the_previous_runs_holds():
+    old = _armed(cap=1.0)
+    _held_success()
+    new = _armed(cap=1.0)
+    assert old.settling_usd == 0.0
+    call_guard.after_call({"prompt_tokens": 1_000, "completion_tokens": 0})  # nothing of the old run's
+    assert new.settling_usd == 0.0
+    assert new.live_total_usd() == pytest.approx(new.estimate_call_usd(1_000, 0))
+
+
+def test_a_success_settled_on_a_worker_thread_is_priced_on_the_documents_thread():
+    """LangChain's with_structured_output runs the model in a RunnableParallel: the request (and its
+    settle) runs on a worker thread in a copy of the caller's context, and the agent prices the reply on
+    its own thread. The document's queue is shared by both."""
+    import contextvars
+    from concurrent.futures import ThreadPoolExecutor
+
+    budget = _armed(cap=1.0)
+    with call_guard.document(), ThreadPoolExecutor(1) as pool:
+        held = pool.submit(contextvars.copy_context().run, _held_success).result()
+        assert budget.settling_usd == pytest.approx(held)
+        call_guard.after_call({"prompt_tokens": 1_000, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(1_000, 0))
+
+
+def test_the_runners_chat_specialist_rows_share_holds_across_threads():
+    from mailroom_sandbox.eval import runners
+
+    with runners.isolated_call_scope("contracts_specialist", mock=False) as scope:
+        assert call_guard.scoped_holds() and scope == {"calls": 0, "refused": None}
+    assert not call_guard.scoped_holds()
+    with runners.isolated_call_scope("contracts_specialist", mock=True):
+        assert not call_guard.scoped_holds()
+
+
+@pytest.mark.parametrize("hop", [False, True], ids=["same-thread", "worker-thread"])
+def test_concurrent_documents_settle_and_price_back_to_zero(hop, caplog):
+    """run_pipeline_eval runs up to job.concurrency documents on a thread pool. However the settles and
+    prices of N documents interleave, every hold is priced once: nothing is left awaiting a price and
+    the live spend is exactly the sum of the priced costs."""
+    import contextvars
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    budget = _armed(cap=1_000.0)
+    workers, calls = 10, 20
+    priced, lock, start = [], threading.Lock(), threading.Barrier(workers)
+
+    def document(n):
+        start.wait()
+        with call_guard.document(), ThreadPoolExecutor(1) as hop_pool:
+            for i in range(calls):
+                if hop:
+                    hop_pool.submit(contextvars.copy_context().run, _held_success, 50_000 + i).result()
+                else:
+                    _held_success(50_000 + i)
+                usage = {"prompt_tokens": 1_000 * (n + 1) + i, "completion_tokens": 10 * i}
+                call_guard.after_call(usage)
+                with lock:
+                    priced.append(budget.estimate_call_usd(usage["prompt_tokens"], usage["completion_tokens"]))
+
+    with ThreadPoolExecutor(workers) as pool:
+        list(pool.map(document, range(workers)))
+    assert len(priced) == workers * calls
+    assert budget.settling_usd == pytest.approx(0.0, abs=1e-12) and budget.reserved_usd == pytest.approx(0.0, abs=1e-12)
+    assert budget.live_total_usd() == pytest.approx(sum(priced))
+    assert "never priced" not in caplog.text  # each was priced, none released at a document's end
+
+
+def test_a_length_resample_prices_the_reply_it_discards(monkeypatch):
+    """sampling's length re-sample drops a reply no caller records. It was billed and its success is
+    held, so it is priced there; otherwise every re-sample would leave a hold behind."""
+    import types
+
+    import llm.retry as retry_mod
+
+    from mailroom_sandbox import sampling
+
+    def reply(finish, prompt, completion):
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(finish_reason=finish)],
+                                     usage=types.SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion))
+
+    replies = [reply("length", 40_000, 4_000), reply("stop", 5_000, 100)]
+
+    def guarded(client, **kwargs):  # one attempt, settled as _AttemptGuardedCompletions settles a success
+        held = call_guard.before_call(prompt_tokens=50_000, completion_tokens=4_096)
+        call_guard.settle(held, billed=False, await_price=True)
+        return replies.pop(0)
+
+    monkeypatch.setattr(retry_mod, "retry_chat_completion", guarded)
+    sampling._install_retry_patch()
+    budget = _armed(cap=1.0)
+    token = sampling._REQUEST.set({"agent": "probe", "extra": {"length_retries": 1}})
+    try:
+        with call_guard.document() as scope:
+            response = retry_mod.retry_chat_completion(None, model="qwen/qwen3.5-9b", messages=[])
+            assert budget.settling_usd == pytest.approx(budget.estimate_call_usd(50_000, 4_096))  # the kept one
+            call_guard.after_call(response.usage)  # what the caller's record_usage does
+            assert budget.settling_usd == 0.0
+    finally:
+        sampling._REQUEST.reset(token)
+    assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(40_000, 4_000)
+                                                    + budget.estimate_call_usd(5_000, 100))
+    # Priced only: the discarded reply never reaches the pipeline, so the ceiling and the governor's call
+    # budget count the kept reply alone, as on an unarmed run (routing must not depend on the cap).
+    assert scope["calls"] == 1 and scope["llm_calls"] == 1
+    assert scope["spend_usd"] == pytest.approx(budget.live_total_usd())
+
+
+def test_concurrent_threads_outside_a_document_price_their_own_holds():
+    from concurrent.futures import ThreadPoolExecutor
+
+    budget = _armed(cap=1_000.0)
+    priced = []
+
+    def worker(n):
+        out = []
+        for i in range(20):
+            _held_success(10_000 + i)
+            call_guard.after_call({"prompt_tokens": 500 * (n + 1), "completion_tokens": i})
+            out.append(budget.estimate_call_usd(500 * (n + 1), i))
+        return out
+
+    with ThreadPoolExecutor(10) as pool:
+        for out in pool.map(worker, range(10)):
+            priced.extend(out)
+    assert budget.settling_usd == pytest.approx(0.0, abs=1e-12)
+    assert budget.live_total_usd() == pytest.approx(sum(priced))
 
 
 class _Status(Exception):
