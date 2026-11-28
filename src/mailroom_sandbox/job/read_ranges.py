@@ -416,6 +416,18 @@ def current_node() -> str | None:
         return state.nodes[-1] if state.nodes else None
 
 
+def current_doc() -> str | None:
+    """The id of the document whose context is current, if any."""
+    state = _STATE.get()
+    return state.doc_id if state is not None else None
+
+
+def pending_agent() -> str | None:
+    """The agent name of the chat request now being made, when an observer saw it."""
+    pending = _PENDING.get()
+    return pending.agent or None if pending is not None else None
+
+
 def stats() -> dict[str, Any]:
     """``{read_calls, read_errors, read_ms}`` for the current document."""
     state = _STATE.get()

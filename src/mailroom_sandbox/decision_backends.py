@@ -771,6 +771,14 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         _record_read(f"decisions:{_decision_lane(state)}", "\n".join(parts))
     except Exception:
         pass
+    try:
+        from mailroom_sandbox.job import prompt_capture
+
+        prompt_capture.observe_decision(body, agent=f"decisions:{_decision_lane(body.get('state'))}")
+    except Exception as exc:  # noqa: BLE001 - recording never fails a call
+        import logging
+
+        logging.getLogger(__name__).debug("decision prompt capture failed: %s", exc)
 
 
 def _priced_decision_reply(resp: Any, held: float, model: Any = None) -> Any:
