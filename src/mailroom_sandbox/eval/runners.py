@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextvars
 import logging
 import os
+import re
 from contextlib import ExitStack, contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any, Collection, Iterator, Mapping, Sequence
@@ -1839,28 +1840,33 @@ def _doc_source_name(row: dict[str, Any]) -> str:
     return f"{ident}.txt"
 
 
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
+
+
 def _inbox_name(row: dict[str, Any]) -> str:
-    """The shared-inbox filename of a pipeline document: readable, and unique per document.
+    """The shared-inbox filename of a pipeline document: its basename made unique per document.
 
     Every pipeline document goes into the one shared inbox, and the vendored claim registry and
     trace seed key on this name, so two rows with the same basename in flight at once (Enron
     maildir messages such as ``crandell-s/inbox/30.`` and ``lay-k/sent/30.``) would overwrite each
-    other's text or be archived from each other's claimed file. The row id makes the name unique.
-    A name with no suffix (a maildir message) keeps its folders and loses its trailing dot, so the
-    archive reads ``crandell-s_inbox_30__<id>.txt`` rather than ``30..txt``. Text-row models never
-    see the name. The family API keeps :func:`_doc_source_name` (it stages each upload alone).
+    other's text or be archived from each other's claimed file. The row id, reduced to
+    ``[A-Za-z0-9_-]`` so it can never leave the inbox, makes the name unique. A name with no suffix
+    (a maildir message) loses its trailing dot and becomes ``.txt`` here, so ``30.`` is
+    ``30__<id>.txt`` rather than ``30..txt``. No folder names are added.
+
+    The LLM intake agent reads this name as its ``File:`` label (``intake_run(filename=...)``), so
+    the label gains the id: a content hash that carries no label information. The family API keeps
+    :func:`_doc_source_name` (it stages each upload alone).
     """
-    ident = str(row.get("id") or "").strip()
+    ident = _UNSAFE_NAME_CHARS.sub("_", str(row.get("id") or "")).strip("_")
     filename = str(row.get("filename") or "").strip()
     if not filename:
         return f"{ident or 'doc'}.txt"
-    path = PurePosixPath(filename.replace("\\", "/"))
-    name = path.name.rstrip(". ") or ident or "doc"
+    name = PurePosixPath(filename.replace("\\", "/")).name.strip(". ") or ident or "doc"
     suffix = Path(name).suffix
     stem = name[: -len(suffix)] if suffix else name
-    if not suffix:
-        folders = [part for part in path.parent.parts if part not in ("", ".", "/")]
-        stem = "_".join([*folders[-3:], stem])
+    # A suffix-less message is text; giving it .txt here keeps _materialize_row's with_suffix off it.
+    suffix = suffix or ".txt"
     return f"{stem}__{ident}{suffix}" if ident else f"{stem}{suffix}"
 
 

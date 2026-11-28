@@ -1,4 +1,4 @@
-"""The inbox name of a pipeline document is unique per document and readable.
+"""The inbox name of a pipeline document is unique per document and stays inside the inbox.
 
 Every pipeline document is written into the one shared inbox, and the vendored claim registry
 (``pipeline.bins._remember_claim``) and the trace seed (``graph.build_graph.run_pipeline``) key on
@@ -17,9 +17,24 @@ def test_same_basename_rows_get_distinct_inbox_names():
     assert runners._inbox_name(a) != runners._inbox_name(b)
 
 
-def test_maildir_name_keeps_its_folders_and_drops_the_trailing_dot():
+def test_maildir_name_drops_the_trailing_dot_and_adds_no_folders():
     row = {"id": "DOC-ed8721660c7317e7", "filename": "crandell-s/inbox/30.", "doc_text": "x"}
-    assert runners._inbox_name(row) == "crandell-s_inbox_30__DOC-ed8721660c7317e7"
+    assert runners._inbox_name(row) == "30__DOC-ed8721660c7317e7.txt"
+
+
+def test_an_id_can_never_leave_the_inbox(tmp_path):
+    row = {"id": "../../escape", "doc_text": "x"}
+    assert runners._inbox_name(row) == "escape.txt"
+    queued = runners._materialize_row(row, tmp_path, unique=True)
+    assert queued.parent == tmp_path and queued.read_text() == "x"
+
+
+def test_a_dot_in_the_id_or_folders_never_shortens_the_name(tmp_path):
+    a = {"id": "DOC-a.1", "filename": "sent.items/30.", "doc_text": "first"}
+    b = {"id": "DOC-a.2", "filename": "sent.items/30.", "doc_text": "second"}
+    qa, qb = runners._materialize_row(a, tmp_path, unique=True), runners._materialize_row(b, tmp_path, unique=True)
+    assert (qa.name, qb.name) == ("30__DOC-a_1.txt", "30__DOC-a_2.txt")
+    assert (qa.read_text(), qb.read_text()) == ("first", "second")
 
 
 def test_named_file_keeps_its_name_and_suffix():
@@ -31,6 +46,7 @@ def test_row_without_a_filename_or_id():
     assert runners._inbox_name({"id": "DOC-1"}) == "DOC-1.txt"
     assert runners._inbox_name({}) == "doc.txt"
     assert runners._inbox_name({"filename": "notes.md"}) == "notes.md"
+    assert runners._inbox_name({"id": "DOC-1", "filename": ".hidden"}) == "hidden__DOC-1.txt"
 
 
 def test_materialized_text_rows_do_not_collide(tmp_path):
@@ -38,8 +54,8 @@ def test_materialized_text_rows_do_not_collide(tmp_path):
     b = {"id": "DOC-bbbbbbbbbbbbbbbb", "filename": "lay-k/sent/30.", "doc_text": "second"}
     qa, qb = runners._materialize_row(a, tmp_path, unique=True), runners._materialize_row(b, tmp_path, unique=True)
     assert qa != qb
-    assert (qa.name, qa.read_text()) == ("crandell-s_inbox_30__DOC-aaaaaaaaaaaaaaaa.txt", "first")
-    assert (qb.name, qb.read_text()) == ("lay-k_sent_30__DOC-bbbbbbbbbbbbbbbb.txt", "second")
+    assert (qa.name, qa.read_text()) == ("30__DOC-aaaaaaaaaaaaaaaa.txt", "first")
+    assert (qb.name, qb.read_text()) == ("30__DOC-bbbbbbbbbbbbbbbb.txt", "second")
     pdf = runners._materialize_row({"id": "DOC-c", "filename": "deal/EX-10.1 AGREEMENT.PDF", "doc_text": "t"}, tmp_path, unique=True)
     assert pdf.name == "EX-10.1 AGREEMENT__DOC-c.txt"
 
