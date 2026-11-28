@@ -773,7 +773,7 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         pass
 
 
-def _priced_decision_reply(resp: Any, held: float) -> Any:
+def _priced_decision_reply(resp: Any, held: float, model: Any = None) -> Any:
     """A Decisions 200's body, priced once: held on the cap until ``after_call`` prices its usage.
 
     A 200 whose body cannot be read was still answered, so it is charged at its reservation. It is not
@@ -788,11 +788,12 @@ def _priced_decision_reply(resp: Any, held: float) -> Any:
         call_guard.settle(held, billed=True)
         raise
     # The reply stays on the cap until after_call prices it, on this thread, next.
-    hold = call_guard.settle(held, billed=False, await_price=True)
+    hold = call_guard.settle(held, billed=False, await_price=True, model=model)
     # The single live charge for this HTTP response. HF-004 also prices ``record_usage``;
     # ``_record_usage`` uses the unwrapped accumulator so the same response is not charged
     # again. A payload with no usage keys still takes one ceiling slot.
-    call_guard.after_call(usage, hold=hold)  # this reply's own hold, not a concurrent call's
+    # Priced at the request's own model (an unpriced one falls back to the run's dearest).
+    call_guard.after_call(usage, model, hold=hold)  # this reply's own hold, not a concurrent call's
     return data
 
 
@@ -862,7 +863,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             raise
         else:
             if resp.status_code == 200:
-                return _priced_decision_reply(resp, held)
+                return _priced_decision_reply(resp, held, body.get("model"))
             # A 5xx is charged as the reservation drops; a 4xx is released.
             call_guard.settle(held, billed=resp.status_code >= 500)
             call_guard.note_failed_attempt()

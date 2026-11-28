@@ -417,7 +417,7 @@ def billed_failure(exc: BaseException) -> bool:
 def _count(value: Any) -> int:
     try:
         return max(0, int(value or 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # inf overflows; after_call has already taken the hold
         return 0
 
 
