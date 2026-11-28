@@ -1,0 +1,2 @@
+{"doc_id": "DOC-e6906e59f9bd74ca", "field": "certified_matter", "verdict": "accept", "reviewer": {"model": "claude-opus", "role": "review"}, "note": "Both passes state the same terms in different words; the label's wording is kept."}
+{"doc_id": "DOC-6e8402c4355d30f8", "field": "amended_provisions", "verdict": "accept", "reviewer": {"model": "claude-opus", "role": "review"}, "note": "One provision (Article IV) is amended and restated; the check's second item is a sentence of the new Article IV."}

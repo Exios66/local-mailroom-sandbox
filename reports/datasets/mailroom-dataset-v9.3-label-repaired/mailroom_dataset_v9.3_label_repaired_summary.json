@@ -12,8 +12,8 @@
   },
   "label_cells_targeted": 50233,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 44211,
-  "label_cells_unlabeled": 6021,
+  "label_cells_labeled_repaired": 44835,
+  "label_cells_unlabeled": 5397,
   "label_cells_disputed_unresolved": 1,
   "conflicts_resolved": 2105,
   "needs_human": 23,
@@ -25,8 +25,8 @@
   "chosen_source_counts": {
     "hub_v9.3": 24713,
     "generated_derived": 5827,
-    "near_gold_two_pass": 4694,
-    "near_gold_reviewed": 3997,
+    "near_gold_two_pass": 5240,
+    "near_gold_reviewed": 4075,
     "interim_reviewed": 1894,
     "generated_rule": 925,
     "interim_derived": 836,
@@ -101,15 +101,15 @@
     }
   },
   "inputs_sha256": {
-    "config/extraction/subclass_schemas.json": "38c0e43a67b9bb49fe0e9769cf39def507a237a890741be46a053a2117bc105b",
+    "config/extraction/subclass_schemas.json": "9130ef71f10e69f001d47db45f16f4ab80424ad19789a89d85b4f1d6b8a85907",
     "data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f",
-    "data/labels/gold-overlay/contract.jsonl": "a9357b394a96a98d6fbf54fc08a38a786c44912b9d8c45db68002ba226ac8767",
-    "data/labels/gold-overlay/corporate_record.jsonl": "1fb56c6a381ae0d0e5f0ae1079dcbb8dcd3dcae4233374b0bd581d1c4b09cfab",
-    "data/labels/gold-overlay/correspondence.jsonl": "8813d62d24bcc3e62f22b6e5ddb365194b3f42ad83d4f8167ab8b44348634bc4",
-    "data/labels/gold-overlay/merger_agreement.jsonl": "03cc0ffd884176003f7ea507fb43bb1f5b4e3db3d237cd755331778aab15b88f",
-    "data/labels/gold/contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
-    "data/labels/gold/corporate_record.jsonl": "0a3652230807b5d301c9ba8e34abe6653baaad4c2caf483719bdb4e70ec7cb09",
-    "data/labels/gold/correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
+    "data/labels/gold-overlay/contract.jsonl": "cdb60d8ee869624665d5362779c3e22ddccc647bb95178427941587ec8ffe212",
+    "data/labels/gold-overlay/corporate_record.jsonl": "0c8d81efcc97bd4decba3a31467def0f06dd7657db22287831f325442038a3b5",
+    "data/labels/gold-overlay/correspondence.jsonl": "cd723453d8f7f8a10d610e557d994e8abf2aac80caa1a36e6a18354b703f0c74",
+    "data/labels/gold-overlay/merger_agreement.jsonl": "ff28b78a416cecb3f02ecc74502a77e2499c5420ade8d0183d07501375fe29a6",
+    "data/labels/gold/contract.jsonl": "f0b5a5b5fd82f3d7168b750078db7491a1eefeebe7fdda118e873a37da17f896",
+    "data/labels/gold/corporate_record.jsonl": "2665b277f7d3e96e413d7b6c672060a819c781d2b751039efefa0124f702094b",
+    "data/labels/gold/correspondence.jsonl": "73ea4b0a458840293958e6e6388af2f10678755d8dc97bc91836fe53f0e93d24",
     "data/labels/gold/merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124",
     "data/labels/interim/contract.jsonl": "17802d8b410cf32efffe6bd758365ef13ce2e6353c40079bcde088538c0aff44",
     "data/labels/interim/corporate_record.jsonl": "ce4a58b56ef7d69bb7e0227e63213ab382a5bc24356dd5605594627badfff495",
@@ -122,8 +122,8 @@
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/train/train-00000-of-00001.parquet": "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
   },
   "outputs_sha256": {
-    "mailroom_dataset_v9.3_label_repaired.csv": "e83ad96ee24e6c5e1b015c6746e623e6ade21faa76c0bb0b4e4e03d8d17930d1",
-    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "4be8b98a0f1f7c3c765a290a0547d3719f02462a68241ef836e6795f71aa1417",
-    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "40eaebbebca23398c9cc7e003a9c4ec9c4dae8c02a97ee5edebb6f4dfd11add9"
+    "mailroom_dataset_v9.3_label_repaired.csv": "350864387402474c079599dbda4f9c2c5c79ff160bac182bc3e2263073052f63",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "5407ed504001328bf75bb9f5748b41bec7ef8a1882cb2a693dbf81a2d31bd1f2",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "66f750cd30eb5948983dc0eb0cb24714673ce6b1d75bea4f24c49379cdc4936f"
   }
 }

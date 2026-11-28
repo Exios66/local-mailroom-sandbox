@@ -1,0 +1,181 @@
+{
+ "campaign": "v93-20261128-rc12-label-rounds",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "admitted": {
+  "phase1_contract_slice_gaps": {
+   "documents": 36,
+   "labels": 246,
+   "populated": 157,
+   "documented_absence": 89,
+   "two_pass": 196,
+   "review": {
+    "accept": 45,
+    "accept_check": 5
+   },
+   "rejected": 8
+  },
+  "phase2_corporate_calibration": {
+   "documents": 100,
+   "labels": 378,
+   "populated": 195,
+   "documented_absence": 183,
+   "two_pass": 351,
+   "review": {
+    "accept": 25,
+    "accept_check": 2
+   },
+   "rejected": 5,
+   "withheld_checks": 1
+  }
+ },
+ "files": {
+  "submissions/rc12-p1-disputes.jsonl": {
+   "sha256": "c83e6603ceab6bf1da6683a86679b180e8d12cb11eba622c9bb270f918130577",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-field-briefs.md": {
+   "sha256": "c5235f747c3f8fd25417df9d4d76adf639744cef40ff5a1177ca4b3fceb66b16",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g01-raw-check.jsonl": {
+   "sha256": "40a5b6eae1bebbac65b557f029d407e59413ef06325c62c366b43deb96871669",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g01-raw-label.jsonl": {
+   "sha256": "1b070010eb0fc10417bb96dfc724dfad08c0cbfc331b11624af8fd80d14db0ae",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g02-raw-check.jsonl": {
+   "sha256": "d8bc13c4fa5cedfb04c0f7ef9ec4617841111e13bf27918eae2380fbf5080915",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g02-raw-label.jsonl": {
+   "sha256": "282e65048635f3a59ef28351582c0f1f3d102cf982d8066a824a97d38a6d404d",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g03-raw-check.jsonl": {
+   "sha256": "92685207d6ad9130249dc78c3a65eefded0e59cd65c67950266bac068d42a47a",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g03-raw-label.jsonl": {
+   "sha256": "97492991c6a25e78cd6ccd342c6fcaadbe8e6dad9efa22914b93d1f9eb33dfd5",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g04-raw-check.jsonl": {
+   "sha256": "09299b6a66f221c2fc3bccf3d7f5918bd9ea22878b4849d3d19f879f1ed644b1",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-g04-raw-label.jsonl": {
+   "sha256": "31a1865138cf5ae1126d83cff86651e1ce867405590cb36781a33d55447edfcb",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-mf-check.jsonl": {
+   "sha256": "accb308d42e03fc0784278ad44cadc690a777c27ac48935abe838109f3adb7b7",
+   "admission_input": true
+  },
+  "submissions/rc12-p1-mf-label.jsonl": {
+   "sha256": "8f8de82d3521ba4c59da96a253ff290d642c315d1f0705351f7d3af43a77fff1",
+   "admission_input": true
+  },
+  "submissions/rc12-p1-new-check.jsonl": {
+   "sha256": "721361a3731d91c2afcd55c080634053a604ab0c2a3ebb6a013b80ed73ca0d69",
+   "admission_input": true
+  },
+  "submissions/rc12-p1-new-label.jsonl": {
+   "sha256": "442d127799dc175590e3657ca638a42a1d62ac0609a2ea6af09eb80d678bee9a",
+   "admission_input": true
+  },
+  "submissions/rc12-p1-new-review.jsonl": {
+   "sha256": "6d51ab39659cb6a82fd1b435dcbc54c77243abf101d114222cbf8d3c6164e8f3",
+   "admission_input": true
+  },
+  "submissions/rc12-p1-pass-brief.md": {
+   "sha256": "0d30b7623d005a9a921df3926fcec0ac585182cd962ff5d4a4439588c9ab43e8",
+   "admission_input": false
+  },
+  "submissions/rc12-p1-queue.jsonl": {
+   "sha256": "166e1bf47dfe02c511e5302ecd963e9e03e0c59cadac7c1459e1fa1d6947d738",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-disputes.jsonl": {
+   "sha256": "de8f183e34f30865c51cdac5c3aad36f600bca329f5b18e07e17997c0e465f72",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-field-briefs.md": {
+   "sha256": "57a9d3efac5ad27b4df2ad2c718cba82a73f4f5d764d51dc5ab01a99db48c970",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g01-raw-check.jsonl": {
+   "sha256": "69250bedc61897032e9ab2bd894af48c2b58799a0b1ba06549f011a9dc92c874",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g01-raw-label.jsonl": {
+   "sha256": "82e96247d9e59b221c209c335e248994a45c33d52e534c94d907fc65dc2a7de0",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g02-raw-check.jsonl": {
+   "sha256": "a8b6513c5a29df5fafaa087d108f4e808ad9b23be6559abcde943f14bf251df9",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g02-raw-label.jsonl": {
+   "sha256": "306230ed46ff7bcfade7fe8c3f19e37ee467d94a6aa0b93e012ebf2f5ba5a512",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g03-raw-check.jsonl": {
+   "sha256": "0049b6e5ddd7015f7f3ba0adbd29def86d87219fe00f4d2054cbd2194345474a",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g03-raw-label.jsonl": {
+   "sha256": "f6ea8f63418ea0c9b87fa7da47ae9bc29de35fe9abfb7b3d29bbca50cea79303",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g04-raw-check.jsonl": {
+   "sha256": "aaeef0f20b68494b8175b4a6a472f6aadf9bb808325ce5953e6f11d759eb915b",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-g04-raw-label.jsonl": {
+   "sha256": "dee1610ee9f66ecc416229774ecc2830dee29adc2092862f481e0467fe12f2fe",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-mf-check.jsonl": {
+   "sha256": "fa309b4b8471c1d85b1c87003af2a263227f43b06b40a024dbbf526c2aa38627",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-mf-label.jsonl": {
+   "sha256": "8ac0e973e2c2b4bcd850f593627d94aeb39b2de784f8445ce4bbd0b999879fdc",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-mf-review.jsonl": {
+   "sha256": "5b6d30a005f331beda7d5145213f978e9413a3c1368da8e9b3a3460b5764f3d7",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-new-check.jsonl": {
+   "sha256": "678f3c4c0b2d4ae0e18aa1ffd9caa3355ebcb75c9c17603a5170d0b54f7fd68c",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-new-label.jsonl": {
+   "sha256": "cdfea371293c35229a8b4e77fdd344cee9a7bebf499e6334a494766b808c3e00",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-new-review.jsonl": {
+   "sha256": "189452b2378958d7c3052ac7657e1fc672a1ca113835690c2117051700476f74",
+   "admission_input": true
+  },
+  "submissions/rc12-p2-pass-brief.md": {
+   "sha256": "5579e590389cfca5c740be2eb2beab6d450ae8f7e16701d09cba9e7036460b75",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-queue.jsonl": {
+   "sha256": "da418c1b2dc56ca3970b46610350491cb9944009a0e35232670fc49bce2254f3",
+   "admission_input": false
+  },
+  "submissions/rc12-p2-withheld-check.jsonl": {
+   "sha256": "5c8b86ca28a933084d3a2d2619d706850e38a0e182809b41c446bf139297535b",
+   "admission_input": false
+  },
+  "README.md": {
+   "sha256": "53f545274db36d0eae973f3426fe1065b4ccfffef50e5004fd8d67f46312bb5a",
+   "admission_input": false
+  }
+ }
+}
