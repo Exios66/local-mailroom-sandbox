@@ -227,10 +227,14 @@ dataset:
   hashed only when set, like `interim_labels`.
 - **Hashing.** `props` enters the request hash only when set (the `interim_labels`
   pattern), so existing locks and their hashes don't change.
-- **Scoring separation.** Prop rows are classified and extracted like any other document,
-  but their results go to their own `props` bucket. By default they are excluded from
-  per-class and aggregate metrics, the experiment log's aggregates and the reports hub.
-  A report may show the props bucket next to them, labeled as such.
+- **Props runs are smoke and demo runs only (decided).** The clerk injects its RELATED
+  block into specialist handoff prompts (`vendor/llm-mailroom/src/graph/build_graph.py:331`),
+  so a prop can change how its real anchor is extracted. A run with `props` set is
+  therefore tagged `diagnostic: relations-props` in its lock and results, and the whole
+  run, real rows included, stays out of the experiment-log aggregates, the reports hub,
+  paired comparisons and campaign reports. Preflight refuses `props` on a production
+  slice config or a campaign run. Inside the run's own report, prop rows get their own
+  bucket next to the real rows.
 - **Mock mode.** `sandbox pilot --mock` takes no `DatasetSpec` (it runs the fixture
   manifest), so it gets its own `--props <version>` flag that appends the cluster
   members to the fixture rows. Party and keyword signals then depend on mock extraction,
@@ -304,28 +308,62 @@ Clusters (fully synthetic):
 - The set version lives in `props.yaml`: adding props or editing a body is a minor bump
   (`1.0` → `1.1`); removing a prop or changing an anchor is a major bump. A `prop_id` is
   never reused. The README changelog records every bump.
-- Each released version keeps its own build directory, `data/props/build/<version>/`,
-  and `config/props.yaml` pins every version to its MANIFEST sha256, mirroring
-  `config/staged_overlays.yaml`. Run locks pin the version and sha256; a mismatch
-  refuses to run. Runs always read the committed build, before and after v10; the Hub
-  configs are a publication of it, not a second source (designer's call).
+- Each released version keeps its own build directory, `data/props/build/<version>/`.
+  Run locks pin the version and MANIFEST sha256; a mismatch refuses to run.
+
+### 8a. Staging in the mailroom-issues cache, next to the overlay (decided)
+
+Props are kept and regenerated the same way as the staged label overlay
+(`docs/staged-label-overlay.md`), so production testing can pull both from one place.
+
+- **Stager.** `scripts/stage_relations_props.py --version <v>` writes an immutable cut
+  into a mailroom-issues checkout at
+  `mailroom_cache/v9.3.0/pre-release/props/relations-props-<v>/`:
+  - `build/`: the generated files, byte for byte;
+  - `source/`: every spec and body (data), so the cut regenerates without the sandbox
+    branch, as the overlay caches its builder outputs;
+  - `MANIFEST.json`: the sha256 of every file, the builder script's sha256 and sandbox
+    commit (the script stays here; mailroom-issues holds no code), the Hub base tag
+    (`ff4ca546`), and the overlay version it was staged beside (`staged_with_overlay`,
+    provenance only: props don't depend on overlay labels).
+- **Pins.** `config/props.yaml` follows `config/staged_overlays.yaml` exactly: one entry
+  per version with `repo`, `commit`, `path`, `manifest_sha256` and `base_tag_commit`. A new
+  version is a new entry; an existing one is never edited.
+- **Pull.** `scripts/pull_staged_overlay.py` gains a props mode (`--props <v>`, also with
+  `--list`, `--export` and `--import`). It verifies every file against the pin into the
+  same cache root (`$SANDBOX_LABEL_CACHE`, else `data/cache/mailroom_cache`), so an image
+  or worker bundles overlay and props together. GitHub network only, no spend.
+- **Reading at run time.** The loader resolves `dataset.props` through the pin. It reads
+  the verified cut from the cache, or the in-tree `data/props/build/<v>/` when its
+  MANIFEST sha256 equals the pin (an offline checkout before the cut is staged). Both
+  must hold the same bytes; anything else refuses.
+- **Regenerating.** `build_relations_props.py --from-cut <dir>` rebuilds `build/` from a
+  cut's `source/` and must reproduce its `build/` byte for byte. The staged-overlay doc
+  gains a short "props" section, and the cut order is: overlay cut, then props cut.
+- **Cross-repo step.** Writing a cut means a branch and PR in
+  `LLM-Mailroom-Services/mailroom-issues`. That repo is outside this session's GitHub
+  scope today, so the plan builds and tests the stager against a temporary directory,
+  and the first real cut happens only with the owner's go-ahead.
 - Adding a prop: create a directory, write the spec and body, run
   `build_relations_props.py`, run `--verify-anchors` if it anchors to Hub rows, commit
   the spec, body and rebuilt `build/`. CI's `--check` refuses anything else.
 - A docs page (`docs/relations-props.md`) explains authoring rules, including the
   real-person rule and the decoy recipe, and is indexed in `docs/README.md`.
 
-### 9. Release (v10)
+### 9. Release (v10): this work stops at release-ready files (decided)
 
-- Three new configs in the Hub repo: `props_default` and `props_ground_truth` (same
-  split names, the same shapes as `default` / `ground_truth`), and `props_needles`.
+- Delivered here: the built files, a converter to the Hub parquet layout
+  (`parquet/props_default/<split>/…`, `parquet/props_ground_truth/<split>/…`,
+  `parquet/props_needles/…`) verified locally, a draft "Relations props" section for
+  `docs/datasets/mailroom-dataset.card.md`, and a handoff note for whoever assembles v10.
+- Not done here: wiring the props into the v10 release build itself, which happens
+  wherever v10 is put together.
+- Planned shape on the Hub: three new configs, `props_default` and `props_ground_truth`
+  (the same split names and shapes as `default` / `ground_truth`) and `props_needles`.
   Existing configs, their rows and their labels are unchanged.
-- The dataset card gains a "Relations props" section: what they are, that they are
-  synthetic, how to opt in and how to score needles, and that they're excluded from
-  headline metrics.
-- The release step runs `--check` and `--verify-anchors`, converts `build/` to parquet
-  and records the props version in the card's versions table.
-- The props are not added to the staged overlay; the overlay stays as cut.
+- The card section says what the props are, that they're synthetic, how to opt in and
+  score needles, and that they're for smoke and demo runs, outside headline metrics.
+- The props never enter the overlay's own files; they sit beside it in the cache (8a).
 
 ### 10. Upstream follow-up (not in this change)
 
@@ -338,7 +376,12 @@ for it.
 
 - Unit tests for spec validation (each rule, including the split and decoy rules), id
   derivation, deterministic rebuild, ride-along selection and its lock record, the
-  request-hash rule (unchanged when `props` is unset) and metric separation.
+  request-hash rule (unchanged when `props` is unset), the diagnostic tag and its
+  exclusion from aggregates and the reports hub, and preflight refusing `props` on
+  production slice and campaign configs.
+- Stager and pull tests against a temporary mailroom-issues-shaped directory: the cut
+  layout, manifest hashes, pin verification, refusal of changed bytes, export/import,
+  and `--from-cut` reproducing `build/` byte for byte.
 - Checker tests against a small SQLite fixture with hand-made `relation_edges` and
   catalog rows: found, missed, false link, not-possible signal, direction-agnostic match.
 - `build_relations_props.py --check` added to CircleCI's `checks` job.
@@ -353,13 +396,23 @@ for it.
   linked correspondence rows.
 - No back-links on real rows; the checker treats links as undirected.
 - v10 is already in preparation; interim and near-gold labels stay on the staged overlay
-  for experimental scoring, and props stay out of it.
+  for experimental scoring, and props stay out of the overlay's files.
+- Props runs are smoke and demo runs only: tagged, and kept out of aggregates, the
+  reports hub and paired or campaign results.
+- This work stops at release-ready files, a draft card section and a handoff note, and
+  it also stages the props in the mailroom-issues cache next to the overlay, pinned,
+  pullable and regenerable for further production testing.
 
 ## Calls made by the designer (open to correction)
 
 - Separate configs for v10 rather than new rows in `default` / `ground_truth`.
 - Opt-in `dataset.props` with ride-along selection; draws unchanged.
-- Props excluded from headline metrics by default.
+- Props keep the sandbox's run-scoped catalog matters, so `same_matter` is refused as an
+  expected signal; the derived matter and group ids are ground truth only.
+- A props cut is its own versioned cut beside the overlay (not inside an overlay rc), so
+  props can change without a new label cut; the manifest records the overlay it was
+  staged beside.
+- The Northwind cluster gets new letters instead of copying the fixture demand letter.
 - Decoys (negative needles) in the set.
 - The real-person rule for anchored props.
 - Ids derived from `prop_id`, not text; the `MATTER-PROP-` / `GROUP-PROP-` prefixes.
