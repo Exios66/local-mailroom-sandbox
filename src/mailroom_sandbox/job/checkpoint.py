@@ -277,6 +277,7 @@ class RunStore:
             self.cancel_path,
             self.cancel_ack_path,
             self.dir / "experiment_log.jsonl",
+            self.dir / "served.jsonl",  # the provider-pin ledger rows of this generation's calls
         ):
             if path.is_file():
                 path.rename(dest / path.name)
@@ -399,6 +400,23 @@ class RunStore:
         with open(self.items_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
             fh.flush()
+
+    def replace_item(self, item_id: Any, record: dict[str, Any]) -> dict[str, Any] | None:
+        """Replace the persisted row for ``item_id`` with ``record`` and return the row it replaced.
+
+        For a resumed run that answered a document an earlier attempt stored as an error row: the answer
+        becomes the evidence instead of the failure. The file is rewritten atomically, so a crash leaves
+        either the old rows or the new ones. With no row for ``item_id`` the record is appended and None
+        is returned. The caller must hold ``acquire()``.
+        """
+        rows = self.load_items()
+        for index, row in enumerate(rows):
+            if row.get("item_id") == item_id:
+                rows[index] = record
+                _atomic_write(self.items_path, "".join(json.dumps(r, default=str) + "\n" for r in rows))
+                return row
+        self.append_item(record)
+        return None
 
     def load_item_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Return (completed rows, expected/predicted reconstruction)."""

@@ -529,10 +529,16 @@ def _served_rows(gen: Generation, logs: Iterable[Path]) -> tuple[list[dict[str, 
     lock = gen.lock or {}
     rows: list[dict[str, Any]] = []
     sources = []
-    for path in sorted({Path(p) for p in logs if Path(p).is_file()}):
+    seen: set[str] = set()
+    for path in sorted({Path(p).resolve() for p in logs if Path(p).is_file()}):
         sources.append(_ref(path))
         for row in _read_jsonl(path):
             if row.get("run_id") == gen.run_id and row.get("spec_hash") == lock.get("spec_hash"):
+                call_id = row.get("call_id")
+                if isinstance(call_id, str) and call_id:
+                    if call_id in seen:
+                        continue  # the same call, also written to another log (run store and SANDBOX_SERVED_LOG)
+                    seen.add(call_id)
                 rows.append(row)
     # Two generations can share a spec_hash: keep rows recorded inside this one's launch window
     # (second resolution; ledger stamps are ``YYYY-MM-DDTHH:MM:SSZ``, event stamps ISO-8601).
@@ -770,7 +776,9 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
             "fingerprint": spend.get("fingerprint"),
             "note": "digest only; the signer's initials stay in the run store",
         })
-    served, served_sources = _served_rows(gen, opts.served_logs or default_served_logs(paths.key))
+    # The run store's own served.jsonl is always read; it holds every row whether or not SANDBOX_SERVED_LOG was set.
+    served, served_sources = _served_rows(gen, [*(opts.served_logs or default_served_logs(paths.key)),
+                                                gen.path("served.jsonl"), gen.run_store_dir / "served.jsonl"])
     served_digest: dict[str, Any] = {"sources": served_sources, "rows": len(served)}
     if served:
         by: dict[str, int] = {}
@@ -780,7 +788,8 @@ def render_run(gen: Generation, paths: RunPaths, opts: BuildOptions) -> dict[str
         served_digest["by_requested_served_provider_status"] = dict(sorted(by.items()))
         served_digest["mismatch_rows"] = sum(1 for r in served if r.get("mismatch"))
     else:
-        caveats.append("No served-provider ledger rows for this generation (SANDBOX_SERVED_LOG unset or not found).")
+        caveats.append("No served-provider ledger rows for this generation (no served.jsonl in the run store, "
+                       "and SANDBOX_SERVED_LOG unset or not found).")
     files[rel("logs", "served-digest", "json")] = _dump_json(served_digest)
     if log_refs:
         files[rel("logs", "large-logs", "json")] = _dump_json(log_refs)

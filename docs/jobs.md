@@ -954,7 +954,19 @@ included). A lock written before the key existed counts as `true`.
   predicted, ok/error, latency, ts), then writes the checkpoint.
 - Ctrl-C → `paused`; errors retry up to `max_retries`; `fail_fast` marks
   `failed` (with `concurrency > 1` it stops *scheduling* new rows; in-flight
-  rows finish and persist — their GPU work is already spent). `resume` of a
+  rows finish and persist — their GPU work is already spent). `task: pipeline`
+  applies both per document: a document that raises runs again up to `max_retries`
+  times (never after an API call guard refusal or once a wall or API cap is reached),
+  and one that still raises is an error row carrying its billed usage. Without
+  `fail_fast` the run goes on. A resume re-runs error rows, and the answer
+  replaces the row (`RunStore.replace_item`), its billed usage kept as an
+  `api_usage_of_failed_document` event.
+- A run with `job.api_cost_cap_usd` refuses to start when the provider-pin
+  wrappers that guard each API call are not installed (`provider_pins.spend_guard_missing`).
+- Every provider-pin ledger row of a run is written to the run store's
+  `served.jsonl` (archived with its generation, pulled back from Modal), with or
+  without `SANDBOX_SERVED_LOG`; a pipeline item records its own calls under
+  `pred.served_calls`. `resume` of a
   per-item task never re-runs completed rows: it skips by completed **index**, so concurrent
   runs whose items completed out of order resume exactly (the old
   contiguous-cursor skip would silently drop rows).

@@ -330,13 +330,16 @@ def _run_whole_run(
     replay = {i["item_id"]: i for i in prior_items
               if i.get("item_id") is not None and eval_runners.replayable(i)}
     rebilled: set[Any] = set(persisted)
+    # Error rows a resume runs again: the new row replaces each one (see _persist_isolated_items).
+    failed_rows: set[Any] = {i["item_id"] for i in prior_items if i.get("item_id") is not None
+                             and not eval_runners.replayable(i)}
 
     echo = console_log.DocEcho(store.run_id, api_budget)
 
     def _row_sink(entry: dict[str, Any]) -> None:
         already = entry.get("id") in persisted
         error = entry.get("error") or (entry.get("score") or {}).get("parse_error")
-        if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled):
+        if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled, failed=failed_rows):
             spans.item(entry)
         if entry.get("replayed"):
             return  # replayed from items.jsonl: no new answer to echo (progress still moves)
@@ -413,8 +416,11 @@ def _run_whole_run(
                     "scores": {},
                 }
         elif task == "pipeline":
+            # job.max_retries and job.fail_fast apply per document: one that still raises after its
+            # retries is an error row carrying its billed usage, and only fail_fast stops the run on it.
             result = eval_runners.run_pipeline_eval(
                 connected=True, rows=locked_rows, replay=replay,
+                max_retries=_max_retries(store), fail_fast=_fail_fast(store), record_failures=True,
                 row_cb=_row_sink,
                 progress_cb=_progress, node_cb=_node_sink, read_cb=_read_sink, text_cb=_text_sink,
                 max_wall_seconds=max_wall,
@@ -498,7 +504,7 @@ def _run_whole_run(
                 "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + 1}
 
     _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted,
-                            rebilled=rebilled)
+                            rebilled=rebilled, failed=failed_rows)
     scores = result.get("scores") or {}
     # The delegated runner reports how many rows it actually processed; fall
     # back to the locked dataset length when the runner has no n.
@@ -886,7 +892,7 @@ def _engine_error(item: dict[str, Any]) -> str | None:
 
 def _persist_isolated_items(
     store: RunStore, rows: list[dict[str, Any]] | None, *, seen: set[Any] | None = None,
-    rebilled: set[Any] | None = None,
+    rebilled: set[Any] | None = None, failed: set[Any] | None = None,
 ) -> int:
     """SAND-032: isolated specialist runs wrote no items.jsonl — per-doc rows
     are the evidence the reports and offline BT rows are built from.
@@ -900,6 +906,10 @@ def _persist_isolated_items(
     counts. A repeat of one with token usage is not written as an item (the first row stays
     the evidence) but is kept as a ``RERUN_USAGE_EVENT``, so a later resume's API budget still counts it. Each id
     is recorded once per attempt.
+
+    ``failed`` holds the ids an earlier attempt persisted as error rows. A resume runs those again, and
+    the new row replaces the error row (``RunStore.replace_item``); the error row's billed usage is kept
+    as a ``FAILED_USAGE_EVENT``.
     """
     if not rows:
         return 0
@@ -908,6 +918,22 @@ def _persist_isolated_items(
     written = 0
     for row in rows:
         item_id = row.get("id")
+        if item_id in seen and failed is not None and item_id in failed and not row.get("replayed"):
+            # A resume ran a document again that an earlier attempt stored as an error row: the new
+            # row replaces it. The error row's billed usage becomes a failed-usage event first, so a
+            # later resume's budget still counts that spend.
+            from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT
+
+            failed.discard(item_id)
+            if rebilled is not None:
+                rebilled.discard(item_id)
+            old = next((i for i in store.load_items() if i.get("item_id") == item_id), None) or {}
+            billed = {k: old[k] for k in _BILLED_ITEM_KEYS if old.get(k)}
+            if billed:
+                store.append_event(FAILED_USAGE_EVENT, "warning", item_id=item_id, replaced=True, **billed)
+            store.replace_item(item_id, _isolated_item(row))
+            written += 1
+            continue
         if item_id in seen:
             if rebilled is not None and item_id in rebilled and not row.get("replayed"):
                 rebilled.discard(item_id)
@@ -917,37 +943,46 @@ def _persist_isolated_items(
 
                     store.append_event(RERUN_USAGE_EVENT, "info", item_id=item_id, **usage)
             continue
-        store.append_item(
-            {
-                "item_id": item_id,
-                "ok": not row.get("error") and not (row.get("score") or {}).get("parse_error"),
-                "error": row.get("error"),
-                "pred": row.get("pred"),
-                "score": row.get("score"),
-                "latency_ms": row.get("latency_ms"),
-                "prompt_tokens": row.get("prompt_tokens"),
-                "completion_tokens": row.get("completion_tokens"),
-                **merge_item_metrics(reads=row.get("reads")),
-                # The call count prices tiered models per call (autoresearch read a missing count as
-                # one call, which put a document's whole prompt in the top price tier).
-                **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
-                **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
-                # Per-call (prompt, completion) tokens, so a tiered price applies to each call.
-                **({"call_usage": row["call_usage"]} if row.get("call_usage") else {}),
-                **({"cached_tokens": int(row["cached_tokens"])} if row.get("cached_tokens") is not None else {}),
-                **({"cache_write_tokens": int(row["cache_write_tokens"])} if row.get("cache_write_tokens") is not None else {}),
-                **({"reported_cost_usd": float(row["reported_cost_usd"])}
-                   if isinstance(row.get("reported_cost_usd"), (int, float)) and not isinstance(row.get("reported_cost_usd"), bool)
-                   else {}),
-                # The evaluator's execution window; ``ts`` is when the row was persisted, which can
-                # trail the answer while the main thread drains results.
-                **{k: row[k] for k in ("started_at_ns", "finished_at_ns") if isinstance(row.get(k), int)},
-                "ts": utc_now(),
-            }
-        )
+        store.append_item(_isolated_item(row))
         seen.add(item_id)
         written += 1
     return written
+
+
+#: Item keys holding what a document billed (moved to an event when its error row is replaced).
+_BILLED_ITEM_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "usage_by_agent", "call_usage",
+                     "cached_tokens", "cache_write_tokens", "reported_cost_usd")
+
+
+def _isolated_item(row: dict[str, Any]) -> dict[str, Any]:
+    """The ``items.jsonl`` row of one whole-run document."""
+    item_id = row.get("id")
+    return {
+        "item_id": item_id,
+        "ok": not row.get("error") and not (row.get("score") or {}).get("parse_error"),
+        "error": row.get("error"),
+        "pred": row.get("pred"),
+        "score": row.get("score"),
+        "latency_ms": row.get("latency_ms"),
+        "prompt_tokens": row.get("prompt_tokens"),
+        "completion_tokens": row.get("completion_tokens"),
+        **merge_item_metrics(reads=row.get("reads")),
+        # The call count prices tiered models per call (autoresearch read a missing count as
+        # one call, which put a document's whole prompt in the top price tier).
+        **({"llm_calls": row["llm_calls"]} if row.get("llm_calls") else {}),
+        **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
+        # Per-call (prompt, completion) tokens, so a tiered price applies to each call.
+        **({"call_usage": row["call_usage"]} if row.get("call_usage") else {}),
+        **({"cached_tokens": int(row["cached_tokens"])} if row.get("cached_tokens") is not None else {}),
+        **({"cache_write_tokens": int(row["cache_write_tokens"])} if row.get("cache_write_tokens") is not None else {}),
+        **({"reported_cost_usd": float(row["reported_cost_usd"])}
+           if isinstance(row.get("reported_cost_usd"), (int, float)) and not isinstance(row.get("reported_cost_usd"), bool)
+           else {}),
+        # The evaluator's execution window; ``ts`` is when the row was persisted, which can
+        # trail the answer while the main thread drains results.
+        **{k: row[k] for k in ("started_at_ns", "finished_at_ns") if isinstance(row.get(k), int)},
+        "ts": utc_now(),
+    }
 
 
 def _lock_replicas(store: RunStore) -> int:
@@ -1143,9 +1178,11 @@ def run_job(
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             verify_locked_hotfixes(lock)
+            verify_spend_guard(lock)
             from mailroom_sandbox.provider_pins import set_run_context
 
-            set_run_context(store.run_id, lock.get("spec_hash"))  # R01 ledger rows name their run
+            # R01 ledger rows name their run and are kept in the run store whatever SANDBOX_SERVED_LOG says.
+            set_run_context(store.run_id, lock.get("spec_hash"), log_path=store.dir / "served.jsonl")
             try:
                 summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
                                    max_items=max_items, tracer=tracer, on_event=wrapped)
@@ -1160,6 +1197,28 @@ def run_job(
         raise
     finish(summary if isinstance(summary, dict) else None)
     return summary
+
+
+def verify_spend_guard(lock: dict[str, Any]) -> None:
+    """Refuse a run with an API budget when the per-call spend guard is not installed.
+
+    ``runtime.activate`` installs the provider-pin wrappers that guard every API call against
+    ``job.api_cost_cap_usd`` and the per-document call ceiling, but only warns when that fails. Without
+    them the cap is checked between documents only, so a capped run stops here, before any call.
+    """
+    from mailroom_sandbox.job.api_budget import budget_for
+
+    if budget_for(lock) is None:
+        return
+    from mailroom_sandbox.provider_pins import spend_guard_missing
+
+    missing = spend_guard_missing()
+    if missing:
+        raise RuntimeError(
+            "the per-call API spend guard is not installed (" + ", ".join(missing) + "), so "
+            "job.api_cost_cap_usd would be checked between documents only; refusing to start. "
+            "See the 'provider pins not applied' warning above."
+        )
 
 
 def verify_locked_hotfixes(lock: dict[str, Any]) -> None:

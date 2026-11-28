@@ -144,6 +144,9 @@ def isolated_call_scope(task: str, *, mock: bool):
 
 
 #: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
+#: Pause before a document that raised runs again (``job.max_retries``); tests set it to 0.
+_RETRY_PAUSE_SECONDS = 0.2
+
 REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_usage", "usage_by_agent",
                      "cached_tokens", "cache_write_tokens", "reported_cost_usd")
 
@@ -1369,7 +1372,15 @@ def run_pipeline_eval(
     gpu_fleet: list[tuple[str, int]] | None = None,
     concurrency: int = 1,
     replay: Mapping[Any, Mapping[str, Any]] | None = None,
+    max_retries: int = 0,
+    fail_fast: bool = True,
+    record_failures: bool = False,
 ) -> dict[str, Any]:
+    # ``max_retries`` runs a document that raised up to that many more times (``job.max_retries``). A refusal by
+    # the API call guard is never retried, and no retry starts once a wall or API cap is reached.
+    # ``record_failures`` (the job runner) turns a document that still raises into an error row, with the usage
+    # its attempts billed, instead of leaving it without one. ``fail_fast`` (``job.fail_fast``) then decides
+    # whether the run stops starting new documents and raises; without ``record_failures`` it always does.
     # ``replay`` maps a row id to the item an earlier attempt of this run persisted. A replayable
     # document is scored from that stored answer with no model call and no new spend (a resume).
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
@@ -1447,7 +1458,57 @@ def run_pipeline_eval(
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
 
+    stop_on_failure = fail_fast or not record_failures
+
+    def _may_retry(exc: BaseException) -> bool:
+        """Whether a document that raised may run again: not a guard refusal, and no cap reached."""
+        from mailroom_sandbox.job.call_guard import GuardStop
+
+        if isinstance(exc, GuardStop):
+            return False
+        if max_wall_seconds is not None and time.monotonic() - started >= max_wall_seconds:
+            return False
+        return api_budget is None or api_budget.exceeded() is None
+
     def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], float, tuple[int, int]]:
+        """:func:`_process_once` with up to ``max_retries`` more attempts; failed attempts' usage is kept.
+
+        A retry that succeeds adds the tokens its failed attempts billed to the document's usage, and its
+        latency and window cover every attempt. A document that still raises carries the summed usage of
+        all its attempts (``sandbox_failed_usage``) and their count (``sandbox_attempts``).
+        """
+        failed: dict[str, int] = {}
+        first_ns, before = time.time_ns(), time.monotonic()
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                result, usage, _latency, window = _process_once(row)
+            except Exception as exc:
+                for key, value in (getattr(exc, "sandbox_failed_usage", None) or {}).items():
+                    if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                        failed[key] = failed.get(key, 0) + value
+                if attempt > max_retries or not _may_retry(exc):
+                    try:
+                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed} if failed else None
+                        exc.sandbox_attempts = attempt
+                        exc.sandbox_latency_ms = (time.monotonic() - before) * 1000
+                        exc.sandbox_window = (first_ns, time.time_ns())
+                    except (AttributeError, TypeError):
+                        pass
+                    raise
+                _log.warning("document %s raised on attempt %d of %d, retrying: %s: %s", row.get("id"), attempt,
+                             max_retries + 1, type(exc).__name__, str(exc)[:200])
+                if _RETRY_PAUSE_SECONDS:
+                    time.sleep(_RETRY_PAUSE_SECONDS)
+                continue
+            if failed:
+                usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in failed.items()}}
+            if attempt > 1:
+                return result, usage, (time.monotonic() - before) * 1000, (first_ns, window[1])
+            return result, usage, _latency, window
+
+    def _process_once(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], float, tuple[int, int]]:
         """Run one document: (result, token usage, latency ms, (start, end) epoch ns). Safe on a worker thread.
 
         The epoch window is taken around the document's own execution, so a span built from it
@@ -1518,6 +1579,27 @@ def run_pipeline_eval(
     by_index: dict[int, dict[str, Any]] = {}
     scored_by_index: dict[int, dict[str, Any] | None] = {}
 
+    def _failed(index: int, exc: BaseException) -> None:
+        """Account for a document that raised after its retries (main thread only).
+
+        With ``record_failures`` it becomes an error row carrying its billed usage, which the budget counts
+        once, and the exception no longer carries that usage (the row does). Otherwise only the budget is told.
+        """
+        if not record_failures:
+            _count_failed(exc)
+            return
+        billed = {k: v for k, v in (getattr(exc, "sandbox_failed_usage", None) or {}).items() if k != "item_id"}
+        error = f"{type(exc).__name__}: {str(exc)[:512]}"
+        result = {"id": rows[index].get("id"), "doc_type": None, "stage": "failed", "extracted_data": None,
+                  "error": error, "attempts": int(getattr(exc, "sandbox_attempts", 1) or 1)}
+        window = getattr(exc, "sandbox_window", None)
+        _record(index, result, billed, float(getattr(exc, "sandbox_latency_ms", 0.0) or 0.0),
+                window if isinstance(window, tuple) else None)
+        try:
+            exc.sandbox_failed_usage = None
+        except (AttributeError, TypeError):
+            pass
+
     def _record(index: int, result: dict[str, Any], doc_usage: dict[str, Any], latency_ms: float,
                 window: tuple[int, int] | None = None, replayed: bool = False) -> None:
         """Account, score and report one finished document (main thread only).
@@ -1556,13 +1638,15 @@ def run_pipeline_eval(
             try:
                 outcome = _process(row)
             except Exception as exc:
-                _count_failed(exc)
-                raise
+                _failed(index, exc)
+                if stop_on_failure:
+                    raise
+                continue
             _record(index, *outcome)
     else:
         # job.concurrency documents in flight at once. Caps are checked before each new document
-        # starts; after the first failure no new document starts, the in-flight ones finish and
-        # are recorded (they were billed), then the first error is raised.
+        # starts. When failures stop the run, after the first one no new document starts, the
+        # in-flight ones finish and are recorded (they were billed), then the first error is raised.
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
         queue = iter(pending)
@@ -1588,9 +1672,10 @@ def run_pipeline_eval(
                     index = futures.pop(future)
                     try:
                         outcome = future.result()
-                    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised below
-                        _count_failed(exc)
-                        first_error = first_error or exc
+                    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised below if it stops the run
+                        _failed(index, exc)
+                        if stop_on_failure:
+                            first_error = first_error or exc
                         continue
                     _record(index, *outcome)
                 if first_error is None:
@@ -1787,7 +1872,7 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
         result = _run_pipeline_doc_once(row, **kwargs)
     if scope["refused"]:
-        raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+        raise call_guard.GuardStop(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
     if scope.get("judge_reasks"):
         # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
         # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
@@ -1795,7 +1880,8 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     # Phase 2 governor marks, present only when they happened (critical regression 22: a routing
     # change that moves a document between review and the archive carries a mark).
     # Phase 5 part 2 (HF-032/HF-033): a sorter or intake head read, with the characters sent.
-    for key in ("governor_stop", "duplicate_of", "head_read"):
+    # The served model, provider and pin status of each call the document made (provider_pins ledger).
+    for key in ("governor_stop", "duplicate_of", "head_read", "served_calls"):
         if scope.get(key):
             result = {**result, key: scope[key]}
     skipped = int(scope["governor"]["skipped_classify_retries"])

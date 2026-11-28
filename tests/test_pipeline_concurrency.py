@@ -190,3 +190,116 @@ def test_a_persisted_error_row_runs_again_instead_of_replaying_its_failure(monke
     runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False,
                               replay={"0": failed, "1": parse_failed})
     assert state["started"] == ["0"]
+
+
+# job.max_retries / job.fail_fast for task: pipeline (the launch review found both ignored).
+
+
+class _Budget:
+    """An API budget stand-in: records what was added; ``over`` makes every cap check refuse."""
+
+    def __init__(self, over: bool = False):
+        self.added: list[dict] = []
+        self.over = over
+
+    def check(self, *_a, **_k):
+        return None
+
+    def exceeded(self, *_a, **_k):
+        return "cap reached" if self.over else None
+
+    def add_usage(self, usage):
+        self.added.append(dict(usage))
+
+
+def _flaky(monkeypatch, failures: dict[str, int], exc_type=RuntimeError):
+    """Each listed document raises (after a billed call) that many times, then answers."""
+    monkeypatch.setattr(runners, "_RETRY_PAUSE_SECONDS", 0)
+    started: list[str] = []
+    lock = threading.Lock()
+
+    def fake_doc(row, **_kw):
+        with lock:
+            started.append(row["id"])
+            left = failures.get(row["id"], 0)
+            if left:
+                failures[row["id"]] = left - 1
+        if left:
+            raise exc_type(f"lost {row['id']}")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    def fake_usage():
+        return {"prompt_tokens": 100, "completion_tokens": 10, "llm_calls": 1}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    from mailroom_sandbox.job import usage_capture
+
+    monkeypatch.setattr(usage_capture, "usage_from_pipeline", fake_usage)
+    return started
+
+
+def test_a_document_that_raises_runs_again_and_keeps_the_usage_its_failed_attempt_billed(monkeypatch):
+    started = _flaky(monkeypatch, {"1": 1})
+    items: list[dict] = []
+    out = runners.run_pipeline_eval(profile="ollama", rows=_rows(3), mock=False, connected=False,
+                                    row_cb=items.append, max_retries=1)
+    assert sorted(started) == ["0", "1", "1", "2"]
+    by_id = {item["id"]: item for item in items}
+    assert not by_id["1"]["error"] and by_id["1"]["prompt_tokens"] == 200  # the failed attempt and the answer
+    assert by_id["0"]["prompt_tokens"] == 100
+    assert not any(doc.get("error") for doc in out["docs"])
+
+
+def test_without_retries_a_failure_still_stops_a_direct_call(monkeypatch):
+    started = _flaky(monkeypatch, {"0": 1})
+    with pytest.raises(RuntimeError, match="lost 0"):
+        runners.run_pipeline_eval(profile="ollama", rows=_rows(3), mock=False, connected=False)
+    assert started == ["0"]
+
+
+def test_a_guard_refusal_is_never_retried(monkeypatch):
+    from mailroom_sandbox.job.call_guard import GuardStop
+
+    started = _flaky(monkeypatch, {"0": 5}, exc_type=GuardStop)
+    with pytest.raises(GuardStop):
+        runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False, max_retries=3)
+    assert started == ["0"]
+
+
+def test_no_retry_starts_once_the_api_cap_is_reached(monkeypatch):
+    started = _flaky(monkeypatch, {"0": 5})
+    with pytest.raises(RuntimeError, match="lost 0"):
+        runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False, max_retries=3,
+                                  api_budget=_Budget(over=True))
+    assert started == ["0"]
+
+
+def test_without_fail_fast_a_failed_document_is_an_error_row_and_the_run_goes_on(monkeypatch):
+    started = _flaky(monkeypatch, {"0": 9})
+    items: list[dict] = []
+    budget = _Budget()
+    out = runners.run_pipeline_eval(profile="ollama", rows=_rows(6), mock=False, connected=False, concurrency=2,
+                                    row_cb=items.append, max_retries=2, fail_fast=False, record_failures=True,
+                                    api_budget=budget)
+    assert started.count("0") == 3 and {"1", "2", "3", "4", "5"} <= set(started)
+    failed = next(item for item in items if item["id"] == "0")
+    assert failed["error"] == "RuntimeError: lost 0" and failed["pred"]["attempts"] == 3
+    assert failed["prompt_tokens"] == 300  # every attempt billed a call
+    assert sum(u.get("prompt_tokens", 0) for u in budget.added) == 300 + 5 * 100
+    assert out["docs"][0]["error"] and out["docs"][0]["stage"] == "failed"
+
+
+def test_with_fail_fast_every_failed_document_is_recorded_once_with_its_usage(monkeypatch):
+    """Two documents failing together: each is an error row with its own usage (the resume budget
+    used to see only the first one's), the exception no longer carries usage, and the run stops."""
+    _flaky(monkeypatch, {"0": 9, "1": 9})
+    items: list[dict] = []
+    budget = _Budget()
+    with pytest.raises(RuntimeError, match="lost") as caught:
+        runners.run_pipeline_eval(profile="ollama", rows=_rows(8), mock=False, connected=False, concurrency=2,
+                                  row_cb=items.append, fail_fast=True, record_failures=True, api_budget=budget)
+    errors = {item["id"]: item["prompt_tokens"] for item in items if item["error"]}
+    assert errors == {"0": 100, "1": 100}
+    assert getattr(caught.value, "sandbox_failed_usage", None) is None  # the rows carry it: no double count
+    assert sum(u.get("prompt_tokens", 0) for u in budget.added) == 100 * len(items)
+    assert len(items) < 8

@@ -1103,8 +1103,13 @@ def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp
 
 
 def test_a_resumed_pipeline_run_bills_only_unfinished_documents(tmp_path, monkeypatch):
-    """S1: a whole-run resume replays the documents an earlier attempt persisted; only the rest run."""
-    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 1})
+    """S1: a whole-run resume replays the documents an earlier attempt persisted; only the rest run.
+
+    With no retries and fail_fast, d2's failure stops the first attempt as an error row; the resume runs
+    it again and its answer replaces that row.
+    """
+    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 1, "max_retries": 0,
+                                                  "fail_fast": True})
     lock = store.read_lock()
     store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
     calls: list[str] = []
@@ -1120,11 +1125,13 @@ def test_a_resumed_pipeline_run_bills_only_unfinished_documents(tmp_path, monkey
     monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", doc)
     first = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
     assert first["state"] == "failed" and calls == ["d0", "d1", "d2"]
+    assert [(i["item_id"], i["ok"]) for i in store.load_items()] == [("d0", True), ("d1", True), ("d2", False)]
     calls.clear()
     second = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
     assert calls == ["d2", "d3"]  # d0 and d1 are replayed from items.jsonl, not run (or billed) again
     assert second["state"] == "done" and second["cursor"] == 4
-    assert len(store.load_items()) == 4
+    assert [(i["item_id"], i["ok"]) for i in store.load_items()] == [
+        ("d0", True), ("d1", True), ("d2", True), ("d3", True)]
 
 
 def test_a_replayed_row_writes_no_rerun_usage_event(tmp_path):
@@ -1403,3 +1410,53 @@ def test_an_isolated_error_row_runs_again_on_resume(monkeypatch):
     failed = {"item_id": "d0", "pred": {}, "score": {}, "error": "ReadTimeout: no response"}
     eval_runners.run_isolated_eval("sorter", rows=rows, mock=True, replay={"d0": failed})
     assert calls == ["d0", "d1"]
+
+
+def test_a_pipeline_run_without_fail_fast_records_the_failed_document_and_finishes(tmp_path, monkeypatch):
+    """job.fail_fast: false and job.max_retries now apply to task: pipeline (they were ignored)."""
+    store = _prepped_store(tmp_path, rows=4, job={"mock": True, "concurrency": 1, "max_retries": 1,
+                                                  "fail_fast": False})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    monkeypatch.setattr(runner.eval_runners, "_RETRY_PAUSE_SECONDS", 0)
+    calls: list[str] = []
+
+    def doc(row, **_):
+        calls.append(row["id"])
+        if row["id"] == "d1":
+            raise RuntimeError("d1 always fails")
+        return {"id": row["id"], "doc_type": "contract", "stage": "archived", "extracted_data": {}, "error": None}
+
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", doc)
+    out = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert calls == ["d0", "d1", "d1", "d2", "d3"]  # one retry, then the run goes on
+    assert out["state"] == "done" and out["errors"] == 1
+    items = {i["item_id"]: i for i in store.load_items()}
+    assert len(items) == 4 and items["d1"]["error"] == "RuntimeError: d1 always fails"
+
+
+def test_a_resumed_answer_replaces_the_error_row_and_keeps_its_billed_usage(tmp_path):
+    from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT, usage_records
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.append_item({"item_id": "d0", "ok": True, "error": None, "pred": {}, "prompt_tokens": 50})
+    store.append_item({"item_id": "d1", "ok": False, "error": "ReadTimeout", "pred": {}, "prompt_tokens": 70})
+    seen, rebilled, failed = {"d0", "d1"}, {"d0", "d1"}, {"d1"}
+    written = runner._persist_isolated_items(store, [{"id": "d1", "pred": {}, "score": {}, "prompt_tokens": 90}],
+                                             seen=seen, rebilled=rebilled, failed=failed)
+    assert written == 1 and failed == set() and "d1" not in rebilled
+    items = store.load_items()
+    assert [(i["item_id"], i["ok"], i["prompt_tokens"]) for i in items] == [("d0", True, 50), ("d1", True, 90)]
+    events = [e["detail"] for e in store.events() if e.get("event") == FAILED_USAGE_EVENT]
+    assert events == [{"item_id": "d1", "replaced": True, "prompt_tokens": 70}]
+    assert sum(int(r.get("prompt_tokens") or 0) for r in usage_records(store)) == 50 + 90 + 70
+
+
+def test_replace_item_appends_when_the_item_has_no_row(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    assert store.replace_item("d0", {"item_id": "d0", "ok": True}) is None
+    assert store.replace_item("d0", {"item_id": "d0", "ok": False}) == {"item_id": "d0", "ok": True}
+    assert store.load_items() == [{"item_id": "d0", "ok": False}]
