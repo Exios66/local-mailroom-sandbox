@@ -12,11 +12,11 @@
   },
   "label_cells_targeted": 50233,
   "label_cells_labeled_hub_v9_3": 24812,
-  "label_cells_labeled_repaired": 44061,
+  "label_cells_labeled_repaired": 44138,
   "label_cells_unlabeled": 6094,
-  "label_cells_disputed_unresolved": 78,
-  "conflicts_resolved": 2106,
-  "needs_human": 101,
+  "label_cells_disputed_unresolved": 1,
+  "conflicts_resolved": 2105,
+  "needs_human": 24,
   "subclass_changed": 66,
   "nan_placeholders_dropped": 2100,
   "duplicate_rows_flagged": 13,
@@ -24,19 +24,19 @@
   "values_moved_by_reviewed_precedence": {},
   "chosen_source_counts": {
     "hub_v9.3": 24713,
-    "generated_derived": 5829,
+    "generated_derived": 5827,
     "near_gold_two_pass": 4630,
-    "near_gold_reviewed": 3905,
+    "near_gold_reviewed": 3988,
     "interim_reviewed": 1894,
     "generated_rule": 925,
     "interim_derived": 836,
     "gold_candidate": 703,
     "interim_gate": 346,
     "cuad_span": 223,
-    "gold_disputed": 82,
     "subclass_review": 66,
     "interim_correction": 45,
-    "owner_review": 8
+    "owner_review": 8,
+    "gold_disputed": 1
   },
   "source_weights": {
     "owner_review": {
@@ -101,13 +101,13 @@
     }
   },
   "inputs_sha256": {
-    "config/extraction/subclass_schemas.json": "96060d85eb067a6efc6ce10f663f3a378209c2ffdf39060275e37cdcbda6f6ac",
+    "config/extraction/subclass_schemas.json": "3b243f66f179fa6c62efa48cc86363bbf7475dee6ff80ac2e7284f356b206fa3",
     "data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f",
-    "data/labels/gold-overlay/contract.jsonl": "99a9b12b0d253c97f7d768a3103e209aac2a4e6ddbf2cafcde218f48499b2872",
-    "data/labels/gold-overlay/corporate_record.jsonl": "ced1efcfec071c1684733a5999169cd578e5b46522b6ec3fb1e90158fb4aa342",
-    "data/labels/gold-overlay/correspondence.jsonl": "07ba7734f993d162135e1965b85a415d1a218b8dcf4638e0351d381acdeb4874",
-    "data/labels/gold-overlay/merger_agreement.jsonl": "f7dcd8f94b733e96823407ddfb0d6f958e96fc0332d38050bf0904a8bf96bcf9",
-    "data/labels/gold/contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
+    "data/labels/gold-overlay/contract.jsonl": "ca026af4b034a6c7ffa4b0074c77b37c6761f3c5f2d0cab46544fad4659a1129",
+    "data/labels/gold-overlay/corporate_record.jsonl": "3daa726d3f18f05563992faa0d8a4b6371629b4098755c372ff86eba9eeaf5b3",
+    "data/labels/gold-overlay/correspondence.jsonl": "b77cc972822cc5788d5f82ef651e84bc30c1ceb350fea5019da2b3fa39be49a0",
+    "data/labels/gold-overlay/merger_agreement.jsonl": "571592a9b8f9bc83ab8da0f0b308c43a5cf3ee83df3d45aed064907b6feb69c0",
+    "data/labels/gold/contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
     "data/labels/gold/corporate_record.jsonl": "bfc32ac398ae8f1bd4640c5f1441582e6d84df455de8285b6d77c5e8d103273a",
     "data/labels/gold/correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "data/labels/gold/merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124",
@@ -122,8 +122,8 @@
     "hf-snapshot/ff4ca546d4346991628c2616ae014afc15e9fe04/parquet/ground_truth/train/train-00000-of-00001.parquet": "2b30be9e2f864f86a3c42c2d5fa6237bfd4e2210f82a0883bc3de6da9c9601d2"
   },
   "outputs_sha256": {
-    "mailroom_dataset_v9.3_label_repaired.csv": "4d4eaeb0a569d2e0721efe4d25782110e16c4158d11252ac8dbcdc55c7d867a0",
-    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "975cfa200d8c5ada6ea92aed0cf1fbdcbca90fd5c1bc8bfcaed9a5601fb62386",
-    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "38b98de7dbb63c59b78ceb634041c244f1ec3e5f8333068874ccd4a0882aefdd"
+    "mailroom_dataset_v9.3_label_repaired.csv": "efbd88ecfc086dd7f21568c03b134d0e251ccedf6cc0da1ba34aebaee6b1812e",
+    "mailroom_dataset_v9.3_label_repaired_field_completeness.csv": "e2a3416f15d0ce0c9a675c1516bcf56d45adc54fe1eae5fa33d52538a831d8ea",
+    "mailroom_dataset_v9.3_label_repaired_label_provenance.csv": "c7a000987d451d6d02da01e0ad2a7d34a7461a7d31c7783a355ede8e0d6c0f77"
   }
 }
