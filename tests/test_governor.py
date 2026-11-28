@@ -24,7 +24,7 @@ def _spec(task="pipeline", **job):
 def test_governor_true_means_the_spec_defaults():
     spec = _spec(governor=True).job.governor
     assert spec == GovernorSpec()
-    assert (spec.retries, spec.calls, spec.spend_usd) == (2, 30, None)
+    assert (spec.retries, spec.calls, spec.spend_usd) == (3, 30, None)
     assert spec.calls_by_class == {"merger_agreement": 36}
     assert (spec.sorter_ceiling, spec.near_empty_chars, spec.link_duplicates) == (None, 64, True)
     assert spec.near_duplicate_jaccard == 0.9
@@ -152,16 +152,30 @@ def test_governor_off_routes_every_harness_case_exactly_as_before(judge, arbiter
     assert (on["path"], on["stage"]) == (off["path"], off["stage"])
 
 
-@pytest.mark.usefixtures("arbiter_harness_state")
-def test_the_retry_budget_sends_a_third_round_to_review(monkeypatch, tmp_path):
-    out, scope = _harness(monkeypatch, tmp_path, Script(judge=[("partial", "accurate")] * 3,
-                                                        arbiter=["retry_extraction"], confs=[0.88] * 6),
-                          spec=GovernorSpec())
-    assert out["stage"] == "review"
-    assert out["path"][-3:] == ["retry_extract", "judge_verify", "human_review"]  # no third round (arbiter)
-    stop = scope["governor_stop"]
-    assert (stop["reason"], stop["outcome"], stop["retries"]) == ("retry_budget", "human_review", 2)
-    assert (stop["node"], stop["proposed"]) == ("judge_verify", "arbiter")
+def test_an_arbiter_ruling_does_not_spend_a_retry():
+    """The pilot parked 18 documents here: judge_verify proposing arbiter, retries already 2, calls still under 10."""
+    dest, scope = _decide("judge_verify", "arbiter", _ARB, retries=2)
+    assert dest == "arbiter" and scope["governor"]["retries"] == 2 and "governor_stop" not in scope
+    # the re-extraction that ruling orders is still a round
+    dest, scope = _decide("arbiter", "retry_extract", _ARB, retries=3)
+    assert dest == "human_review" and scope["governor_stop"]["reason"] == "retry_budget"
+    assert (scope["governor_stop"]["node"], scope["governor_stop"]["proposed"]) == ("arbiter", "retry_extract")
+
+
+def test_three_counted_rounds_cover_one_retry_per_lane():
+    """Classify, confidence re-extraction and the arbiter's re-extraction fit; the next retry does not."""
+    dest, scope = _decide("classify", "retry_classify", {"retry_classify", "review_classify", "human_review"})
+    assert dest == "retry_classify" and scope["governor"]["retries"] == 1
+    dest, scope = _decide("extract", "retry_extract", _EXTRACT, retries=1)
+    assert dest == "retry_extract" and scope["governor"]["retries"] == 2
+    dest, scope = _decide("judge_verify", "arbiter", _ARB, retries=2)
+    assert dest == "arbiter" and scope["governor"]["retries"] == 2
+    dest, scope = _decide("arbiter", "retry_extract", _EXTRACT, retries=2)
+    assert dest == "retry_extract" and scope["governor"]["retries"] == 3
+    dest, scope = _decide("judge_verify", "arbiter", _ARB, retries=3)
+    assert dest == "arbiter" and scope["governor"]["retries"] == 3 and "governor_stop" not in scope
+    dest, scope = _decide("arbiter", "retry_extract", _EXTRACT, retries=3)
+    assert dest == "human_review" and scope["governor_stop"]["reason"] == "retry_budget"
 
 
 @pytest.mark.usefixtures("arbiter_harness_state")
@@ -199,14 +213,14 @@ def test_a_passed_extraction_stops_as_archive_with_caveats():
     passed = {"judge_verdict": "complete", "judge_findings": ["the extraction matches the source"],
               "extraction_attempt_history": [{"judge_verdict": "complete"}]}
     passed = {**passed, "extraction_confidence": 0.95}
-    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, passed, retries=2)
+    dest, scope = _decide("arbiter", "retry_extract", _ARB | {"compile_report"}, passed, retries=3)
     assert dest == "compile_report"
     assert (scope["governor_stop"]["reason"], scope["governor_stop"]["outcome"]) == ("retry_budget",
                                                                                       "archive_with_caveats")
     # a verdict on an earlier attempt does not vouch for the current one
     stale = {**passed, "extraction_attempt_history": [{"judge_verdict": "complete"}, {}]}
-    assert _decide("retry_extract", "boss_escalation", _EXTRACT, stale, retries=2)[0] == "human_review"
-    assert _decide("extract", "boss_escalation", _EXTRACT, {"judge_verdict": "partial"}, retries=2)[0] == "human_review"
+    assert _decide("retry_extract", "boss_escalation", _EXTRACT, stale, retries=3)[0] == "human_review"
+    assert _decide("extract", "boss_escalation", _EXTRACT, {"judge_verdict": "partial"}, retries=3)[0] == "human_review"
 
 
 _PASSED = {"judge_verdict": "complete", "extraction_confidence": 0.95, "conflict_detected": False,
@@ -214,8 +228,11 @@ _PASSED = {"judge_verdict": "complete", "extraction_confidence": 0.95, "conflict
 
 
 def test_a_passed_extraction_archives_when_a_round_would_pass_the_budget():
-    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, _PASSED, retries=2)
+    dest, scope = _decide("arbiter", "retry_extract", _ARB | {"compile_report"}, _PASSED, retries=3)
     assert dest == "compile_report" and scope["governor_stop"]["outcome"] == "archive_with_caveats"
+    # the call budget still stops the arbiter ruling itself, and a passed extraction archives
+    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, _PASSED, llm_calls=30)
+    assert dest == "compile_report" and scope["governor_stop"]["reason"] == "call_budget"
 
 
 @pytest.mark.parametrize("change", [
@@ -224,12 +241,12 @@ def test_a_passed_extraction_archives_when_a_round_would_pass_the_budget():
     {"conflict_detected": True, "conflict_details": ["governing_law"]},  # an unadjudicated conflict
 ])
 def test_a_governor_archive_keeps_the_vendored_archive_guards(change):
-    dest, scope = _decide("judge_verify", "arbiter", _ARB | {"compile_report"}, {**_PASSED, **change}, retries=2)
+    dest, scope = _decide("arbiter", "retry_extract", _ARB | {"compile_report"}, {**_PASSED, **change}, retries=3)
     assert dest == "human_review" and scope["governor_stop"]["outcome"] == "human_review"
 
 
 def test_a_stopped_boss_entry_is_never_archived():
-    dest, _ = _decide("extract", "boss_escalation", _EXTRACT, _PASSED, retries=2)
+    dest, _ = _decide("extract", "boss_escalation", _EXTRACT, _PASSED, retries=3)
     assert dest == "human_review"
 
 
@@ -256,7 +273,7 @@ def test_a_passed_extraction_stopped_in_the_graph_is_archived(monkeypatch, tmp_p
     governed._sandbox_hotfix = "HF-018"  # activation keeps it, as it keeps an applied fix
     monkeypatch.setattr(route_spec, "decide_route", governed)
     out, scope = _harness(monkeypatch, tmp_path, Script(judge=[("complete", "accurate")], confs=[0.95] * 6),
-                          spec=GovernorSpec(), preset={"retries": 2})
+                          spec=GovernorSpec(), preset={"retries": 3})
     assert out["stage"] == "archived" and "arbiter" not in out["path"]
     assert scope["governor_stop"]["outcome"] == "archive_with_caveats"
 
@@ -277,9 +294,9 @@ def test_a_transient_self_loop_is_not_counted_as_a_round():
 
 def test_a_second_re_extraction_is_a_round():
     """after_retry_extraction falls through to after_extraction: with retry_max 2 it proposes retry_extract again."""
-    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"extraction_confidence": 0.3}, retries=1)
-    assert dest == "retry_extract" and scope["governor"]["retries"] == 2
     dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"extraction_confidence": 0.3}, retries=2)
+    assert dest == "retry_extract" and scope["governor"]["retries"] == 3
+    dest, scope = _decide("retry_extract", "retry_extract", _EXTRACT, {"extraction_confidence": 0.3}, retries=3)
     assert dest == "human_review" and scope["governor_stop"]["reason"] == "retry_budget"
 
 
@@ -292,10 +309,10 @@ def test_the_hard_ceiling_still_backs_up_the_governor():
 def test_only_the_first_stop_is_recorded():
     governor.activate(GovernorSpec())
     with call_guard.document() as scope:
-        scope["governor"]["retries"] = 2
-        governor.govern("judge_verify", {}, "arbiter", _ARB)
+        scope["governor"]["retries"] = 3
         governor.govern("arbiter", {}, "retry_extract", _ARB)
-    assert scope["governor_stop"]["node"] == "judge_verify"
+        governor.govern("retry_extract", {}, "retry_extract", _EXTRACT)
+    assert scope["governor_stop"]["node"] == "arbiter"
 
 
 def test_no_document_scope_means_no_governing():

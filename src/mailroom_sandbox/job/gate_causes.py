@@ -148,6 +148,11 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     try:
         suite = suite_for_doc_type(doc_class)
         with sh.hotfixed():
+            if sh.is_active("SHF-018"):
+                expected, predicted, _notes = sh.apply_subclass_score_scope(
+                    doc_class, sub or None, expected, predicted, row.get("doc_text"))
+                if not expected:
+                    return {}
             result = (suite.score(expected, predicted, doc_text=row.get("doc_text"), detailed=True, **kwargs)
                       if detailed else suite.score(expected, predicted, doc_text=row.get("doc_text")))
     except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error, never as an extraction type

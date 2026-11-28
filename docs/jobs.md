@@ -510,7 +510,7 @@ refused for any other task. `governor: true` takes every default; a mapping sets
 ```yaml
 job:
   governor:
-    retries: 2                 # rounds per document: classify and extraction retries, arbiter calls, boss entries
+    retries: 3                 # counted rounds: classify and extraction retries, boss entries. An arbiter ruling is not one until the judge has passed the extraction
     calls: 30                  # model calls per document (1-39, below the hard ceiling of 40)
     calls_by_class: {merger_agreement: 36}
     spend_usd: null            # off until the pilot measures cost per type
@@ -523,6 +523,12 @@ job:
 Before each step that would add a round, the governor checks, in order: a second boss entry
 (`boss_repeat`), the retry budget (`retry_budget`), the call budget (`call_budget`) and the spend budget
 (`spend_budget`). A second re-extraction counts as a round; a node re-run for a transient error does not.
+An arbiter ruling on an extraction the judge has not passed does not count either: that ruling is what
+keeps a partial extraction out of the review queue, and the call and spend budgets still limit it, except in judge mode correct, where the pass-through arbiter makes no model call and returns before those checks. A ruling on an
+extraction the judge already passed does count when the budget checks run. In judge mode correct any arbiter proposal returns before the counter, so that pass-through ruling is not counted. A spent retry budget archives the extraction the judge already passed instead of paying
+for another call. The default of 3 counted rounds is one classify retry, one confidence re-extraction
+and one arbiter-ordered re-extraction. The 50-document pilot's default of 2 parked 20 of 50 documents
+at 6–10 model calls, 18 of them on the way into that ruling.
 A stopped document goes to human review. It is archived with caveats (`archive_with_caveats`) only when its
 latest recorded extraction attempt has a `complete` judge verdict and the judge tail's own archive guards hold
 (no lost chunks, confidence at the low band or a source-verified verdict, no unadjudicated matter conflict);
@@ -583,7 +589,10 @@ has an entry:
     `subsidiary_list`.
 
   Held-out labels never keep a field. The one held-out `filing_number` value on `bylaws` is therefore not
-  asked for, and scores as a miss on that one held-out document. A subclass's own `output_schema_fields` in
+  asked for. SHF-018 does not score a miss on it when the prediction disagrees: the field is named under
+  `subclass_unscored` and the raw score still counts it. A dropped field both sides agree on, including
+  both empty, stays and is not named. An insurance list item stays when the claim text is missing or the
+  prediction states that item. A subclass's own `output_schema_fields` in
   the registry, when present, replaces the class's.
 - **add**: fields outside the class schema with dev, calibration or pool labels and an extraction status.
   Today there are none: the corporate entity fields have no labels yet, and correspondence `content_topic`
