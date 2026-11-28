@@ -40,8 +40,11 @@ def test_every_corporate_subclass_fills_a_null_record_type(subclass, record_type
     vh.apply_hotfixes()
     from langchain_agents.doc_inventories import enrich_extraction
 
-    out = enrich_extraction({"record_type": None}, doc_type="corporate_record", subtype=subclass)
-    assert out["record_type"] == record_type
+    # HF-001 still maps the subclass. HF-028 drops that fill when the specialist left the field empty.
+    assert enrich_extraction.__wrapped__({"record_type": None}, doc_type="corporate_record",
+                                         subtype=subclass)["record_type"] == record_type
+    assert "record_type" not in enrich_extraction({"record_type": None}, doc_type="corporate_record",
+                                                  subtype=subclass)
 
 
 def test_the_model_record_type_and_other_classes_are_untouched():
@@ -1549,6 +1552,141 @@ def test_hf023_stacks_with_another_handoff_wrapper(monkeypatch, foreign_first):
     state = {"doc_id": "d1", "doc_type": "contract", "contract_subtype": "license"}
     assert outer(state) == vendored(state) + " [foreign]"
     assert recorded == ["d1"]
+
+
+def test_hf028_tells_the_specialist_to_correct_a_wrong_handoff_and_not_follow_it():
+    import graph.build_graph as bg
+
+    vh.apply_hotfixes()
+    fix = next(f for f in vh.HOTFIXES if f.id == "HF-028")
+    assert fix.source_sha256 == vh._source_sha(bg.extract_node)
+    assert dict(fix.also)["retry_extract_node"] == vh._source_sha(bg.retry_extract_node)
+    assert dict(fix.also)["_build_handoff_context"] == vh._source_sha(bg._build_handoff_context)
+    assert vh.apply_hotfixes()["HF-028"] == "applied"
+    context = bg._build_handoff_context({"doc_type": "corporate_record", "doc_subclass": "officer_certificate"})
+    assert vh._HANDOFF_CORRECTION in context
+    assert vh._HANDOFF_FOLLOW not in context
+    assert "doc_subclass=officer_certificate" in context
+
+
+def test_the_rewritten_handoff_still_selects_the_mock_oracle_not_the_raw_labels():
+    """HF-028 drops the sentence the mock used to recognize a specialist. The rewritten
+    handoff must still get the schema-filtered oracle, not a copy of the raw labels."""
+    import graph.build_graph as bg
+
+    from mailroom_sandbox.mock_llm import fake_structured_payload
+
+    vh.apply_hotfixes()
+    context = bg._build_handoff_context({"doc_type": "correspondence", "doc_subclass": "email"})
+    payload = fake_structured_payload(context, {
+        "doc_type": "correspondence",
+        "expected_subclass": "email",
+        "expected_fields": {"sender": "Jane", "intent_status": "gt", "claimed_amount": "$218,440"},
+    })
+    assert "mock_extraction" not in payload
+    assert "intent_status" not in payload
+    assert "claimed_amount" not in payload
+    assert payload.get("sender") == "Jane"
+    contract = bg._build_handoff_context({"doc_type": "contract", "contract_subtype": "license"})
+    assert vh._FAMILY_FOLLOW not in contract
+    assert vh._FAMILY_CHECK in contract
+
+
+def test_a_confidence_zero_with_no_refusal_keeps_the_retry_and_the_judge():
+    from graph import route_spec
+
+    vh.apply_hotfixes()
+    empty = {"extraction_confidence": 0.0, "extracted_data": {"sender": None},
+             "extraction_guardrail": ["schema"], "escalation_reason": "already noted"}
+    assert vh._mark_handoff_refusal(empty) == empty
+    marked = vh._mark_handoff_refusal({
+        "extraction_confidence": 0.0,
+        "extracted_data": {"reasoning": "specialist_handoff_refusal"},
+        "extraction_guardrail": ["schema"],
+        "escalation_reason": "already noted",
+    })
+    assert vh.HANDOFF_REFUSAL in marked["extraction_guardrail"]
+    assert "schema" in marked["extraction_guardrail"]
+    assert "not called again" in marked["escalation_reason"]
+    assert vh._mark_handoff_refusal({"extraction_confidence": 0.8})["extraction_confidence"] == 0.8
+    assert "extraction_guardrail" not in vh._mark_handoff_refusal({"extraction_confidence": 0.8})
+    assert vh._mark_handoff_refusal({"extraction_confidence": 0.0, "transient_error": True}) == {
+        "extraction_confidence": 0.0, "transient_error": True}
+    assert vh._mark_handoff_refusal({"extraction_confidence": None}) == {"extraction_confidence": None}
+    parse_fail = {"extraction_confidence": 0.0, "extracted_data": {"_parse_error": True, "_exception": "boom"}}
+    assert vh._mark_handoff_refusal(parse_fail) == parse_fail
+    unsupported = {"extraction_confidence": 0.0, "extracted_data": {"_unsupported": True}}
+    assert vh._mark_handoff_refusal(unsupported) == unsupported
+
+    rule = next(r for r in route_spec.route_rules("extract") if r.name == vh._HANDOFF_RULE)
+    assert route_spec.route_rules("extract")[0] is rule
+    assert rule.decide(empty, "retry_extract") is None
+    assert rule.decide({**marked}, "retry_extract") == "human_review"
+    assert rule.decide({**marked}, "human_review") is None
+    assert rule.decide({**marked, "transient_error": True}, "retry_extract") is None
+    assert rule.decide({"extraction_confidence": 0.4}, "retry_extract") is None
+    retry_rule = next(r for r in route_spec.route_rules("retry_extract") if r.name == vh._HANDOFF_RULE)
+    assert retry_rule.decide({**marked}, "retry_extract") == "human_review"
+
+
+def test_a_refused_extraction_does_not_adopt_the_sorter_subclass():
+    vh.apply_hotfixes()
+    from langchain_agents.doc_inventories import enrich_extraction
+
+    refused = enrich_extraction({"record_type": None, "confidence": 0.0}, doc_type="corporate_record",
+                                subtype="officer_certificate")
+    assert "record_type" not in refused
+    kept = enrich_extraction({"record_type": "other", "confidence": 0.0}, doc_type="corporate_record",
+                             subtype="articles_of_incorporation")
+    assert kept["record_type"] == "other"
+    filled = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                               subtype="officer_certificate")
+    assert "record_type" not in filled
+    blank_type = enrich_extraction({"communication_type": None, "confidence": 0.8},
+                                   doc_type="correspondence", subtype="letter")
+    assert not blank_type.get("communication_type")
+    corrected = enrich_extraction({"communication_type": "email", "confidence": 0.8},
+                                  doc_type="correspondence", subtype="letter")
+    assert corrected["communication_type"] == "email"
+    claim = enrich_extraction({"claim_type": "pde", "confidence": 0.0}, doc_type="insurance_claim",
+                              subtype="pde")
+    assert claim["claim_type"] == "health"
+    assert claim.get("cms_source_table") == "pde"
+    refused_claim = enrich_extraction(
+        {"confidence": 0.0, "reasoning": "specialist_handoff_refusal"},
+        doc_type="insurance_claim", subtype="pde")
+    assert "claim_type" not in refused_claim
+    assert "cms_source_table" not in refused_claim
+    blank_family = enrich_extraction({"confidence": 0.0}, doc_type="contract", subtype="license")
+    assert not blank_family.get("cuad_family")
+    own_family = enrich_extraction({"cuad_family": "affiliate", "confidence": 0.0},
+                                   doc_type="contract", subtype="license")
+    assert own_family["cuad_family"] == "affiliate"
+
+
+def test_a_gold_specialist_subclass_keeps_the_labeled_derivation(monkeypatch):
+    """``specialist_subclass: gold`` asks derived fields to copy the labeled subclass.
+
+    A pipeline run and a saved sorter pass still drop an empty type field. An explicit
+    refusal drops it even on a gold run.
+    """
+    vh.apply_hotfixes()
+    from langchain_agents.doc_inventories import enrich_extraction
+
+    from mailroom_sandbox import runtime
+
+    monkeypatch.setattr(runtime, "specialist_subclass_source", lambda: ("gold", None))
+    gold = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                             subtype="indenture")
+    assert gold["record_type"] == "other"
+    refused = enrich_extraction(
+        {"record_type": None, "confidence": 0.0, "reasoning": "specialist_handoff_refusal"},
+        doc_type="corporate_record", subtype="indenture")
+    assert "record_type" not in refused
+    monkeypatch.setattr(runtime, "specialist_subclass_source", lambda: ("sorter", "saved.jsonl"))
+    sorter = enrich_extraction({"record_type": None, "confidence": 0.9}, doc_type="corporate_record",
+                               subtype="indenture")
+    assert "record_type" not in sorter
 
 
 def test_a_resume_refusal_names_the_hotfixes_that_changed():
