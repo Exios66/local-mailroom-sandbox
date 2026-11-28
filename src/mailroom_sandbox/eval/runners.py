@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import os
 from contextlib import ExitStack
@@ -143,10 +144,10 @@ def isolated_call_scope(task: str, *, mock: bool):
     return call_guard.document()
 
 
-#: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
 #: Pause before a document that raised runs again (``job.max_retries``); tests set it to 0.
 _RETRY_PAUSE_SECONDS = 0.2
 
+#: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
 REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_usage", "usage_by_agent",
                      "cached_tokens", "cache_write_tokens", "reported_cost_usd")
 
@@ -1451,22 +1452,28 @@ def run_pipeline_eval(
         elapsed = time.monotonic() - started
         if max_wall_seconds is not None and elapsed >= max_wall_seconds:
             raise RuntimeError("pipeline wall-time cap exceeded before next document")
-        cap_gpu = _cap_gpu(gpu, gpu_fleet, profile)
-        if cost_cap_usd is not None and cap_gpu:
-            if _estimated_gpu_usd(elapsed, gpu=cap_gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
-                raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+        if _gpu_cap_reached(elapsed):
+            raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
+
+    def _gpu_cap_reached(elapsed: float) -> bool:
+        cap_gpu = _cap_gpu(gpu, gpu_fleet, profile)
+        return bool(cost_cap_usd is not None and cap_gpu
+                    and _estimated_gpu_usd(elapsed, gpu=cap_gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd)
 
     stop_on_failure = fail_fast or not record_failures
 
     def _may_retry(exc: BaseException) -> bool:
-        """Whether a document that raised may run again: not a guard refusal, and no cap reached."""
+        """Whether a document that raised may run again: not a guard refusal, and no wall, GPU or API cap reached."""
         from mailroom_sandbox.job.call_guard import GuardStop
 
         if isinstance(exc, GuardStop):
             return False
-        if max_wall_seconds is not None and time.monotonic() - started >= max_wall_seconds:
+        elapsed = time.monotonic() - started
+        if max_wall_seconds is not None and elapsed >= max_wall_seconds:
+            return False
+        if not mock and _gpu_cap_reached(elapsed):
             return False
         return api_budget is None or api_budget.exceeded() is None
 
@@ -1482,6 +1489,8 @@ def run_pipeline_eval(
         attempt = 0
         while True:
             attempt += 1
+            # The per-document call ceiling covers every attempt, not each one (pr-domain-reviewer).
+            prior = _PRIOR_GUARDED_CALLS.set(failed.guarded_calls)
             try:
                 result, usage, _latency, window = _process_once(row)
             except Exception as exc:
@@ -1498,6 +1507,8 @@ def run_pipeline_eval(
                                  (first_ns, time.time_ns()))
                     raise
                 continue
+            finally:
+                _PRIOR_GUARDED_CALLS.reset(prior)
             result, usage = failed.fold_into(result, usage)
             if attempt > 1:
                 return result, usage, (time.monotonic() - before) * 1000, (first_ns, window[1])
@@ -1694,14 +1705,14 @@ def run_pipeline_eval(
     for row, result in zip(rows, results):
         doc_type = result.get("doc_type")
         if not mock and not doc_type and not result.get("error"):
-            raise RuntimeError(
+            raise _run_level(RuntimeError(
                 f"live pipeline returned no doc_type for row "
                 f"{row.get('id') or row.get('filename') or '?'} — refusing to "
                 f"score a dead live path as 'unknown'"
-            )
+            ))
         predicted.append(doc_type or "unknown")
     if not mock and results and not any(r.get("doc_type") for r in results):
-        raise RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path")
+        raise _run_level(RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path"))
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
@@ -1861,6 +1872,12 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     return queued
 
 
+def _billed(usage: Mapping[str, Any]) -> bool:
+    """Whether an attempt's usage records any billed tokens."""
+    return any(isinstance(usage.get(key), (int, float)) and not isinstance(usage.get(key), bool) and usage.get(key)
+               for key in ("prompt_tokens", "completion_tokens"))
+
+
 def _extend_call_usage(calls: list[Any] | None, usage: Mapping[str, Any]) -> list[Any] | None:
     """``calls`` plus one attempt's ``call_usage`` rows; None once a billed attempt has none.
 
@@ -1872,9 +1889,36 @@ def _extend_call_usage(calls: list[Any] | None, usage: Mapping[str, Any]) -> lis
     rows = usage.get("call_usage")
     if isinstance(rows, list) and rows:
         return [*calls, *rows]
-    billed = any(isinstance(usage.get(key), (int, float)) and usage.get(key) for key in ("prompt_tokens",
-                                                                                          "completion_tokens"))
-    return None if billed else calls
+    return None if _billed(usage) else calls
+
+
+def _extend_reported_cost(parts: list[float] | None, usage: Mapping[str, Any]) -> list[float] | None:
+    """``parts`` plus one attempt's ``reported_cost_usd``; None once a billed attempt has none.
+
+    ``gate.doc_cost`` prefers the provider's reported cost over token pricing, so a sum missing a
+    billed attempt would underprice the item. None means: drop it and price the tokens instead.
+    """
+    if parts is None:
+        return None
+    value = usage.get("reported_cost_usd")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return [*parts, float(value)]
+    return None if _billed(usage) else parts
+
+
+def _extend_usage_by_agent(agents: dict[str, dict[str, Any]] | None,
+                           usage: Mapping[str, Any]) -> dict[str, dict[str, Any]] | None:
+    """``agents`` merged with one attempt's ``usage_by_agent``; None once a billed attempt has none.
+
+    ``gate.doc_cost`` prices only the agent slots, so slots missing a billed attempt would underprice
+    the item. None means: drop them.
+    """
+    if agents is None:
+        return None
+    more = usage.get("usage_by_agent")
+    if isinstance(more, Mapping) and more:
+        return _merge_usage_by_agent(agents, more)
+    return None if _billed(usage) else agents
 
 
 def _merge_usage_by_agent(into: dict[str, dict[str, Any]], more: Any) -> dict[str, dict[str, Any]]:
@@ -1914,37 +1958,68 @@ def _carry_served_calls(exc: BaseException, scope: Mapping[str, Any]) -> None:
             pass
 
 
+def _run_level(exc: BaseException) -> BaseException:
+    """Mark a run-level failure (every row already has its item): the job runner's ``errors`` counts no extra row."""
+    exc.sandbox_recorded = True
+    return exc
+
+
+#: Guarded calls a document's failed attempts already made; a retry's guard scope starts there.
+_PRIOR_GUARDED_CALLS: contextvars.ContextVar[int] = contextvars.ContextVar("sandbox_prior_guarded_calls", default=0)
+
+
 class _FailedAttempts:
     """What a document's failed attempts billed and served, kept across its retries.
 
-    ``call_usage`` is priced call by call instead of the totals, so it must cover every attempt; one
-    billed attempt without per-call rows makes it None, and the item is then priced on its totals.
+    The token totals are summed. ``call_usage``, ``reported_cost_usd`` and ``usage_by_agent`` each
+    price the item instead of the totals (``job/metrics``, ``gate.doc_cost``), so each is kept only
+    when every billed attempt carried it, and is dropped otherwise: the item is then priced on its
+    totals rather than on part of its attempts.
     """
 
+    _WHOLE_ITEM_KEYS = ("item_id", "reported_cost_usd")
+
     def __init__(self) -> None:
+        self.attempts = 0
+        self.guarded_calls = 0  # guarded calls of every failed attempt (the per-document call ceiling)
         self.totals: dict[str, int] = {}
         self.calls: list[Any] | None = []
-        self.agents: dict[str, dict[str, Any]] = {}
+        self.reported: list[float] | None = []
+        self.agents: dict[str, dict[str, Any]] | None = {}
         self.served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
 
     def add(self, exc: BaseException) -> None:
         """Fold one failed attempt's ``sandbox_failed_usage`` and ``sandbox_served_calls`` in."""
+        self.attempts += 1
+        guarded = getattr(exc, "sandbox_guarded_calls", None)
+        if isinstance(guarded, int) and not isinstance(guarded, bool):
+            self.guarded_calls = max(self.guarded_calls, guarded)  # each scope starts at the earlier total
         usage = getattr(exc, "sandbox_failed_usage", None) or {}
         for key, value in usage.items():
-            if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            if key not in self._WHOLE_ITEM_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
                 self.totals[key] = self.totals.get(key, 0) + value
         self.calls = _extend_call_usage(self.calls, usage)
-        self.agents = _merge_usage_by_agent(self.agents, usage.get("usage_by_agent"))
+        self.reported = _extend_reported_cost(self.reported, usage)
+        self.agents = _extend_usage_by_agent(self.agents, usage)
         self.served = _merge_served_calls(self.served, getattr(exc, "sandbox_served_calls", None))
+
+    @staticmethod
+    def _whole_item(usage: dict[str, Any], calls: list[Any] | None, reported: list[float] | None,
+                    agents: dict[str, dict[str, Any]] | None) -> dict[str, Any]:
+        """``usage`` with its whole-item pricing keys replaced by the folded ones (absent when dropped)."""
+        out = {k: v for k, v in usage.items() if k not in ("call_usage", "reported_cost_usd", "usage_by_agent")}
+        if calls:
+            out["call_usage"] = calls
+        if reported:
+            out["reported_cost_usd"] = round(sum(reported), 8)
+        if agents:
+            out["usage_by_agent"] = agents
+        return out
 
     def stamp(self, exc: BaseException, item_id: Any, attempts: int, latency_ms: float,
               window: tuple[int, int]) -> None:
         """Put every attempt's usage, served calls, count, latency and window on the final exception."""
-        billed: dict[str, Any] = dict(self.totals)
-        if self.totals and self.calls:
-            billed["call_usage"] = self.calls
-        if self.agents:
-            billed["usage_by_agent"] = self.agents
+        billed = self._whole_item(dict(self.totals), self.calls if self.totals else None, self.reported, self.agents)
         try:
             exc.sandbox_failed_usage = {"item_id": item_id, **billed} if self.totals else None
             exc.sandbox_served_calls = self.served or None
@@ -1956,14 +2031,11 @@ class _FailedAttempts:
 
     def fold_into(self, result: dict[str, Any], usage: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         """A successful attempt's result and usage with the failed attempts' added."""
-        if self.totals:
-            usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in self.totals.items()}}
-            calls = _extend_call_usage(self.calls, usage)
-            usage = {k: v for k, v in usage.items() if k != "call_usage"}
-            if calls:
-                usage["call_usage"] = calls
-        if self.agents:
-            usage = {**usage, "usage_by_agent": _merge_usage_by_agent(self.agents, usage.get("usage_by_agent"))}
+        if not self.attempts:
+            return result, usage
+        summed = {**usage, **{key: (usage.get(key) or 0) + value for key, value in self.totals.items()}}
+        usage = self._whole_item(summed, _extend_call_usage(self.calls, usage),
+                                 _extend_reported_cost(self.reported, usage), _extend_usage_by_agent(self.agents, usage))
         if self.served:
             result = {**result, "served_calls": _merge_served_calls(self.served, result.get("served_calls"))}
         return result, usage
@@ -1980,10 +2052,21 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
 
     with call_guard.document() as scope:
         scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
+        scope["calls"] += _PRIOR_GUARDED_CALLS.get()  # a retry: the ceiling counts the failed attempts' calls
         try:
             result = _run_pipeline_doc_once(row, **kwargs)
         except Exception as exc:
+            if scope["refused"]:
+                # A refusal that escaped the graph's run-limit path is still a guard stop: never retried.
+                stop = call_guard.GuardStop(
+                    f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+                _carry_served_calls(stop, scope)
+                raise stop from exc
             _carry_served_calls(exc, scope)  # the billed calls' served models stay with the error row
+            try:
+                exc.sandbox_guarded_calls = int(scope["calls"])
+            except (AttributeError, TypeError):
+                pass
             raise
     if scope["refused"]:
         stop = call_guard.GuardStop(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")

@@ -967,8 +967,8 @@ def build_parser() -> argparse.ArgumentParser:
     rep_build.add_argument("--runs-dir", default=None, help="read run stores here (default: data/runtime/runs)")
     rep_build.add_argument("--experiment-log", default=None, help="default: reports/experiment_log.jsonl")
     rep_build.add_argument("--served-log", action="append", default=[],
-                           help="served-provider ledger (repeatable; default: data/runtime/<key>/served-*.jsonl"
-                                " and SANDBOX_SERVED_LOG)")
+                           help="served-provider ledger (repeatable; default: each run store's served.jsonl,"
+                                " data/runtime/<key>/served-*.jsonl and SANDBOX_SERVED_LOG; a call_id counts once)")
     rep_build.add_argument("--max-copy-bytes", type=_positive_int, default=None,
                            help="copy logs/traces up to this size; larger ones are referenced by sha256")
     rep_build.add_argument("--json", action="store_true")

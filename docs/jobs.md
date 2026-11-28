@@ -959,8 +959,9 @@ included). A lock written before the key existed counts as `true`.
   `failed` (with `concurrency > 1` it stops *scheduling* new rows; in-flight
   rows finish and persist — their GPU work is already spent). `task: pipeline`
   applies both per document: a document that raises runs again up to `max_retries`
-  times (never after an API call guard refusal or once a wall or API cap is reached),
-  and one that still raises is an error row carrying its billed usage. Without
+  times (never after an API call guard refusal or once a wall, GPU or API cap is
+  reached; the per-document call ceiling counts every attempt's calls), and one
+  that still raises is an error row carrying its billed usage. Without
   `fail_fast` the run goes on. Resuming a run that crashed or was paused re-runs
   its error rows, and the answer replaces the row (`RunStore.replace_item`), its
   billed usage kept as an `api_usage_of_failed_document` event. A `failed` or

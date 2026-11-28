@@ -86,7 +86,7 @@ Each item is tagged with how it was established:
 - **Fixed later the same day: `job.fail_fast` and `job.max_retries` did nothing for `task: pipeline`.**
   - Before: one document exception stopped new documents, and that document got no item row.
   - Now: a document that raises runs again up to `max_retries` times (never after a call-guard
-    refusal or once a cap is reached). One that still raises is an error row carrying its billed
+    refusal or once a wall, GPU or API cap is reached; the call ceiling covers every attempt). One that still raises is an error row carrying its billed
     usage, and only `fail_fast` stops the run. Resuming a crashed or paused run re-runs it, and the
     answer replaces the row; a `failed` or `done` run is final and needs a new run id.
     Each failed document's usage is now on its own row, which also closes the resume under-count above
