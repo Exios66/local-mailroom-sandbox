@@ -86,23 +86,33 @@ Each item is tagged with how it was established:
     does not change the next document's pricing.
   - Still open: a reply with no usage block, or a call that fails after its reply arrives but
     before it is recorded, is released unpriced, as before. A LangChain call outside a document
-    or a runner row keeps the old gap between release and price. Hosted CI has not run this
-    change.
-- **A resume can under-count spend (read).**
-  - When several documents fail together, only the first one's billed usage is persisted
+    or a runner row keeps the old gap between release and price.
+  - A price clears only a hold of its own model, so a concurrent call of another model in the
+    same document cannot reopen a held call's gap (ran). A discarded length re-sample and an
+    unreadable Decisions 200 are priced but do not count toward the call ceiling or the
+    governor, so routing is the same with or without a budget (ran).
+- **A resume could under-count spend (read; fixed for job runs, see below).**
+  - When several documents failed together, only the first one's billed usage was persisted
     (`eval/runners.py`, `job/runner.py`). A resume seeds its budget from persisted records.
-  - Fix: append one failed-usage event per failed document.
-- **`job.fail_fast` and `job.max_retries` do nothing for `task: pipeline` (ran; pinned by
-  `tests/test_pipeline_concurrency.py`).**
-  - One document exception stops new documents, and that document gets no item row.
-  - Either record it as an error item and continue, or refuse these keys for pipeline runs.
-- **Served-model evidence is kept only with `SANDBOX_SERVED_LOG` (read).**
-  - Items keep the requested model, and a mismatch is a log warning.
-  - The `qwen/qwen3.7-flash` pin has no `canonical_slug`, while the price sheet lists
-    `qwen/qwen3.7-flash-20260727` (not verified live).
-- **A failed provider-pin activation leaves the per-call guard off (read).**
-  - `runtime.py` only warns, though the wrappers do install in this checkout (ran).
-  - Fix: refuse a non-mock run with an API budget when the wrappers are not active.
+  - Job runs now persist each failed document as an error row with its usage.
+- **Fixed later the same day: `job.fail_fast` and `job.max_retries` did nothing for `task: pipeline`.**
+  - Before: one document exception stopped new documents, and that document got no item row.
+  - Now: a document that raises runs again up to `max_retries` times (never after a call-guard
+    refusal or once a wall, GPU or API cap is reached; the call ceiling covers every attempt). One that still raises is an error row carrying its billed
+    usage, and only `fail_fast` stops the run. Resuming a crashed or paused run re-runs it, and the
+    answer replaces the row; a `failed` or `done` run is final and needs a new run id.
+    Each failed document's usage is now on its own row, which also closes the resume under-count above
+    for the job runner path.
+- **Fixed later the same day: served-model evidence was kept only with `SANDBOX_SERVED_LOG`.**
+  - Now every ledger row of a run goes to the run store's `served.jsonl` (archived and pulled from
+    Modal), each pipeline item has `pred.served_calls`, and the report reads both logs and counts a
+    call once (`call_id`).
+  - Still open: the `qwen/qwen3.7-flash` pin has no `canonical_slug`, while the price sheet lists
+    `qwen/qwen3.7-flash-20260727` (not verified live). A dated served model is therefore a
+    `mismatch` row, visible but not fatal.
+- **Fixed later the same day: a failed provider-pin activation left the per-call guard off.**
+  - Now `run start` refuses a run with `job.api_cost_cap_usd` when any wrapper is not installed
+    (`provider_pins.spend_guard_missing`).
 - **Notes (read):**
   - `max_wall_seconds` is checked only between documents, so in-flight documents can run up to
     their own one-hour deadline.

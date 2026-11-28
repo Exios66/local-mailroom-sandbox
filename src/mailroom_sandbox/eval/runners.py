@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import os
 from contextlib import ExitStack, contextmanager
@@ -152,6 +153,9 @@ def _price_holds_only(call_guard: Any) -> Iterator[dict[str, Any]]:
     with call_guard.price_holds():
         yield {"calls": 0, "refused": None}
 
+
+#: Pause before a document that raised runs again (``job.max_retries``); tests set it to 0.
+_RETRY_PAUSE_SECONDS = 0.2
 
 #: Usage keys a persisted item carries: kept on a replayed row for reporting, never billed again.
 REPLAY_USAGE_KEYS = ("prompt_tokens", "completion_tokens", "llm_calls", "call_usage", "usage_by_agent",
@@ -1379,7 +1383,15 @@ def run_pipeline_eval(
     gpu_fleet: list[tuple[str, int]] | None = None,
     concurrency: int = 1,
     replay: Mapping[Any, Mapping[str, Any]] | None = None,
+    max_retries: int = 0,
+    fail_fast: bool = True,
+    record_failures: bool = False,
 ) -> dict[str, Any]:
+    # ``max_retries`` runs a document that raised up to that many more times (``job.max_retries``). A refusal by
+    # the API call guard is never retried, and no retry starts once a wall or API cap is reached.
+    # ``record_failures`` (the job runner) turns a document that still raises into an error row, with the usage
+    # its attempts billed, instead of leaving it without one. ``fail_fast`` (``job.fail_fast``) then decides
+    # whether the run stops starting new documents and raises; without ``record_failures`` it always does.
     # ``replay`` maps a row id to the item an earlier attempt of this run persisted. A replayable
     # document is scored from that stored answer with no model call and no new spend (a resume).
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
@@ -1450,14 +1462,69 @@ def run_pipeline_eval(
         elapsed = time.monotonic() - started
         if max_wall_seconds is not None and elapsed >= max_wall_seconds:
             raise RuntimeError("pipeline wall-time cap exceeded before next document")
-        cap_gpu = _cap_gpu(gpu, gpu_fleet, profile)
-        if cost_cap_usd is not None and cap_gpu:
-            if _estimated_gpu_usd(elapsed, gpu=cap_gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
-                raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+        if _gpu_cap_reached(elapsed):
+            raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
 
+    def _gpu_cap_reached(elapsed: float) -> bool:
+        cap_gpu = _cap_gpu(gpu, gpu_fleet, profile)
+        return bool(cost_cap_usd is not None and cap_gpu
+                    and _estimated_gpu_usd(elapsed, gpu=cap_gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd)
+
+    stop_on_failure = fail_fast or not record_failures
+
+    def _may_retry(exc: BaseException) -> bool:
+        """Whether a document that raised may run again: not a guard refusal, and no wall, GPU or API cap reached."""
+        from mailroom_sandbox.job.call_guard import GuardStop
+
+        if isinstance(exc, GuardStop):
+            return False
+        elapsed = time.monotonic() - started
+        if max_wall_seconds is not None and elapsed >= max_wall_seconds:
+            return False
+        if not mock and _gpu_cap_reached(elapsed):
+            return False
+        return api_budget is None or api_budget.exceeded() is None
+
     def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], float, tuple[int, int]]:
+        """:func:`_process_once` with up to ``max_retries`` more attempts; failed attempts' usage is kept.
+
+        A retry that succeeds adds the tokens its failed attempts billed to the document's usage, and its
+        latency and window cover every attempt. A document that still raises carries the summed usage of
+        all its attempts (``sandbox_failed_usage``) and their count (``sandbox_attempts``).
+        """
+        failed = _FailedAttempts()
+        first_ns, before = time.time_ns(), time.monotonic()
+        attempt = 0
+        while True:
+            attempt += 1
+            # The per-document call ceiling covers every attempt, not each one (pr-domain-reviewer).
+            prior = _PRIOR_GUARDED_CALLS.set(failed.guarded_calls)
+            try:
+                result, usage, _latency, window = _process_once(row)
+            except Exception as exc:
+                failed.add(exc)
+                give_up = attempt > max_retries or not _may_retry(exc)
+                if not give_up:
+                    _log.warning("document %s raised on attempt %d of %d, retrying: %s: %s", row.get("id"), attempt,
+                                 max_retries + 1, type(exc).__name__, str(exc)[:200])
+                    if _RETRY_PAUSE_SECONDS:
+                        time.sleep(_RETRY_PAUSE_SECONDS)
+                    give_up = not _may_retry(exc)  # the pause may have reached the wall cap
+                if give_up:
+                    failed.stamp(exc, row.get("id"), attempt, (time.monotonic() - before) * 1000,
+                                 (first_ns, time.time_ns()))
+                    raise
+                continue
+            finally:
+                _PRIOR_GUARDED_CALLS.reset(prior)
+            result, usage = failed.fold_into(result, usage)
+            if attempt > 1:
+                return result, usage, (time.monotonic() - before) * 1000, (first_ns, window[1])
+            return result, usage, _latency, window
+
+    def _process_once(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], float, tuple[int, int]]:
         """Run one document: (result, token usage, latency ms, (start, end) epoch ns). Safe on a worker thread.
 
         The epoch window is taken around the document's own execution, so a span built from it
@@ -1500,6 +1567,10 @@ def run_pipeline_eval(
                 # which records them for a resumed run's budget (counted in _count_failed).
                 failed_usage = usage_capture.usage_from_pipeline()
                 if failed_usage:
+                    if calls := usage_capture.call_usage_from_pipeline():
+                        failed_usage = {**failed_usage, "call_usage": calls}
+                    if by_agent := usage_capture.usage_by_agent_from_pipeline():
+                        failed_usage = {**failed_usage, "usage_by_agent": by_agent}
                     try:
                         exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
                     except (AttributeError, TypeError):
@@ -1527,6 +1598,30 @@ def run_pipeline_eval(
 
     by_index: dict[int, dict[str, Any]] = {}
     scored_by_index: dict[int, dict[str, Any] | None] = {}
+
+    def _failed(index: int, exc: BaseException) -> None:
+        """Account for a document that raised after its retries (main thread only).
+
+        With ``record_failures`` it becomes an error row carrying its billed usage, which the budget counts
+        once, and the exception no longer carries that usage (the row does). Otherwise only the budget is told.
+        """
+        if not record_failures:
+            _count_failed(exc)
+            return
+        billed = {k: v for k, v in (getattr(exc, "sandbox_failed_usage", None) or {}).items() if k != "item_id"}
+        error = f"{type(exc).__name__}: {str(exc)[:512]}"
+        result = {"id": rows[index].get("id"), "doc_type": None, "stage": "failed", "extracted_data": None,
+                  "error": error, "attempts": int(getattr(exc, "sandbox_attempts", 1) or 1)}
+        if served := getattr(exc, "sandbox_served_calls", None):
+            result["served_calls"] = served
+        window = getattr(exc, "sandbox_window", None)
+        _record(index, result, billed, float(getattr(exc, "sandbox_latency_ms", 0.0) or 0.0),
+                window if isinstance(window, tuple) else None)
+        try:
+            exc.sandbox_failed_usage = None
+            exc.sandbox_recorded = True  # the job runner counts this document's error row, not one more
+        except (AttributeError, TypeError):
+            pass
 
     def _record(index: int, result: dict[str, Any], doc_usage: dict[str, Any], latency_ms: float,
                 window: tuple[int, int] | None = None, replayed: bool = False) -> None:
@@ -1566,13 +1661,15 @@ def run_pipeline_eval(
             try:
                 outcome = _process(row)
             except Exception as exc:
-                _count_failed(exc)
-                raise
+                _failed(index, exc)
+                if stop_on_failure:
+                    raise
+                continue
             _record(index, *outcome)
     else:
         # job.concurrency documents in flight at once. Caps are checked before each new document
-        # starts; after the first failure no new document starts, the in-flight ones finish and
-        # are recorded (they were billed), then the first error is raised.
+        # starts. When failures stop the run, after the first one no new document starts, the
+        # in-flight ones finish and are recorded (they were billed), then the first error is raised.
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
         queue = iter(pending)
@@ -1598,9 +1695,10 @@ def run_pipeline_eval(
                     index = futures.pop(future)
                     try:
                         outcome = future.result()
-                    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised below
-                        _count_failed(exc)
-                        first_error = first_error or exc
+                    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised below if it stops the run
+                        _failed(index, exc)
+                        if stop_on_failure:
+                            first_error = first_error or exc
                         continue
                     _record(index, *outcome)
                 if first_error is None:
@@ -1617,14 +1715,14 @@ def run_pipeline_eval(
     for row, result in zip(rows, results):
         doc_type = result.get("doc_type")
         if not mock and not doc_type and not result.get("error"):
-            raise RuntimeError(
+            raise _run_level(RuntimeError(
                 f"live pipeline returned no doc_type for row "
                 f"{row.get('id') or row.get('filename') or '?'} — refusing to "
                 f"score a dead live path as 'unknown'"
-            )
+            ))
         predicted.append(doc_type or "unknown")
     if not mock and results and not any(r.get("doc_type") for r in results):
-        raise RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path")
+        raise _run_level(RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path"))
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
@@ -1784,6 +1882,175 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     return queued
 
 
+def _billed(usage: Mapping[str, Any]) -> bool:
+    """Whether an attempt's usage records any billed tokens."""
+    return any(isinstance(usage.get(key), (int, float)) and not isinstance(usage.get(key), bool) and usage.get(key)
+               for key in ("prompt_tokens", "completion_tokens"))
+
+
+def _extend_call_usage(calls: list[Any] | None, usage: Mapping[str, Any]) -> list[Any] | None:
+    """``calls`` plus one attempt's ``call_usage`` rows; None once a billed attempt has none.
+
+    ``call_usage`` replaces the token totals when an item is priced, so a list missing a billed
+    attempt's calls would underprice it. None means: price the item on its totals instead.
+    """
+    if calls is None:
+        return None
+    rows = usage.get("call_usage")
+    if isinstance(rows, list) and rows:
+        return [*calls, *rows]
+    return None if _billed(usage) else calls
+
+
+def _extend_reported_cost(parts: list[float] | None, usage: Mapping[str, Any]) -> list[float] | None:
+    """``parts`` plus one attempt's ``reported_cost_usd``; None once a billed attempt has none.
+
+    ``gate.doc_cost`` prefers the provider's reported cost over token pricing, so a sum missing a
+    billed attempt would underprice the item. None means: drop it and price the tokens instead.
+    """
+    if parts is None:
+        return None
+    value = usage.get("reported_cost_usd")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return [*parts, float(value)]
+    return None if _billed(usage) else parts
+
+
+def _extend_usage_by_agent(agents: dict[str, dict[str, Any]] | None,
+                           usage: Mapping[str, Any]) -> dict[str, dict[str, Any]] | None:
+    """``agents`` merged with one attempt's ``usage_by_agent``; None once a billed attempt has none.
+
+    ``gate.doc_cost`` prices only the agent slots, so slots missing a billed attempt would underprice
+    the item. None means: drop them.
+    """
+    if agents is None:
+        return None
+    more = usage.get("usage_by_agent")
+    if isinstance(more, Mapping) and more:
+        return _merge_usage_by_agent(agents, more)
+    return None if _billed(usage) else agents
+
+
+def _merge_usage_by_agent(into: dict[str, dict[str, Any]], more: Any) -> dict[str, dict[str, Any]]:
+    """Two attempts' ``usage_by_agent``: counts summed per agent, models in first-seen order."""
+    merged = {agent: {**slot, "models": list(slot.get("models") or [])} for agent, slot in into.items()}
+    for agent, slot in (more.items() if isinstance(more, Mapping) else ()):
+        if not isinstance(slot, Mapping):
+            continue
+        mine = merged.setdefault(str(agent), {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "models": []})
+        for key in ("calls", "prompt_tokens", "completion_tokens"):
+            mine[key] = int(mine.get(key) or 0) + int(slot.get(key) or 0)
+        mine["models"] += [m for m in slot.get("models") or [] if m not in mine["models"]]
+    return merged
+
+
+def _merge_served_calls(into: list[dict[str, Any]], more: Any) -> list[dict[str, Any]]:
+    """``served_calls`` rows of two attempts, one row per route and outcome with the calls summed."""
+    merged = [dict(row) for row in into]
+    for row in more if isinstance(more, list) else []:
+        if not isinstance(row, Mapping):
+            continue
+        key = {k: v for k, v in row.items() if k != "calls"}
+        same = next((m for m in merged if {k: v for k, v in m.items() if k != "calls"} == key), None)
+        if same is None:
+            merged.append(dict(row))
+        else:
+            same["calls"] = int(same.get("calls") or 0) + int(row.get("calls") or 0)
+    return merged
+
+
+def _carry_served_calls(exc: BaseException, scope: Mapping[str, Any]) -> None:
+    """Attach a raising document's served calls (its call-guard scope) to the exception."""
+    if scope.get("served_calls"):
+        try:
+            exc.sandbox_served_calls = [dict(row) for row in scope["served_calls"]]
+        except (AttributeError, TypeError):
+            pass
+
+
+def _run_level(exc: BaseException) -> BaseException:
+    """Mark a run-level failure (every row already has its item): the job runner's ``errors`` counts no extra row."""
+    exc.sandbox_recorded = True
+    return exc
+
+
+#: Guarded calls a document's failed attempts already made; a retry's guard scope starts there.
+_PRIOR_GUARDED_CALLS: contextvars.ContextVar[int] = contextvars.ContextVar("sandbox_prior_guarded_calls", default=0)
+
+
+class _FailedAttempts:
+    """What a document's failed attempts billed and served, kept across its retries.
+
+    The token totals are summed. ``call_usage``, ``reported_cost_usd`` and ``usage_by_agent`` each
+    price the item instead of the totals (``job/metrics``, ``gate.doc_cost``), so each is kept only
+    when every billed attempt carried it, and is dropped otherwise: the item is then priced on its
+    totals rather than on part of its attempts.
+    """
+
+    _WHOLE_ITEM_KEYS = ("item_id", "reported_cost_usd")
+
+    def __init__(self) -> None:
+        self.attempts = 0
+        self.guarded_calls = 0  # guarded calls of every failed attempt (the per-document call ceiling)
+        self.totals: dict[str, int] = {}
+        self.calls: list[Any] | None = []
+        self.reported: list[float] | None = []
+        self.agents: dict[str, dict[str, Any]] | None = {}
+        self.served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
+
+    def add(self, exc: BaseException) -> None:
+        """Fold one failed attempt's ``sandbox_failed_usage`` and ``sandbox_served_calls`` in."""
+        self.attempts += 1
+        guarded = getattr(exc, "sandbox_guarded_calls", None)
+        if isinstance(guarded, int) and not isinstance(guarded, bool):
+            self.guarded_calls = max(self.guarded_calls, guarded)  # each scope starts at the earlier total
+        usage = getattr(exc, "sandbox_failed_usage", None) or {}
+        for key, value in usage.items():
+            if key not in self._WHOLE_ITEM_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
+                self.totals[key] = self.totals.get(key, 0) + value
+        self.calls = _extend_call_usage(self.calls, usage)
+        self.reported = _extend_reported_cost(self.reported, usage)
+        self.agents = _extend_usage_by_agent(self.agents, usage)
+        self.served = _merge_served_calls(self.served, getattr(exc, "sandbox_served_calls", None))
+
+    @staticmethod
+    def _whole_item(usage: dict[str, Any], calls: list[Any] | None, reported: list[float] | None,
+                    agents: dict[str, dict[str, Any]] | None) -> dict[str, Any]:
+        """``usage`` with its whole-item pricing keys replaced by the folded ones (absent when dropped)."""
+        out = {k: v for k, v in usage.items() if k not in ("call_usage", "reported_cost_usd", "usage_by_agent")}
+        if calls:
+            out["call_usage"] = calls
+        if reported:
+            out["reported_cost_usd"] = round(sum(reported), 8)
+        if agents:
+            out["usage_by_agent"] = agents
+        return out
+
+    def stamp(self, exc: BaseException, item_id: Any, attempts: int, latency_ms: float,
+              window: tuple[int, int]) -> None:
+        """Put every attempt's usage, served calls, count, latency and window on the final exception."""
+        billed = self._whole_item(dict(self.totals), self.calls if self.totals else None, self.reported, self.agents)
+        try:
+            exc.sandbox_failed_usage = {"item_id": item_id, **billed} if self.totals else None
+            exc.sandbox_served_calls = self.served or None
+            exc.sandbox_attempts = attempts
+            exc.sandbox_latency_ms = latency_ms
+            exc.sandbox_window = window
+        except (AttributeError, TypeError):
+            pass
+
+    def fold_into(self, result: dict[str, Any], usage: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """A successful attempt's result and usage with the failed attempts' added."""
+        if not self.attempts:
+            return result, usage
+        summed = {**usage, **{key: (usage.get(key) or 0) + value for key, value in self.totals.items()}}
+        usage = self._whole_item(summed, _extend_call_usage(self.calls, usage),
+                                 _extend_reported_cost(self.reported, usage), _extend_usage_by_agent(self.agents, usage))
+        if self.served:
+            result = {**result, "served_calls": _merge_served_calls(self.served, result.get("served_calls"))}
+        return result, usage
+
+
 def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     """:func:`_run_pipeline_doc_once` inside one document scope of the API call guard.
 
@@ -1795,9 +2062,26 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
 
     with call_guard.document() as scope:
         scope["row_id"] = row.get("id")  # the dataset id (the pipeline's doc_id is an intake id)
-        result = _run_pipeline_doc_once(row, **kwargs)
+        scope["calls"] += _PRIOR_GUARDED_CALLS.get()  # a retry: the ceiling counts the failed attempts' calls
+        try:
+            result = _run_pipeline_doc_once(row, **kwargs)
+        except Exception as exc:
+            if scope["refused"]:
+                # A refusal that escaped the graph's run-limit path is still a guard stop: never retried.
+                stop = call_guard.GuardStop(
+                    f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+                _carry_served_calls(stop, scope)
+                raise stop from exc
+            _carry_served_calls(exc, scope)  # the billed calls' served models stay with the error row
+            try:
+                exc.sandbox_guarded_calls = int(scope["calls"])
+            except (AttributeError, TypeError):
+                pass
+            raise
     if scope["refused"]:
-        raise RuntimeError(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+        stop = call_guard.GuardStop(f"document stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
+        _carry_served_calls(stop, scope)
+        raise stop
     if scope.get("judge_reasks"):
         # HF-002 / HF-013: a judge answer that did not parse was asked once more. Present only on a
         # document where that happened: {judge: {"asked": n, "recovered": m, "parked": p}}, counts only.
@@ -1805,7 +2089,8 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     # Phase 2 governor marks, present only when they happened (critical regression 22: a routing
     # change that moves a document between review and the archive carries a mark).
     # Phase 5 part 2 (HF-032/HF-033): a sorter or intake head read, with the characters sent.
-    for key in ("governor_stop", "duplicate_of", "head_read"):
+    # The served model, provider and pin status of each call the document made (provider_pins ledger).
+    for key in ("governor_stop", "duplicate_of", "head_read", "served_calls"):
         if scope.get(key):
             result = {**result, key: scope[key]}
     skipped = int(scope["governor"]["skipped_classify_retries"])

@@ -292,6 +292,43 @@ def _held_success(prompt_tokens=300_000):
     return held
 
 
+def test_a_price_clears_only_a_hold_of_its_own_model():
+    """A concurrent call of another model in the same document, or one that reserved nothing, used to
+    clear the oldest hold in the shared queue and briefly reopen that call's gap on the cap."""
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(held, billed=False, await_price=True, model="qwen/qwen3.5-9b")
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, model="local/other-model")
+        assert budget.settling_usd == pytest.approx(held)  # still held: that price was another model's
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, model="OpenRouter/Qwen/Qwen3.5-9B")
+        assert budget.settling_usd == 0.0
+    assert budget.live_total_usd() == pytest.approx(2 * budget.estimate_call_usd(10, 0))
+
+
+def test_a_price_without_a_model_still_clears_the_oldest_hold():
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        held = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(held, billed=False, await_price=True, model="qwen/qwen3.5-9b")
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0
+
+
+def test_a_named_hold_is_priced_by_its_own_reply_only():
+    """The Decisions transport prices its own reply by hold id, never a concurrent call's hold."""
+    budget = _armed(cap=1.0)
+    with call_guard.document():
+        other = call_guard.before_call(prompt_tokens=300_000, completion_tokens=0)
+        call_guard.settle(other, billed=False, await_price=True)  # a LangChain reply priced later
+        mine = call_guard.before_call(prompt_tokens=100_000, completion_tokens=0)
+        hold = call_guard.settle(mine, billed=False, await_price=True)
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0}, hold=hold)
+        assert budget.settling_usd == pytest.approx(other)
+        call_guard.after_call({"prompt_tokens": 10, "completion_tokens": 0})
+        assert budget.settling_usd == 0.0
+
+
 def test_a_success_never_priced_is_released_when_its_document_ends(caplog):
     """A path that settles with await_price and never reaches after_call holds the cap for the rest of
     its document only. The next document prices its own replies as usual."""
@@ -429,7 +466,10 @@ def test_a_length_resample_prices_the_reply_it_discards(monkeypatch):
         sampling._REQUEST.reset(token)
     assert budget.live_total_usd() == pytest.approx(budget.estimate_call_usd(40_000, 4_000)
                                                     + budget.estimate_call_usd(5_000, 100))
-    assert scope["calls"] == 2
+    # Priced only: the discarded reply never reaches the pipeline, so the ceiling and the governor's call
+    # budget count the kept reply alone, as on an unarmed run (routing must not depend on the cap).
+    assert scope["calls"] == 1 and scope["llm_calls"] == 1
+    assert scope["spend_usd"] == pytest.approx(budget.live_total_usd())
 
 
 def test_concurrent_threads_outside_a_document_price_their_own_holds():

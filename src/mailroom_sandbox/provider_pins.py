@@ -12,7 +12,9 @@ activation instead of editing ``vendor/`` (drift-guarded):
   ``extra_body.provider.order`` / ``allow_fallbacks`` merged into every request
   (an existing ``provider`` block, e.g. ``require_parameters``, is kept).
 * Every OpenRouter response's ``model`` and ``provider`` are appended to the
-  process ledger and, when ``SANDBOX_SERVED_LOG`` names a file, to that JSONL.
+  process ledger, to the run store's ``served.jsonl`` during a job run, and, when
+  ``SANDBOX_SERVED_LOG`` names a file, to that JSONL too. A call made inside a
+  document's call-guard scope is also summarized on that document (``served_calls``).
   A served provider outside the pinned order is a ``mismatch``.
 
 Provider names compare case-insensitively. A served model that is neither the
@@ -52,6 +54,7 @@ on missing rows.
 from __future__ import annotations
 
 import contextvars
+import importlib
 import json
 import logging
 import math
@@ -60,6 +63,7 @@ import sys
 import threading
 import time
 import types
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -183,7 +187,8 @@ class _AttemptGuardedCompletions:
             # Keep the worst-case hold until record_usage prices this reply (no gap for the next call).
             # The vendored callers record on this thread right after the loop returns. HF-004 prices a
             # reply only when it carries usage, so a reply without any is released here as before.
-            call_guard.settle(held, billed=False, await_price=getattr(response, "usage", None) is not None)
+            call_guard.settle(held, billed=False, await_price=getattr(response, "usage", None) is not None,
+                              model=request.get("model"))
         return response
 
 
@@ -295,17 +300,23 @@ def served_provider(response: Any) -> str | None:
 
 
 _RUN_CONTEXT: dict[str, Any] = {}
+#: The run store's ``served.jsonl`` while a job run is set (``set_run_context``).
+_RUN_LOG: list[Path | None] = [None]
 
 
-def set_run_context(run_id: str | None, spec_hash: str | None = None) -> None:
+def set_run_context(run_id: str | None, spec_hash: str | None = None, log_path: Path | None = None) -> None:
     """Stamp every later ledger row with the run that made it (``None`` clears it).
 
     The R01 gate keeps only rows whose ``run_id`` matches its config, so rows a relaunch or an
     earlier run appended to the same ``SANDBOX_SERVED_LOG`` file are never pooled into it.
+    ``log_path`` (the run store's ``served.jsonl``) receives every row while the run is set, so the
+    evidence is kept whether or not ``SANDBOX_SERVED_LOG`` is.
     """
     _RUN_CONTEXT.clear()
+    _RUN_LOG[0] = None
     if run_id:
         _RUN_CONTEXT.update(run_id=run_id, spec_hash=spec_hash)
+        _RUN_LOG[0] = Path(log_path) if log_path else None
 
 
 def run_context() -> dict[str, Any]:
@@ -313,15 +324,43 @@ def run_context() -> dict[str, Any]:
     return dict(_RUN_CONTEXT)
 
 
+#: Keys of a ledger row kept on the document that made the call (``served_calls``).
+_DOC_KEYS = ("requested_model", "served_model", "served_provider", "status", "call_path")
+
+
+def _note_on_document(entry: dict[str, Any]) -> None:
+    """Count the call on the current document's call-guard scope, by route and outcome."""
+    from mailroom_sandbox.job import call_guard
+
+    doc = call_guard.scope()
+    if doc is None:
+        return
+    key = tuple(entry.get(k) for k in _DOC_KEYS)
+    for row in doc.setdefault("served_calls", []):
+        if tuple(row.get(k) for k in _DOC_KEYS) == key:
+            row["calls"] += 1
+            return
+    doc["served_calls"].append({**dict(zip(_DOC_KEYS, key)), "calls": 1})
+
+
 def _append(entry: dict[str, Any]) -> None:
-    entry = {**entry, **_RUN_CONTEXT, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    entry = {**entry, **_RUN_CONTEXT, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             "call_id": uuid.uuid4().hex}  # one id per call: a reader of several logs counts it once
+    line = json.dumps(entry, sort_keys=True) + "\n"
     with _LOCK:
         _LEDGER.append(entry)
-        log = os.environ.get("SANDBOX_SERVED_LOG")
-        if log:
-            Path(log).parent.mkdir(parents=True, exist_ok=True)
+        logs = [_RUN_LOG[0]] if _RUN_LOG[0] is not None else []
+        env = os.environ.get("SANDBOX_SERVED_LOG")
+        if env and (not logs or Path(env).resolve() != logs[0].resolve()):
+            logs.append(Path(env))
+        for log in logs:
+            log.parent.mkdir(parents=True, exist_ok=True)
             with open(log, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry, sort_keys=True) + "\n")
+                fh.write(line)
+    try:
+        _note_on_document(entry)
+    except Exception as exc:  # noqa: BLE001 — evidence never fails a call
+        _log.warning("served-model note on the document failed: %s", exc)
 
 
 def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
@@ -510,7 +549,7 @@ def _note_lc_failure(sent: list[bool]) -> None:
         call_guard.note_failed_attempt()
 
 
-def _settle_all(holder: list[float], exc: BaseException | None) -> None:
+def _settle_all(holder: list[float], exc: BaseException | None, model: Any = None) -> None:
     """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
     may have been billed."""
     from mailroom_sandbox.job import call_guard
@@ -523,7 +562,7 @@ def _settle_all(holder: list[float], exc: BaseException | None) -> None:
     # shared by both. Outside one the reply is released here, as before, so the hold cannot leak.
     priced = exc is None and call_guard.scoped_holds()
     while holder:
-        call_guard.settle(holder.pop(), billed=billed, await_price=priced)
+        call_guard.settle(holder.pop(), billed=billed, await_price=priced, model=model)
         priced = False
 
 
@@ -566,13 +605,13 @@ def pinned_chat_openai(parent: type) -> type:
             try:
                 result = super()._generate(*args, **kwargs)
             except BaseException as exc:
-                _settle_all(holder, exc)
+                _settle_all(holder, exc, getattr(self, "model_name", None))
                 _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
                 _LC_SENT.reset(sent_token)
-            _settle_all(holder, None)
+            _settle_all(holder, None, getattr(self, "model_name", None))
             return result
 
         async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
@@ -582,13 +621,13 @@ def pinned_chat_openai(parent: type) -> type:
             try:
                 result = await super()._agenerate(*args, **kwargs)
             except BaseException as exc:
-                _settle_all(holder, exc)
+                _settle_all(holder, exc, getattr(self, "model_name", None))
                 _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
                 _LC_SENT.reset(sent_token)
-            _settle_all(holder, None)
+            _settle_all(holder, None, getattr(self, "model_name", None))
             return result
 
         def _create_chat_result(self, response: Any, generation_info: dict | None = None) -> Any:
@@ -649,6 +688,33 @@ def langchain_pins_active() -> bool:
     except Exception:  # noqa: BLE001
         return False
     return bool(getattr(getattr(base_agent, "ChatOpenAI", None), "_sandbox_provider_pins", False))
+
+
+def spend_guard_missing() -> list[str]:
+    """Where the per-call API guard is not installed in this process: ``[]`` when it is everywhere.
+
+    The guard (``_AttemptGuardedClient``) rides on the pin wrappers: the vendored ``retry_chat_completion``,
+    as ``llm.retry`` and ``agents.base`` hold it, and the vendored LangChain agents' ``ChatOpenAI`` when that
+    package is importable. ``runtime.activate`` only warns when installing them fails, which would leave a
+    capped run checked between documents only; the job runner refuses such a run with this list.
+    """
+    missing: list[str] = []
+    for name in ("llm.retry", "agents.base"):
+        try:
+            module = importlib.import_module(name)
+        except Exception:  # noqa: BLE001 — no vendored pipeline: nothing can be wrapped
+            missing.append(f"{name}.retry_chat_completion (module not importable)")
+            continue
+        fn = getattr(module, "retry_chat_completion", None)
+        if _ORIGINAL is None or getattr(fn, "__wrapped__", None) is not _ORIGINAL:
+            missing.append(f"{name}.retry_chat_completion")
+    try:
+        importlib.import_module("langchain_agents.base_agent")
+    except Exception:  # noqa: BLE001 — optional (pipeline extra): no LangChain agent can call out
+        return missing
+    if not langchain_pins_active():
+        missing.append("langchain_agents.base_agent.ChatOpenAI")
+    return missing
 
 
 def restore() -> None:

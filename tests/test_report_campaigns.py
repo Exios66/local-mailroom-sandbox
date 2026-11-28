@@ -247,6 +247,24 @@ def test_served_ledger_rows_are_filtered_to_the_generation(env, monkeypatch):
     assert digest["sources"][0]["path"] == "data/runtime/rb1-r03/served-m.jsonl"
 
 
+def test_the_run_stores_served_ledger_is_read_and_a_call_in_two_logs_counts_once(env):
+    """Launch review: served-model evidence no longer depends on SANDBOX_SERVED_LOG being set."""
+    store = _finished(env)
+    lock = store.read_lock()
+    row = {"run_id": RUN, "spec_hash": lock["spec_hash"], "requested_model": "m", "served_model": "m",
+           "served_provider": "p", "status": "verified", "mismatch": False, "call_id": "c1"}
+    other = {**row, "call_id": "c2", "status": "mismatch", "mismatch": True}
+    (store.dir / "served.jsonl").write_text(json.dumps(row) + "\n" + json.dumps(other) + "\n")
+    ledger = env["tmp"] / "data/runtime/rb1-r03/served-m.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(json.dumps(row) + "\n")  # the same call, also in an operator's SANDBOX_SERVED_LOG
+    rc.build_run(RUN)
+    digest = json.loads((env["tree"] / f"rb1/rb1-r03-gold-audit/{RUN}/i01/logs/{RUN}-i01.served-digest.json").read_text())
+    assert digest["rows"] == 2 and digest["mismatch_rows"] == 1
+    assert {s["path"] for s in digest["sources"]} == {"data/runtime/rb1-r03/served-m.jsonl",
+                                                      f"data/runtime/runs/{RUN}/served.jsonl"}
+
+
 def test_builder_never_writes_into_the_run_store(env):
     store = _finished(env)
     with open(store.items_path, "a", encoding="utf-8") as fh:

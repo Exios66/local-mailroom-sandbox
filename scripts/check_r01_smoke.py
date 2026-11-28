@@ -81,7 +81,14 @@ class GateInputError(ValueError):
 
 
 def read_ledger(paths: Iterable[Path]) -> list[dict[str, Any]]:
+    """Every ledger row of ``paths``, a call counted once.
+
+    One call is written to both the run store's ``served.jsonl`` and ``SANDBOX_SERVED_LOG`` with the
+    same ``call_id``; counting it twice would let half the expected calls pass the row-count floor.
+    Rows without a ``call_id`` (older ledgers) are all kept.
+    """
     rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for path in paths:
         try:
             text = Path(path).read_text(encoding="utf-8")
@@ -96,6 +103,11 @@ def read_ledger(paths: Iterable[Path]) -> list[dict[str, Any]]:
                 raise GateInputError(f"{path}:{number}: not JSON ({exc})") from exc
             if not isinstance(row, dict) or not row.get("requested_model"):
                 raise GateInputError(f"{path}:{number}: not a served-provider ledger row")
+            call_id = row.get("call_id")
+            if call_id:
+                if str(call_id) in seen:
+                    continue
+                seen.add(str(call_id))
             rows.append(row)
     return rows
 

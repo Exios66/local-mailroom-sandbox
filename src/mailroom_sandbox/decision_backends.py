@@ -776,7 +776,8 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
 def _priced_decision_reply(resp: Any, held: float) -> Any:
     """A Decisions 200's body, priced once: held on the cap until ``after_call`` prices its usage.
 
-    A 200 whose body cannot be read was still answered, so it is charged at its reservation.
+    A 200 whose body cannot be read was still answered, so it is charged at its reservation. It is not
+    counted as a failed attempt: as before, the error propagates and the call counts stay as they were.
     """
     from mailroom_sandbox.job import call_guard
 
@@ -785,14 +786,13 @@ def _priced_decision_reply(resp: Any, held: float) -> Any:
         usage = (data or {}).get("usage") or {}
     except Exception:
         call_guard.settle(held, billed=True)
-        call_guard.note_failed_attempt()
         raise
     # The reply stays on the cap until after_call prices it, on this thread, next.
-    call_guard.settle(held, billed=False, await_price=True)
+    hold = call_guard.settle(held, billed=False, await_price=True)
     # The single live charge for this HTTP response. HF-004 also prices ``record_usage``;
     # ``_record_usage`` uses the unwrapped accumulator so the same response is not charged
     # again. A payload with no usage keys still takes one ceiling slot.
-    call_guard.after_call(usage)
+    call_guard.after_call(usage, hold=hold)  # this reply's own hold, not a concurrent call's
     return data
 
 

@@ -112,14 +112,16 @@ def _price_discarded(response: Any, model: Any) -> None:
 
     No caller records its usage, but it was billed. On an armed OpenRouter run its reservation is held
     until it is priced (``call_guard.settle(await_price=True)``), and this is the only place it can be.
-    An unarmed run (no API budget) is left as it was: nothing is priced or counted.
+    An unarmed run (no API budget) is left as it was: nothing is priced. It is priced only: the pipeline
+    never sees the reply, so it does not count toward the call ceiling or the governor's call budget, and
+    a document routes the same on an armed run as on an unarmed one.
     """
     from mailroom_sandbox.job import call_guard
 
     usage = getattr(response, "usage", None)
     if usage is None or not call_guard.armed():
         return
-    call_guard.after_call(usage, model=str(model) if model else None)
+    call_guard.after_call(usage, model=str(model) if model else None, count=False)
 
 
 def _install_retry_patch() -> None:

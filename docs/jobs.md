@@ -4,8 +4,8 @@ The `sandbox run` system runs **pipeline evals as locked jobs**: every input —
 prompt version(s) for any pipeline agent, the HF dataset (full mailroom-dataset
 or a subset), the vLLM/Modal engine spec, and the OTEL trace sink — is
 resolved, validated, prepared, and pinned at **preflight**; the job then runs
-per item with crash-safe checkpoints, resumes after pause/failure, and can be
-polled. Serving metrics from local, Modal, and API runs are captured and
+per item with crash-safe checkpoints, resumes after a pause or crash (a `failed`
+or `done` run is final; start a new run id), and can be polled. Serving metrics from local, Modal, and API runs are captured and
 compared.
 
 ```text
@@ -13,7 +13,7 @@ data/runtime/runs/<run_id>/
 ├── spec.lock.json       # immutable preflight manifest (the commit point)
 ├── prompt.lock.json     # per-agent resolved prompt + sha256 / Langfuse version
 ├── dataset.jsonl        # prepared subset (byte-identical per spec; hashed)
-├── items.jsonl          # append-only per-item results (progress truth)
+├── items.jsonl          # per-item results, appended (progress truth); a resume atomically rewrites it to replace an error row
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
 ├── reads.jsonl          # pipeline runs: one offsets-only record per LLM call (job.trace_reads)
@@ -352,8 +352,11 @@ from its stored answer, with no model call and no new spend, so run scores still
 cover every locked document and only the rest run and are billed (S1,
 `docs/design/specs/2026-11-26-correcting-judge-design.md`). A document whose
 stored item has no answer (`pred` not an object) or failed (`error` set: a
-timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it;
-its first row stays the evidence in `items.jsonl`. An answer that failed to parse
+timeout, a 5xx, a guard refusal) runs again, as before, so a resume can recover it.
+The new row replaces the error row in `items.jsonl` (`RunStore.replace_item`), and
+the error row's billed usage is kept as an `api_usage_of_failed_document` event. Only a
+crashed or paused run resumes this way; a `failed` or `done` run returns its stored
+summary. An answer that failed to parse
 is a billed answer and is replayed.
 `extract`, `chained`, `local_vs_api` and `sorter_vs_modernbert` persist nothing
 mid-run, so they still run whole.
@@ -954,7 +957,21 @@ included). A lock written before the key existed counts as `true`.
   predicted, ok/error, latency, ts), then writes the checkpoint.
 - Ctrl-C → `paused`; errors retry up to `max_retries`; `fail_fast` marks
   `failed` (with `concurrency > 1` it stops *scheduling* new rows; in-flight
-  rows finish and persist — their GPU work is already spent). `resume` of a
+  rows finish and persist — their GPU work is already spent). `task: pipeline`
+  applies both per document: a document that raises runs again up to `max_retries`
+  times (never after an API call guard refusal or once a wall, GPU or API cap is
+  reached; the per-document call ceiling counts every attempt's calls), and one
+  that still raises is an error row carrying its billed usage. Without
+  `fail_fast` the run goes on. Resuming a run that crashed or was paused re-runs
+  its error rows, and the answer replaces the row (`RunStore.replace_item`), its
+  billed usage kept as an `api_usage_of_failed_document` event. A `failed` or
+  `done` run is final: `resume` returns its summary and re-runs nothing.
+- A run with `job.api_cost_cap_usd` refuses to start when the provider-pin
+  wrappers that guard each API call are not installed (`provider_pins.spend_guard_missing`).
+- Every provider-pin ledger row of a run is written to the run store's
+  `served.jsonl` (archived with its generation, pulled back from Modal), with or
+  without `SANDBOX_SERVED_LOG`; a pipeline item records its own calls under
+  `pred.served_calls`. `resume` of a
   per-item task never re-runs completed rows: it skips by completed **index**, so concurrent
   runs whose items completed out of order resume exactly (the old
   contiguous-cursor skip would silently drop rows).

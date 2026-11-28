@@ -823,3 +823,105 @@ def test_a_client_without_with_options_still_works(vendored, monkeypatch):
     client = _SdkClient("http://vllm.invalid/v1", [_Resp("m", "p")], options=False)
     assert call(client, model="m", messages=[]).model == "m"
     assert client.sent[0]["timeout"] == 600.0  # no deadline: the call timeout is untouched
+
+
+def test_spend_guard_missing_names_every_unwrapped_call_site(vendored):
+    assert pp.spend_guard_missing() == ["llm.retry.retry_chat_completion", "agents.base.retry_chat_completion",
+                                        "langchain_agents.base_agent.ChatOpenAI"]
+    pp.apply_provider_pins(PINS)
+    assert pp.spend_guard_missing() == []
+    sys.modules["agents.base"].retry_chat_completion = pp._ORIGINAL  # something put the vendored one back
+    assert pp.spend_guard_missing() == ["agents.base.retry_chat_completion"]
+
+
+def test_a_capped_run_is_refused_when_the_spend_guard_is_not_installed(monkeypatch):
+    """Launch review: a failed pin activation only warned, leaving a capped run guarded between documents only."""
+    from mailroom_sandbox.job import runner
+
+    lock = {"task": "pipeline", "engine": {"kind": "openrouter", "model": "qwen/qwen3.7-flash"},
+            "job": {"mock": False, "api_cost_cap_usd": 2.0}}
+    monkeypatch.setattr(pp, "spend_guard_missing", lambda: ["llm.retry.retry_chat_completion"])
+    with pytest.raises(RuntimeError, match="per-call API spend guard is not installed"):
+        runner.verify_spend_guard(lock)
+    runner.verify_spend_guard({**lock, "job": {"mock": True, "api_cost_cap_usd": 2.0}})  # no budget: no guard needed
+    runner.verify_spend_guard({**lock, "job": {"mock": False}})
+    monkeypatch.setattr(pp, "spend_guard_missing", lambda: [])
+    runner.verify_spend_guard(lock)
+
+
+def test_run_job_checks_the_spend_guard_after_activation():
+    import inspect
+
+    from mailroom_sandbox.job import runner
+
+    source = inspect.getsource(runner.run_job)
+    assert source.index("activate()") < source.index("verify_spend_guard(lock)") < source.index("summary = _run_job(store")
+
+
+def test_ledger_rows_go_to_the_run_store_without_sandbox_served_log(tmp_path, monkeypatch):
+    """Launch review: served-model evidence was kept only when SANDBOX_SERVED_LOG was set."""
+    monkeypatch.delenv("SANDBOX_SERVED_LOG", raising=False)
+    run_log = tmp_path / "run" / "served.jsonl"
+    pp.set_run_context("run-1", "abc", log_path=run_log)
+    try:
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+    finally:
+        pp.set_run_context(None)
+    rows = [json.loads(line) for line in run_log.read_text().splitlines()]
+    assert [(r["run_id"], r["status"], r["served_provider"]) for r in rows] == [("run-1", "verified", "Alibaba")]
+    assert len(rows[0]["call_id"]) == 32
+    pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)  # outside a run: not kept there
+    assert len(run_log.read_text().splitlines()) == 1
+
+
+def test_ledger_rows_go_to_both_logs_when_sandbox_served_log_is_set(tmp_path, monkeypatch):
+    env_log, run_log = tmp_path / "env.jsonl", tmp_path / "served.jsonl"
+    monkeypatch.setenv("SANDBOX_SERVED_LOG", str(env_log))
+    pp.set_run_context("run-1", "abc", log_path=run_log)
+    try:
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+    finally:
+        pp.set_run_context(None)
+    assert env_log.read_text() == run_log.read_text()
+    monkeypatch.setenv("SANDBOX_SERVED_LOG", str(run_log))  # the same file is written once
+    pp.set_run_context("run-1", "abc", log_path=run_log)
+    try:
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+    finally:
+        pp.set_run_context(None)
+    assert len(run_log.read_text().splitlines()) == 2
+
+
+def test_each_document_keeps_a_summary_of_the_models_that_served_it():
+    from mailroom_sandbox.job import call_guard
+
+    with call_guard.document() as scope:
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash-20260727", "Other-Co"), PINS)
+    assert scope["served_calls"] == [
+        {"requested_model": "qwen/qwen3.7-flash", "served_model": "qwen/qwen3.7-flash", "served_provider": "Alibaba",
+         "status": "verified", "call_path": "retry_chat_completion", "calls": 2},
+        {"requested_model": "qwen/qwen3.7-flash", "served_model": "qwen/qwen3.7-flash-20260727",
+         "served_provider": "Other-Co", "status": "mismatch", "call_path": "retry_chat_completion", "calls": 1},
+    ]
+
+
+def test_a_pipeline_document_carries_its_served_calls(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    def once(row, **_):
+        pp._record("qwen/qwen3.7-flash", _Resp("qwen/qwen3.7-flash", "Alibaba"), PINS)
+        return {"id": row["id"], "doc_type": "contract"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc_once", once)
+    result = runners._run_pipeline_doc({"id": "d0"}, mock=False)
+    assert result["served_calls"][0]["status"] == "verified" and result["served_calls"][0]["calls"] == 1
+
+
+def test_run_job_keeps_the_served_ledger_in_the_run_store():
+    import inspect
+
+    from mailroom_sandbox.job import runner
+
+    assert 'log_path=store.dir / "served.jsonl"' in inspect.getsource(runner.run_job)

@@ -357,4 +357,6 @@ def test_a_decisions_200_whose_body_cannot_be_read_is_charged_not_held(monkeypat
         with pytest.raises(Exception):
             db._post_decision({"model": "m", "messages": [{"content": "x" * 4000}]}, timeout=120, attempts=1)
         assert armed_budget.settling_usd == 0.0 and armed_budget.reserved_usd == 0.0
-    assert armed_budget.unreported_usd > 0 and doc["llm_calls"] == 1
+    # Charged, but counted as on main: the error propagates and no call count changes, so the governor
+    # and the ceiling see the same document whether or not a budget is armed.
+    assert armed_budget.unreported_usd > 0 and doc["llm_calls"] == 0 and doc["calls"] == 0
