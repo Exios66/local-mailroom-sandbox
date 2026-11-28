@@ -224,7 +224,10 @@ Local-file `spec_hash` uses the filename and source-byte SHA-256 when the file
 exists, plus `limit`, `sample_seed`, `strata` and `exclude_expected`.
 `require_task_gt: true` is also hashed for both local and Hub datasets, because
 it filters out rows with no task ground truth before selection. Its false
-default is omitted, preserving unfiltered hashes. A filter change must refuse
+default is omitted, preserving unfiltered hashes. `task_gt_min_field_labels` (a
+contract with an empty CUAD map qualifies on that many field labels after the spec's
+label overlay) is hashed only when set, and the lock's `dataset.selection` records it
+with how many rows qualified and were drawn. A filter change must refuse
 resume with `drift_refused`; relocking preserves the previous generation.
 `dataset.exclude_ids_file` (repo-relative text file, one document `id` per line, `#`
 comments and blank lines ignored) drops those rows before any draw, so nested slices

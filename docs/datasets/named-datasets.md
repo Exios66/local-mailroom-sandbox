@@ -47,6 +47,7 @@ source is offline.
 | `strata` | Filters or stratified selection. Supports legacy `expected` / `expected_subclass` lists, `buckets`, or `field` + `values` + optional `counts`. See the selection examples below. |
 | `exclude_expected` | Document classes to exclude before the draw. |
 | `require_task_gt` | Default false; true removes rows lacking task-native ground truth before selection, including empty CUAD/MAUD labels. |
+| `task_gt_min_field_labels` | Default unset; needs `require_task_gt: true`. A contract with an empty CUAD map still qualifies when it has at least this many field labels after the spec's own label overlay (`gate.labelled_count`, the fields SHF-016 scores it on). Mergers keep the strict rule. Hashed only when set. |
 | `interim_labels` | Default false; opt into the interim ground-truth overlay. Its fingerprint enters the request hash and its provenance stays distinct from Hub ground truth. |
 | `pull` | Optional mapping describing provenance. It is recorded, not executed or independently verified. |
 | `columns`, `expected_fields` | Accepted declarations; the current corpus-selection path does not use them to remap or filter rows. Do not rely on them to change the runnable subset. |

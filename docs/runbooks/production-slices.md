@@ -29,7 +29,17 @@ The settings the slices run with:
 
 The draws are nested, so a smaller slice is a subset of the next. Every document listed in `config/production/excluded-ids.txt` (via `dataset.exclude_ids_file`) is dropped before the draw.
 
-The list holds 147 documents: the 107 from the 11 ladder runs and the 40 of the correspondence v3 A/B.
+The list holds 187 documents; its header names the run each one came from (`scripts/build_excluded_ids.py`).
+
+Contracts are drawn on either kind of truth (`dataset.task_gt_min_field_labels: 2`). A contract with
+CUAD labels qualifies as before. A contract whose CUAD map is empty qualifies when the pinned staged
+cut gives it at least 2 field labels, the gate's `min_labelled`. SHF-016 scores such a contract on
+those field labels, and the gate counts them. So the contract labels from the label repair and
+expansion campaign are measured, not left out of every slice. With `9.3.1-rc.10`, all 91 CUAD-empty
+contracts qualify, with 3 to 9 field labels each. They take 3 of the 18 contract places in slice 100,
+7 of 45 in slice 250 and 14 of 91 in slice 500, and slice-full gains all 91. No other class changes,
+and the slices still nest. The set follows the pinned cut, so a run locked before this change, or on
+another cut, refuses resume rather than drawing a different set.
 
 The slices use `dataset.draw: ranked`. Each class bucket is ordered by a per-document hash rather than shuffled, so adding ids to the list keeps the rest of every slice in place. Only the documents that were removed are replaced, and the slices stay nested. The default `shuffle` draw would reshuffle the whole bucket.
 
@@ -38,7 +48,7 @@ The slices use `dataset.draw: ranked`. Each class bucket is ordered by a per-doc
 | `slice-0100.yaml` | 100 | 18 / 14 / 30 / 33 / 5 | 2 | 7,200 |
 | `slice-0250.yaml` | 250 | 45 / 34 / 76 / 83 / 12 | 5 | 10,800 |
 | `slice-0500.yaml` | 500 | 91 / 68 / 151 / 167 / 23 | 10 | 14,400 |
-| `slice-full.yaml` | 3,064 (every remaining row) | 475 / 417 / 945 / 1,085 / 142 | 70 | 86,400 |
+| `slice-full.yaml` | 3,115 (every remaining row) | 566 / 417 / 945 / 1,045 / 142 | 70 | 86,400 |
 
 Each of 100, 250 and 500 has a `*-modal-host.yaml` twin. A twin differs only in `run_id` and `job.mode: modal`: the Modal `sandbox-job` worker runs the job, and every model call still goes to OpenRouter. The worker gets `OPENROUTER_API_KEY` from its deploy Secret, so deploy it from a shell that has the key set (see "Modal job-host parity" below). A run that never calls OpenRouter has the key removed on the worker.
 
@@ -55,7 +65,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
 - **Gated classes:** contract, corporate_record, correspondence and insurance_claim.
 - **Mergers:** outside the quality, wrong-archive and review-rate bars, so their scores never fail a slice. A merger crash or `judge_error` still fails it, like any other.
-- **Contracts and mergers:** scored on CUAD and MAUD units.
+- **Contracts and mergers:** scored on CUAD and MAUD units. A contract with an empty CUAD map is scored on its field labels instead (SHF-016), and the gate counts those toward `min_labelled`.
 - **Unscorable:** a document with fewer than 2 labelled fields. A gated pool that has archives but none scorable fails the slice. If more than 25% of the pool is unscorable, the gate only warns.
 - **Per-class bars:** these apply from the 500-document slice onward. Below that they are diagnostic only.
 - **Scorable minimum:** from the 500-document slice onward, a gated class with fewer than 20 scorable archives (`min_scorable_per_class`) fails the slice, because its per-class rates would not be evidence. Corporate records are the class at risk: slice 500 holds 26 scorable corporate documents at most.
