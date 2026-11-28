@@ -1,0 +1,129 @@
+{
+ "admitted": {
+  "documented_absence": 37,
+  "documents": 18,
+  "fields": 73,
+  "independent_agreements": 64,
+  "missing_field_documents": 16,
+  "new_documents": 2,
+  "populated_scored_fields": 36,
+  "reviewed": {
+   "accept": 6,
+   "accept_check": 3
+  }
+ },
+ "annotation_base_revision": "2d3c8d16471f1f12936055a803140611e72c6d67",
+ "artifacts": [
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-disputes.jsonl",
+   "role": "disputes",
+   "sha256": "b6af88b3b16d24ef3a0f3f07a1ac1ed19b13e25090d07ce57f92b96c61a22174"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-gA-raw-check.jsonl",
+   "role": "check",
+   "sha256": "b8c763f312c5fef8b08d5932b337c97365f32209adb17abdef73ab9445c271a2"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-gA-raw-label.jsonl",
+   "role": "label",
+   "sha256": "3049bf0c45fc964770b0b470c56c2560782b1d28c99136e68a32c95b967e4e77"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-gB-raw-check.jsonl",
+   "role": "check",
+   "sha256": "9b294afab343a03e70b751c20ced59bc6c431f5da09995002b6bb844061d1d2e"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-gB-raw-label.jsonl",
+   "role": "label",
+   "sha256": "b6e07a9b507ae6e578d3b124214d7791df1f6180803d22af92f7b1fe4f0e08f3"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-mf-gA-check.jsonl",
+   "role": "check",
+   "sha256": "512559c0ca83db5b72b09780fe024e96ab6062f5087af4bcad93e709d75d2bd1"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-mf-gA-label.jsonl",
+   "role": "label",
+   "sha256": "06220c9ec2ad41ec14fbb9b62fcb69c2bbabd4792903b3a3e0d3482a9a4657ca"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-mf-gB-check.jsonl",
+   "role": "check",
+   "sha256": "9b294afab343a03e70b751c20ced59bc6c431f5da09995002b6bb844061d1d2e"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-mf-gB-label.jsonl",
+   "role": "label",
+   "sha256": "b6e07a9b507ae6e578d3b124214d7791df1f6180803d22af92f7b1fe4f0e08f3"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-mf-review.jsonl",
+   "role": "review",
+   "sha256": "1ed0fc8e48e5c8400a58c760571b0f26c2ac3b26dc1df3e9bb12c55ab0dddf3f"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-new-gA-check.jsonl",
+   "role": "check",
+   "sha256": "346f7f37b7e94b5d8a7615f40ac837182256da0f25eb83fb4d37fb2354cac1a3"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-new-gA-label.jsonl",
+   "role": "label",
+   "sha256": "ecd647abfd9c9d94a527bfce644210e8c98c5ebea81c1422b340c3b48da469fa"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-gate-cal-new-review.jsonl",
+   "role": "review",
+   "sha256": "5f62b95446962c5a848a4bfabc44fafce03390d3aea353c4d0fb2bb10e9c5e1c"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-pass-brief.md",
+   "role": "pass-brief",
+   "sha256": "4163ec99c3a09b467b29d36b802b82b509e678eb6fecb4fd4ed0bcdc0584ca10"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-queue.jsonl",
+   "role": "queue",
+   "sha256": "c077ae98bab96b1fe4bcb10bbd952d2b599005c852a5d57fadbbf35d4f4a3d39"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-gate-cal-withheld-check.jsonl",
+   "role": "check",
+   "sha256": "2365da6e942a812d462e82f0fda3525482b0f86bd8cf5a1bdd4f9b465cb53ec6"
+  }
+ ],
+ "doc_class": "corporate_record",
+ "held": {},
+ "labelers": {
+  "check": "claude-sonnet",
+  "label": "claude-sonnet",
+  "review": "claude-opus"
+ },
+ "schema": "mailroom.label-repair-artifacts/v1",
+ "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "split": "calibration",
+ "withheld_checks": {
+  "identical_to_label": [
+   "DOC-e12f100d091e15b5"
+  ]
+ }
+}
