@@ -1479,6 +1479,10 @@ def run_pipeline_eval(
         """
         failed: dict[str, int] = {}
         served: list[dict[str, Any]] = []  # served calls of the failed attempts (provider_pins ledger)
+        # Per-call rows of the failed attempts. ``call_usage`` is priced call by call instead of the totals,
+        # so it must cover every attempt; one billed attempt without rows makes it None (priced on totals).
+        failed_calls: list[Any] | None = []
+        failed_agents: dict[str, dict[str, Any]] = {}
         first_ns, before = time.time_ns(), time.monotonic()
         attempt = 0
         while True:
@@ -1486,13 +1490,28 @@ def run_pipeline_eval(
             try:
                 result, usage, _latency, window = _process_once(row)
             except Exception as exc:
-                for key, value in (getattr(exc, "sandbox_failed_usage", None) or {}).items():
+                attempt_usage = getattr(exc, "sandbox_failed_usage", None) or {}
+                for key, value in attempt_usage.items():
                     if key != "item_id" and isinstance(value, (int, float)) and not isinstance(value, bool):
                         failed[key] = failed.get(key, 0) + value
+                failed_calls = _extend_call_usage(failed_calls, attempt_usage)
+                failed_agents = _merge_usage_by_agent(failed_agents, attempt_usage.get("usage_by_agent"))
                 served = _merge_served_calls(served, getattr(exc, "sandbox_served_calls", None))
-                if attempt > max_retries or not _may_retry(exc):
+                give_up = attempt > max_retries or not _may_retry(exc)
+                if not give_up:
+                    _log.warning("document %s raised on attempt %d of %d, retrying: %s: %s", row.get("id"), attempt,
+                                 max_retries + 1, type(exc).__name__, str(exc)[:200])
+                    if _RETRY_PAUSE_SECONDS:
+                        time.sleep(_RETRY_PAUSE_SECONDS)
+                    give_up = not _may_retry(exc)  # the pause may have reached the wall cap
+                if give_up:
+                    billed: dict[str, Any] = dict(failed)
+                    if failed and failed_calls:
+                        billed["call_usage"] = failed_calls
+                    if failed_agents:
+                        billed["usage_by_agent"] = failed_agents
                     try:
-                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed} if failed else None
+                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **billed} if failed else None
                         exc.sandbox_served_calls = served or None
                         exc.sandbox_attempts = attempt
                         exc.sandbox_latency_ms = (time.monotonic() - before) * 1000
@@ -1500,13 +1519,15 @@ def run_pipeline_eval(
                     except (AttributeError, TypeError):
                         pass
                     raise
-                _log.warning("document %s raised on attempt %d of %d, retrying: %s: %s", row.get("id"), attempt,
-                             max_retries + 1, type(exc).__name__, str(exc)[:200])
-                if _RETRY_PAUSE_SECONDS:
-                    time.sleep(_RETRY_PAUSE_SECONDS)
                 continue
             if failed:
                 usage = {**usage, **{key: (usage.get(key) or 0) + value for key, value in failed.items()}}
+                calls = _extend_call_usage(failed_calls, usage)
+                usage = {k: v for k, v in usage.items() if k != "call_usage"}
+                if calls:
+                    usage["call_usage"] = calls
+            if failed_agents:
+                usage = {**usage, "usage_by_agent": _merge_usage_by_agent(failed_agents, usage.get("usage_by_agent"))}
             if served:
                 result = {**result, "served_calls": _merge_served_calls(served, result.get("served_calls"))}
             if attempt > 1:
@@ -1556,6 +1577,10 @@ def run_pipeline_eval(
                 # which records them for a resumed run's budget (counted in _count_failed).
                 failed_usage = usage_capture.usage_from_pipeline()
                 if failed_usage:
+                    if calls := usage_capture.call_usage_from_pipeline():
+                        failed_usage = {**failed_usage, "call_usage": calls}
+                    if by_agent := usage_capture.usage_by_agent_from_pipeline():
+                        failed_usage = {**failed_usage, "usage_by_agent": by_agent}
                     try:
                         exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
                     except (AttributeError, TypeError):
@@ -1865,6 +1890,35 @@ def _materialize_row(row: dict[str, Any], inbox: Path) -> Path:
     source = fixture_file(row)  # KeyError when subdir/filename are absent — live-or-loud
     shutil.copyfile(source, queued)
     return queued
+
+
+def _extend_call_usage(calls: list[Any] | None, usage: Mapping[str, Any]) -> list[Any] | None:
+    """``calls`` plus one attempt's ``call_usage`` rows; None once a billed attempt has none.
+
+    ``call_usage`` replaces the token totals when an item is priced, so a list missing a billed
+    attempt's calls would underprice it. None means: price the item on its totals instead.
+    """
+    if calls is None:
+        return None
+    rows = usage.get("call_usage")
+    if isinstance(rows, list) and rows:
+        return [*calls, *rows]
+    billed = any(isinstance(usage.get(key), (int, float)) and usage.get(key) for key in ("prompt_tokens",
+                                                                                          "completion_tokens"))
+    return None if billed else calls
+
+
+def _merge_usage_by_agent(into: dict[str, dict[str, Any]], more: Any) -> dict[str, dict[str, Any]]:
+    """Two attempts' ``usage_by_agent``: counts summed per agent, models in first-seen order."""
+    merged = {agent: {**slot, "models": list(slot.get("models") or [])} for agent, slot in into.items()}
+    for agent, slot in (more.items() if isinstance(more, Mapping) else ()):
+        if not isinstance(slot, Mapping):
+            continue
+        mine = merged.setdefault(str(agent), {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "models": []})
+        for key in ("calls", "prompt_tokens", "completion_tokens"):
+            mine[key] = int(mine.get(key) or 0) + int(slot.get(key) or 0)
+        mine["models"] += [m for m in slot.get("models") or [] if m not in mine["models"]]
+    return merged
 
 
 def _merge_served_calls(into: list[dict[str, Any]], more: Any) -> list[dict[str, Any]]:

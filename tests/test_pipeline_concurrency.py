@@ -361,3 +361,70 @@ def test_a_document_that_raises_carries_the_served_calls_its_scope_counted(monke
     with pytest.raises(GuardStop) as stopped:
         runners._run_pipeline_doc({"id": "d0"})
     assert stopped.value.sandbox_served_calls == _served("m")
+
+
+def _billing(monkeypatch, failures: dict[str, int], *, failed_calls: bool = True):
+    """Like _flaky, with per-call and per-agent usage; ``failed_calls`` False: failed attempts report no calls."""
+    monkeypatch.setattr(runners, "_RETRY_PAUSE_SECONDS", 0)
+    from mailroom_sandbox.job import usage_capture
+
+    state = {"failing": False}
+
+    def fake_doc(row, **_kw):
+        left = failures.get(row["id"], 0)
+        state["failing"] = bool(left)
+        if left:
+            failures[row["id"]] = left - 1
+            raise RuntimeError(f"lost {row['id']}")
+        return {"id": row["id"], "doc_type": _cls(int(row["id"])), "stage": "archived", "extracted_data": {}}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    monkeypatch.setattr(usage_capture, "usage_from_pipeline",
+                        lambda: {"prompt_tokens": 100, "completion_tokens": 10, "llm_calls": 1})
+    monkeypatch.setattr(usage_capture, "call_usage_from_pipeline",
+                        lambda: [] if state["failing"] and not failed_calls else [[100, 10]])
+    monkeypatch.setattr(usage_capture, "usage_by_agent_from_pipeline", lambda: {
+        "sorter": {"calls": 1, "prompt_tokens": 100, "completion_tokens": 10, "models": ["m"]}})
+
+
+def test_a_retried_answer_prices_the_calls_of_its_failed_attempts(monkeypatch):
+    """CodeAnt: call_usage (priced call by call) kept only the last attempt's calls while the totals
+    counted every attempt, so the failed attempts' calls were never priced."""
+    _billing(monkeypatch, {"0": 1})
+    items: list[dict] = []
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(1), mock=False, connected=False, row_cb=items.append,
+                              max_retries=1)
+    assert items[0]["prompt_tokens"] == 200 and items[0]["call_usage"] == [[100, 10], [100, 10]]
+    assert items[0]["usage_by_agent"]["sorter"] == {"calls": 2, "prompt_tokens": 200, "completion_tokens": 20,
+                                                    "models": ["m"]}
+
+
+def test_an_error_row_prices_the_calls_of_every_attempt(monkeypatch):
+    _billing(monkeypatch, {"0": 9})
+    items: list[dict] = []
+    budget = _Budget()
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(2), mock=False, connected=False, row_cb=items.append,
+                              max_retries=1, fail_fast=False, record_failures=True, api_budget=budget)
+    failed = next(item for item in items if item["id"] == "0")
+    assert failed["error"] and failed["call_usage"] == [[100, 10], [100, 10]]
+    billed = next(u for u in budget.added if u.get("prompt_tokens") == 200)
+    assert billed["call_usage"] == [[100, 10], [100, 10]]
+
+
+def test_without_every_attempts_calls_a_retried_answer_is_priced_on_its_totals(monkeypatch):
+    """A failed attempt that billed tokens but reported no calls: a partial call list would underprice."""
+    _billing(monkeypatch, {"0": 1}, failed_calls=False)
+    items: list[dict] = []
+    runners.run_pipeline_eval(profile="ollama", rows=_rows(1), mock=False, connected=False, row_cb=items.append,
+                              max_retries=1)
+    assert items[0]["prompt_tokens"] == 200 and "call_usage" not in items[0]
+
+
+def test_no_retry_starts_when_the_pause_reaches_the_wall_cap(monkeypatch):
+    """CodeAnt: the wall cap was checked before the pause, so a pause that crossed it still retried."""
+    started = _flaky(monkeypatch, {"0": 5})
+    monkeypatch.setattr(runners, "_RETRY_PAUSE_SECONDS", 0.3)
+    with pytest.raises(RuntimeError, match="lost 0"):
+        runners.run_pipeline_eval(profile="ollama", rows=_rows(1), mock=False, connected=False, max_retries=3,
+                                  max_wall_seconds=0.15)
+    assert started == ["0"]
