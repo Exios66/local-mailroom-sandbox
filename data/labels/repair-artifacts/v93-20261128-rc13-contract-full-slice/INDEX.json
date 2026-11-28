@@ -18,7 +18,8 @@
    },
    "rejected": 28,
    "left_out": 13,
-   "withheld_checks": 4
+   "withheld_checks": 4,
+   "via_add_missing_fields_documents": 28
   }
  },
  "files": {
@@ -218,6 +219,10 @@
    "sha256": "4e10b797be9facef7692af8439fe62258df14956db77e9409fbce46c0c95a073",
    "admission_input": false
   },
+  "submissions/rc13-p3-pr478-review-corrections.jsonl": {
+   "sha256": "3d60c1c3b3d51201f2deba34a76a867e1c5b74393bdaf55693f3638717389cc0",
+   "admission_input": false
+  },
   "submissions/rc13-p3-queue.jsonl": {
    "sha256": "fc65269903bddc89d447ec91c4686b9c1ff3c12525e15962d36e14ce6f15c0f7",
    "admission_input": false
@@ -255,15 +260,24 @@
    "admission_input": false
   },
   "README.md": {
-   "sha256": "8c5e427dd2539ff7c746f73e76ca8766fc0b0999a3ecc5c4a536f144c6dbd207",
+   "sha256": "66a065df943beac2d4eed26407931fb836de2a92afcdd80f97e145c34abf8dc9",
    "admission_input": false
   }
  },
- "post_admission_review": {
-  "file": "submissions/rc13-p3-stage-review-corrections.jsonl",
-  "verdicts": {
-   "correct": 3
+ "post_admission_review": [
+  {
+   "file": "submissions/rc13-p3-stage-review-corrections.jsonl",
+   "verdicts": {
+    "correct": 3
+   },
+   "read_by": "gold_labels.py review"
   },
-  "read_by": "gold_labels.py review"
- }
+  {
+   "file": "submissions/rc13-p3-pr478-review-corrections.jsonl",
+   "verdicts": {
+    "correct": 1
+   },
+   "read_by": "gold_labels.py review"
+  }
+ ]
 }

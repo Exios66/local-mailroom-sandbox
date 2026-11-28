@@ -21,8 +21,9 @@ labelled by hand. The pass brief and field briefs are the rc.12 Phase 1 ones, wi
 1,018 near-gold labels on 166 documents (109 dev, 57 calibration): 621 populated and 397
 documented absences. That is 96.1% of the queue.
 
-- 990 labels on 138 new documents went through `add`. 28 labels on 29 documents the catalog
-  already held went through `add --missing-fields`.
+- 990 labels on 138 new documents went through `add`. 28 labels on 28 documents the catalog
+  already held went through `add --missing-fields`. That call read 29 documents; the 29th,
+  `DOC-9fa2c2f7ae770470`, had only a rejected cell, so it adds no label.
 - 821 labels rest on two agreeing passes.
 - **The review settled 197 labels:**
   - 150 accept the label;
@@ -158,6 +159,16 @@ operator the builder value states. With both changes, the dry-run `needs_human.c
 to 206 rows: the same-text `authorized_capital` pair and six earlier rows with the same false
 positive close, none opens, and no cell value changes because of the stager fix.
 
+## Corrections from PR review
+
+PR #478 review found one adopted check answer whose evidence missed a period it states
+([`submissions/rc13-p3-pr478-review-corrections.jsonl`](submissions/rc13-p3-pr478-review-corrections.jsonl),
+applied with `gold_labels.py review`). The `termination_notice_period` of `DOC-d96559c6d045fcb2`
+names "7 days for certain defaults". The value is unchanged, and the evidence now quotes the
+clause that states it: termination "on the later of the first business day following the seventh
+(7th) day after the sending of a termination notice to Agent". Only the release's provenance
+changes.
+
 ## Files
 
 `INDEX.json` lists every file with its sha256 and whether `gold_labels.py add` read it.
@@ -182,6 +193,7 @@ scripts/gold_labels.py add --corpus <dir> --revision ff4ca546… --label rc13-p3
 scripts/gold_labels.py check
 scripts/gold_labels.py overlay
 scripts/gold_labels.py review --corpus <dir> --review rc13-p3-stage-review-corrections.jsonl
+scripts/gold_labels.py review --corpus <dir> --review rc13-p3-pr478-review-corrections.jsonl
 ```
 
 These are machine near-gold labels, not human gold. Reviews name their reviewer
