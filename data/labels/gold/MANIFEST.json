@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-28T02:30:18Z",
+  "added_at": "2026-11-28T05:55:24Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -715,6 +715,79 @@
           "corp-gate-dev-gE-review.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-28T05:55:18Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-e1e86caf042eb7b9",
+        "DOC-f70b11ab7f823e2d"
+      ],
+      "sources": {
+        "check": [
+          "corp-gate-cal-new-gA-check.jsonl"
+        ],
+        "label": [
+          "corp-gate-cal-new-gA-label.jsonl"
+        ],
+        "review": [
+          "corp-gate-cal-new-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T05:55:24Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0d3b9ad7602de06b",
+        "DOC-215008500e5faf64",
+        "DOC-27b2d75b3969c033",
+        "DOC-4042dc3ecd9ac9b4",
+        "DOC-446d3ab19af75e7d",
+        "DOC-48fb139cb179499e",
+        "DOC-4adc43bb343acd43",
+        "DOC-512450d428967187",
+        "DOC-56fc3be606b8d22d",
+        "DOC-7b3a9a00dc2cb130",
+        "DOC-8718f9f9338bae25",
+        "DOC-a8c0f3d975e591d3",
+        "DOC-dc25412fb9a83be3",
+        "DOC-e12f100d091e15b5",
+        "DOC-e158aef0d0a43989",
+        "DOC-fc9f56d999bd7566"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "corp-gate-cal-mf-gA-check.jsonl",
+          "corp-gate-cal-mf-gB-check.jsonl"
+        ],
+        "label": [
+          "corp-gate-cal-mf-gA-label.jsonl",
+          "corp-gate-cal-mf-gB-label.jsonl"
+        ],
+        "review": [
+          "corp-gate-cal-mf-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -775,31 +848,31 @@
         "near_gold": 3
       },
       "addressee": {
-        "near_gold": 19
+        "near_gold": 22
       },
       "amended_provisions": {
-        "near_gold": 32
+        "near_gold": 38
       },
       "approval_date": {
-        "near_gold": 31
+        "near_gold": 37
       },
       "attorneys_in_fact": {
-        "near_gold": 10
+        "near_gold": 13
       },
       "authority_scope": {
-        "near_gold": 10
+        "near_gold": 13
       },
       "authorized_capital": {
-        "near_gold": 29
+        "near_gold": 30
       },
       "certified_matter": {
-        "near_gold": 19
+        "near_gold": 22
       },
       "certifying_officer": {
-        "near_gold": 39
+        "near_gold": 42
       },
       "effective_date": {
-        "near_gold": 430
+        "near_gold": 432
       },
       "entity_name": {
         "near_gold": 38
@@ -808,46 +881,46 @@
         "near_gold": 20
       },
       "expiration_date": {
-        "near_gold": 9
+        "near_gold": 12
       },
       "filing_number": {
-        "near_gold": 34
+        "near_gold": 40
       },
       "guarantors": {
-        "near_gold": 20
+        "near_gold": 23
       },
       "holder": {
         "near_gold": 21
       },
       "incorporators": {
-        "near_gold": 27
+        "near_gold": 28
       },
       "instrument_kind": {
         "near_gold": 21
       },
       "jurisdiction": {
-        "near_gold": 375
+        "near_gold": 376
       },
       "last_amended_date": {
         "near_gold": 20
       },
       "maturity_date": {
-        "near_gold": 20
+        "near_gold": 23
       },
       "officer_title": {
-        "near_gold": 19
+        "near_gold": 22
       },
       "principal": {
-        "near_gold": 9
+        "near_gold": 12
       },
       "principal_amount": {
-        "near_gold": 19
+        "near_gold": 22
       },
       "prior_entity_name": {
-        "near_gold": 32
+        "near_gold": 38
       },
       "registered_agent": {
-        "near_gold": 29
+        "near_gold": 30
       },
       "resolutions": {
         "near_gold": 3
@@ -859,19 +932,19 @@
         "near_gold": 20
       },
       "securities_series": {
-        "near_gold": 22
+        "near_gold": 25
       },
       "signatories": {
         "near_gold": 376
       },
       "subsidiaries": {
-        "near_gold": 32
+        "near_gold": 34
       },
       "subsidiary_jurisdictions": {
-        "near_gold": 33
+        "near_gold": 35
       },
       "trustee": {
-        "near_gold": 22
+        "near_gold": 25
       }
     },
     "correspondence": {
@@ -938,7 +1011,7 @@
   },
   "files": {
     "contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
-    "corporate_record.jsonl": "91e74a9366c0785fbd595b1834a4e90da4a44f222aab0ddb50709b97b2cb56fb",
+    "corporate_record.jsonl": "0a3652230807b5d301c9ba8e34abe6653baaad4c2caf483719bdb4e70ec7cb09",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
@@ -998,6 +1071,9 @@
       "check-correspondence-040.jsonl",
       "check-held.jsonl",
       "check-new.jsonl",
+      "corp-gate-cal-mf-gA-check.jsonl",
+      "corp-gate-cal-mf-gB-check.jsonl",
+      "corp-gate-cal-new-gA-check.jsonl",
       "corp-gate-dev-gA-check.jsonl",
       "corp-gate-dev-gB-check.jsonl",
       "corp-gate-dev-gC-check.jsonl",
@@ -1016,6 +1092,9 @@
       "tail-001-check.jsonl"
     ],
     "label": [
+      "corp-gate-cal-mf-gA-label.jsonl",
+      "corp-gate-cal-mf-gB-label.jsonl",
+      "corp-gate-cal-new-gA-label.jsonl",
       "corp-gate-dev-gA-label.jsonl",
       "corp-gate-dev-gB-label.jsonl",
       "corp-gate-dev-gC-label.jsonl",
@@ -1249,6 +1328,8 @@
     ],
     "review": [
       "contract_value_review.jsonl",
+      "corp-gate-cal-mf-review.jsonl",
+      "corp-gate-cal-new-review.jsonl",
       "corp-gate-dev-gE-review.jsonl",
       "corp-gate-dev-review.jsonl",
       "decisions.jsonl",
@@ -1337,7 +1418,9 @@
         "financial_advisors",
         "legal_counsel"
       ],
-      "tier2": []
+      "tier2": [
+        "merger_consideration"
+      ]
     }
   },
   "truth_statuses": [],

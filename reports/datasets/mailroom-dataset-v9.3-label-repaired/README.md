@@ -280,6 +280,17 @@ that both passes held. 100 rest on two agreeing passes; a source-reading review 
 overlay has **10,344 labels**. The rebuild changes exactly the 119 cells, all previously
 unlabeled; no other cell changes value, presence, source or rule.
 
+The 2026-11-28 calibration gate-gap admission adds **73 near-gold labels on 18 calibration-split
+corporate documents** (36 populated, 37 documented absences), see
+[`corporate-gate-gaps-calibration`](../../../data/labels/repair-artifacts/v93-20261128-corporate-gate-gaps-calibration/README.md).
+They close every open gate-scored calibration cell in slices 100, 250 and 500. The cells left open
+there are all on `heldout` documents, which the playbook does not label. 64 rest on two agreeing
+passes; a source-reading review settled the other 9 (7 disputes, and 2 fields on a document whose
+check pass was a byte-identical copy). These are in-sample labels, and the judge reference pool
+now holds them. The overlay has **10,500 labels**. The rebuild changes exactly the 73 cells, all
+previously unlabeled: 44,211 of 50,233 cells labeled (88.0%). No other cell changes value,
+presence, source or rule.
+
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
 The scoped guard covers both submission and stored-evidence checks and preserves legacy
@@ -290,8 +301,10 @@ review; the automated check does not certify every currency context.
 found headings suggesting 53 designation/amendment instruments, seven incorporation/charter
 instruments and one board resolution with an embedded designation. These are heuristic groups,
 not corrected subtypes: only three sources were read fully. All 61 source hashes match the pin.
-The four officer fields (244 opportunities) remain unassigned until corpus owners adjudicate
-instrument type and compound-document boundaries. An officer's filing attestation does not by
+The four officer fields (244 opportunities) were held until corpus owners adjudicate
+instrument type and compound-document boundaries. Since then, the corporate subclass rounds have
+labelled them on 22 of these records against the reviewed subclass (19 in the dev round, 3 in the
+calibration round). The instrument-type question is still open for the owners. An officer's filing attestation does not by
 itself turn a designation into a standalone officer certificate. See the source excerpts,
 inspection ranges and acceptance limits in
 [`corporate_source_fit_officer_certificate.json`](corporate_source_fit_officer_certificate.json).
