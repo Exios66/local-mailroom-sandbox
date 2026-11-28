@@ -72,13 +72,22 @@ Each item is tagged with how it was established:
 
 ## Open, not blocking slice 100
 
-- **Cap race at concurrency 10 (ran; PR #441).**
-  - `call_guard.settle` releases a success's hold before `after_call` prices it. A toy demo
-    reached 1.66x its cap.
-  - Exposure: at most one call per in-flight document escapes, and only once the run is already
-    at its cap, which fails the gate anyway. The key's $3 reserve is a second bound.
-  - #441's per-thread hold can leak when usage is never recorded. Land it after hosted CI, with
-    a test for a success that is settled but never priced, before slices 500 and full.
+- **Cap race at concurrency 10: fixed (ran; carries PR #441).**
+  - `call_guard.settle` released a success's hold before `after_call` priced it. A toy demo
+    reached 1.66x its cap. A success now stays on the cap until its usage is priced.
+  - #441's hold was per thread. A LangChain structured call (the sorter and the contracts and
+    merger specialists) sends from a `RunnableParallel` worker thread and the agent prices it on
+    its own thread, so every such call would have leaked its hold and stopped a concurrent run
+    early (ran: a probe on #441's code left each structured call's hold behind). The hold now
+    waits in the document's queue, which those threads share. One nothing prices is released when
+    the document ends, and outside a document only same-thread transports hold.
+  - Tests (ran): N concurrent documents end with nothing awaiting a price and live spend equal
+    to the priced sum; a success settled but never priced is released at its document's end and
+    does not change the next document's pricing.
+  - Still open: a reply with no usage block, or a call that fails after its reply arrives but
+    before it is recorded, is released unpriced, as before. A LangChain call outside a document
+    or a runner row keeps the old gap between release and price. Hosted CI has not run this
+    change.
 - **A resume can under-count spend (read).**
   - When several documents fail together, only the first one's billed usage is persisted
     (`eval/runners.py`, `job/runner.py`). A resume seeds its budget from persisted records.

@@ -107,6 +107,21 @@ def _finish_reason(response: Any) -> str | None:
         return None
 
 
+def _price_discarded(response: Any, model: Any) -> None:
+    """Price a reply cut at the output cap that is re-sampled, on the run's API cap.
+
+    No caller records its usage, but it was billed. On an armed OpenRouter run its reservation is held
+    until it is priced (``call_guard.settle(await_price=True)``), and this is the only place it can be.
+    An unarmed run (no API budget) is left as it was: nothing is priced or counted.
+    """
+    from mailroom_sandbox.job import call_guard
+
+    usage = getattr(response, "usage", None)
+    if usage is None or not call_guard.armed():
+        return
+    call_guard.after_call(usage, model=str(model) if model else None)
+
+
 def _install_retry_patch() -> None:
     """Merge the active request's sampling into ``retry_chat_completion`` kwargs."""
     import llm.retry as retry_mod
@@ -128,6 +143,7 @@ def _install_retry_patch() -> None:
             response = current(client, **kwargs)
             if _finish_reason(response) != "length" or attempt >= retries:
                 return response
+            _price_discarded(response, kwargs.get("model"))
             attempt += 1
             LENGTH_RETRIES[agent] = LENGTH_RETRIES.get(agent, 0) + 1
             _log.warning(

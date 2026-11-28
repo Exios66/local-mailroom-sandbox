@@ -15,11 +15,15 @@ armed here:
   into an error row: a document cut short by the guard is never scored as a pipeline outcome.
 
 - every guarded request reserves its worst-case cost before it goes out (``before_call`` with the
-  request's size, ``request_tokens``) and is settled when it ends (``settle``): a success releases the
-  reservation (``after_call`` then prices the real usage); a failure that may have been billed (a
-  timeout, a 5xx, a dropped response) is charged at its reservation; a request the provider rejected
-  (HTTP 4xx) or that never connected is released. A request whose estimate would pass the cap, with
-  every reservation in flight, is refused before it goes out.
+  request's size, ``request_tokens``) and is settled when it ends (``settle``): a success keeps that
+  hold (``await_price``) until ``after_call`` prices the real usage, so another request cannot pass
+  in the gap; a failure that may have been billed (a timeout, a 5xx, a dropped response) is charged
+  at its reservation in that same step; a request the provider rejected (HTTP 4xx) or that never
+  connected is released. A request whose estimate would pass the cap, with every reservation and
+  unpriced success still held, is refused before it goes out. A held success waits in its document's
+  queue (``price_holds``), which every thread running in a copy of the document's context shares, so
+  it is priced wherever the agent records the usage; one nothing prices is released when the document
+  ends. Outside a document only a transport that prices on its own thread holds a success.
 
 Spend therefore stops at the cap, within the size estimate's error (0.25 tokens per character; the
 output cap, or ``DEFAULT_COMPLETION_RESERVE_TOKENS`` when a request sets none).
@@ -29,8 +33,10 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import logging
 import math
 import threading
+from collections import deque
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -48,6 +54,15 @@ _LOCK = threading.Lock()
 _STATE: dict[str, Any] = {"budget": None, "ceiling": None}
 _DOC: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("sandbox_call_guard_doc", default=None)
 _EXC: list[type] = []
+#: Success reservations waiting for ``after_call``, as ``(budget.hold_token, usd)``. Inside a scope
+#: (``document()`` or ``price_holds()``) the queue is the scope's own and every thread that copies the
+#: scope's context shares it: a LangChain structured call settles on a ``RunnableParallel`` worker thread
+#: and the agent prices it on its own thread. Outside a scope it is per thread (``_PENDING``).
+_HOLDS: contextvars.ContextVar[deque[tuple[int, float]] | None] = contextvars.ContextVar(
+    "sandbox_call_guard_holds", default=None)
+_PENDING = threading.local()
+_HOLD_LOCK = threading.Lock()
+_log = logging.getLogger("mailroom_sandbox.call_guard")
 
 
 def ceiling_for(lock: Mapping[str, Any]) -> int:
@@ -57,6 +72,9 @@ def ceiling_for(lock: Mapping[str, Any]) -> int:
 
 def arm(budget: Any, ceiling: int | None) -> None:
     """Guard every later API call with ``budget`` (an ``ApiBudget``) and the per-document ceiling."""
+    queue = getattr(_PENDING, "prices", None)
+    if queue is not None:
+        _release_unpriced(queue, "re-armed")  # a new run does not price the previous run's replies
     if budget is not None:
         budget.start_live()
     with _LOCK:
@@ -109,15 +127,54 @@ def document() -> Iterator[dict[str, Any]]:
     ``calls`` counts guarded calls while a budget is armed (the hard ceiling reads it).
     ``llm_calls`` counts every call, armed or not; ``spend_usd`` is its priced spend, which needs an armed
     budget (unarmed, nothing prices a call). ``governor`` holds the loop governor's round counters
-    (phase 2, ``mailroom_sandbox.governor``).
+    (phase 2, ``mailroom_sandbox.governor``). It is also a ``price_holds`` scope.
     """
     state: dict[str, Any] = {"calls": 0, "refused": None, "llm_calls": 0, "spend_usd": 0.0,
                              "governor": {"retries": 0, "boss": 0, "skipped_classify_retries": 0}}
     token = _DOC.set(state)
     try:
-        yield state
+        with price_holds():
+            yield state
     finally:
         _DOC.reset(token)
+
+
+@contextlib.contextmanager
+def price_holds() -> Iterator[None]:
+    """A scope whose successes may be priced on any thread that runs in a copy of its context.
+
+    A success settled with ``await_price`` inside it stays on the cap until ``after_call`` prices it,
+    from this thread or another one (LangChain runs a structured call's request on a worker thread).
+    A hold nothing priced by the time the scope ends is released, so a missed ``after_call`` costs at
+    most this scope's lifetime and never the rest of the run.
+    """
+    queue: deque[tuple[int, float]] = deque()
+    token = _HOLDS.set(queue)
+    try:
+        yield
+    finally:
+        _HOLDS.reset(token)
+        _release_unpriced(queue, "scope ended")
+
+
+def scoped_holds() -> bool:
+    """Whether a success settled here can be priced from another thread (inside ``price_holds``)."""
+    return _HOLDS.get() is not None
+
+
+def _release_unpriced(queue: deque[tuple[int, float]], why: str) -> None:
+    """Drop every hold in ``queue``; the armed budget's own leave its ``settling_usd``."""
+    with _HOLD_LOCK:
+        held = list(queue)
+        queue.clear()
+    budget = _STATE["budget"]
+    if budget is None:
+        return
+    mine = [usd for key, usd in held if key == budget.hold_token]
+    if mine:
+        budget.release_settling(sum(mine))
+        _log.warning("call guard: %d success hold(s) never priced (%s); released $%.6f",
+                     len(mine), why, sum(mine))
 
 
 def scope() -> dict[str, Any] | None:
@@ -229,17 +286,63 @@ def before_call(prompt_tokens: int = 0, completion_tokens: int = 0, model: str |
     return estimate if budget is not None else 0.0
 
 
-def settle(reserved_usd: float, *, billed: bool) -> None:
-    """End a request's reservation; ``billed`` charges it (a failure the provider may have billed)."""
+def _thread_queue() -> deque[tuple[int, float]]:
+    queue = getattr(_PENDING, "prices", None)
+    if queue is None:
+        queue = deque()
+        _PENDING.prices = queue
+    return queue
+
+
+def _hold(budget: Any, usd: float) -> None:
+    """Queue one success's reservation for ``after_call`` (it already moved to ``settling_usd``)."""
+    queue = _HOLDS.get()
+    if queue is None:
+        queue = _thread_queue()
+        # Outside a scope, only a caller that prices on this same thread holds (the chat-completions
+        # and Decisions transports), and it prices one reply before the next request on this thread
+        # settles. A hold still queued here was missed: release it, so misses never pile up.
+        _release_unpriced(queue, "next success on this thread")
+    with _HOLD_LOCK:
+        queue.append((budget.hold_token, usd))
+
+
+def _take_pending(budget: Any) -> float:
+    """The oldest success reservation still to be priced for ``budget`` in this scope or thread (0 when none)."""
+    queue = _HOLDS.get()
+    if queue is None:
+        queue = getattr(_PENDING, "prices", None)
+    if not queue:
+        return 0.0
+    key = budget.hold_token
+    with _HOLD_LOCK:
+        while queue and queue[0][0] != key:
+            queue.popleft()  # a previous run's: its budget is gone
+        return queue.popleft()[1] if queue else 0.0
+
+
+def settle(reserved_usd: float, *, billed: bool, await_price: bool = False) -> None:
+    """End a request's reservation.
+
+    ``billed`` charges it, in the same step that drops it (a failure the provider may have billed).
+    ``await_price`` keeps a success's worst-case cost against the cap until ``after_call`` prices the
+    usage recorded for it: on any thread inside a ``price_holds`` scope (every ``document()`` is one),
+    on this thread outside one. Neither flag releases a rejection (HTTP 4xx, never connected).
+    """
     budget = _STATE["budget"]
     if budget is None or not reserved_usd:
         return
-    budget.release(reserved_usd)
     if billed:
-        budget.charge_unreported(reserved_usd)
+        budget.settle_billed(reserved_usd)
         doc = _DOC.get()
         if doc is not None:
             doc["spend_usd"] += float(reserved_usd)
+        return
+    if await_price:
+        budget.release_to_settling(reserved_usd)
+        _hold(budget, float(reserved_usd))
+        return
+    budget.release_unbilled(reserved_usd)
 
 
 def _status_code(exc: BaseException) -> int | None:
@@ -296,7 +399,11 @@ def after_call(usage: Any, model: str | None = None) -> None:
     else:
         prompt = getattr(usage, "prompt_tokens", None)
         completion = getattr(usage, "completion_tokens", None)
-    cost = budget.add_live(_count(prompt), _count(completion), model)
+    pending = _take_pending(budget)
+    if pending:
+        cost = budget.price_settling(pending, budget.estimate_call_usd(_count(prompt), _count(completion), model))
+    else:
+        cost = budget.add_live(_count(prompt), _count(completion), model)
     if doc is not None:
         doc["calls"] += 1
         doc["spend_usd"] += float(cost or 0.0)

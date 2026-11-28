@@ -180,7 +180,10 @@ class _AttemptGuardedCompletions:
             call_guard.note_failed_attempt()
             return response
         if held:
-            call_guard.settle(held, billed=False)
+            # Keep the worst-case hold until record_usage prices this reply (no gap for the next call).
+            # The vendored callers record on this thread right after the loop returns. HF-004 prices a
+            # reply only when it carries usage, so a reply without any is released here as before.
+            call_guard.settle(held, billed=False, await_price=getattr(response, "usage", None) is not None)
         return response
 
 
@@ -513,8 +516,15 @@ def _settle_all(holder: list[float], exc: BaseException | None) -> None:
     from mailroom_sandbox.job import call_guard
 
     billed = exc is not None and call_guard.billed_failure(exc)
+    # pop() yields the last reservation first: that is the reply the agent prices. Earlier ones are
+    # retries the client absorbed; they settle now, as they did before, and must not stay on the cap.
+    # The agent prices on its own thread, and a structured call (with_structured_output runs the model
+    # in a RunnableParallel) sends from a worker thread: only a price_holds scope (every document) is
+    # shared by both. Outside one the reply is released here, as before, so the hold cannot leak.
+    priced = exc is None and call_guard.scoped_holds()
     while holder:
-        call_guard.settle(holder.pop(), billed=billed)
+        call_guard.settle(holder.pop(), billed=billed, await_price=priced)
+        priced = False
 
 
 def pinned_chat_openai(parent: type) -> type:

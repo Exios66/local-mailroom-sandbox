@@ -838,16 +838,25 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             call_guard.note_failed_attempt()
             raise
         else:
-            # Settled before the body is read: a 200 is priced by after_call below, a 5xx may have been billed.
-            call_guard.settle(held, billed=resp.status_code >= 500)
             if resp.status_code == 200:
-                data = resp.json()
+                try:
+                    data = resp.json()
+                    usage = (data or {}).get("usage") or {}
+                except Exception:
+                    # A 200 whose body cannot be read was still answered: charged at its reservation.
+                    call_guard.settle(held, billed=True)
+                    call_guard.note_failed_attempt()
+                    raise
+                # The reply stays on the cap until after_call prices it, on this thread, next.
+                call_guard.settle(held, billed=False, await_price=True)
                 # The single live charge for this HTTP response. HF-004 also
                 # prices ``record_usage``; ``_record_usage`` uses the unwrapped
                 # accumulator so the same response is not charged again. A
                 # payload with no usage keys still takes one ceiling slot.
-                call_guard.after_call((data or {}).get("usage") or {})
+                call_guard.after_call(usage)
                 return data
+            # A 5xx is charged as the reservation drops; a 4xx is released.
+            call_guard.settle(held, billed=resp.status_code >= 500)
             call_guard.note_failed_attempt()
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
