@@ -199,8 +199,10 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         # Phase 2 moved the item dict (with the subclass fields) out of _run_pipeline_doc_once into
         # _pipeline_item, unchanged; both are pinned. Re-validated for Phase 5 part 1, which adds the
         # attempt-history keys (ATTEMPT_FIELDS) to the item and leaves the subclass fields as they were.
+        # Re-validated 2026-11-28: the shared-inbox document name (_inbox_name, unique per row) is the
+        # only change to _run_pipeline_doc_once; the item and its subclass fields are untouched.
         targets=(("mailroom_sandbox.eval.runners:_run_pipeline_doc_once",
-                  "d70b7b72372c0b96721ffe72a1b4ec75d1ae09869bffeeefd2824497ba6e3104"),
+                  "5bb05486b07072bed29947edbf590566a08014c1cb40ce6114ac15b4b1692fd5"),
                  ("mailroom_sandbox.eval.runners:_pipeline_item",
                   "8b59b3414d32158d7c4e715d4df15fd2a047e3eb37d0f5b5b1c65b18a7569385"),
                  ("mailroom_sandbox.eval.scoring:predicted_subclass",
