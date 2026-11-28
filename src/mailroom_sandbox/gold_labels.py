@@ -322,8 +322,13 @@ def _date_supported(value: str, evidence: str) -> bool:
     return _spelled_date_supported(d, ev)
 
 
-_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\d]|,\d)(\s*(?:million|billion|thousand)\b)?"
-                     r"(?!\s*%)", re.I)
+#: One numeric figure. Digits after a dot are the fraction of the figure before them, never a figure
+#: of their own ("$.001" shows no 1, "3.5%" no 3, "Section .5" no 5). A figure with no whole part
+#: (".001") counts only right after a currency marker ("$.001", "US$.25", "\u20ac .50"); a percentage
+#: never counts.
+_FIGURE = re.compile(r"(?:(?<![\d,.])(?P<int>\d{1,3}(?:,\d{3})+|\d+)(?:\.(?P<frac>\d+))?"
+                     r"|(?:(?<=[$\u20ac\u00a3])|(?<=[$\u20ac\u00a3] ))\.(?P<dotfrac>\d+))"
+                     r"(?![\d]|[,.]\d)(?P<scale>\s*(?:million|billion|thousand)\b)?(?!\s*%)", re.I)
 #: A written date ("May 14, 2020", "14 May 2020", "5/14/2020", "2020-05-14"): its numbers are never
 #: money by a payment word alone ("Please pay by May 14, 2020" shows no amount of 2020 or 14).
 _DATE_SPAN = re.compile(
@@ -337,6 +342,17 @@ _CURRENCY_BEFORE = re.compile(r"(?:us\$|\$|usd|\u20ac|\u00a3)\s*$", re.I)
 _CURRENCY_AFTER = re.compile(r"^\s*(?:usd|dollars?|\u20ac|\u00a3)(?![a-z])", re.I)
 _MONEY_WORDS = re.compile(r"\b(?:amounts?|pay(?:s|ing|ments?|able)?|sums?|fees?|prices?|owe[sd]?|owing|"
                           r"balances?|totals?)\b", re.I)
+
+
+def _figure_value(m: re.Match) -> Decimal | None:
+    """The amount one ``_FIGURE`` match writes: ".001" is 0.001, "2.5 million" is 2500000."""
+    whole, frac = (m["int"] or "0").replace(",", ""), m["frac"] or m["dotfrac"]
+    try:
+        num = Decimal(whole + (f".{frac}" if frac else ""))
+    except InvalidOperation:  # pragma: no cover - the pattern only admits digits
+        return None
+    scale = (m["scale"] or "").strip().casefold()
+    return num * _SCALE[scale] if scale else num
 
 
 def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
@@ -354,12 +370,9 @@ def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
         in_date = any(a <= m.start() and m.end() <= b for a, b in dates)
         if as_money and not (marked or (worded and not in_date)):
             continue
-        try:
-            num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
-        except InvalidOperation:  # pragma: no cover - the pattern only admits digits
-            continue
-        scale = (m.group(3) or "").strip().casefold()
-        out.add(num * _SCALE[scale] if scale else num)
+        num = _figure_value(m)
+        if num is not None:
+            out.add(num)
     return out
 
 
@@ -370,10 +383,11 @@ def _money_supported(value: float, evidence: str) -> bool:
     return Decimal(repr(float(value))) in _figures(evidence, as_money=True)
 
 
-#: A plain dollar figure ("$5,000,000", "$400,000.00"): the currency-phrase form the Dojo's money
-#: scorer parses. Scale words, currency codes and rates ("$5 million", "US$", "USD", "per month")
-#: are not parsed, so a correct prediction would score below 1 against them.
-_PLAIN_DOLLARS = re.compile(r"\$(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+#: A plain dollar figure ("$5,000,000", "$400,000.00", "$0.001", "$.001"): the currency-phrase form
+#: the Dojo's money scorer parses (it reads "$.001" and "$0.001" alike, as 0.001). Scale words,
+#: currency codes and rates ("$5 million", "US$", "USD", "per month") are not parsed, so a correct
+#: prediction would score below 1 against them.
+_PLAIN_DOLLARS = re.compile(r"\$(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)")
 
 
 def _merger_dollars_supported(value: str, evidence: str) -> bool:
@@ -395,7 +409,8 @@ def _merger_dollars_supported(value: str, evidence: str) -> bool:
         foreign_prefix = foreign_prefix or re.search(r"(?<![A-Za-z])(?:C|A|NZ|HK|SG)\s+\$\s*$", before)
         if foreign or foreign_prefix or (not prefix and not suffix):
             continue
-        if wanted & _figures(match.group()):
+        # Read the amount off the match: re-parsing ".001" alone would lose the "$" it needs.
+        if _figure_value(match) in wanted:
             return True
     return False
 
@@ -581,7 +596,7 @@ def _normalize(value: Any, ftype: str) -> Any:
     if ftype == "money" and isinstance(value, str):
         text = re.sub(r"\s+", "", value.replace("USD", "").replace("$", "").replace(",", ""))
         # Only a plain decimal is a number: float() would also take "1_000", "1e3", "nan" and "inf".
-        if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        if re.fullmatch(r"\d+(?:\.\d+)?|\.\d+", text):
             value = float(text)
     if ftype == "money" and isinstance(value, int) and not isinstance(value, bool):
         value = float(value)

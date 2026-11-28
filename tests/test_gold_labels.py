@@ -867,6 +867,44 @@ def test_numbers_of_a_written_date_are_not_money_by_a_payment_word_alone():
     assert _money(2020.0, "Please pay $2,020 by May 14, 2020").ok
 
 
+def test_a_leading_dot_figure_after_a_currency_marker_is_money():
+    from decimal import Decimal
+    assert gl._figures("an exercise price of $.001 per Share", as_money=True) == {Decimal("0.001")}
+    assert gl._figures("US$.25 each", as_money=True) == {Decimal("0.25")}
+    assert gl._figures("\u20ac.50 and $ .75", as_money=True) == {Decimal("0.50"), Decimal("0.75")}
+    assert gl._figures("$.001") == {Decimal("0.001")}
+    assert _money(0.001, "an exercise price of $.001 per Share").ok
+    fr = _money("$.001", "an exercise price of $.001 per Share")  # a numeric field reads it as 0.001
+    assert fr.ok and fr.value == 0.001, fr
+    # the digits after the dot are its fraction, never a figure of their own ("$.001" is not $1)
+    assert not _money(1.0, "an exercise price of $.001 per Share").ok
+    assert not _money(0.01, "an exercise price of $.001 per Share").ok
+
+
+def test_a_leading_dot_figure_needs_a_currency_marker_and_percent_stays_out():
+    from decimal import Decimal
+    # a section number or bare fraction is no money, even beside a payment word
+    for quote in ("the price set in Section .5", "a price of .5 per Share", "pay under Section 3.5(a).2"):
+        assert not {Decimal("5"), Decimal("0.5"), Decimal("2"), Decimal("0.2")} & gl._figures(quote, as_money=True), quote
+    # a percentage is no money, and its whole part is not either ("3.5%" shows no $3)
+    for quote in ("a price of 3.5% per annum", "pay $.5% of the total", "fee of 3.5 % a year"):
+        assert not gl._figures(quote, as_money=True), quote
+    assert not _money(3.0, "a price of 3.5% per annum").ok
+    assert not _money(2020.0, "price due by May 14, 2020 at $.001 per Share").ok
+    assert _money(0.001, "price due by May 14, 2020 at $.001 per Share").ok
+    assert gl._figures("$1.5 and $3.25", as_money=True) == {Decimal("1.5"), Decimal("3.25")}
+
+
+def test_a_plain_dollar_restatement_of_a_leading_dot_figure():
+    for value in ("$.001", "$0.001", "$0.0010"):
+        assert gl._money_text_supported(value, "an exercise price of $.001 per Share"), value
+    for value in ("$1", "$0.01", "$1.001", "$.01"):
+        assert not gl._money_text_supported(value, "an exercise price of $.001 per Share"), value
+    assert gl._merger_dollars_supported("$0.001", "a price of $.001 per share")
+    assert not gl._merger_dollars_supported("$1", "a price of $.001 per share")
+    assert not gl._merger_dollars_supported("$0.001", "a price of C$.001 per share")
+
+
 def test_unambiguous_day_first_hyphen_dates():
     assert gl._date_supported("2001-03-27", "Date: 27-03-2001")
     assert not gl._date_supported("2001-11-02", "Date: 02-11-2001")

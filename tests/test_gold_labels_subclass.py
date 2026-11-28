@@ -58,6 +58,37 @@ def test_nullable_scalar_and_strict_money():
     assert not gate("principal_amount", 50, subclass="indenture").ok
 
 
+WARRANT = "The Warrant is exercisable at an exercise price of $.001 per Share (Section .5)."
+
+
+@pytest.mark.parametrize("value", ["$.001", "$0.001", "$0.0010"])
+def test_warrant_exercise_price_written_with_a_leading_dot(value):
+    result = gl.validate_submission(
+        {"doc_id": "D", "fields": {"exercise_price": {"value": value, "evidence": ["exercise price of $.001 per Share"],
+                                                      "absent": "full read"}}},
+        WARRANT, "corporate_record", "rights_instrument")
+    fr = result.fields["exercise_price"]
+    assert fr.ok, fr.reason
+    assert fr.value == value  # a currency-phrase field keeps the figure as written
+    assert gl.money_text_parses(value)
+
+
+@pytest.mark.parametrize("value", ["$1", "$0.01", "$.5", "$0.5", "$5", "$.", "$0.", ".001"])
+def test_warrant_exercise_price_rejects_other_figures(value):
+    result = gl.validate_submission(
+        {"doc_id": "D", "fields": {"exercise_price": {"value": value, "evidence": ["exercise price of $.001 per Share (Section .5)"],
+                                                      "absent": "full read"}}},
+        WARRANT, "corporate_record", "rights_instrument")
+    assert not result.fields["exercise_price"].ok, value
+
+
+def test_dojo_money_scorer_reads_a_leading_dot_dollar_figure():
+    pytest.importorskip("llm_dojo_scoring.scoring.field_scoring")
+    from llm_dojo_scoring.scoring.field_scoring import parse_money
+
+    assert parse_money("$.001") == parse_money("$0.001") == 0.001
+
+
 def test_review_correction_cannot_bypass_subclass():
     spec = importlib.util.spec_from_file_location("subclass_cli", Path(__file__).resolve().parents[1] / "scripts/gold_labels.py")
     cli = importlib.util.module_from_spec(spec)

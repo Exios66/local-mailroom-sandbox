@@ -71,7 +71,9 @@ Write one JSON object per document, one per line (JSONL):
   "Dated May 14, 2020" supports neither 2020 nor 14. `0` needs a written 0.
   Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value` and merger currency fields) is a
   plain dollar figure the Dojo money scorer parses: `$` and the digits, with commas and cents as
-  written ("$250,000", "$400,000.00"). Repeat the phrase as written when it already has that form.
+  written ("$250,000", "$400,000.00"). A figure with no whole part counts only beside a currency
+  marker: "$.001 per Share" supports "$.001" or "$0.001", never "$1"; "Section .5" and "3.5%"
+  are no money. Repeat the phrase as written when it already has that form.
   Otherwise write the same amount in that form: write a scale word out ("$5 million" becomes
   "$5,000,000"), drop a currency code ("US$400,000.00" and "$55,000USD" become "$400,000.00" and
   "$55,000"), and drop a rate ("$40 per month" becomes "$40"). Never compute a total. The quote
