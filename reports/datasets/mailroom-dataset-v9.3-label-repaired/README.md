@@ -113,9 +113,13 @@ changing the value:
 
 - three or more competing values whose winner holds under half of the weight (none occurred);
 - under `reviewed_over_hub`, a reviewed absence that overrides a populated value, or independent
-  evidence that beats a reviewed label (23 cells, all reviewed absences).
+  evidence that beats a reviewed label (22 cells, all reviewed absences).
 
-With the 1 disputed cell, 24 cells need a human. The 2026-11-28 executive vote settled 77 of
+With the 1 disputed cell, 23 cells need a human. A 2026-11-28 administrative review by two
+independent reviewers read all 23 held absences: both kept 22 as absent (their concurrence is
+recorded for the owner's sign-off; the cells stay queued) and both found one, an indenture's
+governing-law `jurisdiction`, stated in the text (see
+[the review archive](../../../data/labels/repair-artifacts/v93-20261128-held-absence-fable-review/README.md)). The 2026-11-28 executive vote settled 77 of
 the 78 earlier disputed contract cells (see
 [the vote archive](../../../data/labels/repair-artifacts/v93-20261128-contract-dispute-fable-votes/README.md));
 the one left is a party name the source text prints with broken spacing.

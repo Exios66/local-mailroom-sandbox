@@ -1,0 +1,83 @@
+{
+ "campaign": "v93-20261128-held-absence-fable-review",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "command": "scripts/gold_labels.py review --corpus <pinned corpus dir> --review review.jsonl",
+ "reviewers": [
+  {
+   "model": "claude-fable",
+   "role": "review",
+   "pass": "A"
+  },
+  {
+   "model": "claude-fable",
+   "role": "review",
+   "pass": "B"
+  }
+ ],
+ "held_cells": 23,
+ "agreement": {
+  "same_verdict_and_value": 23,
+  "split": 0
+ },
+ "raw_verdicts": {
+  "absent": 22,
+  "populated": 1
+ },
+ "admitted": {
+  "records": 1,
+  "verdicts": {
+   "correct": 1
+  },
+  "fields": {
+   "jurisdiction": 1
+  }
+ },
+ "concurrence_for_owner": {
+  "cells": 22,
+  "fields": {
+   "entity_name": 13,
+   "agreement_date": 9
+  }
+ },
+ "not_reviewed": [
+  "DOC-d87ca3f1c374b83a.party_roles"
+ ],
+ "artifacts": [
+  {
+   "path": "brief.md",
+   "role": "brief",
+   "admission_input": false,
+   "sha256": "cd60ac27f35752a5797d3a84a3d93261d0f1ed3b044e05a11cd9e08b78f6ca43"
+  },
+  {
+   "path": "queue.jsonl",
+   "role": "queue",
+   "admission_input": false,
+   "sha256": "88f6d2b006baff12236ae3ea6afa1ece531455762972b869753b3bd3699312c1"
+  },
+  {
+   "path": "raw/vote-A.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "1b4c168b6cacd4b5b3c1c4d6d827fe1336acb419a2e19e25d81d45bec3e05a9e"
+  },
+  {
+   "path": "raw/vote-B.jsonl",
+   "role": "raw_review",
+   "admission_input": false,
+   "sha256": "26d784eb9a1dce1860444a9af7c557277041d449fe24d9656df6f5355c33cdec"
+  },
+  {
+   "path": "review.jsonl",
+   "role": "review",
+   "admission_input": true,
+   "sha256": "337985a2e8056c018a4824e9e4daa26ab23524d661dc637b80e837c46242d769"
+  },
+  {
+   "path": "concurrence_for_owner.jsonl",
+   "role": "owner_queue",
+   "admission_input": false,
+   "sha256": "2631491bab2a23d6a6686b77876b36f100468af596c7994bc8c82ce27e10f9e8"
+  }
+ ]
+}

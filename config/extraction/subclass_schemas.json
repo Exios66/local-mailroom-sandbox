@@ -14750,7 +14750,7 @@
        "valued_by_set": {
         "calibration": 16,
         "dev": 19,
-        "heldout": 19,
+        "heldout": 20,
         "pool": 0
        },
        "verdict": "iterate"
@@ -27034,7 +27034,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "847e229f6b32115649fc85cc3348b0063051e371fd3967e7bd73c1197a9c0bf4",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "c1b5e17d7687b9c0c8573b64a229c8fb89dbdb148f97a0ef4d021b6a44bb8ad9",
+  "near_gold_overlay_sha256": "996c7d2c0a314a9f3366367b6303246bfa5bf82aa1b04618bf93c4a834bff6e6",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
