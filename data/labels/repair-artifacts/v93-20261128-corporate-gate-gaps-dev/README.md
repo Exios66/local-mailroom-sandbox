@@ -13,9 +13,10 @@ reviewed subclass (SHF-013).
   - 100 labels rest on two agreeing passes;
   - a source-reading review (`submissions/corp-gate-dev-review.jsonl` and
     `submissions/corp-gate-dev-gE-review.jsonl`) accepted the other 19:
-    - 4 were disputes: an `authorized_capital` worded two ways, a summed principal amount, and two
-      amounts the check left out of specimen forms;
-    - 15 are on 11 documents whose check pass was a byte-identical copy of the label. Most are
+    - 5 were disputes on 4 documents: an `authorized_capital` worded two ways, a summed principal
+      amount, two amounts the check left out of specimen forms, and the maturity date of one of
+      those forms;
+    - 14 are on 11 documents whose check pass was a byte-identical copy of the label. Most are
       single-fact records, such as one filing-number stamp.
 - **Withheld checks** (`submissions/corp-gate-dev-withheld-check.jsonl` and
   `submissions/corp-gate-dev-gE-withheld-check.jsonl`):
@@ -25,6 +26,9 @@ reviewed subclass (SHF-013).
 
   `add` takes a document without a check pass only when a review settles every field it labels.
   The reviewer read the source for each one; the notes in the review files say what was read.
+  These accepts name no value. Since this change, `add` counts an accept as settling a field only
+  when it names the labelled value, so a fresh `add` replay of these files needs that value on
+  each line. A full `build` given every source does not use this check and still rebuilds them.
 - **Follow-up pass (`gE`):** the first four batches left 3 cells out. Two are now labeled:
   - `exercise_price` on `DOC-732b812b7d9d9653` is "$0.001". The warrant states "$.001 per Share",
     which the money gate refused until it learned that a dollar figure may drop its leading zero.

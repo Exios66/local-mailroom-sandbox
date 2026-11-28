@@ -155,7 +155,10 @@ refused and `review` cannot fill the field (it settles existing records only); u
 stores at a time: a second one is refused untouched and can simply be run again. It also
 refuses a document that already has a catalog record (settle those with `review`), a file name
 already listed in `sources`, a review line for a document the add does not carry, and a
-document with a label pass but no check pass, because a second add could never complete it.
+document with a label pass but no check pass, because a second add could never complete it. The
+one exception is a document whose every labelled field a review given to the same `add` settles:
+a `correct`, or an `accept` that names the labelled value. The reviewer's source reading is then
+the second reading (use it when the check pass was a copy of the label, and withhold the copy).
 Existing records are not rewritten. The new records are appended to the catalog and the
 supplementary store, which are swapped in together, and the manifest gains the file names under
 `sources`, the new hashes and counts, `added_at` and an `additions` entry. The added records

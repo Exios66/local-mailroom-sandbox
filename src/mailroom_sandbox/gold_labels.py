@@ -323,8 +323,10 @@ def _date_supported(value: str, evidence: str) -> bool:
 
 
 #: A dollar figure may drop its leading zero ("$.001" is $0.001): the integer part may then be empty,
-#: right after "$" only, so ".001" never reads as the figure 1.
-_FIGURE = re.compile(r"(?<![\d,])(?:(\d{1,3}(?:,\d{3})+|\d+)|(?<=\$)(?=\.\d))(?:\.(\d+))?(?![\d]|,\d)"
+#: right after "$" only, so ".001" never reads as the figure 1. A figure never starts after a decimal
+#: point and never stops before its own decimal part, so a rejected rate ("5.001%", "$.001%") is not
+#: cut back to 5 or to an empty figure read as 0.
+_FIGURE = re.compile(r"(?<![\d,.])(?:(\d{1,3}(?:,\d{3})+|\d+)|(?<=\$)(?=\.\d))(?:\.(\d+))?(?!\.\d)(?![\d]|,\d)"
                      r"(\s*(?:million|billion|thousand)\b)?(?!\s*%)", re.I)
 #: A written date ("May 14, 2020", "14 May 2020", "5/14/2020", "2020-05-14"): its numbers are never
 #: money by a payment word alone ("Please pay by May 14, 2020" shows no amount of 2020 or 14).
@@ -397,7 +399,9 @@ def _merger_dollars_supported(value: str, evidence: str) -> bool:
         foreign_prefix = foreign_prefix or re.search(r"(?<![A-Za-z])(?:C|A|NZ|HK|SG)\s+\$\s*$", before)
         if foreign or foreign_prefix or (not prefix and not suffix):
             continue
-        if wanted & _figures(match.group()):
+        # Read the figure with its own dollar marker: "$.001" alone is $0.001, but ".001" is no figure.
+        start = prefix.start() if prefix else match.start()
+        if wanted & _figures(evidence[start:match.end()]):
             return True
     return False
 

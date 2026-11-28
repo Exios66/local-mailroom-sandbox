@@ -1364,3 +1364,16 @@ def test_a_second_store_writer_is_refused_and_writes_nothing(cli, capsys, comman
 ])
 def test_money_reads_a_dollar_figure_written_without_its_leading_zero(value, evidence, ok):
     assert gl._money_text_supported(value, evidence) is ok
+
+
+@pytest.mark.parametrize("text, figures", [
+    ("$.001%", set()),           # a rate: never cut back to an empty figure read as 0
+    ("5.001%", set()),           # never cut back to its integer part 5
+    (".001", set()),             # no dollar marker: never the digits after the point
+    ("x .001 USD", set()),
+    ("$.001", {"0.001"}),
+    ("5.25 and 7", {"5.25", "7"}),
+])
+def test_a_figure_keeps_its_decimal_part(text, figures):
+    from decimal import Decimal
+    assert gl._figures(text) == {Decimal(f) for f in figures}

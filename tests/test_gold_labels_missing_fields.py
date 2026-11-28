@@ -425,6 +425,17 @@ def test_corpus_rows_take_the_reviewed_subclass_and_keep_the_hub_one(cli):
     assert out[1] == rows[1] and out[2] == rows[2]
 
 
+def test_corpus_rows_refuse_a_stale_subclass_correction(cli, monkeypatch):
+    """A stale SHF-013 never labels a corrected document against its Hub schema without saying so."""
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    mod, _, _, _ = cli
+    monkeypatch.setattr(sh, "enabled", lambda hotfix_id: hotfix_id != "SHF-013")
+    with pytest.raises(SystemExit, match="SHF-013"):
+        mod.apply_subclass_corrections([{"document_id": "DOC-59d072355f2c3b14", "expected": "corporate_record",
+                                         "expected_subclass": "board_resolution"}])
+
+
 @pytest.mark.parametrize("hub_subclass, expected", [("board_resolution", 0), ("bylaws", 1)])
 def test_missing_fields_accept_records_written_under_the_hub_subclass(cli, monkeypatch, capsys, hub_subclass,
                                                                        expected):
@@ -454,8 +465,8 @@ def test_missing_fields_accept_records_written_under_the_hub_subclass(cli, monke
 def test_add_takes_a_label_only_document_whose_every_field_a_review_settles(cli, capsys):
     """A reviewer's source reading is the second reading when the check was a copy and is withheld."""
     tmp = _built(cli)
-    review = [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "accept", "reviewer": OPUS,
-               "note": "read the header"}]
+    review = [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "accept", "value": "2001-05-14",
+               "reviewer": OPUS, "note": "read the header"}]
     capsys.readouterr()
     # The check file covers another document only: DOC-1 has a label and a review, no check.
     assert _add(cli, [_s("DOC-1", "label", DATE_LABEL)], [], review=review) == 0
@@ -469,6 +480,10 @@ def test_add_takes_a_label_only_document_whose_every_field_a_review_settles(cli,
     [],                                                                     # no review at all
     [{"doc_id": "DOC-1", "field": "recipient2", "verdict": "accept", "reviewer": OPUS}],   # another field
     [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "reject", "reviewer": OPUS}],
+    # an accept settles only the value it names: none, or another value, is no second reading
+    [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "accept", "reviewer": OPUS}],
+    [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "accept", "value": "2001-05-15",
+      "reviewer": OPUS}],
 ])
 def test_add_refuses_a_label_only_document_a_review_does_not_settle(cli, capsys, review):
     tmp = _built(cli)
