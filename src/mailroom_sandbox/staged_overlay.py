@@ -248,3 +248,105 @@ def pull(version: str, *, root: Path | None = None, remote: str | None = None) -
         shutil.rmtree(dest)
         raise StagedOverlayError(f"pulled {v} does not match its pin: {problems[0]}")
     return dest
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in re.findall(r"\d+", _version(version)))
+
+
+def latest() -> str:
+    """The most recent pinned version (highest ``X.Y.P-rc.N``), never an unpinned cut."""
+    known = pins()
+    if not known:
+        raise StagedOverlayError(f"no staged overlay is pinned in {PINS_FILE}")
+    return max(known, key=_version_key)
+
+
+def _bundle_names(version: str, root: Path | None = None) -> tuple[Path, list[str]]:
+    """The verified cut and the files a bundle carries: its manifest and every file it pins."""
+    v = _version(version)
+    _overlay, _sha256, problems = snapshot(v, root)
+    if problems:
+        raise StagedOverlayError(f"cannot bundle {v}: {problems[0]}")
+    d = cut_dir(v, root)
+    files = json.loads((d / "MANIFEST.json").read_bytes()).get("files") or {}
+    return d, ["MANIFEST.json", *sorted(files)]
+
+
+def export_bundle(version: str, out: Path, *, root: Path | None = None) -> Path:
+    """Write the verified cached cut to ``out`` as a ``.tar.gz`` another checkout can import.
+
+    The bundle holds the cut's ``MANIFEST.json`` and exactly the files it pins, under the cut's
+    path relative to the cache root, so it unpacks into ``data/cache/mailroom_cache/``. The bytes
+    are deterministic (sorted names, zeroed owners and times); trust still comes from the pin, not
+    from the bundle, so :func:`import_bundle` re-verifies every file.
+    """
+    import gzip
+    import io
+    import tarfile
+
+    v = _version(version)
+    d, names = _bundle_names(v, root)
+    rel = pin(v)["path"]
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.name + ".partial")
+    with open(tmp, "wb") as fh, gzip.GzipFile(filename="", mode="wb", fileobj=fh, mtime=0) as gz, \
+            tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        for name in names:
+            data = (d / name).read_bytes()
+            info = tarfile.TarInfo(f"{rel}/{name}")
+            info.size, info.mode, info.mtime = len(data), 0o644, 0
+            tar.addfile(info, io.BytesIO(data))
+    tmp.replace(out)
+    return out
+
+
+def import_bundle(bundle: Path, *, version: str | None = None, root: Path | None = None) -> tuple[str, Path]:
+    """Install a bundle written by :func:`export_bundle` into the cache; return ``(version, dir)``.
+
+    The bundle must hold one pinned cut and nothing else: only regular files under that cut's
+    pinned path, no links, absolute paths or ``..``. It is unpacked beside its final place and
+    renamed only after every byte matches the pin, as :func:`pull` does. An already cached,
+    verified cut is left as it is.
+    """
+    import tarfile
+
+    with tarfile.open(bundle, mode="r:gz") as tar:
+        members = tar.getmembers()
+        files = [m for m in members if not m.isdir()]
+        bad = [m.name for m in members if not (m.isfile() or m.isdir())
+               or Path(m.name).is_absolute() or ".." in Path(m.name).parts]
+        if bad or not files:
+            raise StagedOverlayError(f"{bundle}: not a staged overlay bundle ({bad[:1] or 'no files'})")
+        by_path = {p["path"]: v for v, p in pins().items()}
+        cuts = {next((path for path in by_path if m.name.startswith(path + "/")), None) for m in files}
+        if len(cuts) != 1 or None in cuts:
+            raise StagedOverlayError(f"{bundle}: files must all lie under one pinned cut path "
+                                     f"(pinned: {sorted(by_path.values())})")
+        v = by_path[cuts.pop()]
+        if version is not None and _version(version) != v:
+            raise StagedOverlayError(f"{bundle} holds {v}, not {_version(version)}")
+        dest = cut_dir(v, root)
+        if dest.exists():
+            _overlay, _sha256, problems = snapshot(v, root)
+            if not problems:
+                return v, dest
+            raise StagedOverlayError(f"{dest} exists but is not the pinned cut ({problems[0]}); remove it and import again")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=dest.parent) as tmp:
+            for m in files:
+                target = Path(tmp, m.name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                src = tar.extractfile(m)
+                assert src is not None  # a regular file member
+                target.write_bytes(src.read())
+            _overlay, _sha256, problems = snapshot(v, Path(tmp))
+            if problems:
+                raise StagedOverlayError(f"{bundle} does not match the pin for {v}: {problems[0]}")
+            extra = {str(p.relative_to(cut_dir(v, Path(tmp)))) for p in cut_dir(v, Path(tmp)).rglob("*")
+                     if p.is_file()} - set(_bundle_names(v, Path(tmp))[1])
+            if extra:
+                raise StagedOverlayError(f"{bundle} carries files its manifest does not pin: {sorted(extra)[:3]}")
+            cut_dir(v, Path(tmp)).rename(dest)
+    return v, dest
