@@ -610,6 +610,19 @@ def _pass_doc_ids(paths: list[str]) -> set[str]:
     return {str(sub.get("doc_id")) for path in paths for sub in gl.read_jsonl(Path(path))}
 
 
+def _review_settled_docs(label_paths: list[str], reviews: dict[tuple[str, str], dict]) -> set[str]:
+    """Documents whose label pass has fields and a settling review (accept or correct) for each."""
+    settled = set()
+    for path in label_paths:
+        for sub in gl.read_jsonl(Path(path)):
+            fields = sub.get("fields")
+            if isinstance(fields, Mapping) and fields and all(
+                    (reviews.get((sub.get("doc_id"), f)) or {}).get("verdict") in ("accept", "correct")
+                    for f in fields):
+                settled.add(str(sub.get("doc_id")))
+    return settled
+
+
 def _add_input_problems(args: argparse.Namespace, reviews: dict[tuple[str, str], dict]) -> list[str]:
     """What is wrong with the given passes before the committed catalog is looked at."""
     problems = _pass_problems(args)
@@ -618,8 +631,13 @@ def _add_input_problems(args: argparse.Namespace, reviews: dict[tuple[str, str],
                  for name, n in sorted(names.items()) if n > 1]
     labelled, checked = _pass_doc_ids(args.label), _pass_doc_ids(args.check)
     # A document left without its check pass would stay a lone candidate for good: add refuses a
-    # document that already has a catalog record, so the check could never be added later.
-    problems += [f"{d}: has no check pass (a document is added with both passes)" for d in sorted(labelled - checked)]
+    # document that already has a catalog record, so the check could never be added later. The
+    # exception is a document whose every labelled field a review settles (accept or correct):
+    # the reviewer's source reading is then the second reading, as near_gold allows. This is the
+    # way to admit a document whose check was a copy of its label: withhold the copy, review.
+    settled = _review_settled_docs(args.label, reviews)
+    problems += [f"{d}: has no check pass (a document is added with both passes, or with a review "
+                 "that settles every labelled field)" for d in sorted(labelled - checked - settled)]
     problems += [f"{d}: has a check pass but no label pass" for d in sorted(checked - labelled)]
     return problems
 

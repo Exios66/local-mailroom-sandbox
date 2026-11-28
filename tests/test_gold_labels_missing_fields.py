@@ -449,3 +449,31 @@ def test_missing_fields_accept_records_written_under_the_hub_subclass(cli, monke
     else:
         by_field = {r["field"]: r["subclass"] for r in records}
         assert by_field == {"entity_name": "board_resolution", "amended_provisions": "charter_amendment"}
+
+
+def test_add_takes_a_label_only_document_whose_every_field_a_review_settles(cli, capsys):
+    """A reviewer's source reading is the second reading when the check was a copy and is withheld."""
+    tmp = _built(cli)
+    review = [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "accept", "reviewer": OPUS,
+               "note": "read the header"}]
+    capsys.readouterr()
+    # The check file covers another document only: DOC-1 has a label and a review, no check.
+    assert _add(cli, [_s("DOC-1", "label", DATE_LABEL)], [], review=review) == 0
+    added = next(r for r in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")
+                 if r["field"] == "communication_date")
+    assert added["status"] == "near_gold" and added["review"]["verdict"] == "accept"
+    assert gl.verify_catalog(tmp / "gold") == []
+
+
+@pytest.mark.parametrize("review", [
+    [],                                                                     # no review at all
+    [{"doc_id": "DOC-1", "field": "recipient2", "verdict": "accept", "reviewer": OPUS}],   # another field
+    [{"doc_id": "DOC-1", "field": "communication_date", "verdict": "reject", "reviewer": OPUS}],
+])
+def test_add_refuses_a_label_only_document_a_review_does_not_settle(cli, capsys, review):
+    tmp = _built(cli)
+    before = _store_bytes(tmp)
+    capsys.readouterr()
+    assert _add(cli, [_s("DOC-1", "label", DATE_LABEL)], [], review=review) == 1
+    assert "has no check pass" in capsys.readouterr().err
+    assert _store_bytes(tmp) == before

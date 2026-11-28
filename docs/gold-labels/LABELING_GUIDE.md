@@ -98,7 +98,10 @@ files) or `check` (check files), or when one document appears twice among the la
 the check files or the override files. It also refuses a check submission whose `fields` are
 byte-identical (sorted JSON) to the label submission's for the same document, and a label and a
 check that carry the same `labeler.batch` out of files with the same content: a copy is not a
-second reading. Two free-text readings agree only when both or neither are negated ("not",
+second reading. When a check is such a copy (common on a record with one fact, such as a single
+filing-number stamp), withhold it and have a reviewer read the source for each field: `add`
+takes a document without a check pass only when an `accept` or `correct` review settles every
+field its label pass holds. Two free-text readings agree only when both or neither are negated ("not",
 "no", "never", "without"). Review decisions (below) need a reviewer, and each one must
 match a catalog record. A relabel (`--override`) field replaces the earlier label only when it
 passes the gate; if it fails, the earlier label stays and the reject goes to the supplementary
