@@ -1,0 +1,65 @@
+# Phase 5 part 2, the sorter check for job.long_document_head (ON arm; pair: p5-s2-head-sorter-off).
+# Design: docs/design/specs/2026-11-27-phase5-merger-maud-design.md (part 8, "Classification check for the head reads")
+# Plan: docs/design/plans/2026-11-27-phase5-merger-maud.md (Task 8)
+#
+# The sorter alone (task: isolated runs the sorter spec: one SorterAgent.classify_json call per document, no
+# intake and no graph extraction) on the 79 runbook-v2 dev documents over 150,000 characters (59 mergers,
+# 12 contracts, 8 corporate records; config/splits/runbook-v2/dev-long.*, from scripts/build_long_dev_ids.py).
+# The two arms differ only in job.long_document_head (HF-032: the sorter reads the first 120,000 and the last
+# 8,000 characters). Both arms set the sorter budget to 800,000 characters, over the longest document
+# (739,511), so the off arm reads every document whole and neither arm refuses one (HF-010): the two
+# arms finish the same documents. Each head read is recorded on its item (head_read); the on arm should
+# carry one on every document.
+# Cost: off reads whole documents (mean ~333k characters), about $0.75; on reads ~128k each, about $0.30.
+#
+# Bar: no class's classification accuracy and no merger subclass accuracy drops by more than one document
+# (on versus off). Otherwise job.long_document_head is not adopted and the merger switches are judged alone.
+#
+# Launch ONLY with a person's initials (a human supplies them; never launch from an agent), the off arm first:
+#   sandbox run preflight --config config/runs/p5-s2-head-sorter-on.yaml
+#   sandbox run start --config config/runs/p5-s2-head-sorter-on.yaml --initials <XX>
+
+schema: sandbox.run/v1
+run_id: p5-s2-head-sorter-on
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  draw: ranked
+  require_task_gt: false
+  exclude_ids_file: config/splits/runbook-v2/dev-long.exclude.ids   # every document outside dev-long
+  limit: 79
+  sample_seed: 3302
+  staged_overlay: 9.3.1-rc.10
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 800000}   # over the longest dev-long document (739,511): neither arm refuses one
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 8
+  cost_cap_usd: 0.50         # GPU cap field (validation requires one); OpenRouter spend is capped below
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 1.50
+  long_document_head: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, sorter, openrouter, qwen3.7-flash, phase5, part-2, dev-long, head-on]

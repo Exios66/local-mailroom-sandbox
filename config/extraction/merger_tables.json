@@ -1,0 +1,155 @@
+{
+  "entity_sections": {
+    "acquirer": "preamble",
+    "document_name": "preamble",
+    "exchange_ratio": "consideration",
+    "governing_law": "governing_law",
+    "outside_date": "termination",
+    "parties": "preamble",
+    "per_share_cash_amount": "consideration",
+    "target": "preamble"
+  },
+  "groups": {
+    "1": [
+      "Breach of No Shop",
+      "Fiduciary exception:  Board determination (no-shop)",
+      "Intervening Event Definition",
+      "No-Shop",
+      "Superior Offer Definition",
+      "Tail Period & Acquisition Proposal Details"
+    ],
+    "2": [
+      "Agreement provides for matching rights in connection with COR",
+      "Agreement provides for matching rights in connection with FTR",
+      "Breach of Meeting Covenant",
+      "FTR Triggers",
+      "Fiduciary exception to COR covenant",
+      "Limitations on FTR Exercise"
+    ],
+    "3": [
+      "Absence of Litigation Closing Condition",
+      "Accuracy of Target R&W Closing Condition",
+      "Compliance with Covenant Closing Condition",
+      "General Antitrust Efforts Standard",
+      "Negative interim operating covenant",
+      "Ordinary course covenant"
+    ]
+  },
+  "main_owned": [
+    "Knowledge Definition",
+    "MAE Definition",
+    "Specific Performance",
+    "Type of Consideration"
+  ],
+  "merged_groups": {
+    "1": {
+      "1": [
+        "Breach of No Shop",
+        "Fiduciary exception:  Board determination (no-shop)",
+        "Intervening Event Definition",
+        "No-Shop",
+        "Superior Offer Definition",
+        "Tail Period & Acquisition Proposal Details",
+        "Agreement provides for matching rights in connection with COR",
+        "Agreement provides for matching rights in connection with FTR",
+        "Breach of Meeting Covenant",
+        "FTR Triggers",
+        "Fiduciary exception to COR covenant",
+        "Limitations on FTR Exercise",
+        "Absence of Litigation Closing Condition",
+        "Accuracy of Target R&W Closing Condition",
+        "Compliance with Covenant Closing Condition",
+        "General Antitrust Efforts Standard",
+        "Negative interim operating covenant",
+        "Ordinary course covenant"
+      ]
+    },
+    "2": {
+      "1": [
+        "Breach of No Shop",
+        "Fiduciary exception:  Board determination (no-shop)",
+        "Intervening Event Definition",
+        "No-Shop",
+        "Superior Offer Definition",
+        "Tail Period & Acquisition Proposal Details",
+        "Agreement provides for matching rights in connection with COR",
+        "Agreement provides for matching rights in connection with FTR",
+        "Breach of Meeting Covenant",
+        "FTR Triggers",
+        "Fiduciary exception to COR covenant",
+        "Limitations on FTR Exercise"
+      ],
+      "2": [
+        "Absence of Litigation Closing Condition",
+        "Accuracy of Target R&W Closing Condition",
+        "Compliance with Covenant Closing Condition",
+        "General Antitrust Efforts Standard",
+        "Negative interim operating covenant",
+        "Ordinary course covenant"
+      ]
+    }
+  },
+  "near_universal": {
+    "calibration_n": 34,
+    "counts": {
+      "Absence of Litigation Closing Condition": 2,
+      "Accuracy of Target R&W Closing Condition": 34,
+      "Agreement provides for matching rights in connection with COR": 33,
+      "Agreement provides for matching rights in connection with FTR": 30,
+      "Breach of Meeting Covenant": 1,
+      "Breach of No Shop": 7,
+      "Compliance with Covenant Closing Condition": 22,
+      "FTR Triggers": 19,
+      "Fiduciary exception to COR covenant": 34,
+      "Fiduciary exception:  Board determination (no-shop)": 30,
+      "General Antitrust Efforts Standard": 19,
+      "Intervening Event Definition": 32,
+      "Knowledge Definition": 31,
+      "Limitations on FTR Exercise": 29,
+      "MAE Definition": 34,
+      "Negative interim operating covenant": 33,
+      "No-Shop": 32,
+      "Ordinary course covenant": 34,
+      "Specific Performance": 22,
+      "Superior Offer Definition": 31,
+      "Tail Period & Acquisition Proposal Details": 34,
+      "Type of Consideration": 17
+    },
+    "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+    "questions": [
+      "Accuracy of Target R&W Closing Condition",
+      "Agreement provides for matching rights in connection with COR",
+      "Fiduciary exception to COR covenant",
+      "Intervening Event Definition",
+      "Knowledge Definition",
+      "MAE Definition",
+      "Negative interim operating covenant",
+      "No-Shop",
+      "Ordinary course covenant",
+      "Superior Offer Definition",
+      "Tail Period & Acquisition Proposal Details"
+    ],
+    "share": 0.9,
+    "split_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
+  },
+  "required_entities": [
+    "document_name",
+    "parties",
+    "acquirer",
+    "target",
+    "governing_law",
+    "outside_date"
+  ],
+  "schema": "mailroom.merger_tables/v1",
+  "subclass_drop": {
+    "all_cash": [
+      "exchange_ratio"
+    ],
+    "all_stock": [
+      "per_share_cash_amount"
+    ],
+    "mixed_cash_stock": [],
+    "mixed_cash_stock_election": [],
+    "other": []
+  }
+}

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, StrictInt, field_validator, model_validator
 
 from mailroom_sandbox.paths import data_dir
 from mailroom_sandbox.services._exec import ServiceError
@@ -674,6 +674,17 @@ def known_tasks() -> tuple[str, ...]:
     return base + agents
 
 
+def _merger_reads_shas() -> dict[str, str]:
+    """sha256 of the committed files job.merger reads: its tables and the section locator's rules.
+
+    A change to either after the lock refuses a resume, so one measurement never mixes two locators.
+    """
+    from mailroom_sandbox import merger_sections, merger_tables
+
+    return {"merger_tables_sha256": merger_tables.sha256(),
+            "merger_section_rules_sha256": hashlib.sha256(merger_sections.RULES_PATH.read_bytes()).hexdigest()}
+
+
 def _subclass_fields_sha256() -> str:
     """sha256 of the committed subclass field lists (job.subclass_schemas)."""
     from mailroom_sandbox.subclass_fields import field_lists_sha256
@@ -797,6 +808,30 @@ class GovernorSpec(BaseModel):
         return v
 
 
+class MergerReadsSpec(BaseModel):
+    """Phase 5 part 2 merger reads (``mailroom_sandbox.merger_reads``, HF-030/HF-031). Off unless set.
+
+    ``subclass_fields`` asks each merger subclass only for its valid fields; ``question_groups``
+    re-asks the MAUD question groups from their located sections; ``gap_retry`` makes one targeted
+    retry for missing or invalid items. ``groups`` (1 to 3) is the number of group reads.
+    Design: docs/design/specs/2026-11-27-phase5-merger-maud-design.md.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    subclass_fields: StrictBool = False
+    question_groups: StrictBool = False
+    gap_retry: StrictBool = False
+    groups: StrictInt = Field(3, ge=1, le=3)
+
+    @model_validator(mode="after")
+    def _needs_subclass_fields(self) -> "MergerReadsSpec":
+        for name in ("question_groups", "gap_retry"):
+            if getattr(self, name) and not self.subclass_fields:
+                raise ValueError(f"job.merger.{name} requires job.merger.subclass_fields (it uses its field set)")
+        return self
+
+
 class JobSpec(BaseModel):
     model_config = {"extra": "forbid"}
     mode: Literal["endpoint", "modal"] = "endpoint"
@@ -876,6 +911,13 @@ class JobSpec(BaseModel):
     # (mailroom_sandbox.evidence_check). Pipeline runs only. Off by default; hashed only when set.
     # Design: docs/design/specs/2026-11-27-phase5-attempt-hygiene-design.md.
     evidence_check: StrictBool = False
+    # Phase 5 part 2 (mailroom_sandbox.merger_reads): merger subclass fields, MAUD question-group reads
+    # from located sections and a targeted gap retry (HF-030/HF-031). Pipeline runs only. Hashed only when set.
+    # Design: docs/design/specs/2026-11-27-phase5-merger-maud-design.md.
+    merger: MergerReadsSpec | None = None
+    # Phase 5 part 2 (HF-032/HF-033): on an API route the sorter and intake read only the opening of a
+    # document over merger_reads.HEAD_THRESHOLD characters. Pipeline and sorter runs. Hashed only when set.
+    long_document_head: StrictBool = False
 
     @field_validator("governor", mode="before")
     @classmethod
@@ -1420,6 +1462,13 @@ class RunSpec(BaseModel):
         if self.job.evidence_check and self.task != "pipeline":
             raise ValueError(f"job.evidence_check filters pipeline extractions; task {self.task!r} runs no graph "
                              "extraction")
+        if self.job.merger is not None and self.task != "pipeline":
+            raise ValueError(f"job.merger changes pipeline merger extraction; task {self.task!r} runs no graph "
+                             "extraction")
+        # ``isolated`` is the historical alias that runs the sorter spec alone (docs/jobs.md).
+        if self.job.long_document_head and self.task not in ("pipeline", "sorter", "isolated"):
+            raise ValueError(f"job.long_document_head cuts sorter and intake reads; task {self.task!r} runs "
+                             "neither")
         if self.job.subclass_schemas is False and self.task == "pipeline":
             raise ValueError("job.subclass_schemas is always on for pipeline runs: the predicted subclass's "
                              "extraction schema is used whenever one is listed")
@@ -1626,8 +1675,10 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
         "job": {**{key: value for key, value in spec.job.model_dump().items()
                    if not (key == "api_cost_cap_usd" and value is None)
                    and not (key in ("blind_routing", "pipeline_handoff", "schema_guide", "longest_first",
-                                    "require_expanded_inputs", "subclass_field_note", "evidence_check")
+                                    "require_expanded_inputs", "subclass_field_note", "evidence_check",
+                                    "long_document_head")
                                     and value is False)
+                   and not (key == "merger" and value is None)
                    and not (key == "subclass_schemas" and not value)
                    and key != "trace_reads"  # observational: never changes what a run does
                    and not (key == "specialist_subclass" and value == "none")
@@ -1635,7 +1686,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
                    and not (key == "governor" and value is None)},
                 **({"specialist_subclass_sha256": _file_sha256(spec.job.specialist_subclass_file)}
                    if spec.job.specialist_subclass_file else {}),
-                **({"subclass_fields_sha256": _subclass_fields_sha256()} if spec.job.subclass_schemas else {})},
+                **({"subclass_fields_sha256": _subclass_fields_sha256()} if spec.job.subclass_schemas else {}),
+                **(_merger_reads_shas() if spec.job.merger is not None else {})},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,

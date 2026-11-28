@@ -15,7 +15,7 @@ from mailroom_sandbox.datasets import (
     load_manifest,
     parse_expected_fields,
 )
-from mailroom_sandbox import scoring_hotfixes
+from mailroom_sandbox import merger_reads, scoring_hotfixes
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
@@ -418,6 +418,7 @@ def run_isolated_eval(
         scored: dict[str, Any] = {}
         fell_back = False
         usage: dict[str, Any] = {}
+        head_reads: list[dict[str, Any]] = []
         with isolated_call_scope(task, mock=mock) as scope:
             try:
                 # SAND-018: reset the thread's usage accumulator so this row's tokens
@@ -434,7 +435,7 @@ def run_isolated_eval(
                         spec.observation,
                         as_type=tracing.observation_type_for(spec.observation),
                         input=tracing.public_ground_truth(row),
-                    ):
+                    ), merger_reads.collect_head_reads() as head_reads:
                         pred, fell_back = _predict_spec(spec, row, mock=mock)
                     scored = spec.score_one(row, pred)
                 # SAND-018: per-item token capture — the isolated path used to drop
@@ -459,6 +460,8 @@ def run_isolated_eval(
             }
             if calls:
                 entry["call_usage"] = calls
+            if head_reads:  # Phase 5 part 2 (HF-032): a sorter head read, with the characters sent
+                entry["head_read"] = head_reads
             entry.update(
                 merge_item_metrics(
                     latency_ms=round((time.perf_counter() - started) * 1000.0, 3),
@@ -1791,7 +1794,8 @@ def _run_pipeline_doc(row: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         result = {**result, "judge_reasks": scope["judge_reasks"]}
     # Phase 2 governor marks, present only when they happened (critical regression 22: a routing
     # change that moves a document between review and the archive carries a mark).
-    for key in ("governor_stop", "duplicate_of"):
+    # Phase 5 part 2 (HF-032/HF-033): a sorter or intake head read, with the characters sent.
+    for key in ("governor_stop", "duplicate_of", "head_read"):
         if scope.get(key):
             result = {**result, key: scope[key]}
     skipped = int(scope["governor"]["skipped_classify_retries"])

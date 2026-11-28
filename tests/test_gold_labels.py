@@ -175,7 +175,9 @@ def test_work_queue_skips_fields_the_hub_labels():
     queue = gl.work_queue(rows)
     assert [q["doc_id"] for q in queue] == ["DOC-9", "DOC-8"]
     assert queue[0]["fields"] == ["effective_date", "jurisdiction", "certifying_officer", "last_amended_date"]
-    assert queue[1]["fields"] == list(gl.TARGET_FIELDS["merger_agreement"]["tier1"])
+    # Phase 5 part 2: mergers are queued for their entity fields and consideration, never maud_clauses
+    merger_fields = list(gl.target_fields("merger_agreement", doc_subclass="all_cash"))
+    assert queue[1]["fields"] == merger_fields and "maud_clauses" not in queue[1]["fields"]
 
 
 def test_cuad_dates_need_exactly_one_calendar_date():

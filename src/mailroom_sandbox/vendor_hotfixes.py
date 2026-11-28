@@ -1851,6 +1851,86 @@ def _install_field_retry(module: Any, original: Callable[..., Any]) -> Callable[
     return retry_extract_node
 
 
+def _install_merger_reads(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-030 (job.merger): the merger specialist's one-call read is followed by section-only reads.
+
+    Wraps ``MergerAgreementSpecialist.extract`` (inherited from ``_SpecialistBase``; set on the merger
+    class only). ``merger_extract.extract`` runs the vendored read, then the MAUD question-group reads,
+    the gap retry or the dropped-field call that ``job.merger`` switches on, from located sections only.
+    The signature matches the vendored one, so the graph's ``handoff_context`` probe still raises its
+    ``TypeError`` before any call. Off, a multi-window read (never calls ``extract``), a field-only
+    retry and a parse error pass through.
+    """
+    from mailroom_sandbox import merger_extract
+
+    merger_extract.register_merger_judge_rule()
+
+    @functools.wraps(original)
+    def extract(self, doc_text: str, pages: list[str] | None = None) -> dict:
+        return merger_extract.extract(self, original, doc_text, pages)
+
+    return extract
+
+
+def _register_merger_judge_rule(_module: Any) -> None:
+    from mailroom_sandbox import merger_extract
+
+    merger_extract.register_merger_judge_rule()
+
+
+def _head_cut(reader: Any, text: Any, head: int, tail: int) -> Any:
+    """``job.long_document_head``: the head (and tail) of an API reader's long ``text``; else ``text``."""
+    from mailroom_sandbox import merger_reads
+
+    name = str(getattr(reader, "agent_name", "") or "")
+    if (not merger_reads.head_active() or not isinstance(text, str) or len(text) <= merger_reads.HEAD_THRESHOLD
+            or not name or not _api_route(name)):
+        return text
+    cut = merger_reads.head_text(text, head, tail)
+    merger_reads.record_head_read(name, len(cut), len(text))
+    return cut
+
+
+def _install_sorter_head(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-032 (job.long_document_head): an API sorter reads a long document's head and tail only.
+
+    Over ``merger_reads.HEAD_THRESHOLD`` characters, the sorter is sent the first ``SORTER_HEAD`` and
+    the last ``SORTER_TAIL`` characters with an omission marker, in one window, before the vendored
+    method composes its prior or slides windows. HF-010 still refuses every read this does not cover.
+    """
+    from mailroom_sandbox import merger_reads
+
+    @functools.wraps(original)
+    def classify_json(self: Any, doc_text: str, *args: Any, **kwargs: Any) -> dict:
+        cut = _head_cut(self, doc_text, merger_reads.SORTER_HEAD, merger_reads.SORTER_TAIL)
+        return original(self, cut, *args, **kwargs)
+
+    return classify_json
+
+
+def _install_intake_head(_module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """HF-033 (job.long_document_head): an API intake reads a long document's first ``INTAKE_HEAD`` only.
+
+    Installed over HF-003 on the same method, so it runs first. A head read never replaces the
+    document: its cleaned text is dropped (``clean_refused: "head_read"``), and only the triage
+    prior and the section counts are kept.
+    """
+    from mailroom_sandbox import merger_reads
+
+    @functools.wraps(original)
+    def intake_run(self: Any, doc_text: str, filename: str | None = None) -> dict:
+        cut = _head_cut(self, doc_text, merger_reads.INTAKE_HEAD, 0)
+        prep = original(self, cut, filename)
+        if cut is not doc_text and isinstance(prep, dict):
+            for key in ("cleaned", "clean_stats"):
+                prep.pop(key, None)
+            prep["changed"] = False
+            prep["clean_refused"] = "head_read"
+        return prep
+
+    return intake_run
+
+
 HOTFIXES: tuple[Hotfix, ...] = (
     Hotfix(id="HF-020", module="agents.corporate_records_specialist", attr="CorporateRecordsSpecialist.extract",
            source_sha256="7dee5e0929633efe57f7b115c4129ab33ed62a19656b986711987f304c99df86",
@@ -2200,6 +2280,51 @@ HOTFIXES: tuple[Hotfix, ...] = (
               ("pipeline.guards:_has_substantive_content",
                "f2c330e491e66e415b6f2fd8dc17b7532350b6c729202b1ad675c6e16298978f")),
     ),
+    Hotfix(
+        id="HF-030",
+        module="agents.merger_agreement_specialist",
+        attr="MergerAgreementSpecialist.extract",
+        source_sha256="6485a75a43f73b60a04180a88438246563d646dd90d549a2df5ee5e02361bd3d",
+        upstream="sandbox-only (phase 5 part 2 merger reads; upstream issue to be filed with the merger arm's results)",
+        summary="with job.merger, the merger specialist's one whole-document read is followed by MAUD "
+                "question-group reads from located sections only (the owning read's valid answer wins, entity "
+                "fields stay the main read's), one gap retry for missing or invalid items, or the dropped "
+                "consideration field after a subclass disagreement; a section the locator misses is never "
+                "read from the whole document",
+        install=_install_merger_reads,
+        refresh=_register_merger_judge_rule,
+        also=(("langchain_agents.specialist_agents:_SpecialistBase.extract_chunked",
+               "6e7ac75666a140570b6b6f8308b3a914494fcbddc3538597f53d58c08ae0a349"),
+              ("langchain_agents.base_agent:BaseAgent._call_structured",
+               "c995f455120c2ee587695e6acf71d33c4a832151dfb24a96b0a595d9c01c4820"),
+              ("graph.build_graph:_run_chunked_extraction",
+               "4582ca088cf6c34869891e093119c6b692d55e633f0b46f54e5a018c3b452a5f")),
+    ),
+    Hotfix(
+        id="HF-032",
+        module="agents.sorter",
+        attr="SorterAgent.classify_json",
+        source_sha256="81912af10716c465970646e327288174d58958d347eac6b6803df89c64fcbd80",
+        upstream="sandbox-only (phase 5 part 2 head reads; upstream issue to be filed with the sorter arms' results)",
+        summary="with job.long_document_head, an API-routed sorter read of a document over 150,000 characters "
+                "sends the first 120,000 and the last 8,000 characters (an omission marker between) in one "
+                "window instead of being refused by HF-010; recorded as head_read",
+        install=_install_sorter_head,
+        also=(("agents.intake:sliding_windows", "f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4"),),
+    ),
+    Hotfix(
+        id="HF-033",
+        module="agents.intake",
+        attr="IntakeAgent.intake_run",
+        source_sha256="f578ebf0562082c3eab3c64ff49782eed13236a4d3ff413aa74cf099a11ab5b1",
+        upstream="sandbox-only (phase 5 part 2 head reads; upstream issue to be filed with the sorter arms' results)",
+        summary="with job.long_document_head, an API-routed intake read of a document over 150,000 characters "
+                "reads its first 40,000 characters only; a head read never replaces the document (its cleaned "
+                "text is dropped) and is recorded as head_read",
+        install=_install_intake_head,
+        # Installed over HF-003 (the same method): this layer runs first.
+        also=(("sliding_windows", "f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4"),),
+    ),
 )
 
 _STATUS: dict[str, str] = {}
@@ -2237,6 +2362,8 @@ def apply_hotfixes(hotfixes: tuple[Hotfix, ...] = HOTFIXES) -> dict[str, str]:
         for part in owner_path.split(".") if owner_path else ():
             owner = getattr(owner, part)
         current = getattr(owner, name)
+        # Anywhere in the wrapper chain: a later fix on the same target (HF-033 over HF-003) leaves
+        # its own mark on top, and the earlier fix must not wrap a second time on the next apply.
         if getattr(current, _MARK, None) == fix.id or _has_layer(current, fix.id):
             if fix.refresh is not None:
                 fix.refresh(module)
