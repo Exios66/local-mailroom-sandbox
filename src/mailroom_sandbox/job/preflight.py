@@ -1268,7 +1268,10 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "revision_resolved": prov.get("revision_resolved"),
         "limit": spec.dataset.limit,
         "sample_seed": spec.dataset.sample_seed,
-        "selection": {"require_task_gt": spec.dataset.require_task_gt},
+        "selection": {"require_task_gt": spec.dataset.require_task_gt,
+                      **({"task_gt_min_field_labels": spec.dataset.task_gt_min_field_labels,
+                          "task_gt_field_label_rows": prov.get("task_gt_field_label_rows")}
+                         if spec.dataset.task_gt_min_field_labels is not None else {})},
         "strata": spec.dataset.strata,
         # DMR-066: actual drawn (doc_class::subclass) distribution — the lock
         # now proves the requested strata were really drawn (no silent
