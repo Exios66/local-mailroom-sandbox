@@ -2062,7 +2062,8 @@ HOTFIXES: tuple[Hotfix, ...] = (
         source_sha256="8237ef5be5e6b88376931695301b42eceaf6beac507b0830611d837d5fa7b821",
         upstream="sandbox-only (phase 2 loop governor; upstream issue to be filed with the pilot's results)",
         summary="with job.governor set, a route that would add a counted round (a retry or a boss "
-                "entry; an arbiter ruling only once the judge has already passed) past the document's "
+                "entry; an arbiter ruling only once the judge has already passed, except in "
+                "judge mode correct) past the document's "
                 "retry, call or spend budget goes to human review, or to the archive when the current "
                 "extraction passed the judge; an arbiter ruling on an extraction the judge has not "
                 "passed is not a counted round, and call and spend budgets still stop that ruling "

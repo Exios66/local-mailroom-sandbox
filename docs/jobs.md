@@ -525,7 +525,7 @@ Before each step that would add a round, the governor checks, in order: a second
 (`spend_budget`). A second re-extraction counts as a round; a node re-run for a transient error does not.
 An arbiter ruling on an extraction the judge has not passed does not count either: that ruling is what
 keeps a partial extraction out of the review queue, and the call and spend budgets still limit it, except in judge mode correct, where the pass-through arbiter makes no model call and returns before those checks. A ruling on an
-extraction the judge already passed does count when the budget checks run, so a spent retry budget archives it instead of paying
+extraction the judge already passed does count when the budget checks run. In judge mode correct any arbiter proposal returns before the counter, so that pass-through ruling is not counted. A spent retry budget archives the extraction the judge already passed instead of paying
 for another call. The default of 3 counted rounds is one classify retry, one confidence re-extraction
 and one arbiter-ordered re-extraction. The 50-document pilot's default of 2 parked 20 of 50 documents
 at 6–10 model calls, 18 of them on the way into that ruling.

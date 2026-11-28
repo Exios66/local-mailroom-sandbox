@@ -133,8 +133,11 @@ recorded on the result (`governor_stop`: reason, node, calls, retries and spend 
 **How it is built.** The governor is part of the same sandbox patch. It uses routing rules on the
 pipeline's existing routers (the method the repo's earlier routing fixes use), plus the call
 guard's per-document counters. It is switched on by `job.governor` in the run config, which is saved
-in the lock. It is off for existing runs and on in every new test version and, after the test, in
-production. It works with or without the new judge.
+in the lock. It is off for existing runs and on in every staged test version of this design,
+except the plain baseline, and, after the test, in production. The separate pair
+`ab-pipeline-governor` / `ab-pipeline-correcting-judge` is not one of those versions: its
+correcting-judge arm leaves the governor off so the two levers stay separate. It works with or
+without the new judge.
 
 ### What the judge reads
 
@@ -379,8 +382,12 @@ CircleCI.
   50-document pilot raised the starting value of 2, which parked 20 documents at 6–10 calls. An
   arbiter ruling on an extraction the judge has not passed is not a counted round. Call and spend
   budgets still stop that ruling, except in judge mode correct, where the pass-through arbiter
-  makes no model call and returns before those checks. The governor
-  is off for existing runs and on for every new test version.
+  makes no model call and returns before those checks. In that mode any arbiter proposal returns
+  before the counter, so a ruling after the judge has passed is not counted either. The governor
+  is off for existing runs and on for every staged test version in the table above, except the
+  plain baseline. The separate pair `ab-pipeline-governor` / `ab-pipeline-correcting-judge` is not
+  one of those versions: the correcting-judge arm leaves the governor off so the two levers stay
+  separate.
 - A document whose current extraction already passed the checks is archived with caveats when the
   governor stops it; every other stop goes to human review.
 - The order of the hardening phases: spend safety first, long documents last.
