@@ -60,11 +60,13 @@ once the cache PR lands on mailroom-issues main with that commit kept reachable.
   `9.3.1-rc.10` carries none of them. `9.3.1-rc.11` carries 534; a run that must score subclass
   fields needs it or a later cut.
 - **Truth precedence.** In the builder, once a reviewed or near-gold label votes, the Hub and the
-  sources computed from it (`hub_v9.3`, `interim_derived`, `generated_derived`) count for nothing
-  (`rule: reviewed_over_hub` in the provenance), so a staged cut overrides a faulty Hub value
-  wherever such a label exists. Independent evidence still counts: `cuad_span`, `interim_gate`
-  and `generated_rule` (a verbatim rule match). A reviewed absence over a populated value, and
-  independent evidence that beats a reviewed label, are queued in `needs_human.csv`.
+  sources computed from it (`hub_v9.3`, `interim_derived`, `generated_derived`) count for nothing.
+  The provenance records `rule: reviewed_over_hub` only where the votes disagree. Independent
+  evidence still counts: `cuad_span`, `interim_gate` and `generated_rule` (a verbatim rule
+  match). It can outvote a reviewed label, so the cell can keep a value the Hub shares, and that
+  cell is then queued in `needs_human.csv`. So is a reviewed absence over a populated value.
+  Where only the Hub and its derived sources contradict a reviewed label, the cut carries the
+  reviewed value.
 - **Provenance.**
   - The spec hash records `{version, manifest_sha256}`.
   - The run lock's dataset metadata records `staged_overlay` (version, manifest sha256,
