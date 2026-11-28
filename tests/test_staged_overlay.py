@@ -183,3 +183,78 @@ def test_a_line_separator_inside_a_value_stays_in_its_record(cache):
     _pin(root, _write_cut(c, [rec]))
     overlay, _, problems = so.snapshot(VERSION)
     assert problems == [] and overlay["DOC-1"]["labels"]["governing_law"]["value"] == "Dela\u2028ware"
+
+
+def _bundle_with(path: Path, members: dict[str, bytes]) -> Path:
+    import io
+    import tarfile
+
+    with tarfile.open(path, "w:gz") as tar:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return path
+
+
+def test_latest_is_the_highest_pinned_rc_not_the_last_listed(cache):
+    root, _ = cache
+    pins = json.loads((root / so.PINS_FILE).read_text())
+    entry = pins["overlays"][VERSION]
+    pins["overlays"] = {"9.3.1-rc.10": {**entry, "path": "v9.3.0/pre-release/v9.3.1-rc.10"},
+                        "9.3.1-rc.11": {**entry, "path": "v9.3.0/pre-release/v9.3.1-rc.11"}, VERSION: entry}
+    (root / so.PINS_FILE).write_text(json.dumps(pins))
+    assert so.latest() == "9.3.1-rc.11"
+
+
+def test_a_bundle_round_trips_into_another_cache_and_is_deterministic(cache, tmp_path):
+    first = so.export_bundle(VERSION, tmp_path / "a.tar.gz")
+    second = so.export_bundle(VERSION, tmp_path / "b.tar.gz")
+    assert first.read_bytes() == second.read_bytes()
+    other = tmp_path / "laptop"
+    version, dest = so.import_bundle(first, root=other)
+    assert (version, dest) == (VERSION, other / CUT)
+    assert so.snapshot(VERSION, other)[2] == []
+    assert so.import_bundle(first, root=other, version=VERSION) == (VERSION, dest)  # idempotent
+
+
+def test_export_refuses_a_cache_that_is_not_the_pin(cache, tmp_path):
+    _, c = cache
+    (c / CUT / "queues" / "needs_human.csv").write_text("edited\n")
+    with pytest.raises(so.StagedOverlayError, match="cannot bundle"):
+        so.export_bundle(VERSION, tmp_path / "x.tar.gz")
+
+
+def test_import_refuses_tampered_unpinned_escaping_or_padded_bundles(cache, tmp_path):
+    _, c = cache
+    good = {f"{CUT}/{p.relative_to(c / CUT)}": p.read_bytes() for p in (c / CUT).rglob("*") if p.is_file()}
+    target = tmp_path / "laptop"
+    cases = {
+        "tampered": {**good, f"{CUT}/queues/needs_human.csv": b"edited\n"},
+        "unpinned": {f"v9.3.0/pre-release/v9.3.1-rc.99/{k.split('/', 3)[3]}": v for k, v in good.items()},
+        "escaping": {**good, "../outside.txt": b"x"},
+        "padded": {**good, f"{CUT}/extra.txt": b"x"},
+    }
+    for name, members in cases.items():
+        with pytest.raises(so.StagedOverlayError):
+            so.import_bundle(_bundle_with(tmp_path / f"{name}.tar.gz", members), root=target)
+        assert not (target / CUT).exists() and not (tmp_path / "outside.txt").exists(), name
+    with pytest.raises(so.StagedOverlayError, match="not 9.3.1-rc.8"):
+        so.import_bundle(_bundle_with(tmp_path / "ok.tar.gz", good), root=target, version="9.3.1-rc.8")
+
+
+def test_cli_lists_exports_and_imports_the_latest_cut(cache, tmp_path, capsys):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "pull_staged_overlay", Path(__file__).resolve().parents[1] / "scripts" / "pull_staged_overlay.py")
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    assert cli.main(["--list"]) == 0
+    assert "cached" in capsys.readouterr().out
+    bundle = tmp_path / "cut.tar.gz"
+    assert cli.main(["--latest", "--export", str(bundle)]) == 0
+    assert cli.main(["--import", str(bundle), "--root", str(tmp_path / "laptop")]) == 0
+    assert f"ok: {VERSION}" in capsys.readouterr().out
+    assert cli.main(["--latest", "--check", "--root", str(tmp_path / "laptop")]) == 0
+    assert cli.main(["--import", str(tmp_path / "missing.tar.gz")]) == 2
