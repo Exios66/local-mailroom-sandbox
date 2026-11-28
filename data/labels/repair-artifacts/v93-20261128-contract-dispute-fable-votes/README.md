@@ -59,7 +59,7 @@ It admitted 83 records: 65 `accept` and 18 `correct`.
 The rebuilt label-repaired release changes exactly the 83 voted cells and no others:
 
 - `disputed_unresolved`: 78 → 1;
-- labeled cells: 43,942 → 44,019 (87.5% → 87.6%);
+- labeled cells: 44,061 → 44,138 (87.7% → 87.9%), counted on main after the corporate dev gate-gap labels landed;
 - `needs_human`: 101 → 24. The 24 are 23 reviewed absences over a populated value, plus the held
   record;
 - `values_moved_by_reviewed_precedence` stays empty.

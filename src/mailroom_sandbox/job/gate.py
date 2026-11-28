@@ -169,24 +169,38 @@ def _unit_labels(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def cuad_unlabeled(row: Mapping[str, Any], doc_class: str) -> bool:
+    """SHF-016 applies: a contract whose CUAD map names no category, scored on its field labels."""
+    if doc_class != "contract":
+        return False
+    from mailroom_sandbox import scoring_hotfixes as sh
+    from mailroom_sandbox.eval.cuad_scoring import gt_categories
+
+    return sh.enabled("SHF-016") and not gt_categories(_unit_labels(_fields(row).get(_UNIT_FIELD["contract"])))
+
+
 def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = True,
                    drop_unseen_headers: bool = True) -> int:
     """Labelled units of a row: what the Dojo scores it on, after dropping the templated fields.
 
     Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
     field: the count is its number of categories (the scored universe) when at least one carries
-    gold, else 0. Other classes count non-empty expected values after class scoping. SHF-015: a
+    gold, else 0. SHF-016: a contract whose CUAD map names no category is scored on its field
+    labels instead, so it counts them as other classes do. Other classes count non-empty expected
+    values after class scoping. SHF-015: a
     stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
     score does not score it (``docs/scoring-hotfixes.md``). SHF-019: neither is a correspondence
-    header label the text does not show. ``hotfixed=False`` counts as the Dojo pin does, with no
-    SHF-015 or SHF-019 drop: ``_status`` records that as ``labelled_raw`` beside it.
+    header label the text does not show. ``hotfixed=False`` counts with no SHF-015 or SHF-019 drop:
+    ``_status`` records that as ``labelled_raw`` beside it, to attribute an unscorable document to
+    those drops. SHF-016 is not part of that switch (it decides which labels exist to count, not
+    which are dropped), so a contract without a CUAD map counts its field labels either way.
     ``drop_unseen_headers=False`` applies SHF-015 only (``_status`` records the difference as
     ``labelled_header_unseen``).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
     unit_field = _UNIT_FIELD.get(doc_class)
-    if unit_field:
+    if unit_field and not cuad_unlabeled(row, doc_class):
         labels = _unit_labels(_fields(row).get(unit_field))
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
     raw = _fields(row)

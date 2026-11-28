@@ -12087,23 +12087,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.371,
+      "share": 0.374,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
      "in_output_schema": true,
-     "labeled": 434,
+     "labeled": 439,
      "labeled_by_set": {
       "calibration": 114,
-      "dev": 159,
+      "dev": 164,
       "heldout": 161,
       "pool": 0
      },
      "subclasses_with_truth": 10,
      "truth": {
       "interim": 127,
-      "near_gold": 307
+      "near_gold": 312
      },
      "verdict": "iterate"
     },
@@ -12134,20 +12134,25 @@
     },
     "exercise_price": {
      "dojo_status": "pending_annotation",
+     "dominant": {
+      "kind": "value",
+      "share": 0.85,
+      "value": null
+     },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 19,
+     "labeled": 20,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 19,
+      "dev": 20,
       "heldout": 0,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 19
+      "near_gold": 20
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "expiration_date": {
      "dojo_status": "pending_annotation",
@@ -12170,25 +12175,26 @@
      "dojo_status": "not_applicable",
      "dominant": {
       "kind": "value",
-      "share": 0.964,
+      "share": 0.943,
       "value": null
      },
      "effective_status": "scored",
      "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
      "in_output_schema": true,
-     "labeled": 44,
+     "labeled": 71,
      "labeled_by_set": {
       "calibration": 23,
-      "dev": 14,
+      "dev": 41,
       "heldout": 7,
       "pool": 0
      },
      "subclasses_with_truth": 3,
      "truth": {
-      "interim": 44
+      "interim": 44,
+      "near_gold": 27
      },
      "truth_ignored_not_applicable": 314,
-     "verdict": "constant"
+     "verdict": "iterate"
     },
     "guarantors": {
      "dojo_status": "pending_annotation",
@@ -12260,23 +12266,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.25,
+      "share": 0.238,
       "value": "registration rights"
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 20,
+     "labeled": 21,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 19,
+      "dev": 20,
       "heldout": 1,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 20
+      "near_gold": 21
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "intent": {
      "dojo_status": "scored",
@@ -12304,23 +12310,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.508,
+      "share": 0.511,
       "value": "Delaware"
      },
      "effective_status": "scored",
      "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
      "in_output_schema": true,
-     "labeled": 384,
+     "labeled": 387,
      "labeled_by_set": {
       "calibration": 105,
-      "dev": 139,
+      "dev": 142,
       "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
      "truth": {
       "interim": 139,
-      "near_gold": 245
+      "near_gold": 248
      },
      "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
@@ -12369,20 +12375,25 @@
     },
     "maturity_date": {
      "dojo_status": "pending_annotation",
+     "dominant": {
+      "kind": "value",
+      "share": 0.9,
+      "value": null
+     },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 19,
+     "labeled": 20,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 19,
+      "dev": 20,
       "heldout": 0,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 19
+      "near_gold": 20
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "officer_title": {
      "dojo_status": "pending_annotation",
@@ -12437,16 +12448,16 @@
      "dojo_status": "pending_annotation",
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 16,
+     "labeled": 19,
      "labeled_by_set": {
       "calibration": 0,
-      "dev": 16,
+      "dev": 19,
       "heldout": 0,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 16
+      "near_gold": 19
      },
      "verdict": "thin"
     },
@@ -12493,23 +12504,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.261,
+      "share": 0.292,
       "value": null
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 23,
+     "labeled": 24,
      "labeled_by_set": {
       "calibration": 1,
-      "dev": 19,
+      "dev": 20,
       "heldout": 3,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 23
+      "near_gold": 24
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "resolutions": {
      "dojo_status": "pending_annotation",
@@ -12598,23 +12609,23 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.227,
+      "share": 0.231,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
      "in_output_schema": true,
-     "labeled": 384,
+     "labeled": 388,
      "labeled_by_set": {
       "calibration": 105,
-      "dev": 139,
+      "dev": 143,
       "heldout": 140,
       "pool": 0
      },
      "subclasses_with_truth": 9,
      "truth": {
       "interim": 136,
-      "near_gold": 248
+      "near_gold": 252
      },
      "truth_ignored_not_applicable": 53,
      "verdict": "iterate"
@@ -12645,51 +12656,52 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.036,
+      "share": 0.031,
       "value": [
-       "Portfolio Recovery Associates, L.L.C.",
-       "PRA AG Funding, LLC",
-       "PRA Holding I, LLC",
-       "PRA III, LLC",
-       "PRA Receivables Management, LLC"
+       "Max Re Ltd.",
+       "Max Re Managers Ltd.",
+       "Max Re Diversified Strategies, Ltd.",
+       "Max Re Europe Limited"
       ]
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 28,
+     "labeled": 32,
      "labeled_by_set": {
       "calibration": 4,
-      "dev": 16,
+      "dev": 20,
       "heldout": 8,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 28
+      "near_gold": 32
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "subsidiary_jurisdictions": {
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.069,
-      "value": []
+      "share": 0.121,
+      "value": [
+       "Delaware"
+      ]
      },
      "effective_status": "scored",
      "in_output_schema": true,
-     "labeled": 29,
+     "labeled": 33,
      "labeled_by_set": {
       "calibration": 5,
-      "dev": 16,
+      "dev": 20,
       "heldout": 8,
       "pool": 0
      },
      "subclasses_with_truth": 1,
      "truth": {
-      "near_gold": 29
+      "near_gold": 33
      },
-     "verdict": "thin"
+     "verdict": "iterate"
     },
     "trustee": {
      "dojo_status": "pending_annotation",
@@ -12857,30 +12869,31 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.95,
+        "share": 0.806,
         "value": null
        },
        "effective_status": "scored",
        "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
-       "labeled": 20,
+       "labeled": 31,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 9,
+        "dev": 20,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "interim": 20
+        "interim": 20,
+        "near_gold": 11
        },
        "type": "id",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "constant"
+       "verdict": "iterate"
       },
       "incorporators": {
        "dojo_status": "pending_annotation",
@@ -13036,7 +13049,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.261,
+        "share": 0.292,
         "value": null
        },
        "effective_status": "scored",
@@ -13046,15 +13059,15 @@
         "where": "'Registered Agent' / 'Resident Agent' article"
        },
        "in_output_schema": true,
-       "labeled": 23,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 19,
+        "dev": 20,
         "heldout": 3,
         "pool": 0
        },
        "truth": {
-        "near_gold": 23
+        "near_gold": 24
        },
        "type": "name",
        "valued_by_set": {
@@ -13063,7 +13076,7 @@
         "heldout": 2,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "signatories": {
        "dojo_status": "pending_annotation",
@@ -13154,9 +13167,8 @@
       "authorized_capital"
      ],
      "verdicts": {
-      "constant": 3,
-      "iterate": 8,
-      "thin": 1
+      "constant": 2,
+      "iterate": 10
      }
     },
     "board_resolution": {
@@ -14240,31 +14252,31 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.159,
+        "share": 0.178,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 69,
+       "labeled": 73,
        "labeled_by_set": {
         "calibration": 35,
-        "dev": 16,
+        "dev": 20,
         "heldout": 18,
         "pool": 0
        },
        "truth": {
         "interim": 7,
-        "near_gold": 62
+        "near_gold": 66
        },
        "type": "date",
        "valued_by_set": {
         "calibration": 28,
-        "dev": 14,
+        "dev": 16,
         "heldout": 16,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "scored",
@@ -14300,30 +14312,31 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 1.0,
+        "share": 0.895,
         "value": null
        },
        "effective_status": "scored",
        "guide": "id: The official filing or document reference number printed on the record (for example an SEC File No. or a state charter/document number), transcribed exactly as written: keep leading zeros and punctuation (`0-1234`, `0012345`). `0` is a stated number. Never use an SEC exhibit number, a form label (\"Form 10-K\"), a mailing address or the document's year. Null only after the full read (and the long-document search below) finds no official number; when the candidate number is ambiguous, leave the field out and record it in `supplementary` instead of guessing.",
        "in_output_schema": true,
-       "labeled": 22,
+       "labeled": 38,
        "labeled_by_set": {
         "calibration": 16,
-        "dev": 4,
+        "dev": 20,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "interim": 22
+        "interim": 22,
+        "near_gold": 16
        },
        "type": "id",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "constant"
+       "verdict": "iterate"
       },
       "intent": {
        "dojo_status": "scored",
@@ -14357,31 +14370,31 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.931,
+        "share": 0.933,
         "value": "Delaware"
        },
        "effective_status": "scored",
        "guide": "name: The state or country under whose law the entity is organised (for example \"Delaware\").",
        "in_output_schema": true,
-       "labeled": 72,
+       "labeled": 75,
        "labeled_by_set": {
         "calibration": 37,
-        "dev": 17,
+        "dev": 20,
         "heldout": 18,
         "pool": 0
        },
        "truth": {
         "interim": 22,
-        "near_gold": 50
+        "near_gold": 53
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 37,
-        "dev": 17,
+        "dev": 20,
         "heldout": 18,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "keywords": {
        "dojo_status": "scored",
@@ -14474,22 +14487,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.097,
+        "share": 0.122,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 72,
+       "labeled": 74,
        "labeled_by_set": {
         "calibration": 37,
-        "dev": 17,
+        "dev": 19,
         "heldout": 18,
         "pool": 0
        },
        "truth": {
         "interim": 19,
-        "near_gold": 53
+        "near_gold": 55
        },
        "type": "entity_list:name",
        "valued_by_set": {
@@ -14559,9 +14572,9 @@
       "prior_entity_name"
      ],
      "verdicts": {
-      "constant": 3,
-      "iterate": 3,
-      "thin": 6
+      "constant": 2,
+      "iterate": 6,
+      "thin": 4
      }
     },
     "indenture": {
@@ -14775,9 +14788,42 @@
       },
       "maturity_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.9,
+        "value": null
+       },
        "effective_status": "scored",
        "entity": {
         "description": "Stated maturity.",
+        "required": false,
+        "where": "Terms of the securities"
+       },
+       "in_output_schema": true,
+       "labeled": 20,
+       "labeled_by_set": {
+        "calibration": 0,
+        "dev": 20,
+        "heldout": 0,
+        "pool": 0
+       },
+       "truth": {
+        "near_gold": 20
+       },
+       "type": "date",
+       "valued_by_set": {
+        "calibration": 0,
+        "dev": 2,
+        "heldout": 0,
+        "pool": 0
+       },
+       "verdict": "iterate"
+      },
+      "principal_amount": {
+       "dojo_status": "pending_annotation",
+       "effective_status": "scored",
+       "entity": {
+        "description": "Aggregate principal amount, as written.",
         "required": false,
         "where": "Terms of the securities"
        },
@@ -14792,38 +14838,10 @@
        "truth": {
         "near_gold": 19
        },
-       "type": "date",
-       "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
-        "heldout": 0,
-        "pool": 0
-       },
-       "verdict": "thin"
-      },
-      "principal_amount": {
-       "dojo_status": "pending_annotation",
-       "effective_status": "scored",
-       "entity": {
-        "description": "Aggregate principal amount, as written.",
-        "required": false,
-        "where": "Terms of the securities"
-       },
-       "in_output_schema": true,
-       "labeled": 16,
-       "labeled_by_set": {
-        "calibration": 0,
-        "dev": 16,
-        "heldout": 0,
-        "pool": 0
-       },
-       "truth": {
-        "near_gold": 16
-       },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 6,
+        "dev": 7,
         "heldout": 0,
         "pool": 0
        },
@@ -15017,9 +15035,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 9,
+      "iterate": 10,
       "not_applicable": 1,
-      "thin": 2
+      "thin": 1
      }
     },
     "officer_certificate": {
@@ -15996,7 +16014,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.12,
+        "share": 0.115,
         "value": [
          "Michael K. Farrell",
          "Maria R. Morris",
@@ -16008,21 +16026,21 @@
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 25,
+       "labeled": 26,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 8,
+        "dev": 9,
         "heldout": 10,
         "pool": 0
        },
        "truth": {
         "interim": 10,
-        "near_gold": 15
+        "near_gold": 16
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 7,
-        "dev": 8,
+        "dev": 9,
         "heldout": 10,
         "pool": 0
        },
@@ -16100,22 +16118,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.208,
+        "share": 0.224,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: The date the record takes effect, or its adoption or filing date when no effective date is stated.",
        "in_output_schema": true,
-       "labeled": 48,
+       "labeled": 49,
        "labeled_by_set": {
         "calibration": 9,
-        "dev": 19,
+        "dev": 20,
         "heldout": 20,
         "pool": 0
        },
        "truth": {
         "interim": 19,
-        "near_gold": 29
+        "near_gold": 30
        },
        "type": "date",
        "valued_by_set": {
@@ -16124,7 +16142,7 @@
         "heldout": 18,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "entity_name": {
        "dojo_status": "partial",
@@ -16159,6 +16177,11 @@
       },
       "exercise_price": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.85,
+        "value": null
+       },
        "effective_status": "scored",
        "entity": {
         "description": "Exercise/strike price, as written.",
@@ -16166,24 +16189,24 @@
         "where": "Exercise clause"
        },
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 20,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 19,
+        "dev": 20,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 20
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "filing_number": {
        "dojo_status": "not_applicable",
@@ -16247,7 +16270,7 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.25,
+        "share": 0.238,
         "value": "registration rights"
        },
        "effective_status": "scored",
@@ -16257,15 +16280,15 @@
         "where": "Title and first recital"
        },
        "in_output_schema": true,
-       "labeled": 20,
+       "labeled": 21,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 19,
+        "dev": 20,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 20
+        "near_gold": 21
        },
        "type": "name",
        "valued_by_set": {
@@ -16274,7 +16297,7 @@
         "heldout": 1,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "intent": {
        "dojo_status": "scored",
@@ -16463,22 +16486,22 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.17,
+        "share": 0.188,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block.",
        "in_output_schema": true,
-       "labeled": 47,
+       "labeled": 48,
        "labeled_by_set": {
         "calibration": 9,
-        "dev": 19,
+        "dev": 20,
         "heldout": 19,
         "pool": 0
        },
        "truth": {
         "interim": 11,
-        "near_gold": 36
+        "near_gold": 37
        },
        "type": "entity_list:name",
        "valued_by_set": {
@@ -16487,7 +16510,7 @@
         "heldout": 16,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subject_matter": {
        "dojo_status": "scored",
@@ -16553,9 +16576,9 @@
      ],
      "verdicts": {
       "constant": 2,
-      "iterate": 6,
+      "iterate": 10,
       "not_applicable": 1,
-      "thin": 5
+      "thin": 1
      }
     },
     "subsidiary_list": {
@@ -16814,13 +16837,12 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.036,
+        "share": 0.031,
         "value": [
-         "Portfolio Recovery Associates, L.L.C.",
-         "PRA AG Funding, LLC",
-         "PRA Holding I, LLC",
-         "PRA III, LLC",
-         "PRA Receivables Management, LLC"
+         "Max Re Ltd.",
+         "Max Re Managers Ltd.",
+         "Max Re Diversified Strategies, Ltd.",
+         "Max Re Europe Limited"
         ]
        },
        "effective_status": "scored",
@@ -16830,31 +16852,33 @@
         "where": "Subsidiary table, first column"
        },
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 32,
        "labeled_by_set": {
         "calibration": 4,
-        "dev": 16,
+        "dev": 20,
         "heldout": 8,
         "pool": 0
        },
        "truth": {
-        "near_gold": 28
+        "near_gold": 32
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 4,
-        "dev": 16,
+        "dev": 20,
         "heldout": 8,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       },
       "subsidiary_jurisdictions": {
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.069,
-        "value": []
+        "share": 0.121,
+        "value": [
+         "Delaware"
+        ]
        },
        "effective_status": "scored",
        "entity": {
@@ -16863,24 +16887,24 @@
         "where": "Subsidiary table, jurisdiction column"
        },
        "in_output_schema": true,
-       "labeled": 29,
+       "labeled": 33,
        "labeled_by_set": {
         "calibration": 5,
-        "dev": 16,
+        "dev": 20,
         "heldout": 8,
         "pool": 0
        },
        "truth": {
-        "near_gold": 29
+        "near_gold": 33
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 4,
-        "dev": 15,
+        "dev": 19,
         "heldout": 8,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "iterate"
       }
      },
      "intent": "other",
@@ -16912,9 +16936,8 @@
      ],
      "verdicts": {
       "constant": 3,
-      "iterate": 3,
-      "not_applicable": 3,
-      "thin": 2
+      "iterate": 5,
+      "not_applicable": 3
      }
     }
    }
@@ -27009,9 +27032,9 @@
   "constant_share": 0.95,
   "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
-  "labeling_guide_sha256": "4c2d2b1b6f3ecc79bf576b0107055700bfcc19f2ca12e5bda693c39e5f5d20b5",
+  "labeling_guide_sha256": "815251a6c6ce35af2cd05b97ad49a61a23ad1ce1b2721a9f1ac826b873a14ad4",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "f07b166c2f4c4282042b9286287255b31a0d9cb4ad8f3a89483a802aa31111ab",
+  "near_gold_overlay_sha256": "c1b5e17d7687b9c0c8573b64a229c8fb89dbdb148f97a0ef4d021b6a44bb8ad9",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],
