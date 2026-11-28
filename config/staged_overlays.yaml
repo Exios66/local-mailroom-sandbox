@@ -88,3 +88,12 @@ overlays:
     path: v9.3.0/pre-release/v9.3.1-rc.11
     manifest_sha256: 0221334254c3504aeffb61ba5efa6bf24d541de02379725c1dd5fe0222c94815
     base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
+  # rc.12: rebuilt from the label-repaired release at sandbox 84360786 (#474): the rc.12
+  # near-gold rounds (contract target fields of slices 100-500, corporate calibration gate
+  # fields) and the corrected Motor Cargo evidence span.
+  9.3.1-rc.12:
+    repo: LLM-Mailroom-Services/mailroom-issues
+    commit: 715c98e54604be659b91f7a0b4f1005c04aa0e19
+    path: v9.3.0/pre-release/v9.3.1-rc.12
+    manifest_sha256: cd3788c8c69f65ce8535ae41e5cb11d22ad16296dfd5aa0175b00f06383f6b9b
+    base_tag_commit: ff4ca546d4346991628c2616ae014afc15e9fe04
