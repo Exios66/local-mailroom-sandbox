@@ -121,13 +121,16 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     scorer fixes (SHF-002 names, SHF-003 money, SHF-004 identifiers) type a miss the way the run
     headline scores it: a ``claim_number`` the headline counts right is never the lowest field. The
     stale-label drop (SHF-015) is not applied here: a heuristic ``intent`` stays a candidate lowest
-    field so that ``label_suspect`` can name it.
+    field so that ``label_suspect`` can name it. A correspondence header label SHF-019 leaves out
+    (the text does not show it) is skipped, as the headline skips it.
     """
     from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.eval.scoring import suite_for_doc_type
 
     doc_class = str(row.get("expected_doc_class"))
     drop = set(TEMPLATED_FIELDS.get(doc_class, ()))
+    if sh.enabled("SHF-019"):  # header truth the text does not show is not scored on the headline
+        drop.update(sh.drop_unseen_header_truth(doc_class, row.get("id"), _fields(row), row.get("doc_text"))[1])
     _, expected = scope_extraction_pair(doc_class, {}, _fields(row))
     expected = {k: v for k, v in expected.items() if k not in drop and k not in _NOT_LABELS and not _blank(v)}
     if not expected:
@@ -136,7 +139,10 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     sub = str(row.get("expected_subclass") or "").strip()
     # SHF-013: the headline scores a reviewed subclass correction, so the diagnosis does too.
     from mailroom_sandbox.eval.scoring import corrected_subclass_truth
-    sub = corrected_subclass_truth(row.get("id"), doc_class, sub) or sub if sub else sub
+    corrected = corrected_subclass_truth(row.get("id"), doc_class, sub) if sub else None
+    if corrected:  # the derived truth (record_type, intent, cuad_family, ...) follows it, as on the headline
+        expected = sh.corrected_derived_truth(doc_class, sub, corrected, expected)[0]
+        sub = corrected
     kwargs: dict[str, Any] = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_class == "corporate_record")
     try:
