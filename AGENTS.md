@@ -126,6 +126,7 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
 | `apache-phoenix` | Optional Arize Phoenix OTEL sidecar only |
 | `braintrust` | Opt-in hosted Braintrust (never default offline) |
+| `near-gold-labels` | Label expansion and repair: coverage EDA, next targets, two-pass rounds, review, admission, release rebuild and staged cuts (`docs/gold-labels/NEAR_GOLD_PLAYBOOK.md`) |
 | `huggingface` | Pinned Hub pulls / weights, offline draws, named datasets, subset identity and floor replay provenance |
 
 Do not use Phoenix or Braintrust as the The-Mailroom sink. OpenRouter is the
@@ -273,7 +274,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
   rules, and the repo layout index at `docs/setting-up/LAYOUT.md`. Every docs page is indexed in
   [`docs/README.md`](docs/README.md).
-- Agent skills: `.cursor/skills/` (router + docs audit + SAND board lifecycle/hygiene + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
+- Agent skills: `.cursor/skills/` (router + docs audit + SAND board lifecycle/hygiene + near-gold labels + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Reduced agent profile (HUB-015)
 
