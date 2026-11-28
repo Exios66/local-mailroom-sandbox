@@ -75,24 +75,34 @@ Pull the exact open cells:
 
 ## 4. Advance into production truth
 
-1. **Rebuild the release:**
-   `.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py --out <new dir>`.
-   Replace the committed outputs. `summary.json` `values_moved_by_reviewed_precedence` must be
-   empty or explained.
-2. **Rebuild the subclass registry** after any catalog admission or `LABELING_GUIDE.md` edit:
+Rebuild the derived files in this order. Each one hashes the one before it, so a file built
+early pins stale bytes (hosted tests catch each case).
+
+1. **Rebuild the subclass registry** after any catalog admission or `LABELING_GUIDE.md` edit,
+   once `gold_labels.py overlay` has run:
    `.venv/bin/sandbox schemas build` and `.venv/bin/python scripts/build_subclass_fields.py`.
    Both record the overlay and guide sha256; a stale registry fails hosted
-   `test_subclass_schemas.py`.
-3. **Re-measure:** `label_eda.py summary` and `focus` on the new release; quote the gain in the
+   `test_subclass_schemas.py`. In a git worktree, `sandbox` imports the main checkout: run
+   `env PYTHONPATH=src .venv/bin/python -P -m mailroom_sandbox.cli schemas build` instead.
+2. **Rebuild the judge reference pool** after any catalog change:
+   `.venv/bin/python scripts/build_judge_reference_pool.py`. It is built from the interim and
+   near-gold overlays; a stale pool fails hosted `test_judge_references.py`.
+3. **Rebuild the release last:**
+   `.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py --out <new dir>`.
+   Replace the committed outputs. `summary.json` `values_moved_by_reviewed_precedence` must be
+   empty or explained. Its `inputs_sha256` records the registry's bytes, so a release built before
+   the registry pins stale bytes (`tests/test_label_repaired_builder.py` checks them). Offline, set
+   `HF_HUB_OFFLINE=1` and `HF_HUB_CACHE` to a cache holding the pinned ground-truth metadata.
+4. **Re-measure:** `label_eda.py summary` and `focus` on the new release; quote the gain in the
    PR.
-4. **PR** with the template, Critical regressions filled, and focused tests
+5. **PR** with the template, Critical regressions filled, and focused tests
    (`-n 0 --no-cov` on `tests/test_gold_labels*.py`, `tests/test_label_eda.py` and the
    release-builder and staging tests touched). Hosted CircleCI must be green.
-5. **Stage a cut** only when the owner asks: `scripts/stage_label_overlay.py` into a
+6. **Stage a cut** only when the owner asks: `scripts/stage_label_overlay.py` into a
    mailroom-issues checkout, a new pin entry in `config/staged_overlays.yaml` (never edit an
    existing one), then `scripts/pull_staged_overlay.py --version 9.3.1-rc.N --root <scratch>` to
    verify.
-6. **Advance slices** in a separate PR, only after the cut's commit is on mailroom-issues main
+7. **Advance slices** in a separate PR, only after the cut's commit is on mailroom-issues main
    by a merge commit.
 
 ## Rules that bite

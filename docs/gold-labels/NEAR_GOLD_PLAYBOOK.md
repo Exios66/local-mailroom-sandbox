@@ -38,7 +38,7 @@ Detailed rules live elsewhere, and this page links to them instead of repeating 
  6 disputes    gold_labels.py disputes + review file   a reviewer settles disagreements
  7 admit       gold_labels.py add [--missing-fields]   catalog records become near_gold
  8 archive     data/labels/repair-artifacts/<name>/    every pass, review and sha256
- 9 rebuild     build_label_repaired.py --out ...       the merged release, with provenance
+ 9 rebuild     registry, judge pool, then the release  derived files, the release last
 10 stage, pin  stage_label_overlay.py + pin entry      a new rc cut in mailroom-issues
 11 advance     slice configs select the new cut        only after the cut lands on its main
 ```
@@ -199,25 +199,11 @@ documented absences), how disputes were settled, and what was held out and why. 
 
 ## Advancing labels into production truth
 
-### Rebuild the release
+### Rebuild order
 
-```bash
-.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py \
-    --out reports/datasets/mailroom-dataset-v9.3-label-repaired/generated-YYYYMMDD
-```
-
-Then replace the committed outputs with the generated set (see the release README). Before you
-commit, check:
-
-- `summary.json` `values_moved_by_reviewed_precedence` is empty, or every listed move is
-  intended and explained in the PR;
-- the provenance diff changes only cells that were unlabeled or that a reviewed label now holds;
-- `label_eda.py summary` on the new release shows the gain you expect.
-
-The builder's vote rule (`reviewed_over_hub`): once a reviewed or near-gold source votes, the Hub
-and the sources computed from it count for nothing; `cuad_span`, `interim_gate` and
-`generated_rule` still count. A reviewed absence over a populated value, and independent evidence
-that beats a reviewed label, go to `needs_human.csv` instead of being settled silently.
+After `gold_labels.py overlay`, rebuild the derived files in this order: the subclass registry,
+the judge reference pool, then the release. Each one hashes inputs the one before it writes, so a
+file built too early pins stale bytes, and a hosted test catches it.
 
 ### Rebuild the subclass registry
 
@@ -231,9 +217,44 @@ with the change, or hosted `test_subclass_schemas.py` fails:
 .venv/bin/sandbox schemas build --check && .venv/bin/python scripts/build_subclass_fields.py --check
 ```
 
+In a git worktree, `sandbox` imports the main checkout and writes there. Run
+`env PYTHONPATH=src .venv/bin/python -P -m mailroom_sandbox.cli schemas build` from the worktree
+instead.
+
 A rebuild changes `subclass_fields_sha256`, so run locks written against the old registry refuse
 to resume. Say so in the PR (Critical regressions row 9). When two open branches both touch the
 catalog or the guide, the one that lands second rebuilds the registry again after merging.
+
+### Rebuild the judge reference pool
+
+`config/judge/reference-pool-runbook-v2.jsonl` is built from the interim and near-gold overlays.
+After any catalog change, rebuild it, or hosted `test_judge_references.py` fails:
+
+```bash
+.venv/bin/python scripts/build_judge_reference_pool.py
+```
+
+### Rebuild the release, last
+
+```bash
+.venv/bin/python -I reports/datasets/mailroom-dataset-v9.3-label-repaired/build_label_repaired.py \
+    --out reports/datasets/mailroom-dataset-v9.3-label-repaired/generated-YYYYMMDD
+```
+
+Then replace the committed outputs with the generated set (see the release README). The summary's
+`inputs_sha256` records the registry's bytes, so a release built before the registry pins a
+stale hash. Offline, set `HF_HUB_OFFLINE=1` and point `HF_HUB_CACHE` at a cache that holds the
+pinned ground-truth metadata. Before you commit, check:
+
+- `summary.json` `values_moved_by_reviewed_precedence` is empty, or every listed move is
+  intended and explained in the PR;
+- the provenance diff changes only cells that were unlabeled or that a reviewed label now holds;
+- `label_eda.py summary` on the new release shows the gain you expect.
+
+The builder's vote rule (`reviewed_over_hub`): once a reviewed or near-gold source votes, the Hub
+and the sources computed from it count for nothing; `cuad_span`, `interim_gate` and
+`generated_rule` still count. A reviewed absence over a populated value, and independent evidence
+that beats a reviewed label, go to `needs_human.csv` instead of being settled silently.
 
 ### Stage and pin a cut
 
@@ -263,10 +284,11 @@ runbook together. Existing run locks keep their cut, and a resume over a changed
 - [ ] Nothing in `heldout` was labeled; calibration labels are marked in-sample.
 - [ ] The round is archived with sha256 values; no document text is committed outside the
       release's own outputs.
-- [ ] The release rebuild reproduces the committed outputs, and no protected value moved
-      without a reason in the PR.
 - [ ] The subclass registry is rebuilt (`sandbox schemas build --check` and
       `build_subclass_fields.py --check` pass) after any catalog or `LABELING_GUIDE.md` change.
+- [ ] The judge reference pool is rebuilt (`build_judge_reference_pool.py --check` passes).
+- [ ] The release is rebuilt last and reproduces the committed outputs, and no protected value
+      moved without a reason in the PR.
 - [ ] Focused tests pass with `-n 0 --no-cov`: `tests/test_gold_labels*.py`,
       `tests/test_label_eda.py`, the release-builder and staged-overlay tests your change
       touches.
