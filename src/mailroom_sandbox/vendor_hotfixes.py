@@ -1082,6 +1082,12 @@ def _full_source_rule_registered() -> bool:
     return any(rule.name == FULL_SOURCE_RULE for rule in route_spec.route_rules("arbiter"))
 
 
+def _caveat_park_rule_registered() -> bool:
+    from graph import route_spec
+
+    return any(rule.name == CAVEAT_PARK_RULE for rule in route_spec.route_rules("arbiter"))
+
+
 def arbiter_read_whole_source(routing: Any, state: Mapping[str, Any]) -> bool:
     """HF-014: whether an ``accept_with_caveats`` on ``state`` rests on the whole source.
 
@@ -1115,12 +1121,87 @@ def confidence_floor_met(routing: Any, state: Mapping[str, Any]) -> bool:
 
 
 def full_source_accepts(routing: Any, state: Mapping[str, Any]) -> bool:
-    """HF-014: an ``accept_with_caveats`` on ``state`` archives (whole source read, floor reached)."""
+    """HF-014: an ``accept_with_caveats`` on ``state`` archives (whole source read, floor reached).
+
+    Never where HF-034 parks every acceptance of the class."""
+    if caveat_acceptance_parks(routing, state):
+        return False
     return arbiter_read_whole_source(routing, state) and confidence_floor_met(routing, state)
 
 
+#: Run ``confidence`` key (set per class under ``by_class``) that turns on HF-034. Unset or false
+#: the vendored route is unchanged.
+CAVEAT_PARK_KEY = "caveat_acceptance_parks"
+#: Route-rule name of HF-034 (``graph.route_spec`` registry, ``arbiter`` node).
+CAVEAT_PARK_RULE = "HF-034:caveat_acceptance_parks"
+
+
+def caveat_acceptance_parks(routing: Any, state: Mapping[str, Any]) -> bool:
+    """HF-034: whether ``state``'s class parks every arbiter ``accept_with_caveats`` (the rule registered)."""
+    return routing._thresholds_for(state).get(CAVEAT_PARK_KEY) is True and _caveat_park_rule_registered()
+
+
+def caveat_park_rule(routing: Any) -> Callable[[Mapping[str, Any], str], str | None]:
+    """``arbiter``: with ``confidence.caveat_acceptance_parks`` on, an acceptance goes to a person.
+
+    The vendored ``after_arbiter`` archives an ``accept_with_caveats`` once the extraction
+    confidence reaches the class ``low`` band. A model that reports the same high confidence
+    on good and bad extractions clears that band every time, so the caveat archive becomes a
+    silent wrong archive (the rc.11 smokes: 14 of 18 caveat archives scored under 0.90 on
+    contracts, correspondence and insurance; corporate records' 3 were right). The class's
+    acceptances park instead; ``retry_extraction`` and ``human_review`` rulings keep their routes.
+    """
+
+    def decide(state: Mapping[str, Any], proposed: str) -> str | None:
+        if proposed != "compile_report" or state.get("transient_error"):
+            return None
+        if state.get("arbiter_decision") != "accept_with_caveats":
+            return None
+        return "human_review" if caveat_acceptance_parks(routing, state) else None
+
+    return decide
+
+
+def _register_caveat_park_rule(module: Any) -> None:
+    """(Re)register the HF-034 rule after the HF-011 rules and HF-014's on ``arbiter``; idempotent.
+
+    It answers a ``compile_report`` proposal only, HF-014 a ``human_review`` one and HF-011's
+    arbiter rule a ``retry_extract`` one, so their order never changes a route; it sits ahead of
+    any later rule (a ``decision_point:*`` one) that could answer the same proposal.
+    """
+    from graph import route_spec
+
+    current = route_spec.route_rules("arbiter")
+    position = sum(1 for rule in current
+                   if rule.name.startswith(JUDGE_EXHAUSTED_RULES) or rule.name == FULL_SOURCE_RULE)
+    mine = next((rule for rule in current if rule.name == CAVEAT_PARK_RULE), None)
+    if (mine is not None and current.index(mine) == position
+            and getattr(mine.decide, "_hf034_module", None) is module):
+        return
+    decide = caveat_park_rule(module)
+    decide._hf034_module = module  # type: ignore[attr-defined]
+    if mine is not None:
+        route_spec.remove_route_rule("arbiter", CAVEAT_PARK_RULE)
+        position = sum(1 for rule in route_spec.route_rules("arbiter")
+                       if rule.name.startswith(JUDGE_EXHAUSTED_RULES) or rule.name == FULL_SOURCE_RULE)
+    route_spec.add_route_rule("arbiter", route_spec.RouteRule(CAVEAT_PARK_RULE, decide), position=position)
+
+
+def _install_caveat_park(module: Any, original: Callable[..., Any]) -> Callable[..., Any]:
+    """Register the HF-034 route rule; the router itself is unchanged (see HF-011)."""
+    _register_caveat_park_rule(module)
+
+    @functools.wraps(original)
+    def after_arbiter(state: dict) -> Any:
+        return original(state)
+
+    return after_arbiter
+
+
 def acceptance_parks(routing: Any, state: Mapping[str, Any]) -> bool:
-    """Whether ``after_arbiter`` (with HF-014 when it is registered) parks an ``accept_with_caveats``."""
+    """Whether ``after_arbiter`` (with HF-014 and HF-034 when registered) parks an ``accept_with_caveats``."""
+    if caveat_acceptance_parks(routing, state):
+        return True
     if not (routing._extraction_still_unsure(state) or routing._unadjudicated_conflict(state)):
         return False
     return not (_full_source_rule_registered() and full_source_accepts(routing, state))
@@ -2324,6 +2405,19 @@ HOTFIXES: tuple[Hotfix, ...] = (
         install=_install_intake_head,
         # Installed over HF-003 (the same method): this layer runs first.
         also=(("sliding_windows", "f826d7f9d88570fbd46a86e6a7dc3c7e5c973661e0caeaf0cdfa20f2fa2788a4"),),
+    ),
+    Hotfix(
+        id="HF-034",
+        module="graph.routing",
+        attr="after_arbiter",
+        source_sha256="6cf2a63495a3c87a755f03b6fb59b424514f2ad7898882c79e192252aca94529",
+        upstream="sandbox-only (rc.11 live smokes; upstream issue to be filed with the 50-document results)",
+        summary="with confidence.caveat_acceptance_parks on a class, an arbiter accept_with_caveats goes to "
+                "human review instead of the archive, and HF-011 no longer asks the arbiter on a last "
+                "partial pass of that class (its acceptance would park)",
+        install=_install_caveat_park,
+        refresh=_register_caveat_park_rule,
+        # Installed over HF-014 (the same router): both are pass-through wrappers around route rules.
     ),
 )
 
