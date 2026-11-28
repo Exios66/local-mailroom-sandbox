@@ -142,6 +142,7 @@ addopts = ["--strict-markers"]
 markers = [
     "service_smoke: opt-in real Modal/HF CLI contract checks (SANDBOX_SERVICE_SMOKE=1)",
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
+    "span_mirror_sdk: use the interpreter's real OpenTelemetry SDK check instead of the suite's stub",
 ]
 
 # DMR-057: no workspace redirects needed — the family code is vendored and

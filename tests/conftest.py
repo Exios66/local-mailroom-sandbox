@@ -120,6 +120,20 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
+def _span_mirror_sdk_present(request, monkeypatch):
+    """The dev venv (and CI) lacks the [observability] SDK that a real run's span mirror needs.
+
+    Preflight refuses a paid endpoint run without it, so tests that prepare such runs would all
+    fail on the environment. They see the SDK as present; tests of that check opt out with
+    ``@pytest.mark.span_mirror_sdk``.
+    """
+    if request.node.get_closest_marker("span_mirror_sdk") is None:
+        from mailroom_sandbox.job import preflight
+
+        monkeypatch.setattr(preflight, "span_mirror_missing", lambda: [])
+
+
+@pytest.fixture(autouse=True)
 def _isolated_run_ledger(tmp_path, monkeypatch):
     """Signed test runs must not append to the tracked reports/run-ledger.md."""
     monkeypatch.setenv("SANDBOX_RUN_LEDGER", str(tmp_path / "_ledger" / "run-ledger.md"))

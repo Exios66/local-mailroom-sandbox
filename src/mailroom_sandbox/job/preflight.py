@@ -1910,6 +1910,44 @@ def _langfuse_failure(spec: RunSpec, sink, offline: bool, report: dict[str, Any]
     return None
 
 
+#: what ``otel.configure_tracing`` imports to write the local span mirror (the [observability] extra)
+_SPAN_MIRROR_MODULES = ("opentelemetry.sdk.trace", "opentelemetry.exporter.otlp.proto.http.trace_exporter")
+
+
+def _module_missing(name: str) -> bool:
+    try:
+        return find_spec(name) is None
+    except (ImportError, ValueError):  # a missing parent package raises instead of returning None
+        return True
+
+
+def span_mirror_missing() -> list[str]:
+    """The span-mirror modules this interpreter cannot import (empty when the mirror works)."""
+    return [m for m in _SPAN_MIRROR_MODULES if _module_missing(m)]
+
+
+def _span_mirror_failure(spec: RunSpec, report: dict[str, Any]):
+    """An endpoint run without the OpenTelemetry SDK would spend and write no span mirror.
+
+    ``run start`` mirrors every span to ``data/traces/<run_id>.spans.jsonl.gz`` whatever the sink,
+    and ``sandbox run gate`` fails its audit without that file. ``configure_tracing`` only warns
+    when the SDK is missing, so refuse here, before spend. A local import check: offline too.
+    """
+    if spec.job.mock or spec.job.mode != "endpoint":
+        return None
+    missing = span_mirror_missing()
+    if not missing:
+        return None
+    report["status"] = "failed"
+    report["checks"].append(
+        {"name": "trace_sink", "ok": False,
+         "detail": f"span mirror cannot be written: {', '.join(missing)} not installed "
+                   "(the gate audit needs data/traces/<run_id>.spans.jsonl.gz); "
+                   "install mailroom-sandbox[observability]"}
+    )
+    return report
+
+
 def _trace_sink_failure(spec: RunSpec, report: dict[str, Any], run_id: str, offline: bool):
     try:
         sink = resolve_sink(
@@ -1922,6 +1960,8 @@ def _trace_sink_failure(spec: RunSpec, report: dict[str, Any], run_id: str, offl
             tags=spec.trace.tags,
         )
         failed = _langfuse_failure(spec, sink, offline, report)
+        if failed is None:
+            failed = _span_mirror_failure(spec, report)
         if failed is not None:
             return failed
         report["checks"].append(

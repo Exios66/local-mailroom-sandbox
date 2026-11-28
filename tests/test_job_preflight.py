@@ -902,3 +902,38 @@ def test_a_lock_without_the_trace_reads_key_counts_as_recording(tmp_path, job_da
     off = preflight.preflight(_pipeline_spec(tmp_path, "pf-trace-old", trace_reads=False), offline=True)
     assert not [c for c in on["checks"] if c["name"] == "trace_reads"]
     assert [c for c in off["checks"] if c["name"] == "trace_reads"]
+
+
+@pytest.mark.span_mirror_sdk
+def test_a_paid_endpoint_run_needs_the_span_mirror_sdk(tmp_path, monkeypatch):
+    """The gate audit fails without data/traces/<run_id>.spans.jsonl.gz, so refuse before spend."""
+    base = _run_spec(tmp_path)
+    paid = base.model_copy(update={"job": base.job.model_copy(update={"mock": False})})
+    monkeypatch.setattr(preflight, "find_spec", lambda name: None)
+    report = {"status": "prepared", "checks": []}
+    assert preflight._span_mirror_failure(paid, report) is report
+    assert report["status"] == "failed"
+    check = report["checks"][0]
+    assert check["name"] == "trace_sink" and not check["ok"] and "observability" in check["detail"]
+    # a mock run and a Modal-hosted run do not write the local mirror here
+    assert preflight._span_mirror_failure(base, {"status": "prepared", "checks": []}) is None
+    modal = paid.model_copy(update={"job": paid.job.model_copy(update={"mode": "modal"})})
+    assert preflight._span_mirror_failure(modal, {"status": "prepared", "checks": []}) is None
+    # a missing parent package raises from find_spec instead of returning None
+    def raising(name):
+        raise ModuleNotFoundError(name)
+    monkeypatch.setattr(preflight, "find_spec", raising)
+    assert preflight._span_mirror_failure(paid, {"status": "prepared", "checks": []}) is not None
+    monkeypatch.setattr(preflight, "find_spec", lambda name: object())
+    assert preflight._span_mirror_failure(paid, {"status": "prepared", "checks": []}) is None
+
+
+@pytest.mark.span_mirror_sdk
+def test_doctor_reports_the_span_mirror_sdk(monkeypatch):
+    from mailroom_sandbox.services import doctor
+
+    monkeypatch.setattr(preflight, "find_spec", lambda name: None)
+    row = doctor._span_mirror()
+    assert row.state == "warn" and "observability" in row.hint
+    monkeypatch.setattr(preflight, "find_spec", lambda name: object())
+    assert doctor._span_mirror().state == "ok"

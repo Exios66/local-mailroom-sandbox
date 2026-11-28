@@ -5,7 +5,8 @@ This runbook covers how a production run is approved. Each run is a CLI-launched
 - Design: [`docs/design/specs/2026-11-16-production-slice-gate-design.md`](../design/specs/2026-11-16-production-slice-gate-design.md)
 - Tracker: Exios66/local-mailroom-sandbox#305
 - Fix backlog: Exios66/local-mailroom-sandbox#306
-- Current state and next actions: [`production-readiness-handoff.md`](production-readiness-handoff.md) (2026-11-16)
+- Launch readiness: [the 2026-11-28 OpenRouter launch review](../audits/2026-11-28-openrouter-production-launch-review.md)
+- Earlier state and next actions: [`production-readiness-handoff.md`](production-readiness-handoff.md) (2026-11-16; its run ids and counts predate the rc.10 draw)
 
 This page is hand-written. It is not generated from `config/runbooks/catalog.yaml`.
 
@@ -68,7 +69,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 - **Contracts and mergers:** scored on CUAD and MAUD units. A contract with an empty CUAD map is scored on its field labels instead (SHF-016), and the gate counts those toward `min_labelled`.
 - **Unscorable:** a document with fewer than 2 labelled fields. A gated pool that has archives but none scorable fails the slice. If more than 25% of the pool is unscorable, the gate only warns.
 - **Per-class bars:** these apply from the 500-document slice onward. Below that they are diagnostic only.
-- **Scorable minimum:** from the 500-document slice onward, a gated class with fewer than 20 scorable archives (`min_scorable_per_class`) fails the slice, because its per-class rates would not be evidence. Corporate records are the class at risk: slice 500 holds 26 scorable corporate documents at most.
+- **Scorable minimum:** from the 500-document slice onward, a gated class with fewer than 20 scorable archives (`min_scorable_per_class`) fails the slice, because its per-class rates would not be evidence. Corporate records are the class at risk: with `9.3.1-rc.10`, slice 500 has 64 scorable corporate documents of 68.
 - **Wilson bounds:** `gate.md` prints the Wilson 95% upper bound next to each rate, for information. The pass rule uses the point estimate.
 
 ## The loop, for slice N
@@ -79,11 +80,30 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    export PYTHONPATH="$PWD/src"
    ```
 
-1. **Preflight** (no spend). Every check must be `ok` except `engine_spec` when no key is loaded. It makes network probes (the engine and a Hub dataset); add `--offline` to skip them, at the cost of leaving those checks unverified:
+   Then prepare the machine. Each item fails closed, but finding out at preflight wastes the slot:
+
+   - **Install** `pip install -e ".[dev,observability]"`. The run mirrors every span to `data/traces/<run_id>.spans.jsonl.gz`, and the gate audit fails without it; the mirror needs the OpenTelemetry SDK from `[observability]`. Preflight refuses a run without it (`trace_sink`), and `sandbox doctor` reports it as `span-mirror`.
+   - **Key.** `OPENROUTER_API_KEY` in the launching shell. Leave `OPENROUTER_BASE_URL` unset: a value that is not OpenRouter turns off the provider pins and the per-call spend guard.
+   - **Label cut.** The slices select `9.3.1-rc.10`. Pull it (GitHub access to mailroom-issues), or import a bundle exported from a checkout that has it, then verify:
+
+     ```bash
+     python scripts/pull_staged_overlay.py --version 9.3.1-rc.10            # or: --import <bundle>.tar.gz
+     python scripts/pull_staged_overlay.py --version 9.3.1-rc.10 --check    # ok: ... manifest b7dc80a16037
+     ```
+
+   - **Doctor and hotfixes.** `sandbox doctor` with no `FAIL`, and `python scripts/check_hotfixes.py`.
+   - **Prices.** `python scripts/refresh_api_prices.py --check`, since the sheet's prices are dated.
+   - **A fresh run id.** `sandbox run list`. If `production-slice-0100` already exists from an earlier run (a different draw and labels), give this run a new `run_id` rather than resuming or forcing it, and never pair against that run (step 6).
+   - **Served-model evidence.** `export SANDBOX_SERVED_LOG=data/traces/<run_id>.served.jsonl` before `run start`. Without it, the served model of each call stays in memory only, and a substitution is only a log warning.
+   - **One commit and one cut for the whole ladder.** A step-up compares runs, so do not change the checkout, the vendor pins or `staged_overlay` between slices.
+
+1. **Preflight** (no spend). Every check must be `ok`. Plain preflight probes the Hub dataset but not the engine; `--live` adds the engine probe, and `--offline` skips the network probes, at the cost of leaving those checks unverified. Before a paid slice, run it with `--live` so a bad key or model id fails here, not on the first document:
 
    ```bash
-   sandbox run preflight --config config/runs/production/slice-0100.yaml
+   sandbox run preflight --config config/runs/production/slice-0100.yaml --live
    ```
+
+   For slice 100, expect `rows=100`, dataset `sha256=48eee6163395…` and `excluded=187/187`.
 
 2. **Start.** This is the spend gate. Only a human launches it, with their own initials:
 
@@ -92,6 +112,10 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    ```
 
    After launch, check that `dependency_sources` in the run's `spec.lock.json` matches the checkout you launched from.
+
+   **When a run stops before it finishes:**
+   - **Cap or wall abort** (`api_cost_cap_usd`, `max_wall_seconds`): the run ends `failed`. The cap is part of the spec hash, so it cannot resume with a higher cap. Stop and diagnose before a new run id. `max_wall_seconds` is checked only between documents, so in-flight documents can run on to their own one-hour deadline.
+   - **A document exception or crash:** for `task: pipeline`, `job.fail_fast: false` and `job.max_retries` do not apply. The first document exception (including the 40-call ceiling) stops new documents, and that document has no item row. A human resumes it with `sandbox run resume --run-id <id> --initials <XX>`, which replays finished items without re-billing them and re-runs the rest. A document that fails the same way twice is a fix-loop finding, not something to resume past.
 3. **Gate.** This step is offline and writes only `gate.json` and `gate.md` into the run directory. It exits `0` on pass and `2` on fail. It exits `1`, with a JSON `failed` status, when the run is missing or never started (no `items.jsonl`), or when the gate itself errors (a bad bars file or a scorer failure):
 
    ```bash
@@ -168,7 +192,7 @@ A tuning run that itself excludes the production list would exclude its own docu
 - **The specialist prompts are not fully held out either.** The adopted condensed specialist prompts (corporate v1, correspondence v2, insurance v3) were validated on `gate-train` handoff draws. Those draws' document ids were not recorded, because the compare reports keep only counts. So those documents cannot be excluded, and some may appear in slices.
   - Fully held out: the pipeline-level tuning (the 11 ladder runs) and the correspondence v3 A/B.
   - Partly in-sample: extraction quality on any document a specialist A/B used.
-- **Insurance `claim_type`:** the vendored schema description and extract-node handoff still teach the CMS table tokens and override the prompt. The upstream fix is Exios66/llm-mailroom#174 §2, in PR Exios66/llm-mailroom#280, which is not vendored yet. Expect `extraction:out_of_enum` on CMS rows until a re-vendor brings it in.
+- **Insurance `claim_type`:** the vendored schema description and extract-node handoff still teach the CMS table tokens and override the prompt. The upstream fix is Exios66/llm-mailroom#174 §2 (PR Exios66/llm-mailroom#280). The vendored pin `8cebcd86` describes `claim_type` as the product line, a CMS row being `health`, so this should no longer recur. Report any `extraction:out_of_enum` on a CMS row.
 - **`judge_error` from null `choices` (fixed):** OpenRouter sometimes returns a 200 response with `choices: null` when an upstream provider fails. Before llm-mailroom `63f6841`, the judge raised a non-transient `TypeError` on it, and the document parked instead of retrying (Exios66/llm-mailroom#260).
   - It is classed as transient since Exios66/llm-mailroom#261, which is vendored at `63f6841`. `tests/test_judge_second_pass.py` pins the fix.
   - Slices 100 and 100 r2 hit it on long contracts. Runs locked on an earlier pin still can.
@@ -178,10 +202,10 @@ A tuning run that itself excludes the production list would exclude its own docu
   - Since llm-mailroom `63f6841` (Exios66/llm-mailroom#271), the vendored reviewer records any other non-transient backend error as an error. Earlier pins recorded it as no answer (Exios66/llm-mailroom#268).
 - **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text (Exios66/Mailroom-Corpus-EDA#63).
   - The reviewer says `unknown` on them, and the gate buckets that review as `input:near_empty`, not as a reviewer fault.
-  - They still count against the 5% review budget. With the 147-id list, slice 100 has none, slice 250 has 3, slice 500 has 10 and the full slice has 104.
+  - They still count against the 5% review budget. With the 187-id list, slice 100 has none, slice 250 has 3, slice 500 has 10 and the full slice has 104.
   - Preflight's `context_plan` warns about them by id.
-- **Corporate records are mostly unscorable.** Many corporate rows carry fewer than 2 labelled fields once the templated `keywords` and `subject_matter` are dropped (Exios66/llm-dojo-scoring#164).
-  - Slice 100: 8 of 14 corporate documents are unscorable, against 0 in the other classes. Slice 500: 42 of 68.
+- **A few corporate records are unscorable.** Corporate rows can carry fewer than 2 labelled fields once the templated `keywords` and `subject_matter` are dropped (Exios66/llm-dojo-scoring#164). The near-gold corporate labels in the staged cut fill most of them.
+  - With `9.3.1-rc.10`: slice 100 has 1 of 14 corporate documents unscorable, against 0 in the other classes; slice 250 has 1; slice 500 has 4 of 68; slice-full has 8. With `9.3.1-rc.11`: 0, 0, 0 and 3, on the same draw. These counts come from the 2026-11-28 launch review.
   - The pooled unscorable share stays under the 25% warning, so read the per-class unscorable count in `gate.md` before trusting a corporate pass.
   - Correspondence carries ground truth on only 3 of its 11 fields (Exios66/llm-dojo-scoring#94), but enough to score every slice document.
 
