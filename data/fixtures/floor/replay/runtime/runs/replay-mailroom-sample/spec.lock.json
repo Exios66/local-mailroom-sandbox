@@ -20,5 +20,35 @@
       "command": "24 train docs per live class, sorted by document_id",
       "note": "IDs/classes/metadata only; no document text is vendored. All behavior is simulated."
     }
+  },
+  "vendor_hotfixes": {
+    "applies": [
+      "HF-001",
+      "HF-002",
+      "HF-003",
+      "HF-004",
+      "HF-005",
+      "HF-006",
+      "HF-007",
+      "HF-008",
+      "HF-009",
+      "HF-010",
+      "HF-011",
+      "HF-012",
+      "HF-013",
+      "HF-014",
+      "HF-015",
+      "HF-016",
+      "HF-017",
+      "HF-018",
+      "HF-019",
+      "HF-023",
+      "HF-024",
+      "HF-025",
+      "HF-026",
+      "HF-027",
+      "HF-029"
+    ],
+    "note": "Simulated timeline for the checkout's active hotfixes. Output-cap truncation, judge parks, arbiter re-extraction and class mismatches are not in this trace."
   }
 }

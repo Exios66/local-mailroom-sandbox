@@ -1,0 +1,159 @@
+{
+  "admitted": {
+    "documented_absence": 0,
+    "documents": 6,
+    "fields": 15,
+    "independent_agreement": 14,
+    "populated_scored_fields": 15,
+    "source_reviewed_accept": 1
+  },
+  "annotation_code_revision": "cc9abf6897b23f99ca58589b4706f58e928012ca",
+  "artifacts": [
+    {
+      "admission_input": false,
+      "byte_identical_to_private_artifact": false,
+      "bytes": 11962,
+      "metadata_transformation": "Absolute source-read path to repository-relative path only; values, evidence and roles unchanged.",
+      "path": "submissions/subclass-diverse001-label.jsonl",
+      "role": "label",
+      "sha256": "ceaae2deeb9c6974edf2bd2ae16a86d92d4464ab9fb7fa8eb86b96124c0742f8",
+      "source_sha256": "d10f6fb58c95bbbffdd1781a966ee8762498bf80a9f90ed94c71d515a589a0d4"
+    },
+    {
+      "admission_input": true,
+      "byte_identical_to_private_artifact": false,
+      "bytes": 11962,
+      "metadata_transformation": "Absolute source-read path to repository-relative path only; values, evidence and roles unchanged.",
+      "path": "submissions/subclass-diverse001-ready15-label.jsonl",
+      "role": "label",
+      "sha256": "ceaae2deeb9c6974edf2bd2ae16a86d92d4464ab9fb7fa8eb86b96124c0742f8",
+      "source_sha256": "6eccc3c3d17acadf39250076a49f49a961ff145f3b3cef4f9d19a8ba431fe083"
+    },
+    {
+      "admission_input": false,
+      "byte_identical_to_private_artifact": false,
+      "bytes": 11616,
+      "metadata_transformation": "Absolute source-read path to repository-relative path only; values, evidence and roles unchanged.",
+      "path": "submissions/subclass-diverse001-check.jsonl",
+      "role": "check",
+      "sha256": "79d6aa384464ce5547e0885c060fe2fc5a3834d51e571fd787727038b9028468",
+      "source_sha256": "c862817e690dda4e0634fcd15088ac51f7a71642654fd18fe8b8fe2e7f658259"
+    },
+    {
+      "admission_input": true,
+      "byte_identical_to_private_artifact": false,
+      "bytes": 11362,
+      "metadata_transformation": "Absolute source-read path to repository-relative path only; values, evidence and roles unchanged.",
+      "path": "submissions/subclass-diverse001-ready15-check.jsonl",
+      "role": "check",
+      "sha256": "a95b23bcbf29da101d46dab84add09ff32b6f791be25d875cce13494a7e9f591",
+      "source_sha256": "bffa54d0475941c58e4ede12b2440f309dd1bb4e84a49603f16ac543d683cc73"
+    },
+    {
+      "admission_input": true,
+      "path": "submissions/subclass-diverse001-parent-review.jsonl",
+      "role": "review",
+      "sha256": "3ce08e181c71dd0e4afaabfd0c7fb9dda496b7cbddfc732bf026290a908d4c9b"
+    }
+  ],
+  "held": [
+    {
+      "doc_id": "DOC-0b61fce5b8a05518",
+      "field": "principal",
+      "reason": "multiple grantors cannot be faithfully represented as one registered single-name principal; no joined name promoted"
+    }
+  ],
+  "lifecycle": [
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-diverse001-label-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse001-label-20261126-r1",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "providerInstanceId": "opencode",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse001-label-20261126-r1"
+    },
+    {
+      "childRunId": "run:thread:thread%3Adelegated-task%3Acommand%253Amcp%253A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%253Adelegate-task%253Av93-subclass-diverse001-check-20261126-r1:ordinal:1",
+      "childThreadId": "thread:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse001-check-20261126-r1",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "providerInstanceId": "opencode",
+      "status": "completed",
+      "taskId": "node:delegated-task:command%3Amcp%3A5bb37a86-1ef7-4e1b-8dbe-1c36b7370d6d%3Adelegate-task%3Av93-subclass-diverse001-check-20261126-r1"
+    }
+  ],
+  "projection": "Held principal is excluded from ready15. Public source-read paths are normalized to repository-relative form; all field payloads, evidence and role identities are unchanged. Original byte-identical files remain in private checkpoints.",
+  "public_source_path_normalization": {
+    "effect": "Public exports normalize source paths only; unchanged field payloads, evidence and role attribution.",
+    "original_private_bytes_retained": true,
+    "proof": "../../../../reports/datasets/mailroom-dataset-v9.3-label-repaired/source_path_metadata_export_audit.json"
+  },
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "sources": [
+    {
+      "chars": 734,
+      "content_sha256": "7f0fac73292b890567e71bbf1b92d47c2786202dfa88fc06bbdeac0e9e7e5870",
+      "doc_id": "DOC-443542beadaf2839",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "subclass": "board_resolution"
+    },
+    {
+      "chars": 854,
+      "content_sha256": "24cc86afe63a54e11df5e58d24b813747896e80c8e3a8fa675da1006f218b5ec",
+      "doc_id": "DOC-78f2456f571403a9",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "subclass": "board_resolution"
+    },
+    {
+      "chars": 1405,
+      "content_sha256": "e78cd3c318cacf23c0d37e22c155635a40bdb97d41fca1494b33acf1a116ec8c",
+      "doc_id": "DOC-eee7c0d4e99e5be4",
+      "fields": [
+        "principal",
+        "attorneys_in_fact",
+        "authority_scope"
+      ],
+      "subclass": "powers_of_attorney"
+    },
+    {
+      "chars": 1592,
+      "content_sha256": "f004064e593dc6a57cbc588294f61137ee27586f7c065292237af05f6d0c87b7",
+      "doc_id": "DOC-0b61fce5b8a05518",
+      "fields": [
+        "principal",
+        "attorneys_in_fact",
+        "authority_scope"
+      ],
+      "subclass": "powers_of_attorney"
+    },
+    {
+      "chars": 1329,
+      "content_sha256": "ee8611e5942a54441552b379165e4ab1cfabeed4bb33736accbf0d26c75b5d59",
+      "doc_id": "DOC-dae485695eb01169",
+      "fields": [
+        "amended_provisions",
+        "prior_entity_name"
+      ],
+      "subclass": "charter_amendment"
+    },
+    {
+      "chars": 1760,
+      "content_sha256": "6aa8466664a70aab7ad12fdf06e689e97ac1c6550c5df3a358e2c3948c881c6f",
+      "doc_id": "DOC-1fe073843dcc9442",
+      "fields": [
+        "amended_provisions",
+        "prior_entity_name"
+      ],
+      "subclass": "charter_amendment"
+    }
+  ],
+  "warning": "Raw submissions and held fields are not truth. Machine near-gold is not human gold. Static field-scoring events are not extraction-performance evidence."
+}

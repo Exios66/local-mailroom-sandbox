@@ -155,6 +155,22 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
+    if "Extract structured data from this corporate record:" in text and "JSON schema:\n" in text:
+        # Native corporate requests carry the selected runtime schema in the
+        # prompt. Follow that schema, including after a human changes class.
+        from mailroom_sandbox.corporate_extraction import validate_response
+
+        schema = json.JSONDecoder().raw_decode(text.split("JSON schema:\n", 1)[1])[0]
+        title = schema.get("title", "")
+        prefix = "CorporateRecordExtraction_"
+        subclass = title[len(prefix):] if title.startswith(prefix) else None
+        fields = oracle_extraction(fields, "corporate_record", subclass)
+        payload = {}
+        for key, spec in schema["properties"].items():
+            default = [] if spec.get("type") == "array" else None
+            value = conf if key == "confidence" else fields.get(key, default)
+            payload[key] = value if validate_response(value, spec) else default
+        return payload
     # The vendored handoff ends "Extract this document's fields accordingly...". HF-028
     # replaces that sentence with a check ("the sorter classification above is unverified").
     # Both are the in-graph specialist. Missing the rewritten cue used to fall through to

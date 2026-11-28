@@ -1,0 +1,17 @@
+{
+  "documents": [
+    {
+      "doc_id": "DOC-b3ad98e5530dfeaf",
+      "reason": "Source is a preferred-stock designation amendment with no certifying officer or officer certificate recital; preserve authoritative corpus identity and hold pending separate subclass review. No labels dispatched.",
+      "source_sha256": "2e802ee05010eecb6770745def82f12b39a89fb7be107f10ffecbe06e90eb29f",
+      "subclass": "officer_certificate"
+    },
+    {
+      "doc_id": "DOC-325f25ad3bf7d458",
+      "reason": "Source is a preferred-stock designation amendment with no certifying officer or officer certificate recital; preserve authoritative corpus identity and hold pending separate subclass review. No labels dispatched.",
+      "source_sha256": "33036bb83b55146fb6a4e8998a38277715a7dc182ac3b313ed1edec9e0517e95",
+      "subclass": "officer_certificate"
+    }
+  ],
+  "schema": "mailroom.source-type-holds/v1"
+}

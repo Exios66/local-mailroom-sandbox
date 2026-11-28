@@ -118,6 +118,8 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
 | `docs-audit-tool-router` | Full README/docs staleness sweeps: links, paths, CLI/defaults, pins, versions, counts and generated artifacts |
+| `sand-board-lifecycle` | SAND card cycle: allocate → todo → in_progress → needs_attention → review → done/cancelled on `governance/TASKS.md` |
+| `sand-board-hygiene` | Board triage: stale open cards, lane drift vs issues/PRs, Next ID hygiene |
 | `openrouter` | **Default** experimental/deployment provider, API routes and spend preflight |
 | `modal` | Explicit GPU serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
 | `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
@@ -228,7 +230,7 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 sandbox api status [--offline]        # pinned vs selected mailroom + Dojo, and the mailroom API's /health (MAILROOM_API_URL, default 127.0.0.1:8000)
 sandbox api eval [--class C] [--sample N] [--submit] [--out PATH]   # upload fixtures to a running/deployed API, score results with the Dojo; plans unless --submit (the API's models spend)
 sandbox api eval --mock [--class C] [--sample N]                    # same loop against the vendored API in process: mock LLM, temp data dir, no server, no spend
-sandbox api eval --dataset-config config/runs/production/slice-0100.yaml [--mock|--submit]   # score corpus docs (pinned revision, content-hash check, pinned staged overlay 9.3.1-rc.9 as the label source, applied over the Hub labels; run `python scripts/pull_staged_overlay.py --version 9.3.1-rc.9` first; the interim and near-gold overlays do not apply to this slice) instead of the fixtures
+sandbox api eval --dataset-config config/runs/production/slice-0100.yaml [--mock|--submit]   # score corpus docs (pinned revision, content-hash check, pinned staged overlay 9.3.1-rc.10 as the label source, applied over the Hub labels; run `python scripts/pull_staged_overlay.py --version 9.3.1-rc.10` first; the interim and near-gold overlays do not apply to this slice) instead of the fixtures
 sandbox modal deploy|prewarm|status|logs|stop|url|raw|publish-image   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs/publish-image; stop is idempotent + verified)
 sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active workspace; `sandbox modal deploy --named-image` then reuses it
 sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
@@ -242,6 +244,7 @@ sandbox web [TARGET]                  # = watch --web: themed browser watcher (h
 sandbox web --demo                    # = sandbox dev: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 sandbox board [--tui] [--demo] [--interval SECS] [--probe-interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
+python scripts/floor_browser.py [--dry-run|--replay-run PATH]  # browser-debug the floor on the committed replay sample (scratch base data/runtime/floor-browser, URL includes debug=1); refuses --live/--real/--submit/--initials; docs/floor.md
 sandbox floor [TARGET|--run ID] [--base DIR] [--port PORT] [--interval SECS] [--replay|--replay-run PATH]  # live pipeline floor on http://127.0.0.1:8769/floor.template.html; --replay plays the labeled 120-doc sample inside the base; docs/floor.md
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
 # long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
@@ -267,7 +270,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
   rules, and the repo layout index at `docs/setting-up/LAYOUT.md`. Every docs page is indexed in
   [`docs/README.md`](docs/README.md).
-- Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
+- Agent skills: `.cursor/skills/` (router + docs audit + SAND board lifecycle/hygiene + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Reduced agent profile (HUB-015)
 
@@ -291,6 +294,13 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   agent.
 
 ## Specialist extraction guidance
+
+- Corporate runtime requests compose each registered subclass's core and entity fields from
+  the selected Dojo registry through `mailroom_sandbox.corporate_extraction` (HF-020–HF-022).
+  Connected runs use the observed sorter handoff, never expected ground truth. Unknown explicit
+  subclasses are refused; missing routing retains the explicit core-only fallback. Keep label
+  collection aligned with applicable subclass targets and verify the actual request fields with
+  `sandbox schemas build --check`; a flat core-field coverage count omits these entity targets.
 
 - `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
   `subsidiary_list` maps to `record_type: other`; extract the parent into

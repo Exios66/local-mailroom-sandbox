@@ -61,11 +61,23 @@ def test_a_stated_zero_stays_zero_on_every_live_specialist(monkeypatch):
     for class_name in _BASE_SPECIALISTS:
         agent = object.__new__(getattr(sa, class_name))
         monkeypatch.setattr(agent, "truncate_input", lambda text: text)
-        monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: {"confidence": 0.0, "entity_name": "Kept"})
+        def answer(*args, **kwargs):
+            schema = kwargs.get("json_schema", {})
+            result = {key: [] if spec.get("type") == "array" else None
+                      for key, spec in schema.get("properties", {}).items()}
+            result.update({"confidence": 0.0, "entity_name": "Kept"})
+            return result
+
+        monkeypatch.setattr(agent, "_call_structured", answer)
         monkeypatch.setattr(agent, "_evidence_confidence", lambda result: 0.9)
         stated = agent.extract("source")
         assert stated["confidence"] == 0.0
-        monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: {"entity_name": "Kept"})
+        def answer_missing(*args, **kwargs):
+            result = answer(*args, **kwargs)
+            result.pop("confidence")
+            return result
+
+        monkeypatch.setattr(agent, "_call_structured", answer_missing)
         missing = agent.extract("source")
         assert missing["confidence"] == 0.9
 

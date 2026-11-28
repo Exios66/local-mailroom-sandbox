@@ -1,0 +1,281 @@
+{
+  "admitted": 33,
+  "documented_absence": 1,
+  "documents": 17,
+  "existing_catalog_rows_preserved": {
+    "gold": 10599,
+    "gold-supplementary": 1875
+  },
+  "existing_overlay_fields_preserved": 9694,
+  "measurement": "Static source/truth/scoring eligibility checks; no model inference or performance claim",
+  "overlay_fields_after": 9727,
+  "populated": 32,
+  "populated_scoring_events": 32,
+  "records": [
+    {
+      "doc_id": "DOC-02e5b3d7ea700ab0",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "ccfbc9916f33bbdd0fa8079958370d7d326bd7c2bdc80423db6bbe1ab21b3ffe"
+    },
+    {
+      "doc_id": "DOC-02e5b3d7ea700ab0",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "ccfbc9916f33bbdd0fa8079958370d7d326bd7c2bdc80423db6bbe1ab21b3ffe"
+    },
+    {
+      "doc_id": "DOC-0636dbc980a43715",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f9da92e689fd603224dc089a2af77cfab832e19aa0391a98864753c87df7994e"
+    },
+    {
+      "doc_id": "DOC-0636dbc980a43715",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "f9da92e689fd603224dc089a2af77cfab832e19aa0391a98864753c87df7994e"
+    },
+    {
+      "doc_id": "DOC-204c3c7c0ba021cd",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "d8b1a84a36c58987ad33d3047bfe1a67563c19c94c1e1558105f5c8a63d0c104"
+    },
+    {
+      "doc_id": "DOC-204c3c7c0ba021cd",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "d8b1a84a36c58987ad33d3047bfe1a67563c19c94c1e1558105f5c8a63d0c104"
+    },
+    {
+      "doc_id": "DOC-210d34e7c0e3f65d",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "c0aaabd4b4a78043d503ef8fde8f424d25986e0a6729dbbc7d59556d1831f7d7"
+    },
+    {
+      "doc_id": "DOC-210d34e7c0e3f65d",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "c0aaabd4b4a78043d503ef8fde8f424d25986e0a6729dbbc7d59556d1831f7d7"
+    },
+    {
+      "doc_id": "DOC-417996c5cc3d91f5",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "5a270227b349d14e100c8ab310ea9954ce938ddfd0fdee538fb1fff41ca0033b"
+    },
+    {
+      "doc_id": "DOC-417996c5cc3d91f5",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "5a270227b349d14e100c8ab310ea9954ce938ddfd0fdee538fb1fff41ca0033b"
+    },
+    {
+      "doc_id": "DOC-4a2d6dad6cf09052",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "01189f6538e57b59055621462a152b80d23f546e2a1cc0c71593a219f1cdf710"
+    },
+    {
+      "doc_id": "DOC-4a2d6dad6cf09052",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "01189f6538e57b59055621462a152b80d23f546e2a1cc0c71593a219f1cdf710"
+    },
+    {
+      "doc_id": "DOC-4fd55e720ac8b708",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b36dfc3d5e91a85dea60ed04a8d9d34172a5a99715ba5ffd4b516e7e213cfdab"
+    },
+    {
+      "doc_id": "DOC-4fd55e720ac8b708",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b36dfc3d5e91a85dea60ed04a8d9d34172a5a99715ba5ffd4b516e7e213cfdab"
+    },
+    {
+      "doc_id": "DOC-729ea9a3c924614e",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "d2bbc33d9ebbdd510efd42f17efa55d42464f8b0524d890aed66be8b26eaac98"
+    },
+    {
+      "doc_id": "DOC-729ea9a3c924614e",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "d2bbc33d9ebbdd510efd42f17efa55d42464f8b0524d890aed66be8b26eaac98"
+    },
+    {
+      "doc_id": "DOC-74b0b6beecc8c0ad",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "905730fd40e8e8d9f12bfacebb571c8d1c817f8aa81985f9f2986add34818def"
+    },
+    {
+      "doc_id": "DOC-74b0b6beecc8c0ad",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "905730fd40e8e8d9f12bfacebb571c8d1c817f8aa81985f9f2986add34818def"
+    },
+    {
+      "doc_id": "DOC-a1bf2ddf032e38ea",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "7d7eb2003aa05d053c035dba0e696b8840d18c50adea44dd65f210bcc4624884"
+    },
+    {
+      "doc_id": "DOC-a2be49cc07e80dd8",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "9a6a856efcd79ec5a6f5d2cd27e7a59e7376c80988b5f021a389204c2c2db113"
+    },
+    {
+      "doc_id": "DOC-a2be49cc07e80dd8",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "9a6a856efcd79ec5a6f5d2cd27e7a59e7376c80988b5f021a389204c2c2db113"
+    },
+    {
+      "doc_id": "DOC-abd090f0f36ec76d",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "1a741f46a8a4fa1da61290ee8d3609776f42170f06b6274fa068c689fdabfa14"
+    },
+    {
+      "doc_id": "DOC-abd090f0f36ec76d",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "1a741f46a8a4fa1da61290ee8d3609776f42170f06b6274fa068c689fdabfa14"
+    },
+    {
+      "doc_id": "DOC-b07d6254886c7038",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "4f356bbc4b577e7b380929fa54a18c0844b9c62c0c34101e31ec9b655135bca6"
+    },
+    {
+      "doc_id": "DOC-b07d6254886c7038",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "schema_documented_absence",
+      "scored_field_event": false,
+      "source_sha256": "4f356bbc4b577e7b380929fa54a18c0844b9c62c0c34101e31ec9b655135bca6"
+    },
+    {
+      "doc_id": "DOC-c4c08df19a3d9526",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b5858868af4ea38740b790752b04a2c299ea161a6806f74d73fc40558af62b9c"
+    },
+    {
+      "doc_id": "DOC-c4c08df19a3d9526",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "b5858868af4ea38740b790752b04a2c299ea161a6806f74d73fc40558af62b9c"
+    },
+    {
+      "doc_id": "DOC-c80ef83120793a69",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "6fe61edeb26eab4b190aeef5b63faf6b1db1138bb60ea0cd1b3298e85f48c22b"
+    },
+    {
+      "doc_id": "DOC-c80ef83120793a69",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "6fe61edeb26eab4b190aeef5b63faf6b1db1138bb60ea0cd1b3298e85f48c22b"
+    },
+    {
+      "doc_id": "DOC-cdf8ee802f599662",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "c6f6b60d4dcdc88994f8400078f22cfc2aaaaf00995d32820dd21b07c1cf6a7f"
+    },
+    {
+      "doc_id": "DOC-cdf8ee802f599662",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "c6f6b60d4dcdc88994f8400078f22cfc2aaaaf00995d32820dd21b07c1cf6a7f"
+    },
+    {
+      "doc_id": "DOC-e3af62d905e5bc55",
+      "effective_truth_matches": true,
+      "field": "subsidiaries",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "991ababb1b0d65c88b6e2e8cffd8c92197b2835ede8a56f710f6260d0ed46eca"
+    },
+    {
+      "doc_id": "DOC-e3af62d905e5bc55",
+      "effective_truth_matches": true,
+      "field": "subsidiary_jurisdictions",
+      "presence": "populated",
+      "scored_field_event": true,
+      "source_sha256": "991ababb1b0d65c88b6e2e8cffd8c92197b2835ede8a56f710f6260d0ed46eca"
+    }
+  ],
+  "schema": "mailroom.missing-subclass-admission-audit/v1"
+}

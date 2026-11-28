@@ -551,9 +551,10 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: b
                    stale_labels: bool = True) -> dict[str, Any]:
     """Score one extraction row (the dual-reported headline plus ``raw_dojo``).
 
-    ``stale_labels=False`` leaves SHF-015 off (the Hub's stale labels stay in the truth), so the
+    ``stale_labels=False`` leaves the label-policy layers off: SHF-015 (the Hub's stale labels stay in
+    the truth) and SHF-019 (so does correspondence header truth the text does not show), so the
     per-field scores are every field the row's truth names. The R02 scorer hand-check replays on that
-    basis: it verifies the per-field scorer, and SHF-015 is a label-policy layer over the headline.
+    basis: it verifies the per-field scorer, and both fixes are label-policy layers over the headline.
     """
     expected = parse_expected_fields(row) or row.get("expected_fields") or {}
     if not isinstance(expected, dict):
@@ -567,9 +568,12 @@ def _score_extract(row: dict[str, Any], pred: dict[str, Any], *, field_scores: b
         # Per-subclass scoring (sandbox #145): the row's GT subclass drives the
         # vendored corporate-record alignment (see scoring.py).
         expected_subclass=row.get("expected_subclass"),
+        # SHF-013: a reviewed subclass correction replaces the Hub subclass on the headline.
+        doc_id=row.get("id"),
         field_scores=field_scores,
         truth_overrides=row.get("truth_overrides"),
         overlay_fields=scoring_hotfixes.overlay_fields(row) if stale_labels else None,
+        drop_unseen_headers=stale_labels,
     )
 
 

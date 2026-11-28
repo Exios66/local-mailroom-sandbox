@@ -463,10 +463,15 @@ def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path |
     )
 
 
-def floor_url(port: int, run: str | None = None) -> str:
-    """The viewer URL, with ``?run=<id>`` to deep-select a run."""
+def floor_url(port: int, run: str | None = None, *, debug: bool = False) -> str:
+    """The viewer URL, with ``?run=<id>`` to deep-select a run and ``debug=1`` to open debug mode."""
     url = f"http://{DEFAULT_HOST}:{port}/{PAGE}"
-    return url + (f"?run={quote(run, safe='')}" if run else "")
+    query: list[str] = []
+    if run:
+        query.append(f"run={quote(run, safe='')}")
+    if debug:
+        query.append("debug=1")
+    return url + (f"?{'&'.join(query)}" if query else "")
 
 
 def resolve_base(arg: str | None) -> Path:
@@ -627,6 +632,7 @@ def serve_floor(
     replay: bool = False,
     replay_run: str | None = None,
     replay_speed: float | None = None,
+    debug: bool = False,
 ) -> int:
     """Build the digest, serve the dashboard on loopback, and rebuild in the background until interrupted.
 
@@ -638,6 +644,7 @@ def serve_floor(
     base's historical runs — both are selectable in the viewer; only that labeled run dir is reset.
     ``replay_run`` instead imports a recorded run from any provider; ``replay_speed``
     scales the schedule (default 1x for the bundled sample, 10x for a recorded run).
+    ``debug`` adds ``debug=1`` to the printed URL so the page opens in debug mode.
     Selecting both replay modes returns 2; replay preparation failures return 1.
     The first build is synchronous: a DigestError returns its code before the server binds, a build
     surprise or a port that cannot be bound returns 1 with one line. Later build exceptions
@@ -646,13 +653,13 @@ def serve_floor(
     with TemporaryDirectory(prefix="mailroom-floor-") as digest_dir:
         return _serve_floor(base=base, port=port, interval=interval, run=run, out=out,
                             replay=replay, replay_run=replay_run, replay_speed=replay_speed,
-                            digest_dir=Path(digest_dir))
+                            digest_dir=Path(digest_dir), debug=debug)
 
 
 def _serve_floor(
     *, base: Path, port: int, interval: float, run: str | None, out: Path | None,
     replay: bool, digest_dir: Path, replay_run: str | None = None,
-    replay_speed: float | None = None,
+    replay_speed: float | None = None, debug: bool = False,
 ) -> int:
     """Run one viewer using its caller-owned private digest directory."""
     try:
@@ -715,7 +722,7 @@ def _serve_floor(
     if driver is not None:
         replay_worker = threading.Thread(target=driver.play, args=(stop, refresher.refresh), name="floor-replay", daemon=True)
         replay_worker.start()
-    print(floor_url(httpd.server_address[1], run), flush=True)
+    print(floor_url(httpd.server_address[1], run, debug=debug), flush=True)
     if driver is not None:
         if recorded_meta is not None:
             for warning in recorded_meta.get("warnings") or []:

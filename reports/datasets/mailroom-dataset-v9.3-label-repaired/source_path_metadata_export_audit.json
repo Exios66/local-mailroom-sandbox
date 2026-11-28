@@ -1,0 +1,95 @@
+{
+  "schema": "mailroom.source-path-export-audit/v1",
+  "head_before_export": "eed5df8fd82d53acddaff5fa86cd8fd03b1f5d34",
+  "scope": "Metadata-only public exports; no gold catalog or overlay field value, presence, evidence, status or attribution changed.",
+  "original_private_bytes_retained": true,
+  "changed_files": [
+    {
+      "path": "data/labels/gold-supplementary/corporate_record.jsonl",
+      "original_private_sha256": "6969b84bde810d4e9118f16a44287eb1ff0bc8461cd973a3c4f76df9049a965b",
+      "public_export_sha256": "232845aa2a22b4fcd894d29e3d601e6fc9e86e87e9742bacb4682224b0f5aa25",
+      "changed_metadata_paths": [
+        "[23].check.source_read.path",
+        "[23].label.source_read.path",
+        "[57].check.source_read.path",
+        "[57].label.source_read.path",
+        "[125].check.source_read.path",
+        "[125].label.source_read.path",
+        "[214].check.source_read.path",
+        "[214].label.source_read.path",
+        "[389].check.source_read.path",
+        "[389].label.source_read.path",
+        "[426].check.source_read.path",
+        "[426].label.source_read.path"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    },
+    {
+      "path": "data/labels/repair-artifacts/v93-20261126-subclass-diverse001/submissions/subclass-diverse001-check.jsonl",
+      "original_private_sha256": "c862817e690dda4e0634fcd15088ac51f7a71642654fd18fe8b8fe2e7f658259",
+      "public_export_sha256": "79d6aa384464ce5547e0885c060fe2fc5a3834d51e571fd787727038b9028468",
+      "changed_metadata_paths": [
+        "[0].supplementary.source_read.path",
+        "[1].supplementary.source_read.path",
+        "[2].supplementary.source_read.path",
+        "[3].supplementary.source_read.path",
+        "[4].supplementary.source_read.path",
+        "[5].supplementary.source_read.path"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    },
+    {
+      "path": "data/labels/repair-artifacts/v93-20261126-subclass-diverse001/submissions/subclass-diverse001-ready15-label.jsonl",
+      "original_private_sha256": "6eccc3c3d17acadf39250076a49f49a961ff145f3b3cef4f9d19a8ba431fe083",
+      "public_export_sha256": "ceaae2deeb9c6974edf2bd2ae16a86d92d4464ab9fb7fa8eb86b96124c0742f8",
+      "changed_metadata_paths": [
+        "[0].supplementary.source_read.path",
+        "[1].supplementary.source_read.path",
+        "[2].supplementary.source_read.path",
+        "[3].supplementary.source_read.path",
+        "[4].supplementary.source_read.path",
+        "[5].supplementary.source_read.path"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    },
+    {
+      "path": "data/labels/repair-artifacts/v93-20261126-subclass-diverse001/submissions/subclass-diverse001-label.jsonl",
+      "original_private_sha256": "d10f6fb58c95bbbffdd1781a966ee8762498bf80a9f90ed94c71d515a589a0d4",
+      "public_export_sha256": "ceaae2deeb9c6974edf2bd2ae16a86d92d4464ab9fb7fa8eb86b96124c0742f8",
+      "changed_metadata_paths": [
+        "[0].supplementary.source_read.path",
+        "[1].supplementary.source_read.path",
+        "[2].supplementary.source_read.path",
+        "[3].supplementary.source_read.path",
+        "[4].supplementary.source_read.path",
+        "[5].supplementary.source_read.path"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    },
+    {
+      "path": "data/labels/repair-artifacts/v93-20261126-subclass-diverse001/submissions/subclass-diverse001-ready15-check.jsonl",
+      "original_private_sha256": "bffa54d0475941c58e4ede12b2440f309dd1bb4e84a49603f16ac543d683cc73",
+      "public_export_sha256": "a95b23bcbf29da101d46dab84add09ff32b6f791be25d875cce13494a7e9f591",
+      "changed_metadata_paths": [
+        "[0].supplementary.source_read.path",
+        "[1].supplementary.source_read.path",
+        "[2].supplementary.source_read.path",
+        "[3].supplementary.source_read.path",
+        "[4].supplementary.source_read.path",
+        "[5].supplementary.source_read.path"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    },
+    {
+      "path": "data/labels/repair-artifacts/v93-20261126-scope-correction/withdrawn-gold-supplementary-corporate_record.jsonl",
+      "original_private_sha256": "0b4169ec52b3e81880ee78645c6af710402271a41dba7712726c92de0e4da32d",
+      "public_export_sha256": "c607cafbb614179e919deec4371b6febc1ae71d20fc7dac9f5196f2b460af18d",
+      "changed_metadata_paths": [
+        "DOC-12a6d4cd092cf66d.label.tool_status.checkout",
+        "DOC-82dd8227e24e692e.label.tool_status.checkout",
+        "DOC-a14783cfd27c88c1.label.tool_status.checkout"
+      ],
+      "field_payloads_roles_and_evidence_unchanged": true
+    }
+  ]
+}

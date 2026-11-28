@@ -57,6 +57,15 @@
         "8769"
       ],
       "port": 8769
+    },
+    {
+      "name": "mailroom-floor-debug",
+      "runtimeExecutable": "scripts/floor_browser.py",
+      "runtimeArgs": [
+        "--port",
+        "8769"
+      ],
+      "port": 8769
     }
   ]
 }

@@ -15,7 +15,10 @@ see the [maintenance procedure](docs/agent-instruction-maintenance.md).
 For any provider, tracing,
 dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first,
 then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
-staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`.
+staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`. For
+SAND board card work (start, review, done) use
+`.cursor/skills/sand-board-lifecycle/SKILL.md`; for stale open-card triage use
+`.cursor/skills/sand-board-hygiene/SKILL.md`.
 
 Bulk work (many files, labels, traces, logs) follows
 [`.claude/rules/code-mode.md`](.claude/rules/code-mode.md): one script that prints a

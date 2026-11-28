@@ -318,3 +318,37 @@ def test_handcheck_scores_the_raw_per_field_basis_not_the_shf015_headline(tmp_pa
 
     headline = _score_extract(dict(cases[0].row), dict(cases[0].fields), field_scores=True)
     assert "intent" not in headline["field_scores"] and headline["stale_hub_labels"]
+
+
+#: Reviewed documents whose four header fields are original_header labels.
+_HEADER_DOCS = ("DOC-0578dca6e6328d88", "DOC-05fa5359adf9ef34", "DOC-0d845527860c7fb1", "DOC-0f5a4326a44c4cf7")
+
+
+def _header_correspondence(doc_id: str) -> dict:
+    # Reviewed original_header truth the text does not show: SHF-019 drops it from the headline,
+    # but the R02 sheet still lists it.
+    reviews = Path(__file__).resolve().parents[1] / "data" / "labels" / "review" / "interim_reviews.jsonl"
+    header = {e["field"]: e["value"] for e in map(json.loads, reviews.read_text(encoding="utf-8").splitlines())
+              if e.get("basis") == "original_header" and e["doc_id"] == doc_id}
+    return _row(doc_id, "correspondence", "email", {**header, "communication_type": "email", "intent": "notice"})
+
+
+def test_handcheck_scores_the_raw_per_field_basis_not_the_shf019_headline(tmp_path):
+    rows = [_header_correspondence(doc_id) for doc_id in _HEADER_DOCS]
+    sorter = {r["id"]: ("correspondence", "email", 0.9) for r in rows}
+    paths = _setup(tmp_path, rows, sorter)
+    table = es.load_unit_table(paths["split"])
+    bars = load_bars()
+    cases = [hc.perturb(c) for c in hc.select_docs(rows, hc.load_sorter_pass(paths["pass"]), table,
+                                                    classes=("correspondence",))]
+    assert cases
+    sheet = hc.sheet_rows(cases, table, draft=True, gated=bars.gated)
+    assert {"field:sender", "field:recipient", "field:communication_date"} <= {r["check"] for r in sheet}
+    cmp = hc.compare(sheet, _replay(cases, table, bars))
+    assert not cmp.missing_checks and not cmp.unlisted, (cmp.missing_checks, cmp.unlisted)
+    assert not cmp.mismatched, cmp.mismatched
+    # the headline itself does drop them: the replay deliberately reads the raw side
+    from mailroom_sandbox.eval.agents import _score_extract
+
+    headline = _score_extract(dict(cases[0].row), dict(cases[0].fields), field_scores=True)
+    assert headline["header_unseen"] and "sender" not in headline["field_scores"]
