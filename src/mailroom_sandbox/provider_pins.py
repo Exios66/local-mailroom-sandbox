@@ -359,6 +359,16 @@ def _append(entry: dict[str, Any]) -> None:
         _log.warning("served-model note on the document failed: %s", exc)
 
 
+def _capture_prompt(request: dict[str, Any], call_path: str) -> None:
+    """Hand the request to the run's prompt record (``job.prompt_capture``); never fails a call."""
+    try:
+        from mailroom_sandbox.job import prompt_capture
+
+        prompt_capture.observe_chat(request, call_path=call_path)
+    except Exception as exc:  # noqa: BLE001 — recording never fails a call
+        _log.debug("prompt capture failed: %s", exc)
+
+
 def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
             fallback_models: list[str] | tuple[str, ...] = (),
             call_path: str = "retry_chat_completion") -> dict[str, Any]:
@@ -489,6 +499,7 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
         if openrouter:
             kwargs = pinned_kwargs(model, kwargs, pins)
+        _capture_prompt(kwargs, "retry_chat_completion")
         # L1 (phase 2): the vendored loop is the one retry layer; each HTTP attempt it sends is guarded.
         response = original(_AttemptGuardedClient(client, guarded=openrouter), **kwargs)
         if openrouter:
@@ -571,6 +582,7 @@ def pinned_chat_openai(parent: type) -> type:
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
                 _note_lc_sent()
+                _capture_prompt(payload, "langchain")
                 return payload
             holder = _LC_RESERVED.get()
             if holder is None:
@@ -585,6 +597,7 @@ def pinned_chat_openai(parent: type) -> type:
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]
             _LC_PENDING.set((model, pins, fallback))
             _note_lc_sent()  # past the guard: this request goes out
+            _capture_prompt(payload, "langchain")
             return pinned_kwargs(model, payload, pins)
 
         def _generate(self, *args: Any, **kwargs: Any) -> Any:

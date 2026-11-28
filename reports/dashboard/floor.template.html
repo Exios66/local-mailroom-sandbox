@@ -165,7 +165,7 @@ h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:n
 <div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outRev"></div><div class="note2" id="outNote"></div>
 <h3>Node — <span id="selName">(click a node)</span></h3>
 <div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen (run)</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50 (run)</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here (run)</span><b id="kAb">—</b></div>
-<div class="note2" id="selExtra" style="color:#8fa3b8"></div><div id="nodeDiag"></div>
+<div class="note2" id="selExtra" style="color:#8fa3b8"></div><div id="nodePrompts"></div><div id="nodeDiag"></div>
 <h3>Document — <span id="docName">(pick one in DOCUMENTS)</span></h3><div class="kv" id="docKv"></div><div id="docDiag"></div>
 <div class="kv" style="margin-top:8px"><span>run tokens</span><b id="kTok"></b><span>digest</span><b id="kGen"></b></div></div>
 </div>
@@ -582,7 +582,20 @@ function render(){
   (D.graph_reference.node_agents[sel]||"")+" · "+graphNodeVal(sel)+" docs fired this node"+countScope+(Object.keys(agN).length?" · agents observed in run: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
   +nodeOutcomeText(sel);
  paintDoc();paintMode();paintNodeDiag();renderPane();syncDebug();
+ paintPrompts(r,sel);
 }
+/** List the prompts the highlighted node actually sent (prompts.jsonl), each text expandable. */
+function paintPrompts(r,sel){
+ const el=document.getElementById("nodePrompts");if(!el)return;
+ const rows=sel&&r.node_prompts?(r.node_prompts[sel]||[]):[];
+ if(!sel){el.innerHTML="";return}
+ if(!r.node_prompts){el.innerHTML=`<div class="note2">prompts sent: not recorded for this run (no prompts.jsonl)</div>`;return}
+ if(!rows.length){el.innerHTML=`<div class="note2">prompts sent: none at this node</div>`;return}
+ const texts=r.prompt_texts||{};
+ el.innerHTML=`<div class="note2" style="margin-top:6px">prompts sent at ${esc(sel)} (${rows.length})</div>`+rows.map(p=>{
+  const t=texts[p.sha256]||{};
+  const label=`${esc(p.agent)} · ${esc(p.role)} · ${esc(String(p.sha256).slice(0,8))} · ${p.calls} call${p.calls===1?"":"s"}${p.chars!=null?" · "+Number(p.chars).toLocaleString()+" chars":""}`;
+  return `<details class="prompt"><summary style="cursor:pointer;color:#9fb6cc">${label}</summary><pre style="white-space:pre-wrap;max-height:320px;overflow:auto;font-size:11px;background:#0d141c;padding:6px;border:1px solid #233142">${esc(p.in_run_store?"(the user message carries the document, so its text is not in the digest: read it in the run's prompts.jsonl)":(t.text||"(text not in digest)"))}</pre></details>`}).join("")}
 /** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
  const x=!na&&r.routing&&r.routing[c];

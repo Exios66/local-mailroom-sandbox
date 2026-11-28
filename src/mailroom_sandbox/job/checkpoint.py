@@ -150,6 +150,8 @@ class RunStore:
         self.events_path = self.dir / "events.jsonl"
         self.nodes_path = self.dir / "nodes.jsonl"
         self.reads_path = self.dir / "reads.jsonl"
+        self.prompts_path = self.dir / "prompts.jsonl"
+        self._prompts_lock = threading.Lock()
         self.doc_texts_dir = self.dir / "doc_texts"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
@@ -628,6 +630,38 @@ class RunStore:
         with open(self.reads_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
             fh.flush()
+
+    # ── prompts sent (job.prompt_capture: texts once per hash, then one row per call) ──
+    def append_prompt(self, record: dict[str, Any]) -> None:
+        """Append one ``prompts.jsonl`` row; a torn tail from a crash is repaired first, as for reads."""
+        with self._prompts_lock:
+            if self.prompts_path.is_file() and self.prompts_path.stat().st_size:
+                with self.prompts_path.open("rb") as tail:
+                    tail.seek(-1, 2)
+                    terminated = tail.read(1) == b"\n"
+                if not terminated:
+                    truncate_torn_tail(self.prompts_path, self.events_path, event="prompts_truncated")
+                    if self.prompts_path.stat().st_size:
+                        with self.prompts_path.open("ab") as tail:
+                            tail.write(b"\n")
+            with open(self.prompts_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, default=str, ensure_ascii=False) + "\n")
+                fh.flush()
+
+    def prompt_text_hashes(self) -> set[str]:
+        """The text hashes ``prompts.jsonl`` already holds (a resumed run does not write them twice)."""
+        seen: set[str] = set()
+        if not self.prompts_path.is_file():
+            return seen
+        with self.prompts_path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and row.get("kind") == "text" and row.get("sha256"):
+                    seen.add(str(row["sha256"]))
+        return seen
 
     def write_doc_text(self, doc: str, text: str) -> None:
         """Record a document's working text as ``doc_texts/<sha1(doc)[:16]>.txt``; the last write wins.

@@ -46,7 +46,7 @@ REGISTER_ENDPOINT = "/api/floor/register"
 REPLAY_RUN_ID = "replay-mailroom-sample"
 REPLAY_DIR = ("data", "fixtures", "floor", "replay")
 # files in a run dir that change as a run progresses (a dir counts as a run once items.jsonl exists)
-RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.json", "prompt.lock.json", "dataset.jsonl", "reads.jsonl")
+RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.json", "prompt.lock.json", "dataset.jsonl", "reads.jsonl", "prompts.jsonl")
 
 
 def dashboard_dir() -> Path:

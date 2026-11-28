@@ -771,6 +771,12 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         _record_read(f"decisions:{_decision_lane(state)}", "\n".join(parts))
     except Exception:
         pass
+    try:
+        from mailroom_sandbox.job import prompt_capture
+
+        prompt_capture.observe_decision(body, agent=f"decisions:{_decision_lane(body.get('state'))}")
+    except Exception:
+        pass
 
 
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:

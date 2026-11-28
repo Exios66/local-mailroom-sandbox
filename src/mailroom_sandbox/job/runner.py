@@ -355,6 +355,12 @@ def _run_whole_run(
     _trace_reads = _task_defaults(store).get("trace_reads", True) is not False
     _read_sink = store.append_read if _trace_reads else None
     _text_sink = store.write_doc_text if _trace_reads else None
+    # Every prompt the run sends (system text, output schema, Decisions questions, user-message
+    # edges) goes to prompts.jsonl for the floor, under the same switch as the read ranges.
+    from mailroom_sandbox.job import prompt_capture
+
+    prompt_capture.activate(store.append_prompt if _trace_reads else None,
+                            seen=store.prompt_text_hashes() if _trace_reads else None)
 
     def _isolated(agent: str, rows: list[dict[str, Any]] | None, progress: Any = None, **extra: Any) -> dict[str, Any]:
         return eval_runners.run_isolated_eval(
@@ -481,6 +487,7 @@ def _run_whole_run(
         else:
             raise ValueError(f"task {task!r} is not runnable")
     except Exception as exc:  # noqa: BLE001
+        prompt_capture.deactivate()
         # Documents that raised have no item row, so record their spans here.
         spans.flush_unfinished(f"{type(exc).__name__}: {str(exc)[:512]}")
         # Keep the documents already saved visible: the cursor is the persisted item
@@ -506,6 +513,7 @@ def _run_whole_run(
         return {"state": "failed", "task": task, "error": str(exc)[:512], "cursor": saved,
                 "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + unrecorded}
 
+    prompt_capture.deactivate()
     _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted,
                             rebilled=rebilled, failed=failed_rows)
     scores = result.get("scores") or {}
