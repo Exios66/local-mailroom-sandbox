@@ -1,0 +1,254 @@
+{
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "annotation_code_revision": "f4996db7d977be89324e7b08af7b4a237709ece5",
+  "admitted": {
+    "fields": 33,
+    "documents": 17,
+    "populated_scored_fields": 32,
+    "documented_absence": 1,
+    "independent_agreement": 31,
+    "source_reviewed_accept_check": 2
+  },
+  "held_fields": 7,
+  "export": "Raw files copied byte-for-byte; ready33 projections select documents and fields only. Every selected field payload and labeler identity is unchanged. Two legal-name qualifications adopt the actual check pass by explicit source review; seven held fields are excluded without rewriting answers or weakening independence.",
+  "artifacts": [
+    {
+      "path": "submissions/subclass-subsidiary002-raw-label.jsonl",
+      "sha256": "976e881e1c091bedba724536b0bbe9eb339fb6fec830881f7fd453045d4f86a1",
+      "role": "label",
+      "admission_input": false,
+      "byte_identical_to_private_artifact": true
+    },
+    {
+      "path": "submissions/subclass-subsidiary002-ready33-label.jsonl",
+      "sha256": "792f8946a0874744c2ee1a59c3f4db9751c631b11857e82e0e8cf5df7fe35ff3",
+      "role": "label",
+      "admission_input": true,
+      "byte_identical_to_private_artifact": true
+    },
+    {
+      "path": "submissions/subclass-subsidiary002-raw-check.jsonl",
+      "sha256": "ed07b76c38d0f90670b28943908eee0fc971f28b05742795228aba068e0bc4d7",
+      "role": "check",
+      "admission_input": false,
+      "byte_identical_to_private_artifact": true
+    },
+    {
+      "path": "submissions/subclass-subsidiary002-ready33-check.jsonl",
+      "sha256": "08356bc573e65a55dfe677ccaccf8eba438c1eae8486f6cd803abbf9961fe791",
+      "role": "check",
+      "admission_input": true,
+      "byte_identical_to_private_artifact": true
+    },
+    {
+      "path": "submissions/subclass-subsidiary002-parent-review.jsonl",
+      "sha256": "73760f2e3d623cecab3475ecbb613c482cf3856415d5997e89fade2b3232797a",
+      "role": "review",
+      "admission_input": true
+    }
+  ],
+  "sources": [
+    {
+      "doc_id": "DOC-b07d6254886c7038",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 350,
+      "content_sha256": "4f356bbc4b577e7b380929fa54a18c0844b9c62c0c34101e31ec9b655135bca6"
+    },
+    {
+      "doc_id": "DOC-204c3c7c0ba021cd",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 373,
+      "content_sha256": "d8b1a84a36c58987ad33d3047bfe1a67563c19c94c1e1558105f5c8a63d0c104"
+    },
+    {
+      "doc_id": "DOC-7c506652172178ce",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 448,
+      "content_sha256": "74bca4e97c748666baee25e3db1cd80f885598ec9e86b2a10ddb57b3266b2416"
+    },
+    {
+      "doc_id": "DOC-bfff7510c78d4d98",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 454,
+      "content_sha256": "64e19dd40ab472019fb8a030daf36fe9790131a11a5bea4b86fab507a7c5ff25"
+    },
+    {
+      "doc_id": "DOC-a2be49cc07e80dd8",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 473,
+      "content_sha256": "9a6a856efcd79ec5a6f5d2cd27e7a59e7376c80988b5f021a389204c2c2db113"
+    },
+    {
+      "doc_id": "DOC-4fd55e720ac8b708",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 474,
+      "content_sha256": "b36dfc3d5e91a85dea60ed04a8d9d34172a5a99715ba5ffd4b516e7e213cfdab"
+    },
+    {
+      "doc_id": "DOC-210d34e7c0e3f65d",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 489,
+      "content_sha256": "c0aaabd4b4a78043d503ef8fde8f424d25986e0a6729dbbc7d59556d1831f7d7"
+    },
+    {
+      "doc_id": "DOC-4a2d6dad6cf09052",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 524,
+      "content_sha256": "01189f6538e57b59055621462a152b80d23f546e2a1cc0c71593a219f1cdf710"
+    },
+    {
+      "doc_id": "DOC-a1bf2ddf032e38ea",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 544,
+      "content_sha256": "7d7eb2003aa05d053c035dba0e696b8840d18c50adea44dd65f210bcc4624884"
+    },
+    {
+      "doc_id": "DOC-02e5b3d7ea700ab0",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 573,
+      "content_sha256": "ccfbc9916f33bbdd0fa8079958370d7d326bd7c2bdc80423db6bbe1ab21b3ffe"
+    },
+    {
+      "doc_id": "DOC-cdf8ee802f599662",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 585,
+      "content_sha256": "c6f6b60d4dcdc88994f8400078f22cfc2aaaaf00995d32820dd21b07c1cf6a7f"
+    },
+    {
+      "doc_id": "DOC-729ea9a3c924614e",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 588,
+      "content_sha256": "d2bbc33d9ebbdd510efd42f17efa55d42464f8b0524d890aed66be8b26eaac98"
+    },
+    {
+      "doc_id": "DOC-0636dbc980a43715",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 590,
+      "content_sha256": "f9da92e689fd603224dc089a2af77cfab832e19aa0391a98864753c87df7994e"
+    },
+    {
+      "doc_id": "DOC-c80ef83120793a69",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 593,
+      "content_sha256": "6fe61edeb26eab4b190aeef5b63faf6b1db1138bb60ea0cd1b3298e85f48c22b"
+    },
+    {
+      "doc_id": "DOC-74b0b6beecc8c0ad",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 607,
+      "content_sha256": "905730fd40e8e8d9f12bfacebb571c8d1c817f8aa81985f9f2986add34818def"
+    },
+    {
+      "doc_id": "DOC-c4c08df19a3d9526",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 620,
+      "content_sha256": "b5858868af4ea38740b790752b04a2c299ea161a6806f74d73fc40558af62b9c"
+    },
+    {
+      "doc_id": "DOC-417996c5cc3d91f5",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 637,
+      "content_sha256": "5a270227b349d14e100c8ab310ea9954ce938ddfd0fdee538fb1fff41ca0033b"
+    },
+    {
+      "doc_id": "DOC-f9cd742cd800ea5d",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 642,
+      "content_sha256": "a4cf19c85057f2ec72238ccd33527b0cc1c38f87fb7d0dd030f96000fa4fccc0"
+    },
+    {
+      "doc_id": "DOC-e3af62d905e5bc55",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 678,
+      "content_sha256": "991ababb1b0d65c88b6e2e8cffd8c92197b2835ede8a56f710f6260d0ed46eca"
+    },
+    {
+      "doc_id": "DOC-abd090f0f36ec76d",
+      "subclass": "subsidiary_list",
+      "fields": [
+        "subsidiaries",
+        "subsidiary_jurisdictions"
+      ],
+      "chars": 770,
+      "content_sha256": "1a741f46a8a4fa1da61290ee8d3609776f42170f06b6274fa068c689fdabfa14"
+    }
+  ],
+  "warning": "Machine near-gold, not human gold. Scoring eligibility is static, not model-performance evidence."
+}

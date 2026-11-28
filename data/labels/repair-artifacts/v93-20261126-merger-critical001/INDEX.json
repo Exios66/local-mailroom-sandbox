@@ -1,0 +1,270 @@
+{
+  "schema": "mailroom.label-repair-artifacts/v1",
+  "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+  "annotation_base_revision": "e4226b54975f9dcf6a63ff2d0a3206738c88f32d",
+  "admission_code_revision": "764009b75eb0731ce0a10259bd82e765eb32deb8",
+  "admitted": {
+    "fields": 16,
+    "documents": 3,
+    "populated_scored_fields": 16,
+    "documented_absence": 0,
+    "independent_agreements": 16,
+    "qualified_source_reviews": 4
+  },
+  "held_fields": 12,
+  "artifacts": [
+    {
+      "path": "submissions/merger-critical001-raw-label.jsonl",
+      "sha256": "606ff900215bd5b20b1aee0a37c34ed237f371471250bb9be88fb09774f059f5",
+      "role": "label",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": false
+    },
+    {
+      "path": "submissions/merger-critical001-ready16-label.jsonl",
+      "sha256": "606ff900215bd5b20b1aee0a37c34ed237f371471250bb9be88fb09774f059f5",
+      "role": "label",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true
+    },
+    {
+      "path": "submissions/merger-critical001-raw-check.jsonl",
+      "sha256": "eeca2db4c6fb04bd05fdb96a9aa38b33cd425209c3c75dd5554b3cd4b001568e",
+      "role": "check",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": false
+    },
+    {
+      "path": "submissions/merger-critical001-ready16-check.jsonl",
+      "sha256": "1fd377fde07fc3fc350fdd1e04566a22581b31ef462dd0dda38fa0ba1b65de62",
+      "role": "check",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true
+    },
+    {
+      "path": "submissions/merger-critical001-source-decisions-terra.jsonl",
+      "sha256": "5b8835f627894ec75b107ccad790ee535232f9377174778b8873b0fdd1d3245b",
+      "role": "review",
+      "byte_identical_to_private_artifact": true,
+      "admission_input": true
+    }
+  ],
+  "sources": [
+    {
+      "doc_id": "DOC-f546c7d6cf2e77e2",
+      "doc_class": "merger_agreement",
+      "subclass": "all_cash",
+      "chars": 105682,
+      "content_sha256": "8c6f4e3e16a651aed3529264e09d08422028526bd332908004295bd6ff51c08e",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-f546c7d6cf2e77e2.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "merger_sub",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel",
+        "per_share_cash_amount"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        }
+      }
+    },
+    {
+      "doc_id": "DOC-1b1b4b7f3f2d714a",
+      "doc_class": "merger_agreement",
+      "subclass": "all_stock",
+      "chars": 219666,
+      "content_sha256": "b23df82752e23ca988b278186328078bf4dfbac38e082c545b27bd618ed62fba",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-1b1b4b7f3f2d714a.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "merger_sub",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel",
+        "exchange_ratio"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    },
+    {
+      "doc_id": "DOC-0a29136832720e65",
+      "doc_class": "merger_agreement",
+      "subclass": "mixed_cash_stock",
+      "chars": 260560,
+      "content_sha256": "c9557d58341c2a358382d7d15cccd67943935c4f9af793f41296db6f3a21475d",
+      "text_path": "data/runtime/full-label-repair/documents/DOC-0a29136832720e65.txt",
+      "fields": [
+        "acquirer",
+        "target",
+        "merger_sub",
+        "target_termination_fee",
+        "parent_termination_fee",
+        "outside_date",
+        "financial_advisors",
+        "legal_counsel",
+        "per_share_cash_amount",
+        "exchange_ratio"
+      ],
+      "field_definitions": {
+        "acquirer": {
+          "type": "name",
+          "empty": null,
+          "description": "The Parent (acquirer), as printed."
+        },
+        "target": {
+          "type": "name",
+          "empty": null,
+          "description": "The Company (target), as printed."
+        },
+        "merger_sub": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "The merger subsidiary or subsidiaries, as printed; [] when none."
+        },
+        "target_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Termination fee payable by the Target."
+        },
+        "parent_termination_fee": {
+          "type": "money",
+          "empty": null,
+          "description": "Reverse termination fee payable by the Parent."
+        },
+        "outside_date": {
+          "type": "date",
+          "empty": null,
+          "description": "End / Outside Date as YYYY-MM-DD, or as printed when relative."
+        },
+        "financial_advisors": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Financial advisors named in the brokers and fairness-opinion sections."
+        },
+        "legal_counsel": {
+          "type": "entity_list:name",
+          "empty": [],
+          "description": "Law firms named on the notice 'with a copy to' lines."
+        },
+        "per_share_cash_amount": {
+          "type": "money",
+          "empty": null,
+          "description": "Cash paid per Target share, e.g. '$45.00'."
+        },
+        "exchange_ratio": {
+          "type": "free_text",
+          "empty": null,
+          "description": "Parent shares per Target share, as stated."
+        }
+      }
+    }
+  ],
+  "projection_proof": "Exact original field entries and all non-field metadata preserved; only unadmitted keys omitted.",
+  "measurement": "Static annotation and field-scoring eligibility. MAUD headline unchanged; no model performance claim; use_as_truth remains false.",
+  "independent_final_review": {
+    "path": "final-review.json",
+    "sha256": "6e52e315e7474eed8b76e8bb01d769b20e0014c50badbcda7c6675af2c2d5d38",
+    "reviewer": {
+      "model": "gpt-6.1-terra",
+      "role": "review"
+    },
+    "byte_identical_to_private_artifact": true,
+    "scope": "Code and admission working tree reviewed before the data commit; current-head hosted acceptance remains separate."
+  }
+}

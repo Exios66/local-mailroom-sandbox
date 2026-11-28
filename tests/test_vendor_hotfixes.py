@@ -95,7 +95,12 @@ def test_hf006_explicit_confidence_survives_extraction(monkeypatch, class_name, 
     vh.apply_hotfixes()
     agent = object.__new__(getattr(sa, class_name))
     monkeypatch.setattr(agent, "truncate_input", lambda text: text)
-    monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: {"confidence": confidence})
+    def reply(*args, **kwargs):
+        # Exercise the complete declared schema while varying confidence alone.
+        fields = {key: [] if spec.get("type") == "array" else None
+                  for key, spec in kwargs["json_schema"]["properties"].items()}
+        return {**fields, "confidence": confidence}
+    monkeypatch.setattr(agent, "_call_structured", reply)
     monkeypatch.setattr(agent, "_evidence_confidence", lambda result: 0.9)
     assert agent.extract("source")["confidence"] == (0.9 if confidence is None else confidence)
 
@@ -109,7 +114,11 @@ def test_hf006_a_zero_confidence_chunk_cannot_be_hidden(monkeypatch):
     monkeypatch.setattr(agent, "_split_chunks", lambda *a: ["first", "last"])
     replies = iter([{"entity_name": "First", "confidence": 0.9},
                     {"entity_name": "Last", "confidence": 0.0}])
-    monkeypatch.setattr(agent, "_call_structured", lambda *a, **kw: next(replies))
+    def reply(*args, **kwargs):
+        fields = {key: [] if spec.get("type") == "array" else None
+                  for key, spec in kwargs["json_schema"]["properties"].items()}
+        return {**fields, **next(replies)}
+    monkeypatch.setattr(agent, "_call_structured", reply)
     monkeypatch.setattr(agent, "_evidence_confidence", lambda result: 0.9)
     assert agent.extract_chunked("first last")["confidence"] == 0.0
 

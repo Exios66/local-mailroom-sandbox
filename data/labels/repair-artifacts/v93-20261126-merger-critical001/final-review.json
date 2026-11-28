@@ -1,0 +1,21 @@
+{
+  "schema": "mailroom.independent-review/v1",
+  "review_date": "2026-11-26",
+  "base": "e4226b54975f9dcf6a63ff2d0a3206738c88f32d",
+  "head": "764009b75eb0731ce0a10259bd82e765eb32deb8",
+  "scope": "Committed merger gate and append changes plus pending tracked and untracked merger labels, reports and review evidence. Read-only review; working tree was uncommitted.",
+  "findings": [],
+  "conclusion": "No blocking findings identified in the reviewed scope.",
+  "verification": [
+    "Independently matched raw SHA-256, decoded length and 48 quoted source offsets across all three source-review documents.",
+    "Compared all base catalog and supplementary records and overlay label payloads with the working tree: 10,644, 1,896 and 9,739 respectively preserved.",
+    "Inspected source-qualified admissions, 12 holds, four reviewed qualifications, append and subclass/type/evidence paths, scoring audit and CSV preservation evidence.",
+    "No independent full-corpus or full-suite run; existing test and scoring audit results are reported evidence, not rerun in this review."
+  ],
+  "remaining_risks": [
+    "The 12 held fields and source/subclass conflict remain unresolved; this review did not adjudicate them.",
+    "Per-field eligibility does not establish model performance or a MAUD headline improvement.",
+    "Full CI and current-head hosted checks remain required before merge.",
+    "Source review covered documented ranges, not full-document reading."
+  ]
+}

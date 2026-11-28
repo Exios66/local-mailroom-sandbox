@@ -1,0 +1,69 @@
+{
+  "schema": "mailroom.corporate-disposition/v1",
+  "documents": 4,
+  "fields": 12,
+  "expected_populated": 7,
+  "expected_absence": 5,
+  "independent_agreement": 9,
+  "source_reviewed_accept": 2,
+  "held_fields": 15,
+  "held": [
+    {
+      "doc_id": "DOC-76f31813e8ca987f",
+      "subclass": "board_resolution",
+      "source_sha256": "a3fb0ed8e8ab8fb1b25dd48ba7c484980e2c92b642977ef96f63d6c65922ec51",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "reason": "Both independent full-source passes hold instrument/subclass fit; see raw supplementary passages. No labels or absences admitted."
+    },
+    {
+      "doc_id": "DOC-b201671b783495ef",
+      "subclass": "board_resolution",
+      "source_sha256": "ed5716fde10bc6c525bfd4583e497ad52042e4f0a4efea4e4b6a8e660338f8b0",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "reason": "Both independent full-source passes hold instrument/subclass fit; see raw supplementary passages. No labels or absences admitted."
+    },
+    {
+      "doc_id": "DOC-d0aebe650be3e512",
+      "subclass": "board_resolution",
+      "source_sha256": "1501edc26fe074c6735868be50f83453b1617115ef527bac56a6bb61ae6616cc",
+      "fields": [
+        "acting_body",
+        "action_approved",
+        "resolutions"
+      ],
+      "reason": "Both independent full-source passes hold instrument/subclass fit; see raw supplementary passages. No labels or absences admitted."
+    },
+    {
+      "doc_id": "DOC-81ae205a3b0bf16f",
+      "subclass": "charter_amendment",
+      "source_sha256": "b460a96a1253bff52bc389dd73fad33208d1e7572d6457ac9c3e37bd295f6460",
+      "fields": [
+        "amended_provisions",
+        "approval_date",
+        "prior_entity_name"
+      ],
+      "reason": "Both independent full-source passes hold instrument/subclass fit; see raw supplementary passages. No labels or absences admitted."
+    },
+    {
+      "doc_id": "DOC-27bbad54b6fd107e",
+      "subclass": "charter_amendment",
+      "source_sha256": "ba31a736338d7cd97e8f48558ce0e7811a358cf606fa0ceca295e30a65aa72a9",
+      "fields": [
+        "amended_provisions",
+        "approval_date",
+        "prior_entity_name"
+      ],
+      "reason": "Both independent full-source passes hold instrument/subclass fit; see raw supplementary passages. No labels or absences admitted."
+    }
+  ],
+  "raw_field_payloads_preserved": true,
+  "source_reviewed_accept_check": 1
+}

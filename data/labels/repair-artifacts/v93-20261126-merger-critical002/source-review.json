@@ -1,0 +1,652 @@
+{
+  "reviewer": {
+    "model": "gpt-6.1-terra",
+    "role": "review"
+  },
+  "checkout_head": "51552ff8d32e29861af4d525b412116f25a8de2c",
+  "scope": "13 common populated fields only; both original passes reported partial source context. This is scoped source adjudication, not a full-document read or model performance evidence.",
+  "sources": [
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "path": "data/runtime/full-label-repair/documents/DOC-eac7882cff200545.txt",
+      "raw_sha256": "f61fbfa73fbbc76a295d77f5d8eee8410e695789437e0feec7c0ece5f87fce35",
+      "character_length": 207539,
+      "offset_basis": "zero-based half-open Unicode code point indices of raw UTF-8 decoded bytes, retaining BOM and CRLF",
+      "read_ranges": [
+        [
+          4500,
+          8000
+        ],
+        [
+          31767,
+          35700
+        ],
+        [
+          35613,
+          38500
+        ],
+        [
+          201115,
+          201500
+        ],
+        [
+          206900,
+          207539
+        ]
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "path": "data/runtime/full-label-repair/documents/DOC-681bc6115b882191.txt",
+      "raw_sha256": "4cde1c08196ab3c80ee4de6acc6677259d1c5bab69ffddb7c67240f0755b9872",
+      "character_length": 456659,
+      "offset_basis": "zero-based half-open Unicode code point indices of raw UTF-8 decoded bytes, retaining BOM and CRLF",
+      "read_ranges": [
+        [
+          6200,
+          10500
+        ],
+        [
+          11085,
+          12240
+        ],
+        [
+          16500,
+          31500
+        ],
+        [
+          35341,
+          49264
+        ],
+        [
+          49264,
+          52241
+        ],
+        [
+          394000,
+          394500
+        ],
+        [
+          396200,
+          397350
+        ],
+        [
+          431800,
+          432500
+        ]
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "document_name",
+      "recommendation": "accept",
+      "value": "AGREEMENT AND PLAN OF MERGER",
+      "rationale": "Title matches the agreement heading.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "AGREEMENT AND PLAN OF MERGER",
+          "char_range": [
+            4627,
+            4655
+          ],
+          "byte_range": [
+            4633,
+            4661
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "AGREEMENT AND PLAN OF MERGER",
+          "char_range": [
+            4627,
+            4655
+          ],
+          "byte_range": [
+            4633,
+            4661
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "parties",
+      "recommendation": "accept",
+      "value": [
+        "Raven Industries, Inc.",
+        "CNH Industrial N.V.",
+        "CNH Industrial South Dakota, Inc."
+      ],
+      "rationale": "The preamble names all three parties, and the operative merger and execution blocks corroborate their roles.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "acquirer",
+      "recommendation": "accept",
+      "value": "CNH Industrial N.V.",
+      "rationale": "Preamble identifies Parent; merger clause confirms Parent acquires Company through its subsidiary.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "target",
+      "recommendation": "accept",
+      "value": "Raven Industries, Inc.",
+      "rationale": "Preamble identifies Company; section 2.01 has it survive as Parent subsidiary.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "merger_sub",
+      "recommendation": "accept",
+      "value": [
+        "CNH Industrial South Dakota, Inc."
+      ],
+      "rationale": "Preamble identifies the wholly owned Merger Subsidiary, corroborated by section 2.01 and its signed execution block.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "AGREEMENT AND PLAN OF MERGER (this “Agreement”), dated as of June 20, 2021, among Raven Industries, Inc., a South Dakota corporation (the “Company”), CNH Industrial N.V., a Netherlands public limited liability company (“Parent”), and CNH Industrial South Dakota, Inc., a South Dakota corporation and a wholly owned subsidiary of Parent (“Merger Subsidiary”).",
+          "char_range": [
+            4662,
+            5020
+          ],
+          "byte_range": [
+            4668,
+            5042
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "signatories",
+      "recommendation": "accept",
+      "value": [
+        "Dan Rykhus",
+        "Scott Wine",
+        "Oddonne Incisa"
+      ],
+      "rationale": "All three agreement execution blocks have actual signatures by Dan Rykhus, Scott Wine and Oddonne Incisa; name spelling and punctuation match.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Dan Rykhus",
+          "char_range": [
+            207248,
+            207267
+          ],
+          "byte_range": [
+            208153,
+            208172
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Scott Wine",
+          "char_range": [
+            207352,
+            207371
+          ],
+          "byte_range": [
+            208257,
+            208276
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Oddonne Incisa",
+          "char_range": [
+            207470,
+            207493
+          ],
+          "byte_range": [
+            208375,
+            208398
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Dan Rykhus  Name:  Dan Rykhus",
+          "char_range": [
+            207248,
+            207286
+          ],
+          "byte_range": [
+            208153,
+            208191
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Scott Wine  Name:  Scott Wine",
+          "char_range": [
+            207352,
+            207390
+          ],
+          "byte_range": [
+            208257,
+            208295
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Oddonne Incisa  Name:  Oddonne Incisa",
+          "char_range": [
+            207470,
+            207516
+          ],
+          "byte_range": [
+            208375,
+            208421
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "governing_law",
+      "recommendation": "accept",
+      "value": "Except to the extent the provisions of South Dakota Law are applicable to the Merger or to the fiduciary duties of the Company’s Board of Directors, this Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to the conflicts of law rules of such state.",
+      "rationale": "The complete sentence preserves the South Dakota law exception for the Merger and fiduciary duties as well as Delaware governing law.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "Except to the extent the provisions of South Dakota Law are applicable to the Merger or to the fiduciary duties of the Company’s Board of Directors, this Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to the conflicts of law rules of such state.",
+          "char_range": [
+            201145,
+            201457
+          ],
+          "byte_range": [
+            202044,
+            202358
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "Except to the extent the provisions of South Dakota Law are applicable to the Merger or to the fiduciary duties of the Company’s Board of Directors, this Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to the conflicts of law rules of such state.",
+          "char_range": [
+            201145,
+            201457
+          ],
+          "byte_range": [
+            202044,
+            202358
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-eac7882cff200545",
+      "field": "per_share_cash_amount",
+      "recommendation": "accept_check",
+      "value": "$58.00",
+      "rationale": "Base $58 cash without interest applies to converted Company shares; treasury/Parent shares are canceled without payment and subsidiary-held shares convert under 2.02(c). Check quote explicitly retains the exceptions.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "each share of Company Stock outstanding immediately prior to the Effective Time shall be converted into the right to receive $58.00 in cash, without interest",
+          "char_range": [
+            33997,
+            34154
+          ],
+          "byte_range": [
+            34391,
+            34548
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "Except as otherwise provided in Section 2.02(b) or Section 2.02(c), each share of Company Stock outstanding immediately prior to the Effective Time shall be converted into the right to receive $58.00 in cash, without interest (such per share amount, the “Merger Consideration”).",
+          "char_range": [
+            33929,
+            34207
+          ],
+          "byte_range": [
+            34323,
+            34605
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "acquirer",
+      "recommendation": "accept",
+      "value": "Bioventus Inc.",
+      "rationale": "Parent Bioventus is identified in preamble and signed parent block; subsidiary name inconsistency does not change that identification.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "Bioventus Inc., a Delaware corporation (“Parent”)",
+          "char_range": [
+            6466,
+            6515
+          ],
+          "byte_range": [
+            6488,
+            6541
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "Bioventus Inc., a Delaware corporation (“Parent”)",
+          "char_range": [
+            6466,
+            6515
+          ],
+          "byte_range": [
+            6488,
+            6541
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "target",
+      "recommendation": "accept",
+      "value": "Misonix, Inc.",
+      "rationale": "Company Misonix is identified in preamble, operative first/second mergers and its signed block; subsidiary name inconsistency does not change that identification.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "Misonix, Inc., a Delaware corporation (the “Company”)",
+          "char_range": [
+            6823,
+            6876
+          ],
+          "byte_range": [
+            6861,
+            6918
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "Misonix, Inc., a Delaware corporation (the “Company”)",
+          "char_range": [
+            6823,
+            6876
+          ],
+          "byte_range": [
+            6861,
+            6918
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "signatories",
+      "recommendation": "accept",
+      "value": [
+        "Ken Reali",
+        "Anthony D’Adamio",
+        "Joseph P. Dwyer"
+      ],
+      "rationale": "Signed execution blocks show Ken Reali, Anthony D’Adamio twice for distinct subsidiary blocks, and Joseph P. Dwyer; the list is a deduplicated list of persons. Subsidiary label mismatch does not make those signatures or parent/company roles doubtful, though subsidiary identities remain unresolved.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Ken Reali",
+          "char_range": [
+            396445,
+            396463
+          ],
+          "byte_range": [
+            397750,
+            397768
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Anthony D’Adamio",
+          "char_range": [
+            396571,
+            396596
+          ],
+          "byte_range": [
+            397876,
+            397903
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "By:  /s/ Joseph P. Dwyer",
+          "char_range": [
+            397022,
+            397046
+          ],
+          "byte_range": [
+            398335,
+            398359
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Ken Reali Name: Ken Reali",
+          "char_range": [
+            396445,
+            396479
+          ],
+          "byte_range": [
+            397750,
+            397784
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Anthony D’Adamio Name: Anthony D’Adamio",
+          "char_range": [
+            396571,
+            396619
+          ],
+          "byte_range": [
+            397876,
+            397928
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "By:  /s/ Joseph P. Dwyer Name: Joseph P. Dwyer",
+          "char_range": [
+            397022,
+            397068
+          ],
+          "byte_range": [
+            398335,
+            398381
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "per_share_cash_amount",
+      "recommendation": "accept",
+      "value": "$28.00",
+      "rationale": "Cash election consideration is $28 without interest for eligible shares, subject to election, section 1.7 proration, section 1.8 adjustments, and exclusions/appraisal; it is not a guaranteed payment to every share.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "each share of Company Common Stock that is issued and outstanding immediately prior to the First Effective Time shall be converted into the right to receive, without interest, at the election of the holder thereof in accordance with the procedures set forth in Section 1.12 and Section 1.15",
+          "char_range": [
+            18474,
+            18764
+          ],
+          "byte_range": [
+            18604,
+            18894
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "an amount of cash equal to $28.00, without interest (the “Cash Election Consideration”), as the same may be adjusted pursuant to Section 1.7(a)(ii) and Section 1.7(b)(ii)",
+          "char_range": [
+            19174,
+            19344
+          ],
+          "byte_range": [
+            19312,
+            19486
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "the “Cash Election Shares”) an amount of cash equal to $28.00, without interest (the “Cash Election Consideration”), as the same may be adjusted pursuant to Section 1.7(a)(ii) and Section 1.7(b)(ii);",
+          "char_range": [
+            19146,
+            19345
+          ],
+          "byte_range": [
+            19280,
+            19487
+          ]
+        }
+      ]
+    },
+    {
+      "doc_id": "DOC-681bc6115b882191",
+      "field": "exchange_ratio",
+      "recommendation": "accept",
+      "value": "1.6839",
+      "rationale": "Stock election consideration is 1.6839 Parent Class A shares per eligible Company share, subject to election, section 1.7 proration, section 1.8 adjustments, fractional-share provisions and exclusions/appraisal; it is not a guaranteed final ratio or mix.",
+      "evidence": [
+        {
+          "pass": "label",
+          "quote": "each share of Company Common Stock that is issued and outstanding immediately prior to the First Effective Time shall be converted into the right to receive, without interest, at the election of the holder thereof in accordance with the procedures set forth in Section 1.12 and Section 1.15",
+          "char_range": [
+            18474,
+            18764
+          ],
+          "byte_range": [
+            18604,
+            18894
+          ]
+        },
+        {
+          "pass": "label",
+          "quote": "1.6839 validly issued, fully paid and non-assessable shares of Parent Class A Common Stock (the “Stock Election Consideration”), as the same may be adjusted pursuant to Section 1.7(a)(ii)",
+          "char_range": [
+            19752,
+            19939
+          ],
+          "byte_range": [
+            19898,
+            20089
+          ]
+        },
+        {
+          "pass": "check",
+          "quote": "the “Stock Election Shares”), 1.6839 validly issued, fully paid and non-assessable shares of Parent Class A Common Stock (the “Stock Election Consideration”), as the same may be adjusted pursuant to Section 1.7(a)(ii);",
+          "char_range": [
+            19722,
+            19940
+          ],
+          "byte_range": [
+            19864,
+            20090
+          ]
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "First-document exchange_ratio and second-document parties and merger_sub were explicitly excluded from this review; no decision or absence assertion is made on them.",
+    "The source 2 preamble names Oyster Merger Sub I, Inc. and Oyster Merger Sub II, LLC, while execution blocks omit I and II. Their exact legal identity remains unresolved; parent, company and actual signed names remain independently supported.",
+    "The review supports machine/static eligibility only; it is not a MAUD headline or performance result.",
+    "The ranges are the actual contextual source slices inspected by this reviewer, including broader slices that contain intervening text; no full-source reading is asserted.",
+    "Cross-reference reading focused on operative provisions and relevant election/exchange mechanics, not an opinion on enforceability or transaction completion."
+  ]
+}
