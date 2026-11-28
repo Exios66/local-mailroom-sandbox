@@ -140,6 +140,16 @@ def test_raw_stores_honour_split_and_refuse_cell_filters(labels, tmp_path, capsy
     assert "--tier" in capsys.readouterr().err
 
 
+def test_out_and_ids_out_create_missing_parents(tmp_path):
+    cli = _cli()
+    out = tmp_path / "gold" / "focus.json"
+    ids = tmp_path / "gold" / "ids.txt"
+    assert cli.main(["focus", "--split", "dev", "--class", "corporate_record",
+                     "--ids-out", str(ids), "--format", "json", "--out", str(out)]) == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["1_unscorable_docs"] is not None
+    assert ids.read_text(encoding="utf-8").strip()
+
+
 def test_out_is_never_truncated_and_csv_needs_rows(tmp_path, capsys):
     cli = _cli()
     out = tmp_path / "rows.txt"

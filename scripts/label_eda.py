@@ -82,6 +82,12 @@ def _short(v: Any, n: int = 70) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def _write(path: str, text: str) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+
+
 def _emit(result: Any, args: argparse.Namespace) -> None:
     limit = None if args.out else args.limit  # --out writes the full result
     if args.format == "json" or not isinstance(result, list):
@@ -99,9 +105,7 @@ def _emit(result: Any, args: argparse.Namespace) -> None:
     else:
         text = _table(result, limit)
     if args.out:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text + "\n", encoding="utf-8")
+        _write(args.out, text + "\n")
         print(f"wrote {args.out}")
     else:
         print(text)
@@ -144,7 +148,7 @@ def cmd_focus(args, labels, flt):
     if args.ids_out:
         ids = sorted({d["doc_id"] for d in result["1_unscorable_docs"]}
                      | {c.doc_id for c in eda.select(labels, flt) if not c.labeled and c.tier == "gate"})
-        Path(args.ids_out).write_text("\n".join(ids) + "\n", encoding="utf-8")
+        _write(args.ids_out, "\n".join(ids) + "\n")
         result["ids_out"] = f"{len(ids)} document ids with open gate work written to {args.ids_out}"
     return result
 
@@ -157,11 +161,8 @@ def cmd_queue(args, labels, flt):
     """Narrow a full ``gold_labels.py queue`` to the open cells and write it as JSONL to ``--out``."""
     full = [json.loads(line) for line in Path(args.queue).read_text(encoding="utf-8").splitlines() if line.strip()]
     lines, info = eda.narrow_queue(full, eda.select(labels, flt))
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("".join(json.dumps(q, ensure_ascii=False, sort_keys=True) + "\n" for q in lines),
-                   encoding="utf-8")
-    print(f"wrote {info['docs']} queue lines ({info['fields']} open fields) to {out}", file=sys.stderr)
+    _write(args.out, "".join(json.dumps(q, ensure_ascii=False, sort_keys=True) + "\n" for q in lines))
+    print(f"wrote {info['docs']} queue lines ({info['fields']} open fields) to {args.out}", file=sys.stderr)
     args.out = None  # the queue is written; print the summary instead of overwriting it
     return info
 
