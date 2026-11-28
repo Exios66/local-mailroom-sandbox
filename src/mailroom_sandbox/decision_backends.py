@@ -1217,11 +1217,14 @@ def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_
     # The unwrapped accumulator does not see HF-004, so the provider cost is noted here.
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
+    from mailroom_sandbox.job.call_guard import token_count
     from mailroom_sandbox.job.usage_capture import note_provider_call
 
+    # An unreadable count (inf, nan, text) reads as 0, as on the cap: ``after_call`` has already charged
+    # this reply, and raising here would fail a document whose answer arrived, so a retry billed it twice.
     counted: dict[str, Any] = {
-        "prompt_tokens": int(usage.get("input_tokens") or 0),
-        "completion_tokens": int(usage.get("output_tokens") or 0),
+        "prompt_tokens": token_count(usage.get("input_tokens")),
+        "completion_tokens": token_count(usage.get("output_tokens")),
         "cost": usage.get("cost"),
     }
     # The accumulator only wants prompt and completion. Cache fields stay on the note so a

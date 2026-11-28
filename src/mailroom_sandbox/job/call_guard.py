@@ -414,7 +414,8 @@ def billed_failure(exc: BaseException) -> bool:
     return True
 
 
-def _count(value: Any) -> int:
+def token_count(value: Any) -> int:
+    """A usage token count as a non-negative int; an unreadable one (``inf``, ``nan``, text) reads as 0."""
     try:
         return max(0, int(value or 0))
     except (TypeError, ValueError, OverflowError):  # inf overflows
@@ -422,7 +423,7 @@ def _count(value: Any) -> int:
 
 
 def _unreadable(value: Any) -> bool:
-    """True for a count that is present but cannot be read (``inf``, ``nan``, text): :func:`_count` says 0."""
+    """True for a count that is present but cannot be read (``inf``, ``nan``, text): :func:`token_count` says 0."""
     try:
         int(value or 0)
     except (TypeError, ValueError, OverflowError):
@@ -452,13 +453,13 @@ def after_call(usage: Any, model: str | None = None, *, hold: int | None = None,
         completion = getattr(usage, "completion_tokens", None)
     pending = _take_pending(budget, model, hold)
     if pending:
-        estimate = budget.estimate_call_usd(_count(prompt), _count(completion), model)
+        estimate = budget.estimate_call_usd(token_count(prompt), token_count(completion), model)
         if _unreadable(prompt) or _unreadable(completion):
             # The reply was billed but its size cannot be read: it keeps at least its reservation.
             estimate = max(estimate, pending)
         cost = budget.price_settling(pending, estimate)
     else:
-        cost = budget.add_live(_count(prompt), _count(completion), model)
+        cost = budget.add_live(token_count(prompt), token_count(completion), model)
     if doc is not None:
         if count:
             doc["calls"] += 1
