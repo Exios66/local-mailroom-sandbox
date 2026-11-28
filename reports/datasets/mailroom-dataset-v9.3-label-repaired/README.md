@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **87.5%** of per-class target fields (43,942 labeled,
-6,213 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **87.6%** of per-class target fields (44,019 labeled,
+6,213 unlabeled, 1 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 50,233 per-class target fields (49.4%). This
-release labels **43,942 (87.5%)**. Each added or changed label was chosen by a consensus vote over
+release labels **44,019 (87.6%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 These flat per-class counters are not scored-field coverage. They include documented absences,
@@ -115,7 +115,10 @@ changing the value:
 - under `reviewed_over_hub`, a reviewed absence that overrides a populated value, or independent
   evidence that beats a reviewed label (23 cells, all reviewed absences).
 
-With the 78 disputed cells, 101 cells need a human.
+With the 1 disputed cell, 24 cells need a human. The 2026-11-28 executive vote settled 77 of
+the 78 earlier disputed contract cells (see
+[the vote archive](../../../data/labels/repair-artifacts/v93-20261128-contract-dispute-fable-votes/README.md));
+the one left is a party name the source text prints with broken spacing.
 
 **Check against production truth (unverified in this README).** A prior local rebuild reported that
 the repository's scoring merge (`interim_labels.apply_overlay` then `gold_labels.apply_near_gold`)
@@ -307,7 +310,7 @@ values and documented absences separately and makes no model-performance claim.
 | `populated` | A value was chosen. |
 | `documented_absence` | The winning sources say the document has no such value (for example no adjuster named). The cell is blank, but the field **is** labeled. |
 | `unlabeled` | No source labels this field for this document. Treat as missing, not as absent. |
-| `disputed_unresolved` | Only a disputed value exists. Left blank for human review (78 cells, all contract fields). |
+| `disputed_unresolved` | Only a disputed value exists. Left blank for human review (1 cell, a contract field). |
 
 In the main CSV, a blank cell is ambiguous on its own. Classify each blank from the provenance row
 for that `(document_id, field)` (`presence` = `documented_absence` or `unlabeled`). The wide-row

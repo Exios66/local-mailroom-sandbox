@@ -613,48 +613,40 @@
     "contract": {
       "agreement_date": {
         "candidate": 93,
-        "disputed": 2,
-        "near_gold": 165
+        "near_gold": 167
       },
       "contract_value": {
         "candidate": 96,
-        "disputed": 2,
-        "near_gold": 170
+        "near_gold": 172
       },
       "dispute_forum": {
         "candidate": 96,
-        "disputed": 4,
-        "near_gold": 168
+        "near_gold": 172
       },
       "expiration_date": {
         "candidate": 96,
-        "disputed": 2,
-        "near_gold": 169
+        "near_gold": 171
       },
       "party_roles": {
         "candidate": 57,
-        "disputed": 21,
-        "near_gold": 145
+        "disputed": 1,
+        "near_gold": 165
       },
       "payment_terms": {
         "candidate": 95,
-        "disputed": 34,
-        "near_gold": 137
+        "near_gold": 171
       },
       "signatories": {
         "candidate": 96,
-        "disputed": 2,
-        "near_gold": 170
+        "near_gold": 172
       },
       "termination_notice_period": {
         "candidate": 96,
-        "disputed": 14,
-        "near_gold": 158
+        "near_gold": 172
       },
       "territory": {
         "candidate": 96,
-        "disputed": 3,
-        "near_gold": 169
+        "near_gold": 172
       }
     },
     "corporate_record": {
@@ -824,12 +816,12 @@
     }
   },
   "files": {
-    "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
+    "contract.jsonl": "3097e5094e7e0f3cb2b46b53610a4b43c1b219d5dc0b8742d7603da0c1d5100e",
     "corporate_record.jsonl": "578b4463b850dd5608547a08775a9d0a88339dcce8893ba5650d5e10871f016f",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
-  "reviewed_at": "2026-11-26T23:33:57Z",
+  "reviewed_at": "2026-11-28T02:59:59Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -1144,6 +1136,7 @@
       "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
       "review-promo-urgency.jsonl",
+      "review.jsonl",
       "subclass-diverse001-parent-review.jsonl",
       "subclass-diverse002-parent-review.jsonl",
       "subclass-diverse003-capital-review.jsonl",
