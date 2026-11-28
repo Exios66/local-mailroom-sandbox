@@ -10,7 +10,7 @@ Everything here reads committed files only (no network, no model call):
   (``data/labels/interim/*.jsonl``) for the raw label records behind a cell;
 - the runbook-v2 split assignments (``config/splits/runbook-v2/assignments.jsonl``);
 - optionally a production slice draw, made by the same ``prepare_subset`` the runs use, from the
-  cached corpus (``data/cache/``).
+  cached corpus (``data/cache/``) with the slice's own label overlay (the pulled staged cut).
 
 Each cell gets a **tier**, from what production scoring does with it:
 
@@ -193,27 +193,35 @@ def cache_path(root: Path | None = None, revision: str | None = None) -> Path:
     return root / "data/cache" / f"Lucius-Morningstar__mailroom-dataset__{commit[:12]}" / "ground_truth_all.jsonl"
 
 
+def production_dataset(name: str = "slice-full", root: Path | None = None) -> Any:
+    """A production slice's dataset spec (``config/runs/production/<name>.yaml``): its draw and overlay."""
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    return load_run_spec((root or repo_root()) / "config/runs/production" / f"{name}.yaml").dataset
+
+
 def slice_ids(name: str, root: Path | None = None) -> list[str]:
     """Document ids a production slice draws, by the runs' own ``prepare_subset`` on the cached corpus.
 
-    The draw ignores label overlays (they never change which documents are drawn). Raises
-    ``FileNotFoundError`` without the cached ``ground_truth_all.jsonl``.
+    The draw keeps the slice's label overlay: with ``dataset.task_gt_min_field_labels`` it counts a
+    contract with no CUAD labels on the overlaid row (``corpus.field_labelled_ids``), so the overlay
+    changes which documents are drawn. Raises ``FileNotFoundError`` without the cached
+    ``ground_truth_all.jsonl``, and ``StagedOverlayError`` (a ``ValueError``) when the slice's
+    staged cut is not pulled.
     """
     import tempfile
 
-    from mailroom_sandbox.corpus import prepare_subset
-    from mailroom_sandbox.job.spec import load_run_spec
+    from mailroom_sandbox import corpus
 
     root = root or repo_root()
-    spec = load_run_spec(root / "config/runs/production" / f"{name}.yaml").dataset
+    spec = production_dataset(name, root)
     cache = cache_path(root, spec.revision)
     if not cache.is_file():
         raise FileNotFoundError(f"{cache} is not cached (sandbox datasets pull)")
-    ds = spec.model_copy(update={"provider": "file", "local_path": str(cache), "interim_labels": False,
-                                 "near_gold_labels": False, "staged_overlay": None})
+    ds = spec.model_copy(update={"provider": "file", "local_path": str(cache)})
     with tempfile.TemporaryDirectory() as tmp:
         dest = Path(tmp) / "draw.jsonl"
-        prepare_subset(ds, dest)
+        corpus.prepare_subset(ds, dest)
         return [r["id"] for r in _read_jsonl(dest)]
 
 
@@ -315,10 +323,14 @@ def unit_unscorable(labels: Labels, flt: Filter, root: Path | None = None) -> li
     """Gated unit-class documents (contract: CUAD) below ``min_labelled``, by ``gate.labelled_count``.
 
     The gate counts a contract's CUAD clause labels, which the release does not carry, so this reads
-    the cached corpus row (the Hub CUAD map, before overlays) and counts it with the production
-    function. ``None`` without the cached corpus.
+    the cached corpus row and counts it with the production function. A contract with no CUAD labels
+    is counted on its field labels (SHF-016), so the row takes the production label overlay first,
+    as the draw does (``corpus.field_labelled_ids``). ``None`` without the cached corpus or the
+    pulled staged cut.
     """
-    from mailroom_sandbox.job.gate import labelled_count
+    from mailroom_sandbox import corpus
+    from mailroom_sandbox.job import gate
+    from mailroom_sandbox.staged_overlay import StagedOverlayError
 
     want = {d.doc_id: d for d in labels.docs.values()
             if d.doc_class in labels.gated and d.doc_class in UNIT_CLASSES and flt.doc_ok(d)}
@@ -327,16 +339,43 @@ def unit_unscorable(labels: Labels, flt: Filter, root: Path | None = None) -> li
     cache = cache_path(root)
     if not cache.is_file():
         return None
+    rows = [row for row in _read_jsonl(cache) if row.get("id") in want]
+    ds = production_dataset(root=root)
+    try:
+        rows, _ = corpus.apply_label_overlays(rows, {"source": "local"}, interim=bool(ds.interim_labels),
+                                              near_gold=bool(ds.near_gold_labels), staged=ds.staged_overlay)
+    except StagedOverlayError:
+        return None
     out = []
-    for row in _read_jsonl(cache):
-        d = want.get(row.get("id"))
-        if d is None:
-            continue
-        n = labelled_count(row, d.doc_class)
+    for row in rows:
+        d = want[row["id"]]
+        n = gate.labelled_count(row, d.doc_class)
         if n < labels.min_labelled:
             out.append({"doc_id": d.doc_id, "doc_class": d.doc_class, "subclass": d.subclass, "split": d.split,
                         "gate_labelled": n, "open_gate_fields": ["cuad_clause_labels"]})
     return sorted(out, key=lambda r: r["doc_id"])
+
+
+def narrow_queue(queue: Iterable[Mapping[str, Any]], cells: Iterable[Cell]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """A ``gold_labels.py batch`` queue for exactly the open (unlabeled or disputed) ``cells``.
+
+    ``queue`` is a full queue from ``gold_labels.py queue``, which carries each document's
+    ``filename``, ``content_sha256``, ``revision`` and ``subclass``. Each document with an open cell
+    keeps one line, its ``fields`` replaced by its open fields, sorted. A document with open cells
+    the queue does not list is named under ``not_in_queue``.
+    """
+    open_fields: dict[str, set[str]] = defaultdict(set)
+    for c in cells:
+        if not c.labeled:
+            open_fields[c.doc_id].add(c.field)
+    lines, seen = [], set()
+    for q in queue:
+        want = open_fields.get(q["doc_id"])
+        if want and q["doc_id"] not in seen:
+            lines.append({**q, "fields": sorted(want)})
+            seen.add(q["doc_id"])
+    return lines, {"docs": len(lines), "fields": sum(len(q["fields"]) for q in lines),
+                   "not_in_queue": sorted(set(open_fields) - seen)}
 
 
 def gaps(cells: Iterable[Cell], *, top: int = 30) -> list[dict[str, Any]]:
@@ -369,11 +408,12 @@ def focus(labels: Labels, flt: Filter, *, top: int = 25) -> dict[str, Any]:
     return {
         "scope": {"cells": len(cells), "docs": len({c.doc_id for c in cells})},
         "1_unscorable_docs": unscorable(labels, flt) + (units or []),
-        "unit_class_count": ("skipped: gated contract documents are counted on their CUAD labels, which "
-                             "need the cached corpus (sandbox datasets pull)") if units is None
-                            else ("contract documents counted on their CUAD labels in the cached corpus; "
-                                  "production slices (require_task_gt) never draw a contract with no CUAD "
-                                  "labels, so only CUAD labels, not field labels, bring one into production"),
+        "unit_class_count": ("skipped: gated contract documents are counted on the cached corpus row with "
+                             "the production label overlay, which needs the corpus and the pinned staged "
+                             "cut (sandbox datasets pull)") if units is None
+                            else ("contract documents counted as the production draw counts them: on their CUAD "
+                                  "labels, or, with no CUAD labels, on their field labels after the production "
+                                  "overlay (SHF-016; slices draw one with at least task_gt_min_field_labels)"),
         "2_gate_gaps": gaps([c for c in open_ if c.tier == "gate"], top=top),
         "3_suite_and_reported_gaps": gaps([c for c in open_ if c.tier in ("unit", "reported")], top=top),
         "4_human_queue": {"disputed": sum(c.presence == "disputed_unresolved" for c in cells),

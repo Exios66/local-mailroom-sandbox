@@ -2,7 +2,8 @@
 
 `scripts/label_eda.py` inspects the merged label truth: what is labelled, what is not, which
 source each value rests on, and where the next label work moves production numbers. It is
-offline and read-only. It reads committed files and, for `--slice` only, the cached corpus.
+offline and read-only. It reads committed files and, for `--slice` and the contract count in
+`focus`, the cached corpus and the production slices' pulled staged cut.
 Library: `src/mailroom_sandbox/label_eda.py`. For charts, notebook
 `notebooks/05_label_coverage_eda.ipynb` covers the same ground.
 
@@ -23,7 +24,8 @@ The recipes below shorten the first part to `scripts/label_eda.py`.
 | Splits | `config/splits/runbook-v2/assignments.jsonl` | `dev`, `calibration`, `heldout`, `pool`. |
 | Subclass registry | `config/extraction/subclass_schemas.json` | Which fields a subclass does not apply. |
 | Gate bars | `config/production/bars.yaml` | Gated classes and `min_labelled`. |
-| Cached corpus (`--slice` only) | `data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/` | The production slice draw, made with `prepare_subset`, the function the runs use. |
+| Cached corpus (`--slice`, `focus`) | `data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/` | The production slice draw, made with `prepare_subset`, the function the runs use, and the contract rows `focus` counts. |
+| Staged cut (`--slice`, `focus`) | `data/cache/mailroom_cache/` (`$SANDBOX_LABEL_CACHE`) | The slice's `staged_overlay`, which the draw applies before it counts a CUAD-empty contract's field labels (`scripts/pull_staged_overlay.py --version <cut>`). |
 
 The release reflects the labels as of its last rebuild. After you admit new labels, rebuild it
 (`build_label_repaired.py --out <new dir>`, see its README) before trusting the counts here.
@@ -95,18 +97,24 @@ scripts/label_eda.py focus --split dev --class corporate_record --ids-out /tmp/d
 `focus` leaves `unscored` cells out on purpose and reports how many it skipped. Its
 `1_unscorable_docs` lists gated documents with fewer than `min_labelled` stated gate labels.
 The gate drops each of them, so a label there adds a scored document. A contract counts its CUAD
-clause labels, which the release does not carry. `focus` counts those with the production
-`gate.labelled_count` on the cached corpus row, and says so under `unit_class_count`, or that it
-skipped them without the cache. Production slices draw with `require_task_gt`, which leaves out
-a contract with no CUAD labels, so field labels on such a contract do not move a production
-number. Only CUAD labels, or an owner change to the draw rule, would.
+clause labels, which the release does not carry. A contract with no CUAD labels counts its field
+labels instead (SHF-016). Production slices draw such a contract when it has at least
+`dataset.task_gt_min_field_labels` of them after the label overlay. `focus` counts both kinds the
+same way: the production `gate.labelled_count` on the cached corpus row, after the production
+slices' label overlay. It says so under `unit_class_count`, or that it skipped them without the
+cache or the pulled staged cut.
 
-`--ids-out` writes the document ids with open gate work. To label exactly those documents, keep
-only their lines of a `gold_labels.py queue` file, then cut batches from it (see the
+`--ids-out` writes the document ids with open gate work. To label exactly the open cells, narrow a
+full `gold_labels.py queue` file with `queue`. It keeps one line per document that has an open
+(unlabeled or disputed) cell under the filters, with its `fields` set to exactly those cells, and
+names any document the full queue does not list. Then cut batches from it (see the
 [labeling guide](gold-labels/LABELING_GUIDE.md)):
 
 ```bash
-grep -Ff /tmp/dev-corp-ids.txt data/runtime/gold/queue.jsonl > data/runtime/gold/focus-queue.jsonl
+.venv/bin/python scripts/gold_labels.py queue --corpus <pinned corpus dir> --revision <revision> \
+    --out data/runtime/gold/queue.jsonl
+.venv/bin/python scripts/label_eda.py queue --queue data/runtime/gold/queue.jsonl --split dev \
+    --class corporate_record --tier gate --out data/runtime/gold/focus-queue.jsonl
 .venv/bin/python scripts/gold_labels.py batch --queue data/runtime/gold/focus-queue.jsonl \
     --corpus <pinned corpus dir> --doc-class corporate_record --size 25 --out data/runtime/gold/batches
 ```
@@ -160,5 +168,6 @@ scripts/label_eda.py interim --class correspondence --field sender --limit 10
 - `gate_labelled` approximates `gate.labelled_count` from the release, before the SHF-015 and
   SHF-019 drops, which can only lower it. A document listed as unscorable is unscorable in
   production too. A document just above the bar can still drop under those fixes.
-- A slice draw ignores label overlays (they never change which documents are drawn), so
-  `--slice` works against any staged cut.
+- A slice draw applies the slice's own staged cut, because the overlay decides which CUAD-empty
+  contracts are drawn. `--slice` needs that cut pulled, and stops with an error naming the pull
+  command when it is not.
