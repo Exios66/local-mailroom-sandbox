@@ -156,8 +156,8 @@ def _without_sdk_retries(client: Any) -> Any:
 
 
 class _AttemptGuardedCompletions:
-    def __init__(self, client: Any, guarded: bool):
-        self._client, self._guarded = client, guarded
+    def __init__(self, client: Any, guarded: bool, on_admit: Callable[[], None] | None = None):
+        self._client, self._guarded, self._on_admit = client, guarded, on_admit
 
     def create(self, **request: Any) -> Any:
         from mailroom_sandbox.job import call_guard
@@ -168,6 +168,9 @@ class _AttemptGuardedCompletions:
         held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)),
                             model=request.get("model"))
                 if self._guarded else 0.0)
+        if self._on_admit is not None:  # once per call, after the guard: a refused call sent no prompt
+            on_admit, self._on_admit = self._on_admit, None
+            on_admit()
         sender = _without_sdk_retries(self._client)
         try:
             response = sender.chat.completions.create(**request)
@@ -212,9 +215,9 @@ class _AttemptGuardedClient:
     """The client the vendored retry loop sees (L1): one guarded, deadline-capped HTTP attempt per
     ``chat.completions.create``, with the SDK's own retries off. Every other attribute passes through."""
 
-    def __init__(self, client: Any, guarded: bool):
+    def __init__(self, client: Any, guarded: bool, on_admit: Callable[[], None] | None = None):
         self._client = client
-        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded))
+        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded, on_admit))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
@@ -363,6 +366,16 @@ def _append(entry: dict[str, Any]) -> None:
         _log.warning("served-model note on the document failed: %s", exc)
 
 
+def _capture_prompt(request: dict[str, Any], call_path: str) -> None:
+    """Hand the request to the run's prompt record (``job.prompt_capture``); never fails a call."""
+    try:
+        from mailroom_sandbox.job import prompt_capture
+
+        prompt_capture.observe_chat(request, call_path=call_path)
+    except Exception as exc:  # noqa: BLE001 — recording never fails a call
+        _log.debug("prompt capture failed: %s", exc)
+
+
 def _record(model: str, response: Any, pins: dict[str, dict[str, Any]], *,
             fallback_models: list[str] | tuple[str, ...] = (),
             call_path: str = "retry_chat_completion") -> dict[str, Any]:
@@ -493,8 +506,11 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
         if openrouter:
             kwargs = pinned_kwargs(model, kwargs, pins)
+        sent = dict(kwargs)
         # L1 (phase 2): the vendored loop is the one retry layer; each HTTP attempt it sends is guarded.
-        response = original(_AttemptGuardedClient(client, guarded=openrouter), **kwargs)
+        response = original(_AttemptGuardedClient(client, guarded=openrouter,
+                                                  on_admit=lambda: _capture_prompt(sent, "retry_chat_completion")),
+                            **kwargs)
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)
@@ -583,6 +599,7 @@ def pinned_chat_openai(parent: type) -> type:
             if "openrouter.ai" not in str(getattr(self, "openai_api_base", "") or ""):
                 _LC_PENDING.set(None)
                 _note_lc_sent()
+                _capture_prompt(payload, "langchain")
                 return payload
             holder = _LC_RESERVED.get()
             if holder is None:
@@ -597,6 +614,7 @@ def pinned_chat_openai(parent: type) -> type:
             fallback = [str(m) for m in ((payload.get("extra_body") or {}).get("models") or [])]
             _LC_PENDING.set((model, pins, fallback))
             _note_lc_sent()  # past the guard: this request goes out
+            _capture_prompt(payload, "langchain")
             return pinned_kwargs(model, payload, pins)
 
         def _generate(self, *args: Any, **kwargs: Any) -> Any:

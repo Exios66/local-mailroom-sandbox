@@ -300,6 +300,14 @@ older runs, runs with `job.trace_reads: false`, and remote Modal runs until the 
 worker is next deployed (unverified, a paid live step). See
 [read ranges](jobs.md#read-ranges-jobtrace_reads) for the files and the switch.
 
+**Prompts sent.** When the run store has `prompts.jsonl` ([read ranges](jobs.md#read-ranges-jobtrace_reads)),
+the node card lists the prompts the highlighted node actually sent: one row per agent, role and
+text hash, with its call count and length, each expandable to the text (capped at 24,000
+characters in the digest). These are the texts the lock does not show: code-default prompts,
+the schema with its guide descriptions and the run-time notes. A user message carries the
+document, so the card lists the first one per agent by hash and length only, and its text stays
+in `prompts.jsonl`. A run recorded without the file says "not recorded for this run".
+
 **Privacy.** The digest, its JS twin and the export never contain document
 text. The text stays in the run store and is shown only by the local server,
 for the document you selected. The server answers only requests whose Host header is
