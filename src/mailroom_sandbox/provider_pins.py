@@ -566,8 +566,9 @@ def _note_lc_failure(sent: list[bool]) -> None:
 
 
 def _settle_all(holder: list[float], exc: BaseException | None, model: Any = None) -> None:
-    """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
-    may have been billed."""
+    """Settle every reservation one ``_generate`` call made. A failure is charged when ``exc`` may have
+    been billed. On success, earlier retries are released; the final reply is released too, unless a
+    ``price_holds`` scope is active, in which case it stays on the cap until priced or the scope ends."""
     from mailroom_sandbox.job import call_guard
 
     billed = exc is not None and call_guard.billed_failure(exc)
