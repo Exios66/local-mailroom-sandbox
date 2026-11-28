@@ -4,7 +4,9 @@
 source each value rests on, and where the next label work moves production numbers. It is
 offline and read-only. It reads committed files and, for `--slice` and the contract count in
 `focus`, the cached corpus and the production slices' pulled staged cut.
-Library: `src/mailroom_sandbox/label_eda.py`. For charts, notebook
+Library: `src/mailroom_sandbox/label_eda.py`. For the whole label round (targets, passes,
+review, admission and advancing into production), see the
+[near-gold label playbook](gold-labels/NEAR_GOLD_PLAYBOOK.md). For charts, notebook
 `notebooks/05_label_coverage_eda.ipynb` covers the same ground.
 
 ```bash
