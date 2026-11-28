@@ -83,3 +83,6 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-24T01:04:57Z | JJB | start | sorter-vs-decision-smoke-llm-qwen3.7-flash | config/runs/sorter-vs-decision-smoke-llm-qwen3.7-flash.yaml | af4f39f05f83 | 5 | 1.0 | ✓ |
 | 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-decision-luna | config/runs/sorter-vs-decision-500-decision-luna.yaml | 911495e1db93 | 500 | 5.0 | ✓ |
 | 2026-11-24T01:09:59Z | JJB | start | sorter-vs-decision-500-llm-qwen3.7-flash | config/runs/sorter-vs-decision-500-llm-qwen3.7-flash.yaml | aed6bd904510 | 500 | 6.0 | ✓ |
+| 2026-11-27T05:26:25Z | JJB | start | ab-pipeline-governor | config/runs/ab-pipeline-governor.yaml | bd4eb366120a | 50 | 1.5 | ✓ |
+| 2026-11-27T05:26:27Z | JJB | start | ab-pipeline-correcting-judge | config/runs/ab-pipeline-correcting-judge.yaml | 5cb59555b0d6 | 50 | 6.84 | ✓ |
+| 2026-11-27T19:15:58Z | JJB | start | ab-pipeline-governor-r3 | config/runs/ab-pipeline-governor-r3.yaml | 730850c2fae9 | 50 | 2.0 | ✓ |

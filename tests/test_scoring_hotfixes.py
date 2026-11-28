@@ -921,3 +921,27 @@ def test_shf003_reading_a_very_long_string_is_fast():
         start = time.perf_counter()
         sh.currencies(text)
         assert time.perf_counter() - start < 1.0, text[:12]
+
+
+def test_a_json_key_file_target_pins_only_that_key(tmp_path, monkeypatch):
+    """``file:<path>#<key>`` hashes one top-level JSON key, so provenance beside it can move."""
+    path = tmp_path / "lists.json"
+    monkeypatch.setattr(sh, "data_path", lambda rel: path if rel == "config/lists.json" else None)
+    target = "file:config/lists.json#classes"
+
+    path.write_text(json.dumps({"registry_sha256": "a" * 64, "classes": {"c": {"s": ["f"]}}}), encoding="utf-8")
+    pinned = sh.target_sha(target)
+    path.write_text(json.dumps({"classes": {"c": {"s": ["f"]}}, "registry_sha256": "b" * 64}, indent=2),
+                    encoding="utf-8")
+    assert sh.target_sha(target) == pinned  # only the provenance and the layout moved
+    path.write_text(json.dumps({"registry_sha256": "b" * 64, "classes": {"c": {"s": ["f", "g"]}}}), encoding="utf-8")
+    assert sh.target_sha(target) != pinned  # the field lists the fix reads changed
+    assert sh.target_sha("file:config/lists.json") != pinned  # a bare file target still hashes the bytes
+    with pytest.raises(KeyError):
+        sh.target_sha("file:config/lists.json#missing")
+
+
+def test_shf018_pins_the_field_lists_not_their_provenance():
+    fix = next(f for f in sh.HOTFIXES if f.id == "SHF-018")
+    files = [t for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)]
+    assert files == ["file:config/extraction/subclass_extraction_fields.json#classes"]
