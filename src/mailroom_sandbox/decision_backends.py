@@ -773,6 +773,29 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         pass
 
 
+def _priced_decision_reply(resp: Any, held: float) -> Any:
+    """A Decisions 200's body, priced once: held on the cap until ``after_call`` prices its usage.
+
+    A 200 whose body cannot be read was still answered, so it is charged at its reservation. It is not
+    counted as a failed attempt: as before, the error propagates and the call counts stay as they were.
+    """
+    from mailroom_sandbox.job import call_guard
+
+    try:
+        data = resp.json()
+        usage = (data or {}).get("usage") or {}
+    except Exception:
+        call_guard.settle(held, billed=True)
+        raise
+    # The reply stays on the cap until after_call prices it, on this thread, next.
+    hold = call_guard.settle(held, billed=False, await_price=True)
+    # The single live charge for this HTTP response. HF-004 also prices ``record_usage``;
+    # ``_record_usage`` uses the unwrapped accumulator so the same response is not charged
+    # again. A payload with no usage keys still takes one ceiling slot.
+    call_guard.after_call(usage, hold=hold)  # this reply's own hold, not a concurrent call's
+    return data
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
@@ -838,16 +861,10 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             call_guard.note_failed_attempt()
             raise
         else:
-            # Settled before the body is read: a 200 is priced by after_call below, a 5xx may have been billed.
-            call_guard.settle(held, billed=resp.status_code >= 500)
             if resp.status_code == 200:
-                data = resp.json()
-                # The single live charge for this HTTP response. HF-004 also
-                # prices ``record_usage``; ``_record_usage`` uses the unwrapped
-                # accumulator so the same response is not charged again. A
-                # payload with no usage keys still takes one ceiling slot.
-                call_guard.after_call((data or {}).get("usage") or {})
-                return data
+                return _priced_decision_reply(resp, held)
+            # A 5xx is charged as the reservation drops; a 4xx is released.
+            call_guard.settle(held, billed=resp.status_code >= 500)
             call_guard.note_failed_attempt()
             last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
             if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:

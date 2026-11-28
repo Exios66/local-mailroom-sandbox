@@ -5,9 +5,9 @@ from __future__ import annotations
 import contextvars
 import logging
 import os
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from typing import Any, Collection, Mapping, Sequence
+from typing import Any, Collection, Iterator, Mapping, Sequence
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -133,15 +133,25 @@ def isolated_call_scope(task: str, *, mock: bool):
     Pipeline documents already enter ``call_guard.document`` (the R01 ceiling).
     An isolated chat specialist can legitimately exceed the default ceiling
     while it chunks a long document, so only ``sorter_reviewer`` and
-    ``extraction_gate`` take the scope. Mock rows do not.
+    ``extraction_gate`` take the scope. Mock rows do not. A chat specialist row still gets a
+    ``price_holds`` scope, so a LangChain structured call's success stays on the cap until the agent
+    prices it (the request goes out on a worker thread).
     """
     from contextlib import nullcontext
 
-    if mock or task not in ("sorter_reviewer", "extraction_gate"):
+    if mock:
         return nullcontext({"calls": 0, "refused": None})
     from mailroom_sandbox.job import call_guard
 
+    if task not in ("sorter_reviewer", "extraction_gate"):
+        return _price_holds_only(call_guard)
     return call_guard.document()
+
+
+@contextmanager
+def _price_holds_only(call_guard: Any) -> Iterator[dict[str, Any]]:
+    with call_guard.price_holds():
+        yield {"calls": 0, "refused": None}
 
 
 #: Pause before a document that raised runs again (``job.max_retries``); tests set it to 0.
@@ -1732,6 +1742,9 @@ def run_pipeline_eval(
         "extraction_overall": extraction["extraction_overall"],
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
+        # Error rows are scored as misses (class "unknown", stage "failed"); this says how many of the
+        # n are, as the isolated runner's scores do, so a reader outside the gate sees the denominator.
+        "error_count": sum(1 for result in results if result.get("error")),
         **{k: v for k, v in extraction.items() if k != "extraction_overall"},
         **subclass_scores,
     }

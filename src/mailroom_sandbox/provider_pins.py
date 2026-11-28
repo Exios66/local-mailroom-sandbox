@@ -184,7 +184,11 @@ class _AttemptGuardedCompletions:
             call_guard.note_failed_attempt()
             return response
         if held:
-            call_guard.settle(held, billed=False)
+            # Keep the worst-case hold until record_usage prices this reply (no gap for the next call).
+            # The vendored callers record on this thread right after the loop returns. HF-004 prices a
+            # reply only when it carries usage, so a reply without any is released here as before.
+            call_guard.settle(held, billed=False, await_price=getattr(response, "usage", None) is not None,
+                              model=request.get("model"))
         return response
 
 
@@ -545,14 +549,21 @@ def _note_lc_failure(sent: list[bool]) -> None:
         call_guard.note_failed_attempt()
 
 
-def _settle_all(holder: list[float], exc: BaseException | None) -> None:
+def _settle_all(holder: list[float], exc: BaseException | None, model: Any = None) -> None:
     """Settle every reservation one ``_generate`` call made: released on success, charged when ``exc``
     may have been billed."""
     from mailroom_sandbox.job import call_guard
 
     billed = exc is not None and call_guard.billed_failure(exc)
+    # pop() yields the last reservation first: that is the reply the agent prices. Earlier ones are
+    # retries the client absorbed; they settle now, as they did before, and must not stay on the cap.
+    # The agent prices on its own thread, and a structured call (with_structured_output runs the model
+    # in a RunnableParallel) sends from a worker thread: only a price_holds scope (every document) is
+    # shared by both. Outside one the reply is released here, as before, so the hold cannot leak.
+    priced = exc is None and call_guard.scoped_holds()
     while holder:
-        call_guard.settle(holder.pop(), billed=billed)
+        call_guard.settle(holder.pop(), billed=billed, await_price=priced, model=model)
+        priced = False
 
 
 def pinned_chat_openai(parent: type) -> type:
@@ -594,13 +605,13 @@ def pinned_chat_openai(parent: type) -> type:
             try:
                 result = super()._generate(*args, **kwargs)
             except BaseException as exc:
-                _settle_all(holder, exc)
+                _settle_all(holder, exc, getattr(self, "model_name", None))
                 _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
                 _LC_SENT.reset(sent_token)
-            _settle_all(holder, None)
+            _settle_all(holder, None, getattr(self, "model_name", None))
             return result
 
         async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
@@ -610,13 +621,13 @@ def pinned_chat_openai(parent: type) -> type:
             try:
                 result = await super()._agenerate(*args, **kwargs)
             except BaseException as exc:
-                _settle_all(holder, exc)
+                _settle_all(holder, exc, getattr(self, "model_name", None))
                 _note_lc_failure(sent)
                 raise
             finally:
                 _LC_RESERVED.reset(token)
                 _LC_SENT.reset(sent_token)
-            _settle_all(holder, None)
+            _settle_all(holder, None, getattr(self, "model_name", None))
             return result
 
         def _create_chat_result(self, response: Any, generation_info: dict | None = None) -> Any:
