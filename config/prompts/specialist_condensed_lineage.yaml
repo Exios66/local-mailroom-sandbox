@@ -21,6 +21,7 @@ budget_chars: 3000
 budget_chars_by_agent:
   insurance_claims_specialist: 4500   # six source templates, each with its own field map (v3)
   contracts_specialist: 5000          # 26 CUAD families and 41 exact Atticus category names
+  correspondence_specialist: 3500     # v5 adds the guide's top-message contact rule to v4 (2,988); v6 the digest boundary
 max_mean_drop: 0.02
 agents:
   insurance_claims_specialist:
@@ -95,6 +96,29 @@ agents:
         reference_run: runbook-pi-e-v3arm (to be run on config/splits/runbook-v1 dev-look1)
         validation_run: runbook-pi-e-v4arm
         status: candidate   # written 2026-11-18 from the label audit; not yet run
+      - version: correspondence_specialist_condensed_v5
+        parent: "correspondence_specialist_condensed_v4 (one change: the guide's top-message rule (docs/gold-labels/LABELING_GUIDE.md, correspondence): a reply above quoted mail takes its signature as sender and its salutation as recipient; an unsigned note above a Forwarded-by stamp takes the forwarder; a bare forward falls through to the first headed message)"
+        # live-smoke-rc11-0025 (rc.11 labels): 3 of 7 correspondence wrong archives miss sender or
+        # recipient because the model read the quoted header ("Sara Shackleton") where the label,
+        # per the guide, is the top reply's signature/salutation ("Sara"). v3 and v4 lack the rule.
+        reference_run: live-smoke-rc11-0025
+        validation_run: live-smoke-rc11-0025-fix1
+        status: superseded   # by v6. fix1 (same 25 docs): correspondence 0 -> 0 correct archives, sender/recipient
+        # still from the quoted header: job.schema_guide's sender/recipient descriptions ("full name as
+        # written", "first To: entry") outweighed the rule; those descriptions now carry it (schema_guide.py).
+        # One digest ("Enron Mentions") refused as not correspondence (HF-028) and went to review.
+      - version: correspondence_specialist_condensed_v6
+        parent: "correspondence_specialist_condensed_v5 (two changes: the class boundary names newsletters and news digests, so a press-mentions email is not refused as another class under HF-028; the top-message rule comes before the To:/salutation rule it overrides)"
+        # Validate together with the schema_guide top-message descriptions; the contact misses v5
+        # left are a schema-description effect, not a prompt one.
+        reference_run: live-smoke-rc11-0025-fix1
+        validation_run: live-smoke-rc11-0050
+        status: candidate   # not promoted. 0050 (15 correspondence, with the schema_guide top-message
+        # descriptions): 0 correct archives, same as v4/v5; the 7 documents paired with fix1 moved by at
+        # most +-0.08. No digest was refused. The remaining misses are label-form conflicts the text
+        # cannot settle (recipient as salutation 'Joanne' vs header 'Rick Shapiro' / 'Forney, John M.';
+        # sent-mail sender = the mailbox owner, shown only by the folder path) and communication_type =
+        # subclass. Label repair comes before another prompt version.
   corporate_records_specialist:
     frontrunner: corporate_records_specialist_condensed_v1
     versions:

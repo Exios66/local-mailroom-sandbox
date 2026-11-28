@@ -53,11 +53,20 @@ GUIDE_DESCRIPTIONS: dict[str, dict[str, str]] = {
                          "for an indenture, its governing-law state"),
     },
     "correspondence": {
-        "sender": ("Who sent it: full name, title and entity as written; press or wire: the issuing "
-                   "company or media-contact line; null only when no sender is named"),
-        "recipient": ("The first To: entry as printed (a person, list or group), else a salutation naming "
-                      "a person or defined group; a generic salutation ('Dear Friends', 'All') is null"),
-        "additional_recipients": "Further To, cc'd or copied parties as written; [] when none",
+        # The contact fields name the TOP message, never quoted mail below it (LABELING_GUIDE.md,
+        # correspondence, "top message"): without that clause the model takes the quoted header's
+        # full name ("Sara Shackleton") where the label is the reply's signature ("Sara").
+        "sender": ("Who sent the TOP message, as written: a reply above quoted mail is signed by its "
+                   "author ('Thanks, Jim' -> 'Jim'), never the quoted From:; an unsigned note above "
+                   "'Forwarded by X' is X; a bare forward is the first message with its own From:. "
+                   "Full name, title and entity as written; press or wire: the issuing company or "
+                   "media-contact line; null only when no sender is named"),
+        "recipient": ("The TOP message's addressee: a reply above quoted mail is its salutation as written "
+                      "('sean,' -> 'sean'), never the quoted To:; else the first To: entry as printed (a "
+                      "person, list or group), else a salutation naming a person or defined group; a "
+                      "generic salutation ('Dear Friends', 'All') is null"),
+        "additional_recipients": ("Further To, cc'd or copied parties of the TOP message as written; [] when "
+                                  "none, and for a reply above quoted mail"),
         "communication_date": "Date the communication was SENT as YYYY-MM-DD; never a deadline, meeting or invoice date",
         "demand_amount": ("Exact dollars the sender demands THE RECIPIENT pay (218440.00 for '$218,440.00'); "
                           "null for an amount only reported, invoiced or owed by someone else"),

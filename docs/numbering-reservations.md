@@ -28,10 +28,11 @@ collides takes the one assigned here.
 | `HF-028` | #437 specialist handoff check | landed |
 | `HF-029` | Phase 5 part 1 evidence check (`job.evidence_check`) | landed with the Phase 5 part 1 PR |
 | `HF-030`–`HF-033` | Phase 5 part 2 merger reads (`job.merger`: HF-030 group reads and gap retry, HF-031 per-question correct-mode retry) and head reads (`job.long_document_head`: HF-032 sorter, HF-033 intake) | landed (HF-030, HF-032, HF-033 registered; the per-question correct-mode retry is folded into HF-030 and HF-031 is released unused, not reassigned) |
+| `HF-034` | caveat acceptances park per class (`confidence.caveat_acceptance_parks`), from the rc.11 live smokes | landed with its PR |
 | `SHF-017`–`SHF-018` | #450 (registered there) | open |
 | `SHF-019` | correspondence header truth the text does not show ([design](design/specs/2026-11-27-correspondence-header-truth-design.md)) | landed with its PR |
 
-The next free vendor hotfix ID is `HF-034`. For scoring hotfixes the next free ID is `SHF-020`.
+The next free vendor hotfix ID is `HF-035`. For scoring hotfixes the next free ID is `SHF-020`.
 A PR that registers or reserves an ID advances these in the same change
 (`test_the_next_free_hotfix_ids_follow_every_registered_and_reserved_id` checks them).
 

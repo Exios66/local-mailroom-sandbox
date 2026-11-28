@@ -140,6 +140,7 @@ revised later; an outcome is appended as a dated section.
 
 | Date | Audit |
 | --- | --- |
+| 2026-11-28 | [rc.11 OpenRouter live smokes: failure points](audits/2026-11-28-rc11-live-smokes.md) |
 | 2026-11-28 | [OpenRouter production launch review](audits/2026-11-28-openrouter-production-launch-review.md) |
 | 2026-11-26 | [Docs and repository layout](audits/2026-11-26-docs-and-layout-audit.md) |
 | 2026-11-25 | [OpenRouter deployment and recent-main integration](audits/2026-11-25-openrouter-deployment.md) |

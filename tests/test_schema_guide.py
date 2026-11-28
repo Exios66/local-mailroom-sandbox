@@ -29,6 +29,9 @@ def test_apply_then_restore_round_trips_the_vendored_text(schemas):
     assert schema_guide.schema_guide_active()
     assert "licensor" in _desc(schemas, "contract", "party_roles")
     assert "generic salutation" in _desc(schemas, "correspondence", "recipient")
+    for field in ("sender", "recipient", "additional_recipients"):  # the guide's top-message rule
+        assert "TOP message" in _desc(schemas, "correspondence", field)
+    assert "never the quoted From:" in _desc(schemas, "correspondence", "sender")
     assert schema_guide.apply_schema_guide(True) == 0  # idempotent
     schema_guide.apply_schema_guide(False)
     assert not schema_guide.schema_guide_active()

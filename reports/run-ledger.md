@@ -86,3 +86,6 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-27T05:26:25Z | JJB | start | ab-pipeline-governor | config/runs/ab-pipeline-governor.yaml | bd4eb366120a | 50 | 1.5 | ✓ |
 | 2026-11-27T05:26:27Z | JJB | start | ab-pipeline-correcting-judge | config/runs/ab-pipeline-correcting-judge.yaml | 5cb59555b0d6 | 50 | 6.84 | ✓ |
 | 2026-11-27T19:15:58Z | JJB | start | ab-pipeline-governor-r3 | config/runs/ab-pipeline-governor-r3.yaml | 730850c2fae9 | 50 | 2.0 | ✓ |
+| 2026-11-28T05:43:54Z | JJB | start | live-smoke-rc11-0025 | config/runs/live-smoke-rc11-0025.yaml | 415436fd649f | 25 | 0.75 | ✓ |
+| 2026-11-28T06:12:55Z | JJB | start | live-smoke-rc11-0025-fix1 | config/runs/live-smoke-rc11-0025-fix1.yaml | d41d7bd65659 | 25 | 0.75 | ✓ |
+| 2026-11-28T06:48:14Z | JJB | start | live-smoke-rc11-0050 | config/runs/live-smoke-rc11-0050.yaml | 9a72fd785543 | 50 | 1.0 | ✓ |
