@@ -44,13 +44,17 @@ def _split_list(values: Sequence[str] | None) -> frozenset[str] | None:
 
 
 def _filter(args: argparse.Namespace) -> eda.Filter:
-    ids = set(_split_list(args.doc) or ())
-    if args.ids_file:
-        ids |= {line.strip() for line in Path(args.ids_file).read_text(encoding="utf-8").splitlines() if line.strip()}
+    # Any id source given selects exactly its ids: an empty --ids-file selects nothing, not everything.
+    ids: set[str] | None = None
+    if args.doc or args.ids_file:
+        ids = set(_split_list(args.doc) or ())
+        if args.ids_file:
+            ids |= {line.strip() for line in Path(args.ids_file).read_text(encoding="utf-8").splitlines()
+                    if line.strip()}
     if args.slice:
         drawn = set(eda.slice_ids(args.slice))
-        ids = (ids & drawn) if ids else drawn
-    return eda.Filter(doc_ids=frozenset(ids) if ids or args.slice else None, doc_class=args.doc_class,
+        ids = drawn if ids is None else ids & drawn
+    return eda.Filter(doc_ids=frozenset(ids) if ids is not None else None, doc_class=args.doc_class,
                       subclass=args.subclass, split=args.split, fields=_split_list(args.field),
                       tiers=_split_list(args.tier), presence=_split_list(args.presence), source=args.source,
                       rule=args.rule, needs_human=args.needs_human, conflict=args.conflict)
@@ -77,10 +81,11 @@ def _short(v: Any, n: int = 70) -> str:
 
 
 def _emit(result: Any, args: argparse.Namespace) -> None:
+    limit = None if args.out else args.limit  # --out writes the full result
     if args.format == "json" or not isinstance(result, list):
         text = json.dumps(result, ensure_ascii=False, indent=1, default=str)
         if args.format == "table" and not isinstance(result, list):
-            text = _sections(result, args.limit)
+            text = _sections(result, limit)
     elif args.format == "csv":
         buf = io.StringIO()
         cols = list(dict.fromkeys(k for r in result for k in r))
@@ -90,7 +95,7 @@ def _emit(result: Any, args: argparse.Namespace) -> None:
                      for k, v in r.items()} for r in result)
         text = buf.getvalue()
     else:
-        text = _table(result, args.limit)
+        text = _table(result, limit)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
         print(f"wrote {args.out}")
@@ -148,13 +153,36 @@ def cmd_doc(args, labels, flt):
     return eda.doc_card(labels, args.doc_id)
 
 
+def _store_ids(labels, flt) -> frozenset[str] | None:
+    """Document ids for a raw-store query: ``--subclass`` and ``--split`` resolve through the release."""
+    if flt.subclass is None and flt.split is None:
+        return flt.doc_ids
+    return frozenset(d.doc_id for d in labels.docs.values() if flt.doc_ok(d))
+
+
 def cmd_catalog(args, labels, flt):
-    return eda.catalog_records(doc_ids=flt.doc_ids, doc_class=args.doc_class, fields=flt.fields,
+    return eda.catalog_records(doc_ids=_store_ids(labels, flt), doc_class=args.doc_class, fields=flt.fields,
                                status=args.status)
 
 
 def cmd_interim(args, labels, flt):
-    return eda.interim_records(doc_ids=flt.doc_ids, doc_class=args.doc_class, fields=flt.fields)
+    return eda.interim_records(doc_ids=_store_ids(labels, flt), doc_class=args.doc_class, fields=flt.fields)
+
+
+# Filters that describe a merged release cell; a raw store record has none of them.
+_CELL_ONLY = (("tier", "--tier"), ("presence", "--presence"), ("source", "--source"), ("rule", "--rule"),
+              ("needs_human", "--needs-human"), ("conflict", "--conflict"))
+_DICT_COMMANDS = frozenset({"summary", "focus", "doc"})
+
+
+def _usage_error(args) -> str | None:
+    if args.format == "csv" and args.cmd in _DICT_COMMANDS:
+        return f"{args.cmd} returns sections, not rows: use --format table or json"
+    if args.cmd in ("catalog", "interim"):
+        bad = [flag for attr, flag in _CELL_ONLY if getattr(args, attr)]
+        if bad:
+            return f"{args.cmd} reads raw label records, which have no {', '.join(bad)}: use rows for those"
+    return None
 
 
 def parser() -> argparse.ArgumentParser:
@@ -210,6 +238,10 @@ COMMANDS = {"summary": cmd_summary, "coverage": cmd_coverage, "gaps": cmd_gaps, 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     args.limit = args.limit or None
+    problem = _usage_error(args)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
     labels = eda.load(release=args.release)
     try:
         flt = _filter(args)

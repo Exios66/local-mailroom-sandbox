@@ -106,3 +106,50 @@ def test_slice_ids_match_the_production_draw():
     ids = eda.slice_ids("slice-0100")
     assert len(ids) == len(set(ids)) == 100
     assert set(ids) < set(eda.slice_ids("slice-0250"))
+
+
+def test_an_empty_selection_selects_nothing(tmp_path, capsys):
+    assert eda.catalog_records(doc_ids=frozenset()) == []
+    assert eda.interim_records(fields=frozenset()) == []
+    cli = _cli()
+    empty = tmp_path / "ids.txt"
+    empty.write_text("", encoding="utf-8")
+    out = tmp_path / "rows.json"
+    assert cli.main(["rows", "--ids-file", str(empty), "--format", "json", "--out", str(out)]) == 0
+    assert json.loads(out.read_text(encoding="utf-8")) == []
+
+
+def test_raw_stores_honour_split_and_refuse_cell_filters(labels, tmp_path, capsys):
+    cli = _cli()
+    out = tmp_path / "cat.json"
+    assert cli.main(["catalog", "--split", "dev", "--class", "corporate_record", "--format", "json",
+                     "--out", str(out)]) == 0
+    recs = json.loads(out.read_text(encoding="utf-8"))
+    assert recs and all(labels.docs[r["doc_id"]].split == "dev" for r in recs)
+    assert cli.main(["interim", "--tier", "gate"]) == 2
+    assert "--tier" in capsys.readouterr().err
+
+
+def test_out_is_never_truncated_and_csv_needs_rows(tmp_path, capsys):
+    cli = _cli()
+    out = tmp_path / "rows.txt"
+    assert cli.main(["rows", "--class", "corporate_record", "--field", "trustee", "--limit", "2",
+                     "--out", str(out)]) == 0
+    n = len(eda.select(eda.load(), eda.Filter(doc_class="corporate_record", fields=frozenset({"trustee"}))))
+    assert n > 2 and len(out.read_text(encoding="utf-8").splitlines()) == n + 2  # header, rule, rows
+    assert cli.main(["focus", "--format", "csv"]) == 2
+    assert "table or json" in capsys.readouterr().err
+
+
+def test_focus_counts_gated_contracts_on_their_cuad_labels(labels):
+    out = eda.focus(labels, eda.Filter(doc_class="contract"))
+    if not eda.cache_path().is_file():
+        assert out["unit_class_count"].startswith("skipped")
+        return
+    from mailroom_sandbox.job.gate import labelled_count
+
+    rows = {r["id"]: r for r in eda._read_jsonl(eda.cache_path())}
+    listed = out["1_unscorable_docs"]
+    assert listed and all(d["doc_class"] == "contract" for d in listed)
+    assert all(labelled_count(rows[d["doc_id"]], "contract") == d["gate_labelled"] < labels.min_labelled
+               for d in listed)

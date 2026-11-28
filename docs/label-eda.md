@@ -60,7 +60,13 @@ only `populated` cells toward `min_labelled`.
 | `--needs-human`, `--conflict` | | cells queued for a human; cells whose sources disagreed |
 
 Output options are `--format table|json|csv`, `--limit N` (the rows a table prints; 0 for all)
-and `--out FILE` (the full result).
+and `--out FILE` (the full result, never truncated). `csv` needs a row list, so `summary`,
+`focus` and `doc` take `table` or `json`.
+
+`catalog` and `interim` read raw label records, not release cells. They take `--class`,
+`--subclass`, `--split`, `--slice`, `--doc`, `--ids-file` and `--field` (`--subclass` and
+`--split` resolve through the release), and refuse the cell-only filters. An id filter that
+matches nothing returns nothing.
 
 ## Recipes
 
@@ -88,11 +94,20 @@ scripts/label_eda.py focus --split dev --class corporate_record --ids-out /tmp/d
 
 `focus` leaves `unscored` cells out on purpose and reports how many it skipped. Its
 `1_unscorable_docs` lists gated documents with fewer than `min_labelled` stated gate labels.
-The gate drops each of them, so a label there adds a scored document. `--ids-out` writes the
-document ids with open gate work. To label exactly those documents, keep only their lines of a
-`gold_labels.py queue` file (`grep -Ff ids.txt queue.jsonl > focus-queue.jsonl`), then
-`gold_labels.py batch --queue focus-queue.jsonl` (see the
-[labeling guide](gold-labels/LABELING_GUIDE.md)).
+The gate drops each of them, so a label there adds a scored document. A contract counts its CUAD
+clause labels, which the release does not carry. `focus` counts those with the production
+`gate.labelled_count` on the cached corpus row, and says so under `unit_class_count`, or that it
+skipped them without the cache.
+
+`--ids-out` writes the document ids with open gate work. To label exactly those documents, keep
+only their lines of a `gold_labels.py queue` file, then cut batches from it (see the
+[labeling guide](gold-labels/LABELING_GUIDE.md)):
+
+```bash
+grep -Ff /tmp/dev-corp-ids.txt data/runtime/gold/queue.jsonl > data/runtime/gold/focus-queue.jsonl
+.venv/bin/python scripts/gold_labels.py batch --queue data/runtime/gold/focus-queue.jsonl \
+    --corpus <pinned corpus dir> --doc-class corporate_record --size 25 --out data/runtime/gold/batches
+```
 
 ```bash
 # open cells grouped by class, subclass and field, with example documents

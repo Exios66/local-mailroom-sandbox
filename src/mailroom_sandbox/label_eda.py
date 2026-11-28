@@ -184,6 +184,15 @@ def load(root: Path | None = None, release: Path | None = None) -> Labels:
     return Labels(docs, cells, tuple(bars.gated), bars.min_labelled, rel)
 
 
+def cache_path(root: Path | None = None, revision: str | None = None) -> Path:
+    """The cached corpus ``ground_truth_all.jsonl`` for a family revision (the production pin by default)."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, family_tag_commit
+
+    root = root or repo_root()
+    commit = family_tag_commit(revision or FAMILY_HF_REVISION)
+    return root / "data/cache" / f"Lucius-Morningstar__mailroom-dataset__{commit[:12]}" / "ground_truth_all.jsonl"
+
+
 def slice_ids(name: str, root: Path | None = None) -> list[str]:
     """Document ids a production slice draws, by the runs' own ``prepare_subset`` on the cached corpus.
 
@@ -193,12 +202,11 @@ def slice_ids(name: str, root: Path | None = None) -> list[str]:
     import tempfile
 
     from mailroom_sandbox.corpus import prepare_subset
-    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, family_tag_commit, load_run_spec
+    from mailroom_sandbox.job.spec import load_run_spec
 
     root = root or repo_root()
     spec = load_run_spec(root / "config/runs/production" / f"{name}.yaml").dataset
-    commit = family_tag_commit(spec.revision or FAMILY_HF_REVISION)
-    cache = root / "data/cache" / f"Lucius-Morningstar__mailroom-dataset__{commit[:12]}" / "ground_truth_all.jsonl"
+    cache = cache_path(root, spec.revision)
     if not cache.is_file():
         raise FileNotFoundError(f"{cache} is not cached (sandbox datasets pull)")
     ds = spec.model_copy(update={"provider": "file", "local_path": str(cache), "interim_labels": False,
@@ -224,6 +232,13 @@ class Filter:
     rule: str | None = None
     needs_human: bool = False
     conflict: bool = False
+
+    def doc_ok(self, d: Doc) -> bool:
+        """The document-level part of the filter (ids, class, subclass, split)."""
+        return ((self.doc_ids is None or d.doc_id in self.doc_ids)
+                and (self.doc_class is None or d.doc_class == self.doc_class)
+                and (self.subclass is None or d.subclass.lower() == self.subclass.lower())
+                and (self.split is None or d.split == self.split))
 
     def __call__(self, c: Cell) -> bool:
         return ((self.doc_ids is None or c.doc_id in self.doc_ids)
@@ -296,6 +311,34 @@ def unscorable(labels: Labels, flt: Filter) -> list[dict[str, Any]]:
     return out
 
 
+def unit_unscorable(labels: Labels, flt: Filter, root: Path | None = None) -> list[dict[str, Any]] | None:
+    """Gated unit-class documents (contract: CUAD) below ``min_labelled``, by ``gate.labelled_count``.
+
+    The gate counts a contract's CUAD clause labels, which the release does not carry, so this reads
+    the cached corpus row (the Hub CUAD map, before overlays) and counts it with the production
+    function. ``None`` without the cached corpus.
+    """
+    from mailroom_sandbox.job.gate import labelled_count
+
+    want = {d.doc_id: d for d in labels.docs.values()
+            if d.doc_class in labels.gated and d.doc_class in UNIT_CLASSES and flt.doc_ok(d)}
+    if not want:
+        return []
+    cache = cache_path(root)
+    if not cache.is_file():
+        return None
+    out = []
+    for row in _read_jsonl(cache):
+        d = want.get(row.get("id"))
+        if d is None:
+            continue
+        n = labelled_count(row, d.doc_class)
+        if n < labels.min_labelled:
+            out.append({"doc_id": d.doc_id, "doc_class": d.doc_class, "subclass": d.subclass, "split": d.split,
+                        "gate_labelled": n, "open_gate_fields": ["cuad_clause_labels"]})
+    return sorted(out, key=lambda r: r["doc_id"])
+
+
 def gaps(cells: Iterable[Cell], *, top: int = 30) -> list[dict[str, Any]]:
     """Unlabeled or disputed cells grouped by (class, subclass, field), most first."""
     count: Counter = Counter()
@@ -313,7 +356,8 @@ def gaps(cells: Iterable[Cell], *, top: int = 30) -> list[dict[str, Any]]:
 def focus(labels: Labels, flt: Filter, *, top: int = 25) -> dict[str, Any]:
     """Where label work moves production numbers most, in order.
 
-    1. gated documents below ``min_labelled`` (unscorable: every label there adds a scored document);
+    1. gated documents below ``min_labelled`` (unscorable: every label there adds a scored document;
+       a contract counts its CUAD labels, read from the cached corpus when it is present);
     2. open ``gate`` cells, by (class, subclass, field);
     3. open ``unit`` and ``reported`` cells (suite F1 and reported classes only);
     4. the human queue: disputed values and ``needs_human`` cells to settle.
@@ -321,9 +365,13 @@ def focus(labels: Labels, flt: Filter, *, top: int = 25) -> dict[str, Any]:
     """
     cells = select(labels, flt)
     open_ = [c for c in cells if not c.labeled]
+    units = unit_unscorable(labels, flt)
     return {
         "scope": {"cells": len(cells), "docs": len({c.doc_id for c in cells})},
-        "1_unscorable_docs": unscorable(labels, flt),
+        "1_unscorable_docs": unscorable(labels, flt) + (units or []),
+        "unit_class_count": ("skipped: gated contract documents are counted on their CUAD labels, which "
+                             "need the cached corpus (sandbox datasets pull)") if units is None
+                            else "contract documents counted on their CUAD labels in the cached corpus",
         "2_gate_gaps": gaps([c for c in open_ if c.tier == "gate"], top=top),
         "3_suite_and_reported_gaps": gaps([c for c in open_ if c.tier in ("unit", "reported")], top=top),
         "4_human_queue": {"disputed": sum(c.presence == "disputed_unresolved" for c in cells),
@@ -351,7 +399,8 @@ def catalog_records(root: Path | None = None, *, doc_ids: Iterable[str] | None =
                     fields: Iterable[str] | None = None, status: str | None = None) -> list[dict[str, Any]]:
     """Near-gold catalog records (``data/labels/gold``), filtered."""
     root = root or repo_root()
-    ids, flds = (set(doc_ids) if doc_ids else None), (set(fields) if fields else None)
+    ids = set(doc_ids) if doc_ids is not None else None
+    flds = set(fields) if fields is not None else None
     out = []
     for path in sorted((root / GOLD_DIR).glob("*.jsonl")):
         if doc_class and path.stem != doc_class:
@@ -367,7 +416,8 @@ def interim_records(root: Path | None = None, *, doc_ids: Iterable[str] | None =
                     doc_class: str | None = None, fields: Iterable[str] | None = None) -> list[dict[str, Any]]:
     """Interim overlay records (``data/labels/interim``), one per labelled field, filtered."""
     root = root or repo_root()
-    ids, flds = (set(doc_ids) if doc_ids else None), (set(fields) if fields else None)
+    ids = set(doc_ids) if doc_ids is not None else None
+    flds = set(fields) if fields is not None else None
     out = []
     for path in sorted((root / INTERIM_DIR).glob("*.jsonl")):
         if doc_class and path.stem != doc_class:
