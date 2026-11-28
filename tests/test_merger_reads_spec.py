@@ -27,7 +27,11 @@ def _off():
     merger_reads.activate_head(False)
 
 
-def test_a_spec_without_the_switches_keeps_its_hash():
+def test_a_spec_without_the_switches_keeps_its_hash(monkeypatch):
+    # Freeze the baseline's schema-list input: label repairs intentionally change that digest,
+    # independently of these switches (as in test_keep_best_attempt). Other tests guard it.
+    monkeypatch.setattr("mailroom_sandbox.job.spec._subclass_fields_sha256",
+                        lambda: "37cae40feaf60563567d5abf04de1e64551c340e35f2d60b0b548cc865c1574c")
     assert spec_hash(load_run_spec("config/runs/p4-s1-verify-gov-off.yaml")) == BASELINE_HASH
     core = spec_core(_spec())["job"]
     assert "merger" not in core and "long_document_head" not in core

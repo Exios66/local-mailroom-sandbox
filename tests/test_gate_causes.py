@@ -504,3 +504,12 @@ def test_field_scores_type_a_miss_as_the_hotfixed_headline_scores_it():
     headline = score_extraction_row("insurance_claim", answer, expected, field_scores=True)["field_scores"]
     assert scores == {k: headline[k] for k in scores}
     assert gate_causes.lowest_field(row, {"extracted_data": answer})[0] == "insurer"
+
+
+def test_contract_without_a_cuad_universe_is_diagnosed_on_its_fields():
+    """SHF-016 scores an empty-CUAD contract on its field labels, so its miss is a field miss."""
+    expected = {"cuad_clause_labels": {}, "parties": ["Acme Corp"], "agreement_date": "2005-01-04"}
+    assert extraction_type(expected, {"parties": ["Acme Corp"], "agreement_date": None}, "contract") \
+        == "missing_field"
+    assert extraction_type(expected, {"parties": ["Zenith Holdings"], "agreement_date": "2005-01-04"}, "contract") \
+        == "wrong_value"

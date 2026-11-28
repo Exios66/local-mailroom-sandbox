@@ -49,6 +49,7 @@ Generated pages are never edited by hand: [`cli-reference.md`](cli-reference.md)
 | [Datasets](datasets/README.md) and [dataset card](datasets/mailroom-dataset.card.md) | The mailroom-dataset corpus |
 | [Staged label overlay](staged-label-overlay.md) | Production label overlay (rc.10 for slices; rc.11 with corporate subclass fields staged) |
 | [Labeling guide](gold-labels/LABELING_GUIDE.md) | How gold labels are written |
+| [Label EDA](label-eda.md) | `scripts/label_eda.py`: coverage, gaps, row pulls and where to label next |
 | [Pain-point composites](pain-point-composites.md) | Per-document and per-experiment pain-point scores |
 | [Decision model inputs](decision-model-inputs.md) | Decisions API reference, request formats, calibration splits |
 | [Decision model input design](decision-model-input-design.md) | Draft 4.2.0 question set and its locked routing digest |

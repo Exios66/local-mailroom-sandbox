@@ -172,6 +172,12 @@ class DatasetSpec(BaseModel):
     # column was computed on 45 of 50 documents for exactly this reason. Off by
     # default: synthetic fixtures and other studies draw deliberately unlabeled rows.
     require_task_gt: bool = False
+    # With require_task_gt: a contract whose cuad_clause_labels map names no category still
+    # qualifies when its field labels, after this spec's own label overlay, number at least this
+    # many (gate.labelled_count, as the scorer scores such a row on its fields under SHF-016).
+    # The near-gold and staged repairs label these contracts' entity fields, so the draw can use
+    # them. Mergers keep the strict MAUD rule. Hashed only when set.
+    task_gt_min_field_labels: int | None = None
     # Merge the interim GT overlay (data/labels/interim, mailroom_sandbox.interim_labels) into the
     # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
     # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
@@ -231,6 +237,16 @@ class DatasetSpec(BaseModel):
             from mailroom_sandbox.staged_overlay import pin
 
             pin(self.staged_overlay)  # an unpinned version fails at parse, not after the draw
+        return self
+
+    @model_validator(mode="after")
+    def _field_label_fallback_needs_task_gt(self) -> "DatasetSpec":
+        """The field-label fallback widens ``require_task_gt``; without it there is nothing to widen."""
+        if self.task_gt_min_field_labels is not None:
+            if not self.require_task_gt:
+                raise ValueError("dataset.task_gt_min_field_labels requires require_task_gt: true")
+            if self.task_gt_min_field_labels < 1:
+                raise ValueError("dataset.task_gt_min_field_labels must be >= 1")
         return self
 
     @field_validator("source_sha256")
@@ -351,6 +367,8 @@ class DatasetSpec(BaseModel):
         # Omit the default so existing unfiltered specs retain their hashes.
         if self.require_task_gt:
             core["require_task_gt"] = True
+        if self.task_gt_min_field_labels is not None:
+            core["task_gt_min_field_labels"] = self.task_gt_min_field_labels
         if self.draw != "shuffle":
             core["draw"] = self.draw
         # Hashed by content (never the path) and only when set, so existing specs keep their hash.
@@ -761,14 +779,18 @@ class JudgeSpec(BaseModel):
 class GovernorSpec(BaseModel):
     """Per-document loop budgets (phase 2, ``mailroom_sandbox.governor``). Off unless set.
 
-    Defaults are the design's starting values; the pilot sets the final ones. Call budgets stay
+    The 50-document pilot set ``retries`` to 3: one classify retry, one confidence re-extraction
+    and one arbiter-ordered re-extraction. An arbiter ruling is not one of those rounds until the
+    judge has passed the extraction; a ruling after that pass still counts, except in judge
+    mode correct, where any arbiter proposal returns before the counter. Two
+    counted rounds parked documents at 6–10 model calls, before that ruling. Call budgets stay
     below the hard call ceiling (``job.call_guard.CALL_CEILING["pipeline"]``, 40), which remains
     the backstop.
     """
 
     model_config = {"extra": "forbid"}
 
-    retries: int = Field(2, ge=0)
+    retries: int = Field(3, ge=0)
     calls: int = Field(30, ge=1, lt=40)
     calls_by_class: dict[str, int] = Field(default_factory=lambda: {"merger_agreement": 36})
     spend_usd: float | None = Field(None, gt=0)

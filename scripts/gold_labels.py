@@ -84,7 +84,33 @@ def _load_corpus(corpus: Path) -> tuple[list[dict[str, Any]], dict[str, str]]:
     gt = pd.concat([pd.read_parquet(p) for p in sorted(corpus.glob("ground_truth_*.parquet"))])
     docs = pd.concat([pd.read_parquet(p) for p in sorted(corpus.glob("default_*.parquet"))])
     texts = dict(zip(docs["filename"], docs["doc_text"]))
-    return gt.to_dict("records"), texts
+    return apply_subclass_corrections(gt.to_dict("records")), texts
+
+
+def apply_subclass_corrections(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Label against the reviewed subclass (SHF-013), keeping the Hub's under ``hub_subclass``.
+
+    A corrected document's Hub subclass names the wrong schema, so its salient fields, and the
+    check that a label belongs to the document's schema, follow the reviewed correction, as
+    production truth does. Catalog records written before a correction carry the Hub value, so the
+    identity checks accept either.
+    """
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    if not sh.enabled("SHF-013"):
+        raise SystemExit("gold_labels refused: SHF-013 (reviewed subclass) is not current; run "
+                         "scripts/check_hotfixes.py. Labels follow the reviewed subclass schema.")
+    for row in rows:
+        fixed = sh.corrected_subclass(row.get("document_id"), row.get("expected"), row.get("expected_subclass"))
+        if fixed:
+            row["hub_subclass"] = row.get("expected_subclass")
+            row["expected_subclass"] = fixed
+    return rows
+
+
+def _subclass_names(subclass: Any, hub_subclass: Any) -> set[Any]:
+    """The subclass a document's catalog records may carry: the reviewed one, or the Hub's before it."""
+    return {v for v in (subclass, hub_subclass) if v is not None}
 
 
 def _rows_by_doc(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -170,6 +196,8 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
                     raise SystemExit(f"{sub.get('doc_id')}: {exc}") from exc
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
                    "subclass": row.get("expected_subclass"), "content_sha256": measured}
+            if row.get("hub_subclass") is not None:
+                doc["hub_subclass"] = row["hub_subclass"]
             out.append((doc, sub, gl.validate_submission(sub, text, row["expected"], doc["subclass"]), text))
     return out
 
@@ -585,6 +613,29 @@ def _pass_doc_ids(paths: list[str]) -> set[str]:
     return {str(sub.get("doc_id")) for path in paths for sub in gl.read_jsonl(Path(path))}
 
 
+def _settles(review: Mapping[str, Any] | None, entry: Any) -> bool:
+    """A correct settles a field; an accept settles it only when it names the label's own value."""
+    review = review or {}
+    if review.get("verdict") == "correct":
+        return True
+    return (review.get("verdict") == "accept" and isinstance(entry, Mapping) and "value" in review
+            and review["value"] == entry.get("value"))
+
+
+def _review_settled_docs(label_paths: list[str], reviews: dict[tuple[str, str], dict]) -> set[str]:
+    """Documents whose label pass has fields and a settling review for each: a correct, or an
+    accept that names the labelled value (an accept of no value, or of another one, is no second
+    reading of this label)."""
+    settled = set()
+    for path in label_paths:
+        for sub in gl.read_jsonl(Path(path)):
+            fields = sub.get("fields")
+            if isinstance(fields, Mapping) and fields and all(
+                    _settles(reviews.get((sub.get("doc_id"), f)), entry) for f, entry in fields.items()):
+                settled.add(str(sub.get("doc_id")))
+    return settled
+
+
 def _add_input_problems(args: argparse.Namespace, reviews: dict[tuple[str, str], dict]) -> list[str]:
     """What is wrong with the given passes before the committed catalog is looked at."""
     problems = _pass_problems(args)
@@ -593,8 +644,14 @@ def _add_input_problems(args: argparse.Namespace, reviews: dict[tuple[str, str],
                  for name, n in sorted(names.items()) if n > 1]
     labelled, checked = _pass_doc_ids(args.label), _pass_doc_ids(args.check)
     # A document left without its check pass would stay a lone candidate for good: add refuses a
-    # document that already has a catalog record, so the check could never be added later.
-    problems += [f"{d}: has no check pass (a document is added with both passes)" for d in sorted(labelled - checked)]
+    # document that already has a catalog record, so the check could never be added later. The
+    # exception is a document whose every labelled field a review settles (a correct, or an accept
+    # naming the labelled value): the reviewer's source reading is then the second reading, as
+    # near_gold allows. This is the
+    # way to admit a document whose check was a copy of its label: withhold the copy, review.
+    settled = _review_settled_docs(args.label, reviews)
+    problems += [f"{d}: has no check pass (a document is added with both passes, or with a review "
+                 "that settles every labelled field: a correct, or an accept naming the labelled value)" for d in sorted(labelled - checked - settled)]
     problems += [f"{d}: has a check pass but no label pass" for d in sorted(checked - labelled)]
     return problems
 
@@ -712,7 +769,8 @@ def _missing_field_source_problems(labelled: list, checked: list,
         if cls in ("corporate_record", "merger_agreement"):
             subclasses = {r.get("subclass") for r in held[doc_id] if r.get("subclass") is not None}
             missing = cls == "merger_agreement" and any(r.get("subclass") is None for r in held[doc_id])
-            if missing or len(subclasses) > 1 or (subclasses and subclasses != {doc.get("subclass")}):
+            allowed = _subclass_names(doc.get("subclass"), doc.get("hub_subclass"))
+            if missing or (subclasses and not subclasses <= allowed) or (len(subclasses) > 1 and len(allowed) < 2):
                 problems.append(f"{doc_id}: corpus subclass differs from the document record's subclass")
         if cls != doc["doc_class"]:
             problems.append(f"{doc_id}: doc_class {doc['doc_class']!r} differs from the document "
@@ -886,7 +944,7 @@ def cmd_review(args: argparse.Namespace) -> int:
             except KeyError as exc:
                 problems.append(f"{key[0]}.{key[1]}: {exc}")
                 continue
-            if rec.get("subclass") != subclass:
+            if rec.get("subclass") not in _subclass_names(subclass, row.get("hub_subclass")):
                 problems.append(f"{key[0]}.{key[1]}: corpus subclass differs from the label's")
                 continue
         earlier = rec.get("review")

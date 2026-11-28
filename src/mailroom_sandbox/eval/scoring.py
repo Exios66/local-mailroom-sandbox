@@ -261,18 +261,28 @@ def _score_extraction_row_once(
         # The seam drops empty truth outside corporate_record, which also dropped the fields the
         # truth documents as absent, so a value stated there was never a false positive.
         expected = sh.restore_documented_absences(doc_type, raw_expected, expected)
+    subclass_notes: dict[str, str] = {}
+    if sh.is_active("SHF-018"):
+        # After the absence restore, so a field the subclass schema does not request is not put
+        # back as a false positive. The raw pass has the fix off and keeps the class schema.
+        expected, predicted, subclass_notes = sh.apply_subclass_score_scope(
+            doc_type, sub, expected, predicted, doc_text)
     sub_kwargs = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_type == "corporate_record")
+    bundles: list[dict[str, Any]] = []
     if suite is not None:
         try:
-            if detailed:
-                # Corporate alignment is authoritative even without a subclass.
-                # Consume the suite's metrics and unlabeled fields directly.
-                result = suite.score(
-                    expected, predicted, doc_text=doc_text, detailed=True, **sub_kwargs
-                )
-            else:
-                result = suite.score(expected, predicted, doc_text=doc_text)
+            # A suite payload dict drops the event counts its P/R/F1 came from; keep the
+            # suite's own count bundle (on the pair it scored) for the payload.
+            with sh.suite_event_counts() as bundles:
+                if detailed:
+                    # Corporate alignment is authoritative even without a subclass.
+                    # Consume the suite's metrics and unlabeled fields directly.
+                    result = suite.score(
+                        expected, predicted, doc_text=doc_text, detailed=True, **sub_kwargs
+                    )
+                else:
+                    result = suite.score(expected, predicted, doc_text=doc_text)
         except Exception as exc:
             scoring_method = "suite-fallback-generic"
             _warn_once(
@@ -352,13 +362,29 @@ def _score_extraction_row_once(
         for key in _EXTRACT_PRF_KEYS + ("tp", "fp", "fn"):
             if key in result:
                 payload[key] = result[key]
+        payload.update(sh.captured_event_counts(bundles, result))
     if isinstance(result, dict) and result.get("unlabeled_fields") is not None:
         # The dojo's per-row presence contract, verbatim: the unlabeled
         # key-entity fields this row scored (or none).
         payload["unlabeled_fields"] = result["unlabeled_fields"]
     payload.update(assess_extraction_payload({**predicted, **parse_facts}, doc_type, doc_subclass=sub))
     if sh.is_active("SHF-001"):
-        payload.update(sh.hallucination_counts(doc_type, raw_expected, predicted))
+        counts = sh.hallucination_counts(doc_type, raw_expected, predicted)
+        # A field SHF-018 removed is not scored, so it is not a hallucination and not in the
+        # denominator. Leaving it in the denominator diluted the rate after the prediction was popped.
+        excluded = {name for name, reason in subclass_notes.items() if reason == "not_in_subclass_schema"}
+        if excluded:
+            absent = [name for name in sh.documented_absent_fields(doc_type, raw_expected) if name not in excluded]
+            hits = [name for name in counts["hallucinated_fields"] if name not in excluded]
+            counts = {
+                "n_documented_absent": len(absent),
+                "n_hallucinated": len(hits),
+                "hallucinated_fields": hits,
+                "hallucination_rate": round(len(hits) / len(absent), 4) if absent else None,
+            }
+        payload.update(counts)
+    if subclass_notes:
+        payload["subclass_unscored"] = subclass_notes
     if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's
         # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.

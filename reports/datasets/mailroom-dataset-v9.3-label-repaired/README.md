@@ -3,12 +3,12 @@
 A partially labeled CSV release of
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset)
 **v9.3** (Hub revision `ff4ca546d4346991628c2616ae014afc15e9fe04`). It covers 3,302 business and
-legal documents in five classes. Coverage is **87.5%** of per-class target fields (43,942 labeled,
-6,213 unlabeled, 78 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
+legal documents in five classes. Coverage is **87.9%** of per-class target fields (44,138 labeled,
+6,094 unlabeled, 1 disputed/unresolved)—not a complete labeling. It is one snapshot of a dataset
 that is still being developed, not the final release.
 
 The published v9.3 ground truth labels 24,812 of the 50,233 per-class target fields (49.4%). This
-release labels **43,942 (87.5%)**. Each added or changed label was chosen by a consensus vote over
+release labels **44,138 (87.9%)**. Each added or changed label was chosen by a consensus vote over
 every label source in this repository, and the vote that chose it is kept in the provenance file.
 
 These flat per-class counters are not scored-field coverage. They include documented absences,
@@ -55,7 +55,7 @@ df = df.merge(text, on="document_id", how="left")
 | `insurance_claim` | 1,100 | 17 | 94.1% | 100.0% |
 | `correspondence` | 1,000 | 13 | 38.5% | 100.0% |
 | `contract` | 600 | 17 | 0.0% | 66.7% |
-| `corporate_record` | 450 | 9 + subclass | 39.5% | 75.5% |
+| `corporate_record` | 450 | 9 + subclass | 39.5% | 77.6% |
 | `merger_agreement` | 152 | 18 | 0.0% | 44.6% |
 
 The target fields of each class are the fields of the class's extraction schema in the vendored
@@ -115,7 +115,10 @@ changing the value:
 - under `reviewed_over_hub`, a reviewed absence that overrides a populated value, or independent
   evidence that beats a reviewed label (23 cells, all reviewed absences).
 
-With the 78 disputed cells, 101 cells need a human.
+With the 1 disputed cell, 24 cells need a human. The 2026-11-28 executive vote settled 77 of
+the 78 earlier disputed contract cells (see
+[the vote archive](../../../data/labels/repair-artifacts/v93-20261128-contract-dispute-fable-votes/README.md));
+the one left is a party name the source text prints with broken spacing.
 
 **Check against production truth (unverified in this README).** A prior local rebuild reported that
 the repository's scoring merge (`interim_labels.apply_overlay` then `gold_labels.apply_near_gold`)
@@ -264,6 +267,15 @@ The overlay has **10,225 labels**. With the subclass target cells above, 534 of 
 corporate subclass labels reach this release (the other six belong to two documents whose reviewed
 subclass is no longer `board_resolution`). No previously targeted cell changes value or presence.
 
+The 2026-11-28 dev gate-gap admission adds **119 near-gold labels on 58 dev-split corporate
+documents** (63 populated, 56 documented absences), see
+[`corporate-gate-gaps-dev`](../../../data/labels/repair-artifacts/v93-20261128-corporate-gate-gaps-dev/README.md).
+They fill every open gate-scored dev cell but one, a bracketed principal amount in a form indenture
+that both passes held. 100 rest on two agreeing passes; a source-reading review settled the other
+19, fifteen of them on documents whose check pass was a byte-identical copy and is withheld. The
+overlay has **10,344 labels**. The rebuild changes exactly the 119 cells, all previously
+unlabeled; no other cell changes value, presence, source or rule.
+
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
 The scoped guard covers both submission and stored-evidence checks and preserves legacy
@@ -307,7 +319,7 @@ values and documented absences separately and makes no model-performance claim.
 | `populated` | A value was chosen. |
 | `documented_absence` | The winning sources say the document has no such value (for example no adjuster named). The cell is blank, but the field **is** labeled. |
 | `unlabeled` | No source labels this field for this document. Treat as missing, not as absent. |
-| `disputed_unresolved` | Only a disputed value exists. Left blank for human review (78 cells, all contract fields). |
+| `disputed_unresolved` | Only a disputed value exists. Left blank for human review (1 cell, a contract field). |
 
 In the main CSV, a blank cell is ambiguous on its own. Classify each blank from the provenance row
 for that `(document_id, field)` (`presence` = `documented_absence` or `unlabeled`). The wide-row

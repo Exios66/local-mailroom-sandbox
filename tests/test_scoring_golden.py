@@ -118,11 +118,13 @@ def test_golden_field_f1_and_hallucination_are_dual_reported(golden):
     assert raw["extraction_f1_mean"] == pytest.approx((0.0 + 1.0 + 0.0 + 1.0) / 4, abs=1e-3)
     assert scores["extraction_f1_mean"] == pytest.approx((1.0 + 0.0 + 0.0 + 2 / 3) / 4, abs=1e-3)
     assert scores["extraction_f1_n"] == raw["extraction_f1_n"] == 4
-    # the Dojo's insurance/contract suites return no event counts: no micro F1 over 1 of 4 rows
-    assert scores["extraction_f1_micro"] is None and raw["extraction_f1_micro"] is None
-    assert scores["extraction_f1_micro_reason"] == "event counts on 1 of 4 scored rows"
-    assert (raw["extraction_tp"], raw["extraction_fp"], raw["extraction_fn"]) == (1, 0, 0)
-    assert (scores["extraction_tp"], scores["extraction_fp"], scores["extraction_fn"]) == (1, 1, 0)
+    # every row carries event counts, including those scored on their subclass's detailed suite
+    # path: d0 1/0/0 (0/0/1 raw), d1 0/0/1 (1/0/0 raw), d2 0/0/1, d3 1/1/0 (1/0/0 raw)
+    assert (raw["extraction_tp"], raw["extraction_fp"], raw["extraction_fn"]) == (2, 0, 2)
+    assert (scores["extraction_tp"], scores["extraction_fp"], scores["extraction_fn"]) == (2, 1, 2)
+    assert raw["extraction_f1_micro"] == pytest.approx(2 / 3, abs=1e-4)
+    assert scores["extraction_f1_micro"] == pytest.approx(4 / 7, abs=1e-4)
+    assert "extraction_f1_micro_reason" not in scores
     assert raw["hallucination_rate"] is None
     assert scores["hallucination_rate"] == 1.0 and scores["n_documented_absent"] == 1
     assert scores["extraction_overall"] == pytest.approx(0.5) and raw["extraction_overall"] == pytest.approx(0.5)
@@ -132,9 +134,11 @@ def test_golden_field_f1_and_hallucination_are_dual_reported(golden):
     assert (scores["extraction_overall_correct_class_n_scored"],
             raw["extraction_overall_correct_class_n_scored"]) == (3, 3)
     # active on the rows (SHF-015 is on, it finds no stale Hub label here; SHF-016 is on, the
-    # rows here have no empty-universe CUAD map; SHF-019 is on, no row is reviewed header truth)
-    assert set(scores["scoring_hotfixes"]) == {"SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-015", "SHF-016",
-                                               "SHF-019"}
+    # rows here have no empty-universe CUAD map; SHF-019 is on, and no row is reviewed header truth)
+    assert set(scores["scoring_hotfixes"]) == {
+        "SHF-001", "SHF-002", "SHF-003", "SHF-004", "SHF-015", "SHF-016", "SHF-017", "SHF-018",
+        "SHF-019",
+    }
     for key in ("extraction_fp", "hallucination_rate", "extraction_f1_mean"):
         assert key in scores["scoring_hotfixes_changed"]
     assert scores["headline_basis"]["headline"] == "hotfixed"
