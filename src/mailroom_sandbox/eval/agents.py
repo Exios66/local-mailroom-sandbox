@@ -321,7 +321,13 @@ def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) 
         return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap,
                                           **({"handoff_context": handoff_context} if handoff_context else {}))
     if handoff_context:
-        return specialist.extract(_doc_text(row), handoff_context=handoff_context)
+        import inspect
+
+        if "handoff_context" in inspect.signature(specialist.extract).parameters:
+            return specialist.extract(_doc_text(row), handoff_context=handoff_context)
+        # The LangChain specialists (contracts, merger) read the handoff from an attribute, as the
+        # graph's _instantiate_specialist sets it.
+        specialist.handoff_context = handoff_context
     return specialist.extract(_doc_text(row))
 
 

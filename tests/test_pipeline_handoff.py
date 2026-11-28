@@ -115,3 +115,43 @@ def test_the_insurance_v5_arms_reuse_the_v4_draw():
         assert spec.job.pipeline_handoff is True
     assert {arm: spec.prompt["agents"]["insurance_claims_specialist"]["file"] for arm, spec in specs.items()} == {
         "v4arm": "insurance_claims_specialist_condensed_v4", "v5arm": "insurance_claims_specialist_condensed_v5"}
+
+
+class _AttributeRecorder:
+    """The LangChain specialists' shape (contracts, merger): the handoff is an attribute, not an extract kwarg."""
+
+    seen: list = []
+    handoff_context = None
+
+    def extract(self, doc_text, pages=None):
+        _AttributeRecorder.seen.append(self.handoff_context)
+        return {"parties": ["A", "B"]}
+
+
+def test_a_langchain_specialist_reads_the_handoff_from_its_attribute(monkeypatch):
+    """ab-contracts-condensed-rc11 failed all 30 rows: extract() got an unexpected 'handoff_context'."""
+    import sys
+    import types
+
+    module = types.ModuleType("fake_contracts_specialist")
+    module.Fake = _AttributeRecorder
+    monkeypatch.setitem(sys.modules, "fake_contracts_specialist", module)
+    monkeypatch.setitem(agents.LIVE_CLASS_MAP, "contracts_specialist", ("fake_contracts_specialist", "Fake"))
+    monkeypatch.setattr(runtime, "agent_knobs_for", lambda agent: {})
+    _AttributeRecorder.seen = []
+    assert agents._extract_live("contracts_specialist", {"id": "d0", "doc_text": "LICENSE AGREEMENT"},
+                                "Sorter classification: doc_type=contract") == {"parties": ["A", "B"]}
+    assert _AttributeRecorder.seen == ["Sorter classification: doc_type=contract"]
+
+
+@pytest.mark.parametrize("agent", sorted(agents.LIVE_CLASS_MAP))
+def test_every_live_specialist_takes_the_handoff_one_way_or_the_other(agent):
+    """Each vendored class accepts the handoff as an extract kwarg or reads it from its attribute."""
+    import importlib
+    import inspect
+
+    pytest.importorskip("graph.build_graph")
+    module_name, cls_name = agents.LIVE_CLASS_MAP[agent]
+    cls = getattr(importlib.import_module(module_name), cls_name)
+    as_kwarg = "handoff_context" in inspect.signature(cls.extract).parameters
+    assert as_kwarg or hasattr(cls, "handoff_context"), agent
