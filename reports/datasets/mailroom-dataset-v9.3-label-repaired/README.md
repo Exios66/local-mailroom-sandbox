@@ -294,7 +294,7 @@ presence, source or rule.
 The 2026-11-28 rc.12 rounds add **624 near-gold labels on 136 documents** (352 populated, 272
 documented absences), see
 [`rc12-label-rounds`](../../../data/labels/repair-artifacts/v93-20261128-rc12-label-rounds/README.md).
-Phase 1 fills 246 contract target cells (and one correspondence `sender`) on 36 dev and calibration
+Phase 1 fills 246 cells (245 contract target cells and one correspondence `sender`) on 36 dev and calibration
 documents that slices 100, 250 and 500 score. Phase 2 fills 378 corporate gate cells on 100
 calibration documents in the full slice. 547 rest on two agreeing passes, and a source-reading review
 settled the other 77; 13 disputes are left unlabeled, as neither reading was clean truth. In slices
