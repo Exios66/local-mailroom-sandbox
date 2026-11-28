@@ -6,22 +6,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.172,
+      "share": 0.204,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: The \"dated as of\" or signature date.",
      "in_output_schema": true,
-     "labeled": 169,
+     "labeled": 181,
      "labeled_by_set": {
-      "calibration": 27,
-      "dev": 73,
+      "calibration": 33,
+      "dev": 79,
       "heldout": 69,
       "pool": 0
      },
      "subclasses_with_truth": 24,
      "truth": {
-      "near_gold": 169
+      "near_gold": 181
      },
      "verdict": "iterate"
     },
@@ -29,22 +29,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.673,
+      "share": 0.707,
       "value": null
      },
      "effective_status": "scored",
      "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
      "in_output_schema": true,
-     "labeled": 202,
+     "labeled": 324,
      "labeled_by_set": {
-      "calibration": 39,
-      "dev": 91,
+      "calibration": 80,
+      "dev": 172,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 202
+      "near_gold": 324
      },
      "verdict": "iterate"
     },
@@ -82,22 +82,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.637,
+      "share": 0.514,
       "value": null
      },
      "effective_status": "scored",
      "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
      "in_output_schema": true,
-     "labeled": 204,
+     "labeled": 333,
      "labeled_by_set": {
-      "calibration": 40,
-      "dev": 92,
+      "calibration": 84,
+      "dev": 177,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 204
+      "near_gold": 333
      },
      "verdict": "iterate"
     },
@@ -137,22 +137,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.863,
+      "share": 0.907,
       "value": null
      },
      "effective_status": "scored",
      "guide": "date: End of the initial term when the text states it as a date; else null.",
      "in_output_schema": true,
-     "labeled": 197,
+     "labeled": 312,
      "labeled_by_set": {
-      "calibration": 35,
-      "dev": 90,
+      "calibration": 75,
+      "dev": 165,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 197
+      "near_gold": 312
      },
      "verdict": "iterate"
     },
@@ -230,22 +230,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "role",
-      "share": 0.831,
+      "share": 0.798,
       "value": "other"
      },
      "effective_status": "scored",
      "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
      "in_output_schema": true,
-     "labeled": 199,
+     "labeled": 361,
      "labeled_by_set": {
-      "calibration": 40,
-      "dev": 91,
+      "calibration": 94,
+      "dev": 199,
       "heldout": 68,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 199
+      "near_gold": 361
      },
      "verdict": "iterate"
     },
@@ -253,22 +253,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.314,
+      "share": 0.237,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: How and when the consideration is paid, as stated.",
      "in_output_schema": true,
-     "labeled": 204,
+     "labeled": 342,
      "labeled_by_set": {
-      "calibration": 39,
-      "dev": 93,
+      "calibration": 86,
+      "dev": 184,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 204
+      "near_gold": 342
      },
      "verdict": "iterate"
     },
@@ -291,22 +291,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.206,
+      "share": 0.233,
       "value": []
      },
      "effective_status": "scored",
      "guide": "list of names: Persons who sign the contract, as printed.",
      "in_output_schema": true,
-     "labeled": 204,
+     "labeled": 326,
      "labeled_by_set": {
-      "calibration": 39,
-      "dev": 93,
+      "calibration": 81,
+      "dev": 173,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 204
+      "near_gold": 326
      },
      "verdict": "iterate"
     },
@@ -329,22 +329,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.595,
+      "share": 0.477,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
      "in_output_schema": true,
-     "labeled": 195,
+     "labeled": 279,
      "labeled_by_set": {
-      "calibration": 37,
-      "dev": 86,
+      "calibration": 67,
+      "dev": 140,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 195
+      "near_gold": 279
      },
      "verdict": "iterate"
     },
@@ -352,22 +352,22 @@
      "dojo_status": "pending_annotation",
      "dominant": {
       "kind": "value",
-      "share": 0.79,
+      "share": 0.696,
       "value": null
      },
      "effective_status": "scored",
      "guide": "free text: The stated territory of the grant, distribution or service.",
      "in_output_schema": true,
-     "labeled": 205,
+     "labeled": 339,
      "labeled_by_set": {
-      "calibration": 39,
-      "dev": 94,
+      "calibration": 84,
+      "dev": 183,
       "heldout": 72,
       "pool": 0
      },
      "subclasses_with_truth": 25,
      "truth": {
-      "near_gold": 205
+      "near_gold": 339
      },
      "verdict": "iterate"
     }
@@ -425,15 +425,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 5,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 5
        },
        "type": "money",
        "valued_by_set": {
@@ -491,20 +491,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -557,15 +557,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "date",
        "valued_by_set": {
@@ -667,20 +667,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 5,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 5
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -691,20 +691,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 5,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 5
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -736,20 +736,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -781,20 +781,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -805,20 +805,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 5,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 5
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -880,20 +880,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 6
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -946,20 +946,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 7
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -1012,15 +1012,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 6
        },
        "type": "date",
        "valued_by_set": {
@@ -1122,20 +1122,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 7
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -1146,20 +1146,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -1191,20 +1191,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 6
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -1236,20 +1236,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 6
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -1260,20 +1260,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -1310,20 +1310,20 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 4,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 1,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 4
        },
        "type": "date",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 1,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
@@ -1334,19 +1334,19 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 2,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -1400,20 +1400,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 6,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -1466,15 +1466,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "date",
        "valued_by_set": {
@@ -1576,20 +1576,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 13,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 8,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 13
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 8,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
@@ -1600,20 +1600,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 6,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -1645,20 +1645,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
@@ -1690,20 +1690,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 7,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -1714,20 +1714,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -1788,20 +1788,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 7
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -1854,20 +1854,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 8,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
@@ -1922,15 +1922,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 8,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "date",
        "valued_by_set": {
@@ -2032,20 +2032,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 9,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 9,
         "heldout": 0,
         "pool": 0
        },
@@ -2056,20 +2056,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 8,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -2101,20 +2101,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 9,
        "labeled_by_set": {
         "calibration": 2,
-        "dev": 3,
+        "dev": 7,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 9
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 3,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -2146,20 +2146,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 7,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 10
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -2170,20 +2170,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 8,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -2249,26 +2249,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.481,
+        "share": 0.464,
         "value": null
        },
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 28,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 13,
+        "dev": 14,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 27
+        "near_gold": 28
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 8,
+        "dev": 9,
         "heldout": 6,
         "pool": 0
        },
@@ -2320,21 +2320,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.643,
+        "share": 0.667,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 30,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 14,
+        "dev": 16,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 28
+        "near_gold": 30
        },
        "type": "name",
        "valued_by_set": {
@@ -2393,21 +2393,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.889,
+        "share": 0.893,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 28,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 13,
+        "dev": 14,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 27
+        "near_gold": 28
        },
        "type": "date",
        "valued_by_set": {
@@ -2514,20 +2514,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 26,
+       "labeled": 31,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 12,
+        "dev": 17,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 26
+        "near_gold": 31
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 12,
+        "dev": 17,
         "heldout": 14,
         "pool": 0
        },
@@ -2537,26 +2537,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.148,
+        "share": 0.133,
         "value": null
        },
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 27,
+       "labeled": 30,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 13,
+        "dev": 16,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 27
+        "near_gold": 30
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 11,
+        "dev": 14,
         "heldout": 12,
         "pool": 0
        },
@@ -2587,26 +2587,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.214,
+        "share": 0.2,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 30,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 14,
+        "dev": 16,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 28
+        "near_gold": 30
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 10,
+        "dev": 12,
         "heldout": 12,
         "pool": 0
        },
@@ -2637,26 +2637,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.5,
+        "share": 0.483,
         "value": null
        },
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 29,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 14,
+        "dev": 15,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 28
+        "near_gold": 29
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 8,
+        "dev": 9,
         "heldout": 6,
         "pool": 0
        },
@@ -2672,15 +2672,15 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 28,
+       "labeled": 30,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 14,
+        "dev": 16,
         "heldout": 14,
         "pool": 0
        },
        "truth": {
-        "near_gold": 28
+        "near_gold": 30
        },
        "type": "free_text",
        "valued_by_set": {
@@ -2723,15 +2723,15 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "date",
        "valued_by_set": {
@@ -2747,20 +2747,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 4,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 9
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -2813,20 +2813,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 10
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 4,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -2879,15 +2879,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 11
        },
        "type": "date",
        "valued_by_set": {
@@ -2989,20 +2989,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 14,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 8,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 14
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 8,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
@@ -3013,20 +3013,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -3058,20 +3058,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 10
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -3103,20 +3103,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 2,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -3127,20 +3127,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -3178,15 +3178,15 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 5,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 5
        },
        "type": "date",
        "valued_by_set": {
@@ -3202,20 +3202,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -3268,20 +3268,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 10,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -3336,15 +3336,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 9,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "date",
        "valued_by_set": {
@@ -3446,20 +3446,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 14,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 13,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 14
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 13,
         "heldout": 1,
         "pool": 0
        },
@@ -3470,20 +3470,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 8,
         "heldout": 0,
         "pool": 0
        },
@@ -3515,20 +3515,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 8,
         "heldout": 1,
         "pool": 0
        },
@@ -3560,20 +3560,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 7,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 6,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -3584,20 +3584,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 8,
         "heldout": 1,
         "pool": 0
        },
@@ -3637,19 +3637,19 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 4,
         "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 6
        },
        "type": "date",
        "valued_by_set": {
-        "calibration": 3,
+        "calibration": 4,
         "dev": 0,
         "heldout": 1,
         "pool": 0
@@ -3661,20 +3661,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 12,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 18
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 5,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -3727,20 +3727,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 12,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 18
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 9,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -3793,19 +3793,19 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 14,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 10,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 14
        },
        "type": "date",
        "valued_by_set": {
-        "calibration": 2,
+        "calibration": 3,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -3898,23 +3898,28 @@
       },
       "party_roles": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "role",
+        "share": 0.867,
+        "value": "other"
+       },
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 12,
+        "dev": 7,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 20
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 12,
+        "dev": 7,
         "heldout": 1,
         "pool": 0
        },
@@ -3925,20 +3930,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 17,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 11,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 17
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 6,
-        "dev": 0,
+        "calibration": 10,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -3970,20 +3975,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 16,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 11,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 16
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 5,
-        "dev": 1,
+        "calibration": 9,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -4015,20 +4020,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 16,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 11,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 16
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 4,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4039,20 +4044,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 6,
-        "dev": 1,
+        "calibration": 12,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 5,
-        "dev": 0,
+        "calibration": 10,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4089,20 +4094,20 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 8,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 3,
+        "dev": 3,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 8
        },
        "type": "date",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -4113,19 +4118,19 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 4,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 2,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -4179,20 +4184,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 3,
         "heldout": 2,
         "pool": 0
        },
@@ -4245,15 +4250,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "date",
        "valued_by_set": {
@@ -4355,20 +4360,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -4379,20 +4384,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 4,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 4,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4424,20 +4429,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4469,20 +4474,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 3,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 10
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4493,20 +4498,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 3,
+        "calibration": 5,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -4549,15 +4554,15 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 5,
         "dev": 0,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 6
        },
        "type": "date",
        "valued_by_set": {
@@ -4573,19 +4578,19 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 6,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 2,
+        "calibration": 3,
         "dev": 0,
         "heldout": 1,
         "pool": 0
@@ -4639,20 +4644,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 0,
+        "calibration": 4,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -4707,15 +4712,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 8,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "date",
        "valued_by_set": {
@@ -4817,20 +4822,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 14,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 14
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
@@ -4841,20 +4846,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 9,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
@@ -4886,20 +4891,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 8,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 4,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -4931,19 +4936,19 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 5,
        "labeled_by_set": {
-        "calibration": 2,
+        "calibration": 4,
         "dev": 0,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 5
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 2,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -4955,20 +4960,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 0,
+        "calibration": 7,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -5030,18 +5035,23 @@
       },
       "contract_value": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.375,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "money",
        "valued_by_set": {
@@ -5096,23 +5106,28 @@
       },
       "dispute_forum": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.583,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 6,
         "heldout": 4,
         "pool": 0
        },
@@ -5164,18 +5179,23 @@
       },
       "expiration_date": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.958,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "date",
        "valued_by_set": {
@@ -5184,7 +5204,7 @@
         "heldout": 1,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "constant"
       },
       "governing_law": {
        "dojo_status": "pending_annotation",
@@ -5274,42 +5294,52 @@
       },
       "party_roles": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "role",
+        "share": 1.0,
+        "value": "other"
+       },
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 25,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 8,
+        "dev": 14,
         "heldout": 10,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 25
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 8,
+        "dev": 14,
         "heldout": 10,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "constant"
       },
       "payment_terms": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.333,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "free_text",
        "valued_by_set": {
@@ -5343,23 +5373,30 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.125,
+        "value": [
+         "Thomas DeNunzio"
+        ]
+       },
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 6,
+        "dev": 11,
         "heldout": 10,
         "pool": 0
        },
@@ -5388,23 +5425,28 @@
       },
       "termination_notice_period": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.652,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 23,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 11,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 23
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 1,
+        "dev": 3,
         "heldout": 4,
         "pool": 0
        },
@@ -5412,23 +5454,28 @@
       },
       "territory": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.75,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 19,
+       "labeled": 24,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 7,
+        "dev": 12,
         "heldout": 11,
         "pool": 0
        },
        "truth": {
-        "near_gold": 19
+        "near_gold": 24
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 6,
         "heldout": 0,
         "pool": 0
        },
@@ -5455,8 +5502,9 @@
       "Governing Law"
      ],
      "verdicts": {
+      "constant": 2,
       "no_truth": 7,
-      "thin": 12
+      "thin": 10
      }
     },
     "joint_venture": {
@@ -5490,15 +5538,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 17,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 5,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 17
        },
        "type": "money",
        "valued_by_set": {
@@ -5556,19 +5604,19 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 3,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -5624,15 +5672,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 17,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 5,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 17
        },
        "type": "date",
        "valued_by_set": {
@@ -5732,19 +5780,19 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
@@ -5756,19 +5804,19 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 2,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -5801,19 +5849,19 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 6,
         "heldout": 5,
         "pool": 0
@@ -5846,19 +5894,19 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
+        "calibration": 4,
         "dev": 0,
         "heldout": 2,
         "pool": 0
@@ -5870,15 +5918,15 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 18,
        "labeled_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 7,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
@@ -5923,15 +5971,15 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 17,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 9,
+        "dev": 10,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 17
        },
        "type": "date",
        "valued_by_set": {
@@ -5944,23 +5992,28 @@
       },
       "contract_value": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.85,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 9,
+        "calibration": 2,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 20
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
@@ -6010,23 +6063,28 @@
       },
       "dispute_forum": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.4,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 9,
+        "calibration": 2,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 20
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 4,
+        "calibration": 2,
+        "dev": 7,
         "heldout": 3,
         "pool": 0
        },
@@ -6079,15 +6137,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 17,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 9,
+        "dev": 10,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 17
        },
        "type": "date",
        "valued_by_set": {
@@ -6186,23 +6244,28 @@
       },
       "party_roles": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "role",
+        "share": 0.587,
+        "value": "other"
+       },
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 22,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 8,
+        "calibration": 2,
+        "dev": 14,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 22
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 8,
+        "calibration": 2,
+        "dev": 14,
         "heldout": 6,
         "pool": 0
        },
@@ -6210,23 +6273,28 @@
       },
       "payment_terms": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.3,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 9,
+        "calibration": 2,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 20
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 6,
+        "calibration": 2,
+        "dev": 8,
         "heldout": 4,
         "pool": 0
        },
@@ -6255,23 +6323,28 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.2,
+        "value": []
+       },
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 9,
+        "calibration": 2,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 20
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 7,
+        "calibration": 2,
+        "dev": 9,
         "heldout": 5,
         "pool": 0
        },
@@ -6303,20 +6376,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 18,
        "labeled_by_set": {
         "calibration": 1,
-        "dev": 9,
+        "dev": 11,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 1,
-        "dev": 5,
+        "dev": 7,
         "heldout": 3,
         "pool": 0
        },
@@ -6324,23 +6397,28 @@
       },
       "territory": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.4,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 16,
+       "labeled": 20,
        "labeled_by_set": {
-        "calibration": 1,
-        "dev": 9,
+        "calibration": 2,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 16
+        "near_gold": 20
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 5,
+        "calibration": 2,
+        "dev": 7,
         "heldout": 3,
         "pool": 0
        },
@@ -6409,20 +6487,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 16,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 12,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 16
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
@@ -6475,20 +6553,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 17,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 13,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 17
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 7,
         "heldout": 1,
         "pool": 0
        },
@@ -6543,15 +6621,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 16,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 12,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 16
        },
        "type": "date",
        "valued_by_set": {
@@ -6653,20 +6731,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 18,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 14,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 18
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 14,
         "heldout": 4,
         "pool": 0
        },
@@ -6677,20 +6755,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 17,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 13,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 17
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 10,
         "heldout": 1,
         "pool": 0
        },
@@ -6722,20 +6800,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 15,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 11,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 15
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 6,
         "heldout": 3,
         "pool": 0
        },
@@ -6767,20 +6845,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 8,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 8,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 8
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -6791,20 +6869,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 9,
+       "labeled": 17,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 13,
         "heldout": 4,
         "pool": 0
        },
        "truth": {
-        "near_gold": 9
+        "near_gold": 17
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -6866,20 +6944,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -6932,20 +7010,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
@@ -7000,15 +7078,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "date",
        "valued_by_set": {
@@ -7110,20 +7188,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
@@ -7134,20 +7212,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
@@ -7179,20 +7257,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 10
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 4,
         "heldout": 1,
         "pool": 0
        },
@@ -7224,20 +7302,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 8,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 0,
+        "calibration": 3,
+        "dev": 3,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 8
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -7248,15 +7326,15 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 6,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
@@ -7323,19 +7401,19 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 7,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 10
        },
        "type": "money",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -7389,19 +7467,19 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 1,
+        "calibration": 7,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 3,
+        "calibration": 6,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -7455,15 +7533,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "date",
        "valued_by_set": {
@@ -7565,20 +7643,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 9,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 9,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -7589,20 +7667,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 7,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 10
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -7634,19 +7712,19 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 3,
         "dev": 2,
         "heldout": 0,
         "pool": 0
@@ -7679,20 +7757,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 8,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 6,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 8
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 6,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -7703,20 +7781,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 2,
+        "calibration": 7,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 10
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 3,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -7779,15 +7857,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "money",
        "valued_by_set": {
@@ -7845,20 +7923,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -7913,15 +7991,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "date",
        "valued_by_set": {
@@ -8023,20 +8101,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -8047,15 +8125,15 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "free_text",
        "valued_by_set": {
@@ -8092,20 +8170,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
@@ -8137,15 +8215,15 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "free_text",
        "valued_by_set": {
@@ -8161,20 +8239,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 1,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -8236,15 +8314,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "money",
        "valued_by_set": {
@@ -8302,20 +8380,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 5,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -8368,15 +8446,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "date",
        "valued_by_set": {
@@ -8478,20 +8556,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 7,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 7,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -8502,20 +8580,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 6,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -8547,20 +8625,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 2,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -8592,19 +8670,19 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 4,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 2,
+        "calibration": 3,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -8616,20 +8694,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 2,
-        "dev": 2,
+        "calibration": 6,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -8695,15 +8773,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 3
        },
        "type": "money",
        "valued_by_set": {
@@ -8761,19 +8839,19 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
@@ -8827,15 +8905,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "date",
        "valued_by_set": {
@@ -8937,20 +9015,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -8961,20 +9039,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -9006,20 +9084,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -9051,19 +9129,19 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 2,
         "heldout": 0,
         "pool": 0
@@ -9075,20 +9153,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 4,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 4
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -9126,19 +9204,19 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 2,
        "labeled_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 1,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 2
        },
        "type": "date",
        "valued_by_set": {
-        "calibration": 0,
+        "calibration": 1,
         "dev": 0,
         "heldout": 0,
         "pool": 0
@@ -9150,20 +9228,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 7
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -9216,20 +9294,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 7
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -9282,15 +9360,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 7
        },
        "type": "date",
        "valued_by_set": {
@@ -9392,20 +9470,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 7
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -9416,20 +9494,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
@@ -9461,20 +9539,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 6
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 3,
         "heldout": 0,
         "pool": 0
        },
@@ -9506,20 +9584,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 1,
+       "labeled": 3,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 1
+        "near_gold": 3
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 0,
+        "calibration": 1,
+        "dev": 1,
         "heldout": 0,
         "pool": 0
        },
@@ -9530,20 +9608,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 2,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 2,
+        "dev": 4,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 2
+        "near_gold": 6
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 1,
+        "calibration": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -9605,23 +9683,28 @@
       },
       "contract_value": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.9,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 20,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 14,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 20
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -9671,23 +9754,28 @@
       },
       "dispute_forum": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.476,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 21,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 21
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 5,
+        "dev": 10,
         "heldout": 1,
         "pool": 0
        },
@@ -9740,15 +9828,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 19,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 13,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 19
        },
        "type": "date",
        "valued_by_set": {
@@ -9847,23 +9935,28 @@
       },
       "party_roles": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "role",
+        "share": 0.884,
+        "value": "other"
+       },
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 14,
+       "labeled": 20,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 5,
         "pool": 0
        },
        "truth": {
-        "near_gold": 14
+        "near_gold": 20
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 5,
         "pool": 0
        },
@@ -9871,23 +9964,28 @@
       },
       "payment_terms": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.095,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 21,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 21
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 8,
+        "dev": 14,
         "heldout": 5,
         "pool": 0
        },
@@ -9916,23 +10014,28 @@
       },
       "signatories": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 0.238,
+        "value": []
+       },
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 21,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 21
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 6,
+        "dev": 10,
         "heldout": 6,
         "pool": 0
        },
@@ -9964,20 +10067,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 14,
+       "labeled": 18,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 8,
+        "dev": 12,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 14
+        "near_gold": 18
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 6,
+        "dev": 9,
         "heldout": 3,
         "pool": 0
        },
@@ -9985,18 +10088,23 @@
       },
       "territory": {
        "dojo_status": "pending_annotation",
+       "dominant": {
+        "kind": "value",
+        "share": 1.0,
+        "value": null
+       },
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 15,
+       "labeled": 21,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 9,
+        "dev": 15,
         "heldout": 6,
         "pool": 0
        },
        "truth": {
-        "near_gold": 15
+        "near_gold": 21
        },
        "type": "free_text",
        "valued_by_set": {
@@ -10005,7 +10113,7 @@
         "heldout": 0,
         "pool": 0
        },
-       "verdict": "thin"
+       "verdict": "constant"
       }
      },
      "rows": 34,
@@ -10031,8 +10139,9 @@
       "Price Restrictions"
      ],
      "verdicts": {
+      "constant": 1,
       "no_truth": 2,
-      "thin": 17
+      "thin": 16
      }
     },
     "sponsorship": {
@@ -10066,20 +10175,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 2,
         "pool": 0
        },
@@ -10132,20 +10241,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 8,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
@@ -10198,20 +10307,20 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 10,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 7,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 10
        },
        "type": "date",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 1,
         "pool": 0
        },
@@ -10306,20 +10415,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 13,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 10,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 13
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 10,
         "heldout": 2,
         "pool": 0
        },
@@ -10330,20 +10439,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
@@ -10375,20 +10484,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "entity_list:name",
        "valued_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 7,
         "heldout": 2,
         "pool": 0
        },
@@ -10420,20 +10529,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 11,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 11
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 8,
         "heldout": 1,
         "pool": 0
        },
@@ -10444,20 +10553,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 12,
        "labeled_by_set": {
-        "calibration": 0,
-        "dev": 2,
+        "calibration": 1,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 0,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -10497,15 +10606,15 @@
        "effective_status": "scored",
        "guide": "date: The \"dated as of\" or signature date.",
        "in_output_schema": true,
-       "labeled": 3,
+       "labeled": 4,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 2,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 3
+        "near_gold": 4
        },
        "type": "date",
        "valued_by_set": {
@@ -10521,20 +10630,20 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 13,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 13
        },
        "type": "money",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -10587,20 +10696,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 11,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 11
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 5,
         "heldout": 0,
         "pool": 0
        },
@@ -10655,15 +10764,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 10,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 12
        },
        "type": "date",
        "valued_by_set": {
@@ -10765,20 +10874,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 13,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 11,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 13
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 11,
         "heldout": 2,
         "pool": 0
        },
@@ -10789,20 +10898,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 13,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 11,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 13
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 9,
         "heldout": 1,
         "pool": 0
        },
@@ -10834,20 +10943,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 10,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 9,
         "heldout": 2,
         "pool": 0
        },
@@ -10879,20 +10988,20 @@
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 9,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 7,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 9
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 2,
+        "dev": 6,
         "heldout": 1,
         "pool": 0
        },
@@ -10903,20 +11012,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 6,
+       "labeled": 12,
        "labeled_by_set": {
         "calibration": 0,
-        "dev": 4,
+        "dev": 10,
         "heldout": 2,
         "pool": 0
        },
        "truth": {
-        "near_gold": 6
+        "near_gold": 12
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 3,
+        "dev": 5,
         "heldout": 2,
         "pool": 0
        },
@@ -10986,21 +11095,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.625,
+        "share": 0.667,
         "value": null
        },
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 32,
+       "labeled": 36,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 32
+        "near_gold": 36
        },
        "type": "money",
        "valued_by_set": {
@@ -11057,26 +11166,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.781,
+        "share": 0.722,
         "value": null
        },
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 32,
+       "labeled": 36,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 32
+        "near_gold": 36
        },
        "type": "name",
        "valued_by_set": {
         "calibration": 2,
-        "dev": 4,
+        "dev": 7,
         "heldout": 1,
         "pool": 0
        },
@@ -11128,21 +11237,21 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.71,
+        "share": 0.735,
         "value": null
        },
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 31,
+       "labeled": 34,
        "labeled_by_set": {
         "calibration": 6,
-        "dev": 12,
+        "dev": 15,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 31
+        "near_gold": 34
        },
        "type": "date",
        "valued_by_set": {
@@ -11243,26 +11352,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "role",
-        "share": 0.843,
+        "share": 0.835,
         "value": "other"
        },
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 31,
+       "labeled": 35,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 12,
         "pool": 0
        },
        "truth": {
-        "near_gold": 31
+        "near_gold": 35
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 12,
         "pool": 0
        },
@@ -11272,26 +11381,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.25,
+        "share": 0.222,
         "value": null
        },
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 32,
+       "labeled": 36,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 32
+        "near_gold": 36
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 6,
-        "dev": 9,
+        "dev": 13,
         "heldout": 9,
         "pool": 0
        },
@@ -11322,26 +11431,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.226,
+        "share": 0.2,
         "value": []
        },
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 31,
+       "labeled": 35,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 11,
+        "dev": 15,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 31
+        "near_gold": 35
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 4,
-        "dev": 9,
+        "dev": 13,
         "heldout": 11,
         "pool": 0
        },
@@ -11372,26 +11481,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.75,
+        "share": 0.727,
         "value": null
        },
        "effective_status": "scored",
        "guide": "free text: Notice needed to terminate the contract or to stop a renewal, as stated.",
        "in_output_schema": true,
-       "labeled": 32,
+       "labeled": 33,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 13,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 32
+        "near_gold": 33
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 3,
-        "dev": 4,
+        "dev": 5,
         "heldout": 1,
         "pool": 0
        },
@@ -11401,26 +11510,26 @@
        "dojo_status": "pending_annotation",
        "dominant": {
         "kind": "value",
-        "share": 0.938,
+        "share": 0.889,
         "value": null
        },
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 32,
+       "labeled": 36,
        "labeled_by_set": {
         "calibration": 7,
-        "dev": 12,
+        "dev": 16,
         "heldout": 13,
         "pool": 0
        },
        "truth": {
-        "near_gold": 32
+        "near_gold": 36
        },
        "type": "free_text",
        "valued_by_set": {
         "calibration": 0,
-        "dev": 1,
+        "dev": 3,
         "heldout": 1,
         "pool": 0
        },
@@ -11487,15 +11596,15 @@
        "effective_status": "scored",
        "guide": "money (text): Monetary consideration as a plain dollar figure Dojo parses (\"$2,000,000\"): a scale word written out, no currency code, no rate (\"per month\"). $0 is a stated amount. Never computed.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 6
        },
        "type": "money",
        "valued_by_set": {
@@ -11553,20 +11662,20 @@
        "effective_status": "scored",
        "guide": "name: Courts or arbitral seat for disputes, kept separate from governing law.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 7
        },
        "type": "name",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -11619,15 +11728,15 @@
        "effective_status": "scored",
        "guide": "date: End of the initial term when the text states it as a date; else null.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 6,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 1,
+        "calibration": 4,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 6
        },
        "type": "date",
        "valued_by_set": {
@@ -11729,20 +11838,20 @@
        "effective_status": "scored",
        "guide": "list: One `\"<party>: <role>\"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 7
        },
        "type": "entity_list:free_text",
        "valued_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -11753,20 +11862,20 @@
        "effective_status": "scored",
        "guide": "free text: How and when the consideration is paid, as stated.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -11798,20 +11907,20 @@
        "effective_status": "scored",
        "guide": "list of names: Persons who sign the contract, as printed.",
        "in_output_schema": true,
-       "labeled": 5,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 4,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 5
+        "near_gold": 7
        },
        "type": "entity_list:name",
        "valued_by_set": {
         "calibration": 4,
-        "dev": 1,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -11867,20 +11976,20 @@
        "effective_status": "scored",
        "guide": "free text: The stated territory of the grant, distribution or service.",
        "in_output_schema": true,
-       "labeled": 4,
+       "labeled": 7,
        "labeled_by_set": {
-        "calibration": 3,
-        "dev": 1,
+        "calibration": 5,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
        "truth": {
-        "near_gold": 4
+        "near_gold": 7
        },
        "type": "free_text",
        "valued_by_set": {
-        "calibration": 1,
-        "dev": 1,
+        "calibration": 2,
+        "dev": 2,
         "heldout": 0,
         "pool": 0
        },
@@ -27128,7 +27237,7 @@
   "interim_overlay_sha256": "4e3a2857f85d28f726c251606b00e0b58f7904ea6c99c2dc510a12d9e62c6757",
   "labeling_guide_sha256": "847e229f6b32115649fc85cc3348b0063051e371fd3967e7bd73c1197a9c0bf4",
   "min_dev": 20,
-  "near_gold_overlay_sha256": "55704f04d7f1c85441d0aa6c6890dbe3508d55ed0db3090b64cb34ab3930b8d8",
+  "near_gold_overlay_sha256": "a612c2b7bcc1e94e5a4381a8d56a440bf41a16926500064482fe58f84a7da486",
   "split_assignments_sha256": "9fa6fa5b4c573656f09974b60b751450100c73c671ba5d69c8debaf67c7e6d9b"
  },
  "problems": [],

@@ -1,0 +1,258 @@
+{
+ "campaign": "v93-20261128-rc13-contract-full-slice",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "admitted": {
+  "phase3_contract_full_slice": {
+   "queue_cells": 1059,
+   "documents": 166,
+   "labels": 1018,
+   "populated": 621,
+   "documented_absence": 397,
+   "via_add": 990,
+   "via_add_missing_fields": 28,
+   "two_pass": 821,
+   "review": {
+    "accept": 150,
+    "accept_check": 44,
+    "correct": 3
+   },
+   "rejected": 28,
+   "left_out": 13,
+   "withheld_checks": 4
+  }
+ },
+ "files": {
+  "submissions/rc13-p3-disputes-w1.jsonl": {
+   "sha256": "cca99249e12d921242e5cbac8a0b13bc0c18633c559f4e2fad02e878ec871e09",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-disputes-w2a.jsonl": {
+   "sha256": "36ca4b573056f17b8ca1a05b41f492a72f6c7281d374cc64142df8e30ce4c145",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-disputes-w2b.jsonl": {
+   "sha256": "afa8e6f6d20235953db7b88fcee02f7db3eebc6c60b570f6ab01f628dfde12a6",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-field-briefs.md": {
+   "sha256": "e81dacf75028c6d2527be9da3055f014205dab36b348f57c039a1b9a090421fa",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g01-raw-check.jsonl": {
+   "sha256": "52380274a89b5bd06b39406fd9c08f80e610c94a7b08c35357f0d52eef38a66e",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g01-raw-label.jsonl": {
+   "sha256": "dfc94e3793a27f133e0c04aaec0bc44bb3b79452a8ff040c8d4276f3405790b8",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g02-raw-check.jsonl": {
+   "sha256": "ad06801b24d6b75b34ff0d7a2d97e6cd2f8abe610aa3544524d8c6ee02bf66bd",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g02-raw-label.jsonl": {
+   "sha256": "7eb4742cd0e4a43681f81deaba2a85ed71aef0373ffad4e77f275c44df023d9f",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g03-raw-check.jsonl": {
+   "sha256": "1d234c368836c731bbf10553df91e9d5ce2706d57b15296507d2d577a93978e4",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g03-raw-label.jsonl": {
+   "sha256": "ca90a429ec9d361b1d089d08c1e57b501a4ee9af2a9d4108f64056207a3c2d2d",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g04-raw-check.jsonl": {
+   "sha256": "d60ea53be7be7c7982e0e72785d9da742b66f885161ec7acfeb79101056012af",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g04-raw-label.jsonl": {
+   "sha256": "f4aef8b62d4473bdb4329d5a3f7657a472cf0748efcf47335893581b04e61109",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g05-raw-check.jsonl": {
+   "sha256": "9aed7ed90e8189baa7d303378c4bb46fd20832ebd11961e284193214dbd3b24f",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g05-raw-label.jsonl": {
+   "sha256": "4e5f009dc978b9e76946348903b448708c966ff1a6d79875f3b30c0663b0bb28",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g06-raw-check.jsonl": {
+   "sha256": "0fb9267d931502ca78b87b6b0864d2a158c583c4f2773322f02970d614af9da7",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g06-raw-label.jsonl": {
+   "sha256": "2817bcd3eda0c95c1ac3ec08ecf19b1ca95f0aed560b8025b2412354add12ec5",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g07-raw-check.jsonl": {
+   "sha256": "5a7fe5e25ea9b89ee7014574293a8a8e5d22eefb2a11b187b2eb7d238d4a57bc",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g07-raw-label.jsonl": {
+   "sha256": "5ca13380bb897474f73fe3e43705d15720128655a03769984767f8151283131f",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g08-raw-check.jsonl": {
+   "sha256": "49b57d4c751d393b29f5b4cf995d5dcc27ee887a8b330a6f33e8178546047bca",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g08-raw-label.jsonl": {
+   "sha256": "b18c8cb7ae33576d44d39bc36f436bb9b327fd66e83fff1637003d88233b5cf5",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g09-raw-check.jsonl": {
+   "sha256": "b9a4c1ae7b61e1170a6b18ef44e525e2dbbcfb72ff1dcce763a05c185b7ed44a",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g09-raw-label.jsonl": {
+   "sha256": "d834eeb42a3465fbeb99cb612de08d3513744585b5dd65ab28b4ce60524d4e0b",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g10-raw-check.jsonl": {
+   "sha256": "9d70a5fb75748851cd8833c48a7f480d4e1754eaff7f5998bbd935639cc959e9",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g10-raw-label.jsonl": {
+   "sha256": "7186355d9b11d0b2c44788bd105cba9c57441742314e32e5f670ba2ab4eb6cad",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g11-raw-check.jsonl": {
+   "sha256": "05eafb8f986e5c314bd71dc6c1c3f137432178c0478608ebd238cab0fecab301",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g11-raw-label.jsonl": {
+   "sha256": "23be95993954791a8aa7f5c76dcc3e483dbd4f74b8617fe0609433be8b22e53d",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g12-raw-check.jsonl": {
+   "sha256": "9081fb990667cf6f7ea0b163fd1bced48c30dda626fb36c976130e9a04394047",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g12-raw-label.jsonl": {
+   "sha256": "af37e54844a23766e211121a76718214b46d3c399fa0e878c70ccac69bdf156b",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g13-raw-check.jsonl": {
+   "sha256": "9b06b36de2ce97a2da01f2e6825dd746ad1609a2ee36505435b60284cc66c10b",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g13-raw-label.jsonl": {
+   "sha256": "33b2fe7280f2a9a1e6f9a995d20155a80162d2fbb28f7703ab7c35e450c8beaa",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g14-raw-check.jsonl": {
+   "sha256": "dcd9b1bc43e074548cce219ad9ffbdf103ec2bc4d640036122ee5c8f69be57be",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g14-raw-label.jsonl": {
+   "sha256": "555b18c0a3eb9a0cdb891461a83b480341904912726ddb246bbbd1c17f1dd97c",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g15-raw-check.jsonl": {
+   "sha256": "bc0a6e62af4013884134278b39788fd1f4acc7be8ab78bdc29a341b7aaa5dd48",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g15-raw-label.jsonl": {
+   "sha256": "a5cf9984c9be563a28b7cbefd71293cf9d8808970acc571ac1b41c3cd5bf798e",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g16-raw-check.jsonl": {
+   "sha256": "980cb37c09d8be02beda11fa88e9cd38be4bcee3540a0852734b793d2dda8491",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g16-raw-label.jsonl": {
+   "sha256": "9dc316a34586a35877a6cb61922241966103482bf06af4b181c2a4af1d20e95d",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g17-raw-check.jsonl": {
+   "sha256": "d8ddc4ff3b9d55e814cc9f34208fb49e636239678b5f45a6f93f3faaf19d0a21",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g17-raw-label.jsonl": {
+   "sha256": "28e5c4029b41aa745658b69ac6b26fd6468a785ae9508225996f6fa9b4ad3ba9",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g18-raw-check.jsonl": {
+   "sha256": "67cd9d9a39b4f4ec01779ab837a82ed6ca898c76aede8a9d933d1877908b015e",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g18-raw-label.jsonl": {
+   "sha256": "c7cdcadd910b9bf154fd41e9ae4afa0adbf926142e1dae2f7e06b0ba83d1ba2c",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g19-raw-check.jsonl": {
+   "sha256": "59a531031c4306843d45c8353a5e2dc77424fc008b21a50a0feadeed082cd907",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-g19-raw-label.jsonl": {
+   "sha256": "72c206b5eac06b39f38fc3b7ab919f9611e8bafb9071bc3d9939447587840c5e",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-mf-check.jsonl": {
+   "sha256": "815a8b2180b26a2e69896d11ffa0428506a9be66ccf60f034cc847a69a15d9a4",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-mf-label.jsonl": {
+   "sha256": "3ff060ea9037d34dacc8a673c7895aff4e38f886385bcef07857abc7b3eb9c7d",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-mf-review.jsonl": {
+   "sha256": "39d1cf57cb6ddf04ef199bd58ec9109e0a249819726295bdffa6cf9268cd65fe",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-new-check.jsonl": {
+   "sha256": "5cdd978f363f8102d9d5f03103aaa613ffa6d7f4979ad3916273bcc23ee502e5",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-new-label.jsonl": {
+   "sha256": "a1639aef27096ce92fcfbd9e0040b4a476abc30674720293820297d3b7f503a1",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-new-review.jsonl": {
+   "sha256": "7a9af93433ffbbf9e2dc74787844fdacb99fb05e2d71eafec4ee843000c08fa9",
+   "admission_input": true
+  },
+  "submissions/rc13-p3-pass-brief.md": {
+   "sha256": "4e10b797be9facef7692af8439fe62258df14956db77e9409fbce46c0c95a073",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-queue.jsonl": {
+   "sha256": "fc65269903bddc89d447ec91c4686b9c1ff3c12525e15962d36e14ce6f15c0f7",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w1.jsonl": {
+   "sha256": "70c6b983692d51d184a5d352128f7ac784270326e6354b136f5678713173ebef",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w2a.jsonl": {
+   "sha256": "e2887743e4dc75cc9bee4def40cc115b4019ec5c39f298466423eb4a6bc96741",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w2b.jsonl": {
+   "sha256": "6228068f0d48232115c17d69c5efe66a1c1361fd186c1beaefa75199d8cf84ce",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w3-lowconf.jsonl": {
+   "sha256": "318af16ca8a3e92734db0d4e2354df4acf7785ba738e8d29dcfc5856e127c422",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w3-twin.jsonl": {
+   "sha256": "7f57388b5a136f437bcdac18413ec37beec71e5869dc21cba4d71d1e005428d7",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-raw-review-w3-withheld.jsonl": {
+   "sha256": "4b689f8d6d274013be9c369303bca242b2f45ead6923578b02ff6ecb9131463f",
+   "admission_input": false
+  },
+  "submissions/rc13-p3-withheld-check.jsonl": {
+   "sha256": "d3705b6fbdc4ab45c80d2fba16d4f16c325a2f5fc35890846f2518ecc6cbd47c",
+   "admission_input": false
+  },
+  "README.md": {
+   "sha256": "9926147de462e463ea4c078c42170bd8e0d0294954740d5023f9028f45dfa63b",
+   "admission_input": false
+  }
+ }
+}
