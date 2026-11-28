@@ -22,7 +22,7 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `interim_audit.jsonl` | One verdict per interim truth label (2,682 labels), with the recommended fix. |
 | `INTERIM_AUDIT.md` | The interim truth audit: results by stratum, the classes with no gold catalog, and the integration steps. |
 | `decisions.jsonl` | The review as `scripts/gold_labels.py review` lines for the correspondence and corporate-record catalogs: 3,088 `accept` (each names the current value) and 216 `correct` (each passes the gate). Applied. See below. |
-| `decisions_supersede.jsonl` | 11 `correct` lines for records an earlier review had settled; each names that review in `supersedes`. Applied. |
+| `decisions_supersede.jsonl` | 12 `correct` lines for records an earlier review had settled; each names that review in `supersedes`. Applied. 11 come from the 2026-11-18 review; 1, an indenture's `jurisdiction`, comes from the [2026-11-28 administrative review](../repair-artifacts/v93-20261128-held-absence-fable-review/README.md). |
 | `decisions_held.jsonl` | The reviewed label that could not become a decision (1 of the original 10), with the reason. |
 | `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
 | `interim_reviews.jsonl` | Reviewed interim labels that `scripts/interim_labels.py review` writes into `data/labels/interim/`: 55 correspondence `intent` corrections of wrong Hub values, 1,795 correspondence header fields read from the original email and 44 corporate `entity_name` corrections. See below. |

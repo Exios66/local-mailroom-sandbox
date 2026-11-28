@@ -36,7 +36,7 @@ corporate_record,holder,50,0,21,10,11,29,0,0.0,0.42,0,0,near_gold_two_pass
 corporate_record,incorporators,73,0,27,9,18,46,0,0.0,0.3699,0,0,near_gold_two_pass
 corporate_record,instrument_kind,50,0,21,20,1,29,0,0.0,0.42,0,0,near_gold_two_pass
 corporate_record,intent,450,450,450,450,0,0,0,1.0,1.0,0,0,hub_v9.3
-corporate_record,jurisdiction,450,0,415,372,43,35,0,0.0,0.9222,5,1,near_gold_reviewed
+corporate_record,jurisdiction,450,0,415,373,42,35,0,0.0,0.9222,5,0,near_gold_reviewed
 corporate_record,keywords,450,450,450,450,0,0,0,1.0,1.0,0,0,hub_v9.3
 corporate_record,last_amended_date,45,0,20,11,9,25,0,0.0,0.4444,0,0,near_gold_two_pass
 corporate_record,maturity_date,57,0,20,2,18,37,0,0.0,0.3509,0,0,near_gold_two_pass
