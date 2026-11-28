@@ -51,7 +51,9 @@ null value. The command was:
 scripts/gold_labels.py review --corpus <pinned corpus dir> --review review.jsonl
 ```
 
-It admitted one `correct` record.
+It admitted one `correct` record. The same line is in
+[`decisions_supersede.jsonl`](../../review/decisions_supersede.jsonl), because it replaces a review
+that `decisions.jsonl` had settled, so a full catalog rebuild keeps it.
 
 The 22 standing absences are not re-recorded. In the release, a reviewed absence over a populated
 value stays `needs_human` until an `owner_review` clears it, and a machine vote cannot. Instead,
