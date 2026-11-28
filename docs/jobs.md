@@ -13,7 +13,7 @@ data/runtime/runs/<run_id>/
 ├── spec.lock.json       # immutable preflight manifest (the commit point)
 ├── prompt.lock.json     # per-agent resolved prompt + sha256 / Langfuse version
 ├── dataset.jsonl        # prepared subset (byte-identical per spec; hashed)
-├── items.jsonl          # append-only per-item results (progress truth)
+├── items.jsonl          # per-item results, appended (progress truth); a resume atomically rewrites it to replace an error row
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
 ├── reads.jsonl          # pipeline runs: one offsets-only record per LLM call (job.trace_reads)
