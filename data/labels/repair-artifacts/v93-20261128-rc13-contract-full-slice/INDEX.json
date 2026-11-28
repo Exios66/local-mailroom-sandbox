@@ -246,13 +246,24 @@
    "sha256": "4b689f8d6d274013be9c369303bca242b2f45ead6923578b02ff6ecb9131463f",
    "admission_input": false
   },
+  "submissions/rc13-p3-stage-review-corrections.jsonl": {
+   "sha256": "daba88d444926fe73e260faed44c5a3312f8b0fed33da9ba68caf554ed895fd9",
+   "admission_input": false
+  },
   "submissions/rc13-p3-withheld-check.jsonl": {
    "sha256": "d3705b6fbdc4ab45c80d2fba16d4f16c325a2f5fc35890846f2518ecc6cbd47c",
    "admission_input": false
   },
   "README.md": {
-   "sha256": "9926147de462e463ea4c078c42170bd8e0d0294954740d5023f9028f45dfa63b",
+   "sha256": "8c5e427dd2539ff7c746f73e76ca8766fc0b0999a3ecc5c4a536f144c6dbd207",
    "admission_input": false
   }
+ },
+ "post_admission_review": {
+  "file": "submissions/rc13-p3-stage-review-corrections.jsonl",
+  "verdicts": {
+   "correct": 3
+  },
+  "read_by": "gold_labels.py review"
  }
 }

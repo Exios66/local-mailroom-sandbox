@@ -138,6 +138,26 @@ No pass gave a value that could be admitted:
   `expiration_date` and `party_roles`, contract `service` `territory`) that move from `thin` to
   `constant`.
 
+## Corrections from the dry-run stage
+
+A dry-run stage of `9.3.1-rc.13` against rc.12 removes no cell, adds 1,016 and changes 3. The 3
+are `termination_notice_period` cells that rc.12 filled from the assist upload ("at least 30
+days"), where the round's accepted wording had dropped the clause's "at least". A post-admission
+review
+([`submissions/rc13-p3-stage-review-corrections.jsonl`](submissions/rc13-p3-stage-review-corrections.jsonl),
+applied with `gold_labels.py review`) restores the operator on all three:
+
+- `DOC-3ce2fb9a704b18e6` and `DOC-b830544e6b1bc115`: "At least 30 days' notice of non-renewal before
+  the end of the term; …".
+- `DOC-d752cdcdcbe803e8`: "At least Thirty (30) business days written notice of intention to
+  withdraw".
+
+The stager still queued the first two, because `assist_notice_terms` kept only the last operator it
+saw for a period and the cure clause's exact "30 days" hid the "at least". It now counts every
+operator the builder value states. With both changes, the dry-run `needs_human.csv` goes from 214
+to 206 rows: the same-text `authorized_capital` pair and six earlier rows with the same false
+positive close, none opens, and no cell value changes because of the stager fix.
+
 ## Files
 
 `INDEX.json` lists every file with its sha256 and whether `gold_labels.py add` read it.
@@ -161,6 +181,7 @@ scripts/gold_labels.py add --corpus <dir> --revision ff4ca546… --label rc13-p3
 scripts/gold_labels.py add --corpus <dir> --revision ff4ca546… --label rc13-p3-new-label.jsonl --check rc13-p3-new-check.jsonl --review rc13-p3-new-review.jsonl
 scripts/gold_labels.py check
 scripts/gold_labels.py overlay
+scripts/gold_labels.py review --corpus <dir> --review rc13-p3-stage-review-corrections.jsonl
 ```
 
 These are machine near-gold labels, not human gold. Reviews name their reviewer
