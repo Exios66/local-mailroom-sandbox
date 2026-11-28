@@ -2061,10 +2061,16 @@ HOTFIXES: tuple[Hotfix, ...] = (
         attr="decide_route",
         source_sha256="8237ef5be5e6b88376931695301b42eceaf6beac507b0830611d837d5fa7b821",
         upstream="sandbox-only (phase 2 loop governor; upstream issue to be filed with the pilot's results)",
-        summary="with job.governor set, a route that would add a round (a retry, an arbiter call, a "
-                "boss entry) past the document's retry, call or spend budget goes to human review, or "
-                "to the archive when the current extraction passed the judge; L2 sends a sorter retry "
-                "at the measured sorter ceiling to the second opinion instead",
+        summary="with job.governor set, a route that would add a counted round (a retry or a boss "
+                "entry; an arbiter ruling only once the judge has already passed, except in "
+                "judge mode correct) past the document's "
+                "retry, call or spend budget goes to human review, or to the archive when the current "
+                "extraction passed the judge; an arbiter ruling on an extraction the judge has not "
+                "passed is not a counted round, and call and spend budgets still stop that ruling "
+                "except in judge mode correct, where the pass-through arbiter makes no model call "
+                "and returns before those checks; "
+                "L2 sends a sorter retry at the measured sorter ceiling "
+                "to the second opinion instead",
         install=_install_governor,
     ),
     Hotfix(

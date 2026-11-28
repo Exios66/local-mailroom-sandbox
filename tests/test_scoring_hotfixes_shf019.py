@@ -250,7 +250,21 @@ def test_every_scoring_hotfix_data_file_is_bundled_in_the_modal_worker():
     from pathlib import Path
 
     source = (Path(__file__).resolve().parents[1] / "deploy" / "modal_job.py").read_text(encoding="utf-8")
-    files = {t[len(sh.FILE_TARGET):] for fix in sh.HOTFIXES for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)}
+    files = {t[len(sh.FILE_TARGET):].partition("#")[0]
+             for fix in sh.HOTFIXES for t, _ in fix.targets if t.startswith(sh.FILE_TARGET)}
     assert files
-    missing = sorted(rel for rel in files if f'remote_path=f"{{SANDBOX_ROOT}}/{rel}"' not in source)
+
+    def bundled(rel: str) -> bool:
+        # A file mount, or a directory mount of the file or one of its parents. The config tree,
+        # including SHF-018's field list, is one directory mount.
+        if f'remote_path=f"{{SANDBOX_ROOT}}/{rel}"' in source:
+            return True
+        parent = rel
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            if f'remote_path=f"{{SANDBOX_ROOT}}/{parent}"' in source:
+                return True
+        return False
+
+    missing = sorted(rel for rel in files if not bundled(rel))
     assert missing == []
