@@ -300,7 +300,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-016",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "58a46935f75805f9b6da6475982e169e1efd01e5fa8ced2e32acf0aa6c660165"),
+            ("mailroom_sandbox.eval.scoring:_score_extraction_row_once", "53c2bc285b54ae48926fa1f9acf790e949cb36cc174dfcfa5f6cfea5f628b655"),
             # the Dojo reader decides the row's labeled universe; a refresh that changes it
             # makes the fix stale
             ("llm_dojo_scoring.pipeline.sandbox_scoring:gt_categories", "fe6ed3ae11a363c4da325c197442db393bbc052bb6ec3707cd1b263d48feb716"),
@@ -1190,9 +1190,9 @@ def aggregate_extraction(rows: Sequence[Mapping[str, Any] | None]) -> dict[str, 
         fn = sum(int(r["fn"]) for r in counted)
         out["extraction_tp"], out["extraction_fp"], out["extraction_fn"] = tp, fp, fn
         out["extraction_counts_n"] = len(counted)
-        # The Dojo's suite scorers (insurance_claim, contract, ...) return P/R/F1 without event
-        # counts, so a micro F1 over the rows that do carry counts would silently cover only some
-        # documents. It is reported only when every scored row is counted; the per-document mean
+        # Some Dojo suite paths (contract's CUAD headline, correspondence) return P/R/F1 without
+        # event counts, so a micro F1 over the rows that do carry counts would silently cover only
+        # some documents. It is reported only when every scored row is counted; the per-document mean
         # (extraction_f1_mean) is the headline otherwise.
         if len(counted) == len(scored):
             p = tp / (tp + fp) if tp + fp else 0.0

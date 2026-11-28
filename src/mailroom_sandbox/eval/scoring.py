@@ -195,6 +195,32 @@ def score_extraction_row(
     return out
 
 
+def _detailed_event_counts(result: Mapping[str, Any], extraction_obj: Any, expected: Mapping[str, Any],
+                           predicted: Mapping[str, Any], field_types: Mapping[str, str], doc_type: str,
+                           doc_text: str | None) -> dict[str, int]:
+    """``tp``/``fp``/``fn`` for a detailed (subclass-aware) suite result that carries none.
+
+    The detailed payload holds the P/R/F1 but no event counts, so the same row scored with its
+    subclass lost the counts it had without one, and a run-level micro F1 then covered only some
+    rows. The counts come from the result object the suite already returned, and are kept only
+    when their F1 matches the suite's own ``extraction_f1``: counts that disagree are dropped.
+    """
+    if any(k in result for k in ("tp", "fp", "fn")) or not hasattr(extraction_obj, "__dict__"):
+        return {}
+    try:
+        prf = extraction_binary_metrics(expected, predicted, field_map=field_types, doc_class=doc_type,
+                                        result=extraction_obj, doc_text=doc_text)
+    except Exception:  # noqa: BLE001 - counts are optional; the scores above stand without them
+        return {}
+    counts = {k: prf.get(k) for k in ("tp", "fp", "fn")}
+    if not all(isinstance(v, int) for v in counts.values()):
+        return {}
+    suite_f1 = result.get("extraction_f1")
+    if suite_f1 is None or prf.get("extraction_f1") is None or abs(float(prf["extraction_f1"]) - float(suite_f1)) > 1e-9:
+        return {}
+    return counts
+
+
 def _score_extraction_row_once(
     doc_type: str,
     predicted: dict,
@@ -352,6 +378,8 @@ def _score_extraction_row_once(
         for key in _EXTRACT_PRF_KEYS + ("tp", "fp", "fn"):
             if key in result:
                 payload[key] = result[key]
+        payload.update(_detailed_event_counts(result, extraction_obj, expected, predicted, field_types,
+                                              doc_type, doc_text))
     if isinstance(result, dict) and result.get("unlabeled_fields") is not None:
         # The dojo's per-row presence contract, verbatim: the unlabeled
         # key-entity fields this row scored (or none).

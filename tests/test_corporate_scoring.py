@@ -253,3 +253,21 @@ def test_non_subclass_paths_are_unchanged():
     assert corporate["extraction_recall"] == 1.0
     assert corporate["extraction_f1"] == 1.0
     assert corporate["overall_extraction_score"] == 1.0
+
+
+def test_a_subclass_keeps_the_event_counts_without_a_corpus_cache():
+    """The comparability pin above skips without the corpus cache (as in CI); this one never does.
+
+    An insurance row scored with its subclass took the detailed suite path, which carries P/R/F1
+    but no ``tp``/``fp``/``fn``, so the counts it had without the subclass vanished and a run's
+    micro F1 covered only some rows.
+    """
+    expected = {"claim_number": "CLM-000001", "claim_type": "auto", "insurer": "Acme Mutual",
+                "insured_party": "Jo Smith", "date_of_loss": "2024-11-11", "adjuster": "CASEY E."}
+    predicted = {**expected, "adjuster": "C. Evans"}
+    with_sub = score_extraction_row("insurance_claim", dict(predicted), dict(expected), expected_subclass="auto")
+    without = score_extraction_row("insurance_claim", dict(predicted), dict(expected))
+    counts = {k: without.get(k) for k in ("tp", "fp", "fn")}
+    assert all(isinstance(v, int) for v in counts.values())
+    assert {k: with_sub.get(k) for k in counts} == counts
+    assert with_sub["overall_extraction_score"] == without["overall_extraction_score"]
