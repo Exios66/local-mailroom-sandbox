@@ -140,6 +140,32 @@ def _isolated_run_ledger(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_experiment_log(tmp_path, monkeypatch):
+    """Evals run in tests must not append to the real reports/experiment_log.jsonl.
+
+    A test that drives a non-mock eval with fakes wrote a record marked ``mock: False`` there, which a
+    later reader could take for a live result (critical regression 8). Only the checkout's own
+    ``reports/`` is redirected: a test that points ``SANDBOX_ROOT`` at a temporary tree keeps its log
+    there, where its fake workers look for it. Child interpreters are not covered.
+    """
+    from mailroom_sandbox import paths
+    from mailroom_sandbox.eval import experiment_log
+
+    real_reports = (repo_root() / "reports").resolve()
+    original_jsonl, original_md = experiment_log.jsonl_path, experiment_log.md_path
+
+    def _redirect(original, name):
+        def path() -> Path:
+            if paths.reports_dir().resolve() == real_reports:
+                return tmp_path / "_experiment_log" / name
+            return original()
+        return path
+
+    monkeypatch.setattr(experiment_log, "jsonl_path", _redirect(original_jsonl, "experiment_log.jsonl"))
+    monkeypatch.setattr(experiment_log, "md_path", _redirect(original_md, "experiment_log.md"))
+
+
+@pytest.fixture(autouse=True)
 def _isolated_beacon_dir(tmp_path, monkeypatch):
     """Runs started in tests publish mailroom beacons — keep them out of ~/.mailroom/jobs."""
     monkeypatch.setenv("MAILROOM_BEACON_DIR", str(tmp_path / "_beacons"))
