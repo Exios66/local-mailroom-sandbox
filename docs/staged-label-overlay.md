@@ -11,17 +11,19 @@ central cache, so every deployment scores against the same labels.
 ```yaml
 dataset:
   name: family-corpus            # Hub v9.3 (ff4ca546); the overlay is a delta against it
-  staged_overlay: 9.3.1-rc.10    # a version pinned in config/staged_overlays.yaml
+  staged_overlay: 9.3.1-rc.11    # a version pinned in config/staged_overlays.yaml
 ```
 
 Pull the pinned cut before preparing the dataset. This needs GitHub network access but involves
 no spend:
 
 ```bash
-python scripts/pull_staged_overlay.py --version 9.3.1-rc.10
+python scripts/pull_staged_overlay.py --version 9.3.1-rc.11
 ```
 
-**New production slice preparations select `9.3.1-rc.10`.** The cache PR
+**New production slice preparations select `9.3.1-rc.11`** (owner, 2026-11-28). Its history follows.
+
+**`9.3.1-rc.10` was selected first.** The cache PR
 [mailroom-issues #253](https://github.com/LLM-Mailroom-Services/mailroom-issues/pull/253)
 landed on 2026-11-26 as merge commit `acd2133ae615e77b521422b8fdba3fa097e87762`;
 its pinned source `cfc351f6` remains reachable from main. All sixteen manifest-bound files
@@ -34,11 +36,16 @@ Existing run locks retain their approved cut. Resume must refuse a changed confi
 start a deliberately new preparation generation to use rc.10 rather than editing a frozen lock.
 The later corporate repair and notebook in sandbox #425 are outside this immutable cut.
 
-**`9.3.1-rc.11` is staged and pinned, and slices do not select it yet.** It is cut from the
-label-repaired release at sandbox `0e083b71` (#453) and carries the corporate subclass fields.
-Its pinned commit `2873354a` is on the mailroom-issues branch `stage-v9.3.1-rc.11`, and a fresh
-pull verifies against the pin. As with rc.10, the production slice configs move to it together,
-once the cache PR lands on mailroom-issues main with that commit kept reachable.
+**`9.3.1-rc.11` is selected by the seven production slice configs, their test and these
+instructions** (owner, 2026-11-28). It is cut from the label-repaired release at sandbox `0e083b71`
+(#453) and carries the corporate subclass fields. Its cache PR, mailroom-issues #254, merged with a
+merge commit (`21854c61`), so the pinned commit `2873354a` is reachable from mailroom-issues main,
+and a fresh pull verifies against the pin. Every slice (100, 250, 500 and full) draws the same
+documents, in the same order, under rc.10 and rc.11; only the truth they are scored against
+changes. Existing run locks keep rc.10. One known label defect is in this immutable cut: the
+`subsidiaries` value of `DOC-91af5bdd6f0ad4bb` lists `Motor Cargo` next to `Motor Cargo
+Industries, Inc.`, a truncated copy of the same mention. Its correction belongs in the sandbox
+near-gold catalog and ships in a later `rc.N`; the cut is never edited in place.
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
@@ -91,9 +98,8 @@ python scripts/pull_staged_overlay.py --import rc-latest.tar.gz            # in 
 
 - **`--latest`** is the most recent version pinned in `config/staged_overlays.yaml` (highest
   `X.Y.P-rc.N`). It never reaches past the pins, and it does not change which cut a run selects:
-  a run still names its `dataset.staged_overlay` version. Production slices select `9.3.1-rc.10`
-  while the latest pin is `9.3.1-rc.11`, so a checkout that runs them needs `--version 9.3.1-rc.10`
-  too.
+  a run still names its `dataset.staged_overlay` version. Production slices select `9.3.1-rc.11`,
+  which is also the latest pin; a later pin would not move them.
 - **`--export FILE`** writes the verified cut's `MANIFEST.json` and exactly the files it pins as a
   deterministic `.tar.gz`, laid out relative to the cache root (about 7 MB per cut). It refuses a
   cache that does not match the pin.

@@ -53,8 +53,8 @@ dataset:
   task_gt_min_field_labels: 2
   # Staged v10 label repairs from mailroom-issues mailroom_cache (pinned in config/staged_overlays.yaml):
   # the merged Hub + interim + near-gold + reviewed master, so it replaces interim_labels / near_gold_labels.
-  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.10 (docs/staged-label-overlay.md).
-  staged_overlay: 9.3.1-rc.10
+  # Pull it first: python scripts/pull_staged_overlay.py --version 9.3.1-rc.11 (docs/staged-label-overlay.md).
+  staged_overlay: 9.3.1-rc.11
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
   draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 
