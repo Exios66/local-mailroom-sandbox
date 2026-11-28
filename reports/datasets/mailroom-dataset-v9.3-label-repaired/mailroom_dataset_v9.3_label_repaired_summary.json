@@ -101,7 +101,7 @@
     }
   },
   "inputs_sha256": {
-    "config/extraction/subclass_schemas.json": "28bcc7bb12b8114b429d20e1634a4d320a0914b1c3bfc4440602c7fe30652e49",
+    "config/extraction/subclass_schemas.json": "3bb856ebfd115fcdc1baf7048b3ef14588ccf87175089b09f3f4367da397157d",
     "data/cache/Lucius-Morningstar__mailroom-dataset__ff4ca546d434/ground_truth_all.jsonl": "8a5f0ce26067cef4fa958f5aa53035d6dbd63d0eba9455b3c1f8b5ab509ad45f",
     "data/labels/gold-overlay/contract.jsonl": "0e76325926cf838cb1fbae77a6c1d20a6c26f72fd783d2e415a44414e96a6b6e",
     "data/labels/gold-overlay/corporate_record.jsonl": "801f5ebce87f848237c350d792b8c64049bc61dac930af439c954c7122ea1e5e",

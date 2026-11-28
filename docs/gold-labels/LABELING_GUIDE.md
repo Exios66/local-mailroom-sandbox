@@ -4,6 +4,9 @@ This guide is for the agents that write gold labels for `scripts/gold_labels.py`
 labeler's whole brief. Anything this guide does not cover goes in `supplementary`, never in a
 label.
 
+The [near-gold label playbook](NEAR_GOLD_PLAYBOOK.md) covers the round around this guide:
+picking targets, dispatching passes, review, admission and advancing labels into production.
+
 ## Ground rules
 
 1. **The document's extraction schema comes first.** Each field means exactly what the

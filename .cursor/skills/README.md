@@ -14,6 +14,7 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |
 | [apache-phoenix](apache-phoenix/SKILL.md) | Optional Phoenix sidecar |
 | [braintrust](braintrust/SKILL.md) | Opt-in hosted Braintrust |
+| [near-gold-labels](near-gold-labels/SKILL.md) | Label expansion and repair: coverage EDA, next targets, two-pass rounds, review, admission, release rebuild and staged cuts |
 | [huggingface](huggingface/SKILL.md) | Pinned Hub pulls / weights, offline draws, named datasets and floor sample provenance |
 
 For datasets and floor demos, start with the router, then the Hugging Face
