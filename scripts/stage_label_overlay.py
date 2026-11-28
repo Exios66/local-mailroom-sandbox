@@ -456,9 +456,15 @@ def _field_types() -> dict[str, dict[str, str]]:
     from mailroom_sandbox import dojo_source
 
     dojo_source.choose()
+    from llm_dojo_scoring.schemas.corporate_record_schema import all_entity_field_types
     from llm_dojo_scoring.schemas.doc_classes import DOC_CLASSES
 
-    return {k: dict(v.fields) for k, v in DOC_CLASSES.items()}
+    types = {k: dict(v.fields) for k, v in DOC_CLASSES.items()}
+    # Corporate subclass fields (trustee, maturity_date, guarantors, ...) get the date, name and
+    # list checks the core fields get; a core field keeps its own type.
+    for key, typ in all_entity_field_types().items():
+        types.setdefault("corporate_record", {}).setdefault(key, typ)
+    return types
 
 
 def _canonical_family(value: str) -> str:
