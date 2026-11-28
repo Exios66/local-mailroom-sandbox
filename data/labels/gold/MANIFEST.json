@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-28T00:43:03Z",
+  "added_at": "2026-11-28T02:30:18Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -597,6 +597,124 @@
           "review-new.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-28T02:22:11Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-01ccf3f1ee5f4163",
+        "DOC-0d28ca4c116b9f53",
+        "DOC-0f56fe8db6df01bd",
+        "DOC-1466ddd1ae9552c9",
+        "DOC-15b2776e13be1937",
+        "DOC-18f2fafa6d8fd491",
+        "DOC-18f682a3054d35c5",
+        "DOC-1e0470c03b023106",
+        "DOC-1fe073843dcc9442",
+        "DOC-278e39709bbe0bbb",
+        "DOC-38299719f1d12a37",
+        "DOC-38756affd90a385b",
+        "DOC-3c328f7374a079a9",
+        "DOC-3d7992cfa538714f",
+        "DOC-3e9b00fd9e50b5ff",
+        "DOC-4afb96e7104c4749",
+        "DOC-565a3f2fcfc0e5e7",
+        "DOC-59d072355f2c3b14",
+        "DOC-5b1eea04e582267d",
+        "DOC-64af9a1b82bf5de2",
+        "DOC-66fe097617455eab",
+        "DOC-71cf2ff8c71b30bf",
+        "DOC-7ca9eefc5f17d24f",
+        "DOC-7eb0c4c573a4595d",
+        "DOC-8141c160f2a4e857",
+        "DOC-866139125545b36a",
+        "DOC-8663fca594565055",
+        "DOC-8b274b59154c5b8b",
+        "DOC-8de72b7f93fda86c",
+        "DOC-97026ccc70122f7d",
+        "DOC-9cd96711a8928ec5",
+        "DOC-a080b8e1385861cc",
+        "DOC-a3bfd04e2912c3c9",
+        "DOC-a926723684dcdf69",
+        "DOC-b152fb9e1eedb88f",
+        "DOC-b66115ae2d9d928e",
+        "DOC-b865a8f75657643a",
+        "DOC-b9ecdcc4fa704b67",
+        "DOC-bfff7510c78d4d98",
+        "DOC-c4c9c37a96291975",
+        "DOC-c85fadd4401ec219",
+        "DOC-c9fa372f38de2b5e",
+        "DOC-ce2e65d67f477467",
+        "DOC-ceb3f2b773c75bcd",
+        "DOC-d0c4e19a245f71a3",
+        "DOC-d2969f9629acc901",
+        "DOC-d50133030490ea0a",
+        "DOC-db84eb3d59faee66",
+        "DOC-e366f6c8f425cd09",
+        "DOC-e39b3b2a028df250",
+        "DOC-ea4b0e70dc4677d1",
+        "DOC-eddadfdce97ac02e",
+        "DOC-f217dc5aa6f34cb2",
+        "DOC-f2a8c5dab035b0ed",
+        "DOC-fbb29b5d08243134",
+        "DOC-fbcdd16e24f143ac"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "corp-gate-dev-gA-check.jsonl",
+          "corp-gate-dev-gB-check.jsonl",
+          "corp-gate-dev-gC-check.jsonl",
+          "corp-gate-dev-gD-check.jsonl"
+        ],
+        "label": [
+          "corp-gate-dev-gA-label.jsonl",
+          "corp-gate-dev-gB-label.jsonl",
+          "corp-gate-dev-gC-label.jsonl",
+          "corp-gate-dev-gD-label.jsonl"
+        ],
+        "review": [
+          "corp-gate-dev-review.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T02:30:18Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-732b812b7d9d9653",
+        "DOC-7ffe745a67032ac5"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "corp-gate-dev-gE-check.jsonl"
+        ],
+        "label": [
+          "corp-gate-dev-gE-label.jsonl"
+        ],
+        "review": [
+          "corp-gate-dev-gE-review.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -668,10 +786,10 @@
         "near_gold": 19
       },
       "amended_provisions": {
-        "near_gold": 19
+        "near_gold": 32
       },
       "approval_date": {
-        "near_gold": 18
+        "near_gold": 31
       },
       "attorneys_in_fact": {
         "near_gold": 10
@@ -680,25 +798,28 @@
         "near_gold": 10
       },
       "authorized_capital": {
-        "near_gold": 24
+        "near_gold": 29
       },
       "certified_matter": {
         "near_gold": 19
       },
       "certifying_officer": {
-        "near_gold": 37
+        "near_gold": 39
       },
       "effective_date": {
-        "near_gold": 425
+        "near_gold": 430
       },
       "entity_name": {
         "near_gold": 38
       },
       "exercise_price": {
-        "near_gold": 19
+        "near_gold": 20
       },
       "expiration_date": {
         "near_gold": 9
+      },
+      "filing_number": {
+        "near_gold": 34
       },
       "guarantors": {
         "near_gold": 20
@@ -707,19 +828,19 @@
         "near_gold": 21
       },
       "incorporators": {
-        "near_gold": 22
+        "near_gold": 27
       },
       "instrument_kind": {
-        "near_gold": 20
+        "near_gold": 21
       },
       "jurisdiction": {
-        "near_gold": 372
+        "near_gold": 375
       },
       "last_amended_date": {
-        "near_gold": 18
+        "near_gold": 20
       },
       "maturity_date": {
-        "near_gold": 19
+        "near_gold": 20
       },
       "officer_title": {
         "near_gold": 19
@@ -728,13 +849,13 @@
         "near_gold": 9
       },
       "principal_amount": {
-        "near_gold": 16
-      },
-      "prior_entity_name": {
         "near_gold": 19
       },
+      "prior_entity_name": {
+        "near_gold": 32
+      },
       "registered_agent": {
-        "near_gold": 23
+        "near_gold": 29
       },
       "resolutions": {
         "near_gold": 3
@@ -749,13 +870,13 @@
         "near_gold": 22
       },
       "signatories": {
-        "near_gold": 372
+        "near_gold": 376
       },
       "subsidiaries": {
-        "near_gold": 28
+        "near_gold": 32
       },
       "subsidiary_jurisdictions": {
-        "near_gold": 29
+        "near_gold": 33
       },
       "trustee": {
         "near_gold": 22
@@ -825,7 +946,7 @@
   },
   "files": {
     "contract.jsonl": "b738c361909412c713104eb07d09320a26dbd7a13798d1464cba1af02a06e145",
-    "corporate_record.jsonl": "578b4463b850dd5608547a08775a9d0a88339dcce8893ba5650d5e10871f016f",
+    "corporate_record.jsonl": "bfc32ac398ae8f1bd4640c5f1441582e6d84df455de8285b6d77c5e8d103273a",
     "correspondence.jsonl": "61a7f5ecfb87b7f8dc1ec004af2fbc5e6c628a21e1f2247f6a7b1a632707cb0d",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
@@ -885,6 +1006,11 @@
       "check-correspondence-040.jsonl",
       "check-held.jsonl",
       "check-new.jsonl",
+      "corp-gate-dev-gA-check.jsonl",
+      "corp-gate-dev-gB-check.jsonl",
+      "corp-gate-dev-gC-check.jsonl",
+      "corp-gate-dev-gD-check.jsonl",
+      "corp-gate-dev-gE-check.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
       "merger-critical001-ready16-check.jsonl",
       "merger-critical002-ready13-check.jsonl",
@@ -898,6 +1024,11 @@
       "tail-001-check.jsonl"
     ],
     "label": [
+      "corp-gate-dev-gA-label.jsonl",
+      "corp-gate-dev-gB-label.jsonl",
+      "corp-gate-dev-gC-label.jsonl",
+      "corp-gate-dev-gD-label.jsonl",
+      "corp-gate-dev-gE-label.jsonl",
       "focus-correspondence-001-ready4-label.jsonl",
       "label-contract-000.jsonl",
       "label-contract-001.jsonl",
@@ -1126,6 +1257,8 @@
     ],
     "review": [
       "contract_value_review.jsonl",
+      "corp-gate-dev-gE-review.jsonl",
+      "corp-gate-dev-review.jsonl",
       "decisions.jsonl",
       "decisions_supersede.jsonl",
       "focus-correspondence-ready4-parent-review.jsonl",
