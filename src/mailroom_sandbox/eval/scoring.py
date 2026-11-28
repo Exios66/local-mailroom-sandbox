@@ -138,7 +138,10 @@ def score_extraction_row(
     correction (``corrected_subclass_truth``), the headline scores against the corrected subclass
     (the subclass-specific field alignment and schema), names it under ``subclass_corrected`` and
     lists SHF-013; the raw side keeps the Hub ``expected_subclass``. A caller-supplied
-    ``doc_subclass`` takes precedence over both, as before.
+    ``doc_subclass`` takes precedence over both, as before. The truth fields derived from the
+    subclass (corporate ``record_type`` / ``intent``, contract ``cuad_family``, merger
+    ``merger_consideration``) follow the correction on the headline and are named under
+    ``subclass_derived_truth`` (``scoring_hotfixes.corrected_derived_truth``).
 
     ``doc_id`` with ``doc_text`` also turns on SHF-019 for correspondence: a header field whose
     truth is the reviewed ``original_header`` label and that the text does not show is left out of
@@ -172,8 +175,10 @@ def score_extraction_row(
         if "SHF-019" in on:
             fixed_expected, unseen = sh.drop_unseen_header_truth(doc_type, doc_id, fixed_expected, doc_text)
             fixed_predicted = {k: v for k, v in (fixed_predicted or {}).items() if k not in unseen}
+        derived: dict[str, list[Any]] = {}
         if corrected:
             on = on | {"SHF-013"}
+            fixed_expected, derived = sh.corrected_derived_truth(doc_type, expected_subclass, corrected, fixed_expected)
         fixed = _score_extraction_row_once(doc_type, fixed_predicted, fixed_expected, doc_text, doc_subclass,
                                            corrected or expected_subclass, field_scores=field_scores)
         if stale:
@@ -182,6 +187,8 @@ def score_extraction_row(
             fixed[sh.HEADER_UNSEEN] = unseen
         if corrected:
             fixed["subclass_corrected"] = corrected
+        if derived:
+            fixed["subclass_derived_truth"] = derived
     out = sh.merge_dual(raw_payload, fixed, on, keys=(*sh.HEADLINE_KEYS, *_FIELD_OUTCOME_KEYS))
     if field_scores:
         out["raw_dojo"]["field_scores"] = raw_payload.get("field_scores")

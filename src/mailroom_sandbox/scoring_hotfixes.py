@@ -225,9 +225,9 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
                  ("mailroom_sandbox.eval.scoring:score_subclass", "323799a47d90bc2bc648aac98bf5d218e3e13fcfced074f67efacfaa3c2100ed"),
                  # extraction scoring takes the corrected subclass for its subclass-specific fields
                  ("mailroom_sandbox.eval.scoring:score_extraction_row",
-                  "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
+                  "84867f1b6d6b17d238c32955d3103c6f9ddb29e898ee9cc6834fe716c716828a"),
                  ("mailroom_sandbox.job.gate_causes:_field_scores",
-                  "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
+                  "dc99fa8731715c99ff6cb82841047a54f6cbd5d774d0e9c37cb49996e4329669"),
                  # the reviewed truth corrections are part of what the fix scores against
                  ("file:data/labels/review/subclass_corrections.jsonl",
                   "c42b2f4939597e3408c949cc08bdd62d1ffc6b7371766fb2196c2adac0378e5b")),
@@ -248,7 +248,7 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         targets=(
             # the seam that strips intent_source, so the Dojo suite never sees a heuristic label
             ("mailroom_sandbox.eval.extraction_scope:applicable_expected_fields", "44f03a946787e5fb19ba817fd2df4c22e32afab23c268b93944f9e8d5ee4dd15"),
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "84867f1b6d6b17d238c32955d3103c6f9ddb29e898ee9cc6834fe716c716828a"),
             # the Dojo's label policy decides which Hub labels are stale, and what it calls is pinned too:
             # a function by its source, a constant by its value (a refresh or SANDBOX_DOJO_SNAPSHOT that
             # changes one of them makes the fix stale). A live monkeypatch of a function is not source
@@ -317,12 +317,12 @@ HOTFIXES: tuple[ScoringHotfix, ...] = (
         id="SHF-019",
         layer="sandbox",
         targets=(
-            ("mailroom_sandbox.eval.scoring:score_extraction_row", "9c3642fa3cd70ae14c2b6d278ffb796d67ce55ae476f4aebd3a1c83a3af72c48"),
+            ("mailroom_sandbox.eval.scoring:score_extraction_row", "84867f1b6d6b17d238c32955d3103c6f9ddb29e898ee9cc6834fe716c716828a"),
             # the gate counts toward min_labelled, and scores fixes against, only the labels the headline scores
             ("mailroom_sandbox.job.gate:labelled_count", "bc3262b9b8cd439d161bb1ebabfdaf3790d0f65815e8a7af92f5d7fd3281bd14"),
             ("mailroom_sandbox.job.gate:_fix_accuracy", "fbc36bf451f3019473f247a14dee57ebce751ca79ba6ead0fe2f032b30fe4756"),
             # the lowest-field diagnosis skips what the headline leaves out
-            ("mailroom_sandbox.job.gate_causes:_field_scores", "b5004dee8ce20de132d06870274fb10e6bbddaef388d6ab55897b02ee91b9756"),
+            ("mailroom_sandbox.job.gate_causes:_field_scores", "dc99fa8731715c99ff6cb82841047a54f6cbd5d774d0e9c37cb49996e4329669"),
             # the reviewed original_header labels are what the fix checks against the text
             ("file:data/labels/review/interim_reviews.jsonl", "dba4e107a0d43120a34d996c8734f6126826365adaaa324b45112e3ad4389c83"),
         ),
@@ -1082,6 +1082,78 @@ def subclass_corrections() -> dict[str, dict[str, Any]]:
         _CORRECTIONS_CACHE.clear()
         _CORRECTIONS_CACHE[digest] = entries
     return _CORRECTIONS_CACHE[digest]
+
+
+#: The Hub's derived corporate truth per subclass, ``{subclass: (record_type, intent)}``. On Hub v9.3
+#: every one of the 450 corporate rows carries exactly this pair for its subclass, and the production
+#: specialist prompt (``corporate_records_specialist_condensed_v1``) teaches the same mapping.
+#: ``certificate_of_formation`` has no Hub row, so it has no entry and is never re-derived.
+CORPORATE_SUBCLASS_TRUTH: dict[str, tuple[str, str]] = {
+    "articles_of_incorporation": ("articles_of_incorporation", "entity_formation"),
+    "charter_amendment": ("articles_of_incorporation", "entity_formation"),
+    "bylaws": ("bylaws", "governance_rules"),
+    "officer_certificate": ("other", "governance_rules"),
+    "board_resolution": ("other", "corporate_action_approval"),
+    "indenture": ("other", "investor_rights"),
+    "rights_instrument": ("rights_instrument", "investor_rights"),
+    "powers_of_attorney": ("powers_of_attorney", "authority_delegation"),
+    "subsidiary_list": ("other", "other"),
+    "other": ("other", "other"),
+}
+#: The merger subclasses that name the consideration (``merger_consideration`` is the subclass token).
+MERGER_CONSIDERATION_SUBCLASSES = frozenset({"all_cash", "all_stock", "mixed_cash_stock", "mixed_cash_stock_election"})
+
+
+def _token(value: Any) -> str:
+    return str(value or "").strip().casefold()
+
+
+def corrected_derived_truth(doc_class: Any, hub_subclass: Any, corrected: Any,
+                            expected: Mapping[str, Any] | None) -> tuple[dict[str, Any], dict[str, list[Any]]]:
+    """SHF-013: ``(expected, moved)`` with the subclass-derived truth following a reviewed correction.
+
+    A corrected document keeps the derived fields of its Hub subclass in the truth, so a specialist that
+    reads the document right is scored wrong on them. Each derived field moves to the corrected
+    subclass's value only while it still holds the Hub subclass's value (an overlay or review that set
+    another value is kept):
+
+    - corporate record: ``record_type`` and ``intent``, by :data:`CORPORATE_SUBCLASS_TRUTH`;
+    - contract: ``cuad_family``, the canonical subclass token;
+    - merger agreement: ``merger_consideration``, the subclass token when it names a consideration
+      (also filled when empty, as the label-repaired release does).
+
+    ``moved`` is ``{field: [hub_value, corrected_value]}``. A filled field is marked ``populated`` in
+    ``gt_presence``.
+    """
+    from mailroom_sandbox.experiment_splits import _subclass_token
+
+    out = dict(expected or {})
+    cls = str(doc_class or "")
+    hub, new = _subclass_token(cls, hub_subclass), _subclass_token(cls, corrected)
+    moved: dict[str, list[Any]] = {}
+    if not new or hub == new:
+        return out, moved
+    if cls == "corporate_record":
+        before, after = CORPORATE_SUBCLASS_TRUTH.get(hub), CORPORATE_SUBCLASS_TRUTH.get(new)
+        if before and after:
+            for field, old, value in zip(("record_type", "intent"), before, after, strict=True):
+                if old != value and _token(out.get(field)) == old:
+                    moved[field] = [out.get(field), value]
+    elif cls == "contract":
+        if "cuad_family" in out and _token(out.get("cuad_family")) == hub:
+            moved["cuad_family"] = [out.get("cuad_family"), new]
+    elif cls == "merger_agreement" and new in MERGER_CONSIDERATION_SUBCLASSES:
+        current = _token(out.get("merger_consideration"))
+        if current in ("", hub):
+            moved["merger_consideration"] = [out.get("merger_consideration"), new]
+    for field, (_, value) in moved.items():
+        out[field] = value
+    if moved and "gt_presence" in out:
+        original = out["gt_presence"]
+        pres = presence_map(out)
+        pres.update(dict.fromkeys(moved, "populated"))
+        out["gt_presence"] = json.dumps(pres, sort_keys=True) if isinstance(original, str) else pres
+    return out, moved
 
 
 def corrected_subclass(doc_id: Any, doc_class: Any, hub_subclass: Any) -> str | None:

@@ -139,7 +139,10 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
     sub = str(row.get("expected_subclass") or "").strip()
     # SHF-013: the headline scores a reviewed subclass correction, so the diagnosis does too.
     from mailroom_sandbox.eval.scoring import corrected_subclass_truth
-    sub = corrected_subclass_truth(row.get("id"), doc_class, sub) or sub if sub else sub
+    corrected = corrected_subclass_truth(row.get("id"), doc_class, sub) if sub else None
+    if corrected:  # the derived truth (record_type, intent, cuad_family, ...) follows it, as on the headline
+        expected = sh.corrected_derived_truth(doc_class, sub, corrected, expected)[0]
+        sub = corrected
     kwargs: dict[str, Any] = {"doc_subclass": sub} if sub else {}
     detailed = bool(sub or doc_class == "corporate_record")
     try:

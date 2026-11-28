@@ -324,3 +324,72 @@ def test_the_committed_file_relabels_the_bylaw_amendments_425_extends():
     # board_resolution); extraction scoring now reads them as bylaws on the headline.
     for doc_id in ("DOC-443542beadaf2839", "DOC-78f2456f571403a9"):
         assert sh.corrected_subclass(doc_id, "corporate_record", "board_resolution") == "bylaws"
+
+
+# --- the subclass-derived truth follows a correction --------------------------------------------
+
+CORP = "DOC-18f2fafa6d8fd491"  # a charter amendment the Hub labelled board_resolution (reviewed correction)
+
+
+def _corp_truth(**over):
+    truth = {"entity_name": "Acme Holdings, Inc.", "record_type": "other", "intent": "corporate_action_approval",
+             "effective_date": "2004-05-03"}
+    truth.update(over)
+    truth["gt_presence"] = json.dumps({k: "populated" for k in truth})
+    return truth
+
+
+def test_shf013_derived_corporate_truth_follows_the_reviewed_subclass():
+    truth = _corp_truth()
+    answer = {"entity_name": "Acme Holdings, Inc.", "record_type": "articles_of_incorporation",
+              "intent": "entity_formation", "effective_date": "2004-05-03"}
+    out = scoring.score_extraction_row("corporate_record", answer, truth, "CERTIFICATE OF AMENDMENT",
+                                       expected_subclass="board_resolution", doc_id=CORP)
+    assert out["subclass_corrected"] == "charter_amendment"
+    assert out["subclass_derived_truth"] == {"record_type": ["other", "articles_of_incorporation"],
+                                             "intent": ["corporate_action_approval", "entity_formation"]}
+    assert out["overall_extraction_score"] > out["raw_dojo"]["overall_extraction_score"]
+    assert "SHF-013" in out["scoring_hotfixes"]
+
+
+def test_shf013_keeps_a_derived_value_an_overlay_or_review_set():
+    fixed, moved = sh.corrected_derived_truth("corporate_record", "board_resolution", "charter_amendment",
+                                              _corp_truth(record_type="bylaws"))
+    assert "record_type" not in moved and fixed["record_type"] == "bylaws"
+    assert moved == {"intent": ["corporate_action_approval", "entity_formation"]}
+
+
+def test_shf013_moves_contract_family_and_fills_merger_consideration():
+    fixed, moved = sh.corrected_derived_truth("contract", "IP", "Consulting Agreements", {"cuad_family": "ip"})
+    assert moved == {"cuad_family": ["ip", "consulting"]} and fixed["cuad_family"] == "consulting"
+    truth = {"merger_consideration": None, "gt_presence": json.dumps({"merger_consideration": "unlabeled"})}
+    fixed, moved = sh.corrected_derived_truth("merger_agreement", "other", "mixed_cash_stock", truth)
+    assert moved == {"merger_consideration": [None, "mixed_cash_stock"]}
+    assert json.loads(fixed["gt_presence"])["merger_consideration"] == "populated"
+    # a merger subclass that names no consideration, an unchanged subclass, an unmapped one: nothing
+    assert sh.corrected_derived_truth("merger_agreement", "all_cash", "other", {"merger_consideration": "all_cash"})[1] == {}
+    assert sh.corrected_derived_truth("contract", "IP", "ip", {"cuad_family": "ip"})[1] == {}
+    assert sh.corrected_derived_truth("corporate_record", "board_resolution", "certificate_of_formation",
+                                      _corp_truth())[1] == {}
+
+
+def test_shf013_the_corporate_mapping_is_the_production_prompts_and_the_dojo_vocabulary():
+    from llm_dojo_scoring.schemas.corporate_record_schema import RECORD_TYPES
+
+    assert {rt for rt, _ in sh.CORPORATE_SUBCLASS_TRUTH.values()} <= set(RECORD_TYPES)
+    prompt = (repo_root() / "config" / "prompts" / "corporate_records_specialist_condensed_v1.txt").read_text()
+    for sub in ("bylaws", "charter_amendment", "powers_of_attorney", "rights_instrument", "indenture",
+                "board_resolution", "officer_certificate", "subsidiary_list"):
+        record_type, intent = sh.CORPORATE_SUBCLASS_TRUTH[sub]
+        assert f"{record_type}, {intent}" in prompt, sub
+
+
+def test_shf013_the_lowest_field_diagnosis_reads_the_derived_truth():
+    from mailroom_sandbox.job import gate_causes
+
+    row = {"id": CORP, "expected_doc_class": "corporate_record", "expected_subclass": "board_resolution",
+           "doc_text": "CERTIFICATE OF AMENDMENT", "expected_fields": json.dumps(_corp_truth())}
+    scores = gate_causes._field_scores(row, {"extracted_data": {
+        "entity_name": "Acme Holdings, Inc.", "record_type": "articles_of_incorporation",
+        "intent": "entity_formation", "effective_date": "2004-05-03"}})
+    assert scores.get("record_type") == 1.0
