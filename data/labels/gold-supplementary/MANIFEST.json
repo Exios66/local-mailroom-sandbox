@@ -1,5 +1,5 @@
 {
-  "added_at": "2026-11-27T01:34:05Z",
+  "added_at": "2026-11-28T00:43:03Z",
   "additions": [
     {
       "added_at": "2026-11-26T04:15:12Z",
@@ -413,6 +413,190 @@
           "merger-critical002-source-decisions-terra.jsonl"
         ]
       }
+    },
+    {
+      "added_at": "2026-11-28T00:43:00Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-01ccf3f1ee5f4163",
+        "DOC-033adce2fbdff0ec",
+        "DOC-076807b2c574e2c1",
+        "DOC-086c3904d0d42e6b",
+        "DOC-08829e0f817f1211",
+        "DOC-0c08bbb73a7c5edd",
+        "DOC-0d28ca4c116b9f53",
+        "DOC-122e8818e9a49a0a",
+        "DOC-12a7cb184e28c2da",
+        "DOC-13e8cdbab6084faf",
+        "DOC-13eee58d43f68fe5",
+        "DOC-1466ddd1ae9552c9",
+        "DOC-15b2776e13be1937",
+        "DOC-162c75caf037a032",
+        "DOC-1666d29dc34fafc3",
+        "DOC-1853b495e0848fca",
+        "DOC-1ceba97f14268c70",
+        "DOC-1e0470c03b023106",
+        "DOC-1fe073843dcc9442",
+        "DOC-20e622adc7603fc5",
+        "DOC-23586a939219ca78",
+        "DOC-24e43ba24aba5657",
+        "DOC-263580addaac6d20",
+        "DOC-278e39709bbe0bbb",
+        "DOC-2a7b14a134635c9e",
+        "DOC-2aa6196b22606d9c",
+        "DOC-2e24e3c0bb234a00",
+        "DOC-2e96c6a2e3cdd4c0",
+        "DOC-30fe9f6e442b9df3",
+        "DOC-325f25ad3bf7d458",
+        "DOC-36df577431fb1032",
+        "DOC-378afd2588c7d082",
+        "DOC-38299719f1d12a37",
+        "DOC-38756affd90a385b",
+        "DOC-3d7992cfa538714f",
+        "DOC-3fb0d51c5dc1d51d",
+        "DOC-4016068fbce13dc0",
+        "DOC-419081687d72c406",
+        "DOC-41b53ea487b84955",
+        "DOC-4375ea989ba720f5",
+        "DOC-45016e29dc5520b9",
+        "DOC-453a0f536f71e194",
+        "DOC-4c5cdd2580dab09e",
+        "DOC-4d8e8b87f161d432",
+        "DOC-5052ed547d53cfbf",
+        "DOC-5062bbc5961f2804",
+        "DOC-51092450a52e256c",
+        "DOC-51fa0b34607ac5fa",
+        "DOC-57e769acc1d012f4",
+        "DOC-58b358c93c8ef0b3",
+        "DOC-5c087a08edcb4a91",
+        "DOC-5cc2960a21fca151",
+        "DOC-64c5ecbe65f89592",
+        "DOC-66fe097617455eab",
+        "DOC-6740a73048d819f0",
+        "DOC-691191d21d96b75d",
+        "DOC-6bd2588a9356039a",
+        "DOC-71fa95b64009543f",
+        "DOC-7294152c69239b1e",
+        "DOC-732b812b7d9d9653",
+        "DOC-74e0f47369572741",
+        "DOC-75069bac8a2c4465",
+        "DOC-76f31813e8ca987f",
+        "DOC-7a7b8110d33a84be",
+        "DOC-7b446dfdb11d6870",
+        "DOC-7ffe745a67032ac5",
+        "DOC-8018aaaf98b8597e",
+        "DOC-8141c160f2a4e857",
+        "DOC-836b252b2d9ad7a7",
+        "DOC-842215e36884da89",
+        "DOC-866139125545b36a",
+        "DOC-8663fca594565055",
+        "DOC-874e9964d8a3835e",
+        "DOC-8b274b59154c5b8b",
+        "DOC-91af5bdd6f0ad4bb",
+        "DOC-9523246260be90e0",
+        "DOC-97026ccc70122f7d",
+        "DOC-9ca44c7926a47ede",
+        "DOC-9cd96711a8928ec5",
+        "DOC-9ec465120a3cbbe4",
+        "DOC-a040ac19abb88fec",
+        "DOC-a080b8e1385861cc",
+        "DOC-a2110b2cebe63cb7",
+        "DOC-a52b3ad21666d339",
+        "DOC-a8770598bcaad7a7",
+        "DOC-a8c6d8b4bf562a26",
+        "DOC-b1435805a4472f69",
+        "DOC-b1ac5af672c390d4",
+        "DOC-b3ad98e5530dfeaf",
+        "DOC-b66115ae2d9d928e",
+        "DOC-b7680bb9f72c5e65",
+        "DOC-b7be4de1447c8a24",
+        "DOC-b865a8f75657643a",
+        "DOC-ba0a00b00ba2ed62",
+        "DOC-bda69bc956881bab",
+        "DOC-c2304ee259662c25",
+        "DOC-c2901fbf09599990",
+        "DOC-c85fadd4401ec219",
+        "DOC-cb828c5701c751f3",
+        "DOC-cd6381ad5f90af53",
+        "DOC-d015968793450753",
+        "DOC-d361e5631ac2bebb",
+        "DOC-d55561f7f4815bcf",
+        "DOC-d9cdbf341271c3b3",
+        "DOC-da99f151215fd3e9",
+        "DOC-dd23f8e21e317781",
+        "DOC-e39b3b2a028df250",
+        "DOC-e48e8262f64af170",
+        "DOC-e569482a1ec86379",
+        "DOC-e5f82753988919a0",
+        "DOC-e64df71097d45ee7",
+        "DOC-ea4b0e70dc4677d1",
+        "DOC-ea4ef6685a5c2233",
+        "DOC-eddadfdce97ac02e",
+        "DOC-ee6e285fe78f71d5",
+        "DOC-eee7c0d4e99e5be4",
+        "DOC-f26440b1f19053f5",
+        "DOC-f810d1e693066b03",
+        "DOC-fe164a06767724c7",
+        "DOC-feab935f7db4b9cf"
+      ],
+      "missing_fields": true,
+      "sources": {
+        "check": [
+          "check-held.jsonl"
+        ],
+        "label": [
+          "label-held.jsonl"
+        ],
+        "review": [
+          "review-held.jsonl"
+        ]
+      }
+    },
+    {
+      "added_at": "2026-11-28T00:43:03Z",
+      "binding": {
+        "corporate_subclass_schemas_sha256": "6a65438302f572fad7cfb5d012cb3b5666bfc2613fcf45486819db7161e01b7c",
+        "dataset": "Lucius-Morningstar/mailroom-dataset",
+        "dataset_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+        "dojo_commit": "7d69bbda9d1f2bfee1e3d78b5bca0a97dcb8df1e",
+        "dojo_version": "0.30.1",
+        "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+        "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+      },
+      "builder": "scripts/gold_labels.py add",
+      "documents": [
+        "DOC-0a262afc80c73247",
+        "DOC-1e8e3ce47882ae71",
+        "DOC-3e9b00fd9e50b5ff",
+        "DOC-57df7a0753ae9f18",
+        "DOC-5b1eea04e582267d",
+        "DOC-71cf2ff8c71b30bf",
+        "DOC-b9ecdcc4fa704b67",
+        "DOC-c9fa372f38de2b5e",
+        "DOC-cc3d181a639616d7",
+        "DOC-d50133030490ea0a",
+        "DOC-fbb29b5d08243134"
+      ],
+      "sources": {
+        "check": [
+          "check-new.jsonl"
+        ],
+        "label": [
+          "label-new.jsonl"
+        ],
+        "review": [
+          "review-new.jsonl"
+        ]
+      }
     }
   ],
   "binding": {
@@ -445,7 +629,7 @@
     },
     "corporate_record": {
       "-": {
-        "notes": 458
+        "notes": 589
       }
     },
     "correspondence": {
@@ -476,7 +660,7 @@
   },
   "files": {
     "contract.jsonl": "c181edeeb132ccc35a5963112984fb97f339fa0e1c4a4350f8b1ae578c44dd46",
-    "corporate_record.jsonl": "232845aa2a22b4fcd894d29e3d601e6fc9e86e87e9742bacb4682224b0f5aa25",
+    "corporate_record.jsonl": "14f348f9344dfc48862fda87a76c0ffe037e1e09efe996ed3338e13b2047fc16",
     "correspondence.jsonl": "c310b9c59611db4c38a00f95929534815a0ea121f18dc4b2fd538bf5672daf22",
     "merger_agreement.jsonl": "56fc7812961db59a63206994b672acf7698e039f77d05adb9cdeff6d614edea6"
   },
@@ -535,6 +719,8 @@
       "check-correspondence-038.jsonl",
       "check-correspondence-039.jsonl",
       "check-correspondence-040.jsonl",
+      "check-held.jsonl",
+      "check-new.jsonl",
       "focus-correspondence-001-ready4-check.jsonl",
       "merger-critical001-ready16-check.jsonl",
       "merger-critical002-ready13-check.jsonl",
@@ -756,6 +942,8 @@
       "label-correspondence-041.jsonl",
       "label-correspondence-042.jsonl",
       "label-correspondence-043.jsonl",
+      "label-held.jsonl",
+      "label-new.jsonl",
       "merger-critical001-ready16-label.jsonl",
       "merger-critical002-ready13-label.jsonl",
       "subclass-diverse001-ready15-label.jsonl",
@@ -783,6 +971,8 @@
       "review-corr-002-003.jsonl",
       "review-corr-checks-2.jsonl",
       "review-fwd.jsonl",
+      "review-held.jsonl",
+      "review-new.jsonl",
       "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
       "review-promo-urgency.jsonl",

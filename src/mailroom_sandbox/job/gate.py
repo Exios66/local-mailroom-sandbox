@@ -82,14 +82,23 @@ def scored_fields(doc_class: str) -> frozenset[str] | None:
     Corpus annotations such as ``content_topic``, ``sentiment_label`` and ``sentiment_score`` ride
     on the rows but are not in the schema, so the Dojo never scores them. Counting them as labels
     made a correspondence row scored on ``intent`` alone look like a four-label row.
+
+    Corporate records add every subclass entity field (``trustee``, ``registered_agent``, ...):
+    the Dojo scores one wherever the row labels it, so a row with one core label and labelled
+    subclass fields is scorable, as its score is.
     """
     import mailroom_sandbox.eval.scoring  # noqa: F401 - puts the selected Dojo on the path
     from llm_dojo_scoring.schemas.doc_classes import field_names
 
     try:
-        return frozenset(field_names(doc_class))
+        names = frozenset(field_names(doc_class))
     except KeyError:
         return None
+    if doc_class == "corporate_record":
+        from llm_dojo_scoring.schemas.corporate_record_schema import all_entity_field_types
+
+        names |= frozenset(all_entity_field_types())
+    return names
 
 
 @dataclass(frozen=True)

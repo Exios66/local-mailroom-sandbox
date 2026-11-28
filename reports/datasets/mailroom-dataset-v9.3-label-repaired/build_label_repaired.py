@@ -15,8 +15,10 @@ Each source casts one vote with a weight set by how much review stands behind it
 compared field-aware (token-normalised, order-free lists, ISO dates, "State of X" == "X", party
 defined terms stripped), every empty value is one "documented absence" candidate, and the value
 with the most weight wins; a weight tie goes to the better-reviewed source. The owner's own
-decisions (``human_reviews.jsonl``) are final and are not put to a vote. A vote whose winner holds
-under half of the weight while three or more values compete is marked ``needs_human``.
+decisions (``human_reviews.jsonl``) are final and are not put to a vote. Once a reviewed or
+near-gold label votes, the Hub and the sources computed from it count for nothing. A vote whose
+winner holds under half of the weight while three or more values compete is marked
+``needs_human``, as is a reviewed absence that overrides a populated value.
 
 Run (network-free once ``sandbox datasets pull`` has cached v9.3)::
 
@@ -92,6 +94,17 @@ SOURCES: dict[str, tuple[float, int]] = {
     "gold_disputed": (0.5, 11),            # gold label a check disputed
     "interim_disputed": (0.5, 11),         # gate value that disagreed with the Hub
 }
+
+#: Labels read and checked against the document (a review, or two agreeing near-gold passes).
+#: A value one of them backs wins over any value only the Hub, Hub-derived or generated sources
+#: back (see :func:`vote`); the owner's review stays final.
+REVIEWED_SOURCES = frozenset({
+    "interim_reviewed", "subclass_review", "interim_correction", "near_gold_reviewed", "near_gold_two_pass",
+})
+
+#: The Hub and the sources computed from it. Once a reviewed label votes they count for nothing:
+#: an echo of the Hub is not independent evidence against a label read from the document.
+HUB_ECHO_SOURCES = frozenset({"hub_v9.3", "interim_derived", "generated_derived"})
 
 #: Schema fields left out of the release entirely (no column, no target cell).
 DROPPED_FIELDS = frozenset({"claim_checklist"})
@@ -294,6 +307,26 @@ def class_fields() -> dict[str, list[str]]:
     for cls in out:
         out[cls] = [f for f in out[cls] if f not in DROPPED_FIELDS]
     return out
+
+
+#: The label registry naming each subclass's salient fields (the fields the gold labelers fill).
+SUBCLASS_REGISTRY = ROOT / "config" / "extraction" / "subclass_schemas.json"
+#: Classes whose subclasses add target fields. Contract and merger "salient" entries are CUAD/MAUD
+#: clause names, already targeted through ``cuad_clauses`` / ``maud_clauses``.
+SUBCLASS_FIELD_CLASSES = ("corporate_record",)
+
+
+def subclass_fields(inputs: InputSnapshot) -> dict[str, dict[str, list[str]]]:
+    """Per class and subclass, the salient fields a document of that subclass is also targeted on.
+
+    The Hub labels none of them; the near-gold catalog does. Without a target cell a near-gold
+    subclass label never reaches the release, nor the staged overlay production scores against."""
+    reg = json.loads(inputs.read(SUBCLASS_REGISTRY).decode("utf-8"))["classes"]
+    return {
+        cls: {sub: [f for f in v.get("salient") or [] if f not in DROPPED_FIELDS]
+              for sub, v in sorted((reg.get(cls, {}).get("subclasses") or {}).items()) if v.get("salient")}
+        for cls in SUBCLASS_FIELD_CLASSES
+    }
 
 
 # --------------------------------------------------------------------------- generated labels
@@ -746,10 +779,20 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
         win_key = canon(field, owner[0]["value"])
         rule = "owner_final"
     else:
+        # A reviewed or near-gold label is truth over the Hub: once one votes, the Hub and the
+        # sources derived from it count for nothing, so they never outvote it nor tip a contest
+        # between reviewed labels. Independent evidence (a CUAD span, a verbatim rule match, a
+        # gate-accepted extraction) still counts.
+        reviewed = any(b["source"] in REVIEWED_SOURCES for b in ballots)
+
         def score(k: str) -> tuple[float, int]:
-            return (sum(SOURCES[b["source"]][0] for b in groups[k]), -min(SOURCES[b["source"]][1] for b in groups[k]))
+            counted = [b for b in groups[k] if not reviewed or b["source"] not in HUB_ECHO_SOURCES]
+            return (sum(SOURCES[b["source"]][0] for b in counted),
+                    -min(SOURCES[b["source"]][1] for b in counted) if counted else -99)
         win_key = max(groups, key=score)
-        rule = "weighted_vote"
+        rule = "reviewed_over_hub" if reviewed and len(groups) > 1 else "weighted_vote"
+    plain = max(groups, key=lambda k: (sum(SOURCES[b["source"]][0] for b in groups[k]),
+                                       -min(SOURCES[b["source"]][1] for b in groups[k])))
     win = groups[win_key]
     # A folded CUAD phrase backs the label it agrees with; that label keeps its fuller wording.
     named = [b for b in win if b["source"] != "cuad_span"] if field in SPAN_COMPAT_FIELDS else []
@@ -764,6 +807,12 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         agreement = f"{len(win)}-of-{n}"
     needs_human = rule != "owner_final" and len(groups) >= 3 and share < 0.5
+    if rule == "reviewed_over_hub":
+        # A reviewed label that only the Hub contradicts is settled. Ask a human when a reviewed
+        # absence overrides a populated value, or when independent evidence beat a reviewed label.
+        populated_lost = win_key == EMPTY and any(k != EMPTY for k in groups)
+        reviewed_lost = not any(b["source"] in REVIEWED_SOURCES for b in groups[win_key])
+        needs_human = needs_human or populated_lost or reviewed_lost
     disputed_only = all(b["source"] in ("gold_disputed", "interim_disputed") for b in win)
     presence = "documented_absence" if win_key == EMPTY else "populated"
     if disputed_only:  # a value a check disputed is not truth on its own
@@ -786,6 +835,8 @@ def vote(field: str, ballots: list[dict[str, Any]]) -> dict[str, Any]:
             for b in win for e in (b.get("evidence") or [])
         ],
         "votes": {b["source"]: b["value"] for b in ballots},
+        # Not written out: counted in the summary so a rebuild shows what the precedence moved.
+        "moved_by_precedence": rule == "reviewed_over_hub" and plain != win_key,
     }
 
 
@@ -1069,6 +1120,7 @@ def _process_document(
     meta: dict[str, dict[str, Any]],
     fields_by_class: dict[str, list[str]],
     all_fields: list[str],
+    sub_fields: dict[str, dict[str, list[str]]],
     interim: dict[str, Any],
     overlay: dict[str, Any],
     gold_cat: dict[tuple[str, str], dict[str, Any]],
@@ -1078,6 +1130,7 @@ def _process_document(
     content_groups: dict[str, list[str]],
     norm_groups: dict[str, list[str]],
     stale: Counter,
+    moved: Counter,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
     """Return (wide_row, long_rows_delta, nan_cleaned_delta)."""
     did, cls, text = row["id"], row["expected_doc_class"], row.get("doc_text") or ""
@@ -1118,7 +1171,10 @@ def _process_document(
     if sub_res["value"] != row["expected_subclass"]:
         long_rows.append({"document_id": did, "doc_class": cls, "field": "subclass", **_long(sub_res)})
 
-    targets = fields_by_class[cls]
+    # The chosen subclass (the Hub's, or a reviewed correction) adds its salient fields.
+    targets = fields_by_class[cls] + [
+        f for f in sub_fields.get(cls, {}).get(sub_res["value"], []) if f not in fields_by_class[cls]
+    ]
     n_target = n_labeled = n_conflict = n_human = 0
     for field in all_fields:
         if field not in targets:
@@ -1145,6 +1201,7 @@ def _process_document(
         n_labeled += res["presence"] in ("populated", "documented_absence")
         n_conflict += res["conflict"]
         n_human += res["needs_human"]
+        moved[cls] += res["moved_by_precedence"]
         out[field] = _cell(res["value"])
         long_rows.append({"document_id": did, "doc_class": cls, "field": field, **_long(res)})
     out["fields_targeted"] = n_target
@@ -1171,12 +1228,17 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
     interim, overlay, gold_cat, owner, subfix = _load_label_overlays(jsonl)
     keepers = duplicate_keepers(rows, meta, subfix)
 
+    sub_fields = subclass_fields(inputs)
     all_fields: list[str] = []
     for d in es.MAILROOM_DOC_TYPES:
         all_fields += [f for f in fields_by_class[d] if f not in all_fields]
+    for d in SUBCLASS_FIELD_CLASSES:
+        for subs in sub_fields[d].values():
+            all_fields += [f for f in subs if f not in all_fields]
 
     wide, long_rows = [], []
     stale = Counter()
+    moved: Counter = Counter()
     nan_cleaned = 0
     content_groups, norm_groups = _index_duplicate_groups(rows, meta)
     for row in sorted(rows, key=lambda r: r["id"]):
@@ -1185,6 +1247,7 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
             meta=meta,
             fields_by_class=fields_by_class,
             all_fields=all_fields,
+            sub_fields=sub_fields,
             interim=interim,
             overlay=overlay,
             gold_cat=gold_cat,
@@ -1194,6 +1257,7 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
             content_groups=content_groups,
             norm_groups=norm_groups,
             stale=stale,
+            moved=moved,
         )
         wide.append(out)
         long_rows.extend(delta)
@@ -1223,6 +1287,7 @@ def _build(output: Path, *, with_text: bool = False) -> dict[str, Any]:
         "nan_placeholders_dropped": nan_cleaned,
         "duplicate_rows_flagged": sum(1 for w in wide if w["duplicate_of"]),
         "stale_overlay_records_skipped": dict(stale),
+        "values_moved_by_reviewed_precedence": {k: v for k, v in sorted(moved.items()) if v},
         "chosen_source_counts": dict(chosen.most_common()),
         "source_weights": {k: {"weight": w, "tie_rank": r} for k, (w, r) in SOURCES.items()},
         "inputs_sha256": dict(sorted(inputs.hashes.items())),

@@ -32,8 +32,13 @@ stable release, launch or deploy a run, or promote machine annotations to human 
 
 Existing run locks retain their approved cut. Resume must refuse a changed config/lock;
 start a deliberately new preparation generation to use rc.10 rather than editing a frozen lock.
-The later corporate repair and notebook in sandbox #425 are outside this immutable cut,
-and rc.11 has not been staged or published.
+The later corporate repair and notebook in sandbox #425 are outside this immutable cut.
+
+**`9.3.1-rc.11` is staged and pinned, and slices do not select it yet.** It is cut from the
+label-repaired release at sandbox `0e083b71` (#453) and carries the corporate subclass fields.
+Its pinned commit `2873354a` is on the mailroom-issues branch `stage-v9.3.1-rc.11`, and a fresh
+pull verifies against the pin. As with rc.10, the production slice configs move to it together,
+once the cache PR lands on mailroom-issues main with that commit kept reachable.
 
 - **Pinned, never "latest".** `config/staged_overlays.yaml` names, for each version, the
   mailroom-issues commit and the sha256 of the cut's `MANIFEST.json`. That manifest pins every
@@ -49,6 +54,19 @@ and rc.11 has not been staged or published.
   `interim_labels` or `near_gold_labels` fails at parse.
 - **Subclass.** The overlay's `subclass` labels are not applied. Subclass repairs stay with
   SHF-013 (`data/labels/review/subclass_corrections.jsonl`).
+- **Corporate subclass fields.** A cut carries a corporate document's subclass fields (`trustee`,
+  `registered_agent`, `certifying_officer`, …) once its builder targets them, which it does since
+  2026-11-28. The Hub labels none of these fields, so near-gold labels are their only truth, and
+  `9.3.1-rc.10` carries none of them. `9.3.1-rc.11` carries 534; a run that must score subclass
+  fields needs it or a later cut.
+- **Truth precedence.** In the builder, once a reviewed or near-gold label votes, the Hub and the
+  sources computed from it (`hub_v9.3`, `interim_derived`, `generated_derived`) count for nothing.
+  The provenance records `rule: reviewed_over_hub` only where the votes disagree. Independent
+  evidence still counts: `cuad_span`, `interim_gate` and `generated_rule` (a verbatim rule
+  match). It can outvote a reviewed label, so the cell can keep a value the Hub shares, and that
+  cell is then queued in `needs_human.csv`. So is a reviewed absence over a populated value.
+  Where only the Hub and its derived sources contradict a reviewed label, the cut carries the
+  reviewed value.
 - **Provenance.**
   - The spec hash records `{version, manifest_sha256}`.
   - The run lock's dataset metadata records `staged_overlay` (version, manifest sha256,
