@@ -307,6 +307,13 @@ source only: `DOC-91af5bdd6f0ad4bb` `subsidiaries` moves from `near_gold_two_pas
 `near_gold_reviewed`, because its evidence span was corrected; its ten values are unchanged. No
 other cell changes value, presence, source or rule.
 
+A later repair settles one wording for a same-text pair
+([`rc13-authorized-capital-pair`](../../../data/labels/repair-artifacts/v93-20261128-rc13-authorized-capital-pair/README.md)).
+The `authorized_capital` of `DOC-18f682a3054d35c5` drops the article's lead-in and now reads
+"20,000,000 at 0.0001 par value", the same as `DOC-3c328f7374a079a9`; its source moves to
+`near_gold_reviewed`. The rebuild changes only that cell. The `9.3.1-rc.12` stager held back both
+cells, because documents with the same text disagreed; a later cut carries them.
+
 Merger money admission now requires a source dollar marker attached to the same exact figure
 in one quote. Foreign or ambiguous currencies remain held; symbols are never substituted.
 The scoped guard covers both submission and stored-evidence checks and preserves legacy

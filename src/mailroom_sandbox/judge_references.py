@@ -12,7 +12,9 @@
   ``references: train_pool`` (preflight refuses the draw), and a drawn document that shares a
   leak component (thread, matter or text) with a pool document is refused too.
 - **Examples**: at most two pool documents of the same class and subclass, by doc id, showing
-  only the requested fields.
+  only the requested fields. A pool row's subclass is the scorer's: the runbook assignment's Hub
+  subclass, replaced by a reviewed SHF-013 correction (``data/labels/review/subclass_corrections.jsonl``)
+  where one applies, so a corrected document is shown as an example of what it is.
 - **Earlier attempts** of this document, and the **guide definitions** for its fields.
 """
 
@@ -21,7 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Collection, Iterable, Mapping
+from typing import Any, Callable, Collection, Iterable, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 POOL_PATH = ROOT / "config" / "judge" / "reference-pool-runbook-v2.jsonl"
@@ -62,11 +64,21 @@ def _near_gold_wins(interim_label: Mapping[str, Any]) -> bool:
             and str(interim_label.get("basis") or "") not in INTERIM_BASES_OVER_NEAR_GOLD)
 
 
+def reviewed_subclass(doc_id: Any, doc_class: Any, subclass: Any) -> Any:
+    """SHF-013: the reviewed subclass that replaces a document's Hub subclass, else the Hub one."""
+    from mailroom_sandbox.scoring_hotfixes import corrected_subclass
+
+    return corrected_subclass(doc_id, doc_class, subclass) or subclass
+
+
 def build_pool(assignments: Iterable[Mapping[str, Any]], interim: Iterable[Mapping[str, Any]],
-               near_gold: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+               near_gold: Iterable[Mapping[str, Any]], *,
+               subclass_of: Callable[[Any, Any, Any], Any] = reviewed_subclass) -> list[dict[str, Any]]:
     """Pool rows ``{doc_id, doc_class, subclass, set, component, fields}``, sorted by class and doc id.
 
     ``near_gold`` holds gold-overlay records (``{doc_id, labels: {field: {value, basis, evidence}}}``).
+    ``subclass_of(doc_id, doc_class, hub_subclass)`` gives the row's subclass: by default the
+    reviewed SHF-013 correction where one applies, so examples match the subclass runs are scored on.
     """
     sets = {str(row["id"]): row for row in assignments if row.get("set") in POOL_SETS}
     fields: dict[str, dict[str, dict[str, Any]]] = {}
@@ -95,8 +107,9 @@ def build_pool(assignments: Iterable[Mapping[str, Any]], interim: Iterable[Mappi
     rows = []
     for doc_id, named in fields.items():
         assigned = sets[doc_id]
-        rows.append({"doc_id": doc_id, "doc_class": str(assigned.get("doc_class") or ""),
-                     "subclass": assigned.get("subclass"), "set": assigned["set"],
+        doc_class = str(assigned.get("doc_class") or "")
+        rows.append({"doc_id": doc_id, "doc_class": doc_class,
+                     "subclass": subclass_of(doc_id, doc_class, assigned.get("subclass")), "set": assigned["set"],
                      "component": str(assigned.get("component") or doc_id),
                      "fields": {name: named[name] for name in sorted(named)}})
     return sorted(rows, key=lambda r: (r["doc_class"], r["doc_id"]))

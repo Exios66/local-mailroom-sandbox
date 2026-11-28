@@ -1,0 +1,25 @@
+{
+ "campaign": "v93-20261128-rc13-authorized-capital-pair",
+ "annotation_base_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "command": "scripts/gold_labels.py review --corpus <pinned corpus dir> --review review.jsonl",
+ "admitted": {
+  "records": 1,
+  "verdicts": {
+   "correct": 1
+  },
+  "fields": {
+   "authorized_capital": 1
+  },
+  "values_changed": 1
+ },
+ "files": {
+  "README.md": {
+   "sha256": "8e67dfedc9709eff27e2465b00341d150dd04bffe1da577518afc659141420e9",
+   "read_by_review": false
+  },
+  "review.jsonl": {
+   "sha256": "f549be9e2b954c1c8fd2e40f3798d391fd21417b30f92312dfcd0f1d30173d50",
+   "read_by_review": true
+  }
+ }
+}

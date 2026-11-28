@@ -1251,11 +1251,11 @@
   },
   "files": {
     "contract.jsonl": "aea89ecd55a334628334ffd63369d313f2b2057cac37bf211c21555fd175d168",
-    "corporate_record.jsonl": "03fe37c37c174c6c53ee8c5313bfb91357d010127ca76012233fd78a226e2567",
+    "corporate_record.jsonl": "e395114974e627add3443a2581691d9a208f66c7cf1de6e70146409fc4d01d13",
     "correspondence.jsonl": "73ea4b0a458840293958e6e6388af2f10678755d8dc97bc91836fe53f0e93d24",
     "merger_agreement.jsonl": "2ae24fd44550593f4a5dcbfb60fc975bef2b853a1ae019f25cc5567187b77124"
   },
-  "reviewed_at": "2026-11-28T14:54:16Z",
+  "reviewed_at": "2026-11-28T16:10:19Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -1589,6 +1589,7 @@
       "rc12-p2-mf-review.jsonl",
       "rc12-p2-new-review.jsonl",
       "rc12-pr474-review-corrections.jsonl",
+      "rc13-authorized-capital-pair-correction.jsonl",
       "review-audit-1.jsonl",
       "review-contract-e21.jsonl",
       "review-contract-e40.jsonl",
