@@ -49,6 +49,14 @@ and rc.11 has not been staged or published.
   `interim_labels` or `near_gold_labels` fails at parse.
 - **Subclass.** The overlay's `subclass` labels are not applied. Subclass repairs stay with
   SHF-013 (`data/labels/review/subclass_corrections.jsonl`).
+- **Corporate subclass fields.** A cut carries a corporate document's subclass fields (`trustee`,
+  `registered_agent`, `certifying_officer`, …) once its builder targets them, which it does since
+  2026-11-28. The Hub labels none of these fields, so near-gold labels are their only truth, and
+  `9.3.1-rc.10` carries none of them. A run that must score subclass fields needs a cut staged
+  from a builder at or after that change.
+- **Truth precedence.** In the builder a reviewed or near-gold label beats the Hub and every
+  Hub-derived or rule-generated vote (`rule: reviewed_over_hub` in the provenance), so a staged
+  cut overrides a faulty Hub value wherever such a label exists.
 - **Provenance.**
   - The spec hash records `{version, manifest_sha256}`.
   - The run lock's dataset metadata records `staged_overlay` (version, manifest sha256,

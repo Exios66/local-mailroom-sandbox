@@ -1,0 +1,200 @@
+{
+ "admitted": {
+  "documented_absence": 204,
+  "documents": 131,
+  "fields": 457,
+  "independent_agreements": 409,
+  "missing_field_documents": 120,
+  "new_documents": 11,
+  "populated_scored_fields": 253,
+  "reviewed": {
+   "accept": 34,
+   "accept_check": 6,
+   "correct": 8
+  }
+ },
+ "annotation_base_revision": "4649487d70015bad394b0edac70d31b343be07a5",
+ "artifacts": [
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g01-raw-label.jsonl",
+   "role": "label",
+   "sha256": "85fe762262b5d13cacedeaa1807aa11fd18014950ae3fd65660ec75c83ebdade"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g01-raw-check.jsonl",
+   "role": "check",
+   "sha256": "43ea3b31192fe8c9fa3e8802757d9db74d8e5f9f46bbd024b805ed6b61a7269b"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g02-raw-label.jsonl",
+   "role": "label",
+   "sha256": "5c8fe2598abcbc45c86098b362f8a4c06799f998138be2eae540da0571492bec"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g02-raw-check.jsonl",
+   "role": "check",
+   "sha256": "7426f6d047593b654316f716f7080b4796d344061791a12470094dd68dfbde01"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g03-raw-label.jsonl",
+   "role": "label",
+   "sha256": "b203ea555cc9434f0c8947bb6088dca040b68d23de39899d0c1e0d72d6c865db"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g03-raw-check.jsonl",
+   "role": "check",
+   "sha256": "4383b4d3db07d1f3214f4476f75c195a09471cf22d3c1e228cec149bcd421bb5"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g04-raw-label.jsonl",
+   "role": "label",
+   "sha256": "ed0be30a4882783796e5d394d35828f6a11e54b0d85039840783d2c3397b363f"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g04-raw-check.jsonl",
+   "role": "check",
+   "sha256": "ecdc6df956481e23f9655f75b9a3b269d1c2364b1001f01b62216b751c11261d"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g05-raw-label.jsonl",
+   "role": "label",
+   "sha256": "6fa008bd24b21fc3b1c386b1ee2f514d3bf7b683b2a239756071d54e19ba3f45"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g05-raw-check.jsonl",
+   "role": "check",
+   "sha256": "4592dfba031f5ebbeec8b81c5e0ec2b533f0fd4b048f8d2445d6c5440f7363a1"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g06-raw-label.jsonl",
+   "role": "label",
+   "sha256": "7adc5775b01134e22273c5ee30211a205e893141a6cf2716e42576c53f30784b"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g06-raw-check.jsonl",
+   "role": "check",
+   "sha256": "e084b48723a3425f66deac80c3f73f02a4dab77c6038de25ef85413baeccfd97"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g07-raw-label.jsonl",
+   "role": "label",
+   "sha256": "b2a60a7d224b880a24c126134b93b73e14e28b2ba02412f749ef49cf94ec7628"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g07-raw-check.jsonl",
+   "role": "check",
+   "sha256": "4303a809ef3768ddc67b431a3fe014015228b73059c2a372663a389e487b2e46"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g08-raw-label.jsonl",
+   "role": "label",
+   "sha256": "257671d5345cdb212ffe74649b333897993f16a00f70c69a55ee3ed047600ddb"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g08-raw-check.jsonl",
+   "role": "check",
+   "sha256": "6232f338e5b73c4e1dcaac5d5029049a8083f8b6336bcdbdcb0dc1966fb1ea5f"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g09-raw-label.jsonl",
+   "role": "label",
+   "sha256": "b1855f52b122a99a8a3f3f480e411dd8594f5f7c2335d2b2e8a0bd09a9451eac"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g09-raw-check.jsonl",
+   "role": "check",
+   "sha256": "61ad63b5f805042416215602b3ca7f35bcac4bd4786d36f4afcf3ffe37205d2e"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g10-raw-label.jsonl",
+   "role": "label",
+   "sha256": "40c4e067dedd9950a62cdc17d01c1a05d41fc278d5a449404a36f7f4f35c189d"
+  },
+  {
+   "admission_input": false,
+   "path": "submissions/corp-subclass-dev-g10-raw-check.jsonl",
+   "role": "check",
+   "sha256": "8d6b9668d8afb022ca394a05ec643caa6d7f47ecbf5cb9a5aca6dfa35866f188"
+  },
+  {
+   "admission_input": false,
+   "note": "withdrawn: this label pass ran a scratch script that wrote the g05 check output, so it may have seen the check; relabeled by a fresh pass",
+   "path": "submissions/corp-subclass-dev-g05-withdrawn-label.jsonl",
+   "role": "label",
+   "sha256": "893a093fe2199666d18f730f23e652f7557528981e89f061c9a28d142bcea7f4"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-admitted-held-label.jsonl",
+   "role": "label",
+   "sha256": "a09147b6f89bc06a5cb9d4ddd452b9af71510c1220a634e52b91f29ae0273ae6"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-admitted-new-label.jsonl",
+   "role": "label",
+   "sha256": "38aa01586548ef0cea6dc32a68815b3332d096bfbddcfa46031167e826789516"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-admitted-held-check.jsonl",
+   "role": "check",
+   "sha256": "1054dbd94072709021c219092af20c5a8995d246667b627fc51cf91f362ff662"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-admitted-new-check.jsonl",
+   "role": "check",
+   "sha256": "1a17fbb817171fe181498ee4bf6c83193e8e7bffdb628b13b90dace69f6fa7a5"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-review-held.jsonl",
+   "role": "review",
+   "sha256": "6b662bac6cfedc0d636796b7cd63ddd96cf38ca3e9ff97330e3cfb489cf0134e"
+  },
+  {
+   "admission_input": true,
+   "path": "submissions/corp-subclass-dev-review-new.jsonl",
+   "role": "review",
+   "sha256": "300342cc701139976387f22df516c49888f68cd8a016ef9d071807be421ed4b4"
+  }
+ ],
+ "doc_class": "corporate_record",
+ "held": {
+  "identical_passes": [
+   "DOC-a3bfd04e2912c3c9",
+   "DOC-a926723684dcdf69",
+   "DOC-bfff7510c78d4d98",
+   "DOC-f2a8c5dab035b0ed"
+  ],
+  "subclass_corrected_away_from_hub": 20
+ },
+ "labelers": {
+  "check": "claude-sonnet",
+  "label": "claude-sonnet",
+  "review": "claude-opus"
+ },
+ "schema": "mailroom.label-repair-artifacts/v1",
+ "source_revision": "ff4ca546d4346991628c2616ae014afc15e9fe04",
+ "split": "dev"
+}
