@@ -773,6 +773,29 @@ def _record_decision_read(body: Mapping[str, Any]) -> None:
         pass
 
 
+def _priced_decision_reply(resp: Any, held: float) -> Any:
+    """A Decisions 200's body, priced once: held on the cap until ``after_call`` prices its usage.
+
+    A 200 whose body cannot be read was still answered, so it is charged at its reservation.
+    """
+    from mailroom_sandbox.job import call_guard
+
+    try:
+        data = resp.json()
+        usage = (data or {}).get("usage") or {}
+    except Exception:
+        call_guard.settle(held, billed=True)
+        call_guard.note_failed_attempt()
+        raise
+    # The reply stays on the cap until after_call prices it, on this thread, next.
+    call_guard.settle(held, billed=False, await_price=True)
+    # The single live charge for this HTTP response. HF-004 also prices ``record_usage``;
+    # ``_record_usage`` uses the unwrapped accumulator so the same response is not charged
+    # again. A payload with no usage keys still takes one ceiling slot.
+    call_guard.after_call(usage)
+    return data
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
@@ -839,22 +862,7 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
             raise
         else:
             if resp.status_code == 200:
-                try:
-                    data = resp.json()
-                    usage = (data or {}).get("usage") or {}
-                except Exception:
-                    # A 200 whose body cannot be read was still answered: charged at its reservation.
-                    call_guard.settle(held, billed=True)
-                    call_guard.note_failed_attempt()
-                    raise
-                # The reply stays on the cap until after_call prices it, on this thread, next.
-                call_guard.settle(held, billed=False, await_price=True)
-                # The single live charge for this HTTP response. HF-004 also
-                # prices ``record_usage``; ``_record_usage`` uses the unwrapped
-                # accumulator so the same response is not charged again. A
-                # payload with no usage keys still takes one ceiling slot.
-                call_guard.after_call(usage)
-                return data
+                return _priced_decision_reply(resp, held)
             # A 5xx is charged as the reservation drops; a 4xx is released.
             call_guard.settle(held, billed=resp.status_code >= 500)
             call_guard.note_failed_attempt()
