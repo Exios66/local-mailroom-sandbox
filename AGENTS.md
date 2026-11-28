@@ -144,6 +144,9 @@ spend gates; existing run specs and locks retain their provider.
   strata, seed, `require_task_gt` and locked row IDs; selection uses canonical sorting, not just
   file line order. See [dataset identity](docs/jobs.md#dataset-identity).
 - A floor replay is a labeled, persistent, simulated run inside its `--base`.
+- Label coverage and gaps: `.venv/bin/python scripts/label_eda.py summary|coverage|gaps|focus|rows|doc|catalog|interim`
+  (offline, read-only; [docs/label-eda.md](docs/label-eda.md)). Choose label work with `focus`: it ranks
+  unscorable documents and `gate`-tier gaps first and leaves fields production does not score out.
   Use a scratch base for demos. Never cite its scores/tokens/latencies as model
   evidence or remove foreign files to bypass a replay ownership refusal.
 - For PR review work, read full thread replies and current code before deciding
