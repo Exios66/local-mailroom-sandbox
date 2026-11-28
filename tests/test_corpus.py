@@ -784,3 +784,16 @@ def test_field_label_fallback_draws_contracts_without_cuad_truth(tmp_path, monke
     ids, prov = drawn(task_gt_min_field_labels=2)
     assert ids == {"k0", "k1", "k3"} and prov["task_gt_field_label_rows"] == {"eligible": 2, "drawn": 2}
     assert calls[0] == ["k1", "k2", "k3"]  # only the empty-CUAD contracts, before the draw
+
+
+def test_field_label_fallback_refuses_without_shf016(monkeypatch):
+    """Without SHF-016 a CUAD-empty contract scores on CUAD only: the draw refuses, never falls back."""
+    import pytest
+
+    import mailroom_sandbox.corpus as corpus
+    from mailroom_sandbox import scoring_hotfixes as sh
+
+    real = sh.enabled
+    monkeypatch.setattr(sh, "enabled", lambda fid: False if fid == "SHF-016" else real(fid))
+    with pytest.raises(ValueError, match="SHF-016"):
+        corpus.field_labelled_ids([_contract(1, {})], {}, object(), 2)

@@ -726,8 +726,13 @@ def field_labelled_ids(rows: list[dict[str, Any]], source_meta: dict[str, Any], 
     scores such a contract on its field labels, so a drawn one is scorable on what was counted.
     The pinned overlay makes the set deterministic; a new cut can widen it, which is a new spec.
     """
+    from mailroom_sandbox import scoring_hotfixes as sh
     from mailroom_sandbox.job.gate import labelled_count
 
+    if not sh.enabled("SHF-016"):
+        # Without SHF-016 such a contract scores on CUAD only, so it would be drawn unscorable;
+        # refuse rather than silently fall back to the strict draw under the same spec hash.
+        raise ValueError("dataset.task_gt_min_field_labels needs SHF-016 current (scripts/check_hotfixes.py)")
     candidates = [copy.deepcopy(r) for r in rows
                   if str(r.get("expected_doc_class") or "") == "contract" and not _has_task_gt(r)]
     if not candidates:

@@ -270,9 +270,9 @@ def test_labelled_count_scopes_and_drops_templated():
     assert gate.labelled_count({"expected_fields": ""}, "contract") == 0
     evidence = {"expected_fields": json.dumps({"document_name": "x", "label_evidence": "CUAD-annotated clauses: ..."})}
     # No CUAD map: SHF-016 scores the row on its field labels, so the gate counts them (the evidence
-    # column is not a label); the Dojo pin, with no fix, scores contracts on CUAD only.
+    # column is not a label). The raw count (hotfixed=False) only undoes SHF-015/019 drops.
     assert gate.labelled_count(evidence, "contract") == 1
-    assert gate.labelled_count(evidence, "contract", hotfixed=False) == 0
+    assert gate.labelled_count(evidence, "contract", hotfixed=False) == 1  # SHF-016 is not a raw/hotfixed split
 
 
 def test_labelled_corporate_subclass_fields_count_as_the_dojo_scores_them():
@@ -626,7 +626,7 @@ def test_contract_without_a_cuad_universe_counts_its_field_labels():
     row = {"expected_doc_class": "contract", "expected_fields": json.dumps(fields)}
     assert gate.cuad_unlabeled(row, "contract") is True
     assert gate.labelled_count(row, "contract") == 2  # parties, agreement_date; blank and evidence are not labels
-    assert gate.labelled_count(row, "contract", hotfixed=False) == 0  # the Dojo pin: CUAD only
+    assert gate.labelled_count(row, "contract", hotfixed=False) == 2  # labelled_raw attributes SHF-015/019 only
     labelled = {**fields, "cuad_clause_labels": cuad(gold=1)["cuad_clause_labels"]}
     with_cuad = {"expected_doc_class": "contract", "expected_fields": json.dumps(labelled)}
     assert gate.cuad_unlabeled(with_cuad, "contract") is False

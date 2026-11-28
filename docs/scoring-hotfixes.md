@@ -35,7 +35,9 @@ revert, SHF-015, SHF-019) is off, so a scorer that does not opt in gets the Dojo
 The other fixes act outside a `hotfixed()` block and are on whenever they are current: the run
 aggregation fixes (SHF-005, SHF-006, SHF-007, SHF-008, SHF-011), SHF-010 during truth preparation
 (`gold_labels.apply_near_gold`), SHF-009 in the Decisions routing contract (`decision_backends`),
-SHF-012 in subclass scoring, SHF-015's and SHF-019's label count in the gate (`job/gate.labelled_count`), and SHF-013 in the isolated sorter and
+SHF-012 in subclass scoring, SHF-015's and SHF-019's label count in the gate (`job/gate.labelled_count`),
+SHF-016's gate count, slice draw and cause diagnosis for a contract without a CUAD map
+(`job/gate.cuad_unlabeled`, `corpus.field_labelled_ids`, `job/gate_causes`), and SHF-013 in the isolated sorter and
 `sorter_reviewer` scoring (`eval/agents.py`, `eval/scoring.py`), in pipeline subclass scoring and in
 `sorter_arms`. SHF-013 always
 keeps the Hub-truth figures beside its own (`raw_dojo`, `hub_truth`), and its corrections file must
@@ -103,11 +105,14 @@ Each entry gives what the fix changes, the code paths that apply it, and how a r
     pair reports, the gate's document score, `run_extract_eval` and the isolated `extract`
     scorer — through the row seam, like SHF-001.
   - Also the gate: `gate.labelled_count` counts the row's field labels toward `min_labelled`, and
-    `gate_causes.extraction_miss` diagnoses its miss on fields (`gate.cuad_unlabeled` decides
-    both). `dataset.task_gt_min_field_labels` draws such rows on that count.
+    `gate_causes.extraction_miss` and `gate_causes.primary_cause` diagnose its miss on fields
+    (`gate.cuad_unlabeled` decides both). The gate's raw count (`labelled_raw`) keeps SHF-016, so
+    it attributes only SHF-015's and SHF-019's drops. `dataset.task_gt_min_field_labels` draws
+    such rows on that count, and the draw refuses when SHF-016 is not current.
   - What its fingerprint covers: the seam (`_score_extraction_row_once`), the Dojo readers
     that decide the row's labeled universe (`gt_categories`, `score_cuad`) and the three gate
-    functions above. SHF-015 and SHF-019 re-pin `labelled_count` with no change to their drops. A vendor refresh or
+    functions above (`cuad_unlabeled`, `labelled_count`, `extraction_miss`, `primary_cause`).
+    SHF-015 and SHF-019 re-pin `labelled_count` with no change to their drops. A vendor refresh or
     `SANDBOX_DOJO_SNAPSHOT` that changes one of them makes SHF-016 `stale` (not applied,
     preflight fails) instead of moving headlines while it reads `current`.
   - Recorded as: the row's `cuad_unlabeled` is `True` when the stand-in applied;

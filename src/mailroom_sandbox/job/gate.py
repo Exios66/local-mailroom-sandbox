@@ -190,15 +190,17 @@ def labelled_count(row: Mapping[str, Any], doc_class: str, *, hotfixed: bool = T
     values after class scoping. SHF-015: a
     stale Hub label no overlay supplied (a heuristic ``intent``) is no label, as the headline
     score does not score it (``docs/scoring-hotfixes.md``). SHF-019: neither is a correspondence
-    header label the text does not show. ``hotfixed=False`` counts as the Dojo pin does, with no
-    SHF-015 or SHF-019 drop: ``_status`` records that as ``labelled_raw`` beside it.
+    header label the text does not show. ``hotfixed=False`` counts with no SHF-015 or SHF-019 drop:
+    ``_status`` records that as ``labelled_raw`` beside it, to attribute an unscorable document to
+    those drops. SHF-016 is not part of that switch (it decides which labels exist to count, not
+    which are dropped), so a contract without a CUAD map counts its field labels either way.
     ``drop_unseen_headers=False`` applies SHF-015 only (``_status`` records the difference as
     ``labelled_header_unseen``).
     """
     from mailroom_sandbox import scoring_hotfixes as sh
 
     unit_field = _UNIT_FIELD.get(doc_class)
-    if unit_field and not (hotfixed and cuad_unlabeled(row, doc_class)):
+    if unit_field and not cuad_unlabeled(row, doc_class):
         labels = _unit_labels(_fields(row).get(unit_field))
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
     raw = _fields(row)
