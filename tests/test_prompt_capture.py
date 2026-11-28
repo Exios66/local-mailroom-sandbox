@@ -106,3 +106,40 @@ def test_floor_digest_groups_prompts_by_node(tmp_path):
     assert node[1]["in_run_store"] is True and "in_run_store" not in node[0]
     assert "U1" not in json.dumps(record) and "U2" not in json.dumps(record)
     assert _digest_module().prompt_record(tmp_path / "missing") == {"node_prompts": {}, "prompt_texts": {}}
+
+
+def test_a_forced_relock_archives_the_prompt_record(tmp_path):
+    store = RunStore(tmp_path / "run")
+    store.items_path.parent.mkdir(parents=True, exist_ok=True)
+    store.items_path.write_text("{}\n", encoding="utf-8")
+    prompt_capture.activate(store.append_prompt)
+    try:
+        prompt_capture.observe_chat({"messages": [{"role": "system", "content": "S"}]}, call_path="langchain")
+    finally:
+        prompt_capture.deactivate()
+    dest = store.archive_generation()
+    assert not store.prompts_path.exists() and (dest / "prompts.jsonl").is_file()
+    assert store.prompt_text_hashes() == set()
+
+
+def test_a_decision_handoff_stays_out_of_the_digest(tmp_path):
+    """The handoff carries extracted values, which may quote the document."""
+    run = tmp_path / "run"
+    run.mkdir()
+    rows = [
+        {"kind": "text", "sha256": "q" * 64, "role": "questions", "chars": 2, "text": "Q?"},
+        {"kind": "text", "sha256": "h" * 64, "role": "handoff", "chars": 9, "text": "QUOTED CLAUSE"},
+        {"kind": "call", "doc": "D1", "node": "sorter_reviewer", "agent": "decisions:classification",
+         "parts": [{"role": "questions", "sha256": "q" * 64, "chars": 2}, {"role": "handoff", "sha256": "h" * 64, "chars": 9}]},
+    ]
+    (run / "prompts.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    record = _digest_module().prompt_record(run)
+    assert set(record["prompt_texts"]) == {"q" * 64}
+    assert "QUOTED CLAUSE" not in json.dumps(record)
+    handoff = next(p for p in record["node_prompts"]["sorter_reviewer"] if p["role"] == "handoff")
+    assert handoff["in_run_store"] is True
+
+
+def test_the_floor_template_renders_calls_as_a_number():
+    template = (ROOT / "reports/dashboard/floor.template.html").read_text(encoding="utf-8")
+    assert "${Number(p.calls)||0} call" in template and "${p.calls}" not in template

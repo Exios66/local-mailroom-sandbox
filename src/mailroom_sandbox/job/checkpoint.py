@@ -280,6 +280,7 @@ class RunStore:
             self.cancel_ack_path,
             self.dir / "experiment_log.jsonl",
             self.dir / "served.jsonl",  # the provider-pin ledger rows of this generation's calls
+            self.prompts_path,  # left behind, the next generation would seed its text hashes from it
         ):
             if path.is_file():
                 path.rename(dest / path.name)

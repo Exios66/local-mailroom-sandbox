@@ -409,19 +409,23 @@ def _int_if_whole(x: float):
 PROMPT_TEXT_CAP = 24_000
 
 
+# Prompt parts that carry document text or values extracted from it: never copied into the digest.
+DOCUMENT_ROLES = frozenset({"user", "handoff"})
+
+
 def prompt_record(path: Path) -> dict:
     """``{"node_prompts", "prompt_texts"}`` from a run's ``prompts.jsonl`` (``job.prompt_capture``).
 
     ``node_prompts`` maps each node to the distinct texts its requests were built from: one row per
     ``(agent, role, sha256)`` with the number of calls. ``prompt_texts`` holds those texts by hash,
-    capped at ``PROMPT_TEXT_CAP``. A user message carries the document, and the digest never holds
-    document text, so only the first user message per node and agent is listed, by hash and length,
-    with its text left in the run store's prompts.jsonl. Empty when the run has no prompts.jsonl
+    capped at ``PROMPT_TEXT_CAP``. A user message carries the document and a Decisions handoff carries
+    values extracted from it, and the digest never holds document text, so only the first such text per
+    node, agent and role is listed, by hash and length, with its text left in the run store's prompts.jsonl. Empty when the run has no prompts.jsonl
     (recorded before prompt capture, or with ``job.trace_reads: false``).
     """
     texts: dict[str, dict] = {}
     counts: dict[str, dict[tuple[str, str, str], int]] = {}
-    user_kept: set[tuple[str, str]] = set()
+    user_kept: set[tuple[str, str, str]] = set()
     wanted: set[str] = set()
     for row in iter_jsonl(path / "prompts.jsonl"):
         kind = row.get("kind")
@@ -437,18 +441,18 @@ def prompt_record(path: Path) -> dict:
                 if not isinstance(part, dict) or not part.get("sha256"):
                     continue
                 role, sha = str(part.get("role") or ""), str(part["sha256"])
-                if role == "user":
-                    if (node, agent) in user_kept:
+                if role in DOCUMENT_ROLES:
+                    if (node, agent, role) in user_kept:
                         continue
-                    user_kept.add((node, agent))
+                    user_kept.add((node, agent, role))
                 bucket = counts.setdefault(node, {})
                 bucket[(agent, role, sha)] = bucket.get((agent, role, sha), 0) + 1
-                if role != "user":
+                if role not in DOCUMENT_ROLES:
                     wanted.add(sha)
     order = {"system": 0, "developer": 1, "schema": 2, "questions": 3, "handoff": 4, "user": 5}
     node_prompts = {
         node: [{"agent": a, "role": r, "sha256": h, "calls": n, "chars": (texts.get(h) or {}).get("chars"),
-                **({"in_run_store": True} if r == "user" else {})}
+                **({"in_run_store": True} if r in DOCUMENT_ROLES else {})}
                for (a, r, h), n in sorted(rows.items(), key=lambda kv: (kv[0][0], order.get(kv[0][1], 9), -kv[1]))]
         for node, rows in sorted(counts.items())
     }

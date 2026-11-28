@@ -594,8 +594,8 @@ function paintPrompts(r,sel){
  const texts=r.prompt_texts||{};
  el.innerHTML=`<div class="note2" style="margin-top:6px">prompts sent at ${esc(sel)} (${rows.length})</div>`+rows.map(p=>{
   const t=texts[p.sha256]||{};
-  const label=`${esc(p.agent)} · ${esc(p.role)} · ${esc(String(p.sha256).slice(0,8))} · ${p.calls} call${p.calls===1?"":"s"}${p.chars!=null?" · "+Number(p.chars).toLocaleString()+" chars":""}`;
-  return `<details class="prompt"><summary style="cursor:pointer;color:#9fb6cc">${label}</summary><pre style="white-space:pre-wrap;max-height:320px;overflow:auto;font-size:11px;background:#0d141c;padding:6px;border:1px solid #233142">${esc(p.in_run_store?"(the user message carries the document, so its text is not in the digest: read it in the run's prompts.jsonl)":(t.text||"(text not in digest)"))}</pre></details>`}).join("")}
+  const label=`${esc(p.agent)} · ${esc(p.role)} · ${esc(String(p.sha256).slice(0,8))} · ${Number(p.calls)||0} call${Number(p.calls)===1?"":"s"}${p.chars!=null?" · "+Number(p.chars).toLocaleString()+" chars":""}`;
+  return `<details class="prompt"><summary style="cursor:pointer;color:#9fb6cc">${label}</summary><pre style="white-space:pre-wrap;max-height:320px;overflow:auto;font-size:11px;background:#0d141c;padding:6px;border:1px solid #233142">${esc(p.in_run_store?"(this part carries the document or values extracted from it, so its text is not in the digest: read it in the run's prompts.jsonl)":(t.text||"(text not in digest)"))}</pre></details>`}).join("")}
 /** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
  const x=!na&&r.routing&&r.routing[c];

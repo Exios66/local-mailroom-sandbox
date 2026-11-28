@@ -156,8 +156,8 @@ def _without_sdk_retries(client: Any) -> Any:
 
 
 class _AttemptGuardedCompletions:
-    def __init__(self, client: Any, guarded: bool):
-        self._client, self._guarded = client, guarded
+    def __init__(self, client: Any, guarded: bool, on_admit: Callable[[], None] | None = None):
+        self._client, self._guarded, self._on_admit = client, guarded, on_admit
 
     def create(self, **request: Any) -> Any:
         from mailroom_sandbox.job import call_guard
@@ -168,6 +168,9 @@ class _AttemptGuardedCompletions:
         held = (_guard_call(*call_guard.request_tokens(request.get("messages"), _output_cap(request)),
                             model=request.get("model"))
                 if self._guarded else 0.0)
+        if self._on_admit is not None:  # once per call, after the guard: a refused call sent no prompt
+            on_admit, self._on_admit = self._on_admit, None
+            on_admit()
         sender = _without_sdk_retries(self._client)
         try:
             response = sender.chat.completions.create(**request)
@@ -212,9 +215,9 @@ class _AttemptGuardedClient:
     """The client the vendored retry loop sees (L1): one guarded, deadline-capped HTTP attempt per
     ``chat.completions.create``, with the SDK's own retries off. Every other attribute passes through."""
 
-    def __init__(self, client: Any, guarded: bool):
+    def __init__(self, client: Any, guarded: bool, on_admit: Callable[[], None] | None = None):
         self._client = client
-        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded))
+        self.chat = types.SimpleNamespace(completions=_AttemptGuardedCompletions(client, guarded, on_admit))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
@@ -503,9 +506,11 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
         pins = _ACTIVE  # one snapshot per call: a re-activation mid-call cannot change the pin it is checked against
         if openrouter:
             kwargs = pinned_kwargs(model, kwargs, pins)
-        _capture_prompt(kwargs, "retry_chat_completion")
+        sent = dict(kwargs)
         # L1 (phase 2): the vendored loop is the one retry layer; each HTTP attempt it sends is guarded.
-        response = original(_AttemptGuardedClient(client, guarded=openrouter), **kwargs)
+        response = original(_AttemptGuardedClient(client, guarded=openrouter,
+                                                  on_admit=lambda: _capture_prompt(sent, "retry_chat_completion")),
+                            **kwargs)
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)
