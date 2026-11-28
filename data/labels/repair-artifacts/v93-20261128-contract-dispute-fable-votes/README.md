@@ -17,6 +17,10 @@ are machine reviews. They are near-gold truth, not human gold.
   [`disputes.jsonl`](disputes.jsonl) holds the same disputes without the text.
 - **Instructions:** the [brief](brief.md) points to the labeling guide's ground rules, value gate,
   review decisions and contract field definitions. It asks for a decision on every dispute.
+  - The brief is kept as sent. It has one misstatement: it says every `party_roles` item needs its
+    role word in a quote. The guide and the gate exempt `other`, which has no word of its own.
+  - The votes still used `other` freely: 12 accepts keep it, and 5 corrections name it.
+  - The two reviewer fallbacks to `other` below were admitted under the gate's real rule.
 
 ## Votes
 
