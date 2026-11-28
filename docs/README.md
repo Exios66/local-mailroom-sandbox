@@ -47,7 +47,7 @@ Generated pages are never edited by hand: [`cli-reference.md`](cli-reference.md)
 | --- | --- |
 | [Named datasets](datasets/named-datasets.md) | Registry schema, paths, subset hashes, lock migration |
 | [Datasets](datasets/README.md) and [dataset card](datasets/mailroom-dataset.card.md) | The mailroom-dataset corpus |
-| [Staged label overlay](staged-label-overlay.md) | Production label overlay (rc.11 for slices, with the corporate subclass fields) |
+| [Staged label overlay](staged-label-overlay.md) | Production label overlay (rc.12 for slices, with the rc.12 contract and corporate label rounds) |
 | [Near-gold label playbook](gold-labels/NEAR_GOLD_PLAYBOOK.md) | **Start here for label work**: how near-gold labels are verified and advanced, quick commands and how to pick the next targets |
 | [Labeling guide](gold-labels/LABELING_GUIDE.md) | How gold labels are written |
 | [Pass brief template](gold-labels/PASS_BRIEF_TEMPLATE.md) | The brief handed to each independent label and check pass |
