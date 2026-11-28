@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **Preflight refuses a paid run that would leave no span mirror.** `sandbox run start` mirrors every span to `data/traces/<run_id>.spans.jsonl.gz`, and `sandbox run gate` fails its audit without that file. The mirror needs the OpenTelemetry SDK, which is in the `[observability]` extra and not in `[dev]`, and `otel.configure_tracing` only warned when it was missing. So a run built from the documented dev install spent its budget and could not be gated. Preflight now fails `trace_sink` for a non-mock endpoint run without the SDK, offline too, and `sandbox doctor` reports it as `span-mirror`. The production runbook gains the operator's pre-launch steps (install, key, label cut, doctor, prices, a fresh run id, `SANDBOX_SERVED_LOG`), what to do when a run stops, and corrected counts. Review: `docs/audits/2026-11-28-openrouter-production-launch-review.md`.
 - **Label EDA command line.** `scripts/label_eda.py`, backed by `src/mailroom_sandbox/label_eda.py`, inspects the merged label truth offline. It has nine commands:
   - `summary`: coverage by class and tier, and which source won the labelled cells;
   - `coverage`: completeness grouped by class, subclass, field, split, tier or source;

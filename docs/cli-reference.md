@@ -2068,7 +2068,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `-v, --verbose` | No | More console log detail: -v adds routine INFO (per-call pipeline events), -vv adds DEBUG |
 | `-q, --quiet` | No | Console shows only warnings, errors and the final result |
-| `--service` | No | limit to one service (repeatable): modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose, circleci Choices: modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose, circleci. |
+| `--service` | No | limit to one service (repeatable): modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose, circleci, span-mirror Choices: modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose, circleci, span-mirror. |
 | `--live` | No | also probe endpoints over the network (can wake a billed Modal GPU) |
 | `--publish` | No | write the result for `sandbox board` (mailroom.services/v1) |
 | `--json` | No |  |

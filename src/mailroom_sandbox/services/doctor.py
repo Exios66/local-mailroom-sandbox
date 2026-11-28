@@ -23,7 +23,7 @@ from mailroom_sandbox.services._redact import redact_urls
 
 SERVICES = (
     "modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
-    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose", "circleci",
+    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose", "circleci", "span-mirror",
 )
 _MARK = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "skipped": "skip"}
 
@@ -224,6 +224,18 @@ def _compose(*, live: bool, docker_present: bool) -> ServiceStatus:
     return ServiceStatus("compose", "warn", "no compose service running", "sandbox up")
 
 
+def _span_mirror() -> ServiceStatus:
+    """The OpenTelemetry SDK that writes a run's local span mirror (the gate audit reads it)."""
+    from mailroom_sandbox.job import preflight
+
+    missing = preflight.span_mirror_missing()
+    if missing:
+        return ServiceStatus("span-mirror", "warn", f"{', '.join(missing)} not installed: a real run writes no "
+                             "data/traces/<run_id>.spans.jsonl.gz, so preflight refuses it",
+                             "pip install -e '.[observability]'")
+    return ServiceStatus("span-mirror", "ok", "OpenTelemetry SDK installed", readiness="installed")
+
+
 def _circleci(*, live: bool) -> ServiceStatus:
     if not os.environ.get("CIRCLE_TOKEN"):
         return ServiceStatus("circleci", "warn", "CIRCLE_TOKEN not set", "set CIRCLE_TOKEN for CircleCI logs")
@@ -261,6 +273,7 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
         "tunnel": lambda: _tunnel(profile, live=live),
         "compose": lambda: _compose(live=live, docker_present=docker_present),
         "circleci": lambda: _circleci(live=live),
+        "span-mirror": _span_mirror,
     }
     wanted = [name for name in SERVICES if not services or name in services]
     rows = []
