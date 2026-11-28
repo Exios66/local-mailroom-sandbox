@@ -586,7 +586,10 @@ def activate(
 
         apply_provider_pins()
     except Exception as exc:  # noqa: BLE001 — never block activation
-        _log.warning("provider pins not applied — OpenRouter may route freely: %s", exc)
+        # A run with job.api_cost_cap_usd is refused later (job.runner.verify_spend_guard): the
+        # per-call spend guard rides on these wrappers.
+        _log.warning("provider pins not applied — OpenRouter may route freely and the per-call spend "
+                     "guard is off: %s", exc)
 
     # SAND-038: the vendored LangChain agents default api_key to
     # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),

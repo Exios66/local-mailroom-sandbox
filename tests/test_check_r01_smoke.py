@@ -152,6 +152,20 @@ def test_ledgers_and_configs_pool(gate, tmp_path, capsys):
     assert sum(1 for line in out.out.splitlines() if line.startswith("PASS ") and not line.startswith("PASS run ")) == 2
 
 
+def test_a_call_in_both_ledgers_is_counted_once(gate, tmp_path, capsys):
+    """pr-domain-reviewer: every call is written to the run store's served.jsonl and SANDBOX_SERVED_LOG
+    with one call_id; pooling both counted it twice, so half the expected calls passed the row floor."""
+    rows = [{**r, "call_id": f"c{i}"} for i, r in enumerate(_pipeline_rows()[:10])]
+    store = _ledger(tmp_path, rows, "served.jsonl")
+    env = _ledger(tmp_path, rows, "env.jsonl")
+    code, out = _run(gate, capsys, "--ledger", store, "--ledger", env, "--config", QWEN)
+    assert code == 1 and "10 rows < 20 expected" in out.out
+    whole = [{**r, "call_id": f"c{i}"} for i, r in enumerate(_pipeline_rows())]
+    code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, whole, "a.jsonl"),
+                     "--ledger", _ledger(tmp_path, whole, "b.jsonl"), "--config", QWEN)
+    assert code == 0, out.out
+
+
 def test_per_doc_override_and_unreadable_input(gate, tmp_path, capsys):
     rows = _pipeline_rows(extra=10)
     code, out = _run(gate, capsys, "--ledger", _ledger(tmp_path, rows), "--config", QWEN, "--per-doc", "4")

@@ -1622,7 +1622,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--check` | No | write nothing; exit 1 when any output is stale |
 | `--runs-dir` | No | read run stores here (default: data/runtime/runs) |
 | `--experiment-log` | No | default: reports/experiment_log.jsonl |
-| `--served-log` | No | served-provider ledger (repeatable; default: data/runtime/<key>/served-*.jsonl and SANDBOX_SERVED_LOG) |
+| `--served-log` | No | served-provider ledger (repeatable; default: each run store's served.jsonl, data/runtime/<key>/served-*.jsonl and SANDBOX_SERVED_LOG; a call_id counts once) |
 | `--max-copy-bytes` | No | copy logs/traces up to this size; larger ones are referenced by sha256 |
 | `--json` | No |  |
 

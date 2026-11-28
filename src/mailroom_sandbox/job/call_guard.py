@@ -44,6 +44,15 @@ TOKENS_PER_CHAR = 0.25
 #: Output tokens reserved for a request that sets no output cap of its own.
 DEFAULT_COMPLETION_RESERVE_TOKENS = 4096
 
+
+
+class GuardStop(RuntimeError):
+    """A document the guard stopped (the run's API cap or the document's call ceiling).
+
+    Running it again would be refused again or spend another ceiling of calls, so it is never retried.
+    """
+
+
 _LOCK = threading.Lock()
 _STATE: dict[str, Any] = {"budget": None, "ceiling": None}
 _DOC: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("sandbox_call_guard_doc", default=None)
