@@ -331,3 +331,32 @@ def test_a_decisions_transport_failure_counts_toward_the_document(monkeypatch, t
         with pytest.raises(httpx.ConnectError):
             db._post_decision({}, timeout=120, attempts=2)
     assert doc["llm_calls"] == 2
+
+
+def test_a_decisions_200_is_priced_with_nothing_left_awaiting_a_price(monkeypatch, transport, armed_budget):
+    from mailroom_sandbox.job import call_guard
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(
+        200, json={"usage": {"prompt_tokens": 10, "completion_tokens": 1}}))
+    with call_guard.document():
+        db._post_decision({"model": "m", "messages": [{"content": "x" * 4000}]}, timeout=120, attempts=1)
+        assert armed_budget.settling_usd == 0.0 and armed_budget.reserved_usd == 0.0
+    assert armed_budget.live_total_usd() == pytest.approx(armed_budget.estimate_call_usd(10, 1))
+
+
+@pytest.mark.parametrize("response", [httpx.Response(200, text="not json"), httpx.Response(200, json=["a list"])],
+                         ids=["not-json", "not-an-object"])
+def test_a_decisions_200_whose_body_cannot_be_read_is_charged_not_held(monkeypatch, transport, armed_budget,
+                                                                       response):
+    """The reply came back, so it may have been billed, but there is no usage to price it from: it is
+    charged at its reservation in the step that drops it, and nothing waits for a price."""
+    from mailroom_sandbox.job import call_guard
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: response)
+    with call_guard.document() as doc:
+        with pytest.raises(Exception):
+            db._post_decision({"model": "m", "messages": [{"content": "x" * 4000}]}, timeout=120, attempts=1)
+        assert armed_budget.settling_usd == 0.0 and armed_budget.reserved_usd == 0.0
+    # Charged, but counted as on main: the error propagates and no call count changes, so the governor
+    # and the ceiling see the same document whether or not a budget is armed.
+    assert armed_budget.unreported_usd > 0 and doc["llm_calls"] == 0 and doc["calls"] == 0
